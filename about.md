@@ -10,4 +10,4 @@ You can find the source code for the Jekyll new theme at: [github.com/jglovier/j
 
 You can find the source code for Jekyll at [github.com/jekyll/jekyll](https://github.com/jekyll/jekyll) -->
 
-The author of this site is Selva Prabhakaran. Write to him at selva86@gmail.com.
+The author of this site is Selva Prabhakaran. Feel free to write to him at selva86@gmail.com.
