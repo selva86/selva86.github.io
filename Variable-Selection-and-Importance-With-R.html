@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Feature Selection &middot; r-statistics.co</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link href="www/bootstrap.min.css" rel="stylesheet">
+    <link href="www/highlight.css" rel="stylesheet">
+
+    <link href='http://fonts.googleapis.com/css?family=Inconsolata:400,700'
+      rel='stylesheet' type='text/css'>
+  </head>
+
+  <body>
+
+    <div class="container">
+
+      <div class="masthead">
+        <ul class="nav nav-pills pull-right">
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+              Table of contents<b class="caret"></b>
+            </a>
+            <ul class="dropdown-menu pull-right" role="menu">
+              <li><a href="Introduction.html">Introduction</a></li>
+<li class="dropdown-header">Foundations</li>
+<li><a href="Linear-Regression.html">Linear Regression</a></li>
+<li><a href="Statistical-Tests.html">Statistical Tests</a></li>
+<li><a href="Variable-Selection-and-Importance-With-R.html">Feature Selection</a></li>
+<li><a href="Style.html">Style</a></li>
+<li><a href="Functions.html">Functions</a></li>
+<li><a href="OO-essentials.html">OO field guide</a></li>
+<li><a href="Environments.html">Environments</a></li>
+<li><a href="Exceptions-Debugging.html">Exceptions and debugging</a></li>
+
+<li class="dropdown-header">Functional programming</li>
+<li><a href="Functional-programming.html">Functional programming</a></li>
+<li><a href="Functionals.html">Functionals</a></li>
+<li><a href="Function-operators.html">Function operators</a></li>
+
+<li class="dropdown-header">Metaprogramming</li>
+<li><a href="Computing-on-the-language.html">Non-standard evaluation</a></li>
+<li><a href="Expressions.html">Expressions</a></li>
+<li><a href="dsl.html">Domain specific languages</a></li>
+
+<li class="dropdown-header">Performant code</li>
+<li><a href="Performance.html">Performance</a></li>
+<li><a href="Profiling.html">Profiling</a></li>
+<li><a href="memory.html">Memory</a></li>
+<li><a href="Rcpp.html">Rcpp</a></li>
+<li><a href="C-interface.html">R's C interface</a></li>
+            </ul>
+          </li>
+        </ul>
+
+        <h3 class="muted"><a href="/">r-statistics.co</a> <small>by Selva Prabhakaran</small></h3>
+        <hr>
+      </div>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+        <div class="well">
+          <li>
+            <ul class="list-unstyled">
+              <li><a href="Introduction.html">Introduction</a></li>
+<li class="dropdown-header">Foundations</li>
+<li><a href="Linear-Regression.html">Linear Regression</a></li>
+<li><a href="Statistical-Tests.html">Statistical Tests</a></li>
+<li><a href="Variable-Selection-and-Importance-With-R.html">Feature Selection</a></li>
+<li><a href="Style.html">Style</a></li>
+<li><a href="Functions.html">Functions</a></li>
+<li><a href="OO-essentials.html">OO field guide</a></li>
+<li><a href="Environments.html">Environments</a></li>
+<li><a href="Exceptions-Debugging.html">Exceptions and debugging</a></li>
+
+<li class="dropdown-header">Functional programming</li>
+<li><a href="Functional-programming.html">Functional programming</a></li>
+<li><a href="Functionals.html">Functionals</a></li>
+<li><a href="Function-operators.html">Function operators</a></li>
+
+<li class="dropdown-header">Metaprogramming</li>
+<li><a href="Computing-on-the-language.html">Non-standard evaluation</a></li>
+<li><a href="Expressions.html">Expressions</a></li>
+<li><a href="dsl.html">Domain specific languages</a></li>
+
+<li class="dropdown-header">Performant code</li>
+<li><a href="Performance.html">Performance</a></li>
+<li><a href="Profiling.html">Profiling</a></li>
+<li><a href="memory.html">Memory</a></li>
+<li><a href="Rcpp.html">Rcpp</a></li>
+<li><a href="C-interface.html">R's C interface</a></li>
+            </ul>
+          </li>
+        </div>
+
+        <div class="well">
+          Want to get involved? <a href="">Let me know!</a>.
+        </div>
+
+        <h4>Contents</h4>
+          <ul class="list-unstyled" id="toc"></ul>
+
+          <hr>
+          <p><a href="/contribute.html">How to contribute</a></p>
+
+          <p><a class="btn btn-primary" href="">Edit this page</a></p>
+        </div>
+
+        <div id="content" class="col-xs-12 col-sm-8 pull-right">
+
+          <blockquote>
+<p>Finding the most important predictor variables (of features) that explains major part of variance of the response variable is key to identify and build high performing models.</p>
+</blockquote>
+<h2>Data Preparation</h2>
+<p>For illustrating the various methods, we will use the ‘Ozone’ data from ‘mlbench’ package, except for Information value method which is applicable for binary categorical response variables.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(mlbench)
+<span class="kw">data</span>(Ozone, <span class="dt">package=</span><span class="st">&quot;mlbench&quot;</span>)
+inputData &lt;-<span class="st"> </span>Ozone
+<span class="kw">names</span>(inputData) &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;Month&quot;</span>, <span class="st">&quot;Day_of_month&quot;</span>, <span class="st">&quot;Day_of_week&quot;</span>, <span class="st">&quot;ozone_reading&quot;</span>, <span class="st">&quot;pressure_height&quot;</span>, <span class="st">&quot;Wind_speed&quot;</span>, <span class="st">&quot;Humidity&quot;</span>, <span class="st">&quot;Temperature_Sandburg&quot;</span>, <span class="st">&quot;Temperature_ElMonte&quot;</span>, <span class="st">&quot;Inversion_base_height&quot;</span>, <span class="st">&quot;Pressure_gradient&quot;</span>, <span class="st">&quot;Inversion_temperature&quot;</span>, <span class="st">&quot;Visibility&quot;</span>)  <span class="co"># assign names</span></code></pre></div>
+<h4>Impute missing values using k-Nearest Neighbours</h4>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(DMwR)
+inputData &lt;-<span class="st"> </span><span class="kw">knnImputation</span>(inputData)</code></pre></div>
+<h4>Segregate continuous and categorical variables</h4>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">inputData_cont &lt;-<span class="st"> </span>inputData[, <span class="kw">c</span>(<span class="st">&quot;pressure_height&quot;</span>, <span class="st">&quot;Wind_speed&quot;</span>, <span class="st">&quot;Humidity&quot;</span>, <span class="st">&quot;Temperature_Sandburg&quot;</span>, <span class="st">&quot;Temperature_ElMonte&quot;</span>, <span class="st">&quot;Inversion_base_height&quot;</span>, <span class="st">&quot;Pressure_gradient&quot;</span>, <span class="st">&quot;Inversion_temperature&quot;</span>, <span class="st">&quot;Visibility&quot;</span>)] <span class="co"># all continuous vars in inputData_cont</span>
+inputData_cat &lt;-<span class="st"> </span>inputData[, <span class="kw">c</span>(<span class="st">&quot;Month&quot;</span>, <span class="st">&quot;Day_of_month&quot;</span>, <span class="st">&quot;Day_of_week&quot;</span>)]  <span class="co"># all categorical variables in inputData_cat</span>
+inputData_response &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">ozone_reading=</span>inputData[, <span class="st">&quot;ozone_reading&quot;</span>])  <span class="co"># response variable as a dataframe</span>
+response_name &lt;-<span class="st"> &quot;ozone_reading&quot;</span>  <span class="co"># name of response variable</span>
+response &lt;-<span class="st"> </span>inputData[, response_name]  <span class="co"># response variable as a vector</span></code></pre></div>
+<h2>1. Random Forest Method</h2>
+<p>Random forest can be very effective to find a set of predictors that best explains the variance in the response variable.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(party)
+cf1 &lt;-<span class="st"> </span><span class="kw">cforest</span>(ozone_reading ~<span class="st"> </span>. , <span class="dt">data=</span> inputData, <span class="dt">control=</span><span class="kw">cforest_unbiased</span>(<span class="dt">mtry=</span><span class="dv">2</span>,<span class="dt">ntree=</span><span class="dv">50</span>)) <span class="co"># fit the random forest</span>
+<span class="kw">varimp</span>(cf1) <span class="co"># get variable importance, based on mean decrease in accuracy</span>
+<span class="co">#&gt;                 Month          Day_of_month           Day_of_week </span>
+<span class="co">#&gt;            2.90597524            0.01179987            0.01179877 </span>
+<span class="co">#&gt;       pressure_height            Wind_speed              Humidity </span>
+<span class="co">#&gt;            5.78331834           -0.10249152            3.51060734 </span>
+<span class="co">#&gt;  Temperature_Sandburg   Temperature_ElMonte Inversion_base_height </span>
+<span class="co">#&gt;           11.21805994           14.90382604            5.04540330 </span>
+<span class="co">#&gt;     Pressure_gradient Inversion_temperature            Visibility </span>
+<span class="co">#&gt;            3.43909265            7.18689676            1.69221391</span>
+<span class="kw">varimp</span>(cf1, <span class="dt">conditional=</span><span class="ot">TRUE</span>)  <span class="co"># conditional=True, adjusts for correlations between predictors</span>
+<span class="co">#&gt;                 Month          Day_of_month           Day_of_week </span>
+<span class="co">#&gt;          0.8488242409         -0.0227841559         -0.0216731335 </span>
+<span class="co">#&gt;       pressure_height            Wind_speed              Humidity </span>
+<span class="co">#&gt;          0.3976084914         -0.0002249697          0.5277508482 </span>
+<span class="co">#&gt;  Temperature_Sandburg   Temperature_ElMonte Inversion_base_height </span>
+<span class="co">#&gt;          0.6935846347          2.5104713200          0.5465339098 </span>
+<span class="co">#&gt;     Pressure_gradient Inversion_temperature            Visibility </span>
+<span class="co">#&gt;          0.5494301036          0.7049491361          0.2205844138</span>
+<span class="kw">varimpAUC</span>(cf1)  <span class="co"># more robust towards class imbalance.</span>
+<span class="co">#&gt;                 Month          Day_of_month           Day_of_week </span>
+<span class="co">#&gt;           3.704727481          -0.152666316          -0.212592496 </span>
+<span class="co">#&gt;       pressure_height            Wind_speed              Humidity </span>
+<span class="co">#&gt;           5.583147206           0.002819851           3.239619245 </span>
+<span class="co">#&gt;  Temperature_Sandburg   Temperature_ElMonte Inversion_base_height </span>
+<span class="co">#&gt;          10.982076673          16.371193508           4.740566537 </span>
+<span class="co">#&gt;     Pressure_gradient Inversion_temperature            Visibility </span>
+<span class="co">#&gt;           3.492590305           6.982280230           1.355550863</span></code></pre></div>
+<h2>2. Relative Importance</h2>
+<p>Using calc.relimp {relaimpo}, the relative importance of variables fed into a lm model can be determined as a relative percentage.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(relaimpo)
+lmMod &lt;-<span class="st"> </span><span class="kw">lm</span>(ozone_reading ~<span class="st"> </span>. , <span class="dt">data =</span> inputData)  <span class="co"># fit lm() model</span>
+relImportance &lt;-<span class="st"> </span><span class="kw">calc.relimp</span>(lmMod, <span class="dt">type =</span> <span class="st">&quot;lmg&quot;</span>, <span class="dt">rela =</span> <span class="ot">TRUE</span>)  <span class="co"># calculate relative importance scaled to 100</span>
+<span class="kw">sort</span>(relImportance$lmg, <span class="dt">decreasing=</span><span class="ot">TRUE</span>)  <span class="co"># relative importance</span>
+<span class="co">#&gt;   Temperature_ElMonte  Temperature_Sandburg                 Month </span>
+<span class="co">#&gt;           0.184722438           0.164540381           0.163371978 </span>
+<span class="co">#&gt; Inversion_temperature       pressure_height Inversion_base_height </span>
+<span class="co">#&gt;           0.137890248           0.087594494           0.083696664 </span>
+<span class="co">#&gt;              Humidity            Visibility          Day_of_month </span>
+<span class="co">#&gt;           0.068573808           0.039202230           0.031248599 </span>
+<span class="co">#&gt;     Pressure_gradient           Day_of_week            Wind_speed </span>
+<span class="co">#&gt;           0.026557629           0.008371262           0.004230269</span></code></pre></div>
+<h2>4. MARS</h2>
+<p>The earth package implements variable importance based on Generalized cross validation (GCV), number of subset models the variable occurs (nsubsets) and residual sum of squares (RSS).</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(earth)
+marsModel &lt;-<span class="st"> </span><span class="kw">earth</span>(ozone_reading ~<span class="st"> </span>., <span class="dt">data=</span>inputData) <span class="co"># build model</span>
+ev &lt;-<span class="st"> </span><span class="kw">evimp</span> (marsModel) <span class="co"># estimate variable importance</span>
+## plot (ev)</code></pre></div>
+<p><img src='screenshots/variable-importance-mars.png' width=528 height=349 /></p>
+<h2>5. Step-wise Regression</h2>
+<p>If you have large number of predictors (&gt; 15), split the inputData in chunks of 10 predictors with each chunk holding the responseVar.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">base.mod &lt;-<span class="st"> </span><span class="kw">lm</span>(ozone_reading ~<span class="st"> </span><span class="dv">1</span> , <span class="dt">data=</span> inputData)  <span class="co"># base intercept only model</span>
+all.mod &lt;-<span class="st"> </span><span class="kw">lm</span>(ozone_reading ~<span class="st"> </span>. , <span class="dt">data=</span> inputData) <span class="co"># full model with all predictors</span>
+stepMod &lt;-<span class="st"> </span><span class="kw">step</span>(base.mod, <span class="dt">scope =</span> <span class="kw">list</span>(<span class="dt">lower =</span> base.mod, <span class="dt">upper =</span> all.mod), <span class="dt">direction =</span> <span class="st">&quot;both&quot;</span>, <span class="dt">trace =</span> <span class="dv">0</span>, <span class="dt">steps =</span> <span class="dv">1000</span>)  <span class="co"># perform step-wise algorithm</span>
+shortlistedVars &lt;-<span class="st"> </span><span class="kw">names</span>(<span class="kw">unlist</span>(stepMod[[<span class="dv">1</span>]])) <span class="co"># get the shortlisted variable.</span>
+shortlistedVars &lt;-<span class="st"> </span>shortlistedVars[!shortlistedVars %in%<span class="st"> &quot;(Intercept)&quot;</span>]  <span class="co"># remove intercept </span>
+<span class="kw">print</span>(shortlistedVars)
+<span class="co">#&gt;  [1] &quot;Temperature_Sandburg&quot; &quot;Month2&quot;               &quot;Month3&quot;              </span>
+<span class="co">#&gt;  [4] &quot;Month4&quot;               &quot;Month5&quot;               &quot;Month6&quot;              </span>
+<span class="co">#&gt;  [7] &quot;Month7&quot;               &quot;Month8&quot;               &quot;Month9&quot;              </span>
+<span class="co">#&gt; [10] &quot;Month10&quot;              &quot;Month11&quot;              &quot;Month12&quot;             </span>
+<span class="co">#&gt; [13] &quot;Temperature_ElMonte&quot;  &quot;Humidity&quot;             &quot;Pressure_gradient&quot;   </span>
+<span class="co">#&gt; [16] &quot;Visibility&quot;           &quot;Wind_speed&quot;           &quot;pressure_height&quot;</span></code></pre></div>
+<p>The output could includes levels within categorical variables, since ‘stepwise’ is a linear regression based technique, as seen above.</p>
+<p>If you have a large number of predictor variables (100+), the above code may need to be placed in a loop that will run stepwise on sequential chunks of predictors. The shortlisted variables can be accumulated for further analysis towards the end of each iteration. This can be very effective method, if you want to (i) be highly selective about discarding valuable predictor variables. (ii) build multiple models on the response variable.</p>
+<h2>6. Boruta</h2>
+<p>The ‘Boruta’ method can be used to decide if a variable is important or not.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(Boruta)
+<span class="co"># Decide if a variable is important or not using Boruta</span>
+boruta_output &lt;-<span class="st"> </span><span class="kw">Boruta</span>(response ~<span class="st"> </span>., <span class="dt">data=</span><span class="kw">na.omit</span>(inputData), <span class="dt">doTrace=</span><span class="dv">2</span>)  <span class="co"># perform Boruta search</span>
+<span class="co"># Confirmed 10 attributes: Humidity, Inversion_base_height, Inversion_temperature, Month, Pressure_gradient and 5 more.</span>
+<span class="co"># Rejected 3 attributes: Day_of_month, Day_of_week, Wind_speed.</span>
+boruta_signif &lt;-<span class="st"> </span><span class="kw">names</span>(boruta_output$finalDecision[boruta_output$finalDecision %in%<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;Confirmed&quot;</span>, <span class="st">&quot;Tentative&quot;</span>)])  <span class="co"># collect Confirmed and Tentative variables</span></code></pre></div>
+<h2>7. Information value and Weight of evidence</h2>
+<h4>Install package from github</h4>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(devtools)
+<span class="kw">install_github</span>(<span class="st">&quot;riv&quot;</span>,<span class="st">&quot;tomasgreif&quot;</span>)
+<span class="kw">install_github</span>(<span class="st">&quot;woe&quot;</span>,<span class="st">&quot;tomasgreif&quot;</span>)</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(woe)
+<span class="kw">library</span>(riv)
+iv_df &lt;-<span class="st"> </span><span class="kw">iv.mult</span>(german_data, <span class="dt">y=</span><span class="st">&quot;gb&quot;</span>, <span class="dt">summary=</span>T)
+iv &lt;-<span class="st"> </span><span class="kw">iv.mult</span>(german_data, <span class="dt">y=</span><span class="st">&quot;gb&quot;</span>)
+<span class="kw">print</span>(iv_df)</code></pre></div>
+<pre><code>#&gt; Information Value 0.67 
+#&gt; Information Value 0.26 
+#&gt; Information Value 0.29 
+#&gt; Information Value 0.17 
+#&gt; Information Value 0.21 
+#&gt; Information Value 0.2 
+#&gt; Information Value 0.09 
+#&gt; Information Value 0.02 
+#&gt; Information Value NaN 
+#&gt; Information Value 0.03 
+#&gt; Information Value 0 
+#&gt; Information Value 0.11 
+#&gt; Information Value 0.13 
+#&gt; Information Value 0.06 
+#&gt; Information Value 0.08 
+#&gt; Information Value 0.01 
+#&gt; Information Value 0.01 
+#&gt; Information Value 0 
+#&gt; Information Value 0.01 
+#&gt; Information Value 0.04
+#&gt; Information Value 0.67 
+#&gt; Information Value 0.26 
+#&gt; Information Value 0.29 
+#&gt; Information Value 0.17 
+#&gt; Information Value 0.21 
+#&gt; Information Value 0.2 
+#&gt; Information Value 0.09 
+#&gt; Information Value 0.02 
+#&gt; Information Value NaN 
+#&gt; Information Value 0.03 
+#&gt; Information Value 0 
+#&gt; Information Value 0.11 
+#&gt; Information Value 0.13 
+#&gt; Information Value 0.06 
+#&gt; Information Value 0.08 
+#&gt; Information Value 0.01 
+#&gt; Information Value 0.01 
+#&gt; Information Value 0 
+#&gt; Information Value 0.01 
+#&gt; Information Value 0.04
+#&gt;                     Variable InformationValue Bins ZeroBins    Strength
+#&gt; 1                  ca_status      0.666011503    4        0 Very strong
+#&gt; 2             credit_history      0.293233547    5        0      Strong
+#&gt; 3                   duration      0.259146834    5        0      Strong
+#&gt; 4              credit_amount      0.207970035    5        0      Strong
+#&gt; 5                    savings      0.196009557    5        0     Average
+#&gt; 6                    purpose      0.169195066   10        0     Average
+#&gt; 7                        age      0.125210683    5        0     Average
+#&gt; 8                   property      0.112638262    4        0     Average
+#&gt; 9   present_employment_since      0.086433631    5        0        Weak
+#&gt; 10                   housing      0.083293434    3        0        Weak
+#&gt; 11         other_installment      0.057614542    3        0        Weak
+#&gt; 12                status_sex      0.044670678    5        1        Weak
+#&gt; 13            foreign_worker      0.043877412    2        0        Weak
+#&gt; 14             other_debtors      0.032019322    3        0        Weak
+#&gt; 15   installment_rate_income      0.023858552    2        0        Weak
+#&gt; 16          existing_credits      0.010083557    2        0   Wery weak
+#&gt; 17                       job      0.008762766    4        0   Wery weak
+#&gt; 18                 telephone      0.006377605    2        0   Wery weak
+#&gt; 19 liable_maintenance_people      0.000000000    1        0   Wery weak
+#&gt; 20   present_residence_since      0.000000000    1        0   Wery weak</code></pre>
+<h3>Plot the information value summary</h3>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Plot information value summary</span>
+<span class="kw">iv.plot.summary</span>(iv_df)</code></pre></div>
+<p><img src='screenshots/information-value-plot.png' width=528 height=327 /></p>
+<h3>Calculate weight of evidence variables</h3>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">german_data_iv &lt;-<span class="st"> </span><span class="kw">iv.replace.woe</span>(german_data, iv, <span class="dt">verbose=</span><span class="ot">TRUE</span>)  <span class="co"># add </span>
+woe variables to original data frame.
+<span class="co"># results not shown because of large data size</span></code></pre></div>
+<p>The newly created woe variables can alternatively be in place of the original factor variables.</p>
+
+
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; r-statistics.co. Powered by <a href="http://jekyllrb.com/">jekyll</a>,
+          <a href="http://yihui.name/knitr/">knitr</a>, and
+          <a href="http://johnmacfarlane.net/pandoc/">pandoc</a>. Source
+          available on <a href="https://github.com/selva86/selva86.github.io/">github</a>.
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script src="//code.jquery.com/jquery.js"></script>
+  <script src="www/bootstrap.min.js"></script>
+  <script src="www/toc.js"></script>
+  </body>
+</html>
