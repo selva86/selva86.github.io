@@ -1,0 +1,380 @@
+---
+title: Assumptions of Linear Regression
+layout: default
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(error=FALSE, message=FALSE, warning=FALSE)
+```
+
+> Building a linear regression model is only half of the work. In order to actually be usable in practice, the model should conform to the assumptions of linear regression.
+
+##Assumption 1
+>####_The regression model is linear in parameters_
+
+An example of model equation that is _linear in parameters_
+__$$Y = a + (\beta1*X1) + (\beta2 * X2^2)$$__
+
+Though, the `X2` is raised to power 2, the equation is still linear in beta parameters. So the assumtion is satisfied in this case.
+
+An example of _linear in variables_ but _non-linear in parameters_. This will violate the assumption.
+__$$Y = a + (\beta1*X1) + (\beta2^2 * X2)$$__
+
+Here, the beta parameter is raised to power 2, which is not linear. So the assumption is violated by this equation.
+
+##Assumption 2
+>####_The mean of errors is zero_
+
+####How to check?
+Check the mean of the residuals. If it approximately zero, then this assumption is held true for that model.
+
+```{r, eval=FALSE}
+mod <- lm(dist ~ speed, data=cars)
+mean(mod$residuals)
+#=> 2.442491e-17
+```
+Since the mean of residuals is approximately zero, this assumption holds true for this model.
+
+##Assumption 3
+>####_Homoscedasticity of errors or equal variance_
+
+####How to check?
+
+Once the regression model is built, set `par(mfrow=c(2, 2))`, then, plot the model using `plot(lm.mod)`. This produces four plots. The _top-left_ and _bottom-left_ plots shows how the _errors_ vary as the _fitted_ values increase.
+
+```{r, eval=FALSE}
+par(mfrow=c(2,2))  # set 2 rows and 2 column plot layout
+mod_1 <- lm(mpg ~ disp, data=mtcars)  # linear model
+plot(mod_1)
+```
+
+```{r, echo = FALSE}
+embed_png("screenshots/regression-plot-mtcars.png", dpi = 220)
+```
+
+From the first plot (topleft), as the fitted values along x increase, the residuals decrease and then increase. This pattern is indicated by the red line, which should be approximately flat if the errors are homoscedastic. The plot on the bottom left also checks this, and is more convenient as the error term in Y axis is standardised. 
+
+In this case, there is a definite pattern noticed. So, there is heterscedasticity. Lets check this on a different model. 
+
+```{r, eval=FALSE}
+mod <- lm(dist ~ speed, data=cars[1:20, ])  #  linear model
+plot(mod)
+```
+
+```{r, echo = FALSE}
+embed_png("screenshots/regression-plot-cars-20rows.png", dpi = 220)
+```
+
+Now, the points appear random and the line looks pretty flat, with no increasing or decreasing trend. So, the condition of homoscedasticity can be accepted.
+
+##Assumption 4
+>####_No autocorrelation of errors_
+This is applicable especially for time series data. Autocorrelation is the correlation of a time Series with lags of itself. When the error is autocorrelated, it means that the current value is dependent of the previous (historic) values and that there is a definite unexplained pattern in the Y variable that shows up in the error term.
+
+####How to check for autocorrelation?
+Below, are 3 ways you could check for autocorrelation of errors.
+
+##### Using acf plot
+```{r, eval=FALSE}
+# Method 1: Visualise with acf plot
+library(ggplot2)
+data(economics)
+lmMod <- lm(pce ~ pop, data=economics)
+acf(lmMod$residuals)  # highly autocorrelated from the picture.
+```
+```{r, echo = FALSE}
+embed_png("screenshots/acf-plot.png", dpi = 220)
+```
+
+The X axis correponds to the lags of the residual, increasing in steps of 1. The very first line (to the left) shows the correlation of residual with itself (Lag0), therefore, it will always be equal to 1.
+
+If the errors were not autocorrelated, the correlation (Y-axis) from the immediate next line onwards will drop to a near zero value below the dashed blue line (significance level). Clearly, this is not the case here. So we can conclude that the residuals are autocorrelated.
+
+##### Using runs test
+```{r, eval=FALSE}
+# Method 2: Runs test to test for randomness
+lawstat::runs.test(lmMod$residuals)
+#=>   Runs Test - Two sided
+
+#=> data:  lmMod$residuals
+#=> Standardized Runs Statistic = -23.812, p-value < 2.2e-16
+```
+With a p-value < 2.2e-16, we reject the null hypothesis that it is random. This means there is a definite pattern in the residuals.
+
+
+##### Using Durbin-Watson test.
+```{r, eval=FALSE}
+# Method 3: Durbin-Watson test
+lmtest::dwtest(lmMod)
+#=>   Durbin-Watson test
+
+#=> data:  lmMod
+#=> DW = 0.0021559, p-value < 2.2e-16
+#=> alternative hypothesis: true autocorrelation is greater than 0
+```
+
+So, `dwtest` also confirms our finding.
+
+####How to rectify?
+Add lag1 of residual as an X variable to the original model. This can be conveniently done using the `slide` function in `DataCombine` package.
+
+```{r, eval=FALSE}
+library(DataCombine)
+econ_data <- data.frame(economics, resid_mod1=lmMod$residuals)
+econ_data_1 <- slide(econ_data, Var="resid_mod1", NewVar = "lag1", slideBy = -1)
+econ_data_2 <- na.omit(econ_data_1)
+lmMod2 <- lm(pce ~ pop + lag1, data=econ_data_2)
+```
+
+Lets check if the problem of autocorrelation of error is taken care of using this method.
+
+**Check 1**
+```{r, eval=FALSE}
+acf(lmMod2$residuals)
+```
+
+```{r, echo = FALSE}
+embed_png("screenshots/acf-plot2.png", dpi = 220)
+```
+
+Unlike the `acf` plot of `lmMod`, the correlation values drop below the dashed blue line from lag1 itself. So autocorrelation can't be confirmed.
+
+**Check 2**
+```{r, eval=FALSE}
+runs.test(lmMod2$residuals)  # runs test
+#=>   Runs Test - Two sided
+#=> 
+#=> data:  lmMod2$residuals
+#=> Standardized Runs Statistic = 0.96176, p-value = 0.3362
+```
+
+p-value = 0.3362. Can't reject null hyp that it is random.
+With a p-value = 0.3362, we cannot reject the null hypothesis. Therefore we can safely assume that residuals are not autocorrelated.
+
+**Check 3**
+```{r, eval=FALSE}
+lmtest::dwtest(lmMod2)
+#=>   Durbin-Watson test
+#=> 
+#=> data:  lmMod2
+#=> DW = 2.0431, p-value = 0.6672
+#=> alternative hypothesis: true autocorrelation is greater than 0
+```        
+
+With a high p value of 0.667, we cannot reject the null hypothesis that true autocorrelation is zero. So the assumption that errors should not be autocorrelated is satisfied by this model.
+
+If, even after adding lag1 as an X variable, does not satidfy the assumption of autocorrelation of errors, you might want to try adding lag2, or be creative in making meaningful derived explanatory variables or interaction terms. This is more like art than an algorithm.
+
+##Assumption 5
+>####_The X variables and Errors are uncorrelated_
+          
+#### How to check?
+Do a correlation test on the X variable and the residuals.
+
+```{r, eval=FALSE}
+mod.lm <- lm(dist ~ speed, data=cars)
+cor.test(cars$speed, mod.lm$residuals)  # do correlation test 
+#=>   Pearson's product-moment correlation
+#=> 
+#=> data:  cars$speed and mod.lm$residuals
+#=> t = -8.1225e-17, df = 48, p-value = 1
+#=> alternative hypothesis: true correlation is not equal to 0
+#=> 95 percent confidence interval:
+#=> -0.2783477  0.2783477
+#=> sample estimates:
+#=>           cor 
+#=> -1.172376e-17
+```
+
+p-value is high, so null hypothesis that true correlation is 0 can't be rejected. So, the assumption holds true for this model.
+            
+##Assumption 6
+####_The number of observations must be greater than number of Xs_
+            
+This can be directly observed by looking at the data.            
+
+##Assumption 7
+>####_The variablility in X values is positive_
+
+This means the X values in a given sample must not all be the same (or even nearly the same).
+            
+####How to check?
+
+```{r, eval=FALSE}
+var(cars$speed)  
+#=> [1] 27.95918
+```
+The variance in the X variable above is much larger than 0. So, this assumption is satisfied.
+
+##Assumption 8
+>####_The regression model is correctly specified_
+
+This means that if the Y and X variable has an inverse relationship, the model equation should be specified appropriately:
+
+__$$Y = \beta1 + \beta2 * (1/X)$$__
+
+##Assumption 9
+>####_No perfect multicollinearity_
+
+There is no perfect linear relationship between explanatory variables.
+          
+####How to check? 
+Using Variance Inflation factor (VIF). What is VIF? 
+
+VIF is a metric computed for every X variable that goes into a linear model. VIF for a X var is calculated as: 
+
+__$$1/(1-Rsq)$$__, where,
+
+Rsq is the R-sq term for the model that X against all other Xs that went into the model.
+Practically, if two of the Xs have high correlation, they will likely have high VIFs. Generally, VIF for an X variable should be less than 4 in order to be accepted as not causing multi-collinearity. The cutoff is kept as low as 2, if you want to be strict.
+
+```{r, eval=FALSE}
+library(car)
+mod2 <- lm(mpg ~ ., data=mtcars)
+vif(mod2)
+#   cyl      disp        hp      drat        wt      qsec        vs        am      gear      carb 
+#   15.373833 21.620241  9.832037  3.374620 15.164887  7.527958  4.965873  4.648487  5.357452  7.908747 
+```
+
+####How to rectify?
+Two ways: 
+1. Either iteratively remove the var with the highest VIF or,
+1. See correlation between all variables and keep only one of all highly correlated pairs.
+
+```{r, eval=FALSE}
+library(corrplot)
+corrplot(cor(mtcars[, -1]))
+#=> Interpreted from below plot.
+#=> Correlated pairs: 
+#=> - disp, cyl, hp, wt
+#=> - gear, am
+#=> - hp, carb
+```
+
+```{r, echo = FALSE}
+embed_png("screenshots/corrplot.png", dpi = 220)
+```
+```{r, eval=FALSE} 
+mod <- lm(mpg ~ cyl + gear, data=mtcars)
+vif(mod)
+#=>      cyl     gear 
+#=> 1.320551 1.320551
+```
+  
+The convention is, the VIF should not go more than 4 for any of the X variables. 
+That means we are not letting the R-Sq of any of the Xs (the model that was built with that X as a response variable and the remaining X's are predictors) to go more than 75%. => 1/(1-0.75) => 1/0.24 => 4.
+            
+## Assumption 10
+>####_Normality of Errors_
+
+The residuals should be normally distributed. This also implies the Y and the X's are also normally distributed. It is an essential assumption if the maximum likelihood method is used to commute the estimates. 
+
+This can be visually checked using the `qqnorm()` plot (top right plot).
+
+```{r, eval=FALSE}
+par(mfrow=c(2,2))
+mod <- lm(dist ~ speed, data=cars)
+plot(mod)
+```
+
+```{r, echo = FALSE}
+embed_png("screenshots/regression-plot.png", dpi = 220)
+```
+
+The `qqnorm()` plot in top-right evaluates this assumption. If points lie exactly on the line, it is perfectly normal distribution. However, some deviation is to be expected, particularly near the ends (note the upper right), but the deviations should be small, even lesser that they are here.
+
+
+##Check Assumptions Automatically
+The `gvlma()` function from `gvlma` offers a way to check the important assumptions on a given linear model.
+
+```{r, eval=FALSE}
+par(mfrow=c(2,2))  # draw 4 plots in same window
+mod <- lm(dist ~ speed, data=cars)
+gvlma::gvlma(mod)
+#=>                     Value  p-value                   Decision
+#=> Global Stat        15.801 0.003298 Assumptions NOT satisfied!
+#=> Skewness            6.528 0.010621 Assumptions NOT satisfied!
+#=> Kurtosis            1.661 0.197449    Assumptions acceptable.
+#=> Link Function       2.329 0.126998    Assumptions acceptable.
+#=> Heteroscedasticity  5.283 0.021530 Assumptions NOT satisfied!
+plot(mod)
+```
+
+3 of the assumptions are not satisfied. This is probably because we have only 50 data points in the data and having even 2 or 3 outliers can impact the quality of the model. So the immediate approach to address this is to remove those outliers are re-build the model. Take a look at the diagnostic plot below as arrive at your own conclusion.
+
+```{r, echo = FALSE}
+embed_png("screenshots/regression-plot-big.png", dpi = 220)
+```
+
+From the above plot the data points: 23, 35 and 49 are marked as outliers. Lets remove them from the data and re-build the model.
+
+```{r, eval=FALSE}
+mod <- lm(dist ~ speed, data=cars[-c(23, 35, 49), ])
+gvlma::gvlma(mod)
+#=>                     Value p-value                Decision
+#=> Global Stat        7.5910 0.10776 Assumptions acceptable.
+#=> Skewness           0.8129 0.36725 Assumptions acceptable.
+#=> Kurtosis           0.2210 0.63831 Assumptions acceptable.
+#=> Link Function      3.2239 0.07257 Assumptions acceptable.
+#=> Heteroscedasticity 3.3332 0.06789 Assumptions acceptable.
+#=> plot(mod)
+```
+
+```{r, echo = FALSE}
+embed_png("screenshots/regression-plot-big-no-outliers.png", dpi = 220)
+```
+Though the changes look minor, it is more closer to conforming with the assumptions. There is one more thing left to be explained. That is, the plot in the bottom right. It is the plot of standardised residuals against the leverage. Leverage is a measure of how much each datapoint influences the regression. The plot also contours values of [Cook’s distance](https://en.wikipedia.org/wiki/Cook%27s_distance), which reflects how much the fitted values would change if a point was deleted. 
+
+A point far from the centroid with a large residual can severely distort the regression. For a good regression model, the red smoothed line should stay close to the mid-line and no point should have a large cook's distance (i.e. should not have too much influence on the model.)
+
+```{r, eval=FALSE}
+influence.measures(mod)
+#=>   dfb.1_ dfb.sped    dffit cov.r   cook.d    hat inf
+#=>  0.087848 -0.08003  0.08834 1.184 3.99e-03 0.1187   *
+#=>  0.351238 -0.32000  0.35320 1.138 6.25e-02 0.1187   *
+#=> -0.145914  0.12652 -0.15010 1.114 1.14e-02 0.0735    
+#=>  0.285653 -0.24768  0.29384 1.075 4.31e-02 0.0735    
+#=>  0.047920 -0.04053  0.05012 1.113 1.28e-03 0.0615    
+#=> -0.136783  0.11208 -0.14670 1.083 1.09e-02 0.0511    
+#=> -0.047436  0.03725 -0.05287 1.089 1.43e-03 0.0422    
+#=>  0.081425 -0.06394  0.09076 1.083 4.19e-03 0.0422    
+#=>  0.212931 -0.16721  0.23734 1.031 2.80e-02 0.0422    
+#=> -0.103835  0.07682 -0.12283 1.064 7.64e-03 0.0349    
+#=>  0.047151 -0.03488  0.05578 1.080 1.59e-03 0.0349    
+#=> -0.163139  0.11031 -0.21176 1.008 2.22e-02 0.0292    
+#=> -0.092988  0.06288 -0.12070 1.054 7.37e-03 0.0292    
+#=> -0.047239  0.03194 -0.06132 1.071 1.92e-03 0.0292    
+#=> -0.001863  0.00126 -0.00242 1.077 2.99e-06 0.0292    
+#=> -0.052208  0.03031 -0.07843 1.061 3.13e-03 0.0250    
+#=>  0.020094 -0.01167  0.03019 1.071 4.66e-04 0.0250    
+#=>  0.020094 -0.01167  0.03019 1.071 4.66e-04 0.0250    
+#=>  0.130480 -0.07576  0.19602 1.003 1.90e-02 0.0250    
+#=> -0.063700  0.02683 -0.12078 1.040 7.35e-03 0.0224    
+#=>  0.004170 -0.00176  0.00791 1.070 3.20e-05 0.0224    
+#=>  0.174775 -0.07362  0.33138 0.870 5.06e-02 0.0224    
+#=> -0.087733  0.00892 -0.24379 0.948 2.86e-02 0.0213    
+#=> -0.059046  0.00600 -0.16408 1.011 1.34e-02 0.0213    
+#=>  0.068553 -0.00697  0.19049 0.992 1.79e-02 0.0213    
+#=> -0.023886 -0.02060 -0.13480 1.031 9.12e-03 0.0218    
+#=> -0.005806 -0.00501 -0.03276 1.067 5.48e-04 0.0218    
+#=>  0.000274 -0.06235 -0.19077 1.002 1.80e-02 0.0238    
+#=>  0.000118 -0.02688 -0.08223 1.058 3.44e-03 0.0238    
+#=> -0.000072  0.01639  0.05015 1.066 1.28e-03 0.0238    
+#=>  0.017941 -0.05284 -0.11169 1.054 6.32e-03 0.0274    
+#=> -0.014171  0.04174  0.08822 1.062 3.95e-03 0.0274    
+#=> -0.063461  0.18692  0.39507 0.848 7.09e-02 0.0274   *
+#=>  0.081746 -0.16394 -0.27847 0.976 3.77e-02 0.0326    
+#=>  0.034106 -0.06840 -0.11619 1.062 6.84e-03 0.0326    
+#=> -0.067855  0.13608  0.23115 1.007 2.64e-02 0.0326    
+#=>  0.182368 -0.30828 -0.45545 0.875 9.51e-02 0.0393    
+#=>  0.062731 -0.10604 -0.15666 1.060 1.24e-02 0.0393    
+#=>  0.034787 -0.05880 -0.08688 1.080 3.84e-03 0.0393    
+#=>  0.007121 -0.01204 -0.01778 1.088 1.62e-04 0.0393    
+#=> -0.048260  0.08158  0.12053 1.071 7.37e-03 0.0393    
+#=> -0.020499  0.02947  0.03716 1.108 7.06e-04 0.0573    
+#=>  0.200260 -0.27525 -0.33127 1.051 5.43e-02 0.0687    
+#=>  0.024652 -0.03277 -0.03811 1.138 7.42e-04 0.0816   *
+#=> -0.358515  0.47655  0.55420 0.979 1.46e-01 0.0816    
+#=> -0.377456  0.50173  0.58348 0.964 1.60e-01 0.0816    
+#=> -0.195430  0.25314  0.28687 1.118 4.14e-02 0.0961
+```
