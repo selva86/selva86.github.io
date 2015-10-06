@@ -38,7 +38,7 @@
 <li><a href="Statistical-Tests-in-R.html">Statistical Tests</a></li>
 <li><a href="Variable-Selection-and-Importance-With-R.html">Feature Selection</a></li>
 <li><a href="Model-Selection-in-R.html">Model Selection</a></li>
-<li><a href="OO-essentials.html">Logistic Regression</a></li>
+<li><a href="Logistic-Regression-With-R.html">Logistic Regression</a></li>
 <li><a href="Environments.html">Advanced Linear Regression</a></li>
 
 <li class="dropdown-header">Advanced Regression Models</li>
@@ -83,7 +83,7 @@
 <li><a href="Statistical-Tests-in-R.html">Statistical Tests</a></li>
 <li><a href="Variable-Selection-and-Importance-With-R.html">Feature Selection</a></li>
 <li><a href="Model-Selection-in-R.html">Model Selection</a></li>
-<li><a href="OO-essentials.html">Logistic Regression</a></li>
+<li><a href="Logistic-Regression-With-R.html">Logistic Regression</a></li>
 <li><a href="Environments.html">Advanced Linear Regression</a></li>
 
 <li class="dropdown-header">Advanced Regression Models</li>
@@ -132,6 +132,16 @@
           <blockquote>
 <p>If linear regression serves to predict continuous Y variables, logistic regression is used for binary classification.</p>
 </blockquote>
+<p>Lets try and predict if an individual will earn more than $50K using logistic regression based on demographic variables available in the <a href="http://rstatistics.net/wp-content/uploads/2015/09/adult.csv"><code>adult</code> data</a>. In this process, we will:</p>
+<ol style="list-style-type: decimal">
+<li>Import the data</li>
+<li>Check for class bias</li>
+<li>Create training and test samples</li>
+<li>Compute information value to find out important variables</li>
+<li>Build logit models and predict on test data</li>
+<li>Do model diagnostics</li>
+</ol>
+<h2>Import data</h2>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">inputData &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;http://rstatistics.net/wp-content/uploads/2015/09/adult.csv&quot;</span>)
 <span class="kw">head</span>(inputData)
 <span class="co">#=&gt;   AGE         WORKCLASS FNLWGT  EDUCATION EDUCATIONNUM       MARITALSTATUS</span>
@@ -155,19 +165,170 @@
 <span class="co">#=&gt; 4           40  United-States        0</span>
 <span class="co">#=&gt; 5           40           Cuba        0</span>
 <span class="co">#=&gt; 6           40  United-States        0</span></code></pre></div>
+<h2>Check Class bias</h2>
 <p>Ideally, the proportion of events and non-events in the Y variable should approxiately be the same. So, lets first check the proportion of classes in the dependent variable <code>ABOVE50K</code>.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">table</span>(inputData$ABOVE50K)
 <span class="co">#     0     1 </span>
 <span class="co"># 24720  7841 </span></code></pre></div>
 <p>Clearly, there is a class bias, a condition observed when the proportion of events is much smaller than proportion of non-events. So we must sample the observations in approximately equal proportions to get better models.</p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">input_ones &lt;-<span class="st"> </span><span class="kw">which</span>(inputData$ABOVE50K ==<span class="st"> </span><span class="dv">1</span>)  <span class="co"># row nums of all 1&#39;s</span>
-input_zeros &lt;-<span class="st"> </span><span class="kw">which</span>(inputData$ABOVE50K ==<span class="st"> </span><span class="dv">0</span>)  <span class="co"># row nums of all 0&#39;s</span>
-<span class="kw">set.seed</span>(<span class="dv">100</span>) 
-input_zeros_reduced &lt;-<span class="st"> </span><span class="kw">sample</span>(input_zeros, <span class="kw">length</span>(input_ones))  <span class="co"># sample as many 0&#39;s as there are 1&#39;s</span>
-inputData_reduced &lt;-<span class="st"> </span>inputData[<span class="kw">c</span>(input_ones, input_zeros_reduced), ]  <span class="co"># input with equal 1&#39;s and 0&#39;s</span>
-training &lt;-<span class="st"> </span><span class="kw">sample</span>(<span class="dv">1</span>:<span class="kw">nrow</span>(inputData_reduced), <span class="dt">size=</span><span class="kw">round</span>(<span class="fl">0.7</span>*<span class="kw">NROW</span>(inputData_reduced)))  <span class="co"># training row positions</span>
-trainingData &lt;-<span class="st"> </span>inputData[training, ]  <span class="co"># make training data</span>
-testData &lt;-<span class="st"> </span>inputData[-training, ]  <span class="co"># make test data</span></code></pre></div>
+<h2>Create Training and Test Samples</h2>
+<p>One way to address the problem of class bias is to draw the 0’s and 1’s for the <code>trainingData</code> (development sample) in equal proportions. In doing so, we will put rest of the <code>inputData</code> not included for training into <code>testData</code> (validation sample). As a result, the size of development sample will be smaller that validation, which is okay, because, there are large number of observations (&gt;10K).</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Create Training Data</span>
+input_ones &lt;-<span class="st"> </span>inputData[<span class="kw">which</span>(inputData$ABOVE50K ==<span class="st"> </span><span class="dv">1</span>), ]  <span class="co"># all 1&#39;s</span>
+input_zeros &lt;-<span class="st"> </span>inputData[<span class="kw">which</span>(inputData$ABOVE50K ==<span class="st"> </span><span class="dv">0</span>), ]  <span class="co"># all 0&#39;s</span>
+<span class="kw">set.seed</span>(<span class="dv">100</span>)  <span class="co"># for repeatability of samples</span>
+input_ones_training_rows &lt;-<span class="st"> </span><span class="kw">sample</span>(<span class="dv">1</span>:<span class="kw">nrow</span>(input_ones), <span class="fl">0.7</span>*<span class="kw">nrow</span>(input_ones))  <span class="co"># 1&#39;s for training</span>
+input_zeros_training_rows &lt;-<span class="st"> </span><span class="kw">sample</span>(<span class="dv">1</span>:<span class="kw">nrow</span>(input_zeros), <span class="fl">0.7</span>*<span class="kw">nrow</span>(input_ones))  <span class="co"># 0&#39;s for training. Pick as many 0&#39;s as 1&#39;s</span>
+training_ones &lt;-<span class="st"> </span>input_ones[input_ones_training_rows, ]  
+training_zeros &lt;-<span class="st"> </span>input_zeros[input_zeros_training_rows, ]
+trainingData &lt;-<span class="st"> </span><span class="kw">rbind</span>(training_ones, training_zeros)  <span class="co"># row bind the 1&#39;s and 0&#39;s </span>
+
+<span class="co"># Create Test Data</span>
+test_ones &lt;-<span class="st"> </span>input_ones[-input_ones_training_rows, ]
+test_zeros &lt;-<span class="st"> </span>input_zeros[-input_zeros_training_rows, ]
+testData &lt;-<span class="st"> </span><span class="kw">rbind</span>(test_ones, test_zeros)  <span class="co"># row bind the 1&#39;s and 0&#39;s </span></code></pre></div>
+<p>Next it is desirable to find the <a href="Variable-Selection-and-Importance-With-R.html#7.%20Information%20value%20and%20Weight%20of%20evidence">information value</a> of variables to get an idea of how valuable they are in explaining the dependent variable (ABOVE50K).</p>
+<h2>Create WOE for categorical variables (optional)</h2>
+<p>Optionally, we can create <code>WOE</code> equivalents for all categorical variables. This is only an optional step, for simplicity, this step is NOT run for this analysis.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">for(factor_var in factor_vars){
+  inputData[[factor_var]] &lt;-<span class="st"> </span><span class="kw">WOE</span>(<span class="dt">X=</span>inputData[, factor_var], <span class="dt">Y=</span>inputData$ABOVE50K)
+}
+<span class="kw">head</span>(inputData)
+<span class="co">#&gt;   AGE  WORKCLASS FNLWGT  EDUCATION EDUCATIONNUM MARITALSTATUS OCCUPATION</span>
+<span class="co">#&gt; 1  39  0.1608547  77516  0.7974104           13    -1.8846680  -0.713645</span>
+<span class="co">#&gt; 2  50  0.2254209  83311  0.7974104           13     0.9348331   1.084280</span>
+<span class="co">#&gt; 3  38 -0.1278453 215646 -0.5201257            9    -1.0030638  -1.555142</span>
+<span class="co">#&gt; 4  53 -0.1278453 234721 -1.7805021            7     0.9348331  -1.555142</span>
+<span class="co">#&gt; 5  28 -0.1278453 338409  0.7974104           13     0.9348331   0.943671</span>
+<span class="co">#&gt; 6  37 -0.1278453 284582  1.3690863           14     0.9348331   1.084280</span>
+
+<span class="co">#&gt;   RELATIONSHIP        RACE        SEX CAPITALGAIN CAPITALLOSS HOURSPERWEEK</span>
+<span class="co">#&gt; 1    -1.015318  0.08064715  0.3281187        2174           0           40</span>
+<span class="co">#&gt; 2     0.941801  0.08064715  0.3281187           0           0           13</span>
+<span class="co">#&gt; 3    -1.015318  0.08064715  0.3281187           0           0           40</span>
+<span class="co">#&gt; 4     0.941801 -0.80794676  0.3281187           0           0           40</span>
+<span class="co">#&gt; 5     1.048674 -0.80794676 -0.9480165           0           0           40</span>
+<span class="co">#&gt; 6     1.048674  0.08064715 -0.9480165           0           0           40</span>
+
+<span class="co">#&gt;   NATIVECOUNTRY ABOVE50K</span>
+<span class="co">#&gt; 1    0.02538318        0</span>
+<span class="co">#&gt; 2    0.02538318        0</span>
+<span class="co">#&gt; 3    0.02538318        0</span>
+<span class="co">#&gt; 4    0.02538318        0</span>
+<span class="co">#&gt; 5    0.11671564        0</span>
+<span class="co">#&gt; 6    0.02538318        0</span></code></pre></div>
+<h2>Compute Information Values</h2>
+<p>The <code>smbinning::smbinning</code> function converts a continuous variable intoa a categorical variable using recursive partitioning. We will first convert them to categoricals and then, capture the information values for all variables in <code>iv_df</code></p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(smbinning)
+<span class="co"># segregate continuous and factor variables</span>
+factor_vars &lt;-<span class="st"> </span><span class="kw">c</span> (<span class="st">&quot;WORKCLASS&quot;</span>, <span class="st">&quot;EDUCATION&quot;</span>, <span class="st">&quot;MARITALSTATUS&quot;</span>, <span class="st">&quot;OCCUPATION&quot;</span>, <span class="st">&quot;RELATIONSHIP&quot;</span>, <span class="st">&quot;RACE&quot;</span>, <span class="st">&quot;SEX&quot;</span>, <span class="st">&quot;NATIVECOUNTRY&quot;</span>)
+continuous_vars &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;AGE&quot;</span>, <span class="st">&quot;FNLWGT&quot;</span>,<span class="st">&quot;EDUCATIONNUM&quot;</span>, <span class="st">&quot;HOURSPERWEEK&quot;</span>, <span class="st">&quot;CAPITALGAIN&quot;</span>, <span class="st">&quot;CAPITALLOSS&quot;</span>)
+
+iv_df &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">VARS=</span><span class="kw">c</span>(factor_vars, continuous_vars), <span class="dt">IV=</span><span class="kw">numeric</span>(<span class="dv">14</span>))  <span class="co"># init for IV results</span>
+
+<span class="co"># compute IV for categoricals</span>
+for(factor_var in factor_vars){
+  smb &lt;-<span class="st"> </span><span class="kw">smbinning.factor</span>(trainingData, <span class="dt">y=</span><span class="st">&quot;ABOVE50K&quot;</span>, <span class="dt">x=</span>factor_var)  <span class="co"># WOE table</span>
+  if(<span class="kw">class</span>(smb) !=<span class="st"> &quot;character&quot;</span>){ <span class="co"># heck if some error occured</span>
+    iv_df[iv_df$VARS ==<span class="st"> </span>factor_var, <span class="st">&quot;IV&quot;</span>] &lt;-<span class="st"> </span>smb$iv
+  }
+}
+
+<span class="co"># compute IV for continuous vars</span>
+for(continuous_var in continuous_vars){
+  smb &lt;-<span class="st"> </span><span class="kw">smbinning</span>(trainingData, <span class="dt">y=</span><span class="st">&quot;ABOVE50K&quot;</span>, <span class="dt">x=</span>continuous_var)  <span class="co"># WOE table</span>
+  if(<span class="kw">class</span>(smb) !=<span class="st"> &quot;character&quot;</span>){  <span class="co"># any error while calculating scores.</span>
+    iv_df[iv_df$VARS ==<span class="st"> </span>continuous_var, <span class="st">&quot;IV&quot;</span>] &lt;-<span class="st"> </span>smb$iv
+  }
+}
+
+iv_df &lt;-<span class="st"> </span>iv_df[<span class="kw">order</span>(-iv_df$IV), ]  <span class="co"># sort</span>
+iv_df
+<span class="co">#&gt;           VARS     IV</span>
+<span class="co">#&gt;   RELATIONSHIP 1.5739</span>
+<span class="co">#&gt;  MARITALSTATUS 1.3356</span>
+<span class="co">#&gt;            AGE 1.1748</span>
+<span class="co">#&gt;    CAPITALGAIN 0.8389</span>
+<span class="co">#&gt;     OCCUPATION 0.8259</span>
+<span class="co">#&gt;   EDUCATIONNUM 0.7776</span>
+<span class="co">#&gt;      EDUCATION 0.7774</span>
+<span class="co">#&gt;   HOURSPERWEEK 0.4682</span>
+<span class="co">#&gt;            SEX 0.3087</span>
+<span class="co">#&gt;      WORKCLASS 0.1633</span>
+<span class="co">#&gt;    CAPITALLOSS 0.1507</span>
+<span class="co">#&gt;  NATIVECOUNTRY 0.0815</span>
+<span class="co">#&gt;           RACE 0.0607</span>
+<span class="co">#&gt;         FNLWGT 0.0000</span></code></pre></div>
+<h2>Build Logit Models and Predict</h2>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">logitMod &lt;-<span class="st"> </span><span class="kw">glm</span>(ABOVE50K ~<span class="st"> </span>RELATIONSHIP +<span class="st"> </span>AGE +<span class="st"> </span>CAPITALGAIN +<span class="st"> </span>OCCUPATION +<span class="st"> </span>EDUCATIONNUM, <span class="dt">data=</span>trainingData, <span class="dt">family=</span><span class="st">&quot;binomial&quot;</span>)
+predicted &lt;-<span class="st"> </span><span class="kw">plogis</span>(<span class="kw">predict</span>(logitMod, testData, <span class="dt">type=</span><span class="st">&quot;response&quot;</span>))  <span class="co"># predicted scores</span></code></pre></div>
+<p>A quick note about the <code>plogis</code> function: The <code>glm()</code> procedure with <code>family=&quot;binomial&quot;</code> will build the logistic regression model on the given formula. When we use the <code>predict</code> function on this model, it will predict the log(odds) of the Y variable. This is not what we ultimately want because, the predicted values may not lie within the 0 and 1 range as expected. So, to convert it into prediction probabiltiy scores that is bound between 0 and 1, we use the <code>plogis()</code>.</p>
+<h4>Decide on optimal prediction probability cutoff for the model</h4>
+<p>The default cutoff prediction probabilty score is 0.5 or the ratio of 1’s and 0’s in the training data. But sometimes, tuning the probability cutoff can improve the accuracy in both the development and validation samples. The <code>InformationValue::optimalCutoff</code> function provides ways to find the optimal cutoff to improve the prediction of 1’s, 0’s, both 1’s and 0’s and o reduce the misclassification error. Lets compute the optimal score that minimises the misclassification error for the above model.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(InformationValue)
+optCutOff &lt;-<span class="st"> </span><span class="kw">optimalCutoff</span>(testData$ABOVE50K, predicted)[<span class="dv">1</span>] 
+<span class="co">#=&gt; 0.71</span></code></pre></div>
+<h2>Model Diagnostics</h2>
+<p>The <code>summary(logitMod)</code> gives the beta coefficients, Standard error, z Value and p Value. If your model had categorical variables with multiple levels, you will find a row-entry for each category of that variable. That is because, each individual category is considered as an independent binary variable by the <code>glm()</code>. In this case it is ok if few of the categories in a multi-category variable don’t turn out to be significant in the model (i.e. p Value turns out greater than significance level of 0.5).</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(logitMod)
+<span class="co">#&gt; Call:</span>
+<span class="co">#&gt;   glm(formula = ABOVE50K ~ RELATIONSHIP + AGE + CAPITALGAIN + OCCUPATION + </span>
+<span class="co">#&gt;         EDUCATIONNUM, family = &quot;binomial&quot;, data = trainingData)</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt;   Deviance Residuals: </span>
+<span class="co">#&gt;       Min       1Q   Median       3Q      Max  </span>
+<span class="co">#&gt;   -3.8380  -0.5319  -0.0073   0.6267   3.2847  </span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt;   Coefficients:</span>
+<span class="co">#&gt;                                   Estimate  Std. Error z value             Pr(&gt;|z|)    </span>
+<span class="co">#&gt;   (Intercept)                  -4.57657130  0.24641856 -18.572 &lt; 0.0000000000000002 ***</span>
+<span class="co">#&gt;   RELATIONSHIP Not-in-family   -2.27712854  0.07205131 -31.604 &lt; 0.0000000000000002 ***</span>
+<span class="co">#&gt;   RELATIONSHIP Other-relative  -2.72926866  0.27075521 -10.080 &lt; 0.0000000000000002 ***</span>
+<span class="co">#&gt;   RELATIONSHIP Own-child       -3.56051255  0.17892546 -19.899 &lt; 0.0000000000000002 ***</span>
+<span class="co">#&gt;   ...</span>
+<span class="co">#&gt;   ...</span>
+<span class="co">#&gt;   Null deviance: 15216.0  on 10975  degrees of freedom</span>
+<span class="co">#&gt;   Residual deviance:  8740.9  on 10953  degrees of freedom</span>
+<span class="co">#&gt;   AIC: 8786.9</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt;   Number of Fisher Scoring iterations: 8</span></code></pre></div>
+<h4>VIF</h4>
+<p>Like in case of linear regression, we should check for multicollinearity in the model. As seen below, all X variables in the model have VIF well below 4.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">vif</span>(logitMod)
+<span class="co">#&gt;                  GVIF Df GVIF^(1/(2*Df))</span>
+<span class="co">#&gt; RELATIONSHIP 1.340895  5        1.029768</span>
+<span class="co">#&gt; AGE          1.119782  1        1.058198</span>
+<span class="co">#&gt; CAPITALGAIN  1.023506  1        1.011685</span>
+<span class="co">#&gt; OCCUPATION   1.733194 14        1.019836</span>
+<span class="co">#&gt; EDUCATIONNUM 1.454267  1        1.205930</span></code></pre></div>
+<h4>Misclassification Error</h4>
+<p>Misclassification error is the percentage mismatch of predcited vs actuals, irrespective of 1’s or 0’s. The lower the misclassification error, the better is your model.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">misClassError</span>(testData$ABOVE50K, predicted, <span class="dt">threshold =</span> optCutOff)
+<span class="co">#=&gt; 0.0899</span></code></pre></div>
+<h4>ROC</h4>
+<p>Receiver Operating Characteristics Curve traces the percentage of true positives accurately predicted by a given logit model as the predicition probability cutoff is lowered from 1 to 0. For a good model, as the cutoff is lowered, it should mark more of actual 1’s as positives and lesser of actual 0’s as 1’s. So for a good model, the curve should rise steeply, indicating that the TPR (Y-Axis) increases faster than the FPR (X-Axis) as the Cutoff score decreases.Greater the area under the ROC curve, better the quality of the model.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">plotROC</span>(testData$ABOVE50K, predicted, <span class="dt">threshold =</span> optCutOff)</code></pre></div>
+<p><img src='screenshots/ROC-Curve.png' width=528 height=528 /></p>
+<p>The above model has area under ROC curve 88.78%, which is pretty good.</p>
+<h4>Concordance</h4>
+<p>Ideally, the model-calculated-probability-scores of all actual Positive’s, (aka Ones) should be greater than the model-calculated-probability-scores of ALL the Negatives (aka Zeroes). Such a model is said to be perfectly concordant and a highly reliable one. This phenomenon can be measured by Concordance and Discordance.</p>
+<p>In simpler words, of all combinations of 1-0 pairs (actuals), <em>Concordance</em> is the percentage of pairs, whose scores of actual positive’s are greater than the scores of actual negative’s. For a perfect model, this will be 100%. So, the higher the concordance, the better is the quality of model.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">Concordance</span>(testData$ABOVE50K, predicted, <span class="dt">threshold =</span> optCutOff)
+<span class="co">#&gt; 0.8915</span></code></pre></div>
+<p>The above model with a concondance of 89.2% is indeed a good quality model.</p>
+<h4>Specificity and Sensitivity</h4>
+<p>Sensitivity (or True Positive Rate) is the percentage of 1’s (actuals) correctly predicted by the model, while, specificity is the percentage of 0’s (actuals) correctly predicted. Specificity can also be calculated as 1-False Positive Rate.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">sensitivity</span>(testData$ABOVE50K, predicted, <span class="dt">threshold =</span> optCutOff)
+<span class="co">#&gt; 0.3089</span>
+<span class="kw">specificity</span>(testData$ABOVE50K, predicted, <span class="dt">threshold =</span> optCutOff)
+<span class="co">#&gt; 0.9836</span></code></pre></div>
+<p>The above numbers are calculated on the validation sample that was not used for training the model. So, a truth detection rate of 31% on test data is good.</p>
+<h4>Confusion Matrix</h4>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">confusionMatrix</span>(testData$ABOVE50K, predicted, <span class="dt">threshold =</span> optCutOff)
+<span class="co"># The columns are actuals, while rows are predicteds.</span>
+<span class="co">#&gt;       0    1</span>
+<span class="co">#&gt; 0 18918 1626</span>
+<span class="co">#&gt; 1   314  727</span></code></pre></div>
 
 
         </div>
