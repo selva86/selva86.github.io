@@ -133,7 +133,70 @@
 
         <div id="content" class="col-xs-12 col-sm-8 pull-right">
 
-          
+          <blockquote>
+<p>Loess Regression is the most common method used to smoothen a volatile time series. It is a non-parametric methods where least squares regression is performed in localized subsets, which makes it a suitable candidate for smoothing any numerical vector.</p>
+</blockquote>
+<h2>Introduction</h2>
+<p><em>Loess</em> short for Local Regression is a non-parametric approach that fits multiple regressions in local neighborhood. This can be particularly resourceful, if you know that your <span class="math inline"><em>X</em></span> variables are bound within a range.</p>
+<p>Loess regression can be applied using the <code>loess()</code> on a numerical vector to smoothen it and to predict the Y locally (i.e, within the trained values of <span class="math inline"><em>X</em><em>s</em></span>). The size of the neighborhood can be controlled using the <code>span</code> argument, which ranges between 0 to 1. It controls the degree of smoothing. So, the greater the value of <code>span</code>, more smooth is the fitted curve.</p>
+<p>The predictor variable can just be indices from 1 to number of observations in the absence of explanatory variables. If other explanatory variables are available, they can be used as well (maximum of 4).</p>
+<h2>Example</h2>
+<p>For this example we will try to locally regress and smooth the <em>median duration of unemployment</em> based on the <code>economics</code> dataset from <code>ggplot2</code> package. We consider only the first 80 rows for this analysis, so it is easier to observe the degree of smoothing in the graphs below.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">data</span>(economics, <span class="dt">package=</span><span class="st">&quot;ggplot2&quot;</span>)  <span class="co"># load data</span>
+economics$index &lt;-<span class="st"> </span><span class="dv">1</span>:<span class="kw">nrow</span>(economics)  <span class="co"># create index variable</span>
+economics &lt;-<span class="st"> </span>economics[<span class="dv">1</span>:<span class="dv">80</span>, ]  <span class="co"># retail 80rows for better graphical understanding</span>
+loessMod10 &lt;-<span class="st"> </span><span class="kw">loess</span>(uempmed ~<span class="st"> </span>index, <span class="dt">data=</span>economics, <span class="dt">span=</span><span class="fl">0.10</span>) <span class="co"># 10% smoothing span</span>
+loessMod25 &lt;-<span class="st"> </span><span class="kw">loess</span>(uempmed ~<span class="st"> </span>index, <span class="dt">data=</span>economics, <span class="dt">span=</span><span class="fl">0.25</span>) <span class="co"># 25% smoothing span</span>
+loessMod50 &lt;-<span class="st"> </span><span class="kw">loess</span>(uempmed ~<span class="st"> </span>index, <span class="dt">data=</span>economics, <span class="dt">span=</span><span class="fl">0.50</span>) <span class="co"># 50% smoothing span</span></code></pre></div>
+<h2>Predict Loess</h2>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># get smoothed output</span>
+smoothed10 &lt;-<span class="st"> </span><span class="kw">predict</span>(loessMod10) 
+smoothed25 &lt;-<span class="st"> </span><span class="kw">predict</span>(loessMod25) 
+smoothed50 &lt;-<span class="st"> </span><span class="kw">predict</span>(loessMod50) </code></pre></div>
+<p><img src='screenshots/Loess-Smoothing.png' width=528 height=393 /></p>
+<p>From above plot, you would notice that as the span increases, the smoothing of the curve also increases.</p>
+<h5>Code for Plot</h5>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Plot it</span>
+<span class="kw">plot</span>(economics$uempmed, <span class="dt">x=</span>economics$date, <span class="dt">type=</span><span class="st">&quot;l&quot;</span>, <span class="dt">main=</span><span class="st">&quot;Loess Smoothing and Prediction&quot;</span>, <span class="dt">xlab=</span><span class="st">&quot;Date&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;Unemployment (Median)&quot;</span>)
+<span class="kw">lines</span>(smoothed10, <span class="dt">x=</span>economics$date, <span class="dt">col=</span><span class="st">&quot;red&quot;</span>)
+<span class="kw">lines</span>(smoothed25, <span class="dt">x=</span>economics$date, <span class="dt">col=</span><span class="st">&quot;green&quot;</span>)
+<span class="kw">lines</span>(smoothed50, <span class="dt">x=</span>economics$date, <span class="dt">col=</span><span class="st">&quot;blue&quot;</span>)</code></pre></div>
+<h2>Finding the optimal smoothing span</h2>
+<p>As the smoothing <code>span</code> changes, the accuracy of the fitted curve also changes. If your intent is to minimize the error, the <code>optim()</code> can be used to find that value of <code>span</code>, that minimizes the <em>Sum of Squared Errors (SSE)</em>. For this case, it is graphically intuitive that lower SSE will likely be achieved at lower values of <code>span</code>, but for more challenging cases, <code>optimizing</code> span could help.</p>
+<p>To implement <code>optim()</code>, we define the function that computes the <em>SSE</em>. An error handling mechanism is needed to address very low values of <code>span</code> and cases where the non-numerics are produced. The simulated annealing method (<code>SANN</code>) is implemented here to find the <code>span</code> that gives minimal <em>SSE</em>. The <code>par</code> argument specifies the first value of the <code>span</code> at which <code>optim()</code> will begin the search.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># define function that returns the SSE</span>
+calcSSE &lt;-<span class="st"> </span>function(x){
+  loessMod &lt;-<span class="st"> </span><span class="kw">try</span>(<span class="kw">loess</span>(uempmed ~<span class="st"> </span>index, <span class="dt">data=</span>economics, <span class="dt">span=</span>x), <span class="dt">silent=</span>T)
+  res &lt;-<span class="st"> </span><span class="kw">try</span>(loessMod$residuals, <span class="dt">silent=</span>T)
+  if(<span class="kw">class</span>(res)!=<span class="st">&quot;try-error&quot;</span>){
+    if((<span class="kw">sum</span>(res, <span class="dt">na.rm=</span>T) &gt;<span class="st"> </span><span class="dv">0</span>)){
+      sse &lt;-<span class="st"> </span><span class="kw">sum</span>(res^<span class="dv">2</span>)  
+    }
+  }else{
+    sse &lt;-<span class="st"> </span><span class="dv">99999</span>
+  }
+  <span class="kw">return</span>(sse)
+}
+
+<span class="co"># Run optim to find span that gives min SSE, starting at 0.5</span>
+<span class="kw">optim</span>(<span class="dt">par=</span><span class="kw">c</span>(<span class="fl">0.5</span>), calcSSE, <span class="dt">method=</span><span class="st">&quot;SANN&quot;</span>)
+<span class="co">#&gt; $par</span>
+<span class="co">#&gt; [1] 0.05433545</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $value</span>
+<span class="co">#&gt; [1] 3.85753e-28</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $counts</span>
+<span class="co">#&gt; function gradient </span>
+<span class="co">#&gt;    10000       NA </span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $convergence</span>
+<span class="co">#&gt; [1] 0</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $message</span>
+<span class="co">#&gt; NULL</span></code></pre></div>
+<p>For this case, the best value of <code>span</code> turns out to be <code>0.05433</code> and the minimum SSE achieved is <code>3.85e-28</code>.</p>
+
 
         </div>
       </div>
