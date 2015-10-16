@@ -137,7 +137,91 @@
 
         <div id="content" class="col-xs-12 col-sm-8 pull-right">
 
-          
+          <blockquote>
+<p>Ridge Regression is a commonly used technique to address the problem of multi-collinearity. The effectiveness of the application is however debatable.</p>
+</blockquote>
+<h2>Introduction</h2>
+<p>Let us see a use case of the application of Ridge regression on the <code>longley</code> dataset. We will try to predict the <code>GNP.deflator</code> using <code>lm()</code> with the rest of the variables as predictors. This model and results will be compared with the model created using ridge regression.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span> (car) <span class="co"># for VIF</span>
+<span class="kw">library</span> (ridge)
+<span class="kw">data</span>(longley, <span class="dt">package=</span><span class="st">&quot;datasets&quot;</span>)  <span class="co"># initialize data</span>
+<span class="kw">head</span> (longley, <span class="dv">4</span>)  <span class="co"># show top 4 rows of data</span>
+<span class="co">#&gt;      GNP.deflator     GNP Unemployed Armed.Forces Population Year Employed</span>
+<span class="co">#&gt; 1947         83.0 234.289      235.6        159.0    107.608 1947   60.323</span>
+<span class="co">#&gt; 1948         88.5 259.426      232.5        145.6    108.632 1948   61.122</span>
+<span class="co">#&gt; 1949         88.2 258.054      368.2        161.6    109.773 1949   60.171</span>
+<span class="co">#&gt; 1950         89.5 284.599      335.1        165.0    110.929 1950   61.187</span></code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">inputData &lt;-<span class="st"> </span><span class="kw">data.frame</span> (longley) <span class="co"># plug in your data here</span>
+<span class="kw">colnames</span>(inputData)[<span class="dv">1</span>] &lt;-<span class="st"> &quot;response&quot;</span>  <span class="co"># rename response var</span></code></pre></div>
+<h2>Calculate Correlations</h2>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">XVars &lt;-<span class="st"> </span>inputData[, -<span class="dv">1</span>] <span class="co"># X variables</span>
+<span class="kw">round</span>(<span class="kw">cor</span>(XVars), <span class="dv">2</span>) <span class="co"># Correlation Test</span>
+<span class="co">#&gt;               GNP Unemployed Armed.Forces Population Year Employed</span>
+<span class="co">#&gt; GNP          1.00       0.60         0.45       0.99 1.00     0.98</span>
+<span class="co">#&gt; Unemployed   0.60       1.00        -0.18       0.69 0.67     0.50</span>
+<span class="co">#&gt; Armed.Forces 0.45      -0.18         1.00       0.36 0.42     0.46</span>
+<span class="co">#&gt; Population   0.99       0.69         0.36       1.00 0.99     0.96</span>
+<span class="co">#&gt; Year         1.00       0.67         0.42       0.99 1.00     0.97</span>
+<span class="co">#&gt; Employed     0.98       0.50         0.46       0.96 0.97     1.00</span></code></pre></div>
+<h2>Prepare Training And Test Data</h2>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">set.seed</span>(<span class="dv">100</span>) <span class="co"># set seed to replicate results</span>
+trainingIndex &lt;-<span class="st"> </span><span class="kw">sample</span>(<span class="dv">1</span>:<span class="kw">nrow</span>(inputData), <span class="fl">0.8</span>*<span class="kw">nrow</span>(inputData)) <span class="co"># indices for 80% training data</span>
+trainingData &lt;-<span class="st"> </span>inputData[trainingIndex, ] <span class="co"># training data</span>
+testData &lt;-<span class="st"> </span>inputData[-trainingIndex, ] <span class="co"># test data</span></code></pre></div>
+<h2>Predict Using Linear Regression</h2>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">lmMod &lt;-<span class="st"> </span><span class="kw">lm</span>(response ~<span class="st"> </span>., trainingData)  <span class="co"># the linear reg model</span>
+<span class="kw">summary</span> (lmMod) <span class="co"># get summary</span>
+<span class="kw">vif</span>(lmMod) <span class="co"># get VIF</span>
+
+<span class="co">#&gt;  VIF</span>
+<span class="co">#&gt;        GNP   Unemployed Armed.Forces   Population         Year     Employed </span>
+<span class="co">#&gt; 1523.74714     93.07635     10.74587    350.58472   2175.29221    182.93609</span>
+
+<span class="co">#&gt;  Coefficients:</span>
+<span class="co">#&gt;    (Intercept)           GNP    Unemployed  Armed.Forces    Population          Year    Employed</span>
+<span class="co">#&gt;     7652.25192       0.39214       0.06462       0.01573      -2.33550      -3.83113     0.53060</span></code></pre></div>
+<p>There is significant multi-collinearity between GNP &amp; Year and Population &amp; Employed, with negative coefficients in ‘population’ and ‘Employed’. These variables may not contribute much to explain the dependent variable, nevertheless, lets see what this model predicts.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">predicted &lt;-<span class="st"> </span><span class="kw">predict</span> (lmMod, testData)  <span class="co"># predict on test data</span>
+compare &lt;-<span class="st"> </span><span class="kw">cbind</span> (<span class="dt">actual=</span>testData$response, predicted)  <span class="co"># combine actual and predicted</span>
+<span class="co">#&gt;      actual predicted</span>
+<span class="co">#&gt; 1949   88.2  88.45501</span>
+<span class="co">#&gt; 1953   99.0  96.67492</span>
+<span class="co">#&gt; 1957  108.4 106.59672</span>
+<span class="co">#&gt; 1959  112.6 113.31106</span>
+<span class="kw">mean</span> (<span class="kw">apply</span>(compare, <span class="dv">1</span>, min)/<span class="kw">apply</span>(compare, <span class="dv">1</span>, max)) <span class="co"># calculate accuracy</span>
+<span class="co">#&gt;  98.76%</span></code></pre></div>
+<h2>Apply Ridge Regression On Same Data</h2>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">linRidgeMod &lt;-<span class="st"> </span><span class="kw">linearRidge</span>(response ~<span class="st"> </span>., <span class="dt">data =</span> trainingData)  <span class="co"># the ridge regression model</span>
+<span class="co">#&gt;  No more Negative Coefficients!</span>
+<span class="co">#&gt;   (Intercept)           GNP    Unemployed  Armed.Forces    Population          Year     Employed</span>
+<span class="co">#&gt; -1.015385e+03  3.715498e-02  1.328002e-02  1.707769e-02  1.294903e-01  5.318930e-01 5.976266e-01</span>
+
+predicted &lt;-<span class="st"> </span><span class="kw">predict</span>(linRidgeMod, testData)  <span class="co"># predict on test data</span>
+compare &lt;-<span class="st"> </span><span class="kw">cbind</span> (<span class="dt">actual=</span>testData$response, predicted)  <span class="co"># combine</span>
+<span class="co">#&gt;      actual predicted</span>
+<span class="co">#&gt; 1949   88.2  88.68584</span>
+<span class="co">#&gt; 1953   99.0  99.26104</span>
+<span class="co">#&gt; 1957  108.4 106.99370</span>
+<span class="co">#&gt; 1959  112.6 110.95450</span>
+<span class="kw">mean</span> (<span class="kw">apply</span>(compare, <span class="dv">1</span>, min)/<span class="kw">apply</span>(compare, <span class="dv">1</span>, max)) <span class="co"># calculate accuracy</span>
+<span class="co">#&gt;  99.10%</span></code></pre></div>
+<p>Clearly, in this case, ridge regression is successful in improving the accuracy by a minor but significant fraction.</p>
+<h2>Predicting With A Re-calibrated Linear Model</h2>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">newlmMod &lt;-<span class="st"> </span><span class="kw">lm</span>(response ~<span class="st"> </span>., trainingData[, -<span class="kw">c</span>(<span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">6</span>)]) <span class="co"># without &quot;GNP&quot;, &quot;Population&quot; &amp; &quot;Year&quot;</span>
+<span class="kw">summary</span> (newlmMod) <span class="co"># get summary</span>
+<span class="kw">vif</span>(newlmMod) <span class="co"># get VIF</span>
+<span class="co">#&gt; Coefficients:</span>
+<span class="co">#&gt;  (Intercept)    Unemployed  Armed.Forces      Employed  </span>
+<span class="co">#&gt;    -62.19771       0.03248       0.02714       2.24039 </span>
+<span class="co">#&gt;  VIF</span>
+<span class="co">#&gt;   Unemployed Armed.Forces     Employed </span>
+<span class="co">#&gt;     2.124153     1.452648     2.592474</span>
+predicted &lt;-<span class="st"> </span><span class="kw">predict</span>(newlmMod, testData) <span class="co"># predict on test data</span>
+compare &lt;-<span class="st"> </span><span class="kw">cbind</span> (<span class="dt">actual=</span>testData$response, predicted) <span class="co"># for comparison</span>
+<span class="kw">mean</span> (<span class="kw">apply</span>(compare, <span class="dv">1</span>, min)/<span class="kw">apply</span>(compare, <span class="dv">1</span>, max)) <span class="co"># calculate accuracy</span>
+<span class="co">#&gt;  99.21%</span></code></pre></div>
+<p>The re-calibrated linear model yields better accuracy when the multicollinearity is taken care of. This analysis may not be sufficient to draw conclusions about the effectiveness of ridge regression. The intention, however, is to open up considerations for new modeling options for problem solving.</p>
+
 
         </div>
       </div>
