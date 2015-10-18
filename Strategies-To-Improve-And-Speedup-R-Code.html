@@ -168,19 +168,21 @@ df &lt;-<span class="st"> </span><span class="kw">data.frame</span> (col1, col2,
   }
 })</code></pre></div>
 <p>All the computations below, for processing times, were done on a MAC OS X with 2.6 Ghz processor and 8GB RAM.</p>
-<h2>1. Vectorize and pre-allocate data structures</h2>
+<h2>1. Vectorize and Pre-allocate</h2>
 <p>Always initialize your data structures and output variable to required length and data type before taking it to loop for computations. Try not to incrementally increase the size of your data inside the loop. Lets compare how vectorization improves speed on a range of data sizes from 1000 to 100,000 rows.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># After vectorization and pre-allocation</span>
 output &lt;-<span class="st"> </span><span class="kw">character</span> (<span class="kw">nrow</span>(df)) <span class="co"># initialize output vector</span>
 <span class="kw">system.time</span>({
   for (i in <span class="dv">1</span>:<span class="kw">nrow</span>(df)) {
     if ((df[i, <span class="st">&#39;col1&#39;</span>] +<span class="st"> </span>df[i, <span class="st">&#39;col2&#39;</span>] +<span class="st"> </span>df[i, <span class="st">&#39;col3&#39;</span>] +<span class="st"> </span>df[i, <span class="st">&#39;col4&#39;</span>]) &gt;<span class="st"> </span><span class="dv">4</span>) {
-      output[i] &lt;-<span class="st"> &quot;greater_than_4&quot;</span>
+      output[i] &lt;-<span class="st"> &quot;greater_than_4&quot;</span>  <span class="co"># assign to vector </span>
     } else {
       output[i] &lt;-<span class="st"> &quot;lesser_than_4&quot;</span>
     }
   }
-df$output})</code></pre></div>
+df$output &lt;-<span class="st"> </span>output  <span class="co"># finally assign to data frame</span>
+})</code></pre></div>
+<p><img src='screenshots/strategies-to-speedup-r-code/strategies-to-speedup-r-code-1.png' width=447 height=300 /></p>
 <h2>2. Take statements that check for conditions (if statements) outside the loop</h2>
 <p>Taking the condition checking outside the loop the speed is compared against the previous version that had vectorization alone. The tests were done on dataset size range from 100,000 to 1,000,000 rows. The gain in speed is again dramatic.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># After vectorization and pre-allocation, taking the condition checking outside the loop.</span>
@@ -196,6 +198,7 @@ condition &lt;-<span class="st"> </span>(df$col1 +<span class="st"> </span>df$co
   }
   df$output &lt;-<span class="st"> </span>output
 })</code></pre></div>
+<p><img src='screenshots/strategies-to-speedup-r-code/strategies-to-speedup-r-code-2.png' width=447 height=299 /></p>
 <h2>3. Run the loop only for True conditions</h2>
 <p>Another optimization we can do here is to run the loop only for condition cases that are ‘True’, by initializing (pre-allocating) the default value of output vector to that of ‘False’ state. The speed improvement here largely depends on the proportion of ‘True’ cases in your data. The tests compared the performance of this against the previous case (2) on data size ranging from 1,000,000 to 10,000,000 rows. Note that we have increase a ‘0’ here. As expected there is a consistent and considerable improvement.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">output &lt;-<span class="st"> </span><span class="kw">character</span>(<span class="kw">nrow</span>(df))
@@ -209,12 +212,14 @@ condition &lt;-<span class="st"> </span>(df$col1 +<span class="st"> </span>df$co
     }
   }
   df$output })</code></pre></div>
+<p><img src='screenshots/strategies-to-speedup-r-code/strategies-to-speedup-r-code-3.png' width=447 height=302 /></p>
 <h2>4. Use ifelse() whenever possible</h2>
 <p>You can make this logic much simpler and faster by using the ifelse() statement. The syntax is similar to the ‘if’ function in MS Excel, but the speed increase is phenomenal, especially considering that there is no vector pre-allocation here and the condition is checked in every case. Looks like this is going to be a highly preferred option to speed up simple loops.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">system.time</span>({
   output &lt;-<span class="st"> </span><span class="kw">ifelse</span> ((df$col1 +<span class="st"> </span>df$col2 +<span class="st"> </span>df$col3 +<span class="st"> </span>df$col4) &gt;<span class="st"> </span><span class="dv">4</span>, <span class="st">&quot;greater_than_4&quot;</span>, <span class="st">&quot;lesser_than_4&quot;</span>)
   df$output &lt;-<span class="st"> </span>output
 })</code></pre></div>
+<p><img src='screenshots/strategies-to-speedup-r-code/strategies-to-speedup-r-code-4.png' width=447 height=335 /></p>
 <h2>5. Using which()</h2>
 <p>By using which() command to select the rows, we are able to achieve one-third the speed of Rcpp.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">system.time</span>({
@@ -239,6 +244,7 @@ condition &lt;-<span class="st"> </span>(df$col1 +<span class="st"> </span>df$co
   output &lt;-<span class="st"> </span><span class="kw">apply</span>(df[, <span class="kw">c</span>(<span class="dv">1</span>:<span class="dv">4</span>)], <span class="dv">1</span>, <span class="dt">FUN=</span>myfunc)  <span class="co"># apply &#39;myfunc&#39; on every row</span>
   df$output &lt;-<span class="st"> </span>output
 })</code></pre></div>
+<p><img src='screenshots/strategies-to-speedup-r-code/strategies-to-speedup-r-code-5.png' width=447 height=325 /></p>
 <h2>7. Use byte code compilation for functions <code>cmpfun()</code> from compiler package, rather than the actual function itself.</h2>
 <p>This may not be the best example to illustrate the effectiveness of byte code compilation, as the time taken is marginally higher than the regular form. However, for more complex functions, byte-code compilation is known to perform faster. So you should definitely give it a shot.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># byte code compilation</span>
@@ -247,6 +253,7 @@ myFuncCmp &lt;-<span class="st"> </span><span class="kw">cmpfun</span>(myfunc)
 <span class="kw">system.time</span>({
   output &lt;-<span class="st"> </span><span class="kw">apply</span>(df[, <span class="kw">c</span> (<span class="dv">1</span>:<span class="dv">4</span>)], <span class="dv">1</span>, <span class="dt">FUN=</span>myFuncCmp)
 })</code></pre></div>
+<p><img src='screenshots/strategies-to-speedup-r-code/strategies-to-speedup-r-code-6.png' width=447 height=359 /></p>
 <h2>8. Use Rcpp</h2>
 <p>Lets turn this up a notch. So far we have gained speed and capacity by various strategies and found the most optimal one using the ifelse() statement. What if we add one more zero? Below we execute the same logic but with Rcpp, and with a data size is increased to 100 Million rows. We will compare the speed of Rcpp to the ifelse() method.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(Rcpp)
@@ -275,6 +282,7 @@ CharacterVector <span class="kw">myFunc</span>(DataFrame x) {
   }
   return out;
 }</code></pre></div>
+<p><img src='screenshots/strategies-to-speedup-r-code/strategies-to-speedup-r-code-7.png' width=447 height=360 /></p>
 <h2>9. Use parallel processing if you have a multicore machine.</h2>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># parallel processing</span>
 <span class="kw">library</span>(foreach)
@@ -296,7 +304,7 @@ condition &lt;-<span class="st"> </span>(df$col1 +<span class="st"> </span>df$co
 df$output &lt;-<span class="st"> </span>output</code></pre></div>
 <h2>10. Remove variables and flush memory as early as possible.</h2>
 <p>Remove objects <code>rm()</code> that are no longer needed, as early as possible in code, especially before going in to lengthy loop operations. Sometimes, flushing <code>gc()</code> at the end of each iteration with in the loops can help.</p>
-<h2>11. Use data structures that consume lesser memory</h2>
+<h2>11. Use data structures that consume less memory</h2>
 <p><code>data.table()</code> is an excellent example, as it reduces the memory overload which helps to speed up operations like merging data.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">dt &lt;-<span class="st"> </span><span class="kw">data.table</span>(df)  <span class="co"># create the data.table</span>
 <span class="kw">system.time</span>({
@@ -308,6 +316,7 @@ df$output &lt;-<span class="st"> </span>output</code></pre></div>
     }
   }
 })</code></pre></div>
+<p><img src='screenshots/strategies-to-speedup-r-code/strategies-to-speedup-r-code-8.png' width=447 height=360 /></p>
 <h2>Summary</h2>
 <table>
 <thead>
