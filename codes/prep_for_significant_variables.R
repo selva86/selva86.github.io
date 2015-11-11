@@ -20,4 +20,4 @@ inputData <- cbind(inputData[!names(inputData) %in% cont_vars], inputData_cont)
 # Missing value imputation with DMwR
 library(DMwR)
 input <- inputData
-completedData2 <- knnImputation(input)
+inputData <- knnImputation(input)
