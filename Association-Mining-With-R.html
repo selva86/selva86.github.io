@@ -71,8 +71,10 @@
 <li><a href="Strategies-To-Improve-And-Speedup-R-Code.html">Strategies to Speedup R code</a></li>
 
 <li class="dropdown-header">Useful Techniques</li>
+<li><a href="Association-Mining-With-R.html">Association Mining</a></li>
 <li><a href="Multi-Dimensional-Scaling-With-R.html">Multi Dimensional Scaling</a></li>
 <li><a href="Profiling.html">Optimization</a></li>
+<li><a href="Information-Value-With-R.html">InformationValue package</a></li>
 
             </ul>
           </li>
@@ -121,8 +123,10 @@
 <li><a href="Strategies-To-Improve-And-Speedup-R-Code.html">Strategies to Speedup R code</a></li>
 
 <li class="dropdown-header">Useful Techniques</li>
+<li><a href="Association-Mining-With-R.html">Association Mining</a></li>
 <li><a href="Multi-Dimensional-Scaling-With-R.html">Multi Dimensional Scaling</a></li>
 <li><a href="Profiling.html">Optimization</a></li>
+<li><a href="Information-Value-With-R.html">InformationValue package</a></li>
 
             </ul>
           </li>
@@ -149,42 +153,159 @@
 
           <h1>Association Mining (Market Basket Analysis)</h1>
 <blockquote>
-<p>Association mining is commonly used to make product recommendations by identifying products that are frequently bought together. But, if you are not careful, in certain cases the rules can give misleading results. Read on to find out.</p>
+<p>Association mining is commonly used to make product recommendations by identifying products that are frequently bought together. But, if you are not careful, the rules can give misleading results in certain cases.</p>
 </blockquote>
 <p>Association mining is usually done on transactions data from a retail market or from an online e-commerce store. Since most transactions data is large, the <code>apriori</code> algorithm makes it easier to find these patterns or <em>rules</em> quickly.</p>
 <p>So, What is a <em>rule</em>?</p>
-<p>A rule has an <em>LHS</em> and an <em>RHS</em> part. It could look like this:</p>
-<p><strong>item A =&gt; item B</strong></p>
-<p>Meaning, the item/s on the right were frequently purchased along with items on the left.</p>
+<p>A rule is a notation that represents which item/s is frequently bought with what item/s. It has an <em>LHS</em> and an <em>RHS</em> part and can be represented as follows:</p>
+<p><strong>itemset A =&gt; itemset B</strong></p>
+<p>This means, the item/s on the right were frequently purchased along with items on the left.</p>
 <h2>How to measure the strength of a rule?</h2>
-<p>Once the <code>apriori()</code> generates all the rules from a given transaction data, it also shows the <em>support</em>, <em>confidence</em> and <em>lift</em> of these rules. These three measure can be used to decide which rules are strength enough. So what do these terms mean?</p>
-<p>Lets consider the rule <em>A =&gt; B</em> in order to compute these metrics.</p>
+<p>The <code>apriori()</code> generates the most relevent set of rules from a given transaction data. It also shows the <em>support</em>, <em>confidence</em> and <em>lift</em> of those rules. These three measure can be used to decide the relative strength of the rules. So what do these terms mean?</p>
+<p>Lets consider the rule <strong>A =&gt; B</strong> in order to compute these metrics.</p>
 <p><br /><span class="math display">$$Support = \frac{Number\ of\ transactions\ with\ both\ A\ and\ B}{Total\ number\ of\ transactions} = P\left(A \cap B\right)$$</span><br /></p>
 <p><br /><span class="math display">$$Confidence = \frac{Number\ of\ transactions\ with\ both\ A\ and\ B}{Total\ number\ of\ transactions\ with\ A} = \frac{P\left(A \cap B\right)}{P\left(A\right)}$$</span><br /></p>
 <p><br /><span class="math display">$$Expected Confidence = \frac{Number\ of\ transactions\ with\ B}{Total\ number\ of\ transactions} = P\left(B\right)$$</span><br /></p>
 <p><br /><span class="math display">$$Lift = \frac{Confidence}{Expected\ Confidence} = \frac{P\left(A \cap B\right)}{P\left(A\right).P\left(B\right)}$$</span><br /></p>
+<p><em>Lift</em> is the factor by which, the co-occurence of A and B exceeds the expected probability of A and B co-occuring, had they been independent. So, higher the lift, higher the chance of A and B occurring together.</p>
+<p>Lets see how to get the rules, confidence, lift etc using the <code>arules</code> package in R.</p>
+<h2>Example</h2>
+<h4>Transactions data</h4>
+<p>Lets play with the <code>Groceries</code> data that comes with the <code>arules</code> pkg. Unlike dataframe, using <code>head(Groceries)</code> does not display the transaction items in the data. To view the transactions, use the <code>inspect()</code> function instead.</p>
+<p>Since association mining deals with transactions, the data has to be converted to one of class <code>transactions</code>, made available in R through the <code>arules</code> pkg. This is a necessary step because the <code>apriori()</code> function accepts transactions data of class <code>transactions</code> only.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(arules)
+<span class="kw">class</span>(Groceries)
+<span class="co">#&gt; [1] &quot;transactions&quot;</span>
+<span class="co">#&gt; attr(,&quot;package&quot;)</span>
+<span class="co">#&gt; [1] &quot;arules&quot;</span>
+<span class="kw">inspect</span>(<span class="kw">head</span>(Groceries, <span class="dv">3</span>))
+<span class="co">#&gt; items                     </span>
+<span class="co">#&gt; 1 {citrus fruit,            </span>
+<span class="co">#&gt;    semi-finished bread,     </span>
+<span class="co">#&gt;    margarine,               </span>
+<span class="co">#&gt;    ready soups}             </span>
+<span class="co">#&gt; 2 {tropical fruit,          </span>
+<span class="co">#&gt;    yogurt,                  </span>
+<span class="co">#&gt; coffee}                  </span>
+<span class="co">#&gt; 3 {whole milk}              </span></code></pre></div>
+<p>If you have to read data from a file as a transactions data, use <code>read.transactions()</code>.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">tdata &lt;-<span class="st"> </span><span class="kw">read.transactions</span>(<span class="st">&quot;transactions_data.txt&quot;</span>, <span class="dt">sep=</span><span class="st">&quot;</span><span class="ch">\t</span><span class="st">&quot;</span>)</code></pre></div>
+<p>If you already have your transactions stored as a dataframe, you could convert it to class <code>transactions</code> as follows,</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">tData &lt;-<span class="st"> </span><span class="kw">as</span> (myDataFrame, <span class="st">&quot;transactions&quot;</span>) <span class="co"># convert to &#39;transactions&#39; class</span></code></pre></div>
+<p>Here are couple more utility functions that are good to know:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">size</span>(<span class="kw">head</span>(Groceries)) <span class="co"># number of items in each observation</span>
+<span class="co">#&gt; [1] 4 3 1 4 4 5</span>
+<span class="kw">LIST</span>(<span class="kw">head</span>(Groceries, <span class="dv">3</span>)) <span class="co"># convert &#39;transactions&#39; to a list, note the LIST in CAPS</span>
+<span class="co">#&gt; [[1]]</span>
+<span class="co">#&gt; [1] &quot;citrus fruit&quot;        &quot;semi-finished bread&quot; &quot;margarine&quot;          </span>
+<span class="co">#&gt; [4] &quot;ready soups&quot;        </span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; [[2]]</span>
+<span class="co">#&gt; [1] &quot;tropical fruit&quot; &quot;yogurt&quot;         &quot;coffee&quot;        </span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; [[3]]</span>
+<span class="co">#&gt; [1] &quot;whole milk&quot;</span></code></pre></div>
+<h2>How to see the most frequent items?</h2>
+<p>The <code>eclat()</code> takes in a transactions object and gives the most frequent items in the data based the support you provide to the <code>supp</code> argument. The <code>maxlen</code> defines the maximum number of items in each itemset of frequent items.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">frequentItems &lt;-<span class="st"> </span><span class="kw">eclat</span> (Groceries, <span class="dt">parameter =</span> <span class="kw">list</span>(<span class="dt">supp =</span> <span class="fl">0.07</span>, <span class="dt">maxlen =</span> <span class="dv">15</span>)) <span class="co"># calculates support for frequent items</span>
+<span class="kw">inspect</span>(frequentItems)
+<span class="co">#&gt;    items                         support   </span>
+<span class="co">#&gt; 1  {other vegetables,whole milk} 0.07483477</span>
+<span class="co">#&gt; 2  {whole milk}                  0.25551601</span>
+<span class="co">#&gt; 3  {other vegetables}            0.19349263</span>
+<span class="co">#&gt; 4  {rolls/buns}                  0.18393493</span>
+<span class="co">#&gt; 5  {yogurt}                      0.13950178</span>
+<span class="co">#&gt; 6  {soda}                        0.17437722</span>
+<span class="kw">itemFrequencyPlot</span>(Groceries, <span class="dt">topN=</span><span class="dv">10</span>, <span class="dt">type=</span><span class="st">&quot;absolute&quot;</span>, <span class="dt">main=</span><span class="st">&quot;Item Frequency&quot;</span>) <span class="co"># plot frequent items</span></code></pre></div>
+<p><img src='screenshots/item_frequency_plot_arules.png' width=528 height=289 /></p>
+<h1>How to get the product recommendation rules?</h1>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">rules &lt;-<span class="st"> </span><span class="kw">apriori</span> (Groceries, <span class="dt">parameter =</span> <span class="kw">list</span>(<span class="dt">supp =</span> <span class="fl">0.001</span>, <span class="dt">conf =</span> <span class="fl">0.5</span>)) <span class="co"># Min Support as 0.001, confidence as 0.8.</span>
+rules_conf &lt;-<span class="st"> </span><span class="kw">sort</span> (rules, <span class="dt">by=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">decreasing=</span><span class="ot">TRUE</span>) <span class="co"># &#39;high-confidence&#39; rules.</span>
+<span class="kw">inspect</span>(<span class="kw">head</span>(rules_conf)) <span class="co"># show the support, lift and confidence for all rules</span>
+<span class="co">#&gt;      lhs                                           rhs                support     confidence lift    </span>
+<span class="co">#&gt; 113  {rice,sugar}                               =&gt; {whole milk}       0.001220132 1          3.913649</span>
+<span class="co">#&gt; 258  {canned fish,hygiene articles}             =&gt; {whole milk}       0.001118454 1          3.913649</span>
+<span class="co">#&gt; 1487 {root vegetables,butter,rice}              =&gt; {whole milk}       0.001016777 1          3.913649</span>
+<span class="co">#&gt; 1646 {root vegetables,whipped/sour cream,flour} =&gt; {whole milk}       0.001728521 1          3.913649</span>
+<span class="co">#&gt; 1670 {butter,soft cheese,domestic eggs}         =&gt; {whole milk}       0.001016777 1          3.913649</span>
+<span class="co">#&gt; 1699 {citrus fruit,root vegetables,soft cheese} =&gt; {other vegetables} 0.001016777 1          5.168156</span>
+rules_lift &lt;-<span class="st"> </span><span class="kw">sort</span> (rules, <span class="dt">by=</span><span class="st">&quot;lift&quot;</span>, <span class="dt">decreasing=</span><span class="ot">TRUE</span>) <span class="co"># &#39;high-lift&#39; rules.</span>
+<span class="kw">inspect</span>(<span class="kw">head</span>(rules_lift)) <span class="co"># show the support, lift and confidence for all rules</span>
+<span class="co">#&gt;      lhs                                                  rhs              support  confidence lift    </span>
+<span class="co">#&gt; 53   {Instant food products,soda}                      =&gt; {hamburger meat} 0.001220 0.6315789  18.995</span>
+<span class="co">#&gt; 37   {soda,popcorn}                                    =&gt; {salty snack}    0.001220 0.6315789  16.697</span>
+<span class="co">#&gt; 444  {flour,baking powder}                             =&gt; {sugar}          0.001016 0.5555556  16.408</span>
+<span class="co">#&gt; 327  {ham,processed cheese}                            =&gt; {white bread}    0.001931 0.6333333  15.045</span>
+<span class="co">#&gt; 55   {whole milk,Instant food products}                =&gt; {hamburger meat} 0.001525 0.5000000  15.038</span>
+<span class="co">#&gt; 4807 {other vegetables,curd,yogurt,whipped/sour cream} =&gt; {cream cheese }  0.001016 0.5882353  14.834</span></code></pre></div>
+<p>The rules with confidence of 1 (see <code>rules_conf</code> above) imply that, whenever the LHS item was purchased, the RHS item was also purchased 100% of the time.</p>
+<p>A rule with a lift of 18 (see <code>rules_lift</code> above) imply that, the items in LHS and RHS are 18 times more likely to be purchased together compared to the purchases when they are assumed to be unrelated.</p>
+<h2>How To Control The Number Of Rules in Output ?</h2>
+<p>Adjust the <code>maxlen</code>, <code>supp</code> and <code>conf</code> arguments in the <code>apriori</code> function to control the number of rules generated. You will have to adjust this based on the sparesness of you data.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">rules &lt;-<span class="st"> </span><span class="kw">apriori</span>(Groceries, <span class="dt">parameter =</span> <span class="kw">list</span> (<span class="dt">supp =</span> <span class="fl">0.001</span>, <span class="dt">conf =</span> <span class="fl">0.5</span>, <span class="dt">maxlen=</span><span class="dv">3</span>)) <span class="co"># maxlen = 3 limits the elements in a rule to 3</span></code></pre></div>
+<ol style="list-style-type: decimal">
+<li>To get <strong>‘strong‘</strong> rules, increase the value of <em>‘conf’</em> parameter.</li>
+<li>To get <strong>‘longer‘</strong> rules, increase <em>‘maxlen’</em>.</li>
+</ol>
+<h2>How To Remove Redundant Rules ?</h2>
+<p>Sometimes it is desirable to remove the rules that are subset of larger rules. To do so, use the below code to filter the redundant rules.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">subsetRules &lt;-<span class="st"> </span><span class="kw">which</span>(<span class="kw">colSums</span>(<span class="kw">is.subset</span>(rules, rules)) &gt;<span class="st"> </span><span class="dv">1</span>) <span class="co"># get subset rules in vector</span>
+<span class="kw">length</span>(subsetRules)  <span class="co">#&gt; 3913</span>
+rules &lt;-<span class="st"> </span>rules[-subsetRules] <span class="co"># remove subset rules. </span></code></pre></div>
+<h2>How to Find Rules Related To Given Item/s ?</h2>
+<p>This can be achieved by modifying the <code>appearance</code> parameter in the <code>apriori()</code> function. For example,</p>
+<h4>To find what factors influenced purchase of product X</h4>
+<p>To find out what customers had purchased before buying ‘Whole Milk’. This will help you understand the patterns that led to the purchase of ‘whole milk’.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">rules &lt;-<span class="st"> </span><span class="kw">apriori</span> (<span class="dt">data=</span>Groceries, <span class="dt">parameter=</span><span class="kw">list</span> (<span class="dt">supp=</span><span class="fl">0.001</span>,<span class="dt">conf =</span> <span class="fl">0.08</span>), <span class="dt">appearance =</span> <span class="kw">list</span> (<span class="dt">default=</span><span class="st">&quot;lhs&quot;</span>,<span class="dt">rhs=</span><span class="st">&quot;whole milk&quot;</span>), <span class="dt">control =</span> <span class="kw">list</span> (<span class="dt">verbose=</span>F)) <span class="co"># get rules that lead to buying &#39;whole milk&#39;</span>
+rules_conf &lt;-<span class="st"> </span><span class="kw">sort</span> (rules, <span class="dt">by=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">decreasing=</span><span class="ot">TRUE</span>) <span class="co"># &#39;high-confidence&#39; rules.</span>
+<span class="kw">inspect</span>(<span class="kw">head</span>(rules_conf))
+<span class="co">#&gt;      lhs                                           rhs          support     confidence lift    </span>
+<span class="co">#&gt; 196  {rice,sugar}                               =&gt; {whole milk} 0.001220132 1          3.913649</span>
+<span class="co">#&gt; 323  {canned fish,hygiene articles}             =&gt; {whole milk} 0.001118454 1          3.913649</span>
+<span class="co">#&gt; 1643 {root vegetables,butter,rice}              =&gt; {whole milk} 0.001016777 1          3.913649</span>
+<span class="co">#&gt; 1705 {root vegetables,whipped/sour cream,flour} =&gt; {whole milk} 0.001728521 1          3.913649</span>
+<span class="co">#&gt; 1716 {butter,soft cheese,domestic eggs}         =&gt; {whole milk} 0.001016777 1          3.913649</span>
+<span class="co">#&gt; 1985 {pip fruit,butter,hygiene articles}        =&gt; {whole milk} 0.001016777 1          3.913649</span></code></pre></div>
+<h4>To find out what products were purchased after/along with product X</h4>
+<p>The is a case to find out <em>the Customers who bought ‘Whole Milk’ also bought . .</em> In the equation, ‘whole milk’ is in LHS (left hand side).</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">rules &lt;-<span class="st"> </span><span class="kw">apriori</span> (<span class="dt">data=</span>Groceries, <span class="dt">parameter=</span><span class="kw">list</span> (<span class="dt">supp=</span><span class="fl">0.001</span>,<span class="dt">conf =</span> <span class="fl">0.15</span>,<span class="dt">minlen=</span><span class="dv">2</span>), <span class="dt">appearance =</span> <span class="kw">list</span>(<span class="dt">default=</span><span class="st">&quot;rhs&quot;</span>,<span class="dt">lhs=</span><span class="st">&quot;whole milk&quot;</span>), <span class="dt">control =</span> <span class="kw">list</span> (<span class="dt">verbose=</span>F)) <span class="co"># those who bought &#39;milk&#39; also bought..</span>
+rules_conf &lt;-<span class="st"> </span><span class="kw">sort</span> (rules, <span class="dt">by=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">decreasing=</span><span class="ot">TRUE</span>) <span class="co"># &#39;high-confidence&#39; rules.</span>
+<span class="kw">inspect</span>(<span class="kw">head</span>(rules_conf))
+<span class="co">#&gt;   lhs             rhs                support    confidence lift     </span>
+<span class="co">#&gt; 6 {whole milk} =&gt; {other vegetables} 0.07483477 0.2928770  1.5136341</span>
+<span class="co">#&gt; 5 {whole milk} =&gt; {rolls/buns}       0.05663447 0.2216474  1.2050318</span>
+<span class="co">#&gt; 4 {whole milk} =&gt; {yogurt}           0.05602440 0.2192598  1.5717351</span>
+<span class="co">#&gt; 2 {whole milk} =&gt; {root vegetables}  0.04890696 0.1914047  1.7560310</span>
+<span class="co">#&gt; 1 {whole milk} =&gt; {tropical fruit}   0.04229792 0.1655392  1.5775950</span>
+<span class="co">#&gt; 3 {whole milk} =&gt; {soda}             0.04006101 0.1567847  0.8991124</span></code></pre></div>
+<p>One drawback with this is, you will get only 1 item on the RHS, irrespective of the support, confidence or minlen parameters.</p>
 <h2>Caveat with using Lift</h2>
-<h4>A -&gt; B</h4>
-<p>Support: P(A^B)</p>
-<p>Confidence: P(A^B)/P(A)</p>
-<p>Expected Confidence: P(B)</p>
-<p>Lift: Confidence/Expected Confidence = P(A^B)/P(A).P(B)</p>
-<h4>B -&gt; A</h4>
-<p>Support: P(A^B)</p>
-<p>Confidence: P(A^B)/P(B)</p>
-<p>Expected Confidence: P(A)</p>
-<p>Lift: Confidence/Expected Confidence = P(A^B)/P(A).P(B)</p>
+<p>The directionality of the rule is lost when <em>lift</em> is used. That is, the lift of any rule, <em>A =&gt; B</em> and the rule <em>B =&gt; A</em> will be the same. See the calculation below:</p>
+<h4><em>A -&gt; B</em></h4>
+<ul>
+<li><p>Support: <span class="math inline"><em>P</em>(<em>A</em> ∩ <em>B</em>)</span></p></li>
+<li><p>Confidence: <span class="math inline">$\frac{P\left( A \cap B \right)}{P\left( A \right)}$</span></p></li>
+<li><p>Expected Confidence: <span class="math inline"><em>P</em>(<em>B</em>)</span></p></li>
+<li><p>Lift: <span class="math inline">$\frac{Confidence}{Expected\ Confidence}$</span> = <span class="math inline">$\frac{P\left( A \cap B \right)}{P\left( A \right).P\left( B \right)}$</span></p></li>
+</ul>
+<h4><em>B -&gt; A</em></h4>
+<ul>
+<li><p>Support: <span class="math inline"><em>P</em>(<em>A</em> ∩ <em>B</em>)</span></p></li>
+<li><p>Confidence: <span class="math inline">$\frac{P\left( A \cap B \right)}{P\left( B \right)}$</span></p></li>
+<li><p>Expected Confidence: <span class="math inline"><em>P</em>(<em>B</em>)</span></p></li>
+<li><p>Lift: <span class="math inline">$\frac{Confidence}{Expected\ Confidence}$</span> = <span class="math inline">$\frac{P\left( A \cap B \right)}{P\left( A \right).P\left( B \right)}$</span></p></li>
+</ul>
 <h4>Important Note</h4>
-<p>For both rules A -&gt; B and B -&gt; A, the value of lift turns out to be the same. This means we cannot use lift to make recommendation for a particular ‘rule’. It can merely be used to club frequently bought items into groups.</p>
+<p>For both rules <em>A -&gt; B</em> and <em>B -&gt; A</em>, the value of <em>lift</em> and support turns out to be the same. This means we cannot use lift to make recommendation for a particular <em>directional</em> ‘rule’. It can merely be used to club frequently bought items into groups.</p>
 <h2>Caveat with using Confidence</h2>
-<p>The <em>confidence</em> of a rule can be a misleading measure while making product recommendations in real world problems, especially while making add-ons recommendations. Lets consider the following example transactions, where A: IPhone and B:Headset.</p>
+<p>The <em>confidence</em> of a rule can be a misleading measure while making product recommendations in real world problems, especially while making <em>add-ons</em> product recommendations. Lets consider the following data with 4 transactions, involving IPhones and Headsets:</p>
 <ol style="list-style-type: decimal">
 <li>Iphone, Headset</li>
 <li>Iphone, Headset</li>
 <li>Iphone</li>
 <li>Iphone</li>
 </ol>
-<p>Lets consider the following rules:</p>
+<p>We can create 2 rules for these transactions as shown below:</p>
 <ol style="list-style-type: decimal">
 <li><em>Iphone -&gt; Headset</em></li>
 <li><em>Headset -&gt; IPhone</em></li>
@@ -192,10 +313,10 @@
 <p>In real world, it would be realistic to recommend <em>headphones</em> to a person who just bought an <em>iPhone</em> and not the other way around. Imagine being recommended an iPhone when you just finished purchasing a pair of headphones. Not nice!.</p>
 <p>While selecting rules from the <code>apriori</code> output, you might guess that higher the confidence a rule has, better is the rule. But for cases like this, the headset -&gt; iPhone rule will have a higher confidence (2 times) over iPhone -&gt; headset. Can you see why? The calculation below show how.</p>
 <h4>Confidence Calculation:</h4>
-<p><strong>iPhone -&gt; Headset</strong>: P(iPhone ^ Headset)/P(iPhone) = 0.5 / 1 = <strong>0.5</strong></p>
-<p><strong>Headset -&gt; iPhone</strong>: P(iPhone ^ Headset)/P(Headset) = 0.5 / 0.5 = <strong>1.0</strong></p>
-<p>As, you can see, the <span class="math inline"><em>h</em><em>e</em><em>a</em><em>d</em><em>s</em><em>e</em><em>t</em> −  &gt; <em>i</em><em>P</em><em>h</em><em>o</em><em>n</em><em>e</em></span> recommendation has a higher confidence, which is misleading. So, confidence should not be the only measure you can use to make product recommendations.</p>
-<p>So, you probably need to check more criteria such as the price of products before recommending items, especially in cross selling cases.</p>
+<p><strong>iPhone -&gt; Headset</strong>: <span class="math inline">$\frac{P(iPhone\ \cap\ Headset)}{P(iPhone)}$</span> = 0.5 / 1 = <strong>0.5</strong></p>
+<p><strong>Headset -&gt; iPhone</strong>: <span class="math inline">$\frac{P(iPhone\ \cap\ Headset)}{P(Headset)}$</span> = 0.5 / 0.5 = <strong>1.0</strong></p>
+<p>As, you can see, the <em>headset -&gt; iPhone</em> recommendation has a higher confidence, which is misleading and unrealistic. So, confidence should not be the <em>only measure</em> you should use to make product recommendations.</p>
+<p>So, you probably need to check more criteria such as the price of products, product types etc before recommending items, especially in cross selling cases.</p>
 
 
         </div>
