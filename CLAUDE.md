@@ -225,6 +225,57 @@ Tutorial files: `Title-With-Dashes-And-Capitals.html` (e.g., `Linear-Regression.
 
 ---
 
+## Build System (NEW)
+
+### How It Works
+
+A lightweight Python-based templating system for creating new posts:
+
+```
+_build/template.html   # Shared page template with {{TITLE}}, {{CONTENT}}, {{MATHJAX}}, {{DESCRIPTION}}, {{KEYWORDS}} placeholders
+_build/build.py        # Build script (zero dependencies, Python 3 stdlib only)
+_posts/                # Source files for new posts (HTML fragments with front matter)
+```
+
+### Creating a New Post
+
+1. Create `_posts/Your-Post-Name.html` with this format:
+```html
+---
+title: Your Post Title
+description: SEO description for meta tag
+keywords: comma, separated, keywords
+mathjax: true
+---
+<h1>Your Post Title</h1>
+<blockquote><p>Intro paragraph.</p></blockquote>
+<h2>Section 1</h2>
+<p>Content here...</p>
+```
+
+2. Build: `python _build/build.py`
+3. Test locally: `python -m http.server 8000` then visit `http://localhost:8000/Your-Post-Name.html`
+4. Push: `git add Your-Post-Name.html _posts/Your-Post-Name.html && git commit && git push`
+
+### Front Matter Fields
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `title` | Yes | - | Page `<title>` tag |
+| `description` | No | Generic R tutorials description | Meta description for SEO |
+| `keywords` | No | Generic R/ML keywords | Meta keywords for SEO |
+| `mathjax` | No | `true` | Include MathJax scripts |
+
+### Important Notes
+
+- Filename = output URL: `_posts/My-Post.html` builds to `/My-Post.html`
+- The 42 existing HTML pages are NOT managed by the build system
+- Use `<h2>` for sections (toc.js auto-generates sidebar TOC from h2 tags)
+- Use `<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">` for R code blocks
+- Build script also auto-updates `sitemap.xml` with new entries
+
+---
+
 ## Key Files Reference
 
 | File | Purpose |
@@ -236,7 +287,10 @@ Tutorial files: `Title-With-Dashes-And-Capitals.html` (e.g., `Linear-Regression.
 | `www/toc.js` | Auto-generates table of contents from h2/h4/h5 tags |
 | `www/bootstrap.min.css` | Bootstrap 3.3.5 styles |
 | `feed.xml` | RSS feed (static, from 2017 Jekyll era) |
-| `sitemap.xml` | Sitemap (likely outdated) |
+| `sitemap.xml` | Sitemap (auto-updated by build.py) |
+| `_build/template.html` | Shared page template for new posts |
+| `_build/build.py` | Build script for new posts |
+| `_posts/` | Source files for new posts |
 | `.jekyll-metadata` | Dormant Jekyll cache file |
 
 ## Quick Commands
