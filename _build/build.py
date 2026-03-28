@@ -139,7 +139,7 @@ WEBR_BODY_BLOCK = """
         if (result.output) {
           for (const line of result.output) {
             if (line.type === 'stdout' || line.type === 'stderr') {
-              output += line.data;
+              output += line.data.endsWith('\\n') ? line.data : line.data + '\\n';
             }
           }
         }
