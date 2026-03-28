@@ -62,6 +62,40 @@ WEBR_HEAD_BLOCK = """
         opacity: 0;
       }
 
+      /* --- Run All bar --- */
+      .webr-runall-bar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        margin: 0 0 18px 0;
+        background: linear-gradient(180deg, #f8f9fb 0%, #f1f3f5 100%);
+        border: 1px solid #e1e4e8;
+        border-radius: 6px;
+        opacity: 0;
+        transform: translateY(-6px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .webr-runall-bar.visible { opacity: 1; transform: translateY(0); }
+      .webr-runall-label { font-size: 12px; color: #6b7280; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      .webr-runall-btn {
+        background: linear-gradient(180deg, #2ea44f 0%, #2c974b 100%);
+        color: #fff;
+        border: 1px solid rgba(27,31,36,0.15);
+        padding: 6px 20px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        transition: all 0.15s ease;
+        box-shadow: 0 1px 0 rgba(27,31,36,0.04), inset 0 1px 0 rgba(255,255,255,0.25);
+      }
+      .webr-runall-btn:hover { background: linear-gradient(180deg, #2c974b 0%, #298e46 100%); }
+      .webr-runall-btn:disabled { background: #94d3a2; cursor: wait; }
+      .webr-runall-btn.running { background: linear-gradient(180deg, #d29922 0%, #bf8700 100%); animation: pulse-run 1.5s ease-in-out infinite; }
+
       /* --- Code block container --- */
       .webr-container {
         margin: 22px 0;
@@ -263,6 +297,18 @@ WEBR_BODY_BLOCK = """
           btn.disabled = false;
           btn.textContent = '\\u25b6 Run';
         });
+        // Inject Run All bar at the top of content
+        const contentEl = document.getElementById('content');
+        const firstH1 = contentEl.querySelector('h1');
+        const runAllBar = document.createElement('div');
+        runAllBar.className = 'webr-runall-bar';
+        runAllBar.innerHTML = '<span class="webr-runall-label">R environment ready</span><button class="webr-runall-btn" onclick="runAllWebR(this)">\\u25b6 Run All</button>';
+        if (firstH1 && firstH1.nextSibling) {
+          firstH1.parentNode.insertBefore(runAllBar, firstH1.nextSibling);
+        } else {
+          contentEl.insertBefore(runAllBar, contentEl.firstChild);
+        }
+        requestAnimationFrame(() => { runAllBar.classList.add('visible'); });
       } catch(e) {
         if (banner) { banner.textContent = 'Failed to load R: ' + e.message; banner.style.background = '#fee2e2'; banner.style.color = '#991b1b'; }
       }
@@ -374,7 +420,7 @@ WEBR_BODY_BLOCK = """
           } catch(e) { /* no printable result */ }
         }
 
-        // Clean up shelter objects
+        // Purge shelter to free memory (variables persist in R global env)
         shelter.purge();
         shelter = await new webR.Shelter();
 
@@ -399,6 +445,30 @@ WEBR_BODY_BLOCK = """
       outputEl.textContent = '';
       outputEl.classList.remove('has-content', 'has-error');
       if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
+    };
+
+    // Run all code blocks sequentially
+    window.runAllWebR = async function(btn) {
+      if (!webRReady) return;
+      const allRunBtns = [...document.querySelectorAll('.webr-run-btn')];
+      const total = allRunBtns.length;
+      btn.disabled = true;
+
+      for (let i = 0; i < total; i++) {
+        btn.textContent = 'Running ' + (i + 1) + '/' + total + '...';
+        btn.classList.add('running');
+        const runBtn = allRunBtns[i];
+        // Scroll the block into view
+        runBtn.closest('.webr-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await window.runWebR(runBtn);
+      }
+
+      btn.textContent = '\\u2705 All Done!';
+      btn.classList.remove('running');
+      setTimeout(() => {
+        btn.textContent = '\\u25b6 Run All';
+        btn.disabled = false;
+      }, 2000);
     };
   </script>
   <!-- Mermaid for diagrams -->
