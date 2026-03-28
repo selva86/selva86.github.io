@@ -121,7 +121,7 @@ Tutorial files: `Title-With-Dashes-And-Capitals.html` (e.g., `Linear-Regression.
 - Data.table advanced usage
 - Database connectivity (DBI, dbplyr)
 
-### Goal 2: Online R Compiler (like pycompiler.io for R)
+### Goal 2: Online R Compiler (like pythoncompiler.io for R)
 
 **Concept:** A standalone web app where users can write and execute R code in the browser.
 
