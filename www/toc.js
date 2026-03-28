@@ -24,27 +24,65 @@ $("#content").find("h2").each(function() {
   toc.append("<li><a href='#" + h.attr("id") + "'>" + h.text() + "</a></li>");
 });
 
-// === Sidebar collapsible sections ===
+// === Dynamic sidebar from sidebar.json ===
 $(function() {
   var currentPage = window.location.pathname.split('/').pop() || 'index.html';
+  var sidebarEl = $('#sidebar-nav');
 
-  $('.sidebar-section-header').on('click', function() {
-    $(this).closest('.sidebar-section').toggleClass('expanded');
-  });
+  // Only load if sidebar-nav container exists
+  if (sidebarEl.length === 0) return;
 
-  // Expand section containing the active page link
-  $('.sidebar-section-items a').each(function() {
-    var href = $(this).attr('href');
-    if (href === currentPage) {
-      $(this).addClass('active');
-      $(this).closest('.sidebar-section').addClass('expanded');
+  $.getJSON('www/sidebar.json?v=3', function(sections) {
+    var html = '<ul class="sidebar-menu list-unstyled">';
+
+    for (var i = 0; i < sections.length; i++) {
+      var section = sections[i];
+      var hasActive = false;
+
+      // Check if current page is in this section
+      for (var j = 0; j < section.items.length; j++) {
+        if (section.items[j].href === currentPage) {
+          hasActive = true;
+          break;
+        }
+      }
+
+      html += '<li class="sidebar-section' + (hasActive ? ' expanded' : '') + '">';
+      html += '<div class="sidebar-section-header">';
+      html += '<span class="sidebar-chevron">&#9656;</span> ' + section.title;
+      html += '</div>';
+      html += '<ul class="sidebar-section-items list-unstyled">';
+
+      for (var k = 0; k < section.items.length; k++) {
+        var item = section.items[k];
+        var isActive = (item.href === currentPage);
+        html += '<li><a href="' + item.href + '"' + (isActive ? ' class="active"' : '') + '>' + item.text + '</a></li>';
+      }
+
+      html += '</ul></li>';
     }
-  });
 
-  // If no section matched (e.g. homepage), expand the first section
-  if ($('.sidebar-section.expanded').length === 0) {
-    $('.sidebar-section').first().addClass('expanded');
-  }
+    html += '</ul>';
+
+    // Add subscribe/chat
+    html += '<div class="sidebar-subscribe">';
+    html += '<p>Stay up-to-date. <a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p>';
+    html += '<p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p>';
+    html += '</div>';
+
+    // Replace sidebar content
+    sidebarEl.html(html);
+
+    // If no section is expanded, expand the first one
+    if ($('.sidebar-section.expanded').length === 0) {
+      $('.sidebar-section').first().addClass('expanded');
+    }
+
+    // Attach click handlers
+    $('.sidebar-section-header').on('click', function() {
+      $(this).closest('.sidebar-section').toggleClass('expanded');
+    });
+  });
 });
 
 // === Scroll-spy for right-side TOC ===
