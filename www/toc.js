@@ -32,7 +32,7 @@ $(function() {
   // Only load if sidebar-nav container exists
   if (sidebarEl.length === 0) return;
 
-  $.getJSON('www/sidebar.json?v=4', function(sections) {
+  $.getJSON('www/sidebar.json?t=' + Date.now(), function(sections) {
     var html = '<ul class="sidebar-menu list-unstyled">';
 
     for (var i = 0; i < sections.length; i++) {
