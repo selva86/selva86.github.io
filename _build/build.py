@@ -32,26 +32,28 @@ MATHJAX_BLOCK = """
 WEBR_HEAD_BLOCK = """
     <!-- WebR Interactive R Code -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/default.min.css">
     <style>
-      .webr-container { margin: 15px 0; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; }
-      .webr-editor-wrap { position: relative; }
-      .webr-editor .CodeMirror { height: auto; min-height: 60px; font-size: 14px; font-family: 'Inconsolata', 'Consolas', monospace; line-height: 1.5; border-bottom: 1px solid #eee; }
-      .webr-buttons { padding: 6px 10px; background: #f8f8f8; border-bottom: 1px solid #eee; display: flex; gap: 6px; align-items: center; }
-      .webr-run-btn { background: #4582ec; color: #fff; border: none; padding: 4px 14px; border-radius: 3px; font-size: 13px; cursor: pointer; }
-      .webr-run-btn:hover { background: #3a6fd8; }
-      .webr-run-btn:disabled { background: #999; cursor: wait; }
-      .webr-reset-btn { background: #fff; color: #555; border: 1px solid #ccc; padding: 4px 14px; border-radius: 3px; font-size: 13px; cursor: pointer; }
-      .webr-reset-btn:hover { background: #f0f0f0; }
-      .webr-output { margin: 0; padding: 10px 12px; background: #1e1e1e; color: #d4d4d4; font-family: 'Inconsolata', 'Consolas', monospace; font-size: 13px; line-height: 1.5; min-height: 20px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; display: none; }
+      .webr-container { margin: 18px 0; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+      .webr-toolbar { padding: 5px 10px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; display: flex; justify-content: space-between; align-items: center; }
+      .webr-toolbar-label { font-size: 12px; color: #656d76; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 500; letter-spacing: 0.3px; }
+      .webr-toolbar-actions { display: flex; gap: 6px; }
+      .webr-editor .CodeMirror { height: auto; min-height: 50px; font-size: 14px; font-family: 'Inconsolata', 'Consolas', 'Monaco', monospace; line-height: 1.55; background: #fafbfc; }
+      .webr-editor .CodeMirror-gutters { background: #f0f2f4; border-right: 1px solid #d0d7de; }
+      .webr-editor .CodeMirror-linenumber { color: #8b949e; font-size: 12px; }
+      .webr-run-btn { background: #2da44e; color: #fff; border: none; padding: 4px 14px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; transition: background 0.15s; }
+      .webr-run-btn:hover { background: #218838; }
+      .webr-run-btn:disabled { background: #94d3a2; cursor: wait; }
+      .webr-run-btn.running { background: #bf8700; }
+      .webr-reset-btn { background: transparent; color: #656d76; border: 1px solid #d0d7de; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; transition: all 0.15s; }
+      .webr-reset-btn:hover { background: #f3f4f6; color: #24292f; }
+      .webr-output { margin: 0; padding: 12px 14px; background: #24292f; color: #e6edf3; font-family: 'Inconsolata', 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.55; max-height: 400px; overflow-y: auto; white-space: pre-wrap; display: none; border-top: 1px solid #30363d; }
       .webr-output.has-content { display: block; }
-      .webr-plot-output { text-align: center; padding: 10px; background: #fff; display: none; }
+      .webr-output.has-error { color: #f85149; }
+      .webr-plot-output { text-align: center; padding: 12px; background: #fff; display: none; border-top: 1px solid #d0d7de; }
       .webr-plot-output.has-content { display: block; }
-      .webr-plot-output img { max-width: 100%; height: auto; }
-      .webr-status { padding: 8px 12px; background: #fff3cd; color: #856404; font-size: 13px; text-align: center; display: none; }
-      .webr-status.loading { display: block; }
-      .webr-loading-banner { padding: 12px; background: #e8f4f8; color: #0c5460; text-align: center; margin-bottom: 20px; border-radius: 4px; font-size: 14px; }
-      /* Mermaid diagrams */
+      .webr-plot-output img { max-width: 100%; height: auto; border-radius: 4px; }
+      .webr-loading-banner { padding: 10px 16px; background: linear-gradient(135deg, #dbeafe, #e8f4f8); color: #1e40af; text-align: center; margin-bottom: 20px; border-radius: 6px; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; border: 1px solid #bfdbfe; }
+      .webr-loading-banner.ready { background: linear-gradient(135deg, #d1fae5, #dcfce7); color: #166534; border-color: #86efac; }
       .mermaid { margin: 15px 0; text-align: center; }
     </style>
 """
@@ -65,31 +67,34 @@ WEBR_BODY_BLOCK = """
 
     const webR = new WebR();
     let webRReady = false;
+    let shelter = null;
     const editors = [];
 
-    // Show loading banner
     const banner = document.querySelector('.webr-loading-banner');
 
     async function initWebR() {
-      await webR.init();
-      webRReady = true;
-      if (banner) {
-        banner.textContent = 'R environment ready! You can now run code.';
-        banner.style.background = '#d4edda';
-        banner.style.color = '#155724';
-        setTimeout(() => banner.style.display = 'none', 3000);
+      try {
+        await webR.init();
+        shelter = await new webR.Shelter();
+        webRReady = true;
+        if (banner) {
+          banner.textContent = '\\u2705 R environment ready! Click Run to execute code.';
+          banner.classList.add('ready');
+          setTimeout(() => { banner.style.opacity = '0'; banner.style.transition = 'opacity 0.5s'; setTimeout(() => banner.style.display = 'none', 500); }, 4000);
+        }
+        document.querySelectorAll('.webr-run-btn').forEach(btn => {
+          btn.disabled = false;
+          btn.textContent = '\\u25b6 Run';
+        });
+      } catch(e) {
+        if (banner) { banner.textContent = 'Failed to load R: ' + e.message; banner.style.background = '#fee2e2'; banner.style.color = '#991b1b'; }
       }
-      // Enable all run buttons
-      document.querySelectorAll('.webr-run-btn').forEach(btn => {
-        btn.disabled = false;
-        btn.textContent = '\\u25b6 Run';
-      });
     }
 
     initWebR();
 
     // Initialize CodeMirror editors
-    document.querySelectorAll('.webr-editor').forEach((el, idx) => {
+    document.querySelectorAll('.webr-editor').forEach((el) => {
       const code = el.textContent;
       el.textContent = '';
       const cm = CodeMirror(el, {
@@ -97,14 +102,15 @@ WEBR_BODY_BLOCK = """
         mode: 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
-        tabSize: 2
+        tabSize: 2,
+        theme: 'default'
       });
       editors.push({ cm, originalCode: code, el });
     });
 
-    // Run R code
+    // Run R code using shelter.captureR for proper output capture
     window.runWebR = async function(btn) {
-      if (!webRReady) return;
+      if (!webRReady || !shelter) return;
       const container = btn.closest('.webr-container');
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
@@ -114,55 +120,72 @@ WEBR_BODY_BLOCK = """
 
       btn.disabled = true;
       btn.textContent = 'Running...';
+      btn.classList.add('running');
       outputEl.textContent = '';
-      outputEl.classList.remove('has-content');
-      if (plotEl) {
-        plotEl.innerHTML = '';
-        plotEl.classList.remove('has-content');
-      }
+      outputEl.classList.remove('has-content', 'has-error');
+      if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
 
       try {
-        // Capture plots
-        await webR.evalRVoid('if(dev.cur() > 1) dev.off()');
-        await webR.evalRVoid('png(tf <- tempfile(fileext=".png"), width=700, height=500, res=100)');
+        // Use shelter.captureR to properly capture stdout/stderr
+        const result = await shelter.captureR(code, {
+          withAutoprint: true,
+          captureStreams: true,
+          captureConditions: true,
+          captureGraphics: { width: 700, height: 500 }
+        });
 
-        const result = await webR.evalR(code, { captureStreams: true, captureConditions: true, captureGraphics: false });
-
-        // Get text output
+        // Collect text output
         let output = '';
         if (result.output) {
           for (const line of result.output) {
-            if (line.type === 'stdout') output += line.data + '\\n';
-            if (line.type === 'stderr') output += line.data + '\\n';
+            if (line.type === 'stdout' || line.type === 'stderr') {
+              output += line.data;
+            }
           }
         }
 
-        // Try to read plot
-        try {
-          await webR.evalRVoid('dev.off()');
-          const plotData = await webR.evalR('readBin(tf, "raw", file.info(tf)$size)');
-          const plotBytes = await plotData.toArray();
-          if (plotBytes.length > 1000) { // non-empty plot
-            const blob = new Blob([new Uint8Array(plotBytes)], { type: 'image/png' });
-            const url = URL.createObjectURL(blob);
-            if (plotEl) {
-              plotEl.innerHTML = '<img src="' + url + '" alt="R Plot Output" />';
-              plotEl.classList.add('has-content');
-            }
+        // Show plot images if any
+        if (result.images && result.images.length > 0 && plotEl) {
+          plotEl.innerHTML = '';
+          for (const img of result.images) {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.style.maxWidth = '100%';
+            canvas.style.height = 'auto';
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            plotEl.appendChild(canvas);
           }
-        } catch(e) { /* no plot */ }
+          plotEl.classList.add('has-content');
+        }
 
         if (output.trim()) {
           outputEl.textContent = output.trimEnd();
           outputEl.classList.add('has-content');
+        } else if (!result.images || result.images.length === 0) {
+          // If no text output and no plots, show the result value
+          try {
+            const val = await result.result.toString();
+            if (val && val.trim()) {
+              outputEl.textContent = val.trimEnd();
+              outputEl.classList.add('has-content');
+            }
+          } catch(e) { /* no printable result */ }
         }
+
+        // Clean up shelter objects
+        shelter.purge();
+        shelter = await new webR.Shelter();
+
       } catch (err) {
         outputEl.textContent = 'Error: ' + err.message;
-        outputEl.classList.add('has-content');
+        outputEl.classList.add('has-content', 'has-error');
       }
 
       btn.disabled = false;
       btn.textContent = '\\u25b6 Run';
+      btn.classList.remove('running');
     };
 
     // Reset code to original
@@ -174,11 +197,8 @@ WEBR_BODY_BLOCK = """
       const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
       editors[idx].cm.setValue(editors[idx].originalCode);
       outputEl.textContent = '';
-      outputEl.classList.remove('has-content');
-      if (plotEl) {
-        plotEl.innerHTML = '';
-        plotEl.classList.remove('has-content');
-      }
+      outputEl.classList.remove('has-content', 'has-error');
+      if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
     };
   </script>
   <!-- Mermaid for diagrams -->
