@@ -32,11 +32,15 @@ $(function() {
   // Only load if sidebar-nav container exists
   if (sidebarEl.length === 0) return;
 
-  $.getJSON('www/sidebar.json?v=3', function(sections) {
+  $.getJSON('www/sidebar.json?v=4', function(sections) {
     var html = '<ul class="sidebar-menu list-unstyled">';
 
     for (var i = 0; i < sections.length; i++) {
       var section = sections[i];
+
+      // Skip sections with no items
+      if (!section.items || section.items.length === 0) continue;
+
       var hasActive = false;
 
       // Check if current page is in this section
