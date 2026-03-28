@@ -276,6 +276,49 @@ mathjax: true
 
 ---
 
+## Curriculum & Post Publishing Rules
+
+### Curriculum Source of Truth
+- **Curriculum file**: `Plan/r-statistics-co-curriculum-v7-ctr-and-meta.md` (~1,260 posts planned)
+- **Status tracker**: `curriculum-status.json` (gitignored, tracks published/draft/not_started status)
+- **Sidebar data**: `www/sidebar.json` (single source of truth for all page sidebars, loaded dynamically by toc.js)
+
+### Post Types
+| Type | Code | Sidebar? | Description |
+|------|------|----------|-------------|
+| Core | [C] | YES | Main lesson, part of certification track |
+| Further Reading | [FR] | NO | Supplementary, linked from a core post's body |
+| Exercise | [EX] | NO | Practice problems, linked from a core post |
+
+### When Publishing a New Post
+1. **Look up the post in the curriculum** to determine its type ([C]/[FR]/[EX]) and path
+2. **If [C] (Core)**: Add to `www/sidebar.json` under the correct learning path section. All pages auto-update.
+3. **If [FR] or [EX]**: Do NOT add to sidebar. It gets linked from its parent [C] post.
+4. **Update `curriculum-status.json`** with published metadata (title, slug, URL, date, word count)
+5. **Add breadcrumb** above the H1: `<nav class="breadcrumb-nav">Home › Learn R › Fundamentals › Post Title</nav>`
+6. **Add featured snippet subtitle**: A `<p class="lead">` definition paragraph after the H1
+
+### Sidebar Structure (9 Learning Paths + Legacy)
+| Sidebar Section | Curriculum Path | Contains |
+|----------------|-----------------|----------|
+| Learn R | /learn-r/ | Fundamentals, FP, OOP, Internals, Errors, Comparisons, Ethics |
+| Data Wrangling | /data-wrangling/ | Import, dplyr, tidyr, Strings/Dates, Databases, Cleaning |
+| Visualization | /visualization/ | ggplot2 Foundations, Chart Types, Customization, Interactive, Maps, EDA |
+| Statistics | /statistics/ | Probability, Inference, Regression, ANOVA, Multivariate, Categorical, Nonparametric, Bayesian, Causal, etc. |
+| Time Series | /time-series/ | Foundations, ETS, ARIMA, Advanced Forecasting |
+| Machine Learning | /machine-learning/ | Workflow, Regression, Classification, Unsupervised, XAI, Deep Learning, MLOps |
+| Advanced R | /advanced-r/ | Metaprogramming, Performance, Packages, Shiny, Computational Stats |
+| Reporting | /reporting/ | R Markdown, Quarto, Tables, Reproducibility |
+| Specializations | /specializations/ | Bioinformatics, Finance, Geospatial, NLP, Network, Epidemiology, etc. |
+| Classic Tutorials | (no path) | Legacy 42 pages not yet mapped to curriculum |
+
+### URL Structure
+- New posts: root-level for now (e.g., `r-statistics.co/R-Data-Types.html`)
+- URL slug derived from the post title (e.g., `R-Data-Types-Explained.html`)
+- Future: may migrate to subdirectories matching curriculum paths
+
+---
+
 ## Key Files Reference
 
 | File | Purpose |
@@ -283,15 +326,18 @@ mathjax: true
 | `CNAME` | GitHub Pages custom domain: r-statistics.co |
 | `index.html` | Homepage with welcome message and nav |
 | `404.html` | Custom error page |
-| `css/main.css` | Primary stylesheet |
-| `www/toc.js` | Auto-generates table of contents from h2/h4/h5 tags |
+| `css/main.css` | Primary stylesheet (sidebar, TOC, page layout) |
+| `www/toc.js` | Dynamic sidebar loader, TOC generator, scroll-spy, section collapse |
+| `www/sidebar.json` | Sidebar navigation data (single source of truth for all pages) |
 | `www/bootstrap.min.css` | Bootstrap 3.3.5 styles |
+| `curriculum-status.json` | Post publishing status tracker (gitignored) |
 | `feed.xml` | RSS feed (static, from 2017 Jekyll era) |
 | `sitemap.xml` | Sitemap (auto-updated by build.py) |
 | `_build/template.html` | Shared page template for new posts |
-| `_build/build.py` | Build script for new posts |
-| `_posts/` | Source files for new posts |
-| `.jekyll-metadata` | Dormant Jekyll cache file |
+| `_build/build.py` | Build script for new posts (handles WebR, MathJax, template) |
+| `_posts/` | Source files for new posts (HTML fragments with front matter) |
+| `posts/` | Markdown source files for new posts |
+| `Plan/r-statistics-co-curriculum-v7-ctr-and-meta.md` | Master curriculum with all ~1,260 planned posts |
 
 ## Quick Commands
 
