@@ -34,28 +34,202 @@
     
     <!-- WebR Interactive R Code -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-      .webr-container { margin: 18px 0; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-      .webr-toolbar { padding: 5px 10px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; display: flex; justify-content: space-between; align-items: center; }
-      .webr-toolbar-label { font-size: 12px; color: #656d76; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 500; letter-spacing: 0.3px; }
-      .webr-toolbar-actions { display: flex; gap: 6px; }
-      .webr-editor .CodeMirror { height: auto; min-height: 50px; font-size: 14px; font-family: 'Inconsolata', 'Consolas', 'Monaco', monospace; line-height: 1.55; background: #fafbfc; }
-      .webr-editor .CodeMirror-gutters { background: #f0f2f4; border-right: 1px solid #d0d7de; }
-      .webr-editor .CodeMirror-linenumber { color: #8b949e; font-size: 12px; }
-      .webr-run-btn { background: #2da44e; color: #fff; border: none; padding: 4px 14px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; transition: background 0.15s; }
-      .webr-run-btn:hover { background: #218838; }
-      .webr-run-btn:disabled { background: #94d3a2; cursor: wait; }
-      .webr-run-btn.running { background: #bf8700; }
-      .webr-reset-btn { background: transparent; color: #656d76; border: 1px solid #d0d7de; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; transition: all 0.15s; }
-      .webr-reset-btn:hover { background: #f3f4f6; color: #24292f; }
-      .webr-output { margin: 0; padding: 12px 14px; background: #24292f; color: #e6edf3; font-family: 'Inconsolata', 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.55; max-height: 400px; overflow-y: auto; white-space: pre-wrap; display: none; border-top: 1px solid #30363d; }
+      /* --- Loading banner: compact, collapses when ready --- */
+      .webr-loading-banner {
+        padding: 8px 16px;
+        background: #f0f4ff;
+        color: #3b5998;
+        text-align: center;
+        margin: 0 0 8px 0;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        border: 1px solid #c7d2fe;
+        transition: all 0.4s ease;
+        overflow: hidden;
+        max-height: 50px;
+      }
+      .webr-loading-banner.ready {
+        background: #ecfdf5;
+        color: #166534;
+        border-color: #86efac;
+      }
+      .webr-loading-banner.hidden {
+        max-height: 0;
+        padding: 0 16px;
+        margin: 0;
+        border-color: transparent;
+        opacity: 0;
+      }
+
+      /* --- Code block container --- */
+      .webr-container {
+        margin: 22px 0;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 0 1px rgba(0,0,0,0.1);
+        transition: box-shadow 0.2s ease;
+      }
+      .webr-container:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 0 1px rgba(0,0,0,0.12);
+      }
+      .webr-container:focus-within {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.15), 0 2px 8px rgba(0,0,0,0.06);
+      }
+
+      /* --- Toolbar --- */
+      .webr-toolbar {
+        padding: 6px 12px;
+        background: linear-gradient(180deg, #f8f9fb 0%, #f1f3f5 100%);
+        border-bottom: 1px solid #e1e4e8;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .webr-toolbar-label {
+        font-size: 11px;
+        color: #6b7280;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .webr-toolbar-label::before {
+        content: '';
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #3b82f6;
+        flex-shrink: 0;
+      }
+      .webr-toolbar-actions { display: flex; gap: 6px; align-items: center; }
+
+      /* --- Keyboard hint --- */
+      .webr-kbd-hint {
+        font-size: 10px;
+        color: #9ca3af;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        margin-right: 4px;
+      }
+      .webr-kbd-hint kbd {
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        border-radius: 3px;
+        padding: 1px 4px;
+        font-size: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        box-shadow: 0 1px 0 rgba(0,0,0,0.08);
+      }
+
+      /* --- CodeMirror editor --- */
+      .webr-editor .CodeMirror {
+        height: auto;
+        min-height: 48px;
+        font-size: 14px;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Inconsolata', 'Consolas', monospace;
+        line-height: 1.6;
+        background: #fafbfd;
+        padding: 4px 0;
+      }
+      .webr-editor .CodeMirror-gutters {
+        background: #f0f2f5;
+        border-right: 1px solid #e1e4e8;
+        padding-right: 2px;
+      }
+      .webr-editor .CodeMirror-linenumber {
+        color: #a0a8b4;
+        font-size: 11px;
+        padding: 0 6px 0 8px;
+        min-width: 28px;
+      }
+      .webr-editor .CodeMirror-cursor { border-left-color: #3b82f6; border-left-width: 2px; }
+      .webr-editor .CodeMirror-selected { background: #c8e1ff !important; }
+      .webr-editor .CodeMirror-activeline-background { background: #f0f4ff; }
+      .webr-editor .CodeMirror-matchingbracket { color: #0969da !important; font-weight: 700; background: #ddf4ff; border-radius: 2px; }
+
+      /* --- R syntax colors (refined) --- */
+      .webr-editor .cm-keyword { color: #cf222e; font-weight: 500; }
+      .webr-editor .cm-atom { color: #8250df; }
+      .webr-editor .cm-number { color: #0550ae; }
+      .webr-editor .cm-def { color: #8250df; }
+      .webr-editor .cm-variable { color: #24292f; }
+      .webr-editor .cm-variable-2 { color: #953800; }
+      .webr-editor .cm-variable-3 { color: #0550ae; }
+      .webr-editor .cm-property { color: #0550ae; }
+      .webr-editor .cm-operator { color: #cf222e; }
+      .webr-editor .cm-comment { color: #6e7781; font-style: italic; }
+      .webr-editor .cm-string { color: #0a3069; }
+      .webr-editor .cm-string-2 { color: #0a3069; }
+      .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+
+      /* --- Buttons --- */
+      .webr-run-btn {
+        background: linear-gradient(180deg, #2ea44f 0%, #2c974b 100%);
+        color: #fff;
+        border: 1px solid rgba(27,31,36,0.15);
+        padding: 5px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        transition: all 0.15s ease;
+        box-shadow: 0 1px 0 rgba(27,31,36,0.04), inset 0 1px 0 rgba(255,255,255,0.25);
+      }
+      .webr-run-btn:hover { background: linear-gradient(180deg, #2c974b 0%, #298e46 100%); box-shadow: 0 1px 3px rgba(27,31,36,0.12); }
+      .webr-run-btn:active { background: #298e46; box-shadow: inset 0 1px 0 rgba(0,0,0,0.15); }
+      .webr-run-btn:disabled { background: #94d3a2; border-color: rgba(27,31,36,0.1); cursor: wait; box-shadow: none; }
+      .webr-run-btn.running { background: linear-gradient(180deg, #d29922 0%, #bf8700 100%); animation: pulse-run 1.5s ease-in-out infinite; }
+      @keyframes pulse-run { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
+
+      .webr-reset-btn {
+        background: #fff;
+        color: #656d76;
+        border: 1px solid #d0d7de;
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        transition: all 0.15s ease;
+        box-shadow: 0 1px 0 rgba(27,31,36,0.04);
+      }
+      .webr-reset-btn:hover { background: #f6f8fa; color: #24292f; border-color: #c0c8d0; }
+
+      /* --- Output panel --- */
+      .webr-output {
+        margin: 0;
+        padding: 14px 16px;
+        background: #1e2228;
+        color: #c9d1d9;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Inconsolata', 'Consolas', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        max-height: 400px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        display: none;
+        border-top: 2px solid #2da44e;
+      }
+      .webr-output::-webkit-scrollbar { width: 8px; }
+      .webr-output::-webkit-scrollbar-track { background: #1e2228; }
+      .webr-output::-webkit-scrollbar-thumb { background: #444d56; border-radius: 4px; }
       .webr-output.has-content { display: block; }
-      .webr-output.has-error { color: #f85149; }
-      .webr-plot-output { text-align: center; padding: 12px; background: #fff; display: none; border-top: 1px solid #d0d7de; }
+      .webr-output.has-error { color: #f85149; border-top-color: #f85149; }
+
+      /* --- Plot output --- */
+      .webr-plot-output { text-align: center; padding: 16px; background: #fff; display: none; border-top: 1px solid #e1e4e8; }
       .webr-plot-output.has-content { display: block; }
-      .webr-plot-output img { max-width: 100%; height: auto; border-radius: 4px; }
-      .webr-loading-banner { padding: 10px 16px; background: linear-gradient(135deg, #dbeafe, #e8f4f8); color: #1e40af; text-align: center; margin-bottom: 20px; border-radius: 6px; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; border: 1px solid #bfdbfe; }
-      .webr-loading-banner.ready { background: linear-gradient(135deg, #d1fae5, #dcfce7); color: #166534; border-color: #86efac; }
+      .webr-plot-output img, .webr-plot-output canvas { max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+
       .mermaid { margin: 15px 0; text-align: center; }
     </style>
 
@@ -959,6 +1133,9 @@ cat("At risk (>25): ", sum(bmi > 25), "of", length(names), "\n")</div>
   <!-- WebR Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/r/r.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
   <script type="module">
     import { WebR } from 'https://webr.r-wasm.org/latest/webr.mjs';
 
@@ -975,9 +1152,9 @@ cat("At risk (>25): ", sum(bmi > 25), "of", length(names), "\n")</div>
         shelter = await new webR.Shelter();
         webRReady = true;
         if (banner) {
-          banner.textContent = '\u2705 R environment ready! Click Run to execute code.';
+          banner.textContent = '\u2705 R environment ready! Click Run or press Ctrl+Enter.';
           banner.classList.add('ready');
-          setTimeout(() => { banner.style.opacity = '0'; banner.style.transition = 'opacity 0.5s'; setTimeout(() => banner.style.display = 'none', 500); }, 4000);
+          setTimeout(() => { banner.classList.add('hidden'); }, 2500);
         }
         document.querySelectorAll('.webr-run-btn').forEach(btn => {
           btn.disabled = false;
@@ -990,6 +1167,14 @@ cat("At risk (>25): ", sum(bmi > 25), "of", length(names), "\n")</div>
 
     initWebR();
 
+    // Add keyboard hint to toolbars
+    document.querySelectorAll('.webr-toolbar-actions').forEach(actions => {
+      const hint = document.createElement('span');
+      hint.className = 'webr-kbd-hint';
+      hint.innerHTML = '<kbd>Ctrl</kbd>+<kbd>Enter</kbd>';
+      actions.insertBefore(hint, actions.firstChild);
+    });
+
     // Initialize CodeMirror editors
     document.querySelectorAll('.webr-editor').forEach((el) => {
       const code = el.textContent;
@@ -1000,7 +1185,22 @@ cat("At risk (>25): ", sum(bmi > 25), "of", length(names), "\n")</div>
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,
-        theme: 'default'
+        theme: 'default',
+        matchBrackets: true,
+        autoCloseBrackets: true,
+        styleActiveLine: true,
+        extraKeys: {
+          'Ctrl-Enter': function(cm) {
+            const container = cm.getWrapperElement().closest('.webr-container');
+            const btn = container.querySelector('.webr-run-btn');
+            if (btn && !btn.disabled) btn.click();
+          },
+          'Shift-Enter': function(cm) {
+            const container = cm.getWrapperElement().closest('.webr-container');
+            const btn = container.querySelector('.webr-run-btn');
+            if (btn && !btn.disabled) btn.click();
+          }
+        }
       });
       editors.push({ cm, originalCode: code, el });
     });
