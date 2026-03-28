@@ -115,12 +115,13 @@ WEBR_HEAD_BLOCK = """
 
       /* --- Toolbar --- */
       .webr-toolbar {
-        padding: 6px 12px;
+        padding: 3px 10px;
         background: linear-gradient(180deg, #f8f9fb 0%, #f1f3f5 100%);
         border-bottom: 1px solid #e1e4e8;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        min-height: 0;
       }
       .webr-toolbar-label {
         font-size: 11px;
@@ -207,7 +208,7 @@ WEBR_HEAD_BLOCK = """
         background: linear-gradient(180deg, #2ea44f 0%, #2c974b 100%);
         color: #fff;
         border: 1px solid rgba(27,31,36,0.15);
-        padding: 5px 16px;
+        padding: 3px 14px;
         border-radius: 6px;
         font-size: 12px;
         font-weight: 600;
@@ -226,7 +227,7 @@ WEBR_HEAD_BLOCK = """
         background: #fff;
         color: #656d76;
         border: 1px solid #d0d7de;
-        padding: 5px 12px;
+        padding: 3px 10px;
         border-radius: 6px;
         font-size: 12px;
         cursor: pointer;
