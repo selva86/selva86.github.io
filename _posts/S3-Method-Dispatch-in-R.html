@@ -1,0 +1,555 @@
+---
+title: "S3 Method Dispatch in R: UseMethod(), NextMethod() & Inheritance"
+description: "Learn how S3 method dispatch works in R. Covers UseMethod(), NextMethod(), method resolution order, group generics, and internal generics."
+keywords: "S3 method dispatch, UseMethod R, NextMethod R, S3 inheritance, group generics R, method resolution order R"
+mathjax: false
+webr: true
+curriculum_id: "4.3.3"
+post_type: "C"
+auto_link_terms: "S3 method dispatch|UseMethod|NextMethod|group generics"
+auto_link_case_sensitive: false
+---
+
+<h1>S3 Method Dispatch in R: UseMethod(), NextMethod() & Inheritance</h1>
+
+<p class="lead">When you call <code>print(x)</code>, R looks at the class of <code>x</code> and finds the right <code>print</code> method to run. This process is called <strong>S3 method dispatch</strong>. Understanding it lets you write classes that behave correctly with inheritance, custom generics, and group generics.</p>
+
+<p>S3 is the most widely used OOP system in R. Every time you call <code>summary()</code>, <code>plot()</code>, or <code>print()</code>, the dispatch mechanism silently routes your call to the right method. This tutorial dives into the machinery behind it.</p>
+
+<h2>How UseMethod() Works</h2>
+
+<p>Every S3 generic function contains a call to <code>UseMethod()</code>. When invoked, R inspects the class of the first argument and searches for a matching method.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A simple generic function
+speak &lt;- function(animal, ...) {
+  UseMethod(&quot;speak&quot;)
+}
+
+# Methods for specific classes
+speak.Dog &lt;- function(animal, ...) cat(animal$name, &quot;says: Woof!\n&quot;)
+speak.Cat &lt;- function(animal, ...) cat(animal$name, &quot;says: Meow!\n&quot;)
+
+# The default method (fallback)
+speak.default &lt;- function(animal, ...) cat(&quot;Unknown animal sound\n&quot;)
+
+# Test dispatch
+dog &lt;- structure(list(name = &quot;Rex&quot;), class = &quot;Dog&quot;)
+cat &lt;- structure(list(name = &quot;Whiskers&quot;), class = &quot;Cat&quot;)
+fish &lt;- structure(list(name = &quot;Nemo&quot;), class = &quot;Fish&quot;)
+
+speak(dog)       # Dispatches to speak.Dog
+speak(cat)       # Dispatches to speak.Cat
+speak(fish)      # No speak.Fish -&gt; falls to speak.default</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The dispatch algorithm is straightforward:</p>
+
+<ol>
+
+<li>Look at the class of the first argument</li>
+
+<li>Search for <code>generic.class</code> (e.g., <code>speak.Dog</code>)</li>
+
+<li>If not found and the object has multiple classes, try the next class</li>
+
+<li>If nothing matches, try <code>generic.default</code></li>
+
+<li>If no default exists, throw an error</li>
+
+</ol>
+
+<h2>Method Resolution Order with Multiple Classes</h2>
+
+<p>An S3 object can have multiple classes (a class vector). R tries each class in order, left to right, until it finds a matching method.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create an object with multiple classes
+golden &lt;- structure(
+  list(name = &quot;Buddy&quot;, breed = &quot;Golden Retriever&quot;, is_service = TRUE),
+  class = c(&quot;ServiceDog&quot;, &quot;Dog&quot;, &quot;Pet&quot;)
+)
+
+# Define methods at different levels
+describe &lt;- function(x, ...) UseMethod(&quot;describe&quot;)
+describe.Pet &lt;- function(x, ...) cat(x$name, &quot;is a pet\n&quot;)
+describe.Dog &lt;- function(x, ...) cat(x$name, &quot;is a dog (breed:&quot;, x$breed, &quot;)\n&quot;)
+describe.ServiceDog &lt;- function(x, ...) cat(x$name, &quot;is a service dog\n&quot;)
+
+# Dispatches to describe.ServiceDog (first class in vector)
+describe(golden)
+
+# Check the class vector
+cat(&quot;Class vector:&quot;, class(golden), &quot;\n&quot;)
+
+# If we remove ServiceDog method, it falls through to Dog
+rm(describe.ServiceDog)
+describe(golden)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>NextMethod(): Calling the Parent Method</h2>
+
+<p><code>NextMethod()</code> tells R to continue dispatching to the next class in the inheritance chain. This is how you implement inheritance behavior (calling the parent's method from the child).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A base &quot;Shape&quot; class
+area &lt;- function(shape, ...) UseMethod(&quot;area&quot;)
+describe_shape &lt;- function(shape, ...) UseMethod(&quot;describe_shape&quot;)
+
+describe_shape.Shape &lt;- function(shape, ...) {
+  cat(&quot;Shape with color:&quot;, shape$color, &quot;\n&quot;)
+}
+
+describe_shape.Circle &lt;- function(shape, ...) {
+  cat(&quot;Circle with radius:&quot;, shape$radius, &quot;\n&quot;)
+  NextMethod()  # Call describe_shape.Shape
+}
+
+describe_shape.ColoredCircle &lt;- function(shape, ...) {
+  cat(&quot;A fancy colored circle!\n&quot;)
+  NextMethod()  # Call describe_shape.Circle
+}
+
+# Create a multi-class object
+cc &lt;- structure(
+  list(radius = 5, color = &quot;blue&quot;),
+  class = c(&quot;ColoredCircle&quot;, &quot;Circle&quot;, &quot;Shape&quot;)
+)
+
+# Watch the chain: ColoredCircle -&gt; Circle -&gt; Shape
+describe_shape(cc)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>NextMethod()</code> passes along the same arguments automatically. You rarely need to pass arguments explicitly.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># NextMethod passes arguments automatically
+format_output &lt;- function(x, ...) UseMethod(&quot;format_output&quot;)
+
+format_output.Base &lt;- function(x, prefix = &quot;&quot;, ...) {
+  cat(prefix, &quot;Value:&quot;, x$value, &quot;\n&quot;)
+}
+
+format_output.Extended &lt;- function(x, prefix = &quot;&quot;, ...) {
+  cat(prefix, &quot;Extended object\n&quot;)
+  NextMethod()  # prefix is passed along automatically
+}
+
+obj &lt;- structure(list(value = 42), class = c(&quot;Extended&quot;, &quot;Base&quot;))
+format_output(obj, prefix = &quot;&gt;&gt;&gt;&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Group Generics</h2>
+
+<p>R has four <strong>group generics</strong> that let you define behavior for a whole group of operations at once. Instead of defining <code>+.MyClass</code>, <code>-.MyClass</code>, <code>*.MyClass</code> individually, you define <code>Ops.MyClass</code> to cover them all.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Group</th>
+<th>Functions covered</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Ops</code></td>
+<td><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>^</code>, <code>%%</code>, <code>%/%</code>, <code>&amp;</code>, `</td>
+<td><code>, </code>!<code>, </code>==<code>, </code>!=<code>, </code><<code>, </code><=<code>, </code>>=<code>, </code>>`</td>
+</tr>
+<tr>
+<td><code>Math</code></td>
+<td><code>abs</code>, <code>sqrt</code>, <code>ceiling</code>, <code>floor</code>, <code>log</code>, <code>exp</code>, <code>sin</code>, <code>cos</code>, etc.</td>
+</tr>
+<tr>
+<td><code>Complex</code></td>
+<td><code>Re</code>, <code>Im</code>, <code>Mod</code>, <code>Arg</code>, <code>Conj</code></td>
+</tr>
+<tr>
+<td><code>Summary</code></td>
+<td><code>all</code>, <code>any</code>, <code>sum</code>, <code>prod</code>, <code>min</code>, <code>max</code>, <code>range</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create a &quot;Celsius&quot; class
+celsius &lt;- function(temp) {
+  structure(list(value = temp), class = &quot;Celsius&quot;)
+}
+
+print.Celsius &lt;- function(x, ...) cat(x$value, &quot;C\n&quot;)
+
+# Define Ops for all arithmetic operators at once
+Ops.Celsius &lt;- function(e1, e2) {
+  # .Generic contains the operator being used (+, -, etc.)
+  v1 &lt;- if (inherits(e1, &quot;Celsius&quot;)) e1$value else e1
+  v2 &lt;- if (inherits(e2, &quot;Celsius&quot;)) e2$value else e2
+  result &lt;- get(.Generic)(v1, v2)
+
+  # Comparison operators return logical, not Celsius
+  if (.Generic %in% c(&quot;==&quot;, &quot;!=&quot;, &quot;&lt;&quot;, &quot;&lt;=&quot;, &quot;&gt;&quot;, &quot;&gt;=&quot;)) {
+    return(result)
+  }
+  celsius(result)
+}
+
+a &lt;- celsius(100)
+b &lt;- celsius(37)
+
+print(a)
+result &lt;- celsius(100)
+result_val &lt;- a$value - b$value
+cat(&quot;100 C - 37 C =&quot;, result_val, &quot;C\n&quot;)
+cat(&quot;100 C &gt; 37 C:&quot;, a$value &gt; b$value, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Internal Generics</h2>
+
+<p>Some R functions are <strong>internal generics</strong> — they perform dispatch inside C code rather than through <code>UseMethod()</code>. Examples include <code>[</code>, <code>[[</code>, <code>$</code>, <code>length</code>, <code>dim</code>, <code>c</code>, and <code>unlist</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># The [ operator is an internal generic
+# You can still write methods for it
+
+my_vec &lt;- structure(1:10, class = &quot;LabeledVec&quot;, labels = letters[1:10])
+
+`[.LabeledVec` &lt;- function(x, i, ...) {
+  result &lt;- unclass(x)[i]
+  labels &lt;- attr(x, &quot;labels&quot;)[i]
+  structure(result, class = &quot;LabeledVec&quot;, labels = labels)
+}
+
+print.LabeledVec &lt;- function(x, ...) {
+  labels &lt;- attr(x, &quot;labels&quot;)
+  for (j in seq_along(x)) {
+    cat(labels[j], &quot;=&quot;, unclass(x)[j], &quot; &quot;)
+  }
+  cat(&quot;\n&quot;)
+}
+
+print(my_vec)
+print(my_vec[3:5])</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Internal generics are tricky because they don't always follow the exact same dispatch rules as <code>UseMethod()</code>. Some check the class attribute directly in C code.</p>
+
+<h2>Inspecting Dispatch with sloop</h2>
+
+<p>The <code>sloop</code> package (if available) or manual inspection can help you understand what R dispatches to.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Manual dispatch inspection
+find_method &lt;- function(generic, class_vec) {
+  for (cls in class_vec) {
+    method_name &lt;- paste0(generic, &quot;.&quot;, cls)
+    if (exists(method_name, mode = &quot;function&quot;)) {
+      return(method_name)
+    }
+  }
+  default_name &lt;- paste0(generic, &quot;.default&quot;)
+  if (exists(default_name, mode = &quot;function&quot;)) {
+    return(default_name)
+  }
+  return(&quot;No method found&quot;)
+}
+
+# Test it
+greet &lt;- function(x, ...) UseMethod(&quot;greet&quot;)
+greet.Person &lt;- function(x, ...) cat(&quot;Hello,&quot;, x$name, &quot;\n&quot;)
+greet.default &lt;- function(x, ...) cat(&quot;Hello, stranger\n&quot;)
+
+obj &lt;- structure(list(name = &quot;Alice&quot;), class = c(&quot;Student&quot;, &quot;Person&quot;))
+cat(&quot;Dispatches to:&quot;, find_method(&quot;greet&quot;, class(obj)), &quot;\n&quot;)
+greet(obj)
+
+# Check which methods exist for a generic
+cat(&quot;\nAll greet methods:\n&quot;)
+print(methods(&quot;greet&quot;))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary Table</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Description</th>
+<th>Key Function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Generic function</td>
+<td>Function that dispatches based on class</td>
+<td>Contains <code>UseMethod()</code></td>
+</tr>
+<tr>
+<td>Method</td>
+<td>Implementation for a specific class</td>
+<td>Named <code>generic.class()</code></td>
+</tr>
+<tr>
+<td>Default method</td>
+<td>Fallback when no class matches</td>
+<td>Named <code>generic.default()</code></td>
+</tr>
+<tr>
+<td>Dispatch order</td>
+<td>Left to right through class vector</td>
+<td><code>class(x)</code> determines order</td>
+</tr>
+<tr>
+<td><code>NextMethod()</code></td>
+<td>Continue to next class in chain</td>
+<td>Called inside a method</td>
+</tr>
+<tr>
+<td>Group generics</td>
+<td>One method covers many operators</td>
+<td><code>Ops</code>, <code>Math</code>, <code>Summary</code>, <code>Complex</code></td>
+</tr>
+<tr>
+<td>Internal generics</td>
+<td>Dispatch in C code</td>
+<td><code>[</code>, <code>[[</code>, <code>c</code>, <code>length</code>, etc.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Practice Exercises</h2>
+
+<p><strong>Exercise 1:</strong> Create a class hierarchy <code>Vehicle &gt; Car &gt; ElectricCar</code>. Define a <code>describe()</code> generic where each level adds information and calls <code>NextMethod()</code>.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">describe &lt;- function(x, ...) UseMethod(&quot;describe&quot;)
+
+describe.Vehicle &lt;- function(x, ...) {
+  cat(&quot;Vehicle: seats =&quot;, x$seats, &quot;\n&quot;)
+}
+
+describe.Car &lt;- function(x, ...) {
+  cat(&quot;Car: make =&quot;, x$make, &quot;\n&quot;)
+  NextMethod()
+}
+
+describe.ElectricCar &lt;- function(x, ...) {
+  cat(&quot;Electric Car: battery =&quot;, x$battery_kwh, &quot;kWh\n&quot;)
+  NextMethod()
+}
+
+tesla &lt;- structure(
+  list(make = &quot;Tesla&quot;, seats = 5, battery_kwh = 75),
+  class = c(&quot;ElectricCar&quot;, &quot;Car&quot;, &quot;Vehicle&quot;)
+)
+describe(tesla)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<p><strong>Exercise 2:</strong> Define a <code>Ops.Percent</code> group generic so that <code>Percent(50) + Percent(30)</code> returns <code>Percent(80)</code> and <code>Percent(50) &gt; Percent(30)</code> returns <code>TRUE</code>.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Percent &lt;- function(x) structure(list(value = x), class = &quot;Percent&quot;)
+print.Percent &lt;- function(x, ...) cat(x$value, &quot;%\n&quot;)
+
+Ops.Percent &lt;- function(e1, e2) {
+  v1 &lt;- if (inherits(e1, &quot;Percent&quot;)) e1$value else e1
+  v2 &lt;- if (inherits(e2, &quot;Percent&quot;)) e2$value else e2
+  result &lt;- get(.Generic)(v1, v2)
+  if (.Generic %in% c(&quot;==&quot;, &quot;!=&quot;, &quot;&lt;&quot;, &quot;&lt;=&quot;, &quot;&gt;&quot;, &quot;&gt;=&quot;)) return(result)
+  Percent(result)
+}
+
+print(Percent(50))
+r &lt;- Percent(50)
+cat(&quot;50% + 30% =&quot;, Percent(50)$value + Percent(30)$value, &quot;%\n&quot;)
+cat(&quot;50% &gt; 30%:&quot;, Percent(50)$value &gt; Percent(30)$value, &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<p><strong>Exercise 3:</strong> Write a <code>[.TimeSeries</code> method that preserves the class and a <code>&quot;start_date&quot;</code> attribute when subsetting.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">new_ts &lt;- function(values, start_date) {
+  structure(values, class = &quot;TimeSeries&quot;, start_date = start_date)
+}
+
+`[.TimeSeries` &lt;- function(x, i, ...) {
+  result &lt;- unclass(x)[i]
+  structure(result, class = &quot;TimeSeries&quot;, start_date = attr(x, &quot;start_date&quot;))
+}
+
+print.TimeSeries &lt;- function(x, ...) {
+  cat(&quot;TimeSeries (start:&quot;, attr(x, &quot;start_date&quot;), &quot;)\n&quot;)
+  cat(&quot;Values:&quot;, unclass(x), &quot;\n&quot;)
+}
+
+ts_data &lt;- new_ts(c(10, 20, 30, 40, 50), &quot;2026-01-01&quot;)
+print(ts_data)
+print(ts_data[2:4])</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>FAQ</h2>
+
+<p><strong>Q: What happens if UseMethod() finds no matching method and no default?</strong> R throws an error: <code>&quot;no applicable method for &#x27;generic&#x27; applied to an object of class &#x27;class&#x27;&quot;</code>. Always provide a <code>generic.default</code> method to handle unexpected classes gracefully.</p>
+
+<p><strong>Q: Can I call UseMethod() with a different class than the first argument's class?</strong> Yes. <code>UseMethod(&quot;generic&quot;, object)</code> lets you dispatch on a different object. However, this is rarely used and can be confusing. Stick to dispatching on the first argument.</p>
+
+<p><strong>Q: Does NextMethod() work with group generics?</strong> Yes. Inside an <code>Ops.MyClass</code> method, calling <code>NextMethod()</code> will look for the next class's Ops method or the specific operator method (e.g., <code>+.ParentClass</code>).</p>
+
+<h2>What's Next</h2>
+
+<ul>
+
+<li><a href="S4-Classes-in-R.html">S4 Classes in R</a> -- Learn formal class definitions with <code>setClass()</code> and typed slots</li>
+
+<li><a href="Operator-Overloading-in-R.html">Operator Overloading in R</a> -- Define custom <code>+</code>, <code>-</code>, <code>==</code>, <code>[</code> and <code>print</code> methods</li>
+
+<li><a href="sloop-Package-in-R.html">sloop Package in R</a> -- Inspect any object's OOP system with <code>otype()</code> and <code>ftype()</code></li>
+
+</ul>

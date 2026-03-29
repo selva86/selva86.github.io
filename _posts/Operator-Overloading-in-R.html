@@ -1,0 +1,499 @@
+---
+title: "Operator Overloading in R: Define Custom +, -, ==, [ & print Methods"
+description: "Learn to overload operators in R using S3 and S4 methods. Define custom +, -, *, ==, [, print, and comparison operators for your own classes."
+keywords: "operator overloading R, custom operators R, S3 operators, S4 operators, Ops group generic, R operator methods"
+mathjax: false
+webr: true
+curriculum_id: "4.3.8"
+post_type: "C"
+auto_link_terms: "operator overloading|Ops group generic|custom operators R"
+auto_link_case_sensitive: false
+---
+
+<h1>Operator Overloading in R: Define Custom +, -, ==, [ & print Methods</h1>
+
+<p class="lead">R lets you define what <code>+</code>, <code>-</code>, <code>==</code>, <code>[</code>, and other operators do for your custom classes. This is called <strong>operator overloading</strong>. Both S3 and S4 support it, and it's how base R makes <code>+</code> work differently for numbers, dates, and strings.</p>
+
+<p>When you type <code>Sys.Date() + 1</code>, R doesn't use the same <code>+</code> as <code>2 + 3</code>. It dispatches to a method specialized for Date objects. You can define the same behavior for your own classes.</p>
+
+<h2>S3 Operator Overloading Basics</h2>
+
+<p>In S3, operators are generic functions. Define a method named <code>operator.ClassName</code> to overload it.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A simple 2D point class
+Point &lt;- function(x, y) {
+  structure(list(x = x, y = y), class = &quot;Point&quot;)
+}
+
+print.Point &lt;- function(p, ...) {
+  cat(&quot;(&quot;, p$x, &quot;,&quot;, p$y, &quot;)\n&quot;)
+}
+
+# Overload + for Point
+`+.Point` &lt;- function(e1, e2) {
+  if (inherits(e2, &quot;Point&quot;)) {
+    Point(e1$x + e2$x, e1$y + e2$y)
+  } else if (is.numeric(e2)) {
+    Point(e1$x + e2, e1$y + e2)
+  } else {
+    stop(&quot;Cannot add Point and &quot;, class(e2))
+  }
+}
+
+# Overload - for Point
+`-.Point` &lt;- function(e1, e2) {
+  if (missing(e2)) {
+    Point(-e1$x, -e1$y)  # Unary minus
+  } else if (inherits(e2, &quot;Point&quot;)) {
+    Point(e1$x - e2$x, e1$y - e2$y)
+  } else {
+    stop(&quot;Cannot subtract&quot;)
+  }
+}
+
+# Overload == for Point
+`==.Point` &lt;- function(e1, e2) {
+  e1$x == e2$x &amp;&amp; e1$y == e2$y
+}
+
+a &lt;- Point(3, 4)
+b &lt;- Point(1, 2)
+
+print(a)
+print(a + b)       # Point + Point
+print(a + 10)      # Point + scalar
+print(a - b)       # Point - Point
+print(-a)          # Unary minus
+cat(&quot;a == b:&quot;, a == b, &quot;\n&quot;)
+cat(&quot;a == a:&quot;, a == Point(3, 4), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>The Ops Group Generic</h2>
+
+<p>Instead of defining <code>+.MyClass</code>, <code>-.MyClass</code>, <code>*.MyClass</code> separately, you can define <code>Ops.MyClass</code> to handle all arithmetic and comparison operators at once.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A Money class using the Ops group generic
+Money &lt;- function(amount, currency = &quot;USD&quot;) {
+  structure(list(amount = amount, currency = currency), class = &quot;Money&quot;)
+}
+
+print.Money &lt;- function(x, ...) {
+  cat(x$currency, formatC(x$amount, format = &quot;f&quot;, digits = 2), &quot;\n&quot;)
+}
+
+Ops.Money &lt;- function(e1, e2) {
+  # .Generic holds the operator being used
+  op &lt;- .Generic
+
+  # Extract amounts
+  a1 &lt;- if (inherits(e1, &quot;Money&quot;)) e1$amount else e1
+  a2 &lt;- if (inherits(e2, &quot;Money&quot;)) e2$amount else e2
+
+  # Get currency (from whichever is Money)
+  curr &lt;- if (inherits(e1, &quot;Money&quot;)) e1$currency else e2$currency
+
+  # Check currency match for two Money objects
+  if (inherits(e1, &quot;Money&quot;) &amp;&amp; inherits(e2, &quot;Money&quot;)) {
+    if (e1$currency != e2$currency) stop(&quot;Currency mismatch&quot;)
+  }
+
+  # Compute result
+  result &lt;- switch(op,
+    &quot;+&quot;  = a1 + a2,
+    &quot;-&quot;  = a1 - a2,
+    &quot;*&quot;  = a1 * a2,
+    &quot;/&quot;  = a1 / a2,
+    &quot;==&quot; = a1 == a2,
+    &quot;!=&quot; = a1 != a2,
+    &quot;&lt;&quot;  = a1 &lt; a2,
+    &quot;&lt;=&quot; = a1 &lt;= a2,
+    &quot;&gt;&quot;  = a1 &gt; a2,
+    &quot;&gt;=&quot; = a1 &gt;= a2,
+    stop(&quot;Operator &quot;, op, &quot; not supported for Money&quot;)
+  )
+
+  # Comparisons return logical; arithmetic returns Money
+  if (op %in% c(&quot;==&quot;, &quot;!=&quot;, &quot;&lt;&quot;, &quot;&lt;=&quot;, &quot;&gt;&quot;, &quot;&gt;=&quot;)) {
+    return(result)
+  }
+  Money(result, curr)
+}
+
+price &lt;- Money(29.99)
+tax &lt;- Money(2.40)
+print(price + tax)
+print(price * 3)
+cat(&quot;price &gt; tax:&quot;, price &gt; tax, &quot;\n&quot;)
+cat(&quot;price == price:&quot;, price == Money(29.99), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Overloading [ and [[</h2>
+
+<p>The subset operators <code>[</code> and <code>[[</code> are internal generics. You can define methods for them.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A named collection class
+Collection &lt;- function(...) {
+  items &lt;- list(...)
+  structure(items, class = &quot;Collection&quot;)
+}
+
+print.Collection &lt;- function(x, ...) {
+  cat(&quot;Collection with&quot;, length(x), &quot;items:\n&quot;)
+  for (i in seq_along(x)) {
+    name &lt;- names(x)[i]
+    if (is.null(name) || name == &quot;&quot;) name &lt;- paste0(&quot;[&quot;, i, &quot;]&quot;)
+    cat(&quot;  &quot;, name, &quot;:&quot;, x[[i]], &quot;\n&quot;)
+  }
+}
+
+# Override [ to return a Collection (not a plain list)
+`[.Collection` &lt;- function(x, i) {
+  result &lt;- unclass(x)[i]
+  structure(result, class = &quot;Collection&quot;)
+}
+
+# Override [[ for single element access
+`[[.Collection` &lt;- function(x, i) {
+  unclass(x)[[i]]
+}
+
+# Override length
+length.Collection &lt;- function(x) {
+  length(unclass(x))
+}
+
+coll &lt;- Collection(a = 10, b = 20, c = 30, d = 40)
+print(coll)
+cat(&quot;\nSubset [2:3]:\n&quot;)
+print(coll[2:3])
+cat(&quot;\nElement [[1]]:&quot;, coll[[1]], &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Overloading print, summary, and format</h2>
+
+<p>These are the most commonly overloaded generics. Every class should have at least a <code>print</code> method.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A regression result class
+RegResult &lt;- function(formula, r_squared, coefficients) {
+  structure(
+    list(formula = formula, r_squared = r_squared, coefficients = coefficients),
+    class = &quot;RegResult&quot;
+  )
+}
+
+print.RegResult &lt;- function(x, ...) {
+  cat(&quot;Linear Regression:&quot;, deparse(x$formula), &quot;\n&quot;)
+  cat(&quot;R-squared:&quot;, round(x$r_squared, 4), &quot;\n&quot;)
+}
+
+summary.RegResult &lt;- function(object, ...) {
+  cat(&quot;=== Regression Summary ===\n&quot;)
+  cat(&quot;Formula:&quot;, deparse(object$formula), &quot;\n&quot;)
+  cat(&quot;R-squared:&quot;, round(object$r_squared, 4), &quot;\n&quot;)
+  cat(&quot;Coefficients:\n&quot;)
+  for (nm in names(object$coefficients)) {
+    cat(&quot;  &quot;, nm, &quot;=&quot;, round(object$coefficients[[nm]], 4), &quot;\n&quot;)
+  }
+}
+
+format.RegResult &lt;- function(x, ...) {
+  paste0(&quot;RegResult(R2=&quot;, round(x$r_squared, 3), &quot;)&quot;)
+}
+
+# Use it
+fit &lt;- lm(mpg ~ wt + hp, data = mtcars)
+result &lt;- RegResult(
+  formula = mpg ~ wt + hp,
+  r_squared = summary(fit)$r.squared,
+  coefficients = as.list(coef(fit))
+)
+
+print(result)
+cat(&quot;\n&quot;)
+summary(result)
+cat(&quot;\nFormatted:&quot;, format(result), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>S4 Operator Overloading</h2>
+
+<p>S4 uses <code>setMethod()</code> for operators. The approach is more formal but the result is the same.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">setClass(&quot;Fraction&quot;,
+  slots = list(num = &quot;integer&quot;, den = &quot;integer&quot;),
+  validity = function(object) {
+    if (object@den == 0L) &quot;denominator cannot be zero&quot;
+    else TRUE
+  }
+)
+
+Fraction &lt;- function(num, den) {
+  new(&quot;Fraction&quot;, num = as.integer(num), den = as.integer(den))
+}
+
+setMethod(&quot;show&quot;, &quot;Fraction&quot;, function(object) {
+  cat(object@num, &quot;/&quot;, object@den, &quot;\n&quot;)
+})
+
+setMethod(&quot;+&quot;, signature(&quot;Fraction&quot;, &quot;Fraction&quot;), function(e1, e2) {
+  new_num &lt;- e1@num * e2@den + e2@num * e1@den
+  new_den &lt;- e1@den * e2@den
+  Fraction(new_num, new_den)
+})
+
+setMethod(&quot;*&quot;, signature(&quot;Fraction&quot;, &quot;Fraction&quot;), function(e1, e2) {
+  Fraction(e1@num * e2@num, e1@den * e2@den)
+})
+
+setMethod(&quot;==&quot;, signature(&quot;Fraction&quot;, &quot;Fraction&quot;), function(e1, e2) {
+  e1@num * e2@den == e2@num * e1@den
+})
+
+a &lt;- Fraction(1, 3)
+b &lt;- Fraction(1, 6)
+cat(&quot;a: &quot;); show(a)
+cat(&quot;b: &quot;); show(b)
+cat(&quot;a + b: &quot;); show(a + b)
+cat(&quot;a * b: &quot;); show(a * b)
+cat(&quot;a == a:&quot;, a == a, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary Table</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Operator</th>
+<th>S3 Method Name</th>
+<th>S4 Signature</th>
+<th>Group</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code></td>
+<td><code>+.Class</code>, etc.</td>
+<td><code>setMethod(&quot;+&quot;, ...)</code></td>
+<td>Ops</td>
+</tr>
+<tr>
+<td><code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code></td>
+<td><code>==.Class</code>, etc.</td>
+<td><code>setMethod(&quot;==&quot;, ...)</code></td>
+<td>Ops</td>
+</tr>
+<tr>
+<td><code>[</code></td>
+<td><code>[.Class</code></td>
+<td><code>setMethod(&quot;[&quot;, ...)</code></td>
+<td>N/A (internal)</td>
+</tr>
+<tr>
+<td><code>[[</code></td>
+<td><code>[[.Class</code></td>
+<td><code>setMethod(&quot;[[&quot;, ...)</code></td>
+<td>N/A (internal)</td>
+</tr>
+<tr>
+<td><code>$</code></td>
+<td><code>$.Class</code></td>
+<td><code>setMethod(&quot;$&quot;, ...)</code></td>
+<td>N/A (internal)</td>
+</tr>
+<tr>
+<td><code>print</code></td>
+<td><code>print.Class</code></td>
+<td><code>setMethod(&quot;show&quot;, ...)</code></td>
+<td>N/A</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td><code>summary.Class</code></td>
+<td><code>setMethod(&quot;summary&quot;, ...)</code></td>
+<td>N/A</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td><code>format.Class</code></td>
+<td><code>setMethod(&quot;format&quot;, ...)</code></td>
+<td>N/A</td>
+</tr>
+<tr>
+<td><code>abs</code>, <code>sqrt</code>, <code>log</code></td>
+<td><code>Math.Class</code> (group)</td>
+<td><code>setMethod(&quot;Math&quot;, ...)</code></td>
+<td>Math</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Practice Exercises</h2>
+
+<p><strong>Exercise 1:</strong> Create a <code>Percentage</code> class where <code>Percentage(50) + Percentage(30)</code> returns <code>Percentage(80)</code>, <code>print</code> shows <code>&quot;50%&quot;</code>, and <code>as.numeric</code> returns <code>0.5</code>.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Percentage &lt;- function(x) {
+  structure(list(value = x), class = &quot;Percentage&quot;)
+}
+print.Percentage &lt;- function(x, ...) cat(x$value, &quot;%\n&quot;)
+as.numeric.Percentage &lt;- function(x, ...) x$value / 100
+
+`+.Percentage` &lt;- function(e1, e2) {
+  v1 &lt;- if (inherits(e1, &quot;Percentage&quot;)) e1$value else e1
+  v2 &lt;- if (inherits(e2, &quot;Percentage&quot;)) e2$value else e2
+  Percentage(v1 + v2)
+}
+
+print(Percentage(50) + Percentage(30))
+cat(&quot;As numeric:&quot;, as.numeric(Percentage(50)), &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<p><strong>Exercise 2:</strong> Create a <code>Matrix2x2</code> class with overloaded <code>*</code> for matrix multiplication and <code>print</code> for formatted display.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Matrix2x2 &lt;- function(a, b, c, d) {
+  structure(list(data = matrix(c(a, c, b, d), 2, 2)), class = &quot;Matrix2x2&quot;)
+}
+print.Matrix2x2 &lt;- function(x, ...) {
+  cat(&quot;| &quot;, x$data[1,1], x$data[1,2], &quot;|\n&quot;)
+  cat(&quot;| &quot;, x$data[2,1], x$data[2,2], &quot;|\n&quot;)
+}
+`*.Matrix2x2` &lt;- function(e1, e2) {
+  r &lt;- e1$data %*% e2$data
+  Matrix2x2(r[1,1], r[1,2], r[2,1], r[2,2])
+}
+
+A &lt;- Matrix2x2(1, 2, 3, 4)
+B &lt;- Matrix2x2(5, 6, 7, 8)
+cat(&quot;A:\n&quot;); print(A)
+cat(&quot;B:\n&quot;); print(B)
+cat(&quot;A * B:\n&quot;); print(A * B)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>FAQ</h2>
+
+<p><strong>Q: Which operators can I overload in R?</strong> Almost all of them: arithmetic (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>^</code>, <code>%%</code>, <code>%/%</code>), comparison (<code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>), logical (<code>&amp;</code>, <code>|</code>, <code>!</code>), subsetting (<code>[</code>, <code>[[</code>, <code>$</code>), and display (<code>print</code>, <code>format</code>, <code>summary</code>). You can also define custom infix operators like <code>%between%</code>.</p>
+
+<p><strong>Q: What happens when the left operand is not my class (e.g., 5 + MyObj)?</strong> For S3, R checks the class of both operands. If neither has a method, it falls back to the default. In your Ops method, use <code>.Generic</code> and check which argument has your class.</p>
+
+<p><strong>Q: Should I use Ops group generic or individual operator methods?</strong> Use the Ops group generic when the logic is similar for all operators (e.g., extract values, apply operator, wrap result). Use individual methods when different operators need very different logic.</p>
+
+<h2>What's Next</h2>
+
+<ul>
+
+<li><a href="S3-Method-Dispatch-in-R.html">S3 Method Dispatch in R</a> -- Understand the dispatch mechanism behind operator methods</li>
+
+<li><a href="S4-Methods-in-R.html">S4 Methods & Multiple Dispatch</a> -- Formal operator overloading with S4</li>
+
+<li><a href="OOP-in-R.html">OOP in R Overview</a> -- Compare all four OOP systems</li>
+
+</ul>

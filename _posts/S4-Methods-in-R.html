@@ -1,0 +1,467 @@
+---
+title: "S4 Methods & Multiple Dispatch in R: setMethod() Explained"
+description: "Learn S4 methods in R with setMethod(), setGeneric(), multiple dispatch, method signatures, callNextMethod(), and showMethods(). Full tutorial."
+keywords: "S4 methods R, setMethod R, multiple dispatch R, setGeneric, callNextMethod, S4 method signatures"
+mathjax: false
+webr: true
+curriculum_id: "4.3.5"
+post_type: "C"
+auto_link_terms: "S4 methods|setMethod|multiple dispatch|callNextMethod"
+auto_link_case_sensitive: false
+---
+
+<h1>S4 Methods & Multiple Dispatch in R: setMethod() Explained</h1>
+
+<p class="lead">S4 methods use <strong>formal generic functions</strong> and support <strong>multiple dispatch</strong> -- choosing a method based on the classes of <em>multiple</em> arguments, not just the first one. This is S4's most powerful feature and what sets it apart from S3.</p>
+
+<p>In S3, dispatch looks only at the class of the first argument. S4 can look at the classes of two, three, or more arguments simultaneously. This lets you write methods like "when a Matrix meets a SparseMatrix, do this; when two dense Matrices meet, do that."</p>
+
+<h2>Creating Generics with setGeneric()</h2>
+
+<p>Before defining methods, you need a generic function. <code>setGeneric()</code> declares the interface.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Define an S4 generic
+setGeneric(&quot;area&quot;, function(shape) {
+  standardGeneric(&quot;area&quot;)
+})
+
+# Define the class
+setClass(&quot;Circle&quot;, slots = list(radius = &quot;numeric&quot;))
+setClass(&quot;Rectangle&quot;, slots = list(width = &quot;numeric&quot;, height = &quot;numeric&quot;))
+
+# Define methods for each class
+setMethod(&quot;area&quot;, &quot;Circle&quot;, function(shape) {
+  pi * shape@radius^2
+})
+
+setMethod(&quot;area&quot;, &quot;Rectangle&quot;, function(shape) {
+  shape@width * shape@height
+})
+
+# Test
+c1 &lt;- new(&quot;Circle&quot;, radius = 5)
+r1 &lt;- new(&quot;Rectangle&quot;, width = 4, height = 6)
+
+cat(&quot;Circle area:&quot;, area(c1), &quot;\n&quot;)
+cat(&quot;Rectangle area:&quot;, area(r1), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Method Signatures</h2>
+
+<p>The <code>signature</code> argument in <code>setMethod()</code> specifies which argument classes the method handles. For single dispatch, you pass just the class name. For multiple dispatch, you specify classes for multiple arguments.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A generic with two arguments
+setGeneric(&quot;combine&quot;, function(a, b) {
+  standardGeneric(&quot;combine&quot;)
+})
+
+setClass(&quot;TextData&quot;, slots = list(text = &quot;character&quot;))
+setClass(&quot;NumData&quot;, slots = list(values = &quot;numeric&quot;))
+
+# Method for TextData + TextData
+setMethod(&quot;combine&quot;, signature(&quot;TextData&quot;, &quot;TextData&quot;), function(a, b) {
+  new(&quot;TextData&quot;, text = paste(a@text, b@text))
+})
+
+# Method for NumData + NumData
+setMethod(&quot;combine&quot;, signature(&quot;NumData&quot;, &quot;NumData&quot;), function(a, b) {
+  new(&quot;NumData&quot;, values = c(a@values, b@values))
+})
+
+# Method for TextData + NumData (mixed!)
+setMethod(&quot;combine&quot;, signature(&quot;TextData&quot;, &quot;NumData&quot;), function(a, b) {
+  new(&quot;TextData&quot;, text = paste(a@text, paste(b@values, collapse = &quot;,&quot;)))
+})
+
+# Test different combinations
+t1 &lt;- new(&quot;TextData&quot;, text = &quot;hello&quot;)
+t2 &lt;- new(&quot;TextData&quot;, text = &quot;world&quot;)
+n1 &lt;- new(&quot;NumData&quot;, values = c(1, 2, 3))
+n2 &lt;- new(&quot;NumData&quot;, values = c(4, 5))
+
+cat(&quot;Text + Text:&quot;, combine(t1, t2)@text, &quot;\n&quot;)
+cat(&quot;Num + Num:&quot;, combine(n1, n2)@values, &quot;\n&quot;)
+cat(&quot;Text + Num:&quot;, combine(t1, n1)@text, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Multiple Dispatch in Action</h2>
+
+<p>Multiple dispatch shines when behavior depends on the combination of argument types. Here is a practical example with a formatting system.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Define format classes
+setClass(&quot;HTML&quot;, slots = list(content = &quot;character&quot;))
+setClass(&quot;Markdown&quot;, slots = list(content = &quot;character&quot;))
+setClass(&quot;PlainText&quot;, slots = list(content = &quot;character&quot;))
+
+setGeneric(&quot;convert&quot;, function(from, to) {
+  standardGeneric(&quot;convert&quot;)
+})
+
+# Different conversions based on BOTH from and to types
+setMethod(&quot;convert&quot;, signature(&quot;Markdown&quot;, &quot;HTML&quot;), function(from, to) {
+  # Simple markdown-to-HTML simulation
+  html &lt;- gsub(&quot;\\*\\*(.+?)\\*\\*&quot;, &quot;&lt;b&gt;\\1&lt;/b&gt;&quot;, from@content)
+  html &lt;- gsub(&quot;\\*(.+?)\\*&quot;, &quot;&lt;i&gt;\\1&lt;/i&gt;&quot;, html)
+  new(&quot;HTML&quot;, content = html)
+})
+
+setMethod(&quot;convert&quot;, signature(&quot;HTML&quot;, &quot;PlainText&quot;), function(from, to) {
+  plain &lt;- gsub(&quot;&lt;[^&gt;]+&gt;&quot;, &quot;&quot;, from@content)
+  new(&quot;PlainText&quot;, content = plain)
+})
+
+setMethod(&quot;convert&quot;, signature(&quot;Markdown&quot;, &quot;PlainText&quot;), function(from, to) {
+  plain &lt;- gsub(&quot;\\*+&quot;, &quot;&quot;, from@content)
+  new(&quot;PlainText&quot;, content = plain)
+})
+
+# Test
+md &lt;- new(&quot;Markdown&quot;, content = &quot;This is **bold** and *italic*&quot;)
+html_out &lt;- convert(md, new(&quot;HTML&quot;))
+plain_out &lt;- convert(md, new(&quot;PlainText&quot;))
+
+cat(&quot;Markdown:&quot;, md@content, &quot;\n&quot;)
+cat(&quot;HTML:&quot;, html_out@content, &quot;\n&quot;)
+cat(&quot;Plain:&quot;, plain_out@content, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>callNextMethod(): Inheritance in S4 Methods</h2>
+
+<p><code>callNextMethod()</code> is S4's equivalent of S3's <code>NextMethod()</code>. It calls the method for the parent class.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">setClass(&quot;Animal&quot;, slots = list(name = &quot;character&quot;, sound = &quot;character&quot;))
+setClass(&quot;Pet&quot;, contains = &quot;Animal&quot;, slots = list(owner = &quot;character&quot;))
+setClass(&quot;Dog&quot;, contains = &quot;Pet&quot;, slots = list(breed = &quot;character&quot;))
+
+setGeneric(&quot;describe&quot;, function(animal) standardGeneric(&quot;describe&quot;))
+
+setMethod(&quot;describe&quot;, &quot;Animal&quot;, function(animal) {
+  cat(&quot;Animal:&quot;, animal@name, &quot;- says&quot;, animal@sound, &quot;\n&quot;)
+})
+
+setMethod(&quot;describe&quot;, &quot;Pet&quot;, function(animal) {
+  cat(&quot;Pet owned by:&quot;, animal@owner, &quot;\n&quot;)
+  callNextMethod()  # Calls describe for Animal
+})
+
+setMethod(&quot;describe&quot;, &quot;Dog&quot;, function(animal) {
+  cat(&quot;Dog breed:&quot;, animal@breed, &quot;\n&quot;)
+  callNextMethod()  # Calls describe for Pet
+})
+
+buddy &lt;- new(&quot;Dog&quot;, name = &quot;Buddy&quot;, sound = &quot;Woof&quot;,
+             owner = &quot;Alice&quot;, breed = &quot;Golden Retriever&quot;)
+describe(buddy)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Overriding Existing Generics (show, print, +)</h2>
+
+<p>You can define S4 methods for existing generics, including <code>show</code> (S4's equivalent of <code>print</code>), arithmetic operators, and comparison operators.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">setClass(&quot;Money&quot;,
+  slots = list(amount = &quot;numeric&quot;, currency = &quot;character&quot;),
+  prototype = list(currency = &quot;USD&quot;)
+)
+
+# Override show (the S4 print method)
+setMethod(&quot;show&quot;, &quot;Money&quot;, function(object) {
+  symbol &lt;- switch(object@currency, USD = &quot;$&quot;, EUR = &quot;\u20AC&quot;, GBP = &quot;\u00A3&quot;, &quot;&quot;)
+  cat(symbol, formatC(object@amount, format = &quot;f&quot;, digits = 2), object@currency, &quot;\n&quot;)
+})
+
+# Override + for Money
+setMethod(&quot;+&quot;, signature(&quot;Money&quot;, &quot;Money&quot;), function(e1, e2) {
+  if (e1@currency != e2@currency) stop(&quot;Cannot add different currencies&quot;)
+  new(&quot;Money&quot;, amount = e1@amount + e2@amount, currency = e1@currency)
+})
+
+# Override comparison
+setMethod(&quot;==&quot;, signature(&quot;Money&quot;, &quot;Money&quot;), function(e1, e2) {
+  e1@currency == e2@currency &amp;&amp; e1@amount == e2@amount
+})
+
+# Test
+a &lt;- new(&quot;Money&quot;, amount = 100, currency = &quot;USD&quot;)
+b &lt;- new(&quot;Money&quot;, amount = 50, currency = &quot;USD&quot;)
+
+show(a)
+show(b)
+result &lt;- a + b
+show(result)
+cat(&quot;a == b:&quot;, a == b, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Inspecting Methods</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># List all methods for a generic
+cat(&quot;Methods for 'area':\n&quot;)
+print(showMethods(&quot;area&quot;, printTo = FALSE))
+
+# Check if a method exists for specific classes
+cat(&quot;\nHas method for Circle?&quot;, hasMethod(&quot;area&quot;, &quot;Circle&quot;), &quot;\n&quot;)
+
+# Find which method would be selected
+cat(&quot;\nMethod for Circle:\n&quot;)
+print(getMethod(&quot;area&quot;, &quot;Circle&quot;))
+
+# List all generics that have methods for a class
+# showMethods(classes = &quot;Circle&quot;)  # lists all methods for Circle</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary Table</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Define generic</td>
+<td><code>setGeneric(&quot;name&quot;, function(...) standardGeneric(&quot;name&quot;))</code></td>
+<td>Declare the generic interface</td>
+</tr>
+<tr>
+<td>Define method</td>
+<td><code>setMethod(&quot;generic&quot;, &quot;Class&quot;, function(...) ...)</code></td>
+<td>Implement for a class</td>
+</tr>
+<tr>
+<td>Multiple dispatch</td>
+<td><code>setMethod(&quot;g&quot;, signature(&quot;A&quot;, &quot;B&quot;), ...)</code></td>
+<td>Dispatch on multiple args</td>
+</tr>
+<tr>
+<td>Call parent method</td>
+<td><code>callNextMethod()</code></td>
+<td>Invoke inherited method</td>
+</tr>
+<tr>
+<td>Show/print</td>
+<td><code>setMethod(&quot;show&quot;, &quot;Class&quot;, ...)</code></td>
+<td>Custom display</td>
+</tr>
+<tr>
+<td>Operator methods</td>
+<td><code>setMethod(&quot;+&quot;, signature(&quot;A&quot;, &quot;A&quot;), ...)</code></td>
+<td>Custom operators</td>
+</tr>
+<tr>
+<td>List methods</td>
+<td><code>showMethods(&quot;generic&quot;)</code></td>
+<td>See all defined methods</td>
+</tr>
+<tr>
+<td>Check method</td>
+<td><code>hasMethod(&quot;generic&quot;, &quot;Class&quot;)</code></td>
+<td>Does method exist?</td>
+</tr>
+<tr>
+<td>Get method</td>
+<td><code>getMethod(&quot;generic&quot;, &quot;Class&quot;)</code></td>
+<td>Retrieve method function</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Practice Exercises</h2>
+
+<p><strong>Exercise 1:</strong> Create classes <code>Vector2D</code> and <code>Vector3D</code>. Define an <code>add</code> generic that works for all four combinations: 2D+2D, 3D+3D, 2D+3D (extend 2D to 3D with z=0), 3D+2D.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">setClass(&quot;Vector2D&quot;, slots = list(x = &quot;numeric&quot;, y = &quot;numeric&quot;))
+setClass(&quot;Vector3D&quot;, slots = list(x = &quot;numeric&quot;, y = &quot;numeric&quot;, z = &quot;numeric&quot;))
+
+setGeneric(&quot;add&quot;, function(a, b) standardGeneric(&quot;add&quot;))
+
+setMethod(&quot;add&quot;, signature(&quot;Vector2D&quot;, &quot;Vector2D&quot;), function(a, b) {
+  new(&quot;Vector2D&quot;, x = a@x + b@x, y = a@y + b@y)
+})
+
+setMethod(&quot;add&quot;, signature(&quot;Vector3D&quot;, &quot;Vector3D&quot;), function(a, b) {
+  new(&quot;Vector3D&quot;, x = a@x + b@x, y = a@y + b@y, z = a@z + b@z)
+})
+
+setMethod(&quot;add&quot;, signature(&quot;Vector2D&quot;, &quot;Vector3D&quot;), function(a, b) {
+  new(&quot;Vector3D&quot;, x = a@x + b@x, y = a@y + b@y, z = b@z)
+})
+
+setMethod(&quot;add&quot;, signature(&quot;Vector3D&quot;, &quot;Vector2D&quot;), function(a, b) {
+  new(&quot;Vector3D&quot;, x = a@x + b@x, y = a@y + b@y, z = a@z)
+})
+
+v2 &lt;- new(&quot;Vector2D&quot;, x = 1, y = 2)
+v3 &lt;- new(&quot;Vector3D&quot;, x = 10, y = 20, z = 30)
+r &lt;- add(v2, v3)
+cat(&quot;Result:&quot;, r@x, r@y, r@z, &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<p><strong>Exercise 2:</strong> Define a <code>show</code> method for <code>Vector2D</code> that prints <code>&lt;1, 2&gt;</code> format, and a <code>callNextMethod()</code> chain with a parent class <code>MathObject</code> that prints <code>&quot;[MathObject]&quot;</code> after the vector representation.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">setClass(&quot;MathObject&quot;, slots = list(label = &quot;character&quot;),
+  prototype = list(label = &quot;unnamed&quot;))
+setClass(&quot;Vec2&quot;, contains = &quot;MathObject&quot;,
+  slots = list(x = &quot;numeric&quot;, y = &quot;numeric&quot;))
+
+setMethod(&quot;show&quot;, &quot;MathObject&quot;, function(object) {
+  cat(&quot;[MathObject:&quot;, object@label, &quot;]\n&quot;)
+})
+
+setMethod(&quot;show&quot;, &quot;Vec2&quot;, function(object) {
+  cat(&quot;&lt;&quot;, object@x, &quot;,&quot;, object@y, &quot;&gt;&quot;)
+  callNextMethod()
+})
+
+v &lt;- new(&quot;Vec2&quot;, x = 3, y = 7, label = &quot;position&quot;)
+show(v)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>FAQ</h2>
+
+<p><strong>Q: What is the difference between single and multiple dispatch?</strong> Single dispatch (S3) picks a method based on one argument's class. Multiple dispatch (S4) picks a method based on the classes of two or more arguments simultaneously. This is essential when the correct behavior depends on the combination of types.</p>
+
+<p><strong>Q: Can I mix S3 and S4 methods?</strong> Yes, but carefully. You can call <code>setGeneric()</code> on an existing S3 generic, and S4 methods will be found alongside S3 methods. Use <code>setOldClass()</code> to register S3 classes for use in S4 signatures.</p>
+
+<p><strong>Q: When would I use callNextMethod() vs writing separate methods?</strong> Use <code>callNextMethod()</code> when child classes should extend (not replace) parent behavior. If the child method does something completely different, write a standalone method without calling the parent.</p>
+
+<h2>What's Next</h2>
+
+<ul>
+
+<li><a href="R6-Classes-in-R.html">R6 Classes in R</a> -- Reference semantics and mutable state with the R6 package</li>
+
+<li><a href="S3-Method-Dispatch-in-R.html">S3 Method Dispatch</a> -- How UseMethod() and NextMethod() work under the hood</li>
+
+<li><a href="Operator-Overloading-in-R.html">Operator Overloading in R</a> -- Custom <code>+</code>, <code>-</code>, <code>==</code>, <code>[</code> methods for your classes</li>
+
+</ul>

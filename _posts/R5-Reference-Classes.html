@@ -1,0 +1,518 @@
+---
+title: "R5 Reference Classes in R: setRefClass() — Legacy OOP"
+description: "Introduction to R5 Reference Classes in R with setRefClass(). Learn the basics, why R6 is preferred, and when you might encounter R5 in legacy code."
+keywords: "R5 reference classes, setRefClass R, R reference classes, R5 vs R6, legacy OOP R, mutable objects R"
+mathjax: false
+webr: true
+curriculum_id: "FR-oop-1"
+post_type: "FR"
+auto_link_terms: "R5 reference classes|setRefClass|reference classes R"
+auto_link_case_sensitive: false
+fr_parent: "OOP-in-R.html"
+---
+
+<h1>R5 Reference Classes in R: setRefClass() -- Legacy OOP</h1>
+
+<p class="lead"><strong>R5 Reference Classes</strong> (also called "R5" or just "Reference Classes") were R's first built-in system for mutable, reference-semantics objects. They use <code>setRefClass()</code> and are part of base R. However, the <strong>R6</strong> package has largely replaced them for new code due to better performance and simpler syntax.</p>
+
+<p>You'll encounter R5 in older packages and Bioconductor code. This tutorial covers the essentials so you can read and maintain R5 code, while explaining why R6 is the better choice for new projects.</p>
+
+<h2>Why R6 Is Preferred Over R5</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>R5 (Reference Classes)</th>
+<th>R6</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speed</td>
+<td>Slower (S4 machinery underneath)</td>
+<td>Faster</td>
+</tr>
+<tr>
+<td>Syntax</td>
+<td>More verbose</td>
+<td>Cleaner</td>
+</tr>
+<tr>
+<td>Dependencies</td>
+<td>Base R</td>
+<td>R6 package (zero deps)</td>
+</tr>
+<tr>
+<td>Active bindings</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Private fields</td>
+<td>Via locking (awkward)</td>
+<td>Native support</td>
+</tr>
+<tr>
+<td>Deep clone</td>
+<td>Manual</td>
+<td>Built-in</td>
+</tr>
+<tr>
+<td>Community</td>
+<td>Declining</td>
+<td>Growing</td>
+</tr>
+</tbody>
+</table>
+
+<p>The main reason to learn R5 is to read legacy code. For new projects, use R6.</p>
+
+<h2>Basic R5 Class Definition</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Define a Reference Class
+Person &lt;- setRefClass(&quot;Person&quot;,
+  fields = list(
+    name = &quot;character&quot;,
+    age = &quot;numeric&quot;
+  ),
+  methods = list(
+    initialize = function(name, age) {
+      name &lt;&lt;- name  # &lt;&lt;- assigns to the field, not a local variable
+      age &lt;&lt;- age
+    },
+
+    greet = function() {
+      cat(&quot;Hi, I'm&quot;, name, &quot;and I'm&quot;, age, &quot;years old.\n&quot;)
+    },
+
+    have_birthday = function() {
+      age &lt;&lt;- age + 1  # Modifies in place (reference semantics)
+      cat(name, &quot;is now&quot;, age, &quot;\n&quot;)
+    }
+  )
+)
+
+# Create an instance
+alice &lt;- Person$new(&quot;Alice&quot;, 30)
+alice$greet()
+alice$have_birthday()
+alice$greet()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Note the <code>&lt;&lt;-</code> operator inside methods. In R5, methods run in their own environment, so you must use <code>&lt;&lt;-</code> to modify the object's fields (not <code>&lt;-</code>, which would create a local variable).</p>
+
+<h2>Reference Semantics (Same as R6)</h2>
+
+<p>Like R6, R5 objects use reference semantics. Assignment does not copy.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">Counter &lt;- setRefClass(&quot;Counter&quot;,
+  fields = list(
+    count = &quot;numeric&quot;
+  ),
+  methods = list(
+    initialize = function() {
+      count &lt;&lt;- 0
+    },
+    increment = function() {
+      count &lt;&lt;- count + 1
+    }
+  )
+)
+
+c1 &lt;- Counter$new()
+c2 &lt;- c1  # NOT a copy!
+
+c1$increment()
+c1$increment()
+cat(&quot;c1:&quot;, c1$count, &quot;\n&quot;)  # 2
+cat(&quot;c2:&quot;, c2$count, &quot;\n&quot;)  # Also 2! Same object.
+
+# Use $copy() for an independent copy
+c3 &lt;- c1$copy()
+c1$increment()
+cat(&quot;c1:&quot;, c1$count, &quot;\n&quot;)  # 3
+cat(&quot;c3:&quot;, c3$count, &quot;\n&quot;)  # Still 2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Inheritance</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">Animal &lt;- setRefClass(&quot;Animal&quot;,
+  fields = list(
+    name = &quot;character&quot;,
+    sound = &quot;character&quot;
+  ),
+  methods = list(
+    initialize = function(name, sound) {
+      name &lt;&lt;- name
+      sound &lt;&lt;- sound
+    },
+    speak = function() {
+      cat(name, &quot;says:&quot;, sound, &quot;\n&quot;)
+    }
+  )
+)
+
+Dog &lt;- setRefClass(&quot;Dog&quot;,
+  contains = &quot;Animal&quot;,
+  fields = list(
+    breed = &quot;character&quot;
+  ),
+  methods = list(
+    initialize = function(name, breed) {
+      callSuper(name = name, sound = &quot;Woof&quot;)  # Call parent constructor
+      breed &lt;&lt;- breed
+    },
+    describe = function() {
+      cat(name, &quot;is a&quot;, breed, &quot;\n&quot;)
+      speak()  # Can call inherited methods directly
+    }
+  )
+)
+
+rex &lt;- Dog$new(&quot;Rex&quot;, &quot;Labrador&quot;)
+rex$describe()
+rex$speak()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Field Access and the show() Method</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">Config &lt;- setRefClass(&quot;Config&quot;,
+  fields = list(
+    verbose = &quot;logical&quot;,
+    max_iter = &quot;numeric&quot;,
+    label = &quot;character&quot;
+  ),
+  methods = list(
+    initialize = function(label = &quot;default&quot;, verbose = FALSE, max_iter = 100) {
+      label &lt;&lt;- label
+      verbose &lt;&lt;- verbose
+      max_iter &lt;&lt;- max_iter
+    },
+
+    show = function() {
+      cat(&quot;Config:&quot;, label, &quot;\n&quot;)
+      cat(&quot;  verbose:&quot;, verbose, &quot;\n&quot;)
+      cat(&quot;  max_iter:&quot;, max_iter, &quot;\n&quot;)
+    }
+  )
+)
+
+cfg &lt;- Config$new(&quot;experiment-1&quot;, verbose = TRUE, max_iter = 500)
+cfg$show()
+
+# Fields can be accessed and modified directly
+cfg$max_iter &lt;- 1000
+cat(&quot;Updated max_iter:&quot;, cfg$max_iter, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>When You Might Encounter R5</h2>
+
+<p>R5 appears in several well-known packages:</p>
+
+<ul>
+
+<li><strong>Bioconductor</strong> packages that predate R6</li>
+
+<li><strong>shiny</strong> internals (though newer parts use R6)</li>
+
+<li><strong>RStudio</strong> addins and older IDE tools</li>
+
+<li><strong>igraph</strong> and some network analysis packages</li>
+
+</ul>
+
+<p>When working with these, you'll recognize R5 by <code>setRefClass()</code> calls, <code>&lt;&lt;-</code> inside methods, and <code>$copy()</code> instead of <code>$clone()</code>.</p>
+
+<h2>Converting R5 to R6</h2>
+
+<p>If you're modernizing code, conversion is straightforward:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># R5 version
+# MyClass &lt;- setRefClass(&quot;MyClass&quot;,
+#   fields = list(x = &quot;numeric&quot;),
+#   methods = list(
+#     initialize = function(x) { x &lt;&lt;- x },
+#     double_x = function() { x &lt;&lt;- x * 2 }
+#   )
+# )
+
+# R6 equivalent
+library(R6)
+
+MyClass &lt;- R6Class(&quot;MyClass&quot;,
+  public = list(
+    x = NULL,
+    initialize = function(x) { self$x &lt;- x },
+    double_x = function() { self$x &lt;- self$x * 2 }
+  )
+)
+
+obj &lt;- MyClass$new(5)
+obj$double_x()
+cat(&quot;x:&quot;, obj$x, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Key changes when converting:</p>
+
+<ul>
+
+<li><code>setRefClass()</code> becomes <code>R6Class()</code></li>
+
+<li><code>fields</code> becomes part of <code>public</code> (or <code>private</code>)</li>
+
+<li><code>&lt;&lt;-</code> becomes <code>self$</code></li>
+
+<li><code>callSuper()</code> becomes <code>super$initialize()</code></li>
+
+<li><code>$copy()</code> becomes <code>$clone()</code></li>
+
+</ul>
+
+<h2>Summary Table</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>R5 Feature</th>
+<th>Syntax</th>
+<th>R6 Equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Define class</td>
+<td><code>setRefClass(&quot;Name&quot;, fields=..., methods=...)</code></td>
+<td><code>R6Class(&quot;Name&quot;, public=...)</code></td>
+</tr>
+<tr>
+<td>Field assignment</td>
+<td><code>field &lt;&lt;- value</code></td>
+<td><code>self$field &lt;- value</code></td>
+</tr>
+<tr>
+<td>Create instance</td>
+<td><code>ClassName$new(...)</code></td>
+<td>Same</td>
+</tr>
+<tr>
+<td>Copy</td>
+<td><code>obj$copy()</code></td>
+<td><code>obj$clone()</code></td>
+</tr>
+<tr>
+<td>Inheritance</td>
+<td><code>contains = &quot;Parent&quot;</code></td>
+<td><code>inherit = Parent</code></td>
+</tr>
+<tr>
+<td>Call parent</td>
+<td><code>callSuper(...)</code></td>
+<td><code>super$method(...)</code></td>
+</tr>
+<tr>
+<td>Show/print</td>
+<td><code>show = function() ...</code></td>
+<td><code>print = function(...) ...</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>Practice Exercises</h2>
+
+<p><strong>Exercise 1:</strong> Create an R5 <code>Stack</code> class with <code>push(val)</code>, <code>pop()</code>, and <code>size()</code> methods.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Stack &lt;- setRefClass(&quot;Stack&quot;,
+  fields = list(
+    elements = &quot;list&quot;
+  ),
+  methods = list(
+    initialize = function() {
+      elements &lt;&lt;- list()
+    },
+    push = function(val) {
+      elements[[length(elements) + 1]] &lt;&lt;- val
+    },
+    pop = function() {
+      if (length(elements) == 0) stop(&quot;Stack empty&quot;)
+      val &lt;- elements[[length(elements)]]
+      elements[[length(elements)]] &lt;&lt;- NULL
+      val
+    },
+    size = function() {
+      length(elements)
+    }
+  )
+)
+
+s &lt;- Stack$new()
+s$push(10)
+s$push(20)
+cat(&quot;Size:&quot;, s$size(), &quot;\n&quot;)
+cat(&quot;Pop:&quot;, s$pop(), &quot;\n&quot;)
+cat(&quot;Size:&quot;, s$size(), &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<p><strong>Exercise 2:</strong> Convert the Stack class above to R6.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(R6)
+
+Stack &lt;- R6Class(&quot;Stack&quot;,
+  public = list(
+    initialize = function() {
+      private$elements &lt;- list()
+    },
+    push = function(val) {
+      private$elements[[length(private$elements) + 1]] &lt;- val
+      invisible(self)
+    },
+    pop = function() {
+      n &lt;- length(private$elements)
+      if (n == 0) stop(&quot;Stack empty&quot;)
+      val &lt;- private$elements[[n]]
+      private$elements[[n]] &lt;- NULL
+      val
+    },
+    size = function() length(private$elements)
+  ),
+  private = list(
+    elements = NULL
+  )
+)
+
+s &lt;- Stack$new()
+s$push(10)$push(20)
+cat(&quot;Size:&quot;, s$size(), &quot;\n&quot;)
+cat(&quot;Pop:&quot;, s$pop(), &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>FAQ</h2>
+
+<p><strong>Q: Is R5 deprecated?</strong> No. R5 is part of base R and will continue to work. It's just not the recommended choice for new code. R6 is faster, simpler, and has a more active community.</p>
+
+<p><strong>Q: Can R5 and R6 objects interact?</strong> Yes. They're just R objects. You can pass an R5 object as an argument to an R6 method and vice versa. They don't interoperate at the class level (no cross-system inheritance), but they coexist fine.</p>
+
+<p><strong>Q: Why does R5 use <<- instead of self$?</strong> R5 methods run in a special environment where fields are in the parent environment. <code>&lt;&lt;-</code> assigns to the parent environment (the object's fields). This is confusing, which is one reason R6 switched to explicit <code>self$</code>.</p>
+
+<h2>What's Next</h2>
+
+<ul>
+
+<li><a href="R6-Classes-in-R.html">R6 Classes in R</a> -- The modern replacement for R5</li>
+
+<li><a href="OOP-in-R.html">OOP in R Overview</a> -- Compare S3, S4, R5, and R6 side by side</li>
+
+<li><a href="sloop-Package-in-R.html">sloop Package in R</a> -- Inspect any object's OOP system</li>
+
+</ul>

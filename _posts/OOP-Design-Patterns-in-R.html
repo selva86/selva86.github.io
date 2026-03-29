@@ -1,0 +1,707 @@
+---
+title: "OOP Design Patterns in R: Factory, Strategy & Observer in R6"
+description: "Implement classic OOP design patterns in R using R6: Factory, Strategy, Observer, Singleton, and Builder. Practical examples for R programmers."
+keywords: "design patterns R, factory pattern R, strategy pattern R, observer pattern R, R6 design patterns, OOP patterns R"
+mathjax: false
+webr: true
+curriculum_id: "FR-oop-3"
+post_type: "FR"
+auto_link_terms: "OOP design patterns|factory pattern R|strategy pattern R|observer pattern R"
+auto_link_case_sensitive: false
+fr_parent: "OOP-in-R.html"
+---
+
+<h1>OOP Design Patterns in R: Factory, Strategy & Observer in R6</h1>
+
+<p class="lead">Design patterns are reusable solutions to common programming problems. While R isn't traditionally thought of as an OOP language, the <strong>R6</strong> class system makes patterns like <strong>Factory</strong>, <strong>Strategy</strong>, <strong>Observer</strong>, <strong>Singleton</strong>, and <strong>Builder</strong> clean and practical to implement.</p>
+
+<p>These patterns are especially useful when building R packages, Shiny apps, or any system with complex, interacting components.</p>
+
+<h2>Factory Pattern</h2>
+
+<p>The Factory pattern creates objects without exposing the creation logic. A factory function or class decides which class to instantiate based on input.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+
+# Define a family of related classes
+CSVReader &lt;- R6Class(&quot;CSVReader&quot;,
+  public = list(
+    read = function(path) {
+      cat(&quot;Reading CSV:&quot;, path, &quot;\n&quot;)
+      # read.csv(path) in real code
+      data.frame(x = 1:3, y = 4:6)
+    }
+  )
+)
+
+JSONReader &lt;- R6Class(&quot;JSONReader&quot;,
+  public = list(
+    read = function(path) {
+      cat(&quot;Reading JSON:&quot;, path, &quot;\n&quot;)
+      # jsonlite::fromJSON(path) in real code
+      list(x = 1:3, y = 4:6)
+    }
+  )
+)
+
+ExcelReader &lt;- R6Class(&quot;ExcelReader&quot;,
+  public = list(
+    read = function(path) {
+      cat(&quot;Reading Excel:&quot;, path, &quot;\n&quot;)
+      # readxl::read_excel(path) in real code
+      data.frame(x = 1:3, y = 4:6)
+    }
+  )
+)
+
+# The Factory function
+create_reader &lt;- function(file_path) {
+  ext &lt;- tolower(tools::file_ext(file_path))
+  switch(ext,
+    &quot;csv&quot; = CSVReader$new(),
+    &quot;json&quot; = JSONReader$new(),
+    &quot;xlsx&quot; = ExcelReader$new(),
+    &quot;xls&quot;  = ExcelReader$new(),
+    stop(&quot;Unsupported file type: &quot;, ext)
+  )
+}
+
+# Usage -- caller doesn't need to know which class is created
+reader &lt;- create_reader(&quot;data.csv&quot;)
+result &lt;- reader$read(&quot;data.csv&quot;)
+
+reader2 &lt;- create_reader(&quot;config.json&quot;)
+result2 &lt;- reader2$read(&quot;config.json&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The Factory pattern is useful when:</p>
+
+<ul>
+
+<li>You have multiple classes that share an interface</li>
+
+<li>The caller shouldn't need to know which concrete class to use</li>
+
+<li>You might add new formats later without changing calling code</li>
+
+</ul>
+
+<h2>Strategy Pattern</h2>
+
+<p>The Strategy pattern lets you swap algorithms at runtime. Define a family of interchangeable algorithm objects and inject one into a context object.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+
+# Strategy: different imputation methods
+MeanImputer &lt;- R6Class(&quot;MeanImputer&quot;,
+  public = list(
+    impute = function(x) {
+      x[is.na(x)] &lt;- mean(x, na.rm = TRUE)
+      x
+    },
+    name = function() &quot;mean&quot;
+  )
+)
+
+MedianImputer &lt;- R6Class(&quot;MedianImputer&quot;,
+  public = list(
+    impute = function(x) {
+      x[is.na(x)] &lt;- median(x, na.rm = TRUE)
+      x
+    },
+    name = function() &quot;median&quot;
+  )
+)
+
+ZeroImputer &lt;- R6Class(&quot;ZeroImputer&quot;,
+  public = list(
+    impute = function(x) {
+      x[is.na(x)] &lt;- 0
+      x
+    },
+    name = function() &quot;zero&quot;
+  )
+)
+
+# Context: uses whichever strategy is injected
+DataCleaner &lt;- R6Class(&quot;DataCleaner&quot;,
+  public = list(
+    initialize = function(strategy) {
+      private$strategy &lt;- strategy
+    },
+
+    set_strategy = function(strategy) {
+      private$strategy &lt;- strategy
+      invisible(self)
+    },
+
+    clean = function(df) {
+      cat(&quot;Imputing with strategy:&quot;, private$strategy$name(), &quot;\n&quot;)
+      for (col in names(df)) {
+        if (is.numeric(df[[col]]) &amp;&amp; any(is.na(df[[col]]))) {
+          df[[col]] &lt;- private$strategy$impute(df[[col]])
+        }
+      }
+      df
+    }
+  ),
+
+  private = list(
+    strategy = NULL
+  )
+)
+
+# Create data with NAs
+df &lt;- data.frame(
+  a = c(1, NA, 3, NA, 5),
+  b = c(10, 20, NA, 40, 50)
+)
+cat(&quot;Original:\n&quot;)
+print(df)
+
+# Try different strategies
+cleaner &lt;- DataCleaner$new(MeanImputer$new())
+cat(&quot;\nMean imputed:\n&quot;)
+print(cleaner$clean(df))
+
+cleaner$set_strategy(MedianImputer$new())
+cat(&quot;\nMedian imputed:\n&quot;)
+print(cleaner$clean(df))
+
+cleaner$set_strategy(ZeroImputer$new())
+cat(&quot;\nZero imputed:\n&quot;)
+print(cleaner$clean(df))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Observer Pattern</h2>
+
+<p>The Observer pattern lets objects subscribe to events and get notified when something happens. This is the backbone of reactive programming (and Shiny).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+
+# Event emitter (subject)
+EventEmitter &lt;- R6Class(&quot;EventEmitter&quot;,
+  public = list(
+    on = function(event, callback) {
+      if (is.null(private$listeners[[event]])) {
+        private$listeners[[event]] &lt;- list()
+      }
+      private$listeners[[event]] &lt;- c(private$listeners[[event]], list(callback))
+      invisible(self)
+    },
+
+    emit = function(event, ...) {
+      callbacks &lt;- private$listeners[[event]]
+      if (!is.null(callbacks)) {
+        for (cb in callbacks) {
+          cb(...)
+        }
+      }
+      invisible(self)
+    },
+
+    remove_all = function(event) {
+      private$listeners[[event]] &lt;- NULL
+      invisible(self)
+    }
+  ),
+
+  private = list(
+    listeners = list()
+  )
+)
+
+# A model that emits events when data changes
+DataModel &lt;- R6Class(&quot;DataModel&quot;,
+  inherit = EventEmitter,
+  public = list(
+    initialize = function(data = data.frame()) {
+      super$initialize()
+      private$data &lt;- data
+    },
+
+    add_row = function(...) {
+      new_row &lt;- data.frame(..., stringsAsFactors = FALSE)
+      private$data &lt;- rbind(private$data, new_row)
+      self$emit(&quot;data_changed&quot;, private$data)
+      invisible(self)
+    },
+
+    get_data = function() private$data
+  ),
+
+  private = list(
+    data = NULL
+  )
+)
+
+# Create model and attach observers
+model &lt;- DataModel$new()
+
+# Observer 1: log changes
+model$on(&quot;data_changed&quot;, function(data) {
+  cat(&quot;[Logger] Data now has&quot;, nrow(data), &quot;rows\n&quot;)
+})
+
+# Observer 2: validate data
+model$on(&quot;data_changed&quot;, function(data) {
+  if (nrow(data) &gt; 3) cat(&quot;[Validator] Warning: dataset getting large!\n&quot;)
+})
+
+# Observer 3: summary stats
+model$on(&quot;data_changed&quot;, function(data) {
+  if (ncol(data) &gt; 0 &amp;&amp; is.numeric(data[[1]])) {
+    cat(&quot;[Stats] Mean of first column:&quot;, mean(data[[1]]), &quot;\n&quot;)
+  }
+})
+
+# Add data -- all observers are notified
+model$add_row(x = 10, y = &quot;a&quot;)
+cat(&quot;\n&quot;)
+model$add_row(x = 20, y = &quot;b&quot;)
+cat(&quot;\n&quot;)
+model$add_row(x = 30, y = &quot;c&quot;)
+cat(&quot;\n&quot;)
+model$add_row(x = 40, y = &quot;d&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Singleton Pattern</h2>
+
+<p>The Singleton pattern ensures only one instance of a class exists. Useful for configuration, logging, or database connection pools.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+
+# Singleton using a closure
+AppConfig &lt;- (function() {
+  instance &lt;- NULL
+
+  R6Class(&quot;AppConfig&quot;,
+    public = list(
+      initialize = function() {
+        if (!is.null(instance)) {
+          stop(&quot;Use AppConfig$get_instance() instead of $new()&quot;)
+        }
+        private$settings &lt;- list()
+      },
+
+      set = function(key, value) {
+        private$settings[[key]] &lt;- value
+        invisible(self)
+      },
+
+      get = function(key, default = NULL) {
+        val &lt;- private$settings[[key]]
+        if (is.null(val)) default else val
+      },
+
+      print = function(...) {
+        cat(&quot;AppConfig:&quot;, length(private$settings), &quot;settings\n&quot;)
+        for (nm in names(private$settings)) {
+          cat(&quot;  &quot;, nm, &quot;=&quot;, private$settings[[nm]], &quot;\n&quot;)
+        }
+      }
+    ),
+
+    private = list(
+      settings = NULL
+    )
+  )
+})()
+
+# Simple singleton via manual management
+config &lt;- AppConfig$new()
+config$set(&quot;debug&quot;, TRUE)
+config$set(&quot;max_retries&quot;, 3)
+config$print()
+
+# Access from anywhere
+cat(&quot;Debug:&quot;, config$get(&quot;debug&quot;), &quot;\n&quot;)
+cat(&quot;Timeout:&quot;, config$get(&quot;timeout&quot;, default = 30), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Builder Pattern</h2>
+
+<p>The Builder pattern constructs complex objects step by step, especially when an object has many optional parameters.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+
+# The product
+Plot &lt;- R6Class(&quot;Plot&quot;,
+  public = list(
+    title = NULL, x_label = NULL, y_label = NULL,
+    theme = NULL, colors = NULL, width = NULL, height = NULL,
+
+    render = function() {
+      cat(&quot;=== Plot ===\n&quot;)
+      cat(&quot;Title:&quot;, self$title %||% &quot;(none)&quot;, &quot;\n&quot;)
+      cat(&quot;X label:&quot;, self$x_label %||% &quot;(auto)&quot;, &quot;\n&quot;)
+      cat(&quot;Y label:&quot;, self$y_label %||% &quot;(auto)&quot;, &quot;\n&quot;)
+      cat(&quot;Theme:&quot;, self$theme %||% &quot;default&quot;, &quot;\n&quot;)
+      cat(&quot;Size:&quot;, self$width %||% 800, &quot;x&quot;, self$height %||% 600, &quot;\n&quot;)
+      cat(&quot;Colors:&quot;, paste(self$colors %||% &quot;auto&quot;, collapse = &quot;, &quot;), &quot;\n&quot;)
+    }
+  )
+)
+
+# The builder
+PlotBuilder &lt;- R6Class(&quot;PlotBuilder&quot;,
+  public = list(
+    initialize = function() {
+      private$plot &lt;- Plot$new()
+    },
+
+    set_title = function(title) {
+      private$plot$title &lt;- title
+      invisible(self)
+    },
+
+    set_labels = function(x = NULL, y = NULL) {
+      if (!is.null(x)) private$plot$x_label &lt;- x
+      if (!is.null(y)) private$plot$y_label &lt;- y
+      invisible(self)
+    },
+
+    set_theme = function(theme) {
+      private$plot$theme &lt;- theme
+      invisible(self)
+    },
+
+    set_size = function(width, height) {
+      private$plot$width &lt;- width
+      private$plot$height &lt;- height
+      invisible(self)
+    },
+
+    set_colors = function(colors) {
+      private$plot$colors &lt;- colors
+      invisible(self)
+    },
+
+    build = function() {
+      result &lt;- private$plot
+      private$plot &lt;- Plot$new()  # Reset for next build
+      result
+    }
+  ),
+
+  private = list(
+    plot = NULL
+  )
+)
+
+# Fluent builder usage
+plot1 &lt;- PlotBuilder$new()$
+  set_title(&quot;MPG vs Weight&quot;)$
+  set_labels(x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per Gallon&quot;)$
+  set_theme(&quot;minimal&quot;)$
+  set_size(1200, 800)$
+  set_colors(c(&quot;#E41A1C&quot;, &quot;#377EB8&quot;, &quot;#4DAF4A&quot;))$
+  build()
+
+plot1$render()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary Table</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Purpose</th>
+<th>When to Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Factory</td>
+<td>Create objects without specifying exact class</td>
+<td>Multiple classes sharing an interface</td>
+</tr>
+<tr>
+<td>Strategy</td>
+<td>Swap algorithms at runtime</td>
+<td>Interchangeable behaviors (imputation, sorting, scoring)</td>
+</tr>
+<tr>
+<td>Observer</td>
+<td>Notify subscribers of state changes</td>
+<td>Event systems, reactive UIs, logging</td>
+</tr>
+<tr>
+<td>Singleton</td>
+<td>One instance only</td>
+<td>Config, DB connections, loggers</td>
+</tr>
+<tr>
+<td>Builder</td>
+<td>Construct complex objects step by step</td>
+<td>Objects with many optional parameters</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Practice Exercises</h2>
+
+<p><strong>Exercise 1:</strong> Implement a Factory that creates different normalization strategies: MinMaxScaler (0-1), StandardScaler (z-score), and RobustScaler (using median/IQR).</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(R6)
+
+MinMaxScaler &lt;- R6Class(&quot;MinMaxScaler&quot;,
+  public = list(
+    transform = function(x) (x - min(x)) / (max(x) - min(x)),
+    name = function() &quot;min-max&quot;
+  )
+)
+
+StandardScaler &lt;- R6Class(&quot;StandardScaler&quot;,
+  public = list(
+    transform = function(x) (x - mean(x)) / sd(x),
+    name = function() &quot;standard&quot;
+  )
+)
+
+RobustScaler &lt;- R6Class(&quot;RobustScaler&quot;,
+  public = list(
+    transform = function(x) (x - median(x)) / IQR(x),
+    name = function() &quot;robust&quot;
+  )
+)
+
+create_scaler &lt;- function(method) {
+  switch(method,
+    &quot;minmax&quot; = MinMaxScaler$new(),
+    &quot;standard&quot; = StandardScaler$new(),
+    &quot;robust&quot; = RobustScaler$new(),
+    stop(&quot;Unknown method: &quot;, method)
+  )
+}
+
+x &lt;- c(10, 20, 30, 100, 50)
+for (m in c(&quot;minmax&quot;, &quot;standard&quot;, &quot;robust&quot;)) {
+  scaler &lt;- create_scaler(m)
+  cat(scaler$name(), &quot;:&quot;, round(scaler$transform(x), 3), &quot;\n&quot;)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<p><strong>Exercise 2:</strong> Create a simple Observer-based <code>Counter</code> that emits "threshold" when the count exceeds a given value.</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(R6)
+
+ObservableCounter &lt;- R6Class(&quot;ObservableCounter&quot;,
+  public = list(
+    initialize = function(threshold = 5) {
+      private$count &lt;- 0
+      private$threshold &lt;- threshold
+      private$listeners &lt;- list()
+    },
+    on_threshold = function(callback) {
+      private$listeners &lt;- c(private$listeners, list(callback))
+      invisible(self)
+    },
+    increment = function(n = 1) {
+      private$count &lt;- private$count + n
+      cat(&quot;Count:&quot;, private$count, &quot;\n&quot;)
+      if (private$count &gt;= private$threshold) {
+        for (cb in private$listeners) cb(private$count)
+      }
+      invisible(self)
+    },
+    get_count = function() private$count
+  ),
+  private = list(count = NULL, threshold = NULL, listeners = NULL)
+)
+
+ctr &lt;- ObservableCounter$new(threshold = 3)
+ctr$on_threshold(function(n) cat(&quot;ALERT: count reached&quot;, n, &quot;!\n&quot;))
+ctr$increment()
+ctr$increment()
+ctr$increment()  # Triggers alert
+ctr$increment()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<p><strong>Exercise 3:</strong> Implement a Builder for a <code>Report</code> object with optional title, author, sections (list of strings), and format ("html"/"pdf").</p>
+
+<details><summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(R6)
+
+Report &lt;- R6Class(&quot;Report&quot;,
+  public = list(
+    title = &quot;Untitled&quot;, author = &quot;Anonymous&quot;,
+    sections = list(), format = &quot;html&quot;,
+    render = function() {
+      cat(&quot;=== Report ===\n&quot;)
+      cat(&quot;Title:&quot;, self$title, &quot;\n&quot;)
+      cat(&quot;Author:&quot;, self$author, &quot;\n&quot;)
+      cat(&quot;Format:&quot;, self$format, &quot;\n&quot;)
+      cat(&quot;Sections:&quot;, length(self$sections), &quot;\n&quot;)
+      for (s in self$sections) cat(&quot;  -&quot;, s, &quot;\n&quot;)
+    }
+  )
+)
+
+ReportBuilder &lt;- R6Class(&quot;ReportBuilder&quot;,
+  public = list(
+    initialize = function() { private$r &lt;- Report$new() },
+    title = function(t) { private$r$title &lt;- t; invisible(self) },
+    author = function(a) { private$r$author &lt;- a; invisible(self) },
+    add_section = function(s) { private$r$sections &lt;- c(private$r$sections, s); invisible(self) },
+    format = function(f) { private$r$format &lt;- f; invisible(self) },
+    build = function() { out &lt;- private$r; private$r &lt;- Report$new(); out }
+  ),
+  private = list(r = NULL)
+)
+
+report &lt;- ReportBuilder$new()$
+  title(&quot;Quarterly Analysis&quot;)$
+  author(&quot;Alice&quot;)$
+  add_section(&quot;Introduction&quot;)$
+  add_section(&quot;Methods&quot;)$
+  add_section(&quot;Results&quot;)$
+  format(&quot;pdf&quot;)$
+  build()
+
+report$render()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>FAQ</h2>
+
+<p><strong>Q: Are design patterns overkill for R?</strong> For scripts and one-off analyses, yes. For packages, Shiny apps, and production systems, no. Patterns make code more maintainable and testable.</p>
+
+<p><strong>Q: Can I use design patterns with S3 or S4?</strong> Yes, but R6's mutable objects and encapsulation make patterns much more natural. Factory can work with S3 (just return different S3 objects). Strategy and Observer are awkward without mutable state.</p>
+
+<p><strong>Q: Which pattern is most useful for R programmers?</strong> Strategy is probably the most practical for data science workflows (swappable models, preprocessors, or scoring functions). Observer is essential for Shiny development.</p>
+
+<h2>What's Next</h2>
+
+<ul>
+
+<li><a href="R6-Classes-in-R.html">R6 Classes in R</a> -- Learn R6 basics if you haven't already</li>
+
+<li><a href="R6-Advanced.html">R6 Advanced: Inheritance & Active Bindings</a> -- Deeper R6 features</li>
+
+<li><a href="R-OOP-Exercises.html">OOP in R Exercises</a> -- Practice problems covering all OOP systems</li>
+
+</ul>
