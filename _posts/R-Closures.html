@@ -1,0 +1,555 @@
+---
+title: "R Closures: Functions That Remember Their Defining Environment"
+description: "Learn how R closures capture their enclosing environment, how to inspect them with environment(), and practical closure patterns for state and factories."
+keywords: "R closures, R function environment, R enclosing environment, R function factory, environment() R, R mutable state, R closure pattern"
+mathjax: false
+webr: true
+curriculum_id: "4.1.6"
+post_type: "C"
+auto_link_terms: "R closures|closure|enclosing environment|function factory"
+auto_link_case_sensitive: false
+---
+
+<h1>R Closures: Functions That Remember Their Defining Environment</h1>
+
+<p class="lead">A closure is a function bundled with a reference to the environment where it was created. In R, every function is a closure — it remembers the variables that were visible when it was defined, even after that environment would normally disappear.</p>
+
+<p>Closures are what make function factories, accumulators, and memoization work in R. They're not an exotic concept — every function you write is technically a closure. But understanding <em>how</em> they capture environments lets you use them deliberately and powerfully.</p>
+
+<h2>Introduction</h2>
+
+<p>A closure has three components:</p>
+
+<ol>
+
+<li><strong>The function body</strong> — the code inside <code>function(...) { ... }</code></li>
+
+<li><strong>The formals</strong> — the function's arguments</li>
+
+<li><strong>The enclosing environment</strong> — the environment where the function was <em>defined</em></li>
+
+</ol>
+
+<p>The enclosing environment is what makes closures special. When a function looks up a variable that isn't in its own execution environment or its arguments, it looks in the enclosing environment. And that environment persists as long as the function exists.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A simple closure
+make_greeter &lt;- function(greeting) {
+  function(name) {
+    cat(greeting, name, &quot;\n&quot;)
+  }
+}
+
+hello &lt;- make_greeter(&quot;Hello&quot;)
+howdy &lt;- make_greeter(&quot;Howdy&quot;)
+
+hello(&quot;Alice&quot;)   # Hello Alice
+howdy(&quot;Bob&quot;)     # Howdy Bob
+
+# greeting is not in the inner function's args or body
+# It comes from the enclosing environment (make_greeter's execution env)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How Closures Capture Environments</h2>
+
+<p>When <code>make_greeter(&quot;Hello&quot;)</code> runs, R:</p>
+
+<ol>
+
+<li>Creates an execution environment for <code>make_greeter</code> with <code>greeting = &quot;Hello&quot;</code></li>
+
+<li>Defines the inner function inside that environment</li>
+
+<li>Returns the inner function — which carries a reference to that environment</li>
+
+</ol>
+
+<p>Even after <code>make_greeter</code> finishes, its execution environment survives because the returned function points to it:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">make_multiplier &lt;- function(factor) {
+  inner &lt;- function(x) x * factor
+
+  # Show the enclosing environment
+  cat(&quot;Inner fn's enclosing env:&quot;, format(environment(inner)), &quot;\n&quot;)
+  cat(&quot;factor in that env:&quot;, factor, &quot;\n&quot;)
+
+  inner
+}
+
+times_3 &lt;- make_multiplier(3)
+times_7 &lt;- make_multiplier(7)
+
+cat(&quot;3 * 5 =&quot;, times_3(5), &quot;\n&quot;)
+cat(&quot;7 * 5 =&quot;, times_7(5), &quot;\n&quot;)
+
+# Each closure has its OWN enclosing environment with its OWN 'factor'
+cat(&quot;\ntimes_3's env:&quot;, format(environment(times_3)), &quot;\n&quot;)
+cat(&quot;times_7's env:&quot;, format(environment(times_7)), &quot;\n&quot;)
+cat(&quot;Same env?&quot;, identical(environment(times_3), environment(times_7)), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Inspecting Closures with environment()</h2>
+
+<p><code>environment(fn)</code> returns the enclosing environment of a function. You can inspect and even modify it:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">make_counter &lt;- function(start = 0) {
+  count &lt;- start
+
+  list(
+    increment = function() {
+      count &lt;&lt;- count + 1
+      count
+    },
+    get = function() count,
+    reset = function() {
+      count &lt;&lt;- start
+    }
+  )
+}
+
+ctr &lt;- make_counter(10)
+ctr$increment()
+ctr$increment()
+ctr$increment()
+cat(&quot;Count:&quot;, ctr$get(), &quot;\n&quot;)
+
+# Peek inside the enclosing environment
+env &lt;- environment(ctr$get)
+cat(&quot;Enclosing env contents:&quot;, paste(ls(env), collapse = &quot;, &quot;), &quot;\n&quot;)
+cat(&quot;count in env:&quot;, get(&quot;count&quot;, envir = env), &quot;\n&quot;)
+cat(&quot;start in env:&quot;, get(&quot;start&quot;, envir = env), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Notice the <code>&lt;&lt;-</code> operator — it assigns to the enclosing environment instead of the local execution environment. This is how closures maintain mutable state.</p>
+
+<h2>Enclosing vs Binding Environment</h2>
+
+<p>Two environment concepts that often confuse people:</p>
+
+<ul>
+
+<li><strong>Enclosing environment</strong>: where the function was <em>defined</em> — <code>environment(fn)</code></li>
+
+<li><strong>Binding environment</strong>: where the function's <em>name</em> lives — the env where <code>fn</code> is assigned</li>
+
+</ul>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># The enclosing env = where the function was created
+wrapper &lt;- function() {
+  local_fn &lt;- function() cat(&quot;I was defined inside wrapper\n&quot;)
+
+  cat(&quot;local_fn's enclosing env:&quot;, environmentName(environment(local_fn)), &quot;\n&quot;)
+  # It's wrapper's execution env (unnamed)
+
+  local_fn
+}
+
+fn &lt;- wrapper()
+fn()
+
+# fn is BOUND in the global env, but ENCLOSED in wrapper's env
+cat(&quot;fn is bound in:&quot;, environmentName(environment()), &quot;\n&quot;)
+cat(&quot;fn encloses:&quot;, format(environment(fn)), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>For closures returned by function factories, the enclosing and binding environments are always different. The enclosing environment is the factory's execution environment; the binding environment is wherever you store the result.</p>
+
+<h2>Practical Closure Patterns</h2>
+
+<h4>Pattern 1: Running Total</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">make_accumulator &lt;- function() {
+  total &lt;- 0
+  function(x) {
+    total &lt;&lt;- total + x
+    total
+  }
+}
+
+acc &lt;- make_accumulator()
+cat(&quot;Add 5:&quot;, acc(5), &quot;\n&quot;)
+cat(&quot;Add 3:&quot;, acc(3), &quot;\n&quot;)
+cat(&quot;Add 12:&quot;, acc(12), &quot;\n&quot;)
+cat(&quot;Running total:&quot;, acc(0), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Pattern 2: Logger with Timestamp</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">make_logger &lt;- function(prefix = &quot;LOG&quot;) {
+  messages &lt;- character()
+
+  list(
+    log = function(msg) {
+      entry &lt;- paste0(&quot;[&quot;, prefix, &quot; &quot;, Sys.time(), &quot;] &quot;, msg)
+      messages &lt;&lt;- c(messages, entry)
+      cat(entry, &quot;\n&quot;)
+    },
+    history = function() messages,
+    count = function() length(messages)
+  )
+}
+
+logger &lt;- make_logger(&quot;APP&quot;)
+logger$log(&quot;Started&quot;)
+logger$log(&quot;Processing data&quot;)
+logger$log(&quot;Complete&quot;)
+
+cat(&quot;\nLog has&quot;, logger$count(), &quot;entries\n&quot;)
+cat(&quot;\nFull history:\n&quot;)
+for (msg in logger$history()) cat(&quot; &quot;, msg, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Pattern 3: Once-Only Function</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">make_once &lt;- function(fn) {
+  called &lt;- FALSE
+  result &lt;- NULL
+
+  function(...) {
+    if (!called) {
+      result &lt;&lt;- fn(...)
+      called &lt;&lt;- TRUE
+    }
+    result
+  }
+}
+
+expensive &lt;- make_once(function() {
+  cat(&quot;Computing... (this only runs once)\n&quot;)
+  sum(1:1000000)
+})
+
+cat(&quot;Call 1:&quot;, expensive(), &quot;\n&quot;)
+cat(&quot;Call 2:&quot;, expensive(), &quot;\n&quot;)  # Cached, no recomputation
+cat(&quot;Call 3:&quot;, expensive(), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Rate Limiter</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: Create make_rate_limiter(max_calls) that returns a function.
+# The returned function accepts any function and its args,
+# but only executes it if max_calls hasn't been exceeded.
+# After that, it returns &quot;Rate limit exceeded&quot;.
+#
+# Usage:
+#   limited &lt;- make_rate_limiter(3)
+#   limited(cat, &quot;hello\n&quot;)   # works
+#   limited(cat, &quot;hello\n&quot;)   # works
+#   limited(cat, &quot;hello\n&quot;)   # works
+#   limited(cat, &quot;hello\n&quot;)   # &quot;Rate limit exceeded&quot;
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">make_rate_limiter &lt;- function(max_calls) {
+  calls_made &lt;- 0
+
+  function(fn, ...) {
+    if (calls_made &gt;= max_calls) {
+      cat(&quot;Rate limit exceeded\n&quot;)
+      return(invisible(NULL))
+    }
+    calls_made &lt;&lt;- calls_made + 1
+    fn(...)
+  }
+}
+
+limited &lt;- make_rate_limiter(3)
+limited(cat, &quot;Call 1\n&quot;)
+limited(cat, &quot;Call 2\n&quot;)
+limited(cat, &quot;Call 3\n&quot;)
+limited(cat, &quot;Call 4\n&quot;)  # Rate limit exceeded
+limited(cat, &quot;Call 5\n&quot;)  # Rate limit exceeded</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** The closure captures `calls_made` and `max_calls`. Each call increments the counter with `<<-`. Once the limit is reached, all subsequent calls are blocked.
+
+</details>
+
+<h4>Exercise 2: Stateful Transformer</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: Create make_running_mean() that returns a function.
+# Each call adds a number and returns the running mean of all
+# numbers seen so far.
+#
+# rm &lt;- make_running_mean()
+# rm(10)  # 10
+# rm(20)  # 15
+# rm(30)  # 20
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">make_running_mean &lt;- function() {
+  values &lt;- numeric(0)
+
+  function(x) {
+    values &lt;&lt;- c(values, x)
+    mean(values)
+  }
+}
+
+rm_fn &lt;- make_running_mean()
+cat(&quot;Add 10:&quot;, rm_fn(10), &quot;\n&quot;)
+cat(&quot;Add 20:&quot;, rm_fn(20), &quot;\n&quot;)
+cat(&quot;Add 30:&quot;, rm_fn(30), &quot;\n&quot;)
+cat(&quot;Add 0:&quot;, rm_fn(0), &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** The `values` vector in the enclosing environment accumulates all inputs. Each call appends to it with `<<-` and returns the mean. The state persists across calls because it lives in the closure's enclosing environment.
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Description</th>
+<th>Access</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enclosing env</td>
+<td>Where function was defined</td>
+<td><code>environment(fn)</code></td>
+</tr>
+<tr>
+<td>Binding env</td>
+<td>Where function's name lives</td>
+<td>The env where <code>fn &lt;- ...</code> ran</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;-</code></td>
+<td>Assign to enclosing env</td>
+<td>Modifies closure state</td>
+</tr>
+<tr>
+<td>Function factory</td>
+<td>Function that returns functions</td>
+<td><code>make_adder &lt;- function(n) function(x) x + n</code></td>
+</tr>
+<tr>
+<td>Fresh start</td>
+<td>Each factory call = new env</td>
+<td>Separate state per closure</td>
+</tr>
+<tr>
+<td><code>environment(fn)</code></td>
+<td>Inspect the enclosing env</td>
+<td><code>ls(environment(fn))</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Key insight:</strong> Closures are R's mechanism for persistent, encapsulated state. They're the functional programming equivalent of objects with private fields.</p>
+
+<h2>FAQ</h2>
+
+<h4>Is every R function a closure?</h4>
+
+<p>Technically, yes — every function has an enclosing environment. But the term "closure" is usually reserved for functions that <em>rely</em> on their enclosing environment for free variables (variables not defined in the function's own body or arguments).</p>
+
+<h4>What's the difference between <code>&lt;-</code> and <code>&lt;&lt;-</code> in closures?</h4>
+
+<p><code>&lt;-</code> creates a local binding in the current execution environment. <code>&lt;&lt;-</code> walks up the environment chain and modifies the first existing binding it finds. In closures, <code>&lt;&lt;-</code> modifies the variable in the enclosing environment, enabling persistent state.</p>
+
+<h4>Can closures cause memory leaks?</h4>
+
+<p>Yes. Because closures keep their enclosing environment alive, any large objects in that environment stay in memory. If you create a closure inside a function that also has a large data frame, that data frame won't be garbage collected. To avoid this, only capture what you need, or explicitly <code>rm()</code> large objects before returning the closure.</p>
+
+<h2>What's Next?</h2>
+
+<p>Closures connect to several important R topics:</p>
+
+<ol>
+
+<li><strong>R Conditions System</strong> — use closures as condition handlers in tryCatch</li>
+
+<li><strong>R Function Factories</strong> — a deeper dive into factory patterns</li>
+
+<li><strong>R Debugging</strong> — how to debug inside closure scopes</li>
+
+</ol>

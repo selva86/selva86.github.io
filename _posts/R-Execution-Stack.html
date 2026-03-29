@@ -1,0 +1,400 @@
+---
+title: "R Execution Stack: sys.call(), parent.frame() & Call Stack Internals"
+description: "Understand R's execution stack: sys.call(), sys.frame(), parent.frame(), sys.nframe(), and how R tracks function calls internally."
+keywords: "R sys.call, R parent.frame, R sys.frame, R call stack, R sys.nframe, R execution stack, R stack internals"
+mathjax: false
+webr: true
+curriculum_id: "FR-inte-1"
+post_type: "FR"
+auto_link_terms: "R execution stack|sys.call()|parent.frame()|sys.frame()"
+auto_link_case_sensitive: false
+fr_parent: "R-Environments.html"
+---
+
+<h1>R Execution Stack: sys.call(), parent.frame() & Call Stack Internals</h1>
+
+<p class="lead">Every time you call a function in R, it gets pushed onto the call stack. R provides <code>sys.call()</code>, <code>sys.frame()</code>, <code>parent.frame()</code>, and <code>sys.nframe()</code> to inspect this stack at runtime — essential for metaprogramming and advanced debugging.</p>
+
+<p>These functions are rarely needed in everyday R code, but they power many internal mechanisms: how <code>tryCatch()</code> finds handlers, how <code>debug()</code> walks through code, and how packages like rlang build their error reporting.</p>
+
+<h2>The Call Stack</h2>
+
+<p>When function A calls function B, which calls function C, R maintains a stack:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">show_stack &lt;- function() {
+  cat(&quot;Stack depth:&quot;, sys.nframe(), &quot;\n&quot;)
+  cat(&quot;Call at frame 1:&quot;, deparse(sys.call(1)), &quot;\n&quot;)
+}
+
+wrapper &lt;- function() {
+  show_stack()
+}
+
+wrapper()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>sys.nframe(): How Deep Are We?</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">depth_test &lt;- function(label) {
+  cat(sprintf(&quot;%s: depth = %d\n&quot;, label, sys.nframe()))
+}
+
+level1 &lt;- function() {
+  depth_test(&quot;level1&quot;)
+  level2()
+}
+
+level2 &lt;- function() {
+  depth_test(&quot;level2&quot;)
+  level3()
+}
+
+level3 &lt;- function() {
+  depth_test(&quot;level3&quot;)
+}
+
+level1()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>sys.call(): What Was Called?</h4>
+
+<p><code>sys.call(n)</code> returns the call expression at frame <code>n</code> on the stack:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">inspect_calls &lt;- function() {
+  n &lt;- sys.nframe()
+  cat(&quot;Total frames:&quot;, n, &quot;\n&quot;)
+  for (i in 1:n) {
+    cat(sprintf(&quot;  Frame %d: %s\n&quot;, i, deparse(sys.call(i))))
+  }
+}
+
+outer_fn &lt;- function(x) {
+  inner_fn(x + 1)
+}
+
+inner_fn &lt;- function(y) {
+  inspect_calls()
+}
+
+outer_fn(10)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>sys.frame(): Get the Environment</h4>
+
+<p><code>sys.frame(n)</code> returns the execution environment at frame <code>n</code>:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">peek_at_caller &lt;- function() {
+  caller_env &lt;- sys.frame(-1)  # -1 = parent frame
+  cat(&quot;Caller's variables:&quot;, paste(ls(caller_env), collapse = &quot;, &quot;), &quot;\n&quot;)
+}
+
+my_function &lt;- function() {
+  secret &lt;- &quot;hidden_value&quot;
+  local_data &lt;- 1:5
+  peek_at_caller()
+}
+
+my_function()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>parent.frame(): The Caller's Environment</h2>
+
+<p><code>parent.frame()</code> is shorthand for <code>sys.frame(-1)</code> — it gives you the environment of the function that called you:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Useful for functions that need to evaluate in the caller's context
+eval_in_caller &lt;- function(expr_text) {
+  expr &lt;- parse(text = expr_text)
+  eval(expr, envir = parent.frame())
+}
+
+x &lt;- 100
+y &lt;- 200
+result &lt;- eval_in_caller(&quot;x + y&quot;)
+cat(&quot;Evaluated in caller's env:&quot;, result, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Real-world use: match.arg evaluates in the caller's context
+my_plot &lt;- function(type = c(&quot;line&quot;, &quot;bar&quot;, &quot;scatter&quot;)) {
+  type &lt;- match.arg(type)
+  cat(&quot;Plot type:&quot;, type, &quot;\n&quot;)
+}
+
+my_plot()         # uses default: &quot;line&quot;
+my_plot(&quot;bar&quot;)    # exact match
+my_plot(&quot;s&quot;)      # partial match: &quot;scatter&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practical Example: Custom Error Messages</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Use sys.call to generate informative error messages
+check_positive &lt;- function(x) {
+  if (any(x &lt;= 0)) {
+    fn_call &lt;- deparse(sys.call(-1))  # Caller's call
+    stop(sprintf(&quot;In %s: all values must be positive, got: %s&quot;,
+                 fn_call, paste(x[x &lt;= 0], collapse = &quot;, &quot;)),
+         call. = FALSE)
+  }
+}
+
+safe_sqrt &lt;- function(values) {
+  check_positive(values)
+  sqrt(values)
+}
+
+# Works fine
+cat(&quot;sqrt:&quot;, safe_sqrt(c(4, 9, 16)), &quot;\n&quot;)
+
+# Shows helpful error with caller context
+tryCatch(
+  safe_sqrt(c(4, -1, 16)),
+  error = function(e) cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n&quot;)
+)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercise</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: Write a function trace_call() that, when called
+# from anywhere, prints the full call chain from top to current.
+# Example output:
+#   Call chain: a(5) -&gt; b(6) -&gt; trace_call()
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">trace_call &lt;- function() {
+  n &lt;- sys.nframe()
+  calls &lt;- character(n)
+  for (i in 1:n) {
+    calls[i] &lt;- deparse(sys.call(i))
+  }
+  cat(&quot;Call chain:&quot;, paste(calls, collapse = &quot; -&gt; &quot;), &quot;\n&quot;)
+}
+
+a &lt;- function(x) b(x + 1)
+b &lt;- function(y) c(y + 1)
+c &lt;- function(z) {
+  trace_call()
+  z
+}
+
+a(5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** Walk through all stack frames from 1 to `sys.nframe()`, collecting each call expression with `sys.call(i)`. `deparse()` converts the call object to a readable string.
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Argument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sys.nframe()</code></td>
+<td>Current stack depth</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>sys.call(n)</code></td>
+<td>Call expression at frame n</td>
+<td>Frame number (0 = current)</td>
+</tr>
+<tr>
+<td><code>sys.frame(n)</code></td>
+<td>Environment at frame n</td>
+<td>Frame number (-1 = parent)</td>
+</tr>
+<tr>
+<td><code>parent.frame()</code></td>
+<td>Caller's environment</td>
+<td>Equivalent to <code>sys.frame(-1)</code></td>
+</tr>
+<tr>
+<td><code>sys.function(n)</code></td>
+<td>Function object at frame n</td>
+<td>Frame number</td>
+</tr>
+<tr>
+<td><code>match.call()</code></td>
+<td>Current function's call</td>
+<td>None (uses parent.frame internally)</td>
+</tr>
+</tbody>
+</table>
+
+<h2>FAQ</h2>
+
+<h4>When would I use these in real code?</h4>
+
+<p>Most commonly for: (1) generating informative error messages that include the caller's context, (2) functions that need to evaluate expressions in the caller's environment (like <code>subset()</code> and <code>with()</code>), (3) debugging tools that walk the call stack.</p>
+
+<h4>What's the difference between sys.frame(-1) and parent.frame()?</h4>
+
+<p>They're identical. <code>parent.frame(n)</code> is <code>sys.frame(-n)</code>. <code>parent.frame()</code> defaults to <code>n=1</code>, so <code>parent.frame()</code> = <code>sys.frame(-1)</code>.</p>
+
+<h2>What's Next?</h2>
+
+<ol>
+
+<li><strong>R Namespaces</strong> — how package environments and the search path work together</li>
+
+<li><strong>R Environments</strong> — the foundational concept behind all stack frames</li>
+
+<li><strong>R Debugging</strong> — practical use of stack inspection for finding bugs</li>
+
+</ol>

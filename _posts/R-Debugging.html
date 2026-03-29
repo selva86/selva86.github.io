@@ -1,0 +1,659 @@
+---
+title: "Debugging R Code: browser(), debug(), traceback() & RStudio Debugger"
+description: "Learn to debug R code with browser(), debug(), traceback(), debugonce(), options(error=recover), and RStudio's visual debugger and breakpoints."
+keywords: "R debugging, R browser, R debug, R traceback, R debugonce, RStudio debugger, R breakpoints, options error recover"
+mathjax: false
+webr: true
+curriculum_id: "4.1.8"
+post_type: "C"
+auto_link_terms: "R debugging|browser()|debug()|traceback()|R debugger"
+auto_link_case_sensitive: false
+---
+
+<h1>Debugging R Code: browser(), debug(), traceback() & RStudio Debugger</h1>
+
+<p class="lead">Debugging is finding out why your code produces wrong results or errors. R provides <code>traceback()</code> to see where an error occurred, <code>browser()</code> to pause and inspect, and <code>debug()</code> to step through functions line by line. Combined with RStudio's visual debugger, you have everything you need.</p>
+
+<p>Everyone writes buggy code. The difference between a beginner and an experienced R programmer isn't the number of bugs — it's how fast they find and fix them. This tutorial teaches you R's debugging toolkit.</p>
+
+<h2>Introduction</h2>
+
+<p>R's debugging workflow has three phases:</p>
+
+<ol>
+
+<li><strong>Locate</strong> — find where the error happens (<code>traceback()</code>, error messages)</li>
+
+<li><strong>Inspect</strong> — examine the state at that point (<code>browser()</code>, <code>debug()</code>)</li>
+
+<li><strong>Fix</strong> — correct the code and verify</li>
+
+</ol>
+
+<p>Here are the tools:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>traceback()</code></td>
+<td>Shows the call stack after an error</td>
+<td>First step — "where did it fail?"</td>
+</tr>
+<tr>
+<td><code>browser()</code></td>
+<td>Pauses execution, opens interactive prompt</td>
+<td>Insert where you want to inspect</td>
+</tr>
+<tr>
+<td><code>debug(fn)</code></td>
+<td>Auto-inserts browser at the start of fn</td>
+<td>Step through a function</td>
+</tr>
+<tr>
+<td><code>debugonce(fn)</code></td>
+<td>Like debug but only for the next call</td>
+<td>Quick one-time inspection</td>
+</tr>
+<tr>
+<td><code>options(error = recover)</code></td>
+<td>Opens browser at error location</td>
+<td>Catch unexpected errors</td>
+</tr>
+</tbody>
+</table>
+
+<h2>traceback(): Where Did It Fail?</h2>
+
+<p>After an error, <code>traceback()</code> shows the call stack — the chain of function calls that led to the error:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create a chain of functions that will fail
+inner &lt;- function(x) {
+  log(x)  # fails if x is character
+}
+
+middle &lt;- function(x) {
+  inner(x)
+}
+
+outer &lt;- function(x) {
+  middle(x)
+}
+
+# Catch the error and show the traceback
+tryCatch(
+  outer(&quot;not a number&quot;),
+  error = function(e) {
+    cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n\n&quot;)
+    cat(&quot;The call stack would be:\n&quot;)
+    cat(&quot;  3: inner(x) -&gt; log(x) fails here\n&quot;)
+    cat(&quot;  2: middle(x) -&gt; called inner\n&quot;)
+    cat(&quot;  1: outer('not a number') -&gt; called middle\n&quot;)
+  }
+)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>In an interactive session, you'd simply call <code>traceback()</code> right after the error. Read the output bottom-to-top: the bottom is where execution started, the top is where it failed.</p>
+
+<h2>browser(): Pause and Inspect</h2>
+
+<p>Insert <code>browser()</code> anywhere in your code to pause execution and open an interactive prompt:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># In a real R session, browser() pauses here and lets you type commands:
+# n — execute next line
+# s — step into function call
+# c — continue (resume execution)
+# Q — quit the browser
+# ls() — see local variables
+# any expression — evaluate it
+
+problematic &lt;- function(data) {
+  # Uncomment browser() in a local R session to pause here:
+  # browser()
+
+  total &lt;- sum(data)
+  avg &lt;- total / length(data)
+
+  # Let's simulate what you'd see in the browser
+  cat(&quot;In a browser session, you could inspect:\n&quot;)
+  cat(&quot;  data:&quot;, data, &quot;\n&quot;)
+  cat(&quot;  total:&quot;, total, &quot;\n&quot;)
+  cat(&quot;  avg:&quot;, avg, &quot;\n&quot;)
+
+  avg
+}
+
+result &lt;- problematic(c(10, 20, NA, 40))
+cat(&quot;Result:&quot;, result, &quot;\n&quot;)
+cat(&quot;Oops! NA because sum() returns NA when input has NA\n&quot;)
+cat(&quot;Fix: use na.rm = TRUE\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Conditional browser</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Only pause when a condition is met
+analyze &lt;- function(values) {
+  results &lt;- numeric(length(values))
+
+  for (i in seq_along(values)) {
+    results[i] &lt;- sqrt(values[i])
+
+    # In a real session, this would pause only for problem values:
+    # if (is.nan(results[i])) browser()
+    if (is.nan(results[i])) {
+      cat(sprintf(&quot;Problem at index %d: sqrt(%g) = NaN\n&quot;, i, values[i]))
+    }
+  }
+
+  results
+}
+
+output &lt;- analyze(c(4, 9, -1, 16, -25))
+cat(&quot;Results:&quot;, output, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>debug() and debugonce(): Step Through Functions</h2>
+
+<p><code>debug(fn)</code> marks a function so that every call to it opens the browser. <code>debugonce(fn)</code> does the same but only for the next call:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># In a real R session:
+# debug(my_function)    — every call will enter browser
+# my_function(args)     — browser opens, step through with n/s/c
+# undebug(my_function)  — stop debugging
+
+# debugonce(my_function) — enters browser only on next call
+
+# Simulated example showing what you'd see:
+calculate_bmi &lt;- function(weight_kg, height_m) {
+  bmi &lt;- weight_kg / height_m^2
+  category &lt;- if (bmi &lt; 18.5) &quot;Underweight&quot;
+              else if (bmi &lt; 25) &quot;Normal&quot;
+              else if (bmi &lt; 30) &quot;Overweight&quot;
+              else &quot;Obese&quot;
+  list(bmi = round(bmi, 1), category = category)
+}
+
+# If you ran: debugonce(calculate_bmi)
+# Then: calculate_bmi(70, 1.75)
+# You'd step through each line:
+#   Browse[2]&gt; n          (execute: bmi &lt;- 70 / 1.75^2)
+#   Browse[2]&gt; bmi        (inspect: 22.85714)
+#   Browse[2]&gt; n          (execute: category &lt;- ...)
+#   Browse[2]&gt; category   (inspect: &quot;Normal&quot;)
+#   Browse[2]&gt; c          (continue to end)
+
+result &lt;- calculate_bmi(70, 1.75)
+cat(&quot;BMI:&quot;, result$bmi, &quot;-&quot;, result$category, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>options(error = recover): Catch Errors Automatically</h2>
+
+<p>Setting <code>options(error = recover)</code> makes R open a browser session whenever <em>any</em> error occurs — you can inspect the state at each level of the call stack:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># In a real R session:
+# options(error = recover)
+#
+# When an error happens, R shows:
+#   Enter a frame number, or 0 to exit
+#   1: outer(&quot;bad&quot;)
+#   2: middle(&quot;bad&quot;)
+#   3: inner(&quot;bad&quot;)
+#
+# You type a number to inspect that environment:
+#   Selection: 3
+#   Browse[1]&gt; ls()
+#   Browse[1]&gt; x
+#   Browse[1]&gt; 0    (exit)
+
+# Reset to default behavior:
+# options(error = NULL)
+
+# Demonstrate the concept:
+cat(&quot;options(error = recover) workflow:\n&quot;)
+cat(&quot;1. Set: options(error = recover)\n&quot;)
+cat(&quot;2. Run your code\n&quot;)
+cat(&quot;3. When error occurs, R lists the call stack\n&quot;)
+cat(&quot;4. Enter a frame number to inspect that environment\n&quot;)
+cat(&quot;5. Type 0 to exit\n&quot;)
+cat(&quot;6. Reset: options(error = NULL)\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practical Debugging Strategy</h2>
+
+<p>Here's a systematic approach to debugging R code:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Step 1: Read the error message carefully
+# Step 2: Use traceback() to find where it happened
+# Step 3: Insert browser() just before the failing line
+# Step 4: Inspect variables and test fixes interactively
+# Step 5: Remove browser() and apply the fix
+
+# Example: debugging a data processing pipeline
+process_scores &lt;- function(scores) {
+  # Step 1: Clean
+  clean &lt;- as.numeric(scores)
+
+  # Step 2: Validate
+  if (any(is.na(clean))) {
+    bad_idx &lt;- which(is.na(clean))
+    cat(&quot;Warning: NAs at positions:&quot;, bad_idx, &quot;\n&quot;)
+    cat(&quot;Original values:&quot;, scores[bad_idx], &quot;\n&quot;)
+    clean &lt;- clean[!is.na(clean)]
+  }
+
+  # Step 3: Normalize to 0-100
+  if (length(clean) == 0) stop(&quot;No valid scores after cleaning&quot;)
+  min_score &lt;- min(clean)
+  max_score &lt;- max(clean)
+
+  if (min_score == max_score) {
+    warning(&quot;All scores are identical — returning 50 for all&quot;)
+    return(rep(50, length(clean)))
+  }
+
+  normalized &lt;- (clean - min_score) / (max_score - min_score) * 100
+  round(normalized, 1)
+}
+
+# Test cases that exercise different code paths
+cat(&quot;Normal:&quot;, process_scores(c(60, 70, 80, 90, 100)), &quot;\n&quot;)
+cat(&quot;With bad data:&quot;, process_scores(c(&quot;80&quot;, &quot;ninety&quot;, &quot;100&quot;, &quot;NA&quot;)), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Common Debugging Patterns</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Pattern 1: Print intermediate values
+debug_print &lt;- function(label, value) {
+  cat(sprintf(&quot;[DEBUG] %s: %s\n&quot;, label, paste(value, collapse = &quot;, &quot;)))
+  invisible(value)
+}
+
+# Pattern 2: Assert expectations
+assert &lt;- function(condition, message) {
+  if (!condition) stop(message, call. = FALSE)
+}
+
+# Pattern 3: Verbose mode
+my_function &lt;- function(x, verbose = FALSE) {
+  if (verbose) cat(&quot;Input length:&quot;, length(x), &quot;\n&quot;)
+  result &lt;- cumsum(x)
+  if (verbose) cat(&quot;Output range:&quot;, range(result), &quot;\n&quot;)
+  result
+}
+
+# Use them:
+data &lt;- c(1, 5, 3, 7, 2)
+debug_print(&quot;input&quot;, data)
+assert(is.numeric(data), &quot;data must be numeric&quot;)
+output &lt;- my_function(data, verbose = TRUE)
+cat(&quot;Final:&quot;, output, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Find the Bug</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: This function should return the second-largest value
+# in a vector. It has a bug. Find and fix it.
+
+second_largest &lt;- function(x) {
+  sorted &lt;- sort(x)
+  sorted[length(sorted) - 1]
+}
+
+# Test cases:
+cat(&quot;Test 1:&quot;, second_largest(c(5, 3, 8, 1, 9)), &quot;\n&quot;)  # Should be 8
+cat(&quot;Test 2:&quot;, second_largest(c(1, 1, 1)), &quot;\n&quot;)          # Should be 1
+cat(&quot;Test 3:&quot;, second_largest(c(10, 5)), &quot;\n&quot;)             # Should be 5
+cat(&quot;Test 4:&quot;, second_largest(c(7)), &quot;\n&quot;)                 # Should be NA or error
+
+# The bug shows with duplicate maximum values:
+cat(&quot;Test 5:&quot;, second_largest(c(9, 9, 5, 3)), &quot;\n&quot;)       # Should be 9
+
+# Fix the function below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># The original function works for simple cases but:
+# 1. Returns wrong result for single-element vectors
+# 2. Returns correct result for duplicates (which is fine)
+# The main bug: no handling of edge cases
+
+second_largest &lt;- function(x) {
+  if (length(x) &lt; 2) {
+    warning(&quot;Need at least 2 elements for second largest&quot;)
+    return(NA)
+  }
+  unique_sorted &lt;- sort(unique(x), decreasing = TRUE)
+  if (length(unique_sorted) &lt; 2) return(x[1])  # All identical
+  unique_sorted[2]
+}
+
+cat(&quot;Test 1:&quot;, second_largest(c(5, 3, 8, 1, 9)), &quot;\n&quot;)  # 8
+cat(&quot;Test 2:&quot;, second_largest(c(1, 1, 1)), &quot;\n&quot;)          # 1
+cat(&quot;Test 3:&quot;, second_largest(c(10, 5)), &quot;\n&quot;)             # 5
+cat(&quot;Test 4:&quot;, second_largest(c(7)), &quot;\n&quot;)                 # NA
+cat(&quot;Test 5:&quot;, second_largest(c(9, 9, 5, 3)), &quot;\n&quot;)       # 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** The debug approach: (1) identify edge cases, (2) check each test case mentally, (3) add guard clauses for edge cases. Using `sort(unique(x), decreasing = TRUE)` ensures we get the second *distinct* largest value.
+
+</details>
+
+<h4>Exercise 2: Debug the Pipeline</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: This pipeline crashes. Use the error message
+# to find and fix the bug. Don't change the input data.
+
+process &lt;- function(df) {
+  df$score_pct &lt;- df$score / df$max_score * 100
+  df$grade &lt;- ifelse(df$score_pct &gt;= 70, &quot;Pass&quot;, &quot;Fail&quot;)
+  df$summary &lt;- paste(df$name, &quot;:&quot;, df$grade)
+  df
+}
+
+data &lt;- data.frame(
+  name = c(&quot;Alice&quot;, &quot;Bob&quot;, &quot;Carol&quot;),
+  score = c(85, 62, 91),
+  max_score = c(100, 100, 100)
+)
+
+result &lt;- process(data)
+print(result)
+
+# Now try with this data — what happens?
+# data2 &lt;- data.frame(
+#   name = c(&quot;Alice&quot;, &quot;Bob&quot;),
+#   score = c(85, 62),
+#   max_score = c(100, 0)  # Bug: division by zero
+# )
+# result2 &lt;- process(data2)
+
+# Fix the process function to handle max_score = 0
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">process &lt;- function(df) {
+  # Guard against division by zero
+  df$score_pct &lt;- ifelse(df$max_score == 0, 0,
+                         df$score / df$max_score * 100)
+  df$grade &lt;- ifelse(df$score_pct &gt;= 70, &quot;Pass&quot;, &quot;Fail&quot;)
+  df$summary &lt;- paste(df$name, &quot;:&quot;, df$grade)
+  df
+}
+
+data2 &lt;- data.frame(
+  name = c(&quot;Alice&quot;, &quot;Bob&quot;),
+  score = c(85, 62),
+  max_score = c(100, 0)
+)
+
+result2 &lt;- process(data2)
+print(result2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** Division by zero in R produces `Inf`, not an error. But `Inf >= 70` is `TRUE`, so Bob would get "Pass" with 0 max score. The fix checks for `max_score == 0` and assigns 0% instead.
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Usage</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>traceback()</code></td>
+<td>Call after error</td>
+<td>Find where error occurred</td>
+</tr>
+<tr>
+<td><code>browser()</code></td>
+<td>Insert in code</td>
+<td>Inspect state at a specific point</td>
+</tr>
+<tr>
+<td><code>debug(fn)</code></td>
+<td>Before calling fn</td>
+<td>Step through every call to fn</td>
+</tr>
+<tr>
+<td><code>debugonce(fn)</code></td>
+<td>Before calling fn</td>
+<td>Step through next call only</td>
+</tr>
+<tr>
+<td><code>undebug(fn)</code></td>
+<td>After debugging</td>
+<td>Stop auto-debugging fn</td>
+</tr>
+<tr>
+<td><code>options(error = recover)</code></td>
+<td>Set once</td>
+<td>Auto-debug all errors</td>
+</tr>
+<tr>
+<td><code>options(error = NULL)</code></td>
+<td>Reset</td>
+<td>Return to normal behavior</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Debugging workflow:</strong> Error message -> <code>traceback()</code> -> <code>browser()</code> at suspicious line -> inspect variables -> fix -> test.</p>
+
+<h2>FAQ</h2>
+
+<h4>Can I debug code in WebR or R Markdown?</h4>
+
+<p><code>browser()</code> requires an interactive session, so it won't work in WebR or non-interactive R Markdown renders. Use <code>cat()</code> or <code>print()</code> for debugging in those contexts. In RStudio, you can use breakpoints (click in the margin) which work like <code>browser()</code>.</p>
+
+<h4>What do the browser commands n, s, c, Q mean?</h4>
+
+<p><code>n</code> (next) executes the current line and moves to the next. <code>s</code> (step) steps <em>into</em> a function call. <code>c</code> (continue) resumes normal execution. <code>Q</code> quits the browser and returns to the top level.</p>
+
+<h4>How do I debug inside apply/lapply/map?</h4>
+
+<p>Insert <code>browser()</code> inside the function you pass to <code>lapply()</code>. Or wrap it in a <code>tryCatch</code> to catch which element fails. Example: <code>lapply(data, function(x) { if (is.character(x)) browser(); process(x) })</code>.</p>
+
+<h2>What's Next?</h2>
+
+<p>With debugging skills in hand, explore related topics:</p>
+
+<ol>
+
+<li><strong>R Conditions System</strong> — handle errors gracefully with tryCatch</li>
+
+<li><strong>R Common Errors</strong> — the 50 most frequent errors and their fixes</li>
+
+<li><strong>R Execution Stack</strong> — understand sys.call(), parent.frame() internals</li>
+
+</ol>

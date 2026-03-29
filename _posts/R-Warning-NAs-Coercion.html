@@ -1,0 +1,352 @@
+---
+title: "R Warning: NAs introduced by coercion — When as.numeric() Fails"
+description: "Fix the R warning 'NAs introduced by coercion'. Learn why as.numeric() produces NAs, how to clean mixed-type data, and parse strings into numbers correctly."
+keywords: "R NAs introduced by coercion, R as.numeric NA, R coercion warning, R convert character to numeric, R mixed types, R parse number"
+mathjax: false
+webr: true
+curriculum_id: "ERR9"
+post_type: "FR"
+auto_link_terms: "NAs introduced by coercion|NAs by coercion"
+auto_link_case_sensitive: false
+fr_parent: "R-Common-Errors.html"
+---
+
+<h1>R Warning: NAs introduced by coercion — When as.numeric() Fails</h1>
+
+<p class="lead"><code>Warning: NAs introduced by coercion</code> appears when R tries to convert a value to numeric but cannot — the non-convertible values become <code>NA</code>. This is a warning, not an error, so your code keeps running with silent data loss.</p>
+
+<h2>The Warning</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Reproduce the warning:
+x &lt;- c(&quot;1&quot;, &quot;2&quot;, &quot;three&quot;, &quot;4&quot;)
+result &lt;- as.numeric(x)
+cat(&quot;Input:&quot;, x, &quot;\n&quot;)
+cat(&quot;Output:&quot;, result, &quot;\n&quot;)
+cat(&quot;NAs:&quot;, sum(is.na(result)), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Because it is a warning and not an error, your code continues. This makes it dangerous — you could lose data silently if you don't check.</p>
+
+<h2>Cause 1: Non-Numeric Strings in Data</h2>
+
+<p>The most common case. Your data has entries like "N/A", "missing", or "TBD" mixed with numbers:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">readings &lt;- c(&quot;23.5&quot;, &quot;18.0&quot;, &quot;N/A&quot;, &quot;31.2&quot;, &quot;error&quot;, &quot;27.8&quot;)
+
+# Identify which values will fail
+failed &lt;- is.na(suppressWarnings(as.numeric(readings)))
+cat(&quot;Problem values:&quot;, readings[failed], &quot;\n&quot;)
+cat(&quot;At positions:&quot;, which(failed), &quot;\n&quot;)
+
+# Fix: replace known non-numeric values with NA first
+cleaned &lt;- readings
+cleaned[cleaned %in% c(&quot;N/A&quot;, &quot;error&quot;, &quot;missing&quot;, &quot;&quot;)] &lt;- NA
+result &lt;- as.numeric(cleaned)
+cat(&quot;Cleaned result:&quot;, result, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Fix:</strong> Identify and replace non-numeric entries before converting. Use <code>is.na(suppressWarnings(as.numeric(x)))</code> to find them.</p>
+
+<h2>Cause 2: Currency Symbols, Commas, or Whitespace</h2>
+
+<p>Numbers formatted for display often contain characters that block conversion:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">prices &lt;- c(&quot;$1,299.99&quot;, &quot;$850.00&quot;, &quot;$2,100.50&quot;)
+cat(&quot;Raw:&quot;, prices, &quot;\n&quot;)
+
+# as.numeric fails on these
+cat(&quot;Direct conversion:&quot;, suppressWarnings(as.numeric(prices)), &quot;\n&quot;)
+
+# Fix: strip formatting characters
+cleaned &lt;- gsub(&quot;[$,]&quot;, &quot;&quot;, prices)
+cat(&quot;Cleaned strings:&quot;, cleaned, &quot;\n&quot;)
+
+result &lt;- as.numeric(cleaned)
+cat(&quot;Numeric:&quot;, result, &quot;\n&quot;)
+cat(&quot;Total:&quot;, sum(result), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Fix:</strong> Use <code>gsub()</code> to remove <code>$</code>, <code>,</code>, <code>%</code>, whitespace, and other formatting characters before <code>as.numeric()</code>.</p>
+
+<h2>Cause 3: Factor to Numeric Conversion</h2>
+
+<p>Converting a factor directly to numeric gives level indices, not the actual values. But if factor labels are non-numeric, <code>as.numeric(as.character(x))</code> triggers this warning:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">grades &lt;- factor(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;A&quot;))
+
+# as.numeric on a factor gives level indices
+cat(&quot;Level indices:&quot;, as.numeric(grades), &quot;\n&quot;)
+
+# If you try as.character then as.numeric on non-numeric labels:
+result &lt;- suppressWarnings(as.numeric(as.character(grades)))
+cat(&quot;Coercion result:&quot;, result, &quot;\n&quot;)
+cat(&quot;All NA because A, B, C are not numbers.\n&quot;)
+
+# For numeric-looking factors, the correct approach:
+scores &lt;- factor(c(&quot;90&quot;, &quot;85&quot;, &quot;72&quot;))
+correct &lt;- as.numeric(as.character(scores))
+cat(&quot;Correct conversion:&quot;, correct, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Fix:</strong> For numeric-looking factors, use <code>as.numeric(as.character(x))</code>. For actual category labels, don't convert to numeric.</p>
+
+<h2>Cause 4: Locale-Specific Decimal Separators</h2>
+
+<p>Some locales use commas as decimal separators (e.g., "3,14" instead of "3.14"):</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># European-format numbers
+euro_numbers &lt;- c(&quot;3,14&quot;, &quot;2,72&quot;, &quot;1,41&quot;)
+cat(&quot;Direct conversion:&quot;, suppressWarnings(as.numeric(euro_numbers)), &quot;\n&quot;)
+
+# Fix: replace comma with period
+fixed &lt;- gsub(&quot;,&quot;, &quot;.&quot;, euro_numbers)
+result &lt;- as.numeric(fixed)
+cat(&quot;Fixed:&quot;, result, &quot;\n&quot;)
+
+# Alternative: use read.csv2 or read.delim2 for European CSV files
+cat(&quot;\nFor European CSVs, use read.csv2() instead of read.csv()\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Fix:</strong> Replace <code>,</code> with <code>.</code> using <code>gsub(&quot;,&quot;, &quot;.&quot;, x)</code>, or use <code>read.csv2()</code> for European-formatted CSV files.</p>
+
+<h2>Cause 5: Leading/Trailing Whitespace</h2>
+
+<p>Invisible whitespace can prevent conversion:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">values &lt;- c(&quot; 42 &quot;, &quot;  17&quot;, &quot;28  &quot;, &quot; &quot;)
+cat(&quot;Raw values (quoted):&quot;, paste0(&quot;'&quot;, values, &quot;'&quot;), &quot;\n&quot;)
+cat(&quot;Direct conversion:&quot;, suppressWarnings(as.numeric(values)), &quot;\n&quot;)
+
+# Fix: trim whitespace first
+trimmed &lt;- trimws(values)
+cat(&quot;Trimmed:&quot;, paste0(&quot;'&quot;, trimmed, &quot;'&quot;), &quot;\n&quot;)
+result &lt;- as.numeric(trimmed)
+cat(&quot;Converted:&quot;, result, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Fix:</strong> Use <code>trimws()</code> to strip leading and trailing whitespace before conversion.</p>
+
+<h2>Practice Exercise</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: Clean this messy revenue column and compute the mean.
+# Handle all the different problems in the data.
+
+revenue &lt;- c(&quot;$1,200&quot;, &quot;950.5&quot;, &quot;N/A&quot;, &quot; 2100 &quot;, &quot;3,400.75&quot;, &quot;missing&quot;, &quot;$800&quot;)
+
+# Write your cleaning code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">revenue &lt;- c(&quot;$1,200&quot;, &quot;950.5&quot;, &quot;N/A&quot;, &quot; 2100 &quot;, &quot;3,400.75&quot;, &quot;missing&quot;, &quot;$800&quot;)
+
+# Step 1: trim whitespace
+revenue &lt;- trimws(revenue)
+
+# Step 2: replace text NAs
+revenue[revenue %in% c(&quot;N/A&quot;, &quot;missing&quot;, &quot;&quot;, &quot;NA&quot;)] &lt;- NA
+
+# Step 3: remove $ and commas
+revenue &lt;- gsub(&quot;[$,]&quot;, &quot;&quot;, revenue)
+
+# Step 4: convert to numeric
+revenue_num &lt;- as.numeric(revenue)
+cat(&quot;Cleaned values:&quot;, revenue_num, &quot;\n&quot;)
+cat(&quot;NAs:&quot;, sum(is.na(revenue_num)), &quot;\n&quot;)
+cat(&quot;Mean (excluding NA):&quot;, mean(revenue_num, na.rm = TRUE), &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** The data has four types of problems: dollar signs, commas, text entries ("N/A", "missing"), and whitespace. Cleaning them in order (trim, replace text, remove symbols, convert) handles all cases. The two text entries become proper NAs, and `na.rm = TRUE` excludes them from the mean.
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Cause</th>
+<th>Fix</th>
+<th>Prevention</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Non-numeric strings ("N/A", "error")</td>
+<td>Replace with <code>NA</code> before converting</td>
+<td>Standardize missing value codes on import</td>
+</tr>
+<tr>
+<td>Currency/commas ("$1,200")</td>
+<td><code>gsub(&quot;[$,]&quot;, &quot;&quot;, x)</code></td>
+<td>Clean formatting on import</td>
+</tr>
+<tr>
+<td>Factor to numeric</td>
+<td><code>as.numeric(as.character(x))</code></td>
+<td>Use <code>stringsAsFactors = FALSE</code></td>
+</tr>
+<tr>
+<td>Locale decimal (3,14 vs 3.14)</td>
+<td><code>gsub(&quot;,&quot;, &quot;.&quot;, x)</code></td>
+<td>Use <code>read.csv2()</code> for European data</td>
+</tr>
+<tr>
+<td>Whitespace (" 42 ")</td>
+<td><code>trimws(x)</code></td>
+<td>Trim on import</td>
+</tr>
+</tbody>
+</table>
+
+<h2>FAQ</h2>
+
+<h4>How do I suppress this warning if I expect NAs?</h4>
+
+<p>Use <code>suppressWarnings(as.numeric(x))</code>. But only suppress it when you've deliberately decided that NA is the correct outcome for non-numeric values. Silencing warnings you don't understand hides bugs.</p>
+
+<h4>How do I find all the non-numeric values in a column before converting?</h4>
+
+<p>Run <code>x[is.na(suppressWarnings(as.numeric(x))) &amp; !is.na(x)]</code>. This returns only the values that are not already NA but would become NA after conversion — the actual problem values.</p>
+
+<h2>What's Next?</h2>
+
+<ol>
+
+<li><strong>R Error: non-numeric argument to binary operator</strong> — type mismatch in arithmetic</li>
+
+<li><strong>R Error in read.csv: more columns than column names</strong> — CSV parsing issues</li>
+
+<li><strong>R Common Errors</strong> — the full reference of 50 common errors</li>
+
+</ol>

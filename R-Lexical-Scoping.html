@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Lexical Scoping in R: How R Looks Up Variable Names (R Search Path)</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="Understand lexical scoping in R: how R searches for variables through parent environments, the search path, masking, and the :: operator.">
+    <meta name="Keywords" content="R lexical scoping, R search path, R variable lookup, R masking, R dynamic scoping, R namespace conflicts, R double colon operator">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/R-Lexical-Scoping.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link href="www/bootstrap.min.css" rel="stylesheet">
+    <link href="www/highlight.css" rel="stylesheet">
+    <link href="css/main.css?v=8" rel="stylesheet">
+
+    <link href='https://fonts.googleapis.com/css?family=Inconsolata:400,700'
+      rel='stylesheet' type='text/css'>
+    <!-- Color Script -->
+    <style type="text/css">
+      a {
+       color: #3F73D8;
+      }
+      li {
+        line-height: 1.65;
+      }
+      /* reduce spacing around math formula*/
+      .MathJax_Display {
+        margin: 0em 0em;
+      }
+      /* Wider container for better content space */
+      @media (min-width: 1200px) {
+        .container { max-width: 1280px; }
+      }
+      /* Custom column widths: narrower sidebars, wider content */
+      @media (min-width: 768px) {
+        #nav { width: 20%; }
+        #content { width: 60%; padding-left: 20px; padding-right: 20px; }
+        #toc-sidebar { width: 20%; }
+      }
+      @media (min-width: 1200px) {
+        #nav { width: 18%; }
+        #content { width: 62%; }
+        #toc-sidebar { width: 20%; }
+      }
+      /* Prevent ad overflow */
+      #nav, #content, #toc-sidebar {
+        overflow: hidden;
+      }
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="Lexical Scoping in R: How R Looks Up Variable Names (R Search Path)">
+    <meta property="og:description" content="Understand lexical scoping in R: how R searches for variables through parent environments, the search path, masking, and the :: operator.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/R-Lexical-Scoping.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/iconb-64.png">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Lexical Scoping in R: How R Looks Up Variable Names (R Search Path)">
+    <meta name="twitter:description" content="Understand lexical scoping in R: how R searches for variables through parent environments, the search path, masking, and the :: operator.">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "Lexical Scoping in R: How R Looks Up Variable Names (R Search Path)",
+      "description": "Understand lexical scoping in R: how R searches for variables through parent environments, the search path, masking, and the :: operator.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co"},
+      "url": "https://r-statistics.co/R-Lexical-Scoping.html",
+      "datePublished": "2026-03-29",
+      "dateModified": "2026-03-29",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R"
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+      {"@type": "Question", "name": "Why does R use lexical scoping instead of dynamic scoping?", "acceptedAnswer": {"@type": "Answer", "text": "Lexical scoping makes code easier to reason about. You can determine which variable a name refers to just by reading the source code. With dynamic scoping, the meaning of a variable depends on the runtime call stack, which is harder to predict and debug."}},
+      {"@type": "Question", "name": "How do I avoid name masking bugs?", "acceptedAnswer": {"@type": "Answer", "text": "Three strategies: (1) Use unique, descriptive variable names. (2) Use package::function() when there might be conflicts. (3) Keep functions short so masking is obvious."}},
+      {"@type": "Question", "name": "What's the difference between parent.env() and parent.frame()?", "acceptedAnswer": {"@type": "Answer", "text": "parent.env(env) returns the enclosing (lexical) parent — where the function was defined. parent.frame() returns the calling (dynamic) parent — the environment of the code that called the current function. Lexical scoping uses parent.env; dynamic scoping uses parent.frame."}}
+      ]
+    }
+    </script>
+    
+    <!-- WebR Interactive R Code -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+      /* --- Loading banner: compact, collapses when ready --- */
+      .webr-loading-banner {
+        padding: 8px 16px;
+        background: #f0f4ff;
+        color: #3b5998;
+        text-align: center;
+        margin: 0 0 8px 0;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        border: 1px solid #c7d2fe;
+        transition: all 0.4s ease;
+        overflow: hidden;
+        max-height: 50px;
+      }
+      .webr-loading-banner.ready {
+        background: #ecfdf5;
+        color: #166534;
+        border-color: #86efac;
+      }
+      .webr-loading-banner.hidden {
+        max-height: 0;
+        padding: 0 16px;
+        margin: 0;
+        border-color: transparent;
+        opacity: 0;
+      }
+
+      /* --- Run All bar (subtle with background) --- */
+      .webr-runall-bar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 14px;
+        margin: 0 0 18px 0;
+        background: #f8fafb;
+        border: 1px solid #edf0f3;
+        border-radius: 8px;
+        opacity: 0;
+        transform: translateY(-4px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .webr-runall-bar.visible { opacity: 1; transform: translateY(0); }
+      .webr-runall-label {
+        font-size: 11px;
+        color: #9ca3af;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .webr-runall-label::before {
+        content: '';
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: #2da44e;
+        flex-shrink: 0;
+      }
+      .webr-runall-btn {
+        background: none;
+        color: #3f73d8;
+        border: 1px solid #d0d7de;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 400;
+        cursor: pointer;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        transition: all 0.15s ease;
+      }
+      .webr-runall-btn:hover { background: #f6f8fa; border-color: #3f73d8; }
+      .webr-runall-btn:disabled { color: #a5b4d4; cursor: wait; }
+      .webr-runall-btn.running { color: #d29922; border-color: #d29922; animation: pulse-run 1.5s ease-in-out infinite; }
+
+      /* --- Code block container --- */
+      .webr-container {
+        margin: 22px 0;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 0 1px rgba(0,0,0,0.1);
+        transition: box-shadow 0.2s ease;
+      }
+      .webr-container:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 0 1px rgba(0,0,0,0.12);
+      }
+      .webr-container:focus-within {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.15), 0 2px 8px rgba(0,0,0,0.06);
+      }
+
+      /* --- Button bar (below code editor) --- */
+      .webr-buttons {
+        padding: 6px 10px;
+        background: #f7f8fa;
+        border-top: 1px solid #e1e4e8;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .webr-buttons-left { display: flex; gap: 6px; align-items: center; }
+      .webr-buttons-right { display: flex; gap: 6px; align-items: center; }
+
+      /* --- Keyboard hint --- */
+      .webr-kbd-hint {
+        font-size: 10px;
+        color: #9ca3af;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      .webr-kbd-hint kbd {
+        background: #f0f1f3;
+        border: 1px solid #d1d5db;
+        border-radius: 3px;
+        padding: 1px 4px;
+        font-size: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+      }
+      /* --- Copy button --- */
+      .webr-copy-btn {
+        background: none;
+        border: 1px solid #d0d7de;
+        color: #656d76;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        transition: all 0.15s ease;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .webr-copy-btn:hover { background: #f6f8fa; color: #24292f; border-color: #c0c8d0; }
+      .webr-copy-btn.copied { color: #2da44e; border-color: #2da44e; }
+
+      /* --- CodeMirror editor --- */
+      .webr-editor .CodeMirror {
+        height: auto;
+        min-height: 48px;
+        font-size: 14px;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Inconsolata', 'Consolas', monospace;
+        line-height: 1.6;
+        background: #fafbfd;
+        padding: 4px 0;
+      }
+      .webr-editor .CodeMirror-gutters {
+        background: #f0f2f5;
+        border-right: 1px solid #e1e4e8;
+        padding-right: 2px;
+      }
+      .webr-editor .CodeMirror-linenumber {
+        color: #a0a8b4;
+        font-size: 11px;
+        padding: 0 6px 0 8px;
+        min-width: 28px;
+      }
+      .webr-editor .CodeMirror-cursor { border-left-color: #3b82f6; border-left-width: 2px; }
+      .webr-editor .CodeMirror-selected { background: #c8e1ff !important; }
+      .webr-editor .CodeMirror-activeline-background { background: #f0f4ff; }
+      .webr-editor .CodeMirror-matchingbracket { color: #0969da !important; font-weight: 700; background: #ddf4ff; border-radius: 2px; }
+
+      /* --- R syntax colors (refined) --- */
+      .webr-editor .cm-keyword { color: #cf222e; font-weight: 500; }
+      .webr-editor .cm-atom { color: #8250df; }
+      .webr-editor .cm-number { color: #0550ae; }
+      .webr-editor .cm-def { color: #8250df; }
+      .webr-editor .cm-variable { color: #24292f; }
+      .webr-editor .cm-variable-2 { color: #953800; }
+      .webr-editor .cm-variable-3 { color: #0550ae; }
+      .webr-editor .cm-property { color: #0550ae; }
+      .webr-editor .cm-operator { color: #cf222e; }
+      .webr-editor .cm-comment { color: #6e7781; font-style: italic; }
+      .webr-editor .cm-string { color: #0a3069; }
+      .webr-editor .cm-string-2 { color: #0a3069; }
+      .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+
+      /* --- Run button --- */
+      .webr-run-btn {
+        background: #3f73d8;
+        color: #fff;
+        border: none;
+        padding: 4px 14px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        transition: all 0.15s ease;
+      }
+      .webr-run-btn:hover { background: #2c5fbe; }
+      .webr-run-btn:active { background: #254fa0; }
+      .webr-run-btn:disabled { background: #a5b4d4; cursor: wait; }
+      .webr-run-btn.running { background: #d29922; animation: pulse-run 1.5s ease-in-out infinite; }
+      @keyframes pulse-run { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
+
+      /* --- Reset button --- */
+      .webr-reset-btn {
+        background: none;
+        color: #656d76;
+        border: 1px solid #d0d7de;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        transition: all 0.15s ease;
+      }
+      .webr-reset-btn:hover { background: #f6f8fa; color: #24292f; border-color: #c0c8d0; }
+
+      /* --- Output panel --- */
+      .webr-output {
+        margin: 0;
+        padding: 14px 16px;
+        background: #1e2228;
+        color: #c9d1d9;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Inconsolata', 'Consolas', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        max-height: 400px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        display: none;
+        border-top: 2px solid #2da44e;
+      }
+      .webr-output::-webkit-scrollbar { width: 8px; }
+      .webr-output::-webkit-scrollbar-track { background: #1e2228; }
+      .webr-output::-webkit-scrollbar-thumb { background: #444d56; border-radius: 4px; }
+      .webr-output.has-content { display: block; }
+      .webr-output.has-error { color: #f85149; border-top-color: #f85149; }
+
+      /* --- Plot output --- */
+      .webr-plot-output { text-align: center; padding: 16px; background: #fff; display: none; border-top: 1px solid #e1e4e8; }
+      .webr-plot-output.has-content { display: block; }
+      .webr-plot-output img, .webr-plot-output canvas { max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+
+      .mermaid { margin: 15px 0; text-align: center; }
+    </style>
+
+    <!-- Add Google search -->
+    <script language="Javascript" type="text/javascript">
+  function my_search_google()
+  {
+    var query = document.getElementById("my-google-search").value;
+    window.open("https://google.com/search?q=" + query
+	+ "%20site:" + "https://r-statistics.co");
+  }
+</script>
+  </head>
+
+  <body>
+
+    <div class="container">
+
+      <div class="masthead">
+       <!--
+        <ul class="nav nav-pills pull-right">
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+              Table of contents<b class="caret"></b>
+            </a>
+            <ul class="dropdown-menu pull-right" role="menu">
+              <li class="dropdown-header"></li>
+<li class="dropdown-header">Tutorial</li>
+<li><a href="R-Tutorial.html">R Tutorial</a></li>
+<li class="dropdown-header">ggplot2</li>
+<li><a href="ggplot2-Tutorial-With-R.html">ggplot2 Short Tutorial</a></li>
+<li><a href="Complete-Ggplot2-Tutorial-Part1-With-R-Code.html">ggplot2 Tutorial 1 - Intro</a></li>
+<li><a href="Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html">ggplot2 Tutorial 2 - Theme</a></li>
+<li><a href="Top50-Ggplot2-Visualizations-MasterList-R-Code.html">ggplot2 Tutorial 3 - Masterlist</a></li>
+<li><a href="ggplot2-cheatsheet.html">ggplot2 Quickref</a></li>
+<li class="dropdown-header">Foundations</li>
+<li><a href="Linear-Regression.html">Linear Regression</a></li>
+<li><a href="Statistical-Tests-in-R.html">Statistical Tests</a></li>
+<li><a href="Missing-Value-Treatment-With-R.html">Missing Value Treatment</a></li>
+<li><a href="Outlier-Treatment-With-R.html">Outlier Analysis</a></li>
+<li><a href="Variable-Selection-and-Importance-With-R.html">Feature Selection</a></li>
+<li><a href="Model-Selection-in-R.html">Model Selection</a></li>
+<li><a href="Logistic-Regression-With-R.html">Logistic Regression</a></li>
+<li><a href="Environments.html">Advanced Linear Regression</a></li>
+
+<li class="dropdown-header">Advanced Regression Models</li>
+<li><a href="adv-regression-models.html">Advanced Regression Models</a></li>
+
+<li class="dropdown-header">Time Series</li>
+<li><a href="Time-Series-Analysis-With-R.html">Time Series Analysis</a></li>
+<li><a href="Time-Series-Forecasting-With-R.html">Time Series Forecasting </a></li>
+<li><a href="Time-Series-Forecasting-With-R-part2.html">More Time Series Forecasting</a></li>
+
+<li class="dropdown-header">High Performance Computing</li>
+<li><a href="Parallel-Computing-With-R.html">Parallel computing</a></li>
+<li><a href="Strategies-To-Improve-And-Speedup-R-Code.html">Strategies to Speedup R code</a></li>
+
+<li class="dropdown-header">Useful Techniques</li>
+<li><a href="Association-Mining-With-R.html">Association Mining</a></li>
+<li><a href="Multi-Dimensional-Scaling-With-R.html">Multi Dimensional Scaling</a></li>
+<li><a href="Profiling.html">Optimization</a></li>
+<li><a href="Information-Value-With-R.html">InformationValue package</a></li>
+            </ul>
+          </li>
+        </ul>
+        -->
+
+        <div class="site-header" style="display:flex; justify-content:space-between; align-items:center; padding: 24px 0 10px 0;">
+          <h3 style="margin:0;"><a href="/" style="text-decoration:none;">r-statistics.co</a><small style="color:#999; margin-left:6px;"> by Selva Prabhakaran</small></h3>
+          <div style="display:flex; align-items:center; gap:18px;">
+            <a href="/about/" style="font-size:14px; color:#666; text-decoration:none;">About</a>
+            <form onsubmit="my_search_google(); return false;" style="margin:0;">
+              <input type="text" class="form-control" id="my-google-search" placeholder="Search.." style="width:160px; height:32px; font-size:13px; border-radius:6px;">
+            </form>
+          </div>
+        </div>
+        <hr style="margin:0 0 16px 0;">
+      </div>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav">
+            <!-- Loaded dynamically from www/sidebar.json by toc.js -->
+          </div>
+        </div>
+
+        <div id="content" class="col-xs-12 col-sm-7">
+
+          <h1>Lexical Scoping in R: How R Looks Up Variable Names (R Search Path)</h1>
+
+<p class="lead">When R encounters a variable name, it doesn't just look in your current workspace. It walks a chain of environments — from local to global to packages to base R — until it finds a match. This process is called lexical scoping, and understanding it explains most "mysterious" R behavior.</p>
+
+<p>Have you ever wondered why you can use <code>mean()</code> without loading any package? Or why a variable inside a function doesn't clash with one outside? The answer is lexical scoping — R's systematic way of resolving names to values.</p>
+
+<h2>Introduction</h2>
+
+<p><strong>Scoping</strong> answers one question: given a name like <code>x</code>, which value does it refer to?</p>
+
+<p>R uses <strong>lexical scoping</strong> (also called static scoping). "Lexical" means the answer depends on where the code is <em>written</em>, not where it's <em>called</em>. Specifically:</p>
+
+<ol>
+
+<li>Look in the <strong>current environment</strong> (e.g., inside the function body)</li>
+
+<li>If not found, look in the <strong>parent environment</strong> (where the function was defined)</li>
+
+<li>Keep going up the chain until you reach the <strong>empty environment</strong></li>
+
+<li>If still not found, throw <code>object &#x27;x&#x27; not found</code></li>
+
+</ol>
+
+<p>This tutorial covers:</p>
+
+<ul>
+
+<li>The four rules of lexical scoping</li>
+
+<li>How the search path works</li>
+
+<li>Name masking and conflicts</li>
+
+<li>The <code>::</code> operator for explicit lookups</li>
+
+<li>Lexical vs dynamic scoping</li>
+
+</ul>
+
+<h2>The Four Rules of Lexical Scoping</h2>
+
+<h4>Rule 1: Name Masking</h4>
+
+<p>R looks for names from the inside out. Inner definitions mask outer ones:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">x &lt;- 10  # global
+
+outer &lt;- function() {
+  x &lt;- 20  # outer's execution env
+
+  inner &lt;- function() {
+    x &lt;- 30  # inner's execution env
+    cat(&quot;inner x:&quot;, x, &quot;\n&quot;)
+  }
+
+  inner()
+  cat(&quot;outer x:&quot;, x, &quot;\n&quot;)
+}
+
+outer()
+cat(&quot;global x:&quot;, x, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Each function sees its own <code>x</code>. The inner function's <code>x &lt;- 30</code> doesn't affect the outer function or the global environment. This is name masking: the closest definition wins.</p>
+
+<h4>Rule 2: Functions vs Variables</h4>
+
+<p>R distinguishes between function and non-function lookups. If R needs a function (e.g., after <code>name(</code>), it skips non-function bindings:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A variable named 'c' and the function c() can coexist
+c &lt;- 10
+cat(&quot;c the variable:&quot;, c, &quot;\n&quot;)
+
+# R knows c() here must be the function
+result &lt;- c(1, 2, 3)
+cat(&quot;c() the function:&quot;, result, &quot;\n&quot;)
+
+# Clean up
+rm(c)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>R finds that <code>c</code> is <code>10</code> in the global env, but when it sees <code>c(1, 2, 3)</code> it knows it needs a function, so it keeps searching until it finds the base R <code>c()</code> function.</p>
+
+<h4>Rule 3: A Fresh Start</h4>
+
+<p>Every function call creates a new execution environment. Variables from a previous call don't persist:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">counter_broken &lt;- function() {
+  # This creates a NEW 'n' each time — it doesn't accumulate
+  if (!exists(&quot;n&quot;)) {
+    n &lt;- 0
+  }
+  n &lt;- n + 1
+  cat(&quot;n =&quot;, n, &quot;\n&quot;)
+}
+
+counter_broken()  # n = 1
+counter_broken()  # n = 1 again — fresh environment each time!
+counter_broken()  # n = 1 again</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Each call starts fresh. To persist state across calls, you need closures (covered in the next tutorial).</p>
+
+<h4>Rule 4: Dynamic Lookup</h4>
+
+<p>R looks up values when the function <em>runs</em>, not when it's <em>defined</em>:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Define a function that uses external variable 'multiplier'
+scale &lt;- function(x) {
+  x * multiplier
+}
+
+multiplier &lt;- 2
+cat(&quot;scale(5) =&quot;, scale(5), &quot;\n&quot;)  # 10
+
+multiplier &lt;- 10
+cat(&quot;scale(5) =&quot;, scale(5), &quot;\n&quot;)  # 50 — different result!</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The value of <code>multiplier</code> is looked up at call time. This is powerful but can be a source of bugs — if <code>multiplier</code> changes unexpectedly, <code>scale()</code> changes too.</p>
+
+<h2>The Search Path</h2>
+
+<p>The <strong>search path</strong> is the ordered list of environments R checks when looking up a name:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Show the search path
+cat(&quot;Search path:\n&quot;)
+path &lt;- search()
+for (i in seq_along(path)) {
+  cat(sprintf(&quot;  %d. %s\n&quot;, i, path[i]))
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>When you call <code>library(pkg)</code>, R inserts that package's environment into position 2 of the search path (just after the global environment). Later-loaded packages are searched first:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Demonstrate search path order
+cat(&quot;Before loading any package:\n&quot;)
+cat(&quot;  Path length:&quot;, length(search()), &quot;\n&quot;)
+
+library(stats)  # Already loaded, but let's show the concept
+
+cat(&quot;\nCurrent path:\n&quot;)
+for (s in search()) {
+  cat(&quot; &quot;, s, &quot;\n&quot;)
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Name Masking and Conflicts</h2>
+
+<p>When two packages export a function with the same name, the later-loaded package's version wins:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Both base R and stats have 'filter'
+# Demonstrate masking
+filter_result &lt;- stats::filter(1:10, rep(1/3, 3))
+cat(&quot;stats::filter result:&quot;, round(filter_result[2:4], 2), &quot;\n&quot;)
+
+# If dplyr were loaded after stats, dplyr::filter would mask stats::filter
+# That's why you see: &quot;The following objects are masked from 'package:stats': filter, lag&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>The <code>::</code> Operator</h4>
+
+<p>Use <code>package::function()</code> to call a specific version explicitly:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Always unambiguous — ignores the search path
+cat(&quot;Base mean:&quot;, base::mean(1:10), &quot;\n&quot;)
+cat(&quot;Base sum:&quot;, base::sum(1:100), &quot;\n&quot;)
+cat(&quot;Stats median:&quot;, stats::median(1:10), &quot;\n&quot;)
+
+# This is best practice when:
+# 1. Two packages have same-named functions
+# 2. You want clarity about which package you're using
+# 3. In package code (NAMESPACE imports are even better)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Finding Masked Functions</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># conflicts() shows functions that are masked
+masked &lt;- conflicts()
+if (length(masked) &gt; 0) {
+  cat(&quot;Masked functions:\n&quot;)
+  for (fn in masked[1:min(5, length(masked))]) {
+    cat(&quot; &quot;, fn, &quot;\n&quot;)
+  }
+} else {
+  cat(&quot;No masked functions\n&quot;)
+}
+
+# find() shows where a function lives
+cat(&quot;\nWhere does 'mean' live?\n&quot;)
+print(find(&quot;mean&quot;))
+
+cat(&quot;\nWhere does 'c' live?\n&quot;)
+print(find(&quot;c&quot;))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Lexical vs Dynamic Scoping</h2>
+
+<p>Most languages use lexical scoping. R mostly does too, but has a few dynamic scoping features:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># LEXICAL scoping: looks where function was DEFINED
+x &lt;- &quot;global&quot;
+
+make_printer &lt;- function() {
+  x &lt;- &quot;local&quot;
+  function() cat(&quot;x =&quot;, x, &quot;\n&quot;)
+}
+
+printer &lt;- make_printer()
+printer()  # prints &quot;local&quot; — lexical, looks at defining environment
+
+# If R used DYNAMIC scoping, printer() would look at the
+# CALLING environment and find x = &quot;global&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># R's parent.frame() gives dynamic scoping behavior
+# (rarely needed, but good to know)
+dynamic_example &lt;- function() {
+  # parent.frame() = the caller's environment
+  caller_env &lt;- parent.frame()
+  cat(&quot;Caller's secret:&quot;, get(&quot;secret&quot;, envir = caller_env), &quot;\n&quot;)
+}
+
+wrapper &lt;- function() {
+  secret &lt;- &quot;found me!&quot;
+  dynamic_example()
+}
+
+wrapper()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>parent.frame()</code> looks at the <em>calling</em> environment (dynamic), while <code>parent.env()</code> looks at the <em>defining/enclosing</em> environment (lexical). This distinction is crucial for advanced R programming.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Predict the Output</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: Without running this code, predict what each cat() prints.
+# Then run it to check.
+
+a &lt;- 1
+
+f &lt;- function() {
+  a &lt;- 2
+  g &lt;- function() {
+    a &lt;- 3
+    cat(&quot;g:&quot;, a, &quot;\n&quot;)
+  }
+  g()
+  cat(&quot;f:&quot;, a, &quot;\n&quot;)
+}
+
+f()
+cat(&quot;global:&quot;, a, &quot;\n&quot;)
+
+# Write your predictions as comments, then run:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">a &lt;- 1
+
+f &lt;- function() {
+  a &lt;- 2
+  g &lt;- function() {
+    a &lt;- 3
+    cat(&quot;g:&quot;, a, &quot;\n&quot;)       # 3 — inner a masks all others
+  }
+  g()
+  cat(&quot;f:&quot;, a, &quot;\n&quot;)         # 2 — g's a=3 was local to g
+}
+
+f()
+cat(&quot;global:&quot;, a, &quot;\n&quot;)       # 1 — f's a=2 was local to f
+
+# Output:
+# g: 3
+# f: 2
+# global: 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** Each `a <-` assignment creates a local binding in that function's execution environment. Name masking means each function sees only its own `a`. No function modifies another's binding.
+
+</details>
+
+<h4>Exercise 2: Dynamic Lookup Trap</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: This code has a bug caused by dynamic lookup.
+# Find it and fix it.
+
+make_adder &lt;- function(n) {
+  function(x) x + n
+}
+
+n &lt;- 100
+add_5 &lt;- make_adder(5)
+cat(&quot;add_5(10) =&quot;, add_5(10), &quot;\n&quot;)
+
+# Expected: 15
+# What do you actually get? Why? Fix it.
+
+# Write your fix below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># The code actually works correctly! Output is 15.
+# Here's why: make_adder(5) captures n=5 in its closure.
+# The global n=100 is irrelevant because lexical scoping
+# looks at the DEFINING environment (make_adder's execution env
+# where n=5), not the CALLING environment.
+
+make_adder &lt;- function(n) {
+  force(n)  # Best practice: force evaluation of the argument
+  function(x) x + n
+}
+
+n &lt;- 100
+add_5 &lt;- make_adder(5)
+cat(&quot;add_5(10) =&quot;, add_5(10), &quot;\n&quot;)  # 15
+
+# The force() call is a safeguard against lazy evaluation bugs.
+# Without force(), if n were modified before the inner function
+# is first called, you could get unexpected results in edge cases.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** Lexical scoping protects you here — the closure's `n` is the function argument, not the global `n`. Adding `force(n)` is defensive programming that ensures the argument is evaluated at definition time.
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Meaning</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lexical scoping</td>
+<td>Lookup based on where code is written</td>
+<td>Inner functions see outer variables</td>
+</tr>
+<tr>
+<td>Name masking</td>
+<td>Closest definition wins</td>
+<td>Local <code>x</code> masks global <code>x</code></td>
+</tr>
+<tr>
+<td>Fresh start</td>
+<td>Each call gets a new environment</td>
+<td>Local vars don't persist</td>
+</tr>
+<tr>
+<td>Dynamic lookup</td>
+<td>Values resolved at call time</td>
+<td>Changing <code>y</code> changes <code>f()</code></td>
+</tr>
+<tr>
+<td>Search path</td>
+<td><code>search()</code> shows env order</td>
+<td>Global -> packages -> base</td>
+</tr>
+<tr>
+<td><code>::</code> operator</td>
+<td>Explicit package access</td>
+<td><code>stats::filter()</code></td>
+</tr>
+<tr>
+<td>Masking</td>
+<td>Later package hides earlier</td>
+<td><code>dplyr::filter</code> masks <code>stats::filter</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Key insight:</strong> Lexical scoping means R's behavior is predictable from reading the code — you don't need to trace through the call stack to know which <code>x</code> a function uses.</p>
+
+<h2>FAQ</h2>
+
+<h4>Why does R use lexical scoping instead of dynamic scoping?</h4>
+
+<p>Lexical scoping makes code easier to reason about. You can determine which variable a name refers to just by reading the source code. With dynamic scoping, the meaning of a variable depends on the runtime call stack, which is harder to predict and debug.</p>
+
+<h4>How do I avoid name masking bugs?</h4>
+
+<p>Three strategies: (1) Use unique, descriptive variable names. (2) Use <code>package::function()</code> when there might be conflicts. (3) Keep functions short so masking is obvious.</p>
+
+<h4>What's the difference between parent.env() and parent.frame()?</h4>
+
+<p><code>parent.env(env)</code> returns the <strong>enclosing</strong> (lexical) parent — where the function was defined. <code>parent.frame()</code> returns the <strong>calling</strong> (dynamic) parent — the environment of the code that called the current function. Lexical scoping uses <code>parent.env</code>; dynamic scoping uses <code>parent.frame</code>.</p>
+
+<h2>What's Next?</h2>
+
+<p>Now that you understand how R looks up names, explore how functions capture their environment:</p>
+
+<ol>
+
+<li><strong>R Closures</strong> — functions that remember their defining environment</li>
+
+<li><strong>R Conditions System</strong> — how R handles errors, warnings, and messages</li>
+
+<li><strong>R Namespaces</strong> — how packages use scoping to prevent conflicts</li>
+
+</ol>
+
+        </div>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <h5 class="toc-title">On this page</h5>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; 2016-<script>document.write(new Date().getFullYear())</script> Selva Prabhakaran.
+          This work is licensed under the <a href="https://creativecommons.org/licenses/by-nc/3.0/">Creative Commons License.</a>
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script src="//code.jquery.com/jquery.js"></script>
+  <script src="www/bootstrap.min.js"></script>
+  <script src="www/toc.js?v=5"></script>
+  <!-- MathJax Script -->
+  
+  <!-- WebR Interactive Code -->
+  
+  <!-- WebR Engine -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/r/r.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script type="module">
+    let WebR = null;
+    let webR = null;
+    let webRReady = false;
+    let webRLoading = false;
+    let shelter = null;
+    const editors = [];
+    let pendingRunBtn = null;
+
+    const banner = document.querySelector('.webr-loading-banner');
+
+    async function loadAndInitWebR() {
+      if (webRReady) return true;
+      if (webRLoading) return false;
+      webRLoading = true;
+
+      // Show loading banner
+      if (banner) {
+        banner.textContent = '\u23f3 Loading R environment (first run only)...';
+        banner.classList.remove('hidden', 'ready');
+        banner.style.maxHeight = '50px';
+        banner.style.padding = '8px 16px';
+        banner.style.margin = '0 0 8px 0';
+        banner.style.opacity = '1';
+      }
+
+      try {
+        // Dynamically import WebR only when needed
+        const mod = await import('https://webr.r-wasm.org/latest/webr.mjs');
+        WebR = mod.WebR;
+        webR = new WebR();
+        await webR.init();
+        shelter = await new webR.Shelter();
+        webRReady = true;
+
+        if (banner) {
+          banner.textContent = '\u2705 R environment ready! Click Run or press Ctrl+Enter.';
+          banner.classList.add('ready');
+          setTimeout(() => { banner.classList.add('hidden'); }, 2500);
+        }
+        document.querySelectorAll('.webr-run-btn').forEach(btn => {
+          btn.disabled = false;
+          btn.textContent = '\u25b6 Run';
+        });
+        // Inject Run All bar at the top of content
+        const contentEl = document.getElementById('content');
+        const firstH1 = contentEl.querySelector('h1');
+        const runAllBar = document.createElement('div');
+        runAllBar.className = 'webr-runall-bar';
+        runAllBar.innerHTML = '<span class="webr-runall-label">R environment ready</span><button class="webr-runall-btn" onclick="runAllWebR(this)">\u25b6 Run All Code Blocks</button>';
+        if (firstH1 && firstH1.nextSibling) {
+          firstH1.parentNode.insertBefore(runAllBar, firstH1.nextSibling);
+        } else {
+          contentEl.insertBefore(runAllBar, contentEl.firstChild);
+        }
+        requestAnimationFrame(() => { runAllBar.classList.add('visible'); });
+        // Track WebR ready in GA4
+        if (typeof gtag === 'function') {
+          gtag('event', 'webr_ready', {
+            event_category: 'WebR',
+            event_label: document.title,
+            code_block_count: document.querySelectorAll('.webr-container').length
+          });
+        }
+        return true;
+      } catch(e) {
+        webRLoading = false;
+        if (banner) { banner.textContent = 'Failed to load R: ' + e.message; banner.style.background = '#fee2e2'; banner.style.color = '#991b1b'; }
+        return false;
+      }
+    }
+
+    // Hide the loading banner on initial page load (no auto-download)
+    if (banner) {
+      banner.textContent = '\u25b6 Click Run on any code block to start the R environment';
+      banner.style.background = '#f8fafb';
+      banner.style.color = '#656d76';
+      banner.style.borderColor = '#e1e4e8';
+    }
+
+    // Smart preload: start downloading WebR when user scrolls near the first code block
+    // This way WebR is often ready by the time they actually click Run
+    const firstBlock = document.querySelector('.webr-container');
+    if (firstBlock && 'IntersectionObserver' in window) {
+      const preloadObserver = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !webRReady && !webRLoading) {
+          loadAndInitWebR();
+          preloadObserver.disconnect();
+        }
+      }, { rootMargin: '200px' });  // Start loading 200px before block enters viewport
+      preloadObserver.observe(firstBlock);
+    }
+
+    // Transform webr-buttons into structured toolbar with Copy + Ctrl+Enter hint
+    document.querySelectorAll('.webr-buttons').forEach(btnBar => {
+      const runBtn = btnBar.querySelector('.webr-run-btn');
+      const resetBtn = btnBar.querySelector('.webr-reset-btn');
+
+      // Create left side: Run + Reset
+      const left = document.createElement('div');
+      left.className = 'webr-buttons-left';
+      if (runBtn) left.appendChild(runBtn);
+      if (resetBtn) left.appendChild(resetBtn);
+      // Add kbd hint
+      const hint = document.createElement('span');
+      hint.className = 'webr-kbd-hint';
+      hint.innerHTML = '<kbd>Ctrl</kbd>+<kbd>Enter</kbd>';
+      left.appendChild(hint);
+
+      // Create right side: Copy
+      const right = document.createElement('div');
+      right.className = 'webr-buttons-right';
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'webr-copy-btn';
+      copyBtn.innerHTML = '\u2398 Copy';
+      copyBtn.onclick = function() {
+        const container = this.closest('.webr-container');
+        const editorEl = container.querySelector('.webr-editor');
+        const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
+        const code = editors[idx] ? editors[idx].cm.getValue() : editorEl.textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          copyBtn.innerHTML = '\u2713 Copied';
+          copyBtn.classList.add('copied');
+          setTimeout(() => { copyBtn.innerHTML = '\u2398 Copy'; copyBtn.classList.remove('copied'); }, 1500);
+        });
+      };
+      right.appendChild(copyBtn);
+
+      btnBar.innerHTML = '';
+      btnBar.appendChild(left);
+      btnBar.appendChild(right);
+    });
+
+    // Initialize CodeMirror editors
+    document.querySelectorAll('.webr-editor').forEach((el) => {
+      const code = el.textContent;
+      el.textContent = '';
+      const cm = CodeMirror(el, {
+        value: code,
+        mode: 'r',
+        lineNumbers: true,
+        viewportMargin: Infinity,
+        tabSize: 2,
+        theme: 'default',
+        matchBrackets: true,
+        autoCloseBrackets: true,
+        styleActiveLine: true,
+        extraKeys: {
+          'Ctrl-Enter': function(cm) {
+            const container = cm.getWrapperElement().closest('.webr-container');
+            const btn = container.querySelector('.webr-run-btn');
+            if (btn && !btn.disabled) btn.click();
+          },
+          'Shift-Enter': function(cm) {
+            const container = cm.getWrapperElement().closest('.webr-container');
+            const btn = container.querySelector('.webr-run-btn');
+            if (btn && !btn.disabled) btn.click();
+          }
+        }
+      });
+      editors.push({ cm, originalCode: code, el });
+    });
+
+    // Track which packages are already installed in this WebR session
+    const installedPkgs = new Set(['base', 'stats', 'graphics', 'grDevices', 'utils', 'datasets', 'methods']);
+
+    // Auto-install packages needed by the code
+    async function ensurePackages(code) {
+      // Find library() and require() calls
+      const libRegex = /(?:library|require)\s*\(\s*["']?([a-zA-Z0-9.]+)["']?\s*\)/g;
+      const needed = [];
+      let match;
+      while ((match = libRegex.exec(code)) !== null) {
+        const pkg = match[1];
+        if (!installedPkgs.has(pkg)) needed.push(pkg);
+      }
+      // Also intercept install.packages() calls
+      const installRegex = /install\.packages\s*\(\s*["']([a-zA-Z0-9.]+)["']\s*\)/g;
+      while ((match = installRegex.exec(code)) !== null) {
+        const pkg = match[1];
+        if (!installedPkgs.has(pkg)) needed.push(pkg);
+      }
+      if (needed.length > 0) {
+        for (const pkg of needed) {
+          try {
+            await webR.installPackages([pkg], { quiet: true });
+            installedPkgs.add(pkg);
+          } catch(e) {
+            console.warn('Failed to install ' + pkg + ':', e.message);
+          }
+        }
+      }
+      // Replace install.packages() with a no-op message (already installed above)
+      return code.replace(/install\.packages\s*\([^)]+\)/g,
+        'cat("Package already installed via WebR.\\n")');
+    }
+
+    // Run R code using shelter.captureR for proper output capture
+    window.runWebR = async function(btn) {
+      // Lazy-load WebR on first run
+      if (!webRReady) {
+        if (webRLoading) {
+          // Already loading — queue this button to auto-run when ready
+          pendingRunBtn = btn;
+          btn.disabled = true;
+          btn.textContent = 'Loading R...';
+          btn.classList.add('running');
+          // Wait for loading to finish
+          while (webRLoading && !webRReady) {
+            await new Promise(r => setTimeout(r, 200));
+          }
+          if (!webRReady) { btn.disabled = false; btn.textContent = '\u25b6 Run'; btn.classList.remove('running'); return; }
+        } else {
+          btn.disabled = true;
+          btn.textContent = 'Loading R...';
+          btn.classList.add('running');
+          const ok = await loadAndInitWebR();
+          if (!ok) { btn.disabled = false; btn.textContent = '\u25b6 Run'; btn.classList.remove('running'); return; }
+        }
+      }
+      if (!shelter) return;
+      const container = btn.closest('.webr-container');
+      const editorEl = container.querySelector('.webr-editor');
+      const outputEl = container.querySelector('.webr-output');
+      const plotEl = container.querySelector('.webr-plot-output');
+      const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
+      let code = editors[idx].cm.getValue();
+
+      btn.disabled = true;
+      btn.textContent = 'Installing packages...';
+      btn.classList.add('running');
+      outputEl.textContent = '';
+      outputEl.classList.remove('has-content', 'has-error');
+      if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
+
+      try {
+        // Auto-install any needed packages before running
+        code = await ensurePackages(code);
+        btn.textContent = 'Running...';
+
+        // Use shelter.captureR to properly capture stdout/stderr
+        const result = await shelter.captureR(code, {
+          withAutoprint: true,
+          captureStreams: true,
+          captureConditions: true,
+          captureGraphics: { width: 700, height: 500 }
+        });
+
+        // Collect text output
+        let output = '';
+        if (result.output) {
+          for (const line of result.output) {
+            if (line.type === 'stdout' || line.type === 'stderr') {
+              output += line.data.endsWith('\n') ? line.data : line.data + '\n';
+            }
+          }
+        }
+
+        // Show plot images if any
+        if (result.images && result.images.length > 0 && plotEl) {
+          plotEl.innerHTML = '';
+          for (const img of result.images) {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.style.maxWidth = '100%';
+            canvas.style.height = 'auto';
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            plotEl.appendChild(canvas);
+          }
+          plotEl.classList.add('has-content');
+        }
+
+        if (output.trim()) {
+          outputEl.textContent = output.trimEnd();
+          outputEl.classList.add('has-content');
+        } else if (!result.images || result.images.length === 0) {
+          // If no text output and no plots, show the result value
+          try {
+            const val = await result.result.toString();
+            if (val && val.trim()) {
+              outputEl.textContent = val.trimEnd();
+              outputEl.classList.add('has-content');
+            }
+          } catch(e) { /* no printable result */ }
+        }
+
+        // Purge shelter to free memory (variables persist in R global env)
+        shelter.purge();
+        shelter = await new webR.Shelter();
+
+        // Track successful code run in GA4
+        if (typeof gtag === 'function') {
+          gtag('event', 'webr_code_run', {
+            event_category: 'WebR',
+            event_label: document.title,
+            code_block_index: idx,
+            has_plot: !!(result.images && result.images.length > 0)
+          });
+        }
+
+      } catch (err) {
+        outputEl.textContent = 'Error: ' + err.message;
+        outputEl.classList.add('has-content', 'has-error');
+        // Track code error in GA4
+        if (typeof gtag === 'function') {
+          gtag('event', 'webr_code_error', {
+            event_category: 'WebR',
+            event_label: document.title,
+            code_block_index: idx,
+            error_message: err.message.substring(0, 100)
+          });
+        }
+      }
+
+      btn.disabled = false;
+      btn.textContent = '\u25b6 Run';
+      btn.classList.remove('running');
+    };
+
+    // Reset code to original
+    window.resetWebR = function(btn) {
+      const container = btn.closest('.webr-container');
+      const editorEl = container.querySelector('.webr-editor');
+      const outputEl = container.querySelector('.webr-output');
+      const plotEl = container.querySelector('.webr-plot-output');
+      const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
+      editors[idx].cm.setValue(editors[idx].originalCode);
+      outputEl.textContent = '';
+      outputEl.classList.remove('has-content', 'has-error');
+      if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
+    };
+
+    // Run all code blocks sequentially
+    window.runAllWebR = async function(btn) {
+      // Lazy-load WebR if not yet loaded
+      if (!webRReady) {
+        btn.disabled = true;
+        btn.textContent = 'Loading R...';
+        btn.classList.add('running');
+        const ok = await loadAndInitWebR();
+        if (!ok) { btn.disabled = false; btn.textContent = '\u25b6 Run All Code Blocks'; btn.classList.remove('running'); return; }
+      }
+      // Track Run All in GA4
+      if (typeof gtag === 'function') {
+        gtag('event', 'webr_run_all', {
+          event_category: 'WebR',
+          event_label: document.title,
+          code_block_count: document.querySelectorAll('.webr-container').length
+        });
+      }
+      const allRunBtns = [...document.querySelectorAll('.webr-run-btn')];
+      const total = allRunBtns.length;
+      btn.disabled = true;
+
+      for (let i = 0; i < total; i++) {
+        btn.textContent = 'Running ' + (i + 1) + '/' + total + '...';
+        btn.classList.add('running');
+        const runBtn = allRunBtns[i];
+        // Scroll the block into view
+        runBtn.closest('.webr-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await window.runWebR(runBtn);
+      }
+
+      btn.textContent = '\u2705 All Done!';
+      btn.classList.remove('running');
+      setTimeout(() => {
+        btn.textContent = '\u25b6 Run All';
+        btn.disabled = false;
+      }, 2000);
+    };
+  </script>
+  <!-- Mermaid for diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({startOnLoad: true, theme: 'default'});</script>
+
+  <!-- Google Analytics (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5XKCMN7FR');
+  </script>
+
+  <style type="text/css">
+  /* reduce spacing around math formula*/
+    .MathJax_Display {
+      margin: 0em 0em;
+    }
+    body {
+      font-family: 'Helvetica Neue', Roboto, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 27px;
+      font-weight: 400;
+    }
+
+    blockquote p {
+      line-height: 1.75;
+      color: #717171;
+    }
+  </style>
+  </body>
+</html>

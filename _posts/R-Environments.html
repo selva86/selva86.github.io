@@ -1,0 +1,655 @@
+---
+title: "R Environments Explained: Global, Local, Package, Execution & Empty"
+description: "Learn R environments: globalenv, baseenv, emptyenv, parent environments, and how to create and inspect environments with ls(), get(), and exists()."
+keywords: "R environments, globalenv, baseenv, emptyenv, R parent environment, R execution environment, R environment hierarchy"
+mathjax: false
+webr: true
+curriculum_id: "4.1.4"
+post_type: "C"
+auto_link_terms: "R environments|globalenv|baseenv|emptyenv|parent environment"
+auto_link_case_sensitive: false
+---
+
+<h1>R Environments Explained: Global, Local, Package, Execution & Empty</h1>
+
+<p class="lead">An environment in R is a bag of names. Every name points to a value, and every environment has a parent. Understanding environments unlocks scoping, closures, namespaces, and debugging — the machinery behind how R finds your variables.</p>
+
+<p>Most R users never think about environments. You type <code>x &lt;- 5</code> and <code>x</code> exists. You call a function from a package and it just works. But behind every variable lookup, R is walking a chain of environments. Once you see that chain, R's behavior stops being magical and starts being predictable.</p>
+
+<h2>Introduction</h2>
+
+<p>An <strong>environment</strong> is a data structure with two parts:</p>
+
+<ol>
+
+<li><strong>A frame</strong> — a set of name-value bindings (like a named list)</li>
+
+<li><strong>A parent</strong> — a reference to another environment (except <code>emptyenv()</code>)</li>
+
+</ol>
+
+<p>Every time you create a variable, it goes into an environment. Every time R looks up a variable, it searches environments in order. This tutorial covers:</p>
+
+<ul>
+
+<li>The four special environments: global, base, empty, package</li>
+
+<li>How to create environments and add bindings</li>
+
+<li>The parent chain and search path</li>
+
+<li>Inspecting environments with <code>ls()</code>, <code>get()</code>, <code>exists()</code></li>
+
+<li>Execution environments (created every time a function runs)</li>
+
+</ul>
+
+<h2>The Global Environment</h2>
+
+<p>The <strong>global environment</strong> is your interactive workspace — where variables you create at the console live:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Your workspace IS the global environment
+x &lt;- 42
+y &lt;- &quot;hello&quot;
+
+# globalenv() returns it
+cat(&quot;Global env:&quot;, environmentName(globalenv()), &quot;\n&quot;)
+
+# .GlobalEnv is an alias
+cat(&quot;Same thing:&quot;, identical(globalenv(), .GlobalEnv), &quot;\n&quot;)
+
+# List what's in it
+cat(&quot;Objects in global env:&quot;, paste(ls(globalenv()), collapse = &quot;, &quot;), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>When you type <code>x</code> at the console, R first looks in the global environment. If it finds <code>x</code> there, it returns the value. If not, it looks in the parent of the global environment, and so on.</p>
+
+<h2>The Environment Hierarchy</h2>
+
+<p>R environments form a chain through their parents. The search path goes:</p>
+
+<p><strong>Global env -> Package envs (in order of library() calls) -> Base env -> Empty env</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Walk the parent chain from the global environment
+env &lt;- globalenv()
+chain &lt;- character()
+
+while (!identical(env, emptyenv())) {
+  chain &lt;- c(chain, environmentName(env))
+  env &lt;- parent.env(env)
+}
+chain &lt;- c(chain, &quot;emptyenv&quot;)
+
+cat(&quot;Search path:\n&quot;)
+for (i in seq_along(chain)) {
+  cat(sprintf(&quot;  %d. %s\n&quot;, i, chain[i]))
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <strong>empty environment</strong> (<code>emptyenv()</code>) is the ancestor of all environments. It has no parent and no bindings. It's the end of the search chain.</p>
+
+<p>The <strong>base environment</strong> (<code>baseenv()</code>) contains base R functions like <code>c()</code>, <code>mean()</code>, <code>print()</code>. Its parent is the empty environment.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># The three fundamental environments
+cat(&quot;Global:&quot;, environmentName(globalenv()), &quot;\n&quot;)
+cat(&quot;Base:&quot;, environmentName(baseenv()), &quot;\n&quot;)
+cat(&quot;Empty:&quot;, environmentName(emptyenv()), &quot;\n&quot;)
+
+# Base env's parent is the empty env
+cat(&quot;Base parent is empty:&quot;, identical(parent.env(baseenv()), emptyenv()), &quot;\n&quot;)
+
+# search() shows the full path as a character vector
+cat(&quot;\nsearch() path:\n&quot;)
+print(search())</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Creating Environments</h2>
+
+<p>You can create new environments with <code>new.env()</code>:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create a new environment
+e &lt;- new.env(parent = emptyenv())
+
+# Add bindings
+e$name &lt;- &quot;Alice&quot;
+e$age &lt;- 30
+e$scores &lt;- c(95, 88, 92)
+
+# List bindings
+cat(&quot;Bindings in e:&quot;, paste(ls(e), collapse = &quot;, &quot;), &quot;\n&quot;)
+cat(&quot;Name:&quot;, e$name, &quot;\n&quot;)
+cat(&quot;Age:&quot;, e$age, &quot;\n&quot;)
+cat(&quot;Scores:&quot;, e$scores, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Environments have <strong>reference semantics</strong> — unlike lists, modifying an environment in a function changes the original:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Reference semantics: no copy-on-modify
+e1 &lt;- new.env(parent = emptyenv())
+e1$value &lt;- 10
+
+modify_env &lt;- function(env) {
+  env$value &lt;- 999
+}
+
+cat(&quot;Before:&quot;, e1$value, &quot;\n&quot;)
+modify_env(e1)
+cat(&quot;After:&quot;, e1$value, &quot;\n&quot;)  # Changed!
+
+# Compare with a list (copy-on-modify)
+lst &lt;- list(value = 10)
+
+modify_list &lt;- function(l) {
+  l$value &lt;- 999
+  l  # must return it!
+}
+
+modify_list(lst)
+cat(&quot;List after:&quot;, lst$value, &quot;\n&quot;)  # Unchanged!</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This is why environments are useful for mutable state — they behave like references, not values.</p>
+
+<h2>Inspecting Environments: ls(), get(), exists()</h2>
+
+<p>Three functions let you inspect what's inside an environment:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create a populated environment
+env &lt;- new.env(parent = emptyenv())
+env$x &lt;- 1:10
+env$name &lt;- &quot;test&quot;
+env$flag &lt;- TRUE
+
+# ls() — list all names
+cat(&quot;Names:&quot;, paste(ls(env), collapse = &quot;, &quot;), &quot;\n&quot;)
+
+# ls.str() — list names with structure
+ls.str(env)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># get() — retrieve a value by name
+env &lt;- new.env(parent = emptyenv())
+env$pi_approx &lt;- 3.14159
+
+val &lt;- get(&quot;pi_approx&quot;, envir = env)
+cat(&quot;Got:&quot;, val, &quot;\n&quot;)
+
+# exists() — check if a name is bound
+cat(&quot;pi_approx exists:&quot;, exists(&quot;pi_approx&quot;, envir = env), &quot;\n&quot;)
+cat(&quot;missing exists:&quot;, exists(&quot;missing&quot;, envir = env), &quot;\n&quot;)
+
+# inherits = FALSE means &quot;only look in THIS env, not parents&quot;
+cat(&quot;mean exists here:&quot;, exists(&quot;mean&quot;, envir = env, inherits = FALSE), &quot;\n&quot;)
+cat(&quot;mean exists in chain:&quot;, exists(&quot;mean&quot;, envir = env, inherits = TRUE), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>inherits</code> argument is key. By default, <code>get()</code> and <code>exists()</code> search up the parent chain — just like R's normal variable lookup. Set <code>inherits = FALSE</code> to look only in the specified environment.</p>
+
+<h2>Execution Environments</h2>
+
+<p>Every time you call a function, R creates a fresh <strong>execution environment</strong> for that call. Local variables live there:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Each function call gets its own environment
+show_env &lt;- function() {
+  local_var &lt;- &quot;I'm local&quot;
+  cat(&quot;Execution env:&quot;, format(environment()), &quot;\n&quot;)
+  cat(&quot;Parent:&quot;, environmentName(parent.env(environment())), &quot;\n&quot;)
+  cat(&quot;local_var:&quot;, local_var, &quot;\n&quot;)
+}
+
+# Two calls = two different environments
+show_env()
+show_env()
+
+# local_var doesn't exist outside
+cat(&quot;local_var exists globally:&quot;, exists(&quot;local_var&quot;, envir = globalenv()), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The execution environment's parent is the <strong>enclosing environment</strong> — the environment where the function was <em>defined</em>, not where it was <em>called</em>. This is the basis of lexical scoping.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Function arguments also live in the execution environment
+inspect &lt;- function(a, b) {
+  cat(&quot;Arguments in this env:\n&quot;)
+  cat(&quot;  a =&quot;, a, &quot;\n&quot;)
+  cat(&quot;  b =&quot;, b, &quot;\n&quot;)
+  cat(&quot;  all names:&quot;, paste(ls(), collapse = &quot;, &quot;), &quot;\n&quot;)
+}
+
+inspect(10, 20)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Environments as Data Structures</h2>
+
+<p>Because environments have reference semantics and O(1) name lookup (they use hash tables), they're sometimes used as data structures:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Environment as a hash map / dictionary
+cache &lt;- new.env(parent = emptyenv())
+
+# Store key-value pairs
+cache[[&quot;user_1&quot;]] &lt;- list(name = &quot;Alice&quot;, score = 95)
+cache[[&quot;user_2&quot;]] &lt;- list(name = &quot;Bob&quot;, score = 88)
+
+# Fast lookup
+user &lt;- cache[[&quot;user_1&quot;]]
+cat(&quot;User 1:&quot;, user$name, &quot;scored&quot;, user$score, &quot;\n&quot;)
+
+# Check membership
+cat(&quot;user_3 exists:&quot;, exists(&quot;user_3&quot;, envir = cache, inherits = FALSE), &quot;\n&quot;)
+
+# Count entries
+cat(&quot;Cache size:&quot;, length(ls(cache)), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Walk the Parent Chain</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: Write a function parent_chain(env) that returns
+# a character vector of all environment names from env
+# up to emptyenv().
+# Test it with: parent_chain(globalenv())
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">parent_chain &lt;- function(env) {
+  chain &lt;- character()
+  while (!identical(env, emptyenv())) {
+    nm &lt;- environmentName(env)
+    if (nm == &quot;&quot;) nm &lt;- format(env)
+    chain &lt;- c(chain, nm)
+    env &lt;- parent.env(env)
+  }
+  chain &lt;- c(chain, &quot;emptyenv&quot;)
+  chain
+}
+
+result &lt;- parent_chain(globalenv())
+cat(&quot;Parent chain:\n&quot;)
+for (i in seq_along(result)) {
+  cat(sprintf(&quot;  %d. %s\n&quot;, i, result[i]))
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** We walk up the chain using `parent.env()` until we hit `emptyenv()`. `environmentName()` returns "" for anonymous environments, so we fall back to `format()` which shows the memory address.
+
+</details>
+
+<h4>Exercise 2: Environment as Counter</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: Create a counter using an environment.
+# make_counter() should return a list with:
+#   $increment() — adds 1 to the count
+#   $get() — returns current count
+#   $reset() — sets count back to 0
+# The count should persist between calls.
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">make_counter &lt;- function() {
+  env &lt;- new.env(parent = emptyenv())
+  env$count &lt;- 0
+
+  list(
+    increment = function() {
+      env$count &lt;- env$count + 1
+      invisible(env$count)
+    },
+    get = function() env$count,
+    reset = function() {
+      env$count &lt;- 0
+      invisible(0)
+    }
+  )
+}
+
+counter &lt;- make_counter()
+counter$increment()
+counter$increment()
+counter$increment()
+cat(&quot;Count:&quot;, counter$get(), &quot;\n&quot;)
+
+counter$reset()
+cat(&quot;After reset:&quot;, counter$get(), &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** The environment `env` is shared by all three functions because they were defined in the same scope. Each function can read and modify `env$count`, and the changes persist because environments have reference semantics.
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Global env</td>
+<td><code>globalenv()</code>, <code>.GlobalEnv</code></td>
+<td>Your interactive workspace</td>
+</tr>
+<tr>
+<td>Base env</td>
+<td><code>baseenv()</code></td>
+<td>Contains base R functions</td>
+</tr>
+<tr>
+<td>Empty env</td>
+<td><code>emptyenv()</code></td>
+<td>Top of the chain, no parent</td>
+</tr>
+<tr>
+<td>Create env</td>
+<td><code>new.env(parent = ...)</code></td>
+<td>Make a new environment</td>
+</tr>
+<tr>
+<td>Parent</td>
+<td><code>parent.env(env)</code></td>
+<td>Get the parent environment</td>
+</tr>
+<tr>
+<td>List names</td>
+<td><code>ls(env)</code></td>
+<td>Show all bindings in an environment</td>
+</tr>
+<tr>
+<td>Get value</td>
+<td><code>get(&quot;x&quot;, envir = env)</code></td>
+<td>Retrieve a value by name</td>
+</tr>
+<tr>
+<td>Check existence</td>
+<td><code>exists(&quot;x&quot;, envir = env)</code></td>
+<td>Test if a name is bound</td>
+</tr>
+<tr>
+<td>Search path</td>
+<td><code>search()</code></td>
+<td>Show the full environment chain</td>
+</tr>
+<tr>
+<td>Env name</td>
+<td><code>environmentName(env)</code></td>
+<td>Get the name of an environment</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Key takeaways:</strong></p>
+
+<ol>
+
+<li>Environments form a chain through their parents</li>
+
+<li>Variable lookup walks this chain from current to <code>emptyenv()</code></li>
+
+<li>Environments have reference semantics (no copy-on-modify)</li>
+
+<li>Every function call creates a new execution environment</li>
+
+</ol>
+
+<h2>FAQ</h2>
+
+<h4>How is an environment different from a list?</h4>
+
+<p>Two key differences: (1) Environments have <strong>reference semantics</strong> — modifying an environment in a function changes the original. Lists use copy-on-modify. (2) Environments have a <strong>parent</strong> — failed lookups continue to the parent. Lists don't chain.</p>
+
+<h4>What happens if R reaches emptyenv() without finding a variable?</h4>
+
+<p>R throws the error <code>object &#x27;x&#x27; not found</code>. The empty environment has no bindings and no parent, so the search stops there.</p>
+
+<h4>Can I change the parent of an environment?</h4>
+
+<p>Yes, with <code>parent.env(env) &lt;- new_parent</code>. But this is rarely needed and can cause confusing behavior. It's mainly used internally by R's package system.</p>
+
+<h2>What's Next?</h2>
+
+<p>Environments are the foundation for understanding how R finds variables. Continue with:</p>
+
+<ol>
+
+<li><strong>Lexical Scoping in R</strong> — how R uses the environment chain to look up variable names</li>
+
+<li><strong>R Closures</strong> — functions that capture and remember their defining environment</li>
+
+<li><strong>R Namespaces</strong> — how packages use environments to export functions and prevent conflicts</li>
+
+</ol>
