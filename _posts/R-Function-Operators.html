@@ -1,0 +1,561 @@
+---
+title: "R Function Operators: Compose, Negate & Partial Application"
+description: "Master R function operators: compose functions with pipes, negate predicates, apply partial arguments, and memoize results. Interactive examples."
+keywords: "R function operators, compose R, Negate R, partial application R, purrr partial, function composition R"
+mathjax: false
+webr: true
+curriculum_id: "4.2.5"
+post_type: "C"
+auto_link_terms: "function operators|compose|Negate|partial application"
+auto_link_case_sensitive: false
+---
+
+<h1>R Function Operators: Compose, Negate & Partial Application</h1>
+
+<p class="lead"><strong>Function operators</strong> take one or more functions as input and return a modified function as output. They let you compose, negate, partially apply, and otherwise transform functions without rewriting them.</p>
+
+<p>A function factory creates functions from parameters. A function operator creates functions from other functions. The distinction is simple: if the input is data, it's a factory. If the input is a function, it's an operator.</p>
+
+<h2>Function Composition</h2>
+
+<p>Function composition chains two functions together so the output of one feeds directly into the input of the next. Instead of writing <code>f(g(x))</code>, you create a single combined function.</p>
+
+<h4>Base R: Compose with the Pipe</h4>
+
+<p>R 4.1+ introduced the native pipe <code>|&gt;</code>, which passes the left side as the first argument of the right side.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Without composition: nested calls (read inside-out)
+result &lt;- round(mean(abs(c(-3, 5, -1, 8, -2))), 2)
+cat(&quot;Nested:&quot;, result, &quot;\n&quot;)
+
+# With pipe: read left to right
+result &lt;- c(-3, 5, -1, 8, -2) |&gt; abs() |&gt; mean() |&gt; round(2)
+cat(&quot;Piped:&quot;, result, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>purrr::compose()</h4>
+
+<p><code>compose()</code> creates a new function by chaining multiple functions. The last function listed runs first (right-to-left by default).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# compose() chains functions into one
+abs_mean &lt;- compose(mean, abs)
+cat(&quot;abs_mean(c(-3, 5, -1)):&quot;, abs_mean(c(-3, 5, -1)), &quot;\n&quot;)
+
+# .dir = &quot;forward&quot; for left-to-right order
+clean_string &lt;- compose(trimws, tolower, .dir = &quot;forward&quot;)
+cat(&quot;clean_string('  HELLO  '):&quot;, clean_string(&quot;  HELLO  &quot;), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# Practical: create a data cleaning pipeline as a single function
+clean_vector &lt;- compose(
+  \(x) x[!is.na(x)],       # remove NAs
+  \(x) round(x, 2),         # round
+  sort,                       # sort
+  .dir = &quot;forward&quot;
+)
+
+messy &lt;- c(3.14159, NA, 1.41421, 2.71828, NA, 0.57722)
+cat(&quot;Cleaned:&quot;, clean_vector(messy), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Negate: Flipping TRUE to FALSE</h2>
+
+<p><code>Negate()</code> (base R) or <code>negate()</code> (purrr) takes a predicate function and returns a new function that returns the opposite logical value.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># is.na returns TRUE for NAs
+x &lt;- c(1, NA, 3, NA, 5)
+
+# Negate flips it: TRUE becomes FALSE and vice versa
+is_not_na &lt;- Negate(is.na)
+cat(&quot;is.na:    &quot;, is.na(x), &quot;\n&quot;)
+cat(&quot;is_not_na:&quot;, is_not_na(x), &quot;\n&quot;)
+
+# Use with Filter
+cat(&quot;Non-NA values:&quot;, Filter(Negate(is.na), x), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# purrr's negate() works the same way
+is_even &lt;- \(x) x %% 2 == 0
+is_odd &lt;- negate(is_even)
+
+numbers &lt;- 1:10
+cat(&quot;Even:&quot;, numbers[map_lgl(numbers, is_even)], &quot;\n&quot;)
+cat(&quot;Odd: &quot;, numbers[map_lgl(numbers, is_odd)], &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Partial Application</h2>
+
+<p><strong>Partial application</strong> fixes some arguments of a function, returning a new function that takes the remaining arguments. It's like pre-filling a form — you lock in some values and leave the rest blank.</p>
+
+<h4>purrr::partial()</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# Fix the 'na.rm' argument of mean
+safe_mean &lt;- partial(mean, na.rm = TRUE)
+
+data_with_na &lt;- c(10, 20, NA, 40, 50)
+cat(&quot;mean (default):&quot;, mean(data_with_na), &quot;\n&quot;)       # NA
+cat(&quot;safe_mean:     &quot;, safe_mean(data_with_na), &quot;\n&quot;)   # 30</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# Fix 'base' argument of log
+log2 &lt;- partial(log, base = 2)
+log10_custom &lt;- partial(log, base = 10)
+
+cat(&quot;log2(8):  &quot;, log2(8), &quot;\n&quot;)
+cat(&quot;log10(100):&quot;, log10_custom(100), &quot;\n&quot;)
+
+# Fix 'sep' in paste
+comma_paste &lt;- partial(paste, sep = &quot;, &quot;)
+cat(comma_paste(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Base R: Creating Partial Functions Manually</h4>
+
+<p>Without purrr, you can create partial functions using closures.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Manual partial application
+make_rounder &lt;- function(digits) {
+  function(x) round(x, digits)
+}
+
+round2 &lt;- make_rounder(2)
+round0 &lt;- make_rounder(0)
+
+pi_val &lt;- 3.14159265
+cat(&quot;round2(pi):&quot;, round2(pi_val), &quot;\n&quot;)
+cat(&quot;round0(pi):&quot;, round0(pi_val), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>safely() and possibly(): Error Handling Operators</h2>
+
+<p>These purrr operators wrap a function to handle errors gracefully.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# safely() returns a list with $result and $error
+safe_log &lt;- safely(log)
+
+cat(&quot;safe_log(10):\n&quot;)
+str(safe_log(10))
+
+cat(&quot;\nsafe_log('text'):\n&quot;)
+str(safe_log(&quot;text&quot;))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# possibly() returns a default value on error
+maybe_log &lt;- possibly(log, otherwise = NA)
+
+inputs &lt;- list(10, &quot;text&quot;, 100, NULL, 1)
+results &lt;- map_dbl(inputs, maybe_log)
+cat(&quot;Results:&quot;, results, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<blockquote><p>Use <code>safely()</code> when you need to inspect errors. Use <code>possibly()</code> when you just want a default fallback. Both are function operators — they take a function and return a modified function.</p></blockquote>
+
+<h2>Combining Operators</h2>
+
+<p>Function operators compose naturally. Chain them to build sophisticated behavior.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# Chain operators: partial + safely + compose
+safe_divide &lt;- safely(partial(`/`, 100))
+
+results &lt;- map(c(5, 0, 25, &quot;x&quot;), safe_divide)
+cat(&quot;100/5:&quot;, results[[1]]$result, &quot;\n&quot;)
+cat(&quot;100/0:&quot;, results[[2]]$result, &quot;\n&quot;)
+cat(&quot;100/25:&quot;, results[[3]]$result, &quot;\n&quot;)
+cat(&quot;100/'x' error:&quot;, results[[4]]$error$message, &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary Table</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Operator</th>
+<th>Package</th>
+<th>Input</th>
+<th>Output</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compose(f, g)</code></td>
+<td>purrr</td>
+<td>2+ functions</td>
+<td>Combined function</td>
+<td>Chain transformations</td>
+</tr>
+<tr>
+<td><code>Negate(f)</code></td>
+<td>base</td>
+<td>Predicate</td>
+<td>Opposite predicate</td>
+<td>Flip TRUE/FALSE</td>
+</tr>
+<tr>
+<td><code>partial(f, ...)</code></td>
+<td>purrr</td>
+<td>Function + args</td>
+<td>Specialized function</td>
+<td>Pre-fill arguments</td>
+</tr>
+<tr>
+<td><code>safely(f)</code></td>
+<td>purrr</td>
+<td>Function</td>
+<td>Error-safe function</td>
+<td>Capture errors</td>
+</tr>
+<tr>
+<td><code>possibly(f, default)</code></td>
+<td>purrr</td>
+<td>Function</td>
+<td>Fallback function</td>
+<td>Default on error</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Compose a Text Cleaner</h4>
+
+<p>Create a single <code>clean_text</code> function by composing <code>trimws</code>, <code>tolower</code>, and a function that replaces multiple spaces with one.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# Create clean_text using compose()
+messy &lt;- c(&quot;  Hello   World  &quot;, &quot;  R   PROGRAMMING  &quot;, &quot;DATA   science  &quot;)
+
+# Expected output: &quot;hello world&quot;, &quot;r programming&quot;, &quot;data science&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(purrr)
+
+clean_text &lt;- compose(
+  trimws,
+  tolower,
+  \(x) gsub(&quot;\\s+&quot;, &quot; &quot;, x),
+  .dir = &quot;forward&quot;
+)
+
+messy &lt;- c(&quot;  Hello   World  &quot;, &quot;  R   PROGRAMMING  &quot;, &quot;DATA   science  &quot;)
+cat(&quot;Cleaned:&quot;, map_chr(messy, clean_text), &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** `compose(.dir = "forward")` applies functions left-to-right: trim first, then lowercase, then collapse spaces.
+
+</details>
+
+<h4>Exercise 2: Safe Map Pipeline</h4>
+
+<p>Use <code>possibly()</code> to safely parse a mix of valid and invalid numbers.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+raw &lt;- c(&quot;42&quot;, &quot;3.14&quot;, &quot;abc&quot;, &quot;100&quot;, &quot;xyz&quot;, &quot;0.5&quot;)
+
+# Convert to numbers safely, using NA for failures
+# Then calculate mean of successful conversions
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(purrr)
+
+raw &lt;- c(&quot;42&quot;, &quot;3.14&quot;, &quot;abc&quot;, &quot;100&quot;, &quot;xyz&quot;, &quot;0.5&quot;)
+
+safe_as_num &lt;- possibly(as.numeric, otherwise = NA)
+nums &lt;- map_dbl(raw, safe_as_num)
+cat(&quot;Parsed:&quot;, nums, &quot;\n&quot;)
+cat(&quot;Mean (excluding NA):&quot;, mean(nums, na.rm = TRUE), &quot;\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+**Explanation:** `possibly(as.numeric, NA)` wraps `as.numeric` so it returns `NA` instead of throwing a warning on non-numeric input. Combine with `map_dbl` for type-safe output.
+
+</details>
+
+<h2>FAQ</h2>
+
+<h4>What is the difference between compose() and the pipe |>?</h4>
+
+<p>The pipe <code>|&gt;</code> applies functions to data immediately: <code>x |&gt; f() |&gt; g()</code> runs now. <code>compose(g, f)</code> creates a new function that you can call later, pass to <code>map()</code>, or assign to a variable. Compose creates tools; pipes use them.</p>
+
+<h4>When should I use partial() vs writing a wrapper function?</h4>
+
+<p>Use <code>partial()</code> for simple argument pre-filling — it's concise and self-documenting. Write a wrapper when you need conditional logic, validation, or transformation of arguments before passing them to the inner function.</p>
+
+<h4>Does Negate() work with functions that return vectors?</h4>
+
+<p>Yes. <code>Negate(f)</code> applies <code>!</code> to whatever <code>f</code> returns. If <code>f</code> returns a logical vector, <code>Negate(f)</code> returns the element-wise negation.</p>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><a href="/R-Function-Factories.html">R Function Factories</a> — functions that create functions from data</li>
+
+<li><a href="/Reduce-Filter-Map-in-R.html">Reduce, Filter, Map in Base R</a> — the functional trifecta in base R</li>
+
+<li><a href="/purrr-map-Variants.html">purrr map() Variants</a> — where function operators are used most</li>
+
+</ul>
