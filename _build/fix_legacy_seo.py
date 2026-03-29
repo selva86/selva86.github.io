@@ -127,7 +127,49 @@ def fix_html(filename, html):
             out = out.replace(anchor, anchor + '\n' + og_block, 1)
             changes.append('Added OG + Twitter Card tags')
 
-    # 6. Update meta description + OG/Twitter descriptions from legacy-descriptions.json
+    # 6. Add JSON-LD Article structured data (skip if already present)
+    if 'application/ld+json' not in out and filename not in ('404.html', 'index.html'):
+        title = extract_title(out)
+        desc = extract_description(out)
+        title_json = title.replace('\\', '\\\\').replace('"', '\\"')
+        desc_json = desc.replace('\\', '\\\\').replace('"', '\\"')
+
+        jsonld = f'''    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {{
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "{title_json}",
+      "description": "{desc_json}",
+      "author": {{"@type": "Person", "name": "Selva Prabhakaran"}},
+      "publisher": {{"@type": "Organization", "name": "r-statistics.co"}},
+      "url": "https://r-statistics.co/{filename}"
+    }}
+    </script>'''
+
+        # Insert before </head>
+        out = out.replace('</head>', jsonld + '\n  </head>', 1)
+        if 'application/ld+json' in out:
+            changes.append('Added JSON-LD Article schema')
+
+    # For index.html, add WebSite schema instead of Article
+    if 'application/ld+json' not in out and filename == 'index.html':
+        jsonld_site = '''    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "r-statistics.co",
+      "url": "https://r-statistics.co/",
+      "description": "R programming tutorials for advanced statistics, machine learning, and data visualization.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran"}
+    }
+    </script>'''
+        out = out.replace('</head>', jsonld_site + '\n  </head>', 1)
+        if 'application/ld+json' in out:
+            changes.append('Added JSON-LD WebSite schema')
+
+    # 8. Update meta description + OG/Twitter descriptions from legacy-descriptions.json
     if filename in CUSTOM_DESCRIPTIONS:
         new_desc = CUSTOM_DESCRIPTIONS[filename]
         old_desc = extract_description(out)
