@@ -798,6 +798,50 @@ def update_sitemap(filenames):
             print(f"  Sitemap: added {fname}")
 
 
+def generate_feed(post_files):
+    """Generate an Atom feed from all posts."""
+    feed_path = os.path.join(REPO_ROOT, 'feed.xml')
+    today = datetime.date.today().isoformat() + 'T00:00:00Z'
+
+    entries = []
+    for post_file in sorted(post_files, reverse=True):
+        post_path = os.path.join(POSTS_DIR, post_file)
+        with open(post_path, 'r', encoding='utf-8') as f:
+            raw = f.read()
+        meta, _ = parse_front_matter(raw)
+        title = meta.get('title', 'Untitled')
+        desc = meta.get('description', '')
+        date = meta.get('date', datetime.date.today().isoformat())
+        # Escape XML
+        title_xml = title.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        desc_xml = desc.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        url = f'https://r-statistics.co/{post_file}'
+        entries.append(f"""  <entry>
+    <title>{title_xml}</title>
+    <link href="{url}"/>
+    <id>{url}</id>
+    <updated>{date}T00:00:00Z</updated>
+    <summary>{desc_xml}</summary>
+    <author><name>Selva Prabhakaran</name></author>
+  </entry>""")
+
+    feed = f"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>r-statistics.co</title>
+  <subtitle>R programming tutorials for advanced statistics, machine learning, and data visualization</subtitle>
+  <link href="https://r-statistics.co/"/>
+  <link href="https://r-statistics.co/feed.xml" rel="self" type="application/atom+xml"/>
+  <id>https://r-statistics.co/</id>
+  <updated>{today}</updated>
+  <author><name>Selva Prabhakaran</name></author>
+{chr(10).join(entries)}
+</feed>
+"""
+    with open(feed_path, 'w', encoding='utf-8') as f:
+        f.write(feed)
+    print(f"  Feed: {len(entries)} entries written to feed.xml")
+
+
 def main():
     with open(TEMPLATE_PATH, 'r', encoding='utf-8') as f:
         template = f.read()
@@ -822,6 +866,7 @@ def main():
         built.append(post_file)
 
     update_sitemap(built)
+    generate_feed(post_files)
     print(f"\nDone. {len(built)} page(s) built.")
 
 
