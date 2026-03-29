@@ -1,0 +1,420 @@
+---
+title: "Data Ethics for R Programmers: Privacy, Consent & Responsible Analysis"
+description: "Data ethics essentials for R programmers: informed consent, data minimization, avoiding p-hacking, and responsible reporting with practical examples."
+keywords: "data ethics R, responsible data analysis, data privacy R, p-hacking, informed consent data, ethical data science"
+mathjax: false
+webr: true
+curriculum_id: "1.6.1"
+post_type: "C"
+auto_link_terms: "data ethics|responsible data analysis|ethical data science"
+auto_link_case_sensitive: false
+---
+
+<h1>Data Ethics for R Programmers: Privacy, Consent & Responsible Analysis</h1>
+
+<p class="lead">Data ethics is the set of principles that guide how we collect, analyze, and report data. As R programmers, we wield powerful tools — and with that power comes responsibility to avoid harm, respect privacy, and report honestly.</p>
+
+<p>You can run a t-test in one line of R code. But should you run it? On what data? Collected how? Reported to whom? These questions matter as much as the code itself. This guide covers the ethical frameworks, practical guidelines, and R-specific tools that help you do data science responsibly.</p>
+
+<h2>Why Data Ethics Matters for R Users</h2>
+
+<p>R is overwhelmingly used in research, healthcare, social science, and policy — domains where bad analysis can cause real harm:</p>
+
+<ul>
+
+<li><strong>Medical research</strong>: A flawed analysis could lead to approving an ineffective drug</li>
+
+<li><strong>Social policy</strong>: Biased models can perpetuate discrimination in hiring, lending, or criminal justice</li>
+
+<li><strong>Academic research</strong>: p-hacking and selective reporting waste resources and erode trust</li>
+
+<li><strong>Business analytics</strong>: Misleading dashboards can drive costly bad decisions</li>
+
+</ul>
+
+<p>The code is not neutral. Every choice — which data to include, which outliers to remove, which model to fit, which results to report — is a decision with ethical implications.</p>
+
+<h2>Ethical Framework: Five Core Principles</h2>
+
+<h4>1. Informed Consent</h4>
+
+<p>People should know their data is being collected and how it will be used.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Good practice: Document data provenance
+data_provenance &lt;- list(
+  source = &quot;Survey of 500 participants&quot;,
+  consent = &quot;IRB-approved consent form signed by all participants&quot;,
+  collection_date = &quot;2026-01-15 to 2026-02-28&quot;,
+  anonymized = TRUE,
+  retention_policy = &quot;Data destroyed after 5 years&quot;,
+  purpose = &quot;Study the effect of sleep duration on cognitive performance&quot;
+)
+
+cat(&quot;=== Data Provenance Record ===\n&quot;)
+for (field in names(data_provenance)) {
+  cat(sprintf(&quot;%-20s: %s\n&quot;, field, data_provenance[[field]]))
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>2. Data Minimization</h4>
+
+<p>Collect and retain only the data you actually need for your analysis.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># BAD: Keeping everything &quot;just in case&quot;
+full_data &lt;- data.frame(
+  name = &quot;Alice Smith&quot;,           # PII - do you need this?
+  ssn = &quot;123-45-6789&quot;,           # Definitely not needed
+  email = &quot;alice@example.com&quot;,    # PII - needed for follow-up?
+  age = 32,                       # Relevant to analysis
+  treatment = &quot;A&quot;,                # Relevant
+  outcome_score = 85              # Relevant
+)
+
+# GOOD: Keep only what the analysis requires
+analysis_data &lt;- data.frame(
+  participant_id = &quot;P001&quot;,        # Pseudonymous ID
+  age_group = &quot;30-39&quot;,            # Binned to reduce re-identification risk
+  treatment = &quot;A&quot;,
+  outcome_score = 85
+)
+
+cat(&quot;Full data columns:&quot;, names(full_data), &quot;\n&quot;)
+cat(&quot;Analysis data columns:&quot;, names(analysis_data), &quot;\n&quot;)
+cat(&quot;\nReduced from&quot;, ncol(full_data), &quot;to&quot;, ncol(analysis_data), &quot;columns\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>3. Avoiding P-Hacking</h4>
+
+<p>P-hacking means running multiple analyses and only reporting the ones that produce significant results. It's one of the biggest threats to scientific integrity.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># DEMONSTRATION: How easy it is to find &quot;significant&quot; results by chance
+set.seed(42)
+
+# Generate 20 completely random variables (no real relationship)
+n &lt;- 100
+random_data &lt;- data.frame(matrix(rnorm(n * 20), ncol = 20))
+names(random_data) &lt;- paste0(&quot;var&quot;, 1:20)
+
+# Test all pairs against var1 — some will be &quot;significant&quot; by chance
+p_values &lt;- sapply(2:20, function(i) {
+  cor.test(random_data$var1, random_data[[i]])$p.value
+})
+
+cat(&quot;=== P-hacking demonstration ===\n&quot;)
+cat(&quot;Testing var1 against 19 random variables:\n&quot;)
+cat(&quot;Number of 'significant' results (p &lt; 0.05):&quot;, sum(p_values &lt; 0.05), &quot;\n&quot;)
+cat(&quot;Expected by chance alone: ~1 (5% of 19)\n\n&quot;)
+
+cat(&quot;If you only report the significant ones, you've p-hacked.\n&quot;)
+cat(&quot;Always report ALL analyses you ran, not just the 'hits'.\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>4. Transparency and Reproducibility</h4>
+
+<p>Every analysis should be reproducible by an independent researcher.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Good practice: Record your R environment
+cat(&quot;=== Session Info for Reproducibility ===\n&quot;)
+cat(&quot;R version:&quot;, paste(R.version$major, R.version$minor, sep = &quot;.&quot;), &quot;\n&quot;)
+cat(&quot;Platform:&quot;, R.version$platform, &quot;\n&quot;)
+cat(&quot;Date of analysis:&quot;, format(Sys.Date(), &quot;%Y-%m-%d&quot;), &quot;\n&quot;)
+
+# In real projects, use:
+# renv::snapshot()    # Lock package versions
+# targets::tar_make() # Reproducible pipeline
+# set.seed(12345)     # For any randomization</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>5. Responsible Reporting</h4>
+
+<p>Report uncertainty honestly. Don't cherry-pick results. Show what the data actually says, not what you want it to say.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># GOOD: Report effect sizes AND confidence intervals, not just p-values
+set.seed(123)
+group_a &lt;- rnorm(30, mean = 100, sd = 15)
+group_b &lt;- rnorm(30, mean = 105, sd = 15)
+
+result &lt;- t.test(group_a, group_b)
+
+# Cohen's d effect size
+pooled_sd &lt;- sqrt((sd(group_a)^2 + sd(group_b)^2) / 2)
+cohens_d &lt;- (mean(group_b) - mean(group_a)) / pooled_sd
+
+cat(&quot;=== Responsible Reporting ===\n&quot;)
+cat(sprintf(&quot;Group A: M = %.1f, SD = %.1f\n&quot;, mean(group_a), sd(group_a)))
+cat(sprintf(&quot;Group B: M = %.1f, SD = %.1f\n&quot;, mean(group_b), sd(group_b)))
+cat(sprintf(&quot;Mean difference: %.1f\n&quot;, mean(group_b) - mean(group_a)))
+cat(sprintf(&quot;95%% CI: [%.1f, %.1f]\n&quot;, -result$conf.int[2], -result$conf.int[1]))
+cat(sprintf(&quot;t(%d) = %.2f, p = %.3f\n&quot;, result$parameter, result$statistic, result$p.value))
+cat(sprintf(&quot;Cohen's d = %.2f\n&quot;, cohens_d))
+cat(&quot;\nNote: Report ALL of these, not just the p-value.\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practical Checklist for Ethical R Analysis</h2>
+
+<p>Use this checklist before starting any analysis:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Question</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Was data collected with proper consent?</td>
+<td>Verify IRB approval or consent documentation</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Are you collecting only necessary data?</td>
+<td>Remove PII columns before analysis</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Have you pre-registered your hypotheses?</td>
+<td>Use aspredicted.org or OSF before looking at data</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Is your analysis plan documented?</td>
+<td>Write the plan before coding</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Are you correcting for multiple comparisons?</td>
+<td>Use <code>p.adjust()</code> with Bonferroni or FDR</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Are you reporting all analyses?</td>
+<td>Include null results in your report</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Are effect sizes included?</td>
+<td>Report Cohen's d, r-squared, or odds ratios</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Is the code reproducible?</td>
+<td>Use <code>set.seed()</code>, <code>renv</code>, version control</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Could the results cause harm?</td>
+<td>Consider who is affected and how</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Is uncertainty communicated clearly?</td>
+<td>Show confidence intervals, not just point estimates</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Exercises</h2>
+
+<h4>Exercise 1: Spotting P-Hacking</h4>
+
+<p>A researcher runs 10 different models on the same dataset and reports only the two that have p < 0.05. What should they do instead?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Think about it, then check:
+cat(&quot;=== Answer ===\n&quot;)
+cat(&quot;1. Pre-register the primary analysis before looking at data\n&quot;)
+cat(&quot;2. Report ALL 10 models, not just the 'significant' ones\n&quot;)
+cat(&quot;3. Apply multiple comparison correction: p.adjust(p_values, method='BH')\n&quot;)
+cat(&quot;4. Clearly label exploratory vs confirmatory analyses\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Exercise 2: Data Minimization</h4>
+
+<p>Given a medical dataset with name, SSN, DOB, gender, diagnosis, and treatment outcome, which columns should you keep for an analysis of treatment effectiveness by gender?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Think about what's needed, then check:
+cat(&quot;=== Answer ===\n&quot;)
+cat(&quot;Keep: participant_id (pseudonymous), gender, diagnosis, treatment_outcome\n&quot;)
+cat(&quot;Remove: name (PII), SSN (PII, never needed), DOB (convert to age group)\n&quot;)
+cat(&quot;Transform: DOB -&gt; age_group (bins reduce re-identification risk)\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Principle</th>
+<th>What It Means</th>
+<th>R Tool/Practice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Informed consent</td>
+<td>People agree to data use</td>
+<td>Document provenance</td>
+</tr>
+<tr>
+<td>Data minimization</td>
+<td>Only collect what you need</td>
+<td>Remove PII columns</td>
+</tr>
+<tr>
+<td>No p-hacking</td>
+<td>Report all analyses</td>
+<td><code>p.adjust()</code>, pre-registration</td>
+</tr>
+<tr>
+<td>Transparency</td>
+<td>Others can reproduce</td>
+<td><code>renv</code>, <code>targets</code>, <code>set.seed()</code></td>
+</tr>
+<tr>
+<td>Responsible reporting</td>
+<td>Show uncertainty honestly</td>
+<td>CIs, effect sizes, all results</td>
+</tr>
+</tbody>
+</table>
+
+<h2>FAQ</h2>
+
+<p><strong>Is it ever okay to remove outliers?</strong> Yes, but only with a pre-specified rule (e.g., "remove values beyond 3 SD from the mean") that you document before looking at the data. Never remove outliers just because they make your results non-significant.</p>
+
+<p><strong>What's the difference between ethics and compliance?</strong> Compliance means following laws and regulations (GDPR, HIPAA). Ethics goes further — it's about doing the right thing even when the law doesn't require it. A legally compliant analysis can still be ethically problematic.</p>
+
+<p><strong>Do I need IRB approval for analyzing publicly available data?</strong> It depends. If you're at a university, check with your IRB. Even public data can raise ethical issues — for example, analyzing scraped social media posts without users' awareness. When in doubt, consult your institution's ethics board.</p>
+
+<h2>What's Next</h2>
+
+<ul>
+
+<li><a href="Bias-in-Data-and-Models.html">Bias in Data & Models</a> — How to detect and reduce bias in your analyses</li>
+
+<li><a href="Reproducibility-Crisis.html">Reproducibility Crisis</a> — What went wrong and how R tools help fix it</li>
+
+<li><a href="Data-Privacy-in-R.html">Data Privacy in R</a> — Anonymization, differential privacy, and GDPR compliance</li>
+
+</ul>

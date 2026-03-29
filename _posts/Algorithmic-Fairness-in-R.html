@@ -1,0 +1,510 @@
+---
+title: "Algorithmic Fairness in R: fairml & aif360 for Bias Auditing"
+description: "Audit machine learning models for fairness using R. Learn disparate impact, calibration, and practical bias auditing with fairml and aif360."
+keywords: "algorithmic fairness R, fairml, aif360 R, bias auditing, disparate impact, model fairness, fairness metrics R"
+mathjax: false
+webr: true
+curriculum_id: "FR-data-1"
+post_type: "FR"
+auto_link_terms: "algorithmic fairness|fairml|bias auditing|disparate impact"
+auto_link_case_sensitive: false
+fr_parent: "Data-Ethics-in-R.html"
+---
+
+<h1>Algorithmic Fairness in R: fairml & aif360 for Bias Auditing</h1>
+
+<p class="lead">Algorithmic fairness ensures that machine learning models don't systematically discriminate against protected groups. This guide teaches you to measure, audit, and improve fairness using R tools — because a model that's accurate on average can still be unfair to specific groups.</p>
+
+<p>A hiring model that rejects 80% of female applicants but only 30% of male applicants is unfair — even if its overall accuracy is high. A credit scoring model that gives higher rates to minorities with the same creditworthiness as non-minorities is unfair. These aren't hypothetical: they've happened in real deployments. This guide gives you the tools to catch and fix these problems.</p>
+
+<h2>Fairness Definitions</h2>
+
+<p>There are multiple definitions of fairness, and they can conflict with each other. Understanding them is essential for choosing the right one for your context.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Definition</th>
+<th>Meaning</th>
+<th>Formula</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Demographic parity</td>
+<td>Equal selection rates across groups</td>
+<td>P(Y=1\</td>
+<td>A=a) = P(Y=1\</td>
+<td>A=b)</td>
+</tr>
+<tr>
+<td>Equalized odds</td>
+<td>Equal TPR and FPR across groups</td>
+<td>P(Yhat=1\</td>
+<td>Y=y,A=a) = P(Yhat=1\</td>
+<td>Y=y,A=b)</td>
+</tr>
+<tr>
+<td>Equal opportunity</td>
+<td>Equal TPR across groups</td>
+<td>P(Yhat=1\</td>
+<td>Y=1,A=a) = P(Yhat=1\</td>
+<td>Y=1,A=b)</td>
+</tr>
+<tr>
+<td>Calibration</td>
+<td>Same meaning of scores across groups</td>
+<td>P(Y=1\</td>
+<td>Score=s,A=a) = P(Y=1\</td>
+<td>Score=s,A=b)</td>
+</tr>
+<tr>
+<td>Predictive parity</td>
+<td>Equal precision across groups</td>
+<td>P(Y=1\</td>
+<td>Yhat=1,A=a) = P(Y=1\</td>
+<td>Yhat=1,A=b)</td>
+</tr>
+<tr>
+<td>Individual fairness</td>
+<td>Similar individuals treated similarly</td>
+<td>d(x,x') small implies d(f(x),f(x')) small</td>
+</tr>
+</tbody>
+</table>
+
+<h4>The Impossibility Theorem</h4>
+
+<p>A critical result: except in trivial cases, you <strong>cannot</strong> simultaneously satisfy demographic parity, equalized odds, and calibration. You must choose which fairness criterion matters most for your application.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Demonstrating the fairness trade-off
+set.seed(42)
+n &lt;- 1000
+
+# Simulate two groups with different base rates
+group &lt;- rep(c(&quot;A&quot;,&quot;B&quot;), each = n/2)
+base_rate &lt;- ifelse(group == &quot;A&quot;, 0.4, 0.2)  # Different base rates
+true_label &lt;- rbinom(n, 1, base_rate)
+
+# A perfectly calibrated model
+score &lt;- true_label + rnorm(n, 0, 0.3)
+predicted &lt;- as.integer(score &gt; 0.5)
+
+cat(&quot;=== Fairness Trade-off Demo ===\n&quot;)
+cat(&quot;Base rates differ between groups:\n&quot;)
+cat(&quot;  Group A base rate:&quot;, mean(true_label[group == &quot;A&quot;]), &quot;\n&quot;)
+cat(&quot;  Group B base rate:&quot;, mean(true_label[group == &quot;B&quot;]), &quot;\n&quot;)
+
+cat(&quot;\nSelection rates (demographic parity check):\n&quot;)
+cat(&quot;  Group A:&quot;, mean(predicted[group == &quot;A&quot;]), &quot;\n&quot;)
+cat(&quot;  Group B:&quot;, mean(predicted[group == &quot;B&quot;]), &quot;\n&quot;)
+
+cat(&quot;\nTrue Positive Rates (equal opportunity check):\n&quot;)
+tpr_a &lt;- mean(predicted[group == &quot;A&quot; &amp; true_label == 1])
+tpr_b &lt;- mean(predicted[group == &quot;B&quot; &amp; true_label == 1])
+cat(&quot;  Group A TPR:&quot;, round(tpr_a, 3), &quot;\n&quot;)
+cat(&quot;  Group B TPR:&quot;, round(tpr_b, 3), &quot;\n&quot;)
+
+cat(&quot;\nEqualizing selection rates would break calibration.\n&quot;)
+cat(&quot;Equalizing TPR would change selection rates.\n&quot;)
+cat(&quot;You must choose which fairness criterion to prioritize.\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Measuring Disparate Impact</h2>
+
+<p>The four-fifths rule: the selection rate for any protected group should be at least 80% of the rate for the most-selected group.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Comprehensive disparate impact analysis
+set.seed(42)
+n &lt;- 800
+
+applicants &lt;- data.frame(
+  gender = sample(c(&quot;Male&quot;,&quot;Female&quot;), n, replace = TRUE),
+  score = rnorm(n, 70, 10)
+)
+
+# Biased threshold: unconsciously favoring one group
+applicants$hired &lt;- with(applicants, {
+  threshold &lt;- ifelse(gender == &quot;Male&quot;, 65, 70)
+  as.integer(score &gt; threshold)
+})
+
+# Disparate impact analysis
+cat(&quot;=== Disparate Impact Analysis ===\n&quot;)
+hire_rates &lt;- tapply(applicants$hired, applicants$gender, mean)
+cat(&quot;Hiring rates:\n&quot;)
+print(round(hire_rates, 3))
+
+di_ratio &lt;- min(hire_rates) / max(hire_rates)
+cat(sprintf(&quot;\nDisparate impact ratio: %.3f\n&quot;, di_ratio))
+cat(sprintf(&quot;Four-fifths threshold: 0.800\n&quot;))
+cat(sprintf(&quot;Result: %s\n&quot;, ifelse(di_ratio &gt;= 0.8, &quot;PASS&quot;, &quot;FAIL - potential bias&quot;)))
+
+# Statistical significance
+cat(&quot;\n=== Chi-square test ===\n&quot;)
+ct &lt;- table(applicants$gender, applicants$hired)
+chi &lt;- chisq.test(ct)
+cat(sprintf(&quot;Chi-squared = %.2f, p = %.4f\n&quot;, chi$statistic, chi$p.value))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Building a Fairness Audit Function</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Reusable fairness audit function
+fairness_audit &lt;- function(actual, predicted, group, positive_label = 1) {
+  groups &lt;- unique(group)
+  results &lt;- data.frame(
+    Group = character(),
+    N = integer(),
+    SelectionRate = numeric(),
+    TPR = numeric(),
+    FPR = numeric(),
+    Precision = numeric(),
+    stringsAsFactors = FALSE
+  )
+
+  for (g in groups) {
+    mask &lt;- group == g
+    a &lt;- actual[mask]
+    p &lt;- predicted[mask]
+
+    tp &lt;- sum(a == positive_label &amp; p == positive_label)
+    fp &lt;- sum(a != positive_label &amp; p == positive_label)
+    fn &lt;- sum(a == positive_label &amp; p != positive_label)
+    tn &lt;- sum(a != positive_label &amp; p != positive_label)
+
+    results &lt;- rbind(results, data.frame(
+      Group = g,
+      N = sum(mask),
+      SelectionRate = round(mean(p == positive_label), 3),
+      TPR = round(ifelse(tp+fn &gt; 0, tp/(tp+fn), NA), 3),
+      FPR = round(ifelse(fp+tn &gt; 0, fp/(fp+tn), NA), 3),
+      Precision = round(ifelse(tp+fp &gt; 0, tp/(tp+fp), NA), 3),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Calculate disparities
+  cat(&quot;=== Fairness Audit Report ===\n\n&quot;)
+  print(results, row.names = FALSE)
+
+  cat(&quot;\n--- Disparity Ratios ---\n&quot;)
+  max_sr &lt;- max(results$SelectionRate)
+  for (i in 1:nrow(results)) {
+    ratio &lt;- results$SelectionRate[i] / max_sr
+    status &lt;- ifelse(ratio &gt;= 0.8, &quot;OK&quot;, &quot;WARNING&quot;)
+    cat(sprintf(&quot;  %s: SR ratio = %.3f [%s]\n&quot;,
+                results$Group[i], ratio, status))
+  }
+
+  cat(sprintf(&quot;\n--- Equal Opportunity (TPR) ---\n&quot;))
+  max_tpr &lt;- max(results$TPR, na.rm = TRUE)
+  for (i in 1:nrow(results)) {
+    ratio &lt;- results$TPR[i] / max_tpr
+    cat(sprintf(&quot;  %s: TPR ratio = %.3f\n&quot;, results$Group[i], ratio))
+  }
+}
+
+# Test the audit function
+set.seed(42)
+n &lt;- 600
+test_data &lt;- data.frame(
+  group = sample(c(&quot;Young&quot;,&quot;Middle&quot;,&quot;Senior&quot;), n, replace = TRUE, prob = c(0.4,0.4,0.2)),
+  actual = rbinom(n, 1, 0.3),
+  predicted = rbinom(n, 1, 0.28)
+)
+
+fairness_audit(test_data$actual, test_data$predicted, test_data$group)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Fairness Packages in R</h2>
+
+<h4>fairml Package</h4>
+
+<p>The <code>fairml</code> package implements fair regression and classification models that explicitly include fairness constraints.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># fairml concepts (demonstration without package dependency)
+cat(&quot;=== fairml Package Overview ===\n\n&quot;)
+cat(&quot;Key functions:\n&quot;)
+cat(&quot;  frrm()   - Fair Ridge Regression Model\n&quot;)
+cat(&quot;  fgrrm()  - Fair Generalized Ridge Regression\n&quot;)
+cat(&quot;  nclm()   - Nonconvex Penalized Logistic Model\n&quot;)
+cat(&quot;  zlrm()   - Zafar Logistic Regression Model\n\n&quot;)
+
+cat(&quot;Usage pattern:\n&quot;)
+cat('  library(fairml)\n')
+cat('  model &lt;- frrm(y ~ x1 + x2, data = df,\n')
+cat('                sensitive = df$protected_attr,\n')
+cat('                unfairness = 0.05)  # Max allowed unfairness\n\n')
+
+cat(&quot;The unfairness parameter (0 to 1) controls the trade-off:\n&quot;)
+cat(&quot;  0.00 = Perfectly fair (may sacrifice accuracy)\n&quot;)
+cat(&quot;  0.05 = 5% unfairness tolerance (good balance)\n&quot;)
+cat(&quot;  1.00 = No fairness constraint (standard model)\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>aif360 (AI Fairness 360)</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">cat(&quot;=== AIF360 for R ===\n\n&quot;)
+cat(&quot;IBM's AI Fairness 360 toolkit (Python-based, R interface available):\n\n&quot;)
+
+cat(&quot;Bias metrics:\n&quot;)
+cat(&quot;  - Statistical parity difference\n&quot;)
+cat(&quot;  - Disparate impact ratio\n&quot;)
+cat(&quot;  - Equal opportunity difference\n&quot;)
+cat(&quot;  - Average odds difference\n&quot;)
+cat(&quot;  - Theil index\n\n&quot;)
+
+cat(&quot;Bias mitigation algorithms:\n&quot;)
+cat(&quot;  Pre-processing:  Reweighting, Optimized Preprocessing\n&quot;)
+cat(&quot;  In-processing:   Adversarial Debiasing, Prejudice Remover\n&quot;)
+cat(&quot;  Post-processing: Equalized Odds, Calibrated Equalized Odds\n\n&quot;)
+
+cat(&quot;R usage via reticulate:\n&quot;)
+cat('  library(reticulate)\n')
+cat('  aif &lt;- import(&quot;aif360.datasets&quot;)\n')
+cat('  metrics &lt;- import(&quot;aif360.metrics&quot;)\n')</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practical Audit Workflow</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Action</th>
+<th>Tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Define protected attributes</td>
+<td>List sensitive variables</td>
+<td>Domain knowledge</td>
+</tr>
+<tr>
+<td>2. Choose fairness metric</td>
+<td>Match to application context</td>
+<td>See definitions table above</td>
+</tr>
+<tr>
+<td>3. Measure baseline</td>
+<td>Calculate metrics on current model</td>
+<td><code>fairness_audit()</code> function</td>
+</tr>
+<tr>
+<td>4. Set threshold</td>
+<td>Define acceptable disparity level</td>
+<td>Four-fifths rule or domain-specific</td>
+</tr>
+<tr>
+<td>5. Mitigate if needed</td>
+<td>Apply debiasing technique</td>
+<td>fairml, reweighting, threshold tuning</td>
+</tr>
+<tr>
+<td>6. Re-measure</td>
+<td>Verify improvement</td>
+<td>Same audit function</td>
+</tr>
+<tr>
+<td>7. Document</td>
+<td>Record decisions and trade-offs</td>
+<td>Analysis report</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Step 5 example: threshold tuning for fairness
+set.seed(42)
+n &lt;- 500
+
+df &lt;- data.frame(
+  group = rep(c(&quot;A&quot;,&quot;B&quot;), each = n/2),
+  score = c(rnorm(n/2, 0.6, 0.2), rnorm(n/2, 0.5, 0.2)),
+  actual = c(rbinom(n/2, 1, 0.6), rbinom(n/2, 1, 0.4))
+)
+
+# Single threshold: may create disparate impact
+single_threshold &lt;- 0.5
+df$pred_single &lt;- as.integer(df$score &gt; single_threshold)
+
+# Group-specific thresholds: equalize selection rates
+target_rate &lt;- mean(df$actual)
+thresh_a &lt;- quantile(df$score[df$group == &quot;A&quot;], 1 - target_rate)
+thresh_b &lt;- quantile(df$score[df$group == &quot;B&quot;], 1 - target_rate)
+df$pred_adjusted &lt;- ifelse(df$group == &quot;A&quot;,
+                           as.integer(df$score &gt; thresh_a),
+                           as.integer(df$score &gt; thresh_b))
+
+cat(&quot;=== Threshold Tuning ===\n&quot;)
+cat(&quot;Single threshold (0.5):\n&quot;)
+cat(&quot;  Group A rate:&quot;, mean(df$pred_single[df$group == &quot;A&quot;]), &quot;\n&quot;)
+cat(&quot;  Group B rate:&quot;, mean(df$pred_single[df$group == &quot;B&quot;]), &quot;\n&quot;)
+
+cat(&quot;\nAdjusted thresholds:\n&quot;)
+cat(&quot;  Group A threshold:&quot;, round(thresh_a, 3), &quot;-&gt; rate:&quot;,
+    mean(df$pred_adjusted[df$group == &quot;A&quot;]), &quot;\n&quot;)
+cat(&quot;  Group B threshold:&quot;, round(thresh_b, 3), &quot;-&gt; rate:&quot;,
+    mean(df$pred_adjusted[df$group == &quot;B&quot;]), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Fairness Criterion</th>
+<th>Best For</th>
+<th>Trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Demographic parity</td>
+<td>Employment, lending</td>
+<td>May select less qualified from one group</td>
+</tr>
+<tr>
+<td>Equalized odds</td>
+<td>Criminal justice, medical</td>
+<td>Harder to achieve with different base rates</td>
+</tr>
+<tr>
+<td>Equal opportunity</td>
+<td>Scholarship, hiring</td>
+<td>Only equalizes true positive rate</td>
+</tr>
+<tr>
+<td>Calibration</td>
+<td>Risk assessment, insurance</td>
+<td>Doesn't guarantee equal rates</td>
+</tr>
+<tr>
+<td>Individual fairness</td>
+<td>Any</td>
+<td>Hard to define similarity metric</td>
+</tr>
+</tbody>
+</table>
+
+<h2>FAQ</h2>
+
+<p><strong>Which fairness metric should I use?</strong> It depends on context. For hiring: demographic parity or disparate impact. For criminal risk: equalized odds (equal TPR and FPR). For medical diagnostics: equal opportunity (equal sensitivity). Discuss with stakeholders and domain experts — this is not a purely technical decision.</p>
+
+<p><strong>Can I just remove the protected attribute from the model?</strong> No. This is "fairness through unawareness" and it doesn't work because other features (zip code, name patterns, school attended) can serve as proxies. You need to test outcomes by protected group regardless.</p>
+
+<p><strong>Is there a legal requirement for algorithmic fairness?</strong> Increasingly, yes. The EU AI Act classifies hiring and credit models as "high-risk" requiring bias audits. US agencies (EEOC, CFPB) use disparate impact analysis. Several US states have enacted algorithmic accountability laws. The legal landscape is evolving rapidly.</p>
+
+<h2>What's Next</h2>
+
+<ul>
+
+<li><a href="Data-Ethics-in-R.html">Data Ethics in R</a> — The broader ethical framework</li>
+
+<li><a href="Bias-in-Data-and-Models.html">Bias in Data & Models</a> — Detecting bias at the data level</li>
+
+<li><a href="Synthetic-Data-in-R.html">Synthetic Data in R</a> — Generate unbiased synthetic datasets</li>
+
+</ul>

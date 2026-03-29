@@ -1,0 +1,498 @@
+---
+title: "Reproducibility Crisis: What It Means for R Users & How to Help Fix It"
+description: "Understand the reproducibility crisis and how R tools like renv, targets, and Docker help you produce research that others can verify and trust."
+keywords: "reproducibility crisis, reproducible research R, renv, targets, p-hacking, garden of forking paths, R reproducibility"
+mathjax: false
+webr: true
+curriculum_id: "1.6.3"
+post_type: "C"
+auto_link_terms: "reproducibility crisis|reproducible research|replication crisis"
+auto_link_case_sensitive: false
+---
+
+<h1>Reproducibility Crisis: What It Means for R Users & How to Help Fix It</h1>
+
+<p class="lead">More than half of published research findings may be false or unreproducible. The reproducibility crisis is a systemic failure in how science is done — and R programmers are uniquely positioned to help fix it.</p>
+
+<p>In 2015, the Open Science Collaboration attempted to replicate 100 psychology studies. Only 36% of replications produced significant results, compared to 97% of the originals. Similar replication failures have been found in cancer biology, economics, and social science. This isn't just an academic problem — it wastes billions in research funding and erodes public trust in science.</p>
+
+<h2>What Went Wrong</h2>
+
+<h4>The Garden of Forking Paths</h4>
+
+<p>Every analysis involves dozens of small decisions: how to clean the data, which outliers to exclude, which covariates to include, which subgroups to analyze. Each decision creates a "fork" — and researchers (often unconsciously) follow the path that leads to significant results.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Demonstration: The garden of forking paths
+set.seed(42)
+n &lt;- 50
+
+# Generate completely random data (no true effect)
+df &lt;- data.frame(
+  x = rnorm(n),
+  y = rnorm(n),
+  group = sample(c(&quot;A&quot;,&quot;B&quot;), n, replace = TRUE),
+  age = sample(20:60, n, replace = TRUE),
+  outlier_flag = sample(c(FALSE, FALSE, FALSE, FALSE, TRUE), n, replace = TRUE)
+)
+
+# Fork 1: Full data vs remove outliers
+p1 &lt;- cor.test(df$x, df$y)$p.value
+p2 &lt;- cor.test(df$x[!df$outlier_flag], df$y[!df$outlier_flag])$p.value
+
+# Fork 2: All subjects vs subgroup
+p3 &lt;- cor.test(df$x[df$group == &quot;A&quot;], df$y[df$group == &quot;A&quot;])$p.value
+p4 &lt;- cor.test(df$x[df$age &lt; 40], df$y[df$age &lt; 40])$p.value
+
+# Fork 3: Control for age
+p5 &lt;- summary(lm(y ~ x + age, data = df))$coefficients[&quot;x&quot;, &quot;Pvalue&quot;]
+
+cat(&quot;=== Garden of Forking Paths ===\n&quot;)
+cat(&quot;Same data, different analysis choices:\n\n&quot;)
+cat(sprintf(&quot;Full data correlation:         p = %.4f\n&quot;, p1))
+cat(sprintf(&quot;Remove flagged outliers:       p = %.4f\n&quot;, p2))
+cat(sprintf(&quot;Group A only:                  p = %.4f\n&quot;, p3))
+cat(sprintf(&quot;Age &lt; 40 only:                 p = %.4f\n&quot;, p4))
+cat(sprintf(&quot;Control for age:               p = %.4f\n&quot;, p5))
+cat(sprintf(&quot;\nSmallest p-value: %.4f\n&quot;, min(p1,p2,p3,p4,p5)))
+cat(&quot;A researcher could 'choose' any of these paths.\n&quot;)
+cat(&quot;With enough forks, you'll find p &lt; 0.05 even in random noise.\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>P-Hacking in Practice</h4>
+
+<p>P-hacking encompasses many practices that inflate false-positive rates:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Practice</th>
+<th>Problem</th>
+<th>Better Alternative</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Running many tests, reporting significant ones</td>
+<td>Multiplicity inflation</td>
+<td>Pre-register primary analysis</td>
+</tr>
+<tr>
+<td>Removing outliers until p < 0.05</td>
+<td>Data-dependent decisions</td>
+<td>Pre-specify outlier rules</td>
+</tr>
+<tr>
+<td>Adding covariates to "improve" the model</td>
+<td>Specification searching</td>
+<td>Pre-specify the model</td>
+</tr>
+<tr>
+<td>Stopping data collection when p < 0.05</td>
+<td>Optional stopping</td>
+<td>Pre-specify sample size</td>
+</tr>
+<tr>
+<td>Dichotomizing continuous variables</td>
+<td>Loss of information, inflated Type I</td>
+<td>Keep variables continuous</td>
+</tr>
+<tr>
+<td>HARKing (Hypothesizing After Results are Known)</td>
+<td>Post-hoc presented as a priori</td>
+<td>Pre-registration</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># How optional stopping inflates false positives
+set.seed(123)
+
+# Simulate: check for significance every 10 observations
+# (True effect = 0, no real difference)
+n_sims &lt;- 1000
+false_positives &lt;- 0
+
+for (sim in 1:n_sims) {
+  x &lt;- c()
+  y &lt;- c()
+  found_sig &lt;- FALSE
+
+  for (batch in 1:10) {
+    x &lt;- c(x, rnorm(10))
+    y &lt;- c(y, rnorm(10))
+
+    if (length(x) &gt;= 20) {
+      p &lt;- t.test(x, y)$p.value
+      if (p &lt; 0.05) {
+        found_sig &lt;- TRUE
+        break
+      }
+    }
+  }
+  if (found_sig) false_positives &lt;- false_positives + 1
+}
+
+cat(&quot;=== Optional Stopping Inflation ===\n&quot;)
+cat(sprintf(&quot;False positive rate with optional stopping: %.1f%%\n&quot;,
+            false_positives / n_sims * 100))
+cat(&quot;Expected rate (no peeking): 5.0%\n&quot;)
+cat(&quot;Optional stopping nearly doubles the false positive rate!\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How R Tools Help Fix It</h2>
+
+<p>R has an exceptional ecosystem for reproducible research. Here are the key tools:</p>
+
+<h4>1. renv: Lock Package Versions</h4>
+
+<p>Different package versions can produce different results. <code>renv</code> creates a snapshot of your exact package versions.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># renv workflow (conceptual - not run in WebR)
+cat(&quot;=== renv Workflow ===\n&quot;)
+cat(&quot;1. renv::init()       # Initialize project-local library\n&quot;)
+cat(&quot;2. install.packages() # Install needed packages\n&quot;)
+cat(&quot;3. renv::snapshot()   # Lock current versions to renv.lock\n&quot;)
+cat(&quot;4. # Share renv.lock with collaborators\n&quot;)
+cat(&quot;5. renv::restore()    # Collaborator installs exact same versions\n\n&quot;)
+
+cat(&quot;Your renv.lock file captures:\n&quot;)
+cat(&quot;- R version\n&quot;)
+cat(&quot;- Every package name, version, and source\n&quot;)
+cat(&quot;- Repository URLs\n&quot;)
+cat(&quot;- Dependency tree\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>2. targets: Reproducible Pipelines</h4>
+
+<p>The <code>targets</code> package defines your analysis as a directed acyclic graph (DAG). It tracks which steps need re-running when inputs change.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># targets pipeline (conceptual)
+cat(&quot;=== targets Pipeline ===\n&quot;)
+cat('# _targets.R file\n')
+cat('library(targets)\n\n')
+cat('list(\n')
+cat('  tar_target(raw_data, read.csv(&quot;data.csv&quot;)),\n')
+cat('  tar_target(clean_data, clean_function(raw_data)),\n')
+cat('  tar_target(model, lm(y ~ x, data = clean_data)),\n')
+cat('  tar_target(report, render_report(model))\n')
+cat(')\n\n')
+cat(&quot;Benefits:\n&quot;)
+cat(&quot;- Only re-runs steps whose inputs changed\n&quot;)
+cat(&quot;- Documents the entire analysis flow\n&quot;)
+cat(&quot;- Catches errors when dependencies change\n&quot;)
+cat(&quot;- Parallel execution built in\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>3. set.seed(): Deterministic Randomness</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Without set.seed: results change every run
+cat(&quot;=== Importance of set.seed() ===\n&quot;)
+cat(&quot;Without set.seed():\n&quot;)
+cat(&quot;  Run 1:&quot;, mean(rnorm(100)), &quot;\n&quot;)
+cat(&quot;  Run 2:&quot;, mean(rnorm(100)), &quot;\n&quot;)
+
+cat(&quot;\nWith set.seed(42):\n&quot;)
+set.seed(42); cat(&quot;  Run 1:&quot;, mean(rnorm(100)), &quot;\n&quot;)
+set.seed(42); cat(&quot;  Run 2:&quot;, mean(rnorm(100)), &quot;\n&quot;)
+cat(&quot;\nSame seed = same results. Always set.seed() before randomization.\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>4. Docker: Freeze the Entire Environment</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">cat(&quot;=== Docker for R (conceptual) ===\n&quot;)
+cat(&quot;A Dockerfile captures EVERYTHING:\n&quot;)
+cat(&quot;- Operating system version\n&quot;)
+cat(&quot;- R version\n&quot;)
+cat(&quot;- System libraries\n&quot;)
+cat(&quot;- R packages and versions\n&quot;)
+cat(&quot;- Your code and data\n\n&quot;)
+cat(&quot;Example Dockerfile:\n&quot;)
+cat(&quot;  FROM rocker/r-ver:4.4.0\n&quot;)
+cat(&quot;  RUN install2.r renv\n&quot;)
+cat(&quot;  COPY renv.lock renv.lock\n&quot;)
+cat(&quot;  RUN R -e 'renv::restore()'\n&quot;)
+cat(&quot;  COPY analysis.R analysis.R\n&quot;)
+cat(&quot;  CMD Rscript analysis.R\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>The Reproducibility Checklist</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Level</th>
+<th>What to Do</th>
+<th>Tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Minimal</td>
+<td>Set random seeds, comment code</td>
+<td><code>set.seed()</code>, <code>#</code> comments</td>
+</tr>
+<tr>
+<td>Basic</td>
+<td>Version control, share code</td>
+<td>Git + GitHub</td>
+</tr>
+<tr>
+<td>Good</td>
+<td>Lock package versions</td>
+<td><code>renv</code></td>
+</tr>
+<tr>
+<td>Better</td>
+<td>Automated pipeline</td>
+<td><code>targets</code> or <code>make</code></td>
+</tr>
+<tr>
+<td>Best</td>
+<td>Container + registered plan</td>
+<td>Docker + OSF pre-registration</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Exercises</h2>
+
+<h4>Exercise 1: Multiple Comparison Correction</h4>
+
+<p>You run 20 hypothesis tests. Three are significant at p < 0.05. After correction, how many remain significant?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># 20 tests, 3 &quot;significant&quot; raw p-values
+p_raw &lt;- c(0.001, 0.023, 0.041, rep(0.3, 17))
+
+cat(&quot;=== Multiple Comparison Correction ===\n&quot;)
+cat(&quot;Raw p-values (significant ones):\n&quot;)
+cat(sprintf(&quot;  Test 1: p = %.3f\n&quot;, p_raw[1]))
+cat(sprintf(&quot;  Test 2: p = %.3f\n&quot;, p_raw[2]))
+cat(sprintf(&quot;  Test 3: p = %.3f\n&quot;, p_raw[3]))
+
+# Bonferroni (most conservative)
+p_bonf &lt;- p.adjust(p_raw, method = &quot;bonferroni&quot;)
+cat(sprintf(&quot;\nBonferroni corrected: %d significant\n&quot;, sum(p_bonf &lt; 0.05)))
+
+# Benjamini-Hochberg (FDR, less conservative)
+p_bh &lt;- p.adjust(p_raw, method = &quot;BH&quot;)
+cat(sprintf(&quot;BH (FDR) corrected: %d significant\n&quot;, sum(p_bh &lt; 0.05)))
+
+cat(&quot;\nAlways correct for multiple comparisons!\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Exercise 2: Reproducibility Audit</h4>
+
+<p>Check if this analysis is reproducible. What's missing?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">cat(&quot;=== Audit This Analysis ===\n&quot;)
+cat(&quot;result &lt;- lm(y ~ x + z, data = read.csv('data.csv'))\n&quot;)
+cat(&quot;summary(result)\n\n&quot;)
+
+cat(&quot;Missing for reproducibility:\n&quot;)
+cat(&quot;1. No set.seed() (if any randomization upstream)\n&quot;)
+cat(&quot;2. No package versions recorded (no renv.lock)\n&quot;)
+cat(&quot;3. No data provenance (where did data.csv come from?)\n&quot;)
+cat(&quot;4. No session info (R version, OS)\n&quot;)
+cat(&quot;5. No documentation of data cleaning steps\n&quot;)
+cat(&quot;6. No version control (is this in Git?)\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Problem</th>
+<th>Root Cause</th>
+<th>Solution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P-hacking</td>
+<td>Flexible analysis + significance pressure</td>
+<td>Pre-registration</td>
+</tr>
+<tr>
+<td>Non-reproducible code</td>
+<td>Missing dependencies/versions</td>
+<td>renv + Docker</td>
+</tr>
+<tr>
+<td>Garden of forking paths</td>
+<td>Undocumented analysis decisions</td>
+<td>targets pipeline</td>
+</tr>
+<tr>
+<td>Optional stopping</td>
+<td>Peeking at results during collection</td>
+<td>Pre-specify sample size</td>
+</tr>
+<tr>
+<td>HARKing</td>
+<td>Post-hoc hypotheses</td>
+<td>Registered reports</td>
+</tr>
+<tr>
+<td>Software rot</td>
+<td>Packages change over time</td>
+<td>renv::snapshot()</td>
+</tr>
+</tbody>
+</table>
+
+<h2>FAQ</h2>
+
+<p><strong>Does reproducibility mean the same results every time?</strong> Computational reproducibility means running the same code on the same data produces identical output. Replicability means a new study with new data reaches similar conclusions. Both matter, but reproducibility is the minimum bar.</p>
+
+<p><strong>Isn't pre-registration too rigid? What if I find something unexpected?</strong> Pre-registration doesn't prevent exploratory analysis — it just requires you to label it as exploratory. You can (and should) explore your data. The key is being transparent about what was planned versus what was discovered.</p>
+
+<p><strong>Do I need Docker for every analysis?</strong> No. For most analyses, renv + Git is sufficient. Use Docker when you need to guarantee reproducibility across different operating systems, or for high-stakes analyses (clinical trials, regulatory submissions, published papers).</p>
+
+<h2>What's Next</h2>
+
+<ul>
+
+<li><a href="Data-Ethics-in-R.html">Data Ethics in R</a> — The broader ethical framework</li>
+
+<li><a href="Data-Privacy-in-R.html">Data Privacy in R</a> — Anonymization and differential privacy</li>
+
+<li><a href="Pre-Analysis-Plans-in-R.html">Pre-Analysis Plans in R</a> — Commit to your analysis before running it</li>
+
+</ul>

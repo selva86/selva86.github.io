@@ -1,0 +1,518 @@
+---
+title: "Bias in Data & Models: How to Detect & Reduce It in R"
+description: "Learn to detect and reduce bias in data and models using R. Covers selection bias, measurement bias, algorithmic bias, fairness metrics, and debiasing."
+keywords: "bias in data, algorithmic bias R, fairness metrics, selection bias, measurement bias, debiasing techniques R"
+mathjax: false
+webr: true
+curriculum_id: "1.6.2"
+post_type: "C"
+auto_link_terms: "bias in data|algorithmic bias|fairness metrics|selection bias"
+auto_link_case_sensitive: false
+---
+
+<h1>Bias in Data & Models: How to Detect & Reduce It in R</h1>
+
+<p class="lead">Bias in data and models can lead to unfair decisions, flawed research, and real-world harm. This guide teaches you to identify common types of bias, measure them quantitatively, and apply debiasing techniques in R.</p>
+
+<p>Every dataset reflects the process that created it — including its flaws. If your training data under-represents a group, your model will perform worse for that group. If your survey only reaches internet users, it misses offline populations. Recognizing and addressing these biases is a core skill for responsible data analysis.</p>
+
+<h2>Types of Bias in Data</h2>
+
+<h4>Selection Bias</h4>
+
+<p>Occurs when your sample is not representative of the population you want to study.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Survivorship bias</td>
+<td>Only observing "survivors"</td>
+<td>Studying successful companies while ignoring failed ones</td>
+</tr>
+<tr>
+<td>Self-selection bias</td>
+<td>Participants choose to join</td>
+<td>Voluntary surveys over-represent motivated people</td>
+</tr>
+<tr>
+<td>Convenience sampling</td>
+<td>Using whoever is available</td>
+<td>Surveying only college students for a population study</td>
+</tr>
+<tr>
+<td>Exclusion bias</td>
+<td>Systematically excluding groups</td>
+<td>Medical trials excluding elderly patients</td>
+</tr>
+<tr>
+<td>Berkson's bias</td>
+<td>Selection conditioned on outcome</td>
+<td>Hospital studies finding spurious disease correlations</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Demonstration: Survivorship bias
+set.seed(42)
+
+# True population: 1000 startups, most fail
+n_startups &lt;- 1000
+true_risk &lt;- runif(n_startups, 0, 1)  # Risk tolerance score
+success &lt;- rbinom(n_startups, 1, prob = 0.3 - 0.1 * true_risk)  # Higher risk = lower success
+
+cat(&quot;=== Survivorship Bias Demo ===\n&quot;)
+cat(&quot;Full population - Avg risk score:&quot;, round(mean(true_risk), 3), &quot;\n&quot;)
+cat(&quot;Survivors only - Avg risk score:&quot;, round(mean(true_risk[success == 1]), 3), &quot;\n&quot;)
+cat(&quot;\nConclusion from survivors: 'Successful startups are less risky'\n&quot;)
+cat(&quot;Truth: We just can't see the risky ones that also failed.\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Measurement Bias</h4>
+
+<p>Occurs when your measurement instrument systematically distorts values.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Demonstration: Measurement bias in survey responses
+set.seed(123)
+n &lt;- 200
+
+# True satisfaction (1-10 scale)
+true_satisfaction &lt;- round(rnorm(n, mean = 5, sd = 2))
+true_satisfaction &lt;- pmin(pmax(true_satisfaction, 1), 10)
+
+# Biased measurement: people tend to give socially desirable answers
+# (satisfaction inflated by ~1.5 points on average)
+measured_satisfaction &lt;- pmin(true_satisfaction + rpois(n, 1.5), 10)
+
+cat(&quot;=== Measurement Bias Demo ===\n&quot;)
+cat(&quot;True mean satisfaction:&quot;, round(mean(true_satisfaction), 2), &quot;\n&quot;)
+cat(&quot;Measured mean satisfaction:&quot;, round(mean(measured_satisfaction), 2), &quot;\n&quot;)
+cat(&quot;Bias:&quot;, round(mean(measured_satisfaction) - mean(true_satisfaction), 2), &quot;points\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Algorithmic Bias</h4>
+
+<p>Occurs when a model produces systematically different outcomes for different groups.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Demonstration: A model that performs differently by group
+set.seed(42)
+n &lt;- 500
+
+group &lt;- rep(c(&quot;A&quot;, &quot;B&quot;), each = n/2)
+# Group B has less training data quality (noisier features)
+x &lt;- ifelse(group == &quot;A&quot;, rnorm(n, 5, 1), rnorm(n, 5, 2))
+y &lt;- 2 * x + rnorm(n, 0, 1)
+
+# Fit single model
+model &lt;- lm(y ~ x)
+
+# Check performance by group
+pred &lt;- predict(model)
+resid_a &lt;- y[group == &quot;A&quot;] - pred[group == &quot;A&quot;]
+resid_b &lt;- y[group == &quot;B&quot;] - pred[group == &quot;B&quot;]
+
+cat(&quot;=== Differential Model Performance ===\n&quot;)
+cat(&quot;Group A - RMSE:&quot;, round(sqrt(mean(resid_a^2)), 3), &quot;\n&quot;)
+cat(&quot;Group B - RMSE:&quot;, round(sqrt(mean(resid_b^2)), 3), &quot;\n&quot;)
+cat(&quot;\nThe model works worse for Group B because their data is noisier.\n&quot;)
+cat(&quot;This is algorithmic bias: same model, unequal outcomes.\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Detecting Bias in Your Data</h2>
+
+<h4>Step 1: Check Representation</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Are all groups adequately represented?
+cat(&quot;=== Checking Group Representation ===\n&quot;)
+
+# Simulated applicant data
+set.seed(42)
+applicants &lt;- data.frame(
+  gender = sample(c(&quot;M&quot;,&quot;F&quot;), 300, replace = TRUE, prob = c(0.7, 0.3)),
+  age_group = sample(c(&quot;18-30&quot;,&quot;31-45&quot;,&quot;46-60&quot;,&quot;60+&quot;), 300, replace = TRUE,
+                     prob = c(0.4, 0.35, 0.2, 0.05)),
+  hired = sample(0:1, 300, replace = TRUE, prob = c(0.6, 0.4))
+)
+
+cat(&quot;Gender distribution:\n&quot;)
+print(round(prop.table(table(applicants$gender)) * 100, 1))
+cat(&quot;\nAge group distribution:\n&quot;)
+print(round(prop.table(table(applicants$age_group)) * 100, 1))
+cat(&quot;\nHiring rate by gender:\n&quot;)
+print(round(prop.table(table(applicants$gender, applicants$hired), margin = 1) * 100, 1))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Step 2: Measure Disparate Impact</h4>
+
+<p>The "four-fifths rule" from US employment law: the selection rate for any group should be at least 80% of the rate for the highest-selected group.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Four-fifths rule check
+cat(&quot;=== Disparate Impact Analysis ===\n&quot;)
+
+hire_rates &lt;- tapply(applicants$hired, applicants$gender, mean)
+cat(&quot;Hiring rates:\n&quot;)
+print(round(hire_rates, 3))
+
+max_rate &lt;- max(hire_rates)
+disparate_impact &lt;- hire_rates / max_rate
+cat(&quot;\nDisparate impact ratios (vs highest group):\n&quot;)
+print(round(disparate_impact, 3))
+cat(&quot;\nFour-fifths threshold: 0.80\n&quot;)
+
+for (g in names(disparate_impact)) {
+  status &lt;- ifelse(disparate_impact[g] &gt;= 0.8, &quot;PASS&quot;, &quot;FAIL (potential bias)&quot;)
+  cat(sprintf(&quot;  %s: %.3f - %s\n&quot;, g, disparate_impact[g], status))
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Step 3: Fairness Metrics</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Common fairness metrics
+set.seed(42)
+n &lt;- 400
+
+# Simulated predictions with group information
+eval_data &lt;- data.frame(
+  group = rep(c(&quot;A&quot;,&quot;B&quot;), each = n/2),
+  actual = c(rbinom(n/2, 1, 0.5), rbinom(n/2, 1, 0.5)),
+  predicted = c(rbinom(n/2, 1, 0.52), rbinom(n/2, 1, 0.45))
+)
+
+# Calculate metrics by group
+calc_metrics &lt;- function(actual, predicted) {
+  tp &lt;- sum(actual == 1 &amp; predicted == 1)
+  fp &lt;- sum(actual == 0 &amp; predicted == 1)
+  fn &lt;- sum(actual == 1 &amp; predicted == 0)
+  tn &lt;- sum(actual == 0 &amp; predicted == 0)
+  c(TPR = tp/(tp+fn), FPR = fp/(fp+tn), Precision = tp/(tp+fp), Accuracy = (tp+tn)/length(actual))
+}
+
+cat(&quot;=== Fairness Metrics by Group ===\n&quot;)
+for (g in unique(eval_data$group)) {
+  sub &lt;- eval_data[eval_data$group == g, ]
+  metrics &lt;- round(calc_metrics(sub$actual, sub$predicted), 3)
+  cat(sprintf(&quot;\nGroup %s:\n&quot;, g))
+  cat(sprintf(&quot;  True Positive Rate:  %.3f\n&quot;, metrics[&quot;TPR&quot;]))
+  cat(sprintf(&quot;  False Positive Rate: %.3f\n&quot;, metrics[&quot;FPR&quot;]))
+  cat(sprintf(&quot;  Precision:           %.3f\n&quot;, metrics[&quot;Precision&quot;]))
+  cat(sprintf(&quot;  Accuracy:            %.3f\n&quot;, metrics[&quot;Accuracy&quot;]))
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Debiasing Techniques</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Technique</th>
+<th>When to Use</th>
+<th>R Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Resampling</td>
+<td>Under-represented groups</td>
+<td>Over/under-sample minority/majority</td>
+</tr>
+<tr>
+<td>Reweighting</td>
+<td>Unequal group sizes</td>
+<td><code>weights</code> argument in model functions</td>
+</tr>
+<tr>
+<td>Stratification</td>
+<td>Ensure balanced analysis</td>
+<td><code>strata</code> argument in <code>sample()</code></td>
+</tr>
+<tr>
+<td>Blinding</td>
+<td>Remove protected attributes</td>
+<td>Drop sensitive columns before modeling</td>
+</tr>
+<tr>
+<td>Calibration</td>
+<td>Predictions differ by group</td>
+<td>Post-hoc calibration per group</td>
+</tr>
+<tr>
+<td>Adversarial debiasing</td>
+<td>Systematic model bias</td>
+<td>fairml package</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Debiasing through reweighting
+cat(&quot;=== Reweighting Example ===\n&quot;)
+
+# Unbalanced data: Group A is over-represented
+set.seed(42)
+df &lt;- data.frame(
+  group = c(rep(&quot;A&quot;, 80), rep(&quot;B&quot;, 20)),
+  x = rnorm(100),
+  y = c(rnorm(80, 1), rnorm(20, 1.5))
+)
+
+# Unweighted means
+cat(&quot;Unweighted means:\n&quot;)
+print(tapply(df$y, df$group, mean))
+
+# Create inverse-frequency weights
+group_counts &lt;- table(df$group)
+df$weight &lt;- 1 / group_counts[df$group]
+df$weight &lt;- df$weight / sum(df$weight) * nrow(df)
+
+# Weighted mean
+cat(&quot;\nWeighted overall mean:&quot;, round(weighted.mean(df$y, df$weight), 3), &quot;\n&quot;)
+cat(&quot;Simple overall mean:&quot;, round(mean(df$y), 3), &quot;\n&quot;)
+cat(&quot;\nReweighting gives Group B proportional influence.\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Exercises</h2>
+
+<h4>Exercise 1: Identify the Bias</h4>
+
+<p>A hospital study finds that patients with two diseases simultaneously have better outcomes than patients with either disease alone. What type of bias might explain this?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">cat(&quot;=== Answer ===\n&quot;)
+cat(&quot;This is Berkson's bias (collider bias).\n&quot;)
+cat(&quot;Patients are in the hospital BECAUSE they have a disease.\n&quot;)
+cat(&quot;Having two diseases together in hospitalized patients doesn't\n&quot;)
+cat(&quot;reflect the general population — it reflects admission criteria.\n&quot;)
+cat(&quot;Patients with mild forms of both diseases get admitted, while\n&quot;)
+cat(&quot;patients with only one disease must have a severe case to be admitted.\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Exercise 2: Disparate Impact Calculation</h4>
+
+<p>Calculate the disparate impact ratio from the following hiring data: Group X: 40 out of 100 hired. Group Y: 20 out of 80 hired.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">rate_x &lt;- 40/100
+rate_y &lt;- 20/80
+ratio &lt;- min(rate_x, rate_y) / max(rate_x, rate_y)
+
+cat(&quot;Group X hiring rate:&quot;, rate_x, &quot;\n&quot;)
+cat(&quot;Group Y hiring rate:&quot;, rate_y, &quot;\n&quot;)
+cat(&quot;Disparate impact ratio:&quot;, round(ratio, 3), &quot;\n&quot;)
+cat(&quot;Four-fifths threshold: 0.80\n&quot;)
+cat(&quot;Result:&quot;, ifelse(ratio &gt;= 0.8, &quot;No disparate impact&quot;, &quot;Potential disparate impact&quot;), &quot;\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Bias Type</th>
+<th>How to Detect</th>
+<th>How to Mitigate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Selection bias</td>
+<td>Compare sample vs population demographics</td>
+<td>Stratified sampling, reweighting</td>
+</tr>
+<tr>
+<td>Measurement bias</td>
+<td>Calibration studies, inter-rater reliability</td>
+<td>Better instruments, bias correction</td>
+</tr>
+<tr>
+<td>Algorithmic bias</td>
+<td>Fairness metrics by group</td>
+<td>Resampling, reweighting, fairness constraints</td>
+</tr>
+<tr>
+<td>Reporting bias</td>
+<td>Compare pre-registered plan vs paper</td>
+<td>Pre-registration, registered reports</td>
+</tr>
+<tr>
+<td>Confirmation bias</td>
+<td>Peer review, adversarial collaboration</td>
+<td>Blinding, pre-registration</td>
+</tr>
+</tbody>
+</table>
+
+<h2>FAQ</h2>
+
+<p><strong>Can you ever fully eliminate bias?</strong> No. Every dataset and model has some bias. The goal is to identify the most impactful biases, measure them, and reduce them to acceptable levels. Documentation is key — state what biases remain and their likely impact.</p>
+
+<p><strong>Is removing the sensitive attribute (like race or gender) enough?</strong> No, this is called "fairness through unawareness" and it doesn't work. Other variables (zip code, name, school) can be proxies for the removed attribute. You need to test outcomes by group even after removing the attribute.</p>
+
+<p><strong>What fairness metric should I use?</strong> It depends on the context. Demographic parity (equal selection rates) is appropriate for some cases. Equalized odds (equal TPR and FPR) is better when accuracy matters per group. No single metric works for all situations — and some are mathematically incompatible.</p>
+
+<h2>What's Next</h2>
+
+<ul>
+
+<li><a href="Data-Ethics-in-R.html">Data Ethics in R</a> — The broader ethical framework for data analysis</li>
+
+<li><a href="Algorithmic-Fairness-in-R.html">Algorithmic Fairness in R</a> — Deep dive into fairml and aif360</li>
+
+<li><a href="Reproducibility-Crisis.html">Reproducibility Crisis</a> — How sloppy practices undermine science</li>
+
+</ul>
