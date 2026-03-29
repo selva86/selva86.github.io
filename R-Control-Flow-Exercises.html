@@ -1153,20 +1153,40 @@ cat(&quot;Theoretical:&quot;, round(244/495 * 100, 2), &quot;%\n&quot;)</div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
   <script type="module">
-    import { WebR } from 'https://webr.r-wasm.org/latest/webr.mjs';
-
-    const webR = new WebR();
+    let WebR = null;
+    let webR = null;
     let webRReady = false;
+    let webRLoading = false;
     let shelter = null;
     const editors = [];
+    let pendingRunBtn = null;
 
     const banner = document.querySelector('.webr-loading-banner');
 
-    async function initWebR() {
+    async function loadAndInitWebR() {
+      if (webRReady) return true;
+      if (webRLoading) return false;
+      webRLoading = true;
+
+      // Show loading banner
+      if (banner) {
+        banner.textContent = '\u23f3 Loading R environment (first run only)...';
+        banner.classList.remove('hidden', 'ready');
+        banner.style.maxHeight = '50px';
+        banner.style.padding = '8px 16px';
+        banner.style.margin = '0 0 8px 0';
+        banner.style.opacity = '1';
+      }
+
       try {
+        // Dynamically import WebR only when needed
+        const mod = await import('https://webr.r-wasm.org/latest/webr.mjs');
+        WebR = mod.WebR;
+        webR = new WebR();
         await webR.init();
         shelter = await new webR.Shelter();
         webRReady = true;
+
         if (banner) {
           banner.textContent = '\u2705 R environment ready! Click Run or press Ctrl+Enter.';
           banner.classList.add('ready');
@@ -1196,12 +1216,34 @@ cat(&quot;Theoretical:&quot;, round(244/495 * 100, 2), &quot;%\n&quot;)</div>
             code_block_count: document.querySelectorAll('.webr-container').length
           });
         }
+        return true;
       } catch(e) {
+        webRLoading = false;
         if (banner) { banner.textContent = 'Failed to load R: ' + e.message; banner.style.background = '#fee2e2'; banner.style.color = '#991b1b'; }
+        return false;
       }
     }
 
-    initWebR();
+    // Hide the loading banner on initial page load (no auto-download)
+    if (banner) {
+      banner.textContent = '\u25b6 Click Run on any code block to start the R environment';
+      banner.style.background = '#f8fafb';
+      banner.style.color = '#656d76';
+      banner.style.borderColor = '#e1e4e8';
+    }
+
+    // Smart preload: start downloading WebR when user scrolls near the first code block
+    // This way WebR is often ready by the time they actually click Run
+    const firstBlock = document.querySelector('.webr-container');
+    if (firstBlock && 'IntersectionObserver' in window) {
+      const preloadObserver = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !webRReady && !webRLoading) {
+          loadAndInitWebR();
+          preloadObserver.disconnect();
+        }
+      }, { rootMargin: '200px' });  // Start loading 200px before block enters viewport
+      preloadObserver.observe(firstBlock);
+    }
 
     // Transform webr-buttons into structured toolbar with Copy + Ctrl+Enter hint
     document.querySelectorAll('.webr-buttons').forEach(btnBar => {
@@ -1309,7 +1351,28 @@ cat(&quot;Theoretical:&quot;, round(244/495 * 100, 2), &quot;%\n&quot;)</div>
 
     // Run R code using shelter.captureR for proper output capture
     window.runWebR = async function(btn) {
-      if (!webRReady || !shelter) return;
+      // Lazy-load WebR on first run
+      if (!webRReady) {
+        if (webRLoading) {
+          // Already loading — queue this button to auto-run when ready
+          pendingRunBtn = btn;
+          btn.disabled = true;
+          btn.textContent = 'Loading R...';
+          btn.classList.add('running');
+          // Wait for loading to finish
+          while (webRLoading && !webRReady) {
+            await new Promise(r => setTimeout(r, 200));
+          }
+          if (!webRReady) { btn.disabled = false; btn.textContent = '\u25b6 Run'; btn.classList.remove('running'); return; }
+        } else {
+          btn.disabled = true;
+          btn.textContent = 'Loading R...';
+          btn.classList.add('running');
+          const ok = await loadAndInitWebR();
+          if (!ok) { btn.disabled = false; btn.textContent = '\u25b6 Run'; btn.classList.remove('running'); return; }
+        }
+      }
+      if (!shelter) return;
       const container = btn.closest('.webr-container');
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
@@ -1425,7 +1488,14 @@ cat(&quot;Theoretical:&quot;, round(244/495 * 100, 2), &quot;%\n&quot;)</div>
 
     // Run all code blocks sequentially
     window.runAllWebR = async function(btn) {
-      if (!webRReady) return;
+      // Lazy-load WebR if not yet loaded
+      if (!webRReady) {
+        btn.disabled = true;
+        btn.textContent = 'Loading R...';
+        btn.classList.add('running');
+        const ok = await loadAndInitWebR();
+        if (!ok) { btn.disabled = false; btn.textContent = '\u25b6 Run All Code Blocks'; btn.classList.remove('running'); return; }
+      }
       // Track Run All in GA4
       if (typeof gtag === 'function') {
         gtag('event', 'webr_run_all', {
