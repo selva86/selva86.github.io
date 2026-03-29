@@ -54,7 +54,7 @@ def strip_all_auto_links(html):
 
 def strip_further_reading(html):
     """Remove <div id="auto-further-reading">...</div>"""
-    pattern = r'<div id="auto-further-reading">.*?</div>\s*</div>'
+    pattern = r'<div id="auto-further-reading">.*?</ul>\s*</div>'
     return re.sub(pattern, '', html, flags=re.DOTALL)
 
 
@@ -236,15 +236,44 @@ def build_further_reading_html(items):
 
 def inject_further_reading(html, items):
     """
-    Insert Further Reading section before the closing </div> of #content.
+    Insert or append Further Reading section.
+    If no FR section exists, insert one before the toc-sidebar.
+    If an FR section already exists, append only new items not already linked.
     Returns (modified_html, was_injected).
     """
     if not items:
         return html, False
 
-    # Check if already present
+    # Check if FR section already exists — if so, append new items only
     if 'id="auto-further-reading"' in html:
-        return html, False
+        # Extract existing hrefs from the FR block
+        fr_match = re.search(r'<div id="auto-further-reading">(.*?)</ul>', html, re.DOTALL)
+        if not fr_match:
+            return html, False
+
+        existing_hrefs = set(re.findall(r'href="([^"]+)"', fr_match.group(1)))
+
+        # Filter to only truly new items
+        new_items = [item for item in items if item["url"] not in existing_hrefs]
+        if not new_items:
+            return html, False
+
+        # Build new <li> entries
+        new_lis = []
+        for item in new_items:
+            new_lis.append('<li><a href="{}">{}</a></li>'.format(
+                item["url"], item["title"]
+            ))
+        insert_html = "\n".join(new_lis)
+
+        # Find </ul> inside the FR block and insert before it
+        fr_block_start = fr_match.start()
+        ul_close_pos = html.find('</ul>', fr_block_start)
+        if ul_close_pos == -1:
+            return html, False
+
+        new_html = html[:ul_close_pos] + insert_html + "\n" + html[ul_close_pos:]
+        return new_html, True
 
     fr_html = build_further_reading_html(items)
 
