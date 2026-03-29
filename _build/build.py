@@ -611,7 +611,7 @@ def update_sitemap(filenames):
     added = []
 
     for fname in filenames:
-        url = f"http://r-statistics.co/{fname}"
+        url = f"https://r-statistics.co/{fname}"
         if url not in sitemap:
             entry = f"""  <url>
     <loc>{url}</loc>
