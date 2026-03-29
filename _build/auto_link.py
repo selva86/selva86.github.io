@@ -270,14 +270,136 @@ def inject_further_reading(html, items):
         new_html = html[:insert_pos] + "\n" + fr_html + "\n" + html[insert_pos:]
         return new_html, True
 
-    # Fallback: look for </div> that precedes toc-sidebar
+    # Fallback 1: look for </div> that precedes toc-sidebar
     pattern2 = re.search(r'</div>\s*\n\s*<div[^>]*id="toc-sidebar"', html[content_match.end():])
     if pattern2:
         insert_pos = content_match.end() + pattern2.start()
         new_html = html[:insert_pos] + "\n" + fr_html + "\n" + html[insert_pos:]
         return new_html, True
 
+    # Fallback 2: content flows directly into toc-sidebar (no closing </div>)
+    # Insert FR section right before the toc-sidebar div
+    pattern3 = re.search(r'(\s*<div[^>]*id="toc-sidebar")', html[content_match.end():])
+    if pattern3:
+        insert_pos = content_match.end() + pattern3.start()
+        new_html = html[:insert_pos] + "\n" + fr_html + "\n" + html[insert_pos:]
+        return new_html, True
+
     return html, False
+
+
+# ---------------------------------------------------------------------------
+# Further Reading: scan _posts/ for fr_parent and update links.json
+# ---------------------------------------------------------------------------
+
+POSTS_DIR = os.path.join(ROOT_DIR, "_posts")
+
+
+def scan_fr_parents():
+    """
+    Scan all _posts/*.html files for fr_parent in frontmatter.
+    Returns a dict mapping parent filename -> list of FR entries.
+    Each entry: {"url": "slug.html", "title": "...", "status": "published"/"not_published", "curriculum_id": "..."}
+    """
+    fr_map = {}
+    if not os.path.isdir(POSTS_DIR):
+        return fr_map
+
+    for fname in sorted(os.listdir(POSTS_DIR)):
+        if not fname.endswith('.html'):
+            continue
+
+        fpath = os.path.join(POSTS_DIR, fname)
+        try:
+            with open(fpath, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except Exception:
+            continue
+
+        # Parse frontmatter
+        if not content.startswith('---'):
+            continue
+        try:
+            end = content.index('---', 3)
+        except ValueError:
+            continue
+
+        fm_text = content[3:end]
+
+        # Extract fields from frontmatter
+        fr_parent = None
+        title = ""
+        curriculum_id = ""
+        post_type = ""
+
+        for line in fm_text.split('\n'):
+            line = line.strip()
+            if line.startswith('fr_parent:'):
+                fr_parent = line.split(':', 1)[1].strip().strip('"').strip("'")
+            elif line.startswith('title:'):
+                title = line.split(':', 1)[1].strip().strip('"').strip("'")
+            elif line.startswith('curriculum_id:'):
+                curriculum_id = line.split(':', 1)[1].strip().strip('"').strip("'")
+            elif line.startswith('post_type:'):
+                post_type = line.split(':', 1)[1].strip().strip('"').strip("'").upper()
+
+        # Only process FR and EX posts that have fr_parent
+        if not fr_parent or post_type not in ('FR', 'EX'):
+            continue
+
+        # Determine published status: does the built HTML exist at root?
+        built_path = os.path.join(ROOT_DIR, fname)
+        status = "published" if os.path.isfile(built_path) else "not_published"
+
+        entry = {
+            "url": fname,
+            "title": title,
+            "status": status,
+            "curriculum_id": curriculum_id,
+        }
+
+        if fr_parent not in fr_map:
+            fr_map[fr_parent] = []
+        fr_map[fr_parent].append(entry)
+
+    return fr_map
+
+
+def merge_further_reading(links_data):
+    """
+    Scan _posts/ for fr_parent fields and merge into links_data's further_reading.
+    Only adds new entries; never removes existing manual entries.
+    Updates status of existing entries if they've changed.
+    Writes updated links.json to disk.
+    Returns the number of new entries added.
+    """
+    scanned = scan_fr_parents()
+    if not scanned:
+        return 0
+
+    fr = links_data.setdefault("further_reading", {})
+    added = 0
+
+    for parent, items in scanned.items():
+        if parent not in fr:
+            fr[parent] = []
+
+        # Index existing entries by url for fast lookup
+        existing_urls = {e["url"]: e for e in fr[parent]}
+
+        for item in items:
+            if item["url"] in existing_urls:
+                # Update status if changed
+                existing_urls[item["url"]]["status"] = item["status"]
+            else:
+                fr[parent].append(item)
+                added += 1
+
+    # Write back to disk
+    with open(LINKS_JSON, "w", encoding="utf-8", newline='') as f:
+        json.dump(links_data, f, indent=2, ensure_ascii=False)
+
+    return added
 
 
 # ---------------------------------------------------------------------------
@@ -468,6 +590,11 @@ def main():
         sys.exit(1)
 
     links_data = load_links()
+
+    # Scan _posts/ for fr_parent fields and merge into further_reading
+    fr_added = merge_further_reading(links_data)
+    if fr_added:
+        print(f"  FR registry: {fr_added} new entries added from _posts/ frontmatter")
 
     args = sys.argv[1:]
 
