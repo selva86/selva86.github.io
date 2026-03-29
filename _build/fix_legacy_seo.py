@@ -6,6 +6,7 @@ Usage:
     python _build/fix_legacy_seo.py              # Apply changes
 """
 
+import json
 import os
 import re
 import sys
@@ -21,6 +22,13 @@ POSTS_DIR = '_posts'
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DRY_RUN = '--dry-run' in sys.argv
+
+# Load custom descriptions if available
+DESCRIPTIONS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'legacy-descriptions.json')
+CUSTOM_DESCRIPTIONS = {}
+if os.path.exists(DESCRIPTIONS_PATH):
+    with open(DESCRIPTIONS_PATH, 'r', encoding='utf-8') as f:
+        CUSTOM_DESCRIPTIONS = json.load(f)
 
 
 def get_legacy_files():
@@ -118,6 +126,30 @@ def fix_html(filename, html):
         if anchor in out:
             out = out.replace(anchor, anchor + '\n' + og_block, 1)
             changes.append('Added OG + Twitter Card tags')
+
+    # 6. Update meta description + OG/Twitter descriptions from legacy-descriptions.json
+    if filename in CUSTOM_DESCRIPTIONS:
+        new_desc = CUSTOM_DESCRIPTIONS[filename]
+        old_desc = extract_description(out)
+        if old_desc and old_desc != new_desc:
+            # Update meta Description
+            out = out.replace(
+                f'<meta name="Description" content="{old_desc}">',
+                f'<meta name="Description" content="{new_desc}">'
+            )
+            # Update OG description
+            old_escaped = old_desc.replace('"', '&quot;')
+            new_escaped = new_desc.replace('"', '&quot;')
+            out = out.replace(
+                f'<meta property="og:description" content="{old_escaped}">',
+                f'<meta property="og:description" content="{new_escaped}">'
+            )
+            # Update Twitter description
+            out = out.replace(
+                f'<meta name="twitter:description" content="{old_escaped}">',
+                f'<meta name="twitter:description" content="{new_escaped}">'
+            )
+            changes.append(f'Updated meta description to unique text')
 
     return out, changes
 
