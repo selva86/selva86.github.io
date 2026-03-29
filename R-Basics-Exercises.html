@@ -1390,6 +1390,40 @@ cat(&quot;Least active day:&quot;, min(valid), &quot;steps (day&quot;,
       editors.push({ cm, originalCode: code, el });
     });
 
+    // Track which packages are already installed in this WebR session
+    const installedPkgs = new Set(['base', 'stats', 'graphics', 'grDevices', 'utils', 'datasets', 'methods']);
+
+    // Auto-install packages needed by the code
+    async function ensurePackages(code) {
+      // Find library() and require() calls
+      const libRegex = /(?:library|require)\s*\(\s*["']?([a-zA-Z0-9.]+)["']?\s*\)/g;
+      const needed = [];
+      let match;
+      while ((match = libRegex.exec(code)) !== null) {
+        const pkg = match[1];
+        if (!installedPkgs.has(pkg)) needed.push(pkg);
+      }
+      // Also intercept install.packages() calls
+      const installRegex = /install\.packages\s*\(\s*["']([a-zA-Z0-9.]+)["']\s*\)/g;
+      while ((match = installRegex.exec(code)) !== null) {
+        const pkg = match[1];
+        if (!installedPkgs.has(pkg)) needed.push(pkg);
+      }
+      if (needed.length > 0) {
+        for (const pkg of needed) {
+          try {
+            await webR.installPackages([pkg], { quiet: true });
+            installedPkgs.add(pkg);
+          } catch(e) {
+            console.warn('Failed to install ' + pkg + ':', e.message);
+          }
+        }
+      }
+      // Replace install.packages() with a no-op message (already installed above)
+      return code.replace(/install\.packages\s*\([^)]+\)/g,
+        'cat("Package already installed via WebR.\\n")');
+    }
+
     // Run R code using shelter.captureR for proper output capture
     window.runWebR = async function(btn) {
       if (!webRReady || !shelter) return;
@@ -1398,16 +1432,20 @@ cat(&quot;Least active day:&quot;, min(valid), &quot;steps (day&quot;,
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
       const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
-      const code = editors[idx].cm.getValue();
+      let code = editors[idx].cm.getValue();
 
       btn.disabled = true;
-      btn.textContent = 'Running...';
+      btn.textContent = 'Installing packages...';
       btn.classList.add('running');
       outputEl.textContent = '';
       outputEl.classList.remove('has-content', 'has-error');
       if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
 
       try {
+        // Auto-install any needed packages before running
+        code = await ensurePackages(code);
+        btn.textContent = 'Running...';
+
         // Use shelter.captureR to properly capture stdout/stderr
         const result = await shelter.captureR(code, {
           withAutoprint: true,
