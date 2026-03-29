@@ -34,7 +34,11 @@ def parse_front_matter(filepath):
     for line in match.group(1).strip().split('\n'):
         if ':' in line:
             key, val = line.split(':', 1)
-            meta[key.strip()] = val.strip()
+            v = val.strip()
+            # Remove YAML quotes
+            if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+                v = v[1:-1]
+            meta[key.strip()] = v
     return meta
 
 
