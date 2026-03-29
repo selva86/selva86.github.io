@@ -682,6 +682,32 @@ def parse_front_matter(text):
     return meta, content
 
 
+def extract_faq_items(html_content):
+    """Extract FAQ question-answer pairs from HTML content.
+
+    Looks for patterns like:
+    <h3>Question text?</h3> followed by <p>Answer text</p>
+    within an FAQ section (after ## FAQ heading).
+    """
+    # Find FAQ section
+    faq_match = re.search(r'<h2[^>]*>.*?FAQ.*?</h2>(.*?)(?=<h2|$)', html_content, re.DOTALL | re.IGNORECASE)
+    if not faq_match:
+        return []
+
+    faq_html = faq_match.group(1)
+    items = []
+
+    # Match h3/h4 questions followed by paragraph answers
+    pattern = re.compile(r'<h[34][^>]*>(.*?)</h[34]>\s*<p>(.*?)</p>', re.DOTALL)
+    for m in pattern.finditer(faq_html):
+        question = re.sub(r'<[^>]+>', '', m.group(1)).strip()
+        answer = re.sub(r'<[^>]+>', '', m.group(2)).strip()
+        if question and answer:
+            items.append((question, answer))
+
+    return items[:10]  # Cap at 10 FAQ items
+
+
 def build_post(template, post_path):
     """Build a single post from its source file."""
     with open(post_path, 'r', encoding='utf-8') as f:
@@ -699,6 +725,30 @@ def build_post(template, post_path):
     title_json = title.replace('\\', '\\\\').replace('"', '\\"')
     description_json = description.replace('\\', '\\\\').replace('"', '\\"')
 
+    # Date handling
+    date_published = meta.get('date', datetime.date.today().isoformat())
+    date_modified = datetime.date.today().isoformat()
+
+    # Extract FAQ section for FAQPage schema
+    faqpage_jsonld = ''
+    faq_items = extract_faq_items(content)
+    if faq_items:
+        faq_entries = ',\n      '.join([
+            '{{"@type": "Question", "name": "{q}", "acceptedAnswer": {{"@type": "Answer", "text": "{a}"}}}}'.format(
+                q=q.replace('\\', '\\\\').replace('"', '\\"'),
+                a=a.replace('\\', '\\\\').replace('"', '\\"')
+            ) for q, a in faq_items
+        ])
+        faqpage_jsonld = f'''    <script type="application/ld+json">
+    {{
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+      {faq_entries}
+      ]
+    }}
+    </script>'''
+
     page_html = template
     page_html = page_html.replace('{{TITLE}}', title)
     page_html = page_html.replace('{{TITLE_JSON}}', title_json)
@@ -706,6 +756,9 @@ def build_post(template, post_path):
     page_html = page_html.replace('{{DESCRIPTION_JSON}}', description_json)
     page_html = page_html.replace('{{KEYWORDS}}', keywords)
     page_html = page_html.replace('{{SLUG}}', slug)
+    page_html = page_html.replace('{{DATE_PUBLISHED}}', date_published)
+    page_html = page_html.replace('{{DATE_MODIFIED}}', date_modified)
+    page_html = page_html.replace('{{FAQPAGE_JSONLD}}', faqpage_jsonld)
     page_html = page_html.replace('{{CONTENT}}', content)
     page_html = page_html.replace('{{MATHJAX}}', MATHJAX_BLOCK if mathjax else '')
     page_html = page_html.replace('{{WEBR_HEAD}}', WEBR_HEAD_BLOCK if webr else '')

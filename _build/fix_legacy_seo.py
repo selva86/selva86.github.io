@@ -134,30 +134,45 @@ def fix_html(filename, html):
             out = out.replace(anchor, anchor + '\n' + og_block, 1)
             changes.append('Added OG + Twitter Card tags')
 
-    # 6. Add JSON-LD Article structured data (skip if already present)
-    if 'application/ld+json' not in out and filename not in ('404.html', 'index.html'):
+    # 6. Add or upgrade JSON-LD structured data
+    if filename not in ('404.html', 'index.html'):
         title = extract_title(out)
         desc = extract_description(out)
         title_json = title.replace('\\', '\\\\').replace('"', '\\"')
         desc_json = desc.replace('\\', '\\\\').replace('"', '\\"')
 
-        jsonld = f'''    <!-- JSON-LD Structured Data -->
+        if 'application/ld+json' not in out:
+            # Add new JSON-LD
+            jsonld = f'''    <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
     {{
       "@context": "https://schema.org",
-      "@type": "Article",
+      "@type": ["TechArticle", "LearningResource"],
       "headline": "{title_json}",
       "description": "{desc_json}",
       "author": {{"@type": "Person", "name": "Selva Prabhakaran"}},
       "publisher": {{"@type": "Organization", "name": "r-statistics.co"}},
-      "url": "https://r-statistics.co/{filename}"
+      "url": "https://r-statistics.co/{filename}",
+      "datePublished": "2016-01-01",
+      "dateModified": "2026-03-29",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R"
     }}
     </script>'''
-
-        # Insert before </head>
-        out = out.replace('</head>', jsonld + '\n  </head>', 1)
-        if 'application/ld+json' in out:
-            changes.append('Added JSON-LD Article schema')
+            out = out.replace('</head>', jsonld + '\n  </head>', 1)
+            if 'application/ld+json' in out:
+                changes.append('Added JSON-LD TechArticle schema')
+        elif '"@type": "Article"' in out:
+            # Upgrade existing Article to TechArticle + LearningResource
+            out = out.replace('"@type": "Article"', '"@type": ["TechArticle", "LearningResource"]')
+            # Add date fields if missing
+            if '"datePublished"' not in out:
+                out = out.replace(
+                    f'"url": "https://r-statistics.co/{filename}"',
+                    f'"url": "https://r-statistics.co/{filename}",\n      "datePublished": "2016-01-01",\n      "dateModified": "2026-03-29",\n      "inLanguage": "en",\n      "educationalLevel": "Intermediate",\n      "programmingLanguage": "R"'
+                )
+            changes.append('Upgraded schema to TechArticle + LearningResource')
 
     # For index.html, add WebSite schema instead of Article
     if 'application/ld+json' not in out and filename == 'index.html':
