@@ -30,6 +30,13 @@ if os.path.exists(DESCRIPTIONS_PATH):
     with open(DESCRIPTIONS_PATH, 'r', encoding='utf-8') as f:
         CUSTOM_DESCRIPTIONS = json.load(f)
 
+# Load custom titles if available
+TITLES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'legacy-titles.json')
+CUSTOM_TITLES = {}
+if os.path.exists(TITLES_PATH):
+    with open(TITLES_PATH, 'r', encoding='utf-8') as f:
+        CUSTOM_TITLES = json.load(f)
+
 
 def get_legacy_files():
     """Return list of legacy HTML files in root (not managed by build.py)."""
@@ -192,6 +199,34 @@ def fix_html(filename, html):
                 f'<meta name="twitter:description" content="{new_escaped}">'
             )
             changes.append(f'Updated meta description to unique text')
+
+    # 9. Update page title from legacy-titles.json
+    if filename in CUSTOM_TITLES:
+        new_title = CUSTOM_TITLES[filename]
+        old_title = extract_title(out)
+        if old_title and old_title != new_title:
+            # Update <title> tag
+            out = out.replace(f'<title>{old_title}</title>', f'<title>{new_title}</title>', 1)
+            # Update OG title
+            old_t_esc = old_title.replace('"', '&quot;')
+            new_t_esc = new_title.replace('"', '&quot;')
+            out = out.replace(
+                f'<meta property="og:title" content="{old_t_esc}">',
+                f'<meta property="og:title" content="{new_t_esc}">'
+            )
+            # Update Twitter title
+            out = out.replace(
+                f'<meta name="twitter:title" content="{old_t_esc}">',
+                f'<meta name="twitter:title" content="{new_t_esc}">'
+            )
+            # Update JSON-LD headline
+            old_t_json = old_title.replace('\\', '\\\\').replace('"', '\\"')
+            new_t_json = new_title.replace('\\', '\\\\').replace('"', '\\"')
+            out = out.replace(
+                f'"headline": "{old_t_json}"',
+                f'"headline": "{new_t_json}"'
+            )
+            changes.append(f'Updated title: {new_title}')
 
     return out, changes
 
