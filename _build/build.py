@@ -570,7 +570,10 @@ def parse_front_matter(text):
     for line in meta_text.strip().split('\n'):
         if ':' in line:
             key, val = line.split(':', 1)
-            meta[key.strip()] = val.strip()
+            v = val.strip()
+            if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+                v = v[1:-1]
+            meta[key.strip()] = v
     return meta, content
 
 
@@ -587,10 +590,17 @@ def build_post(template, post_path):
     description = meta.get('description', DEFAULT_DESCRIPTION)
     keywords = meta.get('keywords', DEFAULT_KEYWORDS)
 
+    slug = os.path.basename(post_path)
+    title_json = title.replace('\\', '\\\\').replace('"', '\\"')
+    description_json = description.replace('\\', '\\\\').replace('"', '\\"')
+
     page_html = template
     page_html = page_html.replace('{{TITLE}}', title)
+    page_html = page_html.replace('{{TITLE_JSON}}', title_json)
     page_html = page_html.replace('{{DESCRIPTION}}', description)
+    page_html = page_html.replace('{{DESCRIPTION_JSON}}', description_json)
     page_html = page_html.replace('{{KEYWORDS}}', keywords)
+    page_html = page_html.replace('{{SLUG}}', slug)
     page_html = page_html.replace('{{CONTENT}}', content)
     page_html = page_html.replace('{{MATHJAX}}', MATHJAX_BLOCK if mathjax else '')
     page_html = page_html.replace('{{WEBR_HEAD}}', WEBR_HEAD_BLOCK if webr else '')
