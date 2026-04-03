@@ -86,12 +86,13 @@ def convert(md_text):
             # For <details>, collect until </details>
             if '<details>' in line:
                 while i < len(lines):
-                    html_block.append(lines[i])
-                    if '</details>' in lines[i]:
+                    cur_line = lines[i]
+                    if '</details>' in cur_line:
+                        html_block.append(cur_line)
                         i += 1
                         break
                     # Check for code block inside details
-                    if lines[i].strip().startswith('```r'):
+                    if cur_line.strip().startswith('```r'):
                         i += 1
                         code_lines = []
                         while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -111,6 +112,13 @@ def convert(md_text):
                         html_block.append(f'  </div>')
                         html_block.append(f'</div>')
                         continue
+                    # Process inline markdown on text lines inside details
+                    # (bold, italic, code, links, images)
+                    stripped = cur_line.strip()
+                    if stripped and not stripped.startswith('<') and not stripped.startswith('```'):
+                        html_block.append(f'<p>{md_inline(stripped)}</p>')
+                    else:
+                        html_block.append(cur_line)
                     i += 1
                 out.append('\n'.join(html_block))
             else:
