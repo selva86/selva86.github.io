@@ -9,6 +9,8 @@ Supports two source formats:
 import os
 import re
 import json
+import sys
+import textwrap
 import datetime
 import html as html_module
 
@@ -19,6 +21,56 @@ TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "template.html")
 POSTS_DIR = os.path.join(REPO_ROOT, "_posts")
 SITEMAP_PATH = os.path.join(REPO_ROOT, "sitemap.xml")
 SIDEBAR_PATH = os.path.join(REPO_ROOT, "www", "sidebar.json")
+OG_DIR = os.path.join(REPO_ROOT, "screenshots", "og")
+
+
+def generate_og_image(title, slug_no_ext, force=False):
+    """Generate a branded 1200x630 OG image with the post title."""
+    os.makedirs(OG_DIR, exist_ok=True)
+    out_path = os.path.join(OG_DIR, f"{slug_no_ext}.png")
+    if not force and os.path.exists(out_path):
+        return  # Skip existing
+
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        return  # Pillow not available, skip silently
+
+    img = Image.new('RGB', (1200, 630), '#1a1a2e')
+    draw = ImageDraw.Draw(img)
+
+    # Blue accent bar at top
+    draw.rectangle([0, 0, 1200, 6], fill='#3F73D8')
+
+    # Load fonts
+    try:
+        title_font = ImageFont.truetype('arial.ttf', 46)
+        site_font = ImageFont.truetype('arial.ttf', 22)
+        badge_font = ImageFont.truetype('arial.ttf', 36)
+    except (OSError, IOError):
+        title_font = ImageFont.load_default()
+        site_font = ImageFont.load_default()
+        badge_font = ImageFont.load_default()
+
+    # Word-wrap title (max 3 lines)
+    lines = textwrap.wrap(title, width=38)[:3]
+    if len(textwrap.wrap(title, width=38)) > 3:
+        lines[2] = lines[2][:35] + '...'
+
+    y = 180
+    for line in lines:
+        draw.text((80, y), line, fill='#ffffff', font=title_font)
+        y += 60
+
+    # Site name at bottom
+    draw.text((80, 540), 'r-statistics.co', fill='#64748b', font=site_font)
+
+    # R badge
+    draw.rounded_rectangle([1060, 530, 1140, 585], radius=10, fill='#3F73D8')
+    draw.text((1085, 538), 'R', fill='#ffffff', font=badge_font)
+
+    img.save(out_path, 'PNG', optimize=True)
+    return out_path
 
 
 def load_sidebar_map():
@@ -913,12 +965,18 @@ def build_post(template, post_path, sidebar_map=None):
     keywords = meta.get('keywords', DEFAULT_KEYWORDS)
 
     slug = os.path.basename(post_path)
+    slug_no_ext = slug.rsplit('.', 1)[0] if '.' in slug else slug
     title_json = title.replace('\\', '\\\\').replace('"', '\\"')
     description_json = description.replace('\\', '\\\\').replace('"', '\\"')
 
-    # Date handling
-    date_published = meta.get('date', datetime.date.today().isoformat())
-    date_modified = datetime.date.today().isoformat()
+    # Generate per-post OG image
+    force_og = '--force-og' in sys.argv
+    generate_og_image(title, slug_no_ext, force=force_og)
+
+    # Date handling — use file mtime for dateModified (not today's date)
+    file_mtime = datetime.date.fromtimestamp(os.path.getmtime(post_path)).isoformat()
+    date_published = meta.get('date', file_mtime)
+    date_modified = file_mtime
 
     # Determine sidebar section for breadcrumbs
     section_title = ''
@@ -999,6 +1057,7 @@ def build_post(template, post_path, sidebar_map=None):
     page_html = page_html.replace('{{DESCRIPTION_JSON}}', description_json)
     page_html = page_html.replace('{{KEYWORDS}}', keywords)
     page_html = page_html.replace('{{SLUG}}', slug)
+    page_html = page_html.replace('{{SLUG_NO_EXT}}', slug_no_ext)
     page_html = page_html.replace('{{DATE_PUBLISHED}}', date_published)
     page_html = page_html.replace('{{DATE_MODIFIED}}', date_modified)
     page_html = page_html.replace('{{BREADCRUMB_JSONLD}}', breadcrumb_jsonld)
@@ -1012,34 +1071,51 @@ def build_post(template, post_path, sidebar_map=None):
 
 
 def update_sitemap(filenames):
-    """Add new entries to sitemap.xml if they don't already exist."""
+    """Add or update entries in sitemap.xml with per-file modification dates."""
     if not os.path.exists(SITEMAP_PATH):
         return
 
     with open(SITEMAP_PATH, 'r', encoding='utf-8') as f:
         sitemap = f.read()
 
-    today = datetime.date.today().isoformat()
     added = []
+    updated = []
 
     for fname in filenames:
         url = f"https://r-statistics.co/{fname}"
+        post_path = os.path.join(POSTS_DIR, fname)
+        if os.path.exists(post_path):
+            file_date = datetime.date.fromtimestamp(os.path.getmtime(post_path)).isoformat()
+        else:
+            file_date = datetime.date.today().isoformat()
+
         if url not in sitemap:
             entry = f"""  <url>
     <loc>{url}</loc>
     <changefreq>monthly</changefreq>
-    <lastmod>{today}</lastmod>
+    <lastmod>{file_date}</lastmod>
     <priority>0.8</priority>
   </url>
 """
             sitemap = sitemap.replace('</urlset>', entry + '</urlset>')
             added.append(fname)
+        else:
+            # Update existing lastmod
+            pattern = re.compile(
+                r'(<loc>' + re.escape(url) + r'</loc>\s*\n\s*<changefreq>\w+</changefreq>\s*\n\s*<lastmod>)\d{4}-\d{2}-\d{2}(</lastmod>)'
+            )
+            new_sitemap = pattern.sub(r'\g<1>' + file_date + r'\2', sitemap)
+            if new_sitemap != sitemap:
+                sitemap = new_sitemap
+                updated.append(fname)
 
-    if added:
+    if added or updated:
         with open(SITEMAP_PATH, 'w', encoding='utf-8') as f:
             f.write(sitemap)
         for fname in added:
             print(f"  Sitemap: added {fname}")
+        if updated:
+            print(f"  Sitemap: updated lastmod for {len(updated)} entries")
 
 
 def generate_feed(post_files):
