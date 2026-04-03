@@ -65,14 +65,9 @@ cat("New input:", t3["elapsed"], "sec, result:", result3, "\n")
 
 ## How Memoization Works
 
-```mermaid
-graph LR
-    A[Call f(x)] --> B{x in cache?}
-    B -->|Yes| C[Return cached result]
-    B -->|No| D[Compute f(x)]
-    D --> E[Store result in cache]
-    E --> C
-```
+![Memoization cache flow](screenshots/Memoization-in-R-cache-flow.webp)
+
+*Figure 1: When f(x) is called, the cache is checked first. On a hit, the stored result is returned instantly. On a miss, the function computes the result, stores it, then returns it.*
 
 The cache is a key-value store:
 - **Key**: The function's arguments (hashed)

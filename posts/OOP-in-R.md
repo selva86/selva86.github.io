@@ -222,16 +222,9 @@ p3
 
 ## Decision Guide
 
-```mermaid
-graph TD
-    A[Need OOP?] -->|Simple dispatch| B[S3]
-    A -->|Strict types, Bioconductor| C[S4]
-    A -->|Mutable state, APIs| D[R6]
-    A -->|Legacy code| E[R5]
-    B -->|Most packages| F[Default choice]
-    C -->|Formal validation needed| G[Bioconductor, complex hierarchies]
-    D -->|Reference semantics| H[Connections, caches, GUIs]
-```
+![R OOP system decision guide](screenshots/OOP-in-R-decision-guide.webp)
+
+*Figure 1: Choose S3 for most packages (simple dispatch), S4 for strict types and Bioconductor, R6 for mutable state and reference semantics, R5 only for legacy code.*
 
 | Choose... | When... |
 |-----------|---------|

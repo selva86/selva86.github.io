@@ -41,6 +41,8 @@ def md_inline(text):
             token = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', token)
             # Italic
             token = re.sub(r'\*(.+?)\*', r'<em>\1</em>', token)
+            # Images (must come before links — ![alt](src) vs [text](url))
+            token = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', r'<img src="\2" alt="\1" class="img-responsive" />', token)
             # Links
             token = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', token)
             result.append(token)
@@ -140,7 +142,10 @@ def convert(md_text):
                 out.append(f'  </div>')
                 out.append(f'</div>')
             elif lang == 'mermaid':
-                out.append(f'<div class="mermaid">{html.escape(code)}</div>')
+                # Mermaid diagrams should be pre-rendered to .webp via render_mermaid.py
+                # Show as static code block if found inline (fallback)
+                ecode = escape_html(code)
+                out.append(f'<pre><code class="language-mermaid">{ecode}</code></pre>')
             else:
                 ecode = escape_html(code)
                 out.append(f'<pre><code>{ecode}</code></pre>')
@@ -216,6 +221,15 @@ def convert(md_text):
         # Horizontal rule
         if re.match(r'^---+$', line.strip()):
             out.append('<hr>')
+            i += 1
+            continue
+
+        # Block-level image: a line that is only ![alt](src)
+        if re.match(r'^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$', line):
+            m = re.match(r'^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$', line)
+            alt = m.group(1)
+            src = m.group(2)
+            out.append(f'<p><img src="{src}" alt="{alt}" class="img-responsive" /></p>')
             i += 1
             continue
 
