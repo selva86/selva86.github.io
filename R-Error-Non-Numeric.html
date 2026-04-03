@@ -185,29 +185,23 @@
         box-shadow: 0 0 0 3px rgba(59,130,246,0.15), 0 2px 8px rgba(0,0,0,0.06);
       }
 
-      /* --- Terminal header bar --- */
+      /* --- Code block header bar --- */
       .webr-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 6px 12px;
-        background: #1e293b;
-        border-bottom: 1px solid #334155;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        padding: 5px 12px;
+        background: #f1f5f9;
+        border-bottom: 1px solid #e2e8f0;
+        font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       }
-      .webr-header-dots { display: flex; gap: 5px; }
-      .webr-header-dots span {
-        width: 10px; height: 10px; border-radius: 50%; display: inline-block;
-      }
-      .webr-header-dots span:nth-child(1) { background: #ff5f57; }
-      .webr-header-dots span:nth-child(2) { background: #febc2e; }
-      .webr-header-dots span:nth-child(3) { background: #28c840; }
-      .webr-header-title {
-        color: #94a3b8; font-size: 11px; font-weight: 500; letter-spacing: 0.3px;
+      .webr-header-label {
+        font-size: 11px; font-weight: 600; color: #64748b;
+        text-transform: uppercase; letter-spacing: 0.5px;
       }
       .webr-header-badge {
-        background: #334155; color: #94a3b8; padding: 1px 8px;
-        border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+        background: #3b82f6; color: #fff; padding: 1px 8px;
+        border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
       }
 
       /* --- Run button shortcut hint --- */
@@ -875,7 +869,7 @@ cat(&quot;Grand total:&quot;, sum(orders$total_cost), &quot;\n&quot;)</div>
         }
         document.querySelectorAll('.webr-run-btn').forEach(btn => {
           btn.disabled = false;
-          btn.textContent = '\u25b6 Run';
+          setRunBtnText(btn, '\u25b6 Run');
         });
         // Inject Run All bar at the top of content
         const contentEl = document.getElementById('content');
@@ -926,14 +920,13 @@ cat(&quot;Grand total:&quot;, sum(orders$total_cost), &quot;\n&quot;)</div>
       preloadObserver.observe(firstBlock);
     }
 
-    // Add terminal header bar to each code block
+    // Add header bar to each code block
     document.querySelectorAll('.webr-container').forEach(container => {
       const codeBlock = container.querySelector('.webr-code-block');
       if (!codeBlock) return;
       const header = document.createElement('div');
       header.className = 'webr-header';
-      header.innerHTML = '<div class="webr-header-dots"><span></span><span></span><span></span></div>'
-        + '<span class="webr-header-title">R Console</span>'
+      header.innerHTML = '<span class="webr-header-label">Interactive R</span>'
         + '<span class="webr-header-badge">R</span>';
       codeBlock.prepend(header);
     });
@@ -1046,6 +1039,12 @@ cat(&quot;Grand total:&quot;, sum(orders$total_cost), &quot;\n&quot;)</div>
     }
 
     // Run R code using shelter.captureR for proper output capture
+    // Helper: set Run button text while preserving Ctrl+Enter shortcut hint
+    function setRunBtnText(btn, text) {
+      const shortcut = '<span class="webr-run-shortcut">Ctrl+Enter</span>';
+      btn.innerHTML = text + ' ' + shortcut;
+    }
+
     window.runWebR = async function(btn) {
       // Lazy-load WebR on first run
       if (!webRReady) {
@@ -1053,19 +1052,19 @@ cat(&quot;Grand total:&quot;, sum(orders$total_cost), &quot;\n&quot;)</div>
           // Already loading — queue this button to auto-run when ready
           pendingRunBtn = btn;
           btn.disabled = true;
-          btn.textContent = 'Loading R...';
+          setRunBtnText(btn, 'Loading R...');
           btn.classList.add('running');
           // Wait for loading to finish
           while (webRLoading && !webRReady) {
             await new Promise(r => setTimeout(r, 200));
           }
-          if (!webRReady) { btn.disabled = false; btn.textContent = '\u25b6 Run'; btn.classList.remove('running'); return; }
+          if (!webRReady) { btn.disabled = false; setRunBtnText(btn, '\u25b6 Run'); btn.classList.remove('running'); return; }
         } else {
           btn.disabled = true;
-          btn.textContent = 'Loading R...';
+          setRunBtnText(btn, 'Loading R...');
           btn.classList.add('running');
           const ok = await loadAndInitWebR();
-          if (!ok) { btn.disabled = false; btn.textContent = '\u25b6 Run'; btn.classList.remove('running'); return; }
+          if (!ok) { btn.disabled = false; setRunBtnText(btn, '\u25b6 Run'); btn.classList.remove('running'); return; }
         }
       }
       if (!shelter) return;
@@ -1077,7 +1076,7 @@ cat(&quot;Grand total:&quot;, sum(orders$total_cost), &quot;\n&quot;)</div>
       let code = editors[idx].cm.getValue();
 
       btn.disabled = true;
-      btn.textContent = 'Installing packages...';
+      setRunBtnText(btn, 'Installing packages...');
       btn.classList.add('running');
       outputEl.textContent = '';
       outputEl.classList.remove('has-content', 'has-error');
@@ -1086,7 +1085,7 @@ cat(&quot;Grand total:&quot;, sum(orders$total_cost), &quot;\n&quot;)</div>
       try {
         // Auto-install any needed packages before running
         code = await ensurePackages(code);
-        btn.textContent = 'Running...';
+        setRunBtnText(btn, 'Running...');
 
         // Use shelter.captureR to properly capture stdout/stderr
         const result = await shelter.captureR(code, {
@@ -1165,7 +1164,7 @@ cat(&quot;Grand total:&quot;, sum(orders$total_cost), &quot;\n&quot;)</div>
       }
 
       btn.disabled = false;
-      btn.textContent = '\u25b6 Run';
+      setRunBtnText(btn, '\u25b6 Run');
       btn.classList.remove('running');
     };
 
