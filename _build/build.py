@@ -8,6 +8,7 @@ Supports two source formats:
 
 import os
 import re
+import json
 import datetime
 import html as html_module
 
@@ -17,6 +18,21 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "template.html")
 POSTS_DIR = os.path.join(REPO_ROOT, "_posts")
 SITEMAP_PATH = os.path.join(REPO_ROOT, "sitemap.xml")
+SIDEBAR_PATH = os.path.join(REPO_ROOT, "www", "sidebar.json")
+
+
+def load_sidebar_map():
+    """Load sidebar.json and build a slug -> section_title lookup."""
+    if not os.path.exists(SIDEBAR_PATH):
+        return {}
+    with open(SIDEBAR_PATH, 'r', encoding='utf-8') as f:
+        sections = json.load(f)
+    mapping = {}
+    for section in sections:
+        title = section.get('title', '')
+        for item in section.get('items', []):
+            mapping[item['href']] = title
+    return mapping
 
 MATHJAX_BLOCK = """
   <script type="text/x-mathjax-config">
@@ -883,7 +899,7 @@ def extract_faq_items(html_content):
     return items[:10]  # Cap at 10 FAQ items
 
 
-def build_post(template, post_path):
+def build_post(template, post_path, sidebar_map=None):
     """Build a single post from its source file."""
     with open(post_path, 'r', encoding='utf-8') as f:
         raw = f.read()
@@ -903,6 +919,55 @@ def build_post(template, post_path):
     # Date handling
     date_published = meta.get('date', datetime.date.today().isoformat())
     date_modified = datetime.date.today().isoformat()
+
+    # Determine sidebar section for breadcrumbs
+    section_title = ''
+    if sidebar_map:
+        section_title = sidebar_map.get(slug, '')
+    if not section_title:
+        section_title = meta.get('sidebar_section', '')
+
+    # Build visible breadcrumb HTML and BreadcrumbList JSON-LD
+    breadcrumb_html = ''
+    breadcrumb_jsonld = ''
+    if section_title:
+        breadcrumb_html = (
+            '<nav class="breadcrumb-nav" aria-label="Breadcrumb">'
+            '<a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> '
+            f'<span>{section_title}</span> <span class="breadcrumb-sep">&rsaquo;</span> '
+            f'<span class="breadcrumb-current">{title}</span>'
+            '</nav>'
+        )
+        section_json = section_title.replace('\\', '\\\\').replace('"', '\\"')
+        breadcrumb_jsonld = f'''    <script type="application/ld+json">
+    {{
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"}},
+        {{"@type": "ListItem", "position": 2, "name": "{section_json}"}},
+        {{"@type": "ListItem", "position": 3, "name": "{title_json}", "item": "https://r-statistics.co/{slug}"}}
+      ]
+    }}
+    </script>'''
+    else:
+        # Minimal 2-level breadcrumb for pages not in sidebar
+        breadcrumb_html = (
+            '<nav class="breadcrumb-nav" aria-label="Breadcrumb">'
+            '<a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> '
+            f'<span class="breadcrumb-current">{title}</span>'
+            '</nav>'
+        )
+        breadcrumb_jsonld = f'''    <script type="application/ld+json">
+    {{
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"}},
+        {{"@type": "ListItem", "position": 2, "name": "{title_json}", "item": "https://r-statistics.co/{slug}"}}
+      ]
+    }}
+    </script>'''
 
     # Extract FAQ section for FAQPage schema
     faqpage_jsonld = ''
@@ -924,6 +989,9 @@ def build_post(template, post_path):
     }}
     </script>'''
 
+    # Prepend breadcrumb to content
+    content_with_breadcrumb = breadcrumb_html + '\n' + content
+
     page_html = template
     page_html = page_html.replace('{{TITLE}}', title)
     page_html = page_html.replace('{{TITLE_JSON}}', title_json)
@@ -933,8 +1001,9 @@ def build_post(template, post_path):
     page_html = page_html.replace('{{SLUG}}', slug)
     page_html = page_html.replace('{{DATE_PUBLISHED}}', date_published)
     page_html = page_html.replace('{{DATE_MODIFIED}}', date_modified)
+    page_html = page_html.replace('{{BREADCRUMB_JSONLD}}', breadcrumb_jsonld)
     page_html = page_html.replace('{{FAQPAGE_JSONLD}}', faqpage_jsonld)
-    page_html = page_html.replace('{{CONTENT}}', content)
+    page_html = page_html.replace('{{CONTENT}}', content_with_breadcrumb)
     page_html = page_html.replace('{{MATHJAX}}', MATHJAX_BLOCK if mathjax else '')
     page_html = page_html.replace('{{WEBR_HEAD}}', WEBR_HEAD_BLOCK if webr else '')
     page_html = page_html.replace('{{WEBR_BODY}}', WEBR_BODY_BLOCK if webr else '')
@@ -1030,11 +1099,13 @@ def main():
         print("No posts found in _posts/")
         return
 
+    sidebar_map = load_sidebar_map()
+
     built = []
     for post_file in sorted(post_files):
         post_path = os.path.join(POSTS_DIR, post_file)
         output_path = os.path.join(REPO_ROOT, post_file)
-        page_html = build_post(template, post_path)
+        page_html = build_post(template, post_path, sidebar_map)
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(page_html)
         print(f"Built: {post_file}")
