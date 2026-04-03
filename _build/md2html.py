@@ -42,7 +42,7 @@ def md_inline(text):
             # Italic
             token = re.sub(r'\*(.+?)\*', r'<em>\1</em>', token)
             # Images (must come before links — ![alt](src) vs [text](url))
-            token = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', r'<img src="\2" alt="\1" class="img-responsive" />', token)
+            token = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', r'<img src="\2" alt="\1" class="img-responsive" loading="lazy" />', token)
             # Links
             token = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', token)
             result.append(token)
@@ -237,7 +237,7 @@ def convert(md_text):
             m = re.match(r'^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$', line)
             alt = m.group(1)
             src = m.group(2)
-            out.append(f'<p><img src="{src}" alt="{alt}" class="img-responsive" /></p>')
+            out.append(f'<p><img src="{src}" alt="{alt}" class="img-responsive" loading="lazy" /></p>')
             i += 1
             continue
 

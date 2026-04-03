@@ -12,6 +12,9 @@
     <link rel="shortcut icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
     <link rel="canonical" href="https://r-statistics.co/R-Error-ggplot2-Object-Not-Found.html">
     <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link href="www/bootstrap.min.css" rel="stylesheet">
     <link href="www/highlight.css" rel="stylesheet">
     <link href="css/main.css?v=10" rel="stylesheet">
@@ -255,16 +258,29 @@
       .webr-copy-btn:hover { background: #f6f8fa; color: #24292f; border-color: #c0c8d0; }
       .webr-copy-btn.copied { color: #2da44e; border-color: #2da44e; }
 
-      /* --- CodeMirror editor --- */
+      /* --- Pre-CodeMirror: reserve space to prevent CLS --- */
+      .webr-editor {
+        min-height: 80px;
+        font-family: 'IBM Plex Mono', 'JetBrains Mono', 'Consolas', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        padding: 8px 12px 8px 40px;
+        background: #fafbfd;
+        white-space: pre;
+        overflow: hidden;
+        color: #24292f;
+      }
+      /* After CodeMirror initializes, it replaces the content — reset padding */
       .webr-editor .CodeMirror {
         height: auto;
         min-height: 48px;
         font-size: 14px;
-        font-family: 'JetBrains Mono', 'Fira Code', 'Inconsolata', 'Consolas', monospace;
+        font-family: 'IBM Plex Mono', 'JetBrains Mono', 'Consolas', monospace;
         line-height: 1.6;
         background: #fafbfd;
         padding: 4px 0;
       }
+      .webr-editor.cm-initialized { padding: 0; min-height: auto; }
       .webr-editor .CodeMirror-gutters {
         background: #f0f2f5;
         border-right: 1px solid #e1e4e8;
@@ -918,12 +934,12 @@ print(df)</div>
   
   <!-- WebR Interactive Code -->
   
-  <!-- WebR Engine -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/r/r.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <!-- WebR Engine — CodeMirror deferred to avoid blocking -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/r/r.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1073,8 +1089,10 @@ print(df)</div>
       btnBar.appendChild(right);
     });
 
-    // Initialize CodeMirror editors
-    document.querySelectorAll('.webr-editor').forEach((el) => {
+    // Initialize CodeMirror editor for a single element
+    function initEditor(el) {
+      if (el.dataset.cmInit) return; // already initialized
+      el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
       const cm = CodeMirror(el, {
@@ -1100,8 +1118,26 @@ print(df)</div>
           }
         }
       });
+      el.classList.add('cm-initialized');
       editors.push({ cm, originalCode: code, el });
-    });
+    }
+
+    // Lazy-init: only initialize editors when they scroll into view
+    const allEditors = document.querySelectorAll('.webr-editor');
+    if ('IntersectionObserver' in window) {
+      const editorObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            initEditor(entry.target);
+            editorObserver.unobserve(entry.target);
+          }
+        });
+      }, { rootMargin: '300px' }); // init 300px before visible
+      allEditors.forEach(el => editorObserver.observe(el));
+    } else {
+      // Fallback: init all at once if IntersectionObserver not supported
+      allEditors.forEach(el => initEditor(el));
+    }
 
     // Track which packages are already installed in this WebR session
     const installedPkgs = new Set(['base', 'stats', 'graphics', 'grDevices', 'utils', 'datasets', 'methods']);
