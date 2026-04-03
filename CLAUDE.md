@@ -155,14 +155,16 @@ mathjax: true/false
 webr: true
 date: "<YYYY-MM-DD>"
 curriculum_id: "<id, e.g. 4.2.3>"
-post_type: "<C, FR, or EX>"
-sidebar_text: "<short title for sidebar, e.g. 'R Closures'>"
-curriculum_path: "<e.g. /learn-r/functional-programming/>"
+post_type: "<C, FR, EX, or PSEO>"
+sidebar_section: "<e.g. Learn R — for C posts>"
+sidebar_title: "<short title, e.g. R Closures — for C and EX posts>"
+sidebar_order: "<position in section — for C and EX posts>"
 auto_link_terms: "<pipe-separated terms>"
 auto_link_case_sensitive: false
-fr_parent: "<parent-slug.html — for FR and EX posts only>"
+fr_parent: "<parent-slug.html — for FR, EX, and PSEO posts>"
 ---
 ```
+See `_build/frontmatter-spec.md` for the full field reference.
 
 ### `/publish-post` — Build & Publish a Post
 
@@ -187,19 +189,7 @@ fr_parent: "<parent-slug.html — for FR and EX posts only>"
 | 9 | (--dry-run only) Print "Dry run complete" and stop | — |
 
 **Sidebar section mapping (Step 5):**
-The skill determines which sidebar section to add the post to using `curriculum_path` from frontmatter (primary) or by looking up `curriculum_id` in `curriculum-status.json` (fallback):
-
-| `curriculum_path` starts with | Sidebar section |
-|-------------------------------|-----------------|
-| `/learn-r/` | Learn R |
-| `/data-wrangling/` | Data Wrangling |
-| `/visualization/` | Visualization |
-| `/statistics/` | Statistics |
-| `/time-series/` | Time Series |
-| `/machine-learning/` | Machine Learning |
-| `/advanced-r/` | Advanced R |
-| `/reporting/` | Reporting |
-| `/specializations/` | Specializations |
+The skill reads `sidebar_section` from the markdown frontmatter to determine placement. Fallback: look up `curriculum_id` in `curriculum-status.json` and map the path. See `_build/frontmatter-spec.md` for the full mapping table.
 
 **Files staged in Step 8:**
 - `posts/<slug>.md` (markdown source)
@@ -379,37 +369,16 @@ For publishing many posts from the curriculum:
 
 ## Markdown Post Frontmatter Reference
 
-### Full Frontmatter (all fields)
+The canonical frontmatter specification lives in **`_build/frontmatter-spec.md`** — the single source of truth for all field definitions, required-by-type rules, auto_link_terms guidance, and sidebar section mapping. All skills and commands reference that file.
 
-```yaml
----
-title: "SEO Title: Subtitle Here"          # Required. Full SEO title.
-slug: "SEO-Title-Subtitle"                 # Required. Becomes the filename and URL.
-description: "150-160 char description"    # Required for SEO.
-keywords: "comma, separated, keywords"     # Required for SEO.
-mathjax: false                             # Include MathJax? Default false.
-webr: true                                 # Include WebR interactive code? Default true.
-date: "2026-03-29"                         # Publication date.
-curriculum_id: "4.2.3"                     # ID from curriculum-status.json.
-post_type: "C"                             # C = Core, FR = Further Reading, EX = Exercise.
-sidebar_text: "R Closures"                 # Short title for sidebar (C and EX only).
-curriculum_path: "/learn-r/functional-programming/"  # Path for sidebar section mapping.
-auto_link_terms: "R closures|closures in R"          # Pipe-separated terms for auto-linking.
-auto_link_case_sensitive: false            # Case-sensitive term matching?
-fr_parent: "Functional-Programming-in-R.html"        # Parent post filename (FR and EX only).
----
-```
+Quick summary of post types and sidebar rules:
 
-### Required Fields by Post Type
-
-| Field | [C] Core | [FR] Further Reading | [EX] Exercise |
-|-------|----------|---------------------|---------------|
-| title, slug, description, keywords | Required | Required | Required |
-| curriculum_id, post_type | Required | Required | Required |
-| sidebar_text | Required | Omit | Required |
-| curriculum_path | Required | Optional | Optional |
-| fr_parent | Omit | Required | Required |
-| auto_link_terms | Recommended | Recommended | Optional |
+| Type | Code | Sidebar? | Key frontmatter |
+|------|------|----------|----------------|
+| Core | C | Yes — `sidebar_section` | `sidebar_section`, `sidebar_title`, `sidebar_order` |
+| Further Reading | FR | No | `fr_parent` |
+| Exercise | EX | Yes — Practice Exercises | `sidebar_title`, `fr_parent` |
+| Programmatic SEO | PSEO | No | `fr_parent` |
 
 ---
 
