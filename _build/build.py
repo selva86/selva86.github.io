@@ -578,21 +578,40 @@ WEBR_BODY_BLOCK = """
       editors.push({ cm, originalCode: code, el });
     }
 
-    // Lazy-init: only initialize editors when they scroll into view
+    // Yielding init: queue editors and init one at a time, yielding between each
+    const initQueue = [];
+    function processInitQueue() {
+      if (initQueue.length === 0) return;
+      const el = initQueue.shift();
+      initEditor(el);
+      // Yield to main thread before next editor
+      if (initQueue.length > 0) {
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(() => processInitQueue(), { timeout: 100 });
+        } else {
+          setTimeout(processInitQueue, 0);
+        }
+      }
+    }
+
+    // Lazy-init: only queue editors when they scroll into view
     const allEditors = document.querySelectorAll('.webr-editor');
     if ('IntersectionObserver' in window) {
       const editorObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
-            initEditor(entry.target);
+            initQueue.push(entry.target);
             editorObserver.unobserve(entry.target);
           }
         });
+        // Start processing queue if not already running
+        if (initQueue.length > 0) processInitQueue();
       }, { rootMargin: '300px' }); // init 300px before visible
       allEditors.forEach(el => editorObserver.observe(el));
     } else {
-      // Fallback: init all at once if IntersectionObserver not supported
-      allEditors.forEach(el => initEditor(el));
+      // Fallback: queue all, process with yielding
+      allEditors.forEach(el => initQueue.push(el));
+      processInitQueue();
     }
 
     // Track which packages are already installed in this WebR session
