@@ -1,399 +1,314 @@
 ---
-title: "R Subsetting: One Definitive Rule for [], [[]], $, and @ — No More Guessing"
+title: "R Subsetting: [, [[, $, @ Explained Clearly"
 slug: "R-Subsetting"
-description: "Master R's [], [[]], and $ operators for vectors, lists, data frames, and matrices. One clear rule for each, with interactive examples."
-keywords: "R subsetting, R square brackets, R indexing, R [[ ]] vs [ ], R $ operator, R subset, R extract elements"
+description: "Master R subsetting — [] filters, [[]] unwraps, $ is named shorthand, @ is for S4. One definitive rule for each operator, with interactive examples."
+keywords: "R subsetting, [ vs [[ R, $ operator R, @ slot R, R indexing, list subsetting, data frame subsetting"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-05"
 curriculum_id: "FR-fund-3"
 post_type: "FR"
-auto_link_terms: "R subsetting|R square brackets|R indexing|R [[ ]] vs [ ]"
+auto_link_terms: "R subsetting|subsetting in R|[[ vs [|single bracket vs double"
 auto_link_case_sensitive: false
 fr_parent: "R-Vectors.html"
 ---
 
-# R Subsetting: One Definitive Rule for [], [[]], $, and @ — No More Guessing
+<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Further Reading &gt; R Subsetting</nav>
 
-<p class="lead">R has three subsetting operators: <code>[]</code> returns a subset of the same type, <code>[[]]</code> extracts a single element, and <code>$</code> is shorthand for <code>[[]]</code> by name. That's the rule. This tutorial shows you exactly how each one works on every R data structure.</p>
+# R Subsetting: [, [[, $, @ Explained Clearly
 
-Subsetting in R confuses everyone at first. You have `[]`, `[[]]`, `$`, and they all seem to do similar things but return different results. The confusion ends here. By the end of this tutorial, you'll know exactly which operator to use and what it returns — for vectors, lists, data frames, and matrices.
+<p class="lead">R has four subsetting operators: <code>[</code> filters (returns the same type), <code>[[</code> extracts (unwraps one element), <code>$</code> is named-element shorthand, and <code>@</code> accesses S4 slots. Knowing when to use each is one of R's biggest beginner hurdles.</p>
 
-## The One Rule
+## Introduction
 
-Here it is:
+R's subsetting system is powerful but notoriously confusing. The same operator behaves differently on vectors, lists, and data frames. This tutorial gives you one clear mental rule for each operator and shows every combination with interactive examples.
 
-| Operator | What it does | Returns |
-|----------|-------------|---------|
-| `x[i]` | Subsets — keeps the container | Same type as `x` |
-| `x[[i]]` | Extracts — removes the container | The element itself |
-| `x$name` | Extracts by name — shorthand for `x[["name"]]` | The element itself |
+By the end you'll know instantly which operator to reach for and never again stare at an unexpected `<NA>` wondering why your list returned the wrong thing.
 
-Think of it with a train analogy:
-- `x[1]` gives you the **first train car** (still a train — same type)
-- `x[[1]]` gives you the **cargo inside** the first car (the element itself)
-- `x$name` gives you the **cargo inside** the car labeled "name"
+## What's the difference between `[` and `[[`?
+
+**`[` preserves the container type. `[[` unwraps one element.**
 
 ```r
-# The one rule in action
-my_list <- list(numbers = 1:5, text = "hello", flag = TRUE)
+my_list <- list(a = 1:5, b = "hello", c = TRUE)
 
-# [] returns a list (same type)
-sub <- my_list[1]
-cat("[] type:", class(sub), "\n")
-cat("[] content:\n"); str(sub)
+# [ returns a sublist (still a list)
+my_list[1]
+#> $a
+#> [1] 1 2 3 4 5
 
-# [[]] returns the element itself
-elem <- my_list[[1]]
-cat("\n[[]] type:", class(elem), "\n")
-cat("[[]] content:", elem, "\n")
+class(my_list[1])
+#> [1] "list"
 
-# $ same as [[]] by name
-dollar <- my_list$numbers
-cat("\n$ type:", class(dollar), "\n")
-cat("$ content:", dollar, "\n")
+# [[ returns the element itself (unwrapped)
+my_list[[1]]
+#> [1] 1 2 3 4 5
+
+class(my_list[[1]])
+#> [1] "integer"
 ```
 
-## Subsetting Vectors
+`my_list[1]` returns a list containing element 1. `my_list[[1]]` returns element 1 directly. On vectors, `[` and `[[` behave similarly for single elements, but `[` can return multiple while `[[` always returns exactly one.
 
-Vectors are the simplest case. Since vector elements are individual values (not containers), `[]` is all you need:
+[KEY INSIGHT]
+**Use `[` when you want the same container type back. Use `[[` when you want the single element out.** If you're going to compute with the result, you probably want `[[`.
 
-### By position (positive integers)
+## How does `$` work?
+
+`$name` is shorthand for `[["name"]]` — it unwraps a named element. Works on lists and data frames.
 
 ```r
-x <- c(10, 20, 30, 40, 50)
+person <- list(name = "Alice", age = 30)
 
-cat("x[1]:", x[1], "\n")        # First element
-cat("x[3]:", x[3], "\n")        # Third element
-cat("x[c(1,3,5)]:", x[c(1,3,5)], "\n")  # Multiple positions
-cat("x[2:4]:", x[2:4], "\n")    # Range
+person$name
+#> [1] "Alice"
+
+# Same as
+person[["name"]]
+#> [1] "Alice"
 ```
 
-### By exclusion (negative integers)
+`$` only accepts bare names (not variables holding names). For dynamic access, use `[[var]]`:
 
 ```r
-x <- c(10, 20, 30, 40, 50)
+person <- list(name = "Alice", age = 30)
+field <- "name"
 
-cat("x[-1]:", x[-1], "\n")         # Everything except first
-cat("x[-c(2,4)]:", x[-c(2,4)], "\n")  # Exclude positions 2 and 4
-cat("x[-(1:3)]:", x[-(1:3)], "\n") # Exclude first three
+person$field      # doesn't work — looks for literal "field"
+#> NULL
+
+person[[field]]   # correct — uses value of field variable
+#> [1] "Alice"
 ```
 
-You cannot mix positive and negative indices: `x[c(1, -2)]` is an error.
+[TIP]
+**Use `$` for interactive exploration. Use `[[` when the name comes from a variable.** `$` is shorter but limited; `[[` handles all cases.
 
-### By logical vector
+## How does subsetting work on vectors?
+
+Vectors have four subsetting modes: positive integers, negative integers, logical vectors, and character names.
 
 ```r
-x <- c(10, 20, 30, 40, 50)
+x <- c(a = 10, b = 20, c = 30, d = 40, e = 50)
 
-# Logical vector must be same length as x
-cat("x[c(T,F,T,F,T)]:", x[c(TRUE, FALSE, TRUE, FALSE, TRUE)], "\n")
+# Positive integers — keep these positions
+x[c(1, 3)]
+#>  a  c
+#> 10 30
 
-# Usually generated by a condition
-cat("x[x > 25]:", x[x > 25], "\n")
-cat("x[x %% 20 == 0]:", x[x %% 20 == 0], "\n")  # Divisible by 20
+# Negative integers — drop these positions
+x[-c(1, 3)]
+#>  b  d  e
+#> 20 40 50
+
+# Logical vector — keep where TRUE
+x[c(TRUE, FALSE, TRUE, FALSE, TRUE)]
+#>  a  c  e
+#> 10 30 50
+
+# Character names
+x[c("b", "d")]
+#>  b  d
+#> 20 40
+
+# Zero — returns empty vector
+x[0]
+#> named integer(0)
 ```
 
-### By name
+The four modes don't mix — you can't combine positive and negative indices in the same call.
+
+## How does subsetting work on lists?
+
+Lists support `[`, `[[`, and `$`. Each does something different.
 
 ```r
-ages <- c(Alice = 25, Bob = 32, Carol = 28)
+L <- list(a = 1:3, b = "hi", c = list(x = 10, y = 20))
 
-cat("ages['Alice']:", ages["Alice"], "\n")
-cat("ages[c('Bob','Carol')]:", ages[c("Bob", "Carol")], "\n")
+# [ returns sublists
+L[c("a", "b")]
+#> $a
+#> [1] 1 2 3
+#>
+#> $b
+#> [1] "hi"
+
+# [[ returns a single element
+L[["a"]]
+#> [1] 1 2 3
+
+# $ is shorthand
+L$b
+#> [1] "hi"
+
+# Chained [[ for nested lists
+L[["c"]][["x"]]
+#> [1] 10
+
+# $ chains too
+L$c$x
+#> [1] 10
 ```
 
-### [[]] on vectors
+For nested lists, chain `[[` or use a vector of names: `L[[c("c", "x")]]` is equivalent to `L[["c"]][["x"]]`.
 
-For vectors, `[[]]` works but only for **single elements** — it's rarely needed:
+## How does subsetting work on data frames?
 
-```r
-x <- c(a = 10, b = 20, c = 30)
-
-cat("x['a']:", x["a"], "\n")     # Named numeric (keeps the name)
-cat("x[['a']]:", x[["a"]], "\n") # Just the value (drops the name)
-```
-
-The difference is subtle: `x["a"]` returns a named element, `x[["a"]]` returns the bare value. For vectors, this rarely matters.
-
-## Subsetting Lists
-
-This is where `[]` vs `[[]]` really matters:
-
-```r
-info <- list(
-  name = "Alice",
-  scores = c(88, 92, 75),
-  active = TRUE
-)
-
-# [] returns a LIST (a sub-list)
-sub_list <- info[1]
-cat("info[1] is a:", class(sub_list), "\n")
-str(sub_list)
-
-# [[]] returns the ELEMENT (the value inside)
-element <- info[[1]]
-cat("\ninfo[[1]] is a:", class(element), "\n")
-cat("Value:", element, "\n")
-
-# $ is shorthand for [["name"]]
-cat("\ninfo$name:", info$name, "\n")
-cat("info[['name']]:", info[["name"]], "\n")
-cat("Same?", identical(info$name, info[["name"]]), "\n")
-```
-
-### Practical consequence: why it matters
-
-```r
-info <- list(scores = c(88, 92, 75))
-
-# This works: [[]] gives you the numeric vector
-cat("Mean with [[]]:", mean(info[["scores"]]), "\n")
-cat("Mean with $:", mean(info$scores), "\n")
-
-# This FAILS: [] gives you a list, and mean() doesn't work on lists
-tryCatch(
-  mean(info["scores"]),
-  warning = function(w) cat("[] warning:", w$message, "\n")
-)
-```
-
-**Rule of thumb for lists:** Use `$` or `[[]]` to get at data. Use `[]` only when you want a smaller list.
-
-### Multiple elements from a list
-
-```r
-info <- list(a = 1, b = 2, c = 3, d = 4, e = 5)
-
-# [] can extract multiple elements (returns a list)
-sub <- info[c("a", "c", "e")]
-str(sub)
-
-# [[]] can only extract ONE element
-# info[[c("a", "c")]]  # This would try to drill into nested lists, not select multiple
-```
-
-### Nested list access
-
-```r
-nested <- list(
-  level1 = list(
-    level2 = list(
-      value = "found it!"
-    )
-  )
-)
-
-# Chain [[ ]] to drill into nested lists
-cat("Method 1:", nested[["level1"]][["level2"]][["value"]], "\n")
-cat("Method 2:", nested$level1$level2$value, "\n")
-
-# Or use a vector of indices
-cat("Method 3:", nested[[c("level1", "level2", "value")]], "\n")
-```
-
-## Subsetting Data Frames
-
-Data frames are lists of columns, so both list-style and matrix-style subsetting work:
-
-### Column access (list-style)
+Data frames are lists of columns, so list-style subsetting works. But they also support 2D `[row, col]` indexing.
 
 ```r
 df <- data.frame(
   name = c("Alice", "Bob", "Carol"),
-  age = c(25, 32, 28),
-  score = c(92, 85, 78)
+  age = c(22, 25, 23),
+  score = c(85, 72, 91)
 )
 
-# $ — returns the column vector
-cat("df$age:", df$age, "\n")
-cat("Type:", class(df$age), "\n\n")
+# 2D indexing — [row, col]
+df[1, ]           # row 1, all columns
+#>    name age score
+#> 1 Alice  22    85
 
-# [["column"]] — same as $
-cat("df[['age']]:", df[["age"]], "\n\n")
+df[, "name"]      # all rows, name column
+#> [1] "Alice" "Bob"   "Carol"
 
-# ["column"] — returns a one-column data frame
-sub <- df["age"]
-cat("df['age'] type:", class(sub), "\n")
-print(sub)
+df[1, "name"]     # row 1, name column
+#> [1] "Alice"
+
+# List-style column access
+df$age
+#> [1] 22 25 23
+
+df[["age"]]
+#> [1] 22 25 23
+
+df["age"]         # returns a data frame with just age column
+#>   age
+#> 1  22
+#> 2  25
+#> 3  23
+
+# Filter rows with logical
+df[df$score >= 80, ]
+#>    name age score
+#> 1 Alice  22    85
+#> 3 Carol  23    91
 ```
 
-### Row and column access (matrix-style)
+Key: `df[, "col"]` returns a vector (by default); `df["col"]` returns a single-column data frame. They look almost identical but behave differently.
+
+## What is the `@` operator?
+
+`@` accesses **slots** in S4 objects. Most everyday R uses S3 (no slots) or data frames (no slots), but formal statistical models sometimes use S4.
 
 ```r
-df <- data.frame(
-  name = c("Alice", "Bob", "Carol", "David"),
-  age = c(25, 32, 28, 45),
-  score = c(92, 85, 78, 95)
-)
+# Create an S4 object (rare in typical use)
+setClass("Person", representation(name = "character", age = "numeric"))
+p <- new("Person", name = "Alice", age = 30)
 
-# df[rows, columns]
-cat("df[1, 2]:", df[1, 2], "\n")          # Row 1, Column 2
-cat("df[1, ]:\n"); print(df[1, ])          # Row 1, all columns
-cat("\ndf[, 'score']:", df[, "score"], "\n") # All rows, score column
-cat("\ndf[1:2, c('name','score')]:\n")
-print(df[1:2, c("name", "score")])
+p@name
+#> [1] "Alice"
+p@age
+#> [1] 30
 ```
 
-### Filtering rows (most common operation)
+Use `@` for S4 objects only. If unsure whether an object is S4, check with `isS4(obj)`.
 
+[NOTE]
+**Most R objects use S3, not S4. You rarely see `@` in day-to-day analysis code.** S4 is common in Bioconductor packages and formal class definitions.
+
+## Common Mistakes and How to Fix Them
+
+### Mistake 1: Using `[` where you need `[[`
+
+❌ **Wrong:**
 ```r
-df <- data.frame(
-  name = c("Alice", "Bob", "Carol", "David", "Eve"),
-  age = c(25, 32, 28, 45, 26),
-  dept = c("Eng", "Sales", "Eng", "Sales", "Eng")
-)
-
-# Filter with a logical condition
-engineers <- df[df$dept == "Eng", ]
-cat("Engineers:\n"); print(engineers)
-
-# Multiple conditions
-senior_eng <- df[df$dept == "Eng" & df$age > 26, ]
-cat("\nSenior engineers:\n"); print(senior_eng)
-
-# Using which() (slightly safer with NAs)
-idx <- which(df$age >= 30)
-cat("\nAge >= 30 (positions:", idx, "):\n")
-print(df[idx, ])
+my_list <- list(x = 1:5, y = 10)
+my_result <- my_list["x"] + 1
+#> Error in my_list["x"] + 1 : non-numeric argument to binary operator
 ```
 
-### The subset() function
+**Why it is wrong:** `my_list["x"]` is a sublist, not a vector. Can't add 1 to a list.
 
+✅ **Correct:**
 ```r
-df <- data.frame(
-  name = c("Alice", "Bob", "Carol", "David"),
-  age = c(25, 32, 28, 45),
-  score = c(92, 85, 78, 95)
-)
-
-# subset() is a cleaner alternative for interactive use
-result <- subset(df, age > 27, select = c(name, score))
-cat("subset() result:\n")
-print(result)
+my_list <- list(x = 1:5, y = 10)
+my_result <- my_list[["x"]] + 1
+my_result
+#> [1] 2 3 4 5 6
 ```
 
-`subset()` is convenient for interactive use (no `df$` needed), but avoid it inside functions — it uses non-standard evaluation that can cause subtle bugs.
+### Mistake 2: `$` with variable name
 
-## Subsetting Matrices
-
-Matrices use `[row, col]` notation:
-
+❌ **Wrong:**
 ```r
-m <- matrix(1:12, nrow = 3, dimnames = list(
-  c("r1", "r2", "r3"),
-  c("A", "B", "C", "D")
-))
-cat("Matrix:\n"); print(m)
-
-# Single element
-cat("\nm[2, 3]:", m[2, 3], "\n")
-
-# Row/column
-cat("Row 1:", m[1, ], "\n")
-cat("Column 'B':", m[, "B"], "\n")
-
-# Submatrix
-cat("\nSubmatrix:\n"); print(m[1:2, c("A", "C")])
+my_field <- "age"
+my_df <- data.frame(name = "A", age = 30)
+my_df$my_field
+#> NULL
 ```
 
-### The drop problem
+**Why it is wrong:** `$` treats `my_field` as a literal column name, not a variable.
 
-When you subset a matrix and the result has only one row or one column, R **drops** the matrix structure and returns a vector:
-
+✅ **Correct:**
 ```r
-m <- matrix(1:12, nrow = 3)
-
-# This returns a vector, not a 1-row matrix!
-result <- m[1, ]
-cat("m[1,] class:", class(result), "\n")
-cat("m[1,]:", result, "\n")
-
-# Use drop = FALSE to keep the matrix structure
-result_keep <- m[1, , drop = FALSE]
-cat("\nm[1,,drop=FALSE] class:", class(result_keep), "\n")
-print(result_keep)
+my_field <- "age"
+my_df <- data.frame(name = "A", age = 30)
+my_df[[my_field]]
+#> [1] 30
 ```
 
-`drop = FALSE` is important in functions where you need to guarantee the result is always a matrix, regardless of how many rows/columns are selected.
+### Mistake 3: `df[, "col"]` vs `df["col"]` confusion
 
-## Subsetting with $ vs [[ ]] — When to Use Which
-
+❌ **Wrong (when you expected a vector):**
 ```r
-my_list <- list(first_name = "Alice", age = 30)
-
-# $ — convenient but limited
-cat("$:", my_list$first_name, "\n")
-
-# $ with partial matching (can be dangerous!)
-cat("Partial match:", my_list$fir, "\n")  # Matches "first_name"!
-
-# [[ ]] — programmatic, exact matching
-cat("[[]]:", my_list[["first_name"]], "\n")
-
-# [[ ]] works with variables — $ doesn't
-col_name <- "age"
-cat("Variable with [[]]:", my_list[[col_name]], "\n")
-# my_list$col_name  # This looks for a column literally named "col_name"!
+my_df <- data.frame(x = 1:3, y = 4:6)
+ages <- my_df["x"]
+ages * 2
+#>   x
+#> 1 2
+#> 2 4
+#> 3 6
+# ^ still a data frame, not a vector
 ```
 
-| Use `$` when... | Use `[[]]` when... |
-|-----------------|-------------------|
-| Interactive work | Inside functions |
-| You know the exact name | Name is in a variable |
-| Quick exploration | Programmatic access |
-| Column names are simple | Names have spaces or special chars |
-
-> **Warning:** `$` does partial matching — `my_list$f` matches `first_name`. This can introduce subtle bugs. `[[]]` requires exact matches, making it safer for production code.
-
-## Replacement: Subsetting on the Left Side
-
-Everything you can subset, you can also replace:
-
+✅ **Correct:**
 ```r
-# Vector replacement
-x <- 1:5
-x[3] <- 99
-cat("Replace one:", x, "\n")
+my_df <- data.frame(x = 1:3, y = 4:6)
+ages <- my_df[, "x"]        # or my_df$x
+ages * 2
+#> [1] 2 4 6
+```
 
-x[x > 50] <- 0
-cat("Conditional replace:", x, "\n")
+### Mistake 4: Forgetting the comma in df[,col]
 
-# List replacement
-info <- list(a = 1, b = 2, c = 3)
-info$d <- 4          # Add new element
-info[["a"]] <- 100   # Replace existing
-info$b <- NULL       # Delete element
-str(info)
+❌ **Wrong:**
+```r
+my_df <- data.frame(a = 1:3, b = 4:6, c = 7:9)
+my_df[1]     # returns a data frame, not row 1
+#>   a
+#> 1 1
+#> 2 2
+#> 3 3
+```
 
-# Data frame replacement
-df <- data.frame(x = 1:3, y = 4:6)
-df$z <- df$x + df$y   # Add column
-df[df$x > 1, "y"] <- 0  # Conditional column replacement
-print(df)
+**Why it is wrong:** Without the comma, `[1]` is list-style (first column). With the comma, `[1, ]` is 2D row indexing.
+
+✅ **Correct:**
+```r
+my_df <- data.frame(a = 1:3, b = 4:6, c = 7:9)
+my_df[1, ]   # first row
+#>   a b c
+#> 1 1 4 7
 ```
 
 ## Practice Exercises
 
-### Exercise 1: Subsetting Drill
+### Exercise 1: `[` vs `[[`
+
+Given a list, extract the second element as a vector (not a sublist).
 
 ```r
-# Exercise: Given this list, extract the requested values
-data <- list(
-  city = "Springfield",
-  population = 30000,
-  temps = c(Mon = 72, Tue = 68, Wed = 75, Thu = 80, Fri = 77),
-  mayor = list(name = "Jane Smith", term_start = 2022)
-)
-
-# Extract:
-# 1. The city name (as a character, not a list)
-# 2. Wednesday's temperature
-# 3. The mayor's name
-# 4. A sub-list containing only city and population
-# 5. All temperatures above 73
-
+my_L <- list(nums = 1:5, chars = c("a", "b"), flag = TRUE)
 # Write your code below:
 
 ```
@@ -402,46 +317,23 @@ data <- list(
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-data <- list(
-  city = "Springfield",
-  population = 30000,
-  temps = c(Mon = 72, Tue = 68, Wed = 75, Thu = 80, Fri = 77),
-  mayor = list(name = "Jane Smith", term_start = 2022)
-)
-
-# 1. City name (use $ or [[]])
-cat("1. City:", data$city, "\n")
-
-# 2. Wednesday's temp (chain: list element -> named vector element)
-cat("2. Wed temp:", data$temps["Wed"], "\n")
-
-# 3. Mayor's name (nested list access)
-cat("3. Mayor:", data$mayor$name, "\n")
-
-# 4. Sub-list (use [] to keep as list)
-sub <- data[c("city", "population")]
-cat("4. Sub-list:\n"); str(sub)
-
-# 5. Temps above 73 (filter named vector)
-hot <- data$temps[data$temps > 73]
-cat("5. Above 73:", hot, "\n")
+my_L <- list(nums = 1:5, chars = c("a", "b"), flag = TRUE)
+my_chars <- my_L[[2]]
+# or my_L[["chars"]]
+my_chars
+#> [1] "a" "b"
+class(my_chars)
+#> [1] "character"
 ```
-
-**Explanation:** #1 uses `$` to extract the element. #2 chains `$temps` then `["Wed"]`. #3 chains into the nested list. #4 uses `[]` (not `[[]]`) because we want multiple elements. #5 uses logical subsetting on the vector.
 
 </details>
 
-### Exercise 2: Data Frame Surgery
+### Exercise 2: Dynamic Name Access
+
+Given a variable holding a column name, extract that column from mtcars.
 
 ```r
-# Exercise: Using mtcars:
-# 1. Extract the mpg column as a vector (not a data frame)
-# 2. Get rows 5-10, columns mpg, hp, wt as a data frame
-# 3. Find all cars with mpg > 25 AND hp < 100
-# 4. Replace all hp values > 200 with 200 (cap them)
-# 5. Add a column 'efficient' that's TRUE when mpg > 20
-
+my_colname <- "mpg"
 # Write your code below:
 
 ```
@@ -450,55 +342,22 @@ cat("5. Above 73:", hot, "\n")
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-df <- mtcars
-
-# 1. Column as vector
-mpg_vec <- df$mpg  # or df[["mpg"]]
-cat("1. Type:", class(mpg_vec), "Length:", length(mpg_vec), "\n")
-
-# 2. Rows 5-10, specific columns
-sub_df <- df[5:10, c("mpg", "hp", "wt")]
-cat("\n2. Subset:\n"); print(sub_df)
-
-# 3. Filter with multiple conditions
-efficient <- df[df$mpg > 25 & df$hp < 100, c("mpg", "hp", "cyl")]
-cat("\n3. MPG>25 & HP<100:\n"); print(efficient)
-
-# 4. Cap hp at 200
-df$hp[df$hp > 200] <- 200
-cat("\n4. Max HP after cap:", max(df$hp), "\n")
-
-# 5. Add boolean column
-df$efficient <- df$mpg > 20
-cat("5. Efficient cars:", sum(df$efficient), "of", nrow(df), "\n")
+my_colname <- "mpg"
+my_col <- mtcars[[my_colname]]
+# or mtcars[, my_colname]
+head(my_col)
+#> [1] 21.0 21.0 22.8 21.4 18.7 18.1
 ```
-
-**Explanation:** #1 uses `$` for vector extraction. #2 uses `[rows, cols]` matrix-style. #3 combines conditions with `&`. #4 uses conditional subsetting on the left side of assignment. #5 creates a new column from a logical expression.
 
 </details>
 
-### Exercise 3: The Drop Trap
+### Exercise 3: Nested Subsetting
+
+Extract the value `20` from the nested list.
 
 ```r
-# Exercise: This function should return the sum of a matrix column,
-# but it breaks when the matrix has only one row. Fix it.
-
-sum_column <- function(mat, col) {
-  column_data <- mat[, col]
-  return(sum(column_data))
-}
-
-# Works fine:
-m1 <- matrix(1:12, nrow = 3)
-cat("3-row matrix, col 2:", sum_column(m1, 2), "\n")
-
-# Breaks (or gives wrong result) with 1 row:
-m2 <- matrix(1:4, nrow = 1)
-cat("1-row matrix, col 2:", sum_column(m2, 2), "\n")
-# What happened? Fix the function.
-
-# Write your fix below:
+my_nested <- list(a = 1, b = list(x = 10, y = 20, z = 30))
+# Write your code below:
 
 ```
 
@@ -506,70 +365,139 @@ cat("1-row matrix, col 2:", sum_column(m2, 2), "\n")
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution: Use drop = FALSE
-sum_column <- function(mat, col) {
-  column_data <- mat[, col, drop = FALSE]  # Keep matrix structure
-  return(sum(column_data))
-}
-
-# Now both work correctly:
-m1 <- matrix(1:12, nrow = 3)
-cat("3-row matrix, col 2:", sum_column(m1, 2), "\n")
-
-m2 <- matrix(1:4, nrow = 1)
-cat("1-row matrix, col 2:", sum_column(m2, 2), "\n")
-
-# Why? Without drop=FALSE:
-# m2[, 2] returns a single number (dropped to scalar)
-# With drop=FALSE: m2[, 2, drop=FALSE] returns a 1x1 matrix
-# sum() works on both, but other functions might not
+my_nested <- list(a = 1, b = list(x = 10, y = 20, z = 30))
+my_value <- my_nested$b$y
+# or my_nested[["b"]][["y"]]
+my_value
+#> [1] 20
 ```
 
-**Explanation:** When a matrix subset results in a single row or column, R drops the matrix to a vector. Inside functions, this can cause unexpected behavior. `drop = FALSE` prevents this, ensuring the result is always a matrix.
+</details>
+
+### Exercise 4: Filter Data Frame
+
+From mtcars, extract rows where `cyl == 4` using logical subsetting.
+
+```r
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_four_cyl <- mtcars[mtcars$cyl == 4, ]
+head(my_four_cyl)
+#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+#> Datsun 710     22.8   4 108.0  93 3.85 2.320 18.61  1  1    4    1
+#> Merc 240D      24.4   4 146.7  62 3.69 2.320 20.00  1  0    4    2
+#> ...
+```
 
 </details>
+
+### Exercise 5: Vectors, Negative Indices
+
+Create `x <- c(10, 20, 30, 40, 50)`. Drop the first and last elements using negative indices.
+
+```r
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_x <- c(10, 20, 30, 40, 50)
+my_inner <- my_x[-c(1, length(my_x))]
+my_inner
+#> [1] 20 30 40
+```
+
+</details>
+
+## Complete Example: Extracting Coefficients from a Model
+
+```r
+# --- Mix of list and vector subsetting ---
+
+# Fit a model (returns a list)
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+class(fit)
+#> [1] "lm"
+
+# See what's inside
+names(fit)
+#>  [1] "coefficients"  "residuals"     "effects"       "rank"
+#>  [5] "fitted.values" "assign"        "qr"            "df.residual"
+#>  [9] "xlevels"       "call"          "terms"         "model"
+
+# Extract coefficients as a named vector
+coefs <- fit$coefficients
+coefs
+#> (Intercept)          wt          hp
+#> 37.22727012 -3.87783074 -0.03177295
+
+# Get just the slope for wt
+slope_wt <- coefs["wt"]
+# or fit$coefficients[["wt"]]
+slope_wt
+#>        wt
+#> -3.877831
+
+# Extract rows with largest residuals
+big_resid <- fit$residuals[abs(fit$residuals) > 3]
+big_resid
+#>   Chrysler Imperial          Fiat 128          Toyota Corolla
+#>            5.793210          6.872711                6.422779
+```
+
+This real example uses `$` to pull from a list, `[` to filter a named vector by name, and logical `[` to filter by condition. One small pipeline uses three subsetting operators.
 
 ## Summary
 
-| Structure | `[i]` returns | `[[i]]` returns | `$name` returns |
-|-----------|-------------|----------------|----------------|
-| Vector | Subset vector | Single value (bare) | N/A |
-| List | Sub-list | Element itself | Element itself |
-| Data frame | Sub-data frame | Column vector | Column vector |
-| Matrix | Submatrix | Single value | N/A |
-
-**The cheat sheet:**
-- Need the data? Use `$` or `[[]]`
-- Need a smaller container? Use `[]`
-- Inside a function? Use `[[]]` (safer than `$`)
-- Column name in a variable? Must use `[[var_name]]`
+| Operator | Input | Returns | Use when |
+|---|---|---|---|
+| `x[i]` | vector | Same-type vector | Keep/drop multiple elements |
+| `L[i]` | list | Sublist | Keep list structure |
+| `L[[i]]` | list | Single element | Unwrap one element |
+| `L$name` | list | Single element | Named access, bare literal name |
+| `L[[var]]` | list | Single element | Dynamic name from variable |
+| `df[i, j]` | data frame | Data frame or vector | 2D access |
+| `df[, j]` | data frame | Vector (default) | One column as vector |
+| `df[j]` | data frame | 1-column data frame | Keep data frame shape |
+| `obj@slot` | S4 object | Slot value | S4 object access |
 
 ## FAQ
 
-### Why does R have three different subsetting operators?
+### When does `[` drop to a vector?
 
-Each serves a different purpose. `[]` preserves the container type (useful for subsetting). `[[]]` extracts the contents (useful for getting at data). `$` is syntactic sugar for `[[""]]` — convenient for interactive use.
+For data frames, `df[, "col"]` drops to a vector by default. Use `df[, "col", drop = FALSE]` to keep a data frame. For vectors, `[` always returns a vector of the same type.
 
-### What does `@` do?
+### What if my column name has spaces or special characters?
 
-`@` accesses slots in S4 objects (R's formal OOP system). It works like `$` but for S4 classes. Most beginners won't encounter S4 objects. When you do, `@` works exactly like `$`: `object@slot_name`.
+Use backticks with `$`: `df$`column name``. Or use `[[]]`: `df[["column name"]]`.
 
-### Why does `df[, 1]` return a vector but `df[, 1:2]` returns a data frame?
+### Can I use `[[]]` with multiple indices?
 
-The `drop` parameter — R drops the data frame structure when the result has one column. Use `df[, 1, drop = FALSE]` to always get a data frame. This default behavior is convenient for interactive work but can cause bugs in functions.
+Yes, but it's recursive extraction: `L[[c("a", "b")]]` is the same as `L[["a"]][["b"]]`. Use sparingly — it's confusing.
 
-### Can I use negative indexing with names?
+### Why does `list[[]]` sometimes return NULL instead of an error?
 
-No. `x[-"name"]` doesn't work. Use `x[names(x) != "name"]` or `x[setdiff(names(x), "name")]` to exclude by name.
+Accessing a non-existent name returns `NULL` silently: `list(a=1)[["z"]]` returns `NULL`. For a missing position index, it errors. Use `"name" %in% names(L)` to check first.
 
-### What's the difference between `subset()` and `[`?
+### What's the difference between `df$col <- NULL` and `df[, "col"] <- NULL`?
 
-`subset()` uses non-standard evaluation — you don't need `df$` before column names. It's cleaner for interactive work but shouldn't be used inside functions because the column names are evaluated in a special way that can cause bugs.
+`df$col <- NULL` removes the column (works). `df[, "col"] <- NULL` errors because `[, col]` expects values. Use `$<- NULL` to delete.
 
-## What's Next?
+## References
 
-Subsetting is a foundational skill used in every R operation. Related tutorials:
-
-1. **R Type Coercion** — what happens to types when you subset mixed structures
-2. **R Attributes** — metadata that subsetting can preserve or drop
-3. **Data Wrangling with dplyr** — modern, pipe-friendly alternatives to manual subsetting
+1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 4 (Subsetting). [Link](https://adv-r.hadley.nz/subsetting.html)
+2. R manual — `Extract` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.html)
+3. R manual — `Extract.data.frame`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.data.frame.html)
+4. R Language Definition — Indexing. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Indexing)
+5. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 27 (A field guide to base R). [Link](https://r4ds.hadley.nz/base-R.html)
+6. R Core — S4 slot access. [Link](https://stat.ethz.ch/R-manual/R-devel/library/methods/html/slot.html)
+7. R manual — `[[.data.frame` special case. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.data.frame.html)
