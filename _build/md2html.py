@@ -78,6 +78,26 @@ def convert(md_text):
             i += 1
             continue
 
+        # Callout boxes: [TIP], [WARNING], [NOTE], [KEY INSIGHT]
+        callout_match = re.match(r'^\[(TIP|WARNING|NOTE|KEY INSIGHT)\]\s*$', line.strip())
+        if callout_match:
+            callout_type = callout_match.group(1)
+            css_class = {
+                'TIP': 'callout-tip',
+                'WARNING': 'callout-warning',
+                'NOTE': 'callout-note',
+                'KEY INSIGHT': 'callout-insight',
+            }[callout_type]
+            label = 'Key Insight' if callout_type == 'KEY INSIGHT' else callout_type.capitalize()
+            i += 1
+            body_lines = []
+            while i < len(lines) and lines[i].strip() != '':
+                body_lines.append(lines[i].strip())
+                i += 1
+            body_text = md_inline(' '.join(body_lines))
+            out.append(f'<div class="callout {css_class}"><div class="callout-label">{label}</div><div class="callout-body">{body_text}</div></div>')
+            continue
+
         # HTML passthrough (for <p class="lead">, <details>, etc.)
         if line.strip().startswith('<') and not line.strip().startswith('<code') and not line.strip().startswith('<strong') and not line.strip().startswith('<em') and not line.strip().startswith('<a '):
             # Collect contiguous HTML lines
