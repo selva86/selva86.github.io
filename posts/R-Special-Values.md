@@ -1,381 +1,305 @@
 ---
-title: "R's Four Special Values: NA, NULL, NaN, Inf — What Each One Actually Means"
+title: "R's Four Special Values: NA, NULL, NaN, Inf"
 slug: "R-Special-Values"
-description: "Understand R's NA, NULL, NaN, and Inf: what each means, when R creates them, how to detect them, and how to handle them in real data analysis."
-keywords: "NA in R, NULL in R, NaN in R, Inf in R, R special values, R missing values, is.na, na.rm, complete.cases"
+description: "Master R's four special values — NA, NULL, NaN, Inf. Know what each means, how to test for them, and how to handle them without silent bugs."
+keywords: "NA in R, NULL in R, NaN in R, Inf in R, is.na(), is.null(), R missing values, R special values"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-05"
 curriculum_id: "1.1.11"
 post_type: "C"
-auto_link_terms: "NA in R|NULL in R|NaN in R|R special values|R missing values"
+auto_link_terms: "NA in R|NULL in R|NaN in R|Inf in R|R special values"
 auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "R Special Values"
 sidebar_order: 11
 ---
 
-# R's Four Special Values: NA, NULL, NaN, Inf — What Each One Actually Means
+<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; R Special Values</nav>
 
-<p class="lead">R has four special values that aren't regular data: NA (missing), NULL (nothing), NaN (undefined math), and Inf (infinity). They behave differently, and confusing them is one of the most common sources of R bugs.</p>
+# R's Four Special Values: NA, NULL, NaN, Inf
 
-Every R programmer hits this wall: you run `mean(x)` and get `NA`. Or a function returns `NULL` when you expected a number. Or a division produces `NaN` and silently corrupts your analysis. Understanding these four values — and how they differ — saves hours of debugging.
+<p class="lead">R has four special values: <code>NA</code> (missing), <code>NULL</code> (absent), <code>NaN</code> (not-a-number), and <code>Inf</code> (infinity). Each represents something different, and confusing them is one of the top bug sources in R programming.</p>
 
 ## Introduction
 
-Here's the quick version:
+At first glance, `NA` and `NULL` look identical — both represent "no value". In reality they behave completely differently, and so do `NaN` and `Inf`. This tutorial unpacks each one, shows how to test for them, and explains when each appears naturally in R work.
 
-| Value | Meaning | Example | Analogy |
-|-------|---------|---------|---------|
-| `NA` | Missing data | Empty cell in a spreadsheet | "I don't know the answer" |
-| `NULL` | Nothing exists | Variable never created | "There's no question" |
-| `NaN` | Not a Number | `0/0` | "The question makes no sense" |
-| `Inf` | Infinity | `1/0` | "The answer is infinitely large" |
+Every example is live — click **Run** to see how R distinguishes these four values.
 
-Now let's explore each one in depth.
+By the end you'll instantly know which special value to expect from any operation and which test function to use.
 
-## NA: Missing Data
+## What is NA in R?
 
-`NA` is by far the most common special value. It means "this value exists but is unknown" — like an empty cell in a spreadsheet. A survey respondent who skipped a question has an `NA` for that field.
+`NA` stands for "Not Available" — it represents a **missing value inside a vector**. Unlike NULL, NA has a type and takes up a slot.
 
 ```r
-# NA in action
-x <- c(10, 20, NA, 40, 50)
-cat("Vector:", x, "\n")
-cat("Length:", length(x), "\n")  # NA counts as an element!
+x <- c(1, 2, NA, 4, NA, 6)
+x
+#> [1]  1  2 NA  4 NA  6
 
-# The NA trap: any operation with NA produces NA
-cat("Sum:", sum(x), "\n")       # NA!
-cat("Mean:", mean(x), "\n")     # NA!
+length(x)
+#> [1] 6
 
-# The fix: na.rm = TRUE
-cat("Sum (na.rm):", sum(x, na.rm = TRUE), "\n")    # 120
-cat("Mean (na.rm):", mean(x, na.rm = TRUE), "\n")   # 30
+# NA is typed — check with typeof()
+typeof(NA)
+#> [1] "logical"
+typeof(NA_real_)
+#> [1] "double"
+typeof(NA_character_)
+#> [1] "character"
 ```
 
-### Why NA is contagious
+`NA` fills positions in a vector where data is missing. The vector still has length 6 — NA occupies positions 3 and 5. R provides typed NAs (`NA_real_`, `NA_integer_`, `NA_character_`) so every vector type has a missing-value placeholder.
 
-`NA` means "unknown." If you add 5 to an unknown value, the result is still unknown — so `5 + NA` is `NA`. This makes logical sense but catches beginners off guard:
+[KEY INSIGHT]
+**Any operation involving NA returns NA.** `NA + 1` is `NA`. `NA == NA` is `NA`. This "NA infects everything" rule is deliberate — it forces you to handle missingness explicitly rather than silently ignoring it.
+
+## What is NULL in R?
+
+`NULL` represents the **absence of a value** — not missing, but not there at all. It has length 0 and no type.
 
 ```r
-# NA is contagious — it "infects" any calculation
-cat("5 + NA:", 5 + NA, "\n")
-cat("NA > 3:", NA > 3, "\n")
-cat("NA == NA:", NA == NA, "\n")   # Even this is NA!
+y <- NULL
+length(y)
+#> [1] 0
 
-# Why is NA == NA not TRUE?
-# Think: "Is the unknown value equal to the unknown value?"
-# We don't know — both are unknown! So the answer is: unknown (NA)
+typeof(y)
+#> [1] "NULL"
+
+# NULL disappears when combined
+c(1, 2, NULL, 4)
+#> [1] 1 2 4
+
+# Compare with NA
+c(1, 2, NA, 4)
+#> [1]  1  2 NA  4
 ```
 
-### Detecting NA
+`NULL` evaporates when combined in `c()` — it has length 0, so including it doesn't add any slots. Contrast with `NA`, which holds a slot. Use `NULL` to signal "no argument" or "no result"; use `NA` for missing data in a vector.
+
+## What is NaN in R?
+
+`NaN` stands for "Not a Number" — the result of **undefined numeric operations** like `0/0`.
 
 ```r
-x <- c(10, NA, 30, NA, 50)
+0 / 0
+#> [1] NaN
 
-# is.na() — the correct way to check for NA
-cat("is.na:", is.na(x), "\n")
+log(-1)
+#> Warning in log(-1): NaNs produced
+#> [1] NaN
 
-# WRONG: x == NA doesn't work (always returns NA)
-cat("x == NA:", x == NA, "\n")   # All NA!
+sqrt(-1)
+#> Warning in sqrt(-1): NaNs produced
+#> [1] NaN
 
-# Count and locate NAs
-cat("NA count:", sum(is.na(x)), "\n")
-cat("NA positions:", which(is.na(x)), "\n")
-cat("Non-NA count:", sum(!is.na(x)), "\n")
+# NaN is always a double
+typeof(NaN)
+#> [1] "double"
 ```
 
-> **Critical rule:** Never use `x == NA` to check for NA. It always returns `NA`. Always use `is.na(x)`.
+`NaN` signals "the math is undefined". R follows IEEE 754 floating-point rules. Operations that don't produce a real number result in `NaN` with a warning.
 
-### Handling NA in data frames
+## What is Inf in R?
+
+`Inf` and `-Inf` represent **infinity** — the result of dividing by zero or overflow.
 
 ```r
-# Real-world scenario: survey data with missing values
-survey <- data.frame(
-  name = c("Alice", "Bob", "Carol", "David", "Eve"),
-  age = c(25, NA, 42, 31, NA),
-  score = c(88, 72, NA, 95, 81)
-)
+1 / 0
+#> [1] Inf
 
-cat("Missing values per column:\n")
-print(colSums(is.na(survey)))
+-1 / 0
+#> [1] -Inf
 
-# Complete cases — rows with no NAs
-complete <- survey[complete.cases(survey), ]
-cat("\nComplete cases:\n")
-print(complete)
+log(0)
+#> [1] -Inf
 
-# Replace NAs with a value (imputation)
-survey$age[is.na(survey$age)] <- median(survey$age, na.rm = TRUE)
-cat("\nAfter imputing median age:\n")
-print(survey)
+exp(1000)
+#> [1] Inf
+
+# Arithmetic with Inf
+Inf + 1
+#> [1] Inf
+Inf - Inf
+#> [1] NaN
+Inf / Inf
+#> [1] NaN
 ```
 
-### Typed NAs
+Division by zero produces `Inf` (positive or negative based on sign). Arithmetic with infinity follows IEEE 754: `Inf + anything finite = Inf`, but `Inf - Inf` and `Inf / Inf` are undefined (NaN).
 
-NA has different types for different vector types:
+## How do you test for each special value?
+
+**Never use `==` with special values.** `NA == NA` returns `NA`, not `TRUE`. Use the dedicated `is.*()` functions.
 
 ```r
-# Default NA is logical
-cat("class(NA):", class(NA), "\n")
+x <- c(1, NA, NaN, Inf, -Inf, 5)
 
-# Typed NAs for specific vector types
-cat("class(NA_real_):", class(NA_real_), "\n")         # numeric NA
-cat("class(NA_integer_):", class(NA_integer_), "\n")   # integer NA
-cat("class(NA_character_):", class(NA_character_), "\n") # character NA
-cat("class(NA_complex_):", class(NA_complex_), "\n")   # complex NA
+# Test for each
+is.na(x)
+#> [1] FALSE  TRUE  TRUE FALSE FALSE FALSE
 
-# Why it matters: creating properly typed empty vectors
-nums <- c(1, 2, NA)       # NA coerced to numeric — fine
-cat("nums type:", class(nums), "\n")
+is.nan(x)
+#> [1] FALSE FALSE  TRUE FALSE FALSE FALSE
+
+is.infinite(x)
+#> [1] FALSE FALSE FALSE  TRUE  TRUE FALSE
+
+is.finite(x)
+#> [1]  TRUE FALSE FALSE FALSE FALSE  TRUE
+
+# NULL has its own test
+is.null(NULL)
+#> [1] TRUE
+is.null(NA)
+#> [1] FALSE
 ```
 
-You rarely need typed NAs in daily work, but they matter when pre-allocating vectors or working with databases.
+Notice that `is.na()` returns `TRUE` for both `NA` AND `NaN` (because NaN is a kind of missing). `is.nan()` is more specific — only `TRUE` for NaN. `is.finite()` is `FALSE` for NA, NaN, Inf, and -Inf — it's the strictest check.
 
-## NULL: Nothing Exists
+[WARNING]
+**`is.na()` returns TRUE for NaN too.** If you need to distinguish NaN from regular NA, use `is.nan()`. Most of the time `is.na()` is what you want.
 
-`NULL` represents the absence of a value entirely — not a missing value, but *no value at all*. It's like an empty slot that doesn't exist, versus `NA` which is a slot that exists but is blank.
+## How do you handle these values in analysis?
+
+Most R statistics functions have `na.rm` arguments to skip missing values.
 
 ```r
-# NULL vs NA
-x <- NULL
-y <- NA
+x <- c(10, 20, NA, 40, NA, 60)
 
-cat("Length of NULL:", length(x), "\n")  # 0 — nothing there
-cat("Length of NA:", length(y), "\n")    # 1 — something there (just unknown)
+# Default: NA propagates
+mean(x)
+#> [1] NA
 
-# NULL disappears in vectors
-v1 <- c(1, NULL, 3)     # NULL vanishes
-v2 <- c(1, NA, 3)       # NA stays as an element
-cat("With NULL:", v1, "— length:", length(v1), "\n")
-cat("With NA:", v2, "— length:", length(v2), "\n")
+# Skip NAs
+mean(x, na.rm = TRUE)
+#> [1] 32.5
+
+sum(x, na.rm = TRUE)
+#> [1] 130
+
+# Count non-missing values
+sum(!is.na(x))
+#> [1] 4
+
+# Remove NAs from the vector
+x_clean <- x[!is.na(x)]
+x_clean
+#> [1] 10 20 40 60
 ```
 
-### When does NULL appear?
+`na.rm = TRUE` drops NAs before computing. For more control, filter first with `!is.na()` and then compute.
+
+For Inf values:
 
 ```r
-# 1. Functions that return nothing
-result <- cat("hello\n")   # cat() returns NULL invisibly
-cat("cat() returned:", is.null(result), "\n")
+y <- c(1, 2, Inf, 4, -Inf, 6)
 
-# 2. Accessing non-existent list elements
-my_list <- list(a = 1, b = 2)
-cat("Existing element:", my_list$a, "\n")
-cat("Non-existent:", is.null(my_list$c), "\n")  # TRUE — $c doesn't exist
+# Remove Inf
+y_finite <- y[is.finite(y)]
+y_finite
+#> [1] 1 2 4 6
 
-# 3. Removing list elements
-my_list$a <- NULL
-cat("After removal, names:", names(my_list), "\n")
+mean(y)
+#> [1] NaN
+mean(y_finite)
+#> [1] 3.25
+```
 
-# 4. Default argument meaning "not provided"
-my_func <- function(x, label = NULL) {
-  if (is.null(label)) {
-    label <- deparse(substitute(x))  # Auto-generate from variable name
-  }
-  cat("Label:", label, "\n")
+`is.finite()` is the catch-all — excludes NA, NaN, Inf, and -Inf. Useful when you want only real finite numbers.
+
+## Common Mistakes and How to Fix Them
+
+### Mistake 1: Using `==` to test for NA
+
+❌ **Wrong:**
+```r
+my_x <- c(1, 2, NA, 4)
+my_x[my_x == NA]
+#> [1] NA NA NA NA
+```
+
+**Why it is wrong:** `== NA` returns `NA` (not TRUE), so the subset returns all NAs.
+
+✅ **Correct:**
+```r
+my_x <- c(1, 2, NA, 4)
+my_x[is.na(my_x)]
+#> [1] NA
+```
+
+### Mistake 2: Confusing NA and NULL
+
+❌ **Wrong:**
+```r
+# "Empty" value in a data frame column
+my_df <- data.frame(x = c(1, NULL, 3))
+#> Error: cannot coerce type 'NULL' to vector of type 'double'
+```
+
+**Why it is wrong:** NULL has length 0, so it disappears. Can't create a data frame column with a gap.
+
+✅ **Correct:**
+```r
+my_df <- data.frame(x = c(1, NA, 3))
+my_df
+#>    x
+#> 1  1
+#> 2 NA
+#> 3  3
+```
+
+### Mistake 3: `if(is.na(x))` on a vector
+
+❌ **Wrong:**
+```r
+my_x <- c(1, NA, 3)
+if (is.na(my_x)) {
+  print("has NA")
 }
-my_func(42)               # Uses auto-generated label
-my_func(42, label = "Answer")  # Uses provided label
+#> Error in if (is.na(my_x)) { : the condition has length > 1
 ```
 
-### Detecting NULL
+**Why it is wrong:** `is.na()` is vectorized — returns a logical vector. `if()` needs length 1.
 
+✅ **Correct:**
 ```r
-x <- NULL
-
-# is.null() — the correct way
-cat("is.null(NULL):", is.null(x), "\n")
-
-# Note: is.na(NULL) doesn't work as expected
-cat("is.na(NULL):", is.na(x), "\n")  # logical(0), not TRUE!
-cat("length(is.na(NULL)):", length(is.na(NULL)), "\n")
-
-# NULL in if statements
-if (is.null(x)) {
-  cat("x is NULL — no data available\n")
+my_x <- c(1, NA, 3)
+if (any(is.na(my_x))) {
+  print("has NA")
 }
+#> [1] "has NA"
 ```
 
-## NaN: Not a Number
+### Mistake 4: Sum skipping NaN unexpectedly
 
-`NaN` (Not a Number) results from undefined mathematical operations. It's R's way of saying "this calculation doesn't have a numerical answer."
-
+❌ **Wrong:**
 ```r
-# Operations that produce NaN
-cat("0/0:", 0/0, "\n")           # Division of zero by zero
-cat("Inf - Inf:", Inf - Inf, "\n")  # Infinity minus infinity
-cat("0 * Inf:", 0 * Inf, "\n")     # Zero times infinity
-
-# NaN is technically also NA!
-cat("\nis.nan(NaN):", is.nan(NaN), "\n")
-cat("is.na(NaN):", is.na(NaN), "\n")   # TRUE — NaN is a type of NA
-
-# But NA is NOT NaN
-cat("is.nan(NA):", is.nan(NA), "\n")  # FALSE — NA is not NaN
+my_x <- c(1, 2, NaN, 4)
+sum(my_x)
+#> [1] NaN
+sum(my_x, na.rm = TRUE)
+#> [1] 7
 ```
 
-The relationship: **all NaN values are NA, but not all NA values are NaN**. NaN is a specific kind of "missing" — missing because the math was undefined.
+**Why it is wrong:** Actually correct — `na.rm = TRUE` removes both NA and NaN. Easy to forget this and wonder why NaN was filtered.
 
+✅ **Correct (be explicit):**
 ```r
-# Detecting NaN specifically
-x <- c(1, NaN, NA, 4, 0/0)
-
-cat("Values:", x, "\n")
-cat("is.na:", is.na(x), "\n")     # TRUE for both NA and NaN
-cat("is.nan:", is.nan(x), "\n")   # TRUE only for NaN
-
-# Find NaN positions
-cat("NaN positions:", which(is.nan(x)), "\n")
-
-# In practice, you rarely need to distinguish NaN from NA
-# Just use is.na() and na.rm = TRUE
-cat("Mean (ignoring NaN and NA):", mean(x, na.rm = TRUE), "\n")
-```
-
-## Inf: Infinity
-
-`Inf` (and `-Inf`) represent positive and negative infinity. They're actual numeric values that R can compute with:
-
-```r
-# Operations that produce Inf
-cat("1/0:", 1/0, "\n")           # Positive infinity
-cat("-1/0:", -1/0, "\n")         # Negative infinity
-cat("exp(1000):", exp(1000), "\n") # Overflow to Inf
-
-# Inf is a real numeric value — you can do math with it
-cat("\nInf + 100:", Inf + 100, "\n")   # Still Inf
-cat("Inf * -1:", Inf * -1, "\n")       # -Inf
-cat("1/Inf:", 1/Inf, "\n")             # 0 (approaches zero)
-cat("Inf > 1000000:", Inf > 1000000, "\n")  # TRUE — Inf is bigger than anything
-
-# Inf in comparisons
-cat("max(c(1, Inf, 3)):", max(c(1, Inf, 3)), "\n")  # Inf
-cat("min(c(1, -Inf, 3)):", min(c(1, -Inf, 3)), "\n") # -Inf
-```
-
-### Detecting Inf
-
-```r
-x <- c(1, Inf, -Inf, 4, NA, NaN)
-
-cat("Values:", x, "\n")
-cat("is.infinite:", is.infinite(x), "\n")
-cat("is.finite:", is.finite(x), "\n")      # TRUE only for regular numbers
-cat("is.na:", is.na(x), "\n")              # Inf is NOT NA!
-
-# Inf is not NA — this surprises people
-cat("\nis.na(Inf):", is.na(Inf), "\n")     # FALSE
-cat("is.na(NaN):", is.na(NaN), "\n")       # TRUE
-```
-
-### When Inf shows up in practice
-
-```r
-# Common source: log of zero
-cat("log(0):", log(0), "\n")    # -Inf
-
-# Division where denominator approaches zero
-small <- 1e-308
-cat("1/small:", 1/small, "\n")   # Very large but finite
-smaller <- 1e-309
-cat("1/smaller:", 1/smaller, "\n")  # Inf (overflow)
-
-# Practical example: percentage change when baseline is zero
-baseline <- c(100, 0, 50, 0, 80)
-current <- c(120, 30, 50, 0, 100)
-pct_change <- (current - baseline) / baseline * 100
-
-cat("Pct change:", pct_change, "\n")
-cat("Has Inf:", any(is.infinite(pct_change)), "\n")
-
-# Fix: replace Inf with NA
-pct_change[is.infinite(pct_change)] <- NA
-cat("Fixed:", pct_change, "\n")
-cat("Mean change:", mean(pct_change, na.rm = TRUE), "%\n")
-```
-
-## The Complete Comparison
-
-Here's how all four special values compare across common operations:
-
-```r
-# Comparison table
-vals <- list(NA = NA, NULL = NULL, NaN = NaN, Inf = Inf)
-
-cat("=== Type checks ===\n")
-cat("is.na:       NA=", is.na(NA), " NaN=", is.na(NaN), " Inf=", is.na(Inf), "\n")
-cat("is.null:     NA=", is.null(NA), " NULL=", is.null(NULL), "\n")
-cat("is.nan:      NA=", is.nan(NA), " NaN=", is.nan(NaN), "\n")
-cat("is.infinite: Inf=", is.infinite(Inf), " NA=", is.infinite(NA), "\n")
-cat("is.finite:   42=", is.finite(42), " NA=", is.finite(NA),
-    " NaN=", is.finite(NaN), " Inf=", is.finite(Inf), "\n")
-
-cat("\n=== In vectors ===\n")
-cat("c(1,NA,3):", c(1, NA, 3), "length:", length(c(1, NA, 3)), "\n")
-cat("c(1,NULL,3):", c(1, NULL, 3), "length:", length(c(1, NULL, 3)), "\n")
-cat("c(1,NaN,3):", c(1, NaN, 3), "length:", length(c(1, NaN, 3)), "\n")
-cat("c(1,Inf,3):", c(1, Inf, 3), "length:", length(c(1, Inf, 3)), "\n")
-```
-
-| Property | NA | NULL | NaN | Inf |
-|----------|-----|------|-----|-----|
-| Has a type? | Yes (logical) | No | Yes (numeric) | Yes (numeric) |
-| Has a length? | 1 | 0 | 1 | 1 |
-| Survives in c()? | Yes | No (disappears) | Yes | Yes |
-| is.na() returns TRUE? | Yes | No | Yes | No |
-| Can do math? | No (returns NA) | Error | Returns NaN | Yes (returns Inf) |
-| na.rm removes it? | Yes | N/A | Yes | No |
-
-## Cleaning Data: A Real Workflow
-
-Let's put it all together with a realistic data cleaning scenario:
-
-```r
-# Messy data with all four special values
-sales <- data.frame(
-  product = c("Widget", "Gadget", "Doohickey", "Thingamajig", "Whatsit"),
-  price = c(25, 0, NA, 15, 50),
-  quantity = c(100, 50, 75, 0, NA),
-  baseline = c(80, 0, 60, 0, 90)
-)
-
-cat("Original data:\n")
-print(sales)
-
-# Calculate revenue and growth — watch the special values appear
-sales$revenue <- sales$price * sales$quantity
-sales$growth <- (sales$revenue - sales$baseline) / sales$baseline * 100
-
-cat("\nWith calculations (notice Inf and NaN):\n")
-print(sales)
-
-# Clean up: replace Inf and NaN with NA, then compute
-sales$growth[is.infinite(sales$growth) | is.nan(sales$growth)] <- NA
-
-cat("\nCleaned data:\n")
-print(sales)
-cat("\nAverage growth (valid products):",
-    round(mean(sales$growth, na.rm = TRUE), 1), "%\n")
-cat("Products with valid data:", sum(!is.na(sales$growth)), "of", nrow(sales), "\n")
+my_x <- c(1, 2, NaN, 4)
+sum(my_x[!is.nan(my_x)])
+#> [1] 7
 ```
 
 ## Practice Exercises
 
-### Exercise 1: NA Detective
+### Exercise 1: Test for NA
+
+Count the number of NAs in `my_data`.
 
 ```r
-# Exercise: Given this data, find and fix all the problems:
-patient_data <- data.frame(
-  id = 1:8,
-  age = c(25, NA, 42, 31, NA, 55, -1, 28),
-  weight_kg = c(70, 85, NA, 68, 90, 0, 75, 82),
-  height_m = c(1.75, 1.80, 1.65, 0, 1.72, 1.68, 1.85, NA)
-)
-# 1. Report how many NAs per column
-# 2. Flag invalid values: age < 0, weight = 0, height = 0
-# 3. Replace all invalid values with NA
-# 4. Calculate BMI (weight/height^2) — what special values appear?
-# 5. Report clean summary statistics
+my_data <- c(5, NA, 3, NA, 7, 2, NA, 1)
 
 # Write your code below:
 
@@ -385,49 +309,20 @@ patient_data <- data.frame(
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-patient_data <- data.frame(
-  id = 1:8,
-  age = c(25, NA, 42, 31, NA, 55, -1, 28),
-  weight_kg = c(70, 85, NA, 68, 90, 0, 75, 82),
-  height_m = c(1.75, 1.80, 1.65, 0, 1.72, 1.68, 1.85, NA)
-)
-
-# 1. NAs per column
-cat("Missing values:\n")
-print(colSums(is.na(patient_data)))
-
-# 2 & 3. Flag and replace invalid values
-patient_data$age[patient_data$age < 0] <- NA
-patient_data$weight_kg[!is.na(patient_data$weight_kg) & patient_data$weight_kg == 0] <- NA
-patient_data$height_m[!is.na(patient_data$height_m) & patient_data$height_m == 0] <- NA
-
-# 4. Calculate BMI
-patient_data$bmi <- round(patient_data$weight_kg / patient_data$height_m^2, 1)
-
-cat("\nCleaned data:\n")
-print(patient_data)
-
-# 5. Summary
-cat("\nSummary (valid patients only):\n")
-cat("Valid BMIs:", sum(!is.na(patient_data$bmi)), "of", nrow(patient_data), "\n")
-cat("Mean BMI:", round(mean(patient_data$bmi, na.rm = TRUE), 1), "\n")
-cat("Mean age:", round(mean(patient_data$age, na.rm = TRUE), 1), "\n")
+my_data <- c(5, NA, 3, NA, 7, 2, NA, 1)
+my_na_count <- sum(is.na(my_data))
+my_na_count
+#> [1] 3
 ```
-
-**Explanation:** Invalid values (negative age, zero weight/height) are first converted to NA so they don't corrupt calculations. BMI with missing inputs naturally produces NA. The `na.rm = TRUE` pattern handles all the missing data cleanly.
 
 </details>
 
-### Exercise 2: Safe Division Function
+### Exercise 2: Filter out NAs
+
+Compute the mean of `my_data` without using `na.rm`.
 
 ```r
-# Exercise: Write a function safe_divide(a, b) that:
-# - Returns a/b for normal values
-# - Returns NA (not Inf) when b is 0
-# - Returns NA when either a or b is NA
-# - Works on vectors (not just single values)
-# Test: safe_divide(c(10, 20, 30, NA), c(2, 0, 5, 3))
+my_data <- c(5, NA, 3, NA, 7, 2, NA, 1)
 
 # Write your code below:
 
@@ -437,127 +332,174 @@ cat("Mean age:", round(mean(patient_data$age, na.rm = TRUE), 1), "\n")
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-safe_divide <- function(a, b) {
-  result <- a / b
-  result[is.infinite(result)] <- NA
-  return(result)
+my_data <- c(5, NA, 3, NA, 7, 2, NA, 1)
+my_mean <- mean(my_data[!is.na(my_data)])
+my_mean
+#> [1] 3.6
+```
+
+</details>
+
+### Exercise 3: Detect Inf
+
+Check whether `my_vals` contains any infinite values.
+
+```r
+my_vals <- c(1, 2, 1/0, 4)
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_vals <- c(1, 2, 1/0, 4)
+my_has_inf <- any(is.infinite(my_vals))
+my_has_inf
+#> [1] TRUE
+```
+
+</details>
+
+### Exercise 4: Distinguish NaN from NA
+
+Given `my_mixed`, count how many are NaN specifically (not regular NA).
+
+```r
+my_mixed <- c(1, NA, NaN, 3, NaN, NA, 5)
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_mixed <- c(1, NA, NaN, 3, NaN, NA, 5)
+my_nan_count <- sum(is.nan(my_mixed))
+my_nan_count
+#> [1] 2
+```
+
+</details>
+
+### Exercise 5: Test for NULL
+
+Write a safe helper that returns 0 if input is NULL, else the length.
+
+```r
+my_safe_length <- function(x) {
+  # Return 0 if NULL, else length
+  # Write your code below:
+
 }
 
-# Test
-a <- c(10, 20, 30, NA, 0)
-b <- c(2, 0, 5, 3, 0)
-
-cat("a:", a, "\n")
-cat("b:", b, "\n")
-cat("a/b:", a/b, "\n")
-cat("safe_divide:", safe_divide(a, b), "\n")
-```
-
-**Explanation:** Rather than checking for zero denominators before dividing (which requires careful NA handling), we let R divide normally and then replace any `Inf` or `-Inf` results with `NA`. NaN from `0/0` is already treated as NA by most functions. This approach is simpler and handles edge cases automatically.
-
-</details>
-
-### Exercise 3: Complete Data Report
-
-```r
-# Exercise: Write a function data_quality() that takes a data frame and
-# prints a quality report for each column:
-# - Column name, type, total values
-# - Count/percentage of: NA, NaN, Inf, -Inf, zero values
-# Test with a messy data frame you create
-
-# Write your code below:
-
+my_safe_length(NULL)
+my_safe_length(c(1, 2, 3))
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-data_quality <- function(df) {
-  cat(sprintf("Data Quality Report: %d rows x %d columns\n\n",
-    nrow(df), ncol(df)))
-
-  for (col in names(df)) {
-    x <- df[[col]]
-    n <- length(x)
-    na_count <- sum(is.na(x))
-
-    cat(sprintf("%-12s [%s] n=%d", col, class(x), n))
-
-    if (is.numeric(x)) {
-      nan_count <- sum(is.nan(x))
-      inf_count <- sum(is.infinite(x))
-      zero_count <- sum(x == 0, na.rm = TRUE)
-      cat(sprintf("  NA=%d(%.0f%%) NaN=%d Inf=%d Zero=%d",
-        na_count, na_count/n*100, nan_count, inf_count, zero_count))
-    } else {
-      cat(sprintf("  NA=%d(%.0f%%)", na_count, na_count/n*100))
-    }
-    cat("\n")
-  }
+my_safe_length <- function(x) {
+  if (is.null(x)) return(0)
+  length(x)
 }
-
-# Test with messy data
-messy <- data.frame(
-  revenue = c(100, 0, NA, Inf, 50, NaN, -20, 0),
-  category = c("A", "B", NA, "A", "B", "C", NA, "A"),
-  ratio = c(0.5, 0/0, 1.2, 1/0, NA, 0.8, -1/0, 0)
-)
-
-data_quality(messy)
+my_safe_length(NULL)
+#> [1] 0
+my_safe_length(c(1, 2, 3))
+#> [1] 3
 ```
 
-**Explanation:** The function iterates over columns, checks each one's type, and reports different quality metrics for numeric vs non-numeric columns. This is the kind of function you'd keep in a personal utility script and use at the start of every data analysis.
-
 </details>
+
+## Complete Example: Cleaning a Messy Numeric Vector
+
+```r
+# --- Cleaning pipeline for a real-world messy vector ---
+
+raw <- c(10, 20, NA, 30, NaN, 1/0, 40, -1/0, 50, NA)
+raw
+#>  [1]  10  20  NA  30 NaN Inf  40 -Inf  50  NA
+
+# Step 1: Report what we have
+cat("Total values:        ", length(raw), "\n")
+cat("Missing (NA):        ", sum(is.na(raw) & !is.nan(raw)), "\n")
+cat("Not-a-number (NaN):  ", sum(is.nan(raw)), "\n")
+cat("Infinite (Inf/-Inf): ", sum(is.infinite(raw)), "\n")
+cat("Finite valid:        ", sum(is.finite(raw)), "\n")
+#> Total values:         10
+#> Missing (NA):         2
+#> Not-a-number (NaN):   1
+#> Infinite (Inf/-Inf):  2
+#> Finite valid:         5
+
+# Step 2: Keep only finite values
+clean <- raw[is.finite(raw)]
+clean
+#> [1] 10 20 30 40 50
+
+# Step 3: Safe to compute statistics now
+cat("Mean:     ", mean(clean), "\n")
+cat("SD:       ", sd(clean), "\n")
+cat("Range:    ", range(clean), "\n")
+#> Mean:      30
+#> SD:        15.81139
+#> Range:     10 50
+```
+
+This pipeline diagnoses each type of special value separately, then uses `is.finite()` as the comprehensive filter. Reporting counts before cleaning makes the process transparent — no silent data loss.
 
 ## Summary
 
-| Value | What it means | Detect with | Handle with |
-|-------|-------------|------------|-------------|
-| `NA` | Missing/unknown | `is.na()` | `na.rm = TRUE`, `na.omit()`, `complete.cases()` |
-| `NULL` | Nothing exists | `is.null()` | Check before use, provide defaults |
-| `NaN` | Undefined math | `is.nan()` | Treated as NA by most functions |
-| `Inf`/`-Inf` | Infinity | `is.infinite()` | Replace with NA or cap at a maximum |
+| Value | Meaning | Length | Test | Origin |
+|---|---|---|---|---|
+| `NA` | Missing | 1 (occupies slot) | `is.na()` | Placeholder in vector |
+| `NULL` | Absent | 0 | `is.null()` | "no value" signal |
+| `NaN` | Not-a-number | 1 | `is.nan()` | `0/0`, `log(-1)` |
+| `Inf` / `-Inf` | Infinity | 1 | `is.infinite()` | `1/0`, overflow |
+| (finite real) | Regular | 1 | `is.finite()` | All of the above return FALSE |
 
-**The golden rules:**
-1. Never use `x == NA` — always use `is.na(x)`
-2. Use `na.rm = TRUE` in statistical functions
-3. Check for `NULL` before accessing list elements
-4. Replace `Inf` values before computing means or medians
+Comprehensive filter: `is.finite(x)` returns TRUE only for regular finite numbers.
 
 ## FAQ
 
-### Why does mean() return NA when there's one missing value?
+### Why does R have both NA and NULL?
 
-By design. If one value is unknown, the true mean is also unknown. R forces you to explicitly choose how to handle missing data with `na.rm = TRUE` rather than silently ignoring NAs, which could mask data quality problems.
+They represent different concepts. `NA` says "this slot has missing data". `NULL` says "this value doesn't exist at all". In a survey, NA means "question unanswered"; NULL means "question not asked".
 
-### What's the difference between NA and NaN?
+### Is NaN a type of NA?
 
-`NA` means "value exists but is unknown" — like a blank survey answer. `NaN` means "the math you tried is undefined" — like `0/0`. In practice, both are handled the same way (`na.rm = TRUE`), but `NaN` gives you a clue about *why* the value is missing.
+Yes and no. `is.na(NaN)` is `TRUE` (R treats NaN as a kind of NA). But `is.nan(NaN)` is also `TRUE` and `is.nan(NA)` is `FALSE`. Every NaN is an NA, but not every NA is a NaN.
 
-### When should I use NULL vs NA?
+### What's the difference between typed NAs like NA_real_ and NA?
 
-Use `NA` for missing data in vectors and data frames. Use `NULL` for "this thing doesn't exist" — like a function argument that wasn't provided, a list element that should be removed, or a function that doesn't return anything.
+`NA` alone is logical-typed. When you put it in a numeric vector, R promotes it to `NA_real_` automatically. You only need `NA_real_` explicitly when creating empty typed vectors: `vec <- rep(NA_real_, 100)`.
 
-### Does na.rm = TRUE remove Inf values?
+### How do I replace NAs with a value?
 
-No! `na.rm` only removes `NA` and `NaN`. `Inf` is a valid numeric value. To exclude `Inf`, either filter it out first (`x[is.finite(x)]`) or replace it with NA (`x[is.infinite(x)] <- NA`).
+Use assignment with a logical mask: `x[is.na(x)] <- 0`. For data frames, `tidyr::replace_na()` is cleaner.
 
-### How do I replace all special values at once?
+### Why does `Inf - Inf` return NaN, not 0?
 
-Use `is.finite()` — it returns TRUE only for regular, non-special numbers:
-`x[!is.finite(x)] <- NA` replaces NA, NaN, Inf, and -Inf all at once.
+IEEE 754 floating-point convention: the difference between two infinities is undefined because they could be "infinities of different sizes". R returns NaN to signal the undefinedness.
+
+## References
+
+1. R Core Team — *An Introduction to R*, Section 2.4 (Missing values). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Wickham, H. — *Advanced R*, 2nd Edition, Section 3.2 (Atomic vectors). [Link](https://adv-r.hadley.nz/vectors-chap.html)
+3. R manual — `NA` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/NA.html)
+4. R manual — `NULL` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/NULL.html)
+5. R manual — `is.finite()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/is.finite.html)
+6. R FAQ — Why doesn't NA == NA return TRUE? [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
+7. IEEE 754-2008 standard — Floating-point arithmetic. [Link](https://en.wikipedia.org/wiki/IEEE_754)
 
 ## What's Next?
 
-With special values mastered, you're ready for the final fundamentals topic:
-
-1. **Getting Help in R** — navigate R's documentation system efficiently
-2. **Further Reading: Copy-on-Modify** — understand how R handles memory
-3. **R Matrices** — when you need uniform numeric data structures
-
-Understanding special values is essential for every tutorial that follows — real data always has missing values.
+- **[R Data Types](R-Data-Types.html)** — the six basic types and how NA fits into each.
+- **[R Vectors](R-Vectors.html)** — special values inside the core R data structure.
+- **[Getting Help in R](Getting-Help-in-R.html)** — how to debug when special values break your code.
