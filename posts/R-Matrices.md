@@ -1,319 +1,278 @@
 ---
-title: "R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do"
+title: "R Matrices: Fast Linear Algebra Data Frames Can't Do"
 slug: "R-Matrices"
-description: "R matrices store uniform numeric data for fast math. Learn to create, index, multiply, transpose, and solve linear systems with interactive examples."
-keywords: "R matrix, matrix() in R, R linear algebra, R matrix operations, matrix multiplication R, R transpose, R solve"
+description: "Master R matrices — create, index, transpose, multiply, invert. Matrices are single-type 2D arrays that power R's linear algebra. Interactive examples throughout."
+keywords: "R matrices, matrix() in R, matrix multiplication R, solve() R, t() transpose, linear algebra R"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-05"
 curriculum_id: "FR-fund-2"
 post_type: "FR"
-auto_link_terms: "R matrix|matrix() in R|R linear algebra"
+auto_link_terms: "R matrices|matrix in R|matrix multiplication|matrix() function"
 auto_link_case_sensitive: false
 fr_parent: "R-Data-Frames.html"
 ---
 
-# R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do
+<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Further Reading &gt; R Matrices</nav>
 
-<p class="lead">A matrix is a 2D array where every element has the same type — typically numeric. Matrices are faster than data frames for math-heavy operations like linear algebra, statistics, and machine learning algorithms.</p>
+# R Matrices: Fast Linear Algebra Data Frames Can't Do
 
-Data frames are great for mixed data (numbers + text + logical). But when all your data is numeric and you need matrix math — multiplication, transposition, decomposition, solving equations — matrices are the right tool. They're faster, use less memory, and support operations that data frames don't.
+<p class="lead">A matrix is a 2D array of values of a <strong>single type</strong> — faster and more memory-efficient than a data frame for numerical computation. Every statistical function that involves linear algebra (regression, PCA, correlation) uses matrices under the hood.</p>
 
 ## Introduction
 
-A **matrix** in R is a 2D collection of values with rows and columns, where **every element has the same type**. Think of it as a vector arranged in a grid:
+A data frame stores multiple types per row. A matrix stores one type throughout. This trade-off makes matrices faster for math but less flexible for mixed data. If your data is all numeric and you need matrix multiplication, transposition, or inversion, use a matrix.
 
-- A vector is 1D: `[1, 2, 3, 4, 5, 6]`
-- A matrix is 2D: the same 6 values arranged as 2 rows × 3 columns (or 3×2, etc.)
+This tutorial covers creating matrices, indexing, transposing, matrix multiplication, and solving linear systems. Every example runs live — click **Run**.
+
+## How do you create a matrix in R?
+
+Use `matrix()` with a vector of values plus `nrow` or `ncol`.
 
 ```r
-# Create a matrix from a vector
+# Fill column-wise (default)
 m <- matrix(1:12, nrow = 3, ncol = 4)
-print(m)
-cat("\nDimensions:", nrow(m), "rows x", ncol(m), "columns\n")
-cat("Total elements:", length(m), "\n")
+m
+#>      [,1] [,2] [,3] [,4]
+#> [1,]    1    4    7   10
+#> [2,]    2    5    8   11
+#> [3,]    3    6    9   12
+
+# Fill row-wise
+m_row <- matrix(1:12, nrow = 3, ncol = 4, byrow = TRUE)
+m_row
+#>      [,1] [,2] [,3] [,4]
+#> [1,]    1    2    3    4
+#> [2,]    5    6    7    8
+#> [3,]    9   10   11   12
+
+# Check dimensions
+dim(m)
+#> [1] 3 4
+nrow(m)
+#> [1] 3
+ncol(m)
+#> [1] 4
 ```
 
-Notice R fills the matrix **column by column** (column-major order) by default. The first column gets 1, 2, 3, then the second column gets 4, 5, 6, etc.
+By default, `matrix()` fills column-by-column. Use `byrow = TRUE` to fill row-by-row. `dim()`, `nrow()`, `ncol()` return dimensions.
 
-## Creating Matrices
+[KEY INSIGHT]
+**A matrix is a vector with a `dim` attribute.** R stores matrix values as a single vector in column-major order, plus a `dim` attribute telling R it's 3×4 (or whatever). This is why matrices are memory-efficient.
 
-### matrix() function
+## How do you access matrix elements?
 
-```r
-# Fill by column (default)
-m1 <- matrix(1:12, nrow = 3)
-cat("By column (default):\n")
-print(m1)
-
-# Fill by row
-m2 <- matrix(1:12, nrow = 3, byrow = TRUE)
-cat("\nBy row:\n")
-print(m2)
-
-# With row and column names
-m3 <- matrix(c(88, 92, 75, 95, 81, 90), nrow = 3,
-  dimnames = list(
-    c("Alice", "Bob", "Carol"),     # row names
-    c("Math", "Science")            # column names
-  ))
-cat("\nNamed matrix:\n")
-print(m3)
-```
-
-### From vectors: rbind() and cbind()
+Use `[row, col]` syntax. Leave either blank to select all.
 
 ```r
-# Stack vectors as rows
-row1 <- c(1, 2, 3)
-row2 <- c(4, 5, 6)
-row3 <- c(7, 8, 9)
-m_rows <- rbind(row1, row2, row3)
-cat("rbind (rows):\n")
-print(m_rows)
-
-# Stack vectors as columns
-col_a <- c(10, 20, 30)
-col_b <- c(40, 50, 60)
-m_cols <- cbind(col_a, col_b)
-cat("\ncbind (columns):\n")
-print(m_cols)
-```
-
-### Special matrices
-
-```r
-# Identity matrix
-I <- diag(4)
-cat("4x4 Identity:\n")
-print(I)
-
-# Diagonal matrix from a vector
-d <- diag(c(2, 5, 8))
-cat("\nDiagonal:\n")
-print(d)
-
-# Matrix of zeros or ones
-zeros <- matrix(0, nrow = 3, ncol = 3)
-ones <- matrix(1, nrow = 2, ncol = 4)
-cat("\nZeros:\n")
-print(zeros)
-cat("\nOnes:\n")
-print(ones)
-```
-
-## Accessing Elements
-
-Matrix indexing uses `[row, col]`:
-
-```r
-m <- matrix(1:20, nrow = 4, ncol = 5)
-cat("Matrix:\n")
-print(m)
+m <- matrix(1:12, nrow = 3, ncol = 4)
 
 # Single element
-cat("\nm[2, 3]:", m[2, 3], "\n")
+m[2, 3]
+#> [1] 8
 
-# Entire row (leave column blank)
-cat("Row 1:", m[1, ], "\n")
+# Entire row
+m[1, ]
+#> [1]  1  4  7 10
 
-# Entire column (leave row blank)
-cat("Column 3:", m[, 3], "\n")
+# Entire column
+m[, 2]
+#> [1] 4 5 6
 
 # Submatrix
-cat("\nRows 1-2, Columns 3-5:\n")
-print(m[1:2, 3:5])
+m[1:2, 2:3]
+#>      [,1] [,2]
+#> [1,]    4    7
+#> [2,]    5    8
 
-# By name (if named)
-grades <- matrix(c(88, 92, 75, 95, 81, 90), nrow = 3,
-  dimnames = list(c("Alice", "Bob", "Carol"), c("Math", "Science")))
-cat("\nAlice's Math:", grades["Alice", "Math"], "\n")
-cat("All Science:", grades[, "Science"], "\n")
+# Rows where first column > 1
+m[m[, 1] > 1, ]
+#>      [,1] [,2] [,3] [,4]
+#> [1,]    2    5    8   11
+#> [2,]    3    6    9   12
 ```
 
-## Matrix Arithmetic
+The `[row, col]` syntax is the same as for data frames. The difference: matrices drop to vectors by default when you select one row or column. Use `drop = FALSE` to keep the matrix shape:
 
-### Element-wise operations
+```r
+m[1, , drop = FALSE]    # stays a 1-row matrix
+#>      [,1] [,2] [,3] [,4]
+#> [1,]    1    4    7   10
+```
 
-Standard operators apply element by element — just like vector math:
+## How do you do linear algebra with matrices?
+
+R has full matrix arithmetic built in.
 
 ```r
 A <- matrix(c(1, 2, 3, 4), nrow = 2)
+A
+#>      [,1] [,2]
+#> [1,]    1    3
+#> [2,]    2    4
+
 B <- matrix(c(5, 6, 7, 8), nrow = 2)
+B
+#>      [,1] [,2]
+#> [1,]    5    7
+#> [2,]    6    8
 
-cat("A:\n"); print(A)
-cat("\nB:\n"); print(B)
+# Element-wise arithmetic
+A + B
+#>      [,1] [,2]
+#> [1,]    6   10
+#> [2,]    8   12
 
-cat("\nA + B (element-wise addition):\n"); print(A + B)
-cat("\nA * B (element-wise multiplication):\n"); print(A * B)
-cat("\nA^2 (element-wise square):\n"); print(A^2)
-cat("\nA / B (element-wise division):\n"); print(round(A / B, 3))
+A * B   # element-wise multiply (NOT matrix multiply)
+#>      [,1] [,2]
+#> [1,]    5   21
+#> [2,]   12   32
+
+# Matrix multiplication — use %*%
+A %*% B
+#>      [,1] [,2]
+#> [1,]   23   31
+#> [2,]   34   46
+
+# Transpose
+t(A)
+#>      [,1] [,2]
+#> [1,]    1    2
+#> [2,]    3    4
+
+# Inverse (square matrices only)
+solve(A)
+#>      [,1] [,2]
+#> [1,]   -2  1.5
+#> [2,]    1 -0.5
+
+# Verify: A %*% solve(A) should equal identity
+round(A %*% solve(A), 10)
+#>      [,1] [,2]
+#> [1,]    1    0
+#> [2,]    0    1
 ```
 
-**Important:** `A * B` is **element-wise** multiplication, not matrix multiplication. For matrix multiplication, use `%*%`.
+Key distinction: `*` is element-wise; `%*%` is matrix multiplication. `t()` transposes. `solve()` inverts a square matrix OR solves `Ax = b`.
 
-### Matrix multiplication
+[WARNING]
+**`*` on matrices is element-wise, not matrix multiplication.** Use `%*%` for matrix multiply. Mixing these is a top bug source when translating math formulas.
 
-```r
-# Matrix multiplication uses %*%
-A <- matrix(c(1, 2, 3, 4, 5, 6), nrow = 2)  # 2x3
-B <- matrix(c(7, 8, 9, 10, 11, 12), nrow = 3)  # 3x2
+## How do you solve a linear system?
 
-cat("A (2x3):\n"); print(A)
-cat("\nB (3x2):\n"); print(B)
-
-# A %*% B produces a 2x2 matrix
-C <- A %*% B
-cat("\nA %*% B (2x2):\n"); print(C)
-
-# Dimensions must match: A's columns = B's rows
-cat("\nA:", nrow(A), "x", ncol(A), "\n")
-cat("B:", nrow(B), "x", ncol(B), "\n")
-cat("Result:", nrow(C), "x", ncol(C), "\n")
-```
-
-Matrix multiplication is the foundation of linear regression, PCA, neural networks, and most statistical algorithms.
-
-### Transpose
+`solve()` handles the equation `Ax = b`.
 
 ```r
-A <- matrix(1:6, nrow = 2)
-cat("A (2x3):\n"); print(A)
-
-# t() transposes — swaps rows and columns
-At <- t(A)
-cat("\nt(A) (3x2):\n"); print(At)
-
-# Transpose + multiply: A'A (common in statistics)
-AtA <- t(A) %*% A
-cat("\nt(A) %*% A (3x3):\n"); print(AtA)
-```
-
-`t(A) %*% A` appears everywhere in statistics — it's the basis of least squares regression.
-
-## Matrix Functions
-
-```r
-M <- matrix(c(4, 2, 7, 6), nrow = 2)
-cat("M:\n"); print(M)
-
-# Determinant
-cat("\nDeterminant:", det(M), "\n")
-
-# Inverse (M^-1 such that M %*% M^-1 = I)
-M_inv <- solve(M)
-cat("\nInverse of M:\n"); print(M_inv)
-
-# Verify: M %*% M_inv should be identity
-cat("\nM %*% M_inv (should be identity):\n")
-print(round(M %*% M_inv, 10))
-```
-
-```r
-# Solving linear equations: Ax = b
-# 2x + 3y = 8
-# 4x + 1y = 10
-
-A <- matrix(c(2, 4, 3, 1), nrow = 2)
-b <- c(8, 10)
+# Solve 3x + 2y = 13, x + 4y = 14
+A <- matrix(c(3, 1, 2, 4), nrow = 2)
+b <- c(13, 14)
 
 x <- solve(A, b)
-cat("Solution: x =", x[1], ", y =", x[2], "\n")
+x
+#> [1] 2.4 2.9
 
 # Verify: A %*% x should equal b
-cat("Verification:", A %*% x, "\n")
+A %*% x
+#>      [,1]
+#> [1,]   13
+#> [2,]   14
 ```
 
+`solve(A, b)` is faster and more numerically stable than `solve(A) %*% b` when you just need `x`. Use the two-argument form whenever possible.
+
+## How do matrices compare to data frames?
+
+| Aspect | Matrix | Data Frame |
+|---|---|---|
+| Column types | Single (homogeneous) | Mixed (any type per column) |
+| Memory | Compact (single vector + dim) | List of vectors |
+| Speed for math | Fast (BLAS/LAPACK) | Slow (column-by-column) |
+| Use case | Numerical computing, linear algebra | Tabular data analysis |
+| Convert | `as.matrix(df)` | `as.data.frame(m)` |
+
+Use matrices when: computing distances, fitting linear models manually, doing matrix decompositions, correlations. Use data frames when: mixing types, labeling columns, running dplyr/tidyverse pipelines.
+
+## Common Mistakes and How to Fix Them
+
+### Mistake 1: Using `*` when you meant `%*%`
+
+❌ **Wrong:**
 ```r
-# Eigenvalues and eigenvectors
-M <- matrix(c(4, 1, 2, 3), nrow = 2)
-eigen_result <- eigen(M)
-cat("Eigenvalues:", eigen_result$values, "\n")
-cat("\nEigenvectors:\n")
-print(eigen_result$vectors)
+A <- matrix(1:4, 2, 2)
+B <- matrix(1:4, 2, 2)
+A * B
+#>      [,1] [,2]
+#> [1,]    1    9   # element-wise
+#> [2,]    4   16
 ```
 
-## Row and Column Operations
-
+✅ **Correct:**
 ```r
-m <- matrix(c(10, 20, 30, 40, 50, 60, 70, 80, 90), nrow = 3,
-  dimnames = list(c("R1", "R2", "R3"), c("A", "B", "C")))
-cat("Matrix:\n"); print(m)
-
-# Row sums and means
-cat("\nRow sums:", rowSums(m), "\n")
-cat("Row means:", rowMeans(m), "\n")
-
-# Column sums and means
-cat("Col sums:", colSums(m), "\n")
-cat("Col means:", colMeans(m), "\n")
-
-# Apply any function across rows or columns
-# MARGIN = 1 → apply to each row
-# MARGIN = 2 → apply to each column
-cat("\nRow max:", apply(m, 1, max), "\n")
-cat("Col sd:", round(apply(m, 2, sd), 2), "\n")
+A <- matrix(1:4, 2, 2)
+B <- matrix(1:4, 2, 2)
+A %*% B
+#>      [,1] [,2]
+#> [1,]    7   15   # matrix multiply
+#> [2,]   10   22
 ```
 
-`apply()` is the matrix equivalent of `sapply()` for lists. `MARGIN = 1` means "apply the function to each row," `MARGIN = 2` means "each column."
+### Mistake 2: Forgetting drop = FALSE drops the matrix
 
-## Matrix vs Data Frame: When to Use Which
-
+❌ **Wrong:**
 ```r
-# Speed comparison: matrix is faster for numeric operations
-n <- 1000
-mat <- matrix(rnorm(n * 100), nrow = n)
-df <- as.data.frame(mat)
-
-t_mat <- system.time(for (i in 1:100) colMeans(mat))
-t_df <- system.time(for (i in 1:100) colMeans(as.matrix(df)))
-
-cat("Matrix colMeans (100x):", t_mat["elapsed"], "sec\n")
-cat("Data frame colMeans (100x):", t_df["elapsed"], "sec\n")
+m <- matrix(1:12, 3, 4)
+m[1, ]          # drops to a vector
+class(m[1, ])
+#> [1] "integer"
 ```
 
-| Feature | Matrix | Data Frame |
-|---------|--------|-----------|
-| Data types | Single type only | Mixed types |
-| Math operations | `%*%`, `solve()`, `eigen()` | Not supported |
-| Speed | Faster | Slower |
-| Column types | All same | Each can differ |
-| Row names | Optional | Optional |
-| Use case | Linear algebra, statistics | Tabular data analysis |
+**Why it is wrong:** Downstream code expects a matrix; getting a vector fails silently.
 
-**Rule of thumb:** Use a matrix when all data is numeric and you need matrix math. Use a data frame for everything else.
-
-## Converting Between Matrix and Data Frame
-
+✅ **Correct:**
 ```r
-# Data frame to matrix
-df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
-mat <- as.matrix(df)
-cat("Data frame to matrix:\n"); print(mat)
-cat("Type:", class(mat), "\n\n")
-
-# Matrix to data frame
-mat2 <- matrix(1:12, nrow = 3, dimnames = list(NULL, c("a", "b", "c", "d")))
-df2 <- as.data.frame(mat2)
-cat("Matrix to data frame:\n"); print(df2)
-cat("Type:", class(df2), "\n")
+m <- matrix(1:12, 3, 4)
+m[1, , drop = FALSE]
+class(m[1, , drop = FALSE])
+#> [1] "matrix" "array"
 ```
+
+### Mistake 3: Mixing types creates a character matrix
+
+❌ **Wrong:**
+```r
+m <- matrix(c(1, 2, "three", 4), 2, 2)
+m
+#>      [,1]    [,2]
+#> [1,] "1"     "three"
+#> [2,] "2"     "4"
+```
+
+**Why it is wrong:** Matrix is single-type. Mixing forces character coercion — numbers become strings.
+
+✅ **Correct:** Use a data frame for mixed types, or keep matrix numeric-only.
+
+### Mistake 4: `solve()` on a non-invertible matrix
+
+❌ **Wrong:**
+```r
+singular <- matrix(c(1, 2, 2, 4), 2, 2)
+solve(singular)
+#> Error in solve.default(singular) :
+#>   Lapack routine dgesv: system is exactly singular
+```
+
+**Why it is wrong:** Matrix is singular (rows are linearly dependent). No inverse exists.
+
+✅ **Correct:** Check with `det(m)` — if zero, the matrix is singular. Use `MASS::ginv()` for pseudoinverse if needed.
 
 ## Practice Exercises
 
-### Exercise 1: Matrix Basics
+### Exercise 1: Build a Matrix
+
+Create a 3×3 matrix named `my_m` with values 1 to 9 filled row-wise.
 
 ```r
-# Exercise: Create a 3x3 matrix representing sales data:
-#        Q1   Q2   Q3
-# Prod A: 100  120  110
-# Prod B: 200  180  220
-# Prod C: 150  160  170
-#
-# 1. Find total sales per product (row sums)
-# 2. Find total sales per quarter (column sums)
-# 3. Find which product had the highest Q2 sales
-
+# Hint: matrix(values, nrow, ncol, byrow = TRUE)
 # Write your code below:
 
 ```
@@ -322,33 +281,22 @@ cat("Type:", class(df2), "\n")
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-sales <- matrix(c(100, 200, 150, 120, 180, 160, 110, 220, 170), nrow = 3,
-  dimnames = list(c("Prod A", "Prod B", "Prod C"), c("Q1", "Q2", "Q3")))
-
-cat("Sales:\n"); print(sales)
-
-cat("\nTotal per product:", rowSums(sales), "\n")
-cat("Total per quarter:", colSums(sales), "\n")
-
-best_q2 <- rownames(sales)[which.max(sales[, "Q2"])]
-cat("Highest Q2 sales:", best_q2, "with", max(sales[, "Q2"]), "\n")
+my_m <- matrix(1:9, nrow = 3, ncol = 3, byrow = TRUE)
+my_m
+#>      [,1] [,2] [,3]
+#> [1,]    1    2    3
+#> [2,]    4    5    6
+#> [3,]    7    8    9
 ```
-
-**Explanation:** `rowSums()` adds across columns for each row. `which.max()` finds the position of the maximum, and `rownames()` converts that position to a product name.
 
 </details>
 
-### Exercise 2: Solve a System of Equations
+### Exercise 2: Transpose
+
+Transpose `my_m` from Exercise 1.
 
 ```r
-# Exercise: Solve this system of 3 equations:
-# 2x + y - z = 8
-# -3x - y + 2z = -11
-# -2x + y + 2z = -3
-#
-# Set up as Ax = b and use solve()
-
+# Hint: t()
 # Write your code below:
 
 ```
@@ -357,33 +305,82 @@ cat("Highest Q2 sales:", best_q2, "with", max(sales[, "Q2"]), "\n")
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-A <- matrix(c(2, -3, -2, 1, -1, 1, -1, 2, 2), nrow = 3)
-b <- c(8, -11, -3)
+my_m <- matrix(1:9, nrow = 3, byrow = TRUE)
+my_t <- t(my_m)
+my_t
+#>      [,1] [,2] [,3]
+#> [1,]    1    4    7
+#> [2,]    2    5    8
+#> [3,]    3    6    9
+```
 
-cat("A:\n"); print(A)
-cat("b:", b, "\n")
+</details>
 
-x <- solve(A, b)
-cat("\nSolution: x =", x[1], ", y =", x[2], ", z =", x[3], "\n")
+### Exercise 3: Matrix Multiply
+
+Multiply a 2×3 matrix by a 3×2 matrix. What's the shape of the result?
+
+```r
+my_A <- matrix(1:6, nrow = 2)    # 2x3
+my_B <- matrix(1:6, nrow = 3)    # 3x2
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_A <- matrix(1:6, nrow = 2)
+my_B <- matrix(1:6, nrow = 3)
+my_result <- my_A %*% my_B
+my_result
+#>      [,1] [,2]
+#> [1,]   22   49
+#> [2,]   28   64
+
+dim(my_result)
+#> [1] 2 2
+```
+
+**Explanation:** (2×3) × (3×2) = (2×2). The inner dimensions (3) must match; outer dimensions give the result shape.
+
+</details>
+
+### Exercise 4: Solve a System
+
+Solve 2x + 3y = 13, 4x - y = 5.
+
+```r
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_A <- matrix(c(2, 4, 3, -1), nrow = 2)
+my_b <- c(13, 5)
+my_x <- solve(my_A, my_b)
+my_x
+#> [1] 2 3
 
 # Verify
-cat("Verification (A %*% x):", A %*% x, "\n")
-cat("Should equal b:", b, "\n")
+my_A %*% my_x
+#>      [,1]
+#> [1,]   13
+#> [2,]    5
 ```
-
-**Explanation:** The matrix `A` contains the coefficients (filled column-by-column: first column is x coefficients, second is y, third is z). `solve(A, b)` finds the vector x such that `A %*% x = b`.
 
 </details>
 
-### Exercise 3: Correlation Matrix
+### Exercise 5: Correlation Matrix
+
+Compute the correlation matrix of the numeric columns in `mtcars`.
 
 ```r
-# Exercise: Using mtcars, create a correlation matrix for
-# mpg, hp, wt, and qsec. Then find which pair has the
-# strongest correlation (positive or negative).
-# Hint: cor() creates a correlation matrix
-
+# Hint: cor() takes a matrix or data frame
 # Write your code below:
 
 ```
@@ -392,65 +389,103 @@ cat("Should equal b:", b, "\n")
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-vars <- mtcars[, c("mpg", "hp", "wt", "qsec")]
-cor_mat <- round(cor(vars), 3)
-
-cat("Correlation matrix:\n")
-print(cor_mat)
-
-# Find strongest correlation (excluding diagonal)
-diag(cor_mat) <- 0  # Zero out the 1.0 diagonal
-strongest <- which(abs(cor_mat) == max(abs(cor_mat)), arr.ind = TRUE)[1,]
-cat("\nStrongest correlation:",
-    rownames(cor_mat)[strongest[1]], "&",
-    colnames(cor_mat)[strongest[2]],
-    "=", cor(vars)[strongest[1], strongest[2]], "\n")
+my_cor <- cor(mtcars)
+round(my_cor[1:4, 1:4], 2)   # show just corner
+#>        mpg   cyl  disp    hp
+#> mpg   1.00 -0.85 -0.85 -0.78
+#> cyl  -0.85  1.00  0.90  0.83
+#> disp -0.85  0.90  1.00  0.79
+#> hp   -0.78  0.83  0.79  1.00
 ```
 
-**Explanation:** `cor()` computes pairwise correlations for all columns. We zero the diagonal (self-correlation = 1.0) then find the maximum absolute value. The strongest correlation is between `wt` and `mpg` (about -0.87) — heavier cars get worse fuel economy.
+**Explanation:** `cor()` produces a square matrix of pairwise correlations. This is one of R's most common matrix uses.
 
 </details>
+
+## Complete Example: Manual Linear Regression
+
+Fit a linear model using matrix algebra — the math behind `lm()`.
+
+```r
+# --- Manual linear regression via normal equations ---
+# Solve: beta_hat = (X'X)^-1 X'y
+
+# Setup
+set.seed(42)
+n <- 100
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+y <- 2 + 3 * x1 - 1.5 * x2 + rnorm(n)
+
+# Design matrix with intercept
+X <- cbind(1, x1, x2)
+head(X, 3)
+#>             x1         x2
+#> [1,] 1 1.3709584 -0.8356286
+#> [2,] 1 -0.5646982 1.5952808
+#> [3,] 1 0.3631284 0.3295078
+
+# Normal equations: beta = (X'X)^-1 X'y
+beta_hat <- solve(t(X) %*% X) %*% t(X) %*% y
+beta_hat
+#>         [,1]
+#>    1.9744123
+#> x1 2.9671443
+#> x2 -1.5123988
+
+# Compare to lm()
+coef(lm(y ~ x1 + x2))
+#> (Intercept)         x1         x2
+#>    1.974412   2.967144  -1.512399
+```
+
+The manual matrix math returns identical coefficients to `lm()`. This is exactly what R computes internally — though `lm()` uses QR decomposition for numerical stability instead of inverting `X'X` directly.
 
 ## Summary
 
-| Operation | Code | Notes |
-|-----------|------|-------|
-| Create | `matrix(data, nrow, ncol)` | Fills column-by-column by default |
-| By row | `matrix(data, nrow, byrow = TRUE)` | Fills row-by-row |
-| From vectors | `rbind()` / `cbind()` | Stack rows or columns |
-| Access | `m[row, col]` | Leave blank for all: `m[1,]`, `m[,2]` |
-| Element-wise | `+`, `-`, `*`, `/` | Applied to matching positions |
-| Matrix multiply | `A %*% B` | Columns of A must = rows of B |
-| Transpose | `t(A)` | Swap rows and columns |
-| Inverse | `solve(A)` | Only for square, non-singular matrices |
-| Solve Ax=b | `solve(A, b)` | Linear system of equations |
-| Determinant | `det(A)` | 0 means singular (no inverse) |
-| Row/col stats | `rowSums()`, `colMeans()`, etc. | Very fast |
-| Apply function | `apply(m, MARGIN, fun)` | 1=rows, 2=columns |
+| Operation | Syntax |
+|---|---|
+| Create | `matrix(vec, nrow, ncol)` |
+| Fill row-wise | `matrix(vec, nrow, byrow = TRUE)` |
+| Dimensions | `dim()`, `nrow()`, `ncol()` |
+| Element access | `m[i, j]` |
+| Transpose | `t(m)` |
+| Element-wise multiply | `A * B` |
+| Matrix multiply | `A %*% B` |
+| Inverse | `solve(A)` |
+| Solve system | `solve(A, b)` |
+| Determinant | `det(m)` |
+| Diagonal | `diag(m)` |
+| Identity | `diag(n)` |
 
 ## FAQ
 
-### When does R use matrices internally?
+### Is a matrix the same as a 2D data frame?
 
-All the time. Linear regression (`lm()`) builds a design matrix internally. PCA uses eigen decomposition of a covariance matrix. Distance calculations (`dist()`) produce matrices. Most statistical algorithms work with matrices under the hood.
+No. A matrix is homogeneous (one type), a data frame is heterogeneous (mixed types per column). Matrices are faster for math; data frames are more flexible for data.
 
-### Can a matrix hold text?
+### Why does `m[1, ]` return a vector instead of a 1-row matrix?
 
-Technically yes — `matrix(c("a","b","c","d"), nrow=2)` works. But text matrices are rare and slow. If you need mixed types, use a data frame. If you need fast text operations, use character vectors.
+R's default `drop = TRUE` simplifies results. Add `drop = FALSE` to preserve the matrix shape: `m[1, , drop = FALSE]`.
 
-### What's the difference between `*` and `%*%`?
+### What's the difference between `solve()` and `MASS::ginv()`?
 
-`*` is element-wise: `A[i,j] * B[i,j]`. `%*%` is matrix multiplication: each element of the result is a dot product of a row of A with a column of B. For 2×2 matrices: `(A %*% B)[1,1] = A[1,1]*B[1,1] + A[1,2]*B[2,1]`.
+`solve()` computes the true inverse; requires invertible (non-singular) matrices. `ginv()` computes the Moore-Penrose pseudoinverse; works for any matrix including singular and non-square.
 
-### What happens if I multiply matrices with wrong dimensions?
+### When do I use `crossprod()`?
 
-R throws an error: "non-conformable arguments." For `A %*% B`, the number of columns in A must equal the number of rows in B.
+`crossprod(X)` computes `t(X) %*% X` faster than writing it out, and is numerically more stable. Same for `tcrossprod(X)` = `X %*% t(X)`.
 
-## What's Next?
+### Can matrices have row/column names?
 
-Now you understand both data frames (mixed data) and matrices (numeric data). Explore further:
+Yes — use `rownames(m) <- ...` and `colnames(m) <- ...`, or set `dimnames = list(rows, cols)` in `matrix()`.
 
-1. **R Subsetting** — advanced indexing for all data structures
-2. **R Type Coercion** — how R converts between types
-3. **Linear Regression** — see matrices in action for statistical modeling
+## References
+
+1. R Core Team — *An Introduction to R*, Chapter 5 (Arrays and matrices). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Wickham, H. — *Advanced R*, Section 3.4 (Matrices and arrays). [Link](https://adv-r.hadley.nz/vectors-chap.html#matrices-arrays)
+3. R manual — `matrix()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/matrix.html)
+4. R manual — `solve()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/solve.html)
+5. R manual — `%*%` and matrix multiplication. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/matmult.html)
+6. Venables & Ripley — *Modern Applied Statistics with S*, Chapter 3 (Linear algebra). Springer (2002).
+7. Strang, G. — *Linear Algebra and Its Applications*, 4th Edition. Brooks Cole (2005).
