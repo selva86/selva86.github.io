@@ -1,380 +1,316 @@
 ---
-title: "Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise"
+title: "Write Better R Functions: Arguments, Defaults, Scope"
 slug: "R-Functions"
-description: "Learn to write R functions: arguments, defaults, scope, return values, error handling, and when to vectorize. Interactive examples and exercises."
-keywords: "R functions, function() in R, R function arguments, R default arguments, R scope, R return value, write R functions"
+description: "Write better R functions — define arguments with defaults, understand scoping rules, return values cleanly, and know when to vectorize. Interactive examples throughout."
+keywords: "R functions, function() in R, function arguments, default arguments R, R function scope, return() in R, vectorized functions"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-05"
 curriculum_id: "1.1.10"
 post_type: "C"
-auto_link_terms: "R functions|function() in R|write R functions"
+auto_link_terms: "R functions|function() in R|function arguments|function in R"
 auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "Writing R Functions"
 sidebar_order: 10
 ---
 
-# Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise
+<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; Writing R Functions</nav>
 
-<p class="lead">A function in R packages a block of code so you can reuse it. You define it once with <code>function()</code>, give it a name, and call it whenever you need it — with different inputs each time.</p>
+# Write Better R Functions: Arguments, Defaults, Scope
 
-Once your R scripts grow beyond 50 lines, you'll start copying and pasting code blocks. That's a sign you need functions. Functions make your code shorter, easier to test, and much easier to change — fix a bug in the function and every call benefits.
+<p class="lead">R functions package a sequence of operations behind a name, taking arguments as input and returning a value as output. Mastering function arguments, default values, scoping, and return semantics is the single biggest step from "R user" to "R programmer."</p>
 
 ## Introduction
 
-A **function** takes inputs (arguments), does something with them, and returns a result. You've been using functions since your first R script — `mean()`, `sum()`, `cat()` are all functions. Now you'll learn to write your own.
+In R, functions are first-class objects. You create them with the `function` keyword, store them in variables, pass them to other functions, and return them from other functions. This is why R feels so programmable once you get comfortable writing functions.
 
-Here's the anatomy of an R function:
+This tutorial covers how to define functions, use positional and named arguments, set defaults, understand lexical scope, return values correctly, and decide when to vectorize. Every example runs live in your browser — click **Run** to try.
+
+By the end you'll write functions that work the first time and read cleanly six months later.
+
+## How do you define a function in R?
+
+Use `function(args) { body }` and assign it to a name. The last expression in the body is returned automatically.
+
+![R Function Anatomy](screenshots/R-Functions-anatomy.webp)
+*Figure 1: The anatomy of an R function — name, arguments, body, return value.*
 
 ```r
-# Define a function
-greet <- function(name) {
-  message <- paste("Hello,", name, "! Welcome to R.")
-  return(message)
+# Minimal function
+square <- function(x) {
+  x * x
 }
 
-# Call it
-cat(greet("Alice"), "\n")
-cat(greet("Bob"), "\n")
+square(5)
+#> [1] 25
+square(7)
+#> [1] 49
 ```
 
-`greet` is the name. `name` is the argument. `return(message)` is the output. Everything between `{}` is the body.
+`square` takes one argument `x` and returns `x * x`. No `return()` needed — the last line is the return value by convention. This keeps functions short.
 
-## Your First Function
-
-Let's start with a simple function and build from there:
+For multi-argument functions, separate arguments with commas:
 
 ```r
-# A function that converts Fahrenheit to Celsius
-f_to_c <- function(temp_f) {
-  temp_c <- (temp_f - 32) * 5/9
-  return(round(temp_c, 1))
+# Two arguments
+bmi <- function(weight_kg, height_m) {
+  weight_kg / (height_m ^ 2)
 }
 
-# Use it
-cat("72°F =", f_to_c(72), "°C\n")
-cat("32°F =", f_to_c(32), "°C\n")
-cat("212°F =", f_to_c(212), "°C\n")
+bmi(70, 1.75)
+#> [1] 22.85714
 
-# It works on vectors too!
-temps <- c(32, 50, 72, 100, 212)
-cat("Batch conversion:", f_to_c(temps), "\n")
+# Call with named arguments (order doesn't matter)
+bmi(height_m = 1.75, weight_kg = 70)
+#> [1] 22.85714
 ```
 
-Because R math is vectorized, `f_to_c()` automatically works on single values AND vectors. You don't need to add a loop.
+R supports both positional calling (`bmi(70, 1.75)`) and named calling (`bmi(weight_kg = 70, height_m = 1.75)`). Named calls are self-documenting and order-independent.
 
-## Arguments and Defaults
+[KEY INSIGHT]
+**Named arguments make function calls self-documenting.** `lm(y ~ x, data = df)` is clearer than `lm(y ~ x, df)` even though both work. For any function call with 3+ arguments, name them.
 
-### Required vs optional arguments
+## How do you set default argument values?
+
+Give arguments a default value with `=` in the function signature. Defaults make arguments optional.
 
 ```r
-# tax_rate has a default — it's optional
-calculate_total <- function(price, quantity, tax_rate = 0.08) {
-  subtotal <- price * quantity
-  tax <- subtotal * tax_rate
-  total <- subtotal + tax
-  return(round(total, 2))
+# Function with defaults
+greet <- function(name, greeting = "Hello", punct = "!") {
+  paste0(greeting, ", ", name, punct)
 }
 
-# Use default tax rate
-cat("Default tax:", calculate_total(25, 3), "\n")
+# Use all defaults
+greet("Alice")
+#> [1] "Hello, Alice!"
 
-# Override the default
-cat("No tax:", calculate_total(25, 3, tax_rate = 0), "\n")
-cat("High tax:", calculate_total(25, 3, tax_rate = 0.15), "\n")
+# Override one default
+greet("Bob", greeting = "Hi")
+#> [1] "Hi, Bob!"
+
+# Override multiple
+greet("Carol", greeting = "Hey", punct = "?")
+#> [1] "Hey, Carol?"
 ```
 
-Arguments without defaults are **required** — omitting them causes an error. Arguments with defaults are **optional** — the default is used if you don't provide a value.
+`greeting = "Hello"` means "if the caller doesn't provide `greeting`, use 'Hello'". Defaults turn required arguments into optional ones — the function still works with minimal input but can be customized.
 
-### Positional vs named arguments
+[TIP]
+**Default arguments can reference other arguments.** `function(x, n = length(x))` sets `n` to the length of `x` by default. This pattern is common in statistical functions.
 
-```r
-# These all call the same function the same way
-calculate_total <- function(price, quantity, tax_rate = 0.08) {
-  return(round(price * quantity * (1 + tax_rate), 2))
-}
+## How do R functions return values?
 
-# Positional (order matters)
-cat("Positional:", calculate_total(25, 3, 0.10), "\n")
-
-# Named (order doesn't matter)
-cat("Named:", calculate_total(tax_rate = 0.10, quantity = 3, price = 25), "\n")
-
-# Mixed (positional first, then named)
-cat("Mixed:", calculate_total(25, 3, tax_rate = 0.10), "\n")
-```
-
-> **Best practice:** Use positional arguments for the first 1-2 obvious arguments, then named arguments for everything else. `mean(x)` is clear; `substring(x, 3, 7)` is unclear — better as `substring(x, first = 3, last = 7)`.
-
-### The ... (dot-dot-dot) argument
-
-`...` passes extra arguments to other functions. It's extremely common in R:
+R returns the **last evaluated expression** automatically. Explicit `return()` is for early exit only.
 
 ```r
-# A wrapper function that passes ... to paste()
-shout <- function(..., sep = " ") {
-  text <- paste(..., sep = sep)
-  return(toupper(text))
-}
-
-cat(shout("hello", "world"), "\n")
-cat(shout("r", "is", "great", sep = "-"), "\n")
-```
-
-You'll see `...` in functions like `cat()`, `paste()`, `c()`, and most plotting functions. It makes functions flexible without needing to list every possible argument.
-
-## Return Values
-
-### Explicit return
-
-```r
-# Explicit return — recommended for clarity
-divide_safe <- function(a, b) {
-  if (b == 0) {
-    return(NA)  # Early return for edge case
+# Implicit return — last expression
+absolute_value <- function(x) {
+  if (x < 0) {
+    -x
+  } else {
+    x
   }
-  return(a / b)
 }
+absolute_value(-7)
+#> [1] 7
 
-cat("10 / 3 =", divide_safe(10, 3), "\n")
-cat("10 / 0 =", divide_safe(10, 0), "\n")
+# Explicit return() for early exit
+safe_divide <- function(a, b) {
+  if (b == 0) {
+    return(NA)
+  }
+  a / b
+}
+safe_divide(10, 2)
+#> [1] 5
+safe_divide(10, 0)
+#> [1] NA
 ```
 
-### Implicit return
+Both functions work the same way. `return()` is only needed when you want to exit before reaching the last line (e.g., guard clauses at the top of a function).
 
-R returns the last evaluated expression automatically. Many R programmers omit `return()`:
-
-```r
-# Implicit return — the last expression is returned
-add <- function(x, y) {
-  x + y  # This value is returned
-}
-
-cat("3 + 4 =", add(3, 4), "\n")
-```
-
-Both styles are valid. Use explicit `return()` when you have early exits or the function is long. Use implicit return for short, simple functions.
-
-### Returning multiple values
-
-R functions can only return one object — but that object can be a list:
+To return multiple values, package them in a list:
 
 ```r
-# Return multiple values as a named list
-describe <- function(x) {
+summarize <- function(x) {
   list(
-    mean = round(mean(x), 2),
-    sd = round(sd(x), 2),
-    min = min(x),
-    max = max(x),
+    mean = mean(x),
+    median = median(x),
+    sd = sd(x),
     n = length(x)
   )
 }
 
-data <- c(23, 45, 12, 67, 34, 89, 56)
-result <- describe(data)
-cat("Mean:", result$mean, "\n")
-cat("SD:", result$sd, "\n")
-cat("Range:", result$min, "to", result$max, "\n")
+result <- summarize(c(3, 7, 2, 9, 5, 8, 1, 6))
+result$mean
+#> [1] 5.125
+result$sd
+#> [1] 2.900123
 ```
 
-## Scope: Where Variables Live
+Lists are the idiomatic way to return multiple values in R. The caller accesses results with `$` or `[[ ]]`.
 
-**Scope** determines where a variable is visible. Functions create their own scope — variables inside a function don't leak out:
+## How does R find variable names inside functions?
+
+R uses **lexical scoping** — variables are looked up in the environment where the function was *defined*, not where it's called.
 
 ```r
-x <- 100  # Global variable
+y <- 100
 
-my_func <- function() {
-  x <- 999  # Local variable — different from the global x
-  y <- 42   # Also local
-  cat("Inside function: x =", x, ", y =", y, "\n")
+add_y <- function(x) {
+  x + y
 }
 
-my_func()
-cat("Outside function: x =", x, "\n")
-# cat("y =", y)  # Would error — y doesn't exist outside the function
+add_y(5)
+#> [1] 105
+
+y <- 200
+add_y(5)
+#> [1] 205
+
+silly <- function() {
+  z <- 50
+  z
+}
+silly()
+#> [1] 50
+exists("z")
+#> [1] FALSE
 ```
 
-The function has its own `x` (999) that doesn't affect the global `x` (100). And `y` only exists inside the function.
+Inside `add_y`, `x` is local (the argument) and `y` is found in the global environment. Variables created inside a function (like `z` in `silly`) disappear when the function exits.
 
-### Lexical scoping: looking up the chain
+[WARNING]
+**Don't rely on global variables inside functions.** It makes your function non-reproducible: the same call may return different results if the global changes. Pass everything the function needs as arguments.
 
-If a variable isn't found inside the function, R looks in the **parent environment** (where the function was defined):
+## When should a function be vectorized?
+
+A function is **vectorized** if it naturally works on vectors without needing a loop. Vectorized functions are faster and compose better.
 
 ```r
-tax_rate <- 0.08  # Global variable
+# Naturally vectorized
+square <- function(x) x * x
+square(5)
+#> [1] 25
+square(c(1, 2, 3, 4))
+#> [1] 1 4 9 16
 
-calculate_tax <- function(price) {
-  # tax_rate not defined here — R looks in the parent (global) environment
-  return(price * tax_rate)
+# Not vectorized
+classify <- function(x) {
+  if (x > 0) "positive"
+  else if (x < 0) "negative"
+  else "zero"
 }
-
-cat("Tax on $100:", calculate_tax(100), "\n")
-
-# Change the global variable
-tax_rate <- 0.10
-cat("Tax on $100 (new rate):", calculate_tax(100), "\n")
+classify(5)
+#> [1] "positive"
 ```
 
-This works, but it's fragile — the function depends on a global variable. Better to pass `tax_rate` as an argument:
+`square` is vectorized because `*` is vectorized. `classify` isn't — it uses scalar `if/else`. To vectorize it, use `ifelse()`:
 
 ```r
-# Better: make dependencies explicit
-calculate_tax <- function(price, tax_rate = 0.08) {
-  return(price * tax_rate)
+classify_vec <- function(x) {
+  ifelse(x > 0, "positive",
+  ifelse(x < 0, "negative", "zero"))
 }
-
-cat("Tax:", calculate_tax(100), "\n")           # Uses default
-cat("Tax:", calculate_tax(100, 0.10), "\n")     # Override
+classify_vec(c(3, -1, 0, 7, -5))
+#> [1] "positive" "negative" "zero"     "positive" "negative"
 ```
 
-> **Best practice:** Functions should get all their data from arguments, not global variables. This makes them predictable, testable, and reusable.
+`ifelse()` is fast because it uses R's internal vectorization.
 
-## Error Handling: stop(), warning(), message()
+## Common Mistakes and How to Fix Them
 
-Good functions validate their inputs and give clear error messages:
+### Mistake 1: Using `return` without parentheses
 
+❌ **Wrong:**
 ```r
-# A function with input validation
-bmi <- function(weight_kg, height_m) {
-  # Validate inputs
-  if (!is.numeric(weight_kg) || !is.numeric(height_m)) {
-    stop("Both weight and height must be numeric")
-  }
-  if (weight_kg <= 0 || height_m <= 0) {
-    stop("Weight and height must be positive")
-  }
-  if (height_m > 3) {
-    warning("Height > 3m is unusual. Did you pass height in cm instead of m?")
-  }
-
-  result <- weight_kg / height_m^2
-  return(round(result, 1))
+my_fn <- function(x) {
+  return x * 2
 }
-
-# Normal use
-cat("BMI:", bmi(70, 1.75), "\n")
-
-# Suspicious input (triggers warning)
-cat("BMI:", bmi(70, 175), "\n")  # Probably cm, not meters
 ```
 
-| Function | Behavior | Use when |
-|----------|----------|----------|
-| `stop("msg")` | Stops execution, throws error | Input is invalid, can't continue |
-| `warning("msg")` | Continues but shows warning | Something suspicious but not fatal |
-| `message("msg")` | Shows info message | Progress updates, FYI messages |
+**Why it is wrong:** `return()` is a function in R, not a keyword. It needs parentheses.
 
-## Common Function Patterns
-
-### Pattern 1: Data summarizer
-
+✅ **Correct:**
 ```r
-# Summarize any numeric vector
-quick_stats <- function(x, digits = 2) {
-  x <- x[!is.na(x)]  # Remove NAs
-  data.frame(
-    n = length(x),
-    mean = round(mean(x), digits),
-    median = round(median(x), digits),
-    sd = round(sd(x), digits),
-    min = round(min(x), digits),
-    max = round(max(x), digits)
-  )
+my_fn <- function(x) {
+  return(x * 2)
 }
-
-quick_stats(mtcars$mpg)
+my_fn(5)
+#> [1] 10
 ```
 
-### Pattern 2: Data transformer
+### Mistake 2: Shadowing an argument
 
+❌ **Wrong:**
 ```r
-# Normalize a vector to 0-1 range
-normalize <- function(x) {
-  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+compute <- function(x) {
+  x <- x * 2
+  x
 }
-
-scores <- c(45, 67, 82, 91, 73)
-cat("Original:", scores, "\n")
-cat("Normalized:", round(normalize(scores), 3), "\n")
+compute(5)
+#> [1] 10   # fine, but confuses readers
 ```
 
-### Pattern 3: Pipeable function
+**Why it is wrong:** Reassigning the argument makes it hard to reason about what `x` refers to at any point.
 
+✅ **Correct:**
 ```r
-library(dplyr)
-
-# A function that works in a pipe chain
-add_grade_column <- function(df, score_col = "score") {
-  df |>
-    mutate(
-      grade = case_when(
-        .data[[score_col]] >= 90 ~ "A",
-        .data[[score_col]] >= 80 ~ "B",
-        .data[[score_col]] >= 70 ~ "C",
-        .data[[score_col]] >= 60 ~ "D",
-        TRUE ~ "F"
-      )
-    )
+compute <- function(x) {
+  doubled <- x * 2
+  doubled
 }
-
-# Use in a pipe
-data.frame(student = c("Alice", "Bob", "Carol"), score = c(92, 78, 85)) |>
-  add_grade_column() |>
-  print()
 ```
 
-## When to Vectorize (and When Not To)
+### Mistake 3: Returning via print
 
-R functions are automatically vectorized if the operations inside them are vectorized:
-
+❌ **Wrong:**
 ```r
-# This function is automatically vectorized
-celsius_to_fahr <- function(c) {
-  c * 9/5 + 32
+compute_mean <- function(x) {
+  print(mean(x))
 }
-
-# Works on single values AND vectors — no changes needed
-cat("Single:", celsius_to_fahr(100), "\n")
-cat("Vector:", celsius_to_fahr(c(0, 20, 37, 100)), "\n")
+result <- compute_mean(c(1, 2, 3))
+#> [1] 2
 ```
 
-If your function uses `if/else` (not `ifelse()`), it won't work on vectors:
+**Why it is wrong:** `print()` has side effects and returns its value invisibly. Confusing for readers.
 
+✅ **Correct:**
 ```r
-# NOT vectorized — uses if/else
-grade_single <- function(score) {
-  if (score >= 90) return("A")
-  if (score >= 80) return("B")
-  if (score >= 70) return("C")
-  return("F")
+compute_mean <- function(x) {
+  mean(x)
 }
-
-# Works for one value
-cat("Single:", grade_single(85), "\n")
-
-# Fails for a vector — uncomment to see:
-# grade_single(c(85, 92, 68))  # Warning: only first element used
-
-# Fix: use Vectorize() to make it work on vectors
-grade <- Vectorize(grade_single)
-cat("Vectorized:", grade(c(85, 92, 68)), "\n")
 ```
 
-Or better yet, write it with `ifelse()` or `case_when()` from the start.
+### Mistake 4: Missing required argument
+
+❌ **Wrong:**
+```r
+greet <- function(name, greeting) {
+  paste0(greeting, ", ", name)
+}
+greet("Alice")
+#> Error in paste0(greeting, ", ", name) : argument "greeting" is missing
+```
+
+✅ **Correct:**
+```r
+greet <- function(name, greeting = "Hello") {
+  paste0(greeting, ", ", name)
+}
+greet("Alice")
+#> [1] "Hello, Alice"
+```
 
 ## Practice Exercises
 
-### Exercise 1: Temperature Converter
+### Exercise 1: Circle Area
+
+Write `my_area(radius)` that returns the area of a circle.
 
 ```r
-# Exercise: Write a function temp_convert() that:
-# - Takes a temperature value and a "from" unit ("C", "F", or "K")
-# - Converts to all three units
-# - Returns a named vector with C, F, K values
-# Test: temp_convert(100, "C") should give C=100, F=212, K=373.15
+# Hint: use pi
 
 # Write your code below:
 
@@ -384,40 +320,100 @@ Or better yet, write it with `ifelse()` or `case_when()` from the start.
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-temp_convert <- function(temp, from = "C") {
-  if (from == "C") {
-    c_val <- temp
-  } else if (from == "F") {
-    c_val <- (temp - 32) * 5/9
-  } else if (from == "K") {
-    c_val <- temp - 273.15
-  } else {
-    stop("'from' must be 'C', 'F', or 'K'")
-  }
-
-  c(C = round(c_val, 2),
-    F = round(c_val * 9/5 + 32, 2),
-    K = round(c_val + 273.15, 2))
+my_area <- function(radius) {
+  pi * radius ^ 2
 }
-
-cat("100°C =", temp_convert(100, "C"), "\n")
-cat("32°F =", temp_convert(32, "F"), "\n")
-cat("0K =", temp_convert(0, "K"), "\n")
+my_area(5)
+#> [1] 78.53982
 ```
-
-**Explanation:** The function first converts any input to Celsius (the base unit), then computes all three outputs from Celsius. Using `stop()` for invalid input gives a clear error message.
 
 </details>
 
-### Exercise 2: Statistical Outlier Detector
+### Exercise 2: Default Argument
+
+Write `my_greet(name, formal = FALSE)` that greets formally or casually.
 
 ```r
-# Exercise: Write a function find_outliers() that:
-# - Takes a numeric vector
-# - Identifies outliers using the IQR method (< Q1-1.5*IQR or > Q3+1.5*IQR)
-# - Returns a list with: outlier_values, outlier_positions, bounds (lower, upper)
-# Test with: c(1, 2, 3, 4, 5, 100, -50, 3, 4, 5)
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_greet <- function(name, formal = FALSE) {
+  if (formal) paste0("Hello, Mr/Ms ", name)
+  else paste0("Hi, ", name)
+}
+my_greet("Alice")
+#> [1] "Hi, Alice"
+my_greet("Alice", formal = TRUE)
+#> [1] "Hello, Mr/Ms Alice"
+```
+
+</details>
+
+### Exercise 3: Return Multiple Values
+
+Write `my_stats(x)` returning a list with mean, median, sd.
+
+```r
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_stats <- function(x) {
+  list(mean = mean(x), median = median(x), sd = sd(x))
+}
+my_stats(c(10, 20, 30, 40, 50))
+#> $mean
+#> [1] 30
+#>
+#> $median
+#> [1] 30
+#>
+#> $sd
+#> [1] 15.81139
+```
+
+</details>
+
+### Exercise 4: Early Return
+
+Write `my_safe_log(x)` returning `NA` if x ≤ 0, else `log(x)`.
+
+```r
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_safe_log <- function(x) {
+  if (x <= 0) return(NA)
+  log(x)
+}
+my_safe_log(10)
+#> [1] 2.302585
+my_safe_log(-5)
+#> [1] NA
+```
+
+</details>
+
+### Exercise 5: Vectorized Sign
+
+Write `my_sign(x)` returning "pos", "neg", or "zero" for each element.
+
+```r
+my_nums <- c(3, -1, 0, 5, -2, 0, 7)
 
 # Write your code below:
 
@@ -427,130 +423,120 @@ cat("0K =", temp_convert(0, "K"), "\n")
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-find_outliers <- function(x) {
-  q1 <- quantile(x, 0.25, na.rm = TRUE)
-  q3 <- quantile(x, 0.75, na.rm = TRUE)
-  iqr <- q3 - q1
-  lower <- q1 - 1.5 * iqr
-  upper <- q3 + 1.5 * iqr
+my_sign <- function(x) {
+  ifelse(x > 0, "pos", ifelse(x < 0, "neg", "zero"))
+}
+my_nums <- c(3, -1, 0, 5, -2, 0, 7)
+my_sign(my_nums)
+#> [1] "pos"  "neg"  "zero" "pos"  "neg"  "zero" "pos"
+```
 
-  is_outlier <- x < lower | x > upper
+</details>
+
+## Complete Example: A Data Summarizer
+
+```r
+# --- summarize_vector: comprehensive stats function ---
+
+summarize_vector <- function(x, na.rm = TRUE, digits = 2) {
+  if (!is.numeric(x)) {
+    return(list(error = "Input must be numeric"))
+  }
+
+  n_na <- sum(is.na(x))
+  if (na.rm) x <- x[!is.na(x)]
+
+  if (length(x) == 0) {
+    return(list(n = 0, note = "No valid values"))
+  }
 
   list(
-    outlier_values = x[is_outlier],
-    outlier_positions = which(is_outlier),
-    bounds = c(lower = unname(lower), upper = unname(upper)),
-    n_outliers = sum(is_outlier),
-    n_total = length(x)
+    n = length(x),
+    n_missing = n_na,
+    mean = round(mean(x), digits),
+    median = round(median(x), digits),
+    sd = round(sd(x), digits),
+    min = min(x),
+    max = max(x)
   )
 }
 
-data <- c(1, 2, 3, 4, 5, 100, -50, 3, 4, 5)
-result <- find_outliers(data)
-cat("Data:", data, "\n")
-cat("Outliers:", result$outlier_values, "\n")
-cat("At positions:", result$outlier_positions, "\n")
-cat("Bounds: [", result$bounds["lower"], ",", result$bounds["upper"], "]\n")
+data <- c(23, 45, NA, 67, 12, NA, 89, 34, 56, 78)
+summarize_vector(data)
+#> $n
+#> [1] 8
+#>
+#> $n_missing
+#> [1] 2
+#>
+#> $mean
+#> [1] 50.5
+#>
+#> $median
+#> [1] 50.5
+#>
+#> $sd
+#> [1] 27.26
+#>
+#> $min
+#> [1] 12
+#>
+#> $max
+#> [1] 89
+
+summarize_vector(c("a", "b", "c"))
+#> $error
+#> [1] "Input must be numeric"
 ```
 
-**Explanation:** The IQR method defines outliers as values more than 1.5 × IQR below Q1 or above Q3. The function returns a list so the caller gets the outlier values, their positions, and the bounds — all in one call.
-
-</details>
-
-### Exercise 3: Flexible Summary Function
-
-```r
-# Exercise: Write a function column_report() that:
-# - Takes a data frame
-# - For numeric columns: prints mean, sd, % missing
-# - For character columns: prints unique count, most common value, % missing
-# - Returns invisible(NULL) (it's a printing function)
-# Test with: data.frame(x = c(1,2,NA,4), y = c("a","b","a","a"))
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-# Solution
-column_report <- function(df) {
-  for (col_name in names(df)) {
-    col <- df[[col_name]]
-    pct_missing <- round(mean(is.na(col)) * 100, 1)
-
-    if (is.numeric(col)) {
-      cat(sprintf("%-15s [numeric]  mean=%.2f  sd=%.2f  missing=%s%%\n",
-        col_name, mean(col, na.rm = TRUE), sd(col, na.rm = TRUE), pct_missing))
-    } else {
-      tbl <- sort(table(col), decreasing = TRUE)
-      most_common <- names(tbl)[1]
-      cat(sprintf("%-15s [character] unique=%d  mode='%s'  missing=%s%%\n",
-        col_name, length(tbl), most_common, pct_missing))
-    }
-  }
-  invisible(NULL)
-}
-
-# Test
-test_df <- data.frame(
-  age = c(25, 30, NA, 45, 28),
-  score = c(88, 92, 75, NA, 83),
-  grade = c("A", "A", "B", "A", "B"),
-  city = c("NYC", "LA", "NYC", "NYC", "SF")
-)
-
-column_report(test_df)
-```
-
-**Explanation:** The function loops over column names, checks each column's type with `is.numeric()`, and prints the appropriate summary. `invisible(NULL)` means it's called for its side effect (printing), not its return value.
-
-</details>
+This function uses five patterns: argument defaults, guard clauses with early return, NA handling, list-based multiple returns, and type checking. Real R functions look like this.
 
 ## Summary
 
 | Concept | Syntax | Example |
-|---------|--------|---------|
-| Define | `function(args) { body }` | `add <- function(x, y) x + y` |
-| Default arg | `arg = default` | `f <- function(x, n = 10)` |
-| Return | `return(value)` | `return(result)` |
-| Multiple returns | `list(a = x, b = y)` | Return a named list |
-| Early exit | `return()` inside `if` | Guard clause pattern |
-| Validation | `stop("msg")` | `if (!is.numeric(x)) stop(...)` |
-| Vectorize | `Vectorize(f)` | Or write with `ifelse()`/`case_when()` |
-| Pipe-friendly | First arg = data | `my_func <- function(df, ...)` |
+|---|---|---|
+| Define | `f <- function(x) { ... }` | `sq <- function(x) x*x` |
+| Default | `function(x = value)` | `function(x, n = 10)` |
+| Implicit return | last expression | `function(x) x * 2` |
+| Explicit return | `return(value)` | `return(NA)` |
+| Multiple returns | list | `list(a = 1, b = 2)` |
+| Named call | `f(arg = value)` | `lm(y ~ x, data = df)` |
+| Scope | Lexical | Outer vars visible |
 
 ## FAQ
 
-### Should I use return() explicitly or rely on implicit return?
+### Should I always use explicit `return()`?
 
-Both are acceptable. Use explicit `return()` for functions longer than ~5 lines, functions with early exits (`if (error) return(NA)`), or when returning in the middle of the function. Use implicit return for short, one-expression functions.
+No. R's convention is implicit return (last expression) for the main value, explicit `return()` only for early exits.
 
-### How many arguments should a function have?
+### How many arguments is too many?
 
-As few as possible. Functions with 1-3 arguments are easy to understand. If you need more than 5, consider grouping related arguments into a list or creating multiple smaller functions.
+~5-7 is a soft limit. Beyond that, group related arguments into a list.
 
-### Can functions modify their arguments?
+### What does `...` mean?
 
-No. R uses **copy-on-modify** semantics. When you pass a variable to a function and modify it inside, R creates a copy — the original is unchanged. This is a feature, not a bug — it prevents unexpected side effects.
+The `...` collects extra arguments you didn't name. Useful in wrapper functions: `my_plot <- function(x, ...) plot(x, col="red", ...)`.
 
-### What does invisible() do?
+### Can I define a function inside another function?
 
-`invisible(x)` returns `x` but doesn't print it. Use it when your function is called for a side effect (printing, plotting, writing files) and you don't want the return value cluttering the console.
+Yes — these are closures. The inner function remembers the outer environment.
 
-### When should I write a function vs use existing ones?
+### How do I debug a function?
 
-Write a function when you're copying and pasting the same code block more than twice. Before writing your own, search CRAN — there's probably a package that does what you need. The tidyverse, in particular, has functions for most common data manipulation tasks.
+Insert `browser()` inside, or wrap with `debug(fn); fn(...)` to step through it.
+
+## References
+
+1. R Core Team — *An Introduction to R*, Chapter 10 (Writing your own functions). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 6 (Functions). [Link](https://adv-r.hadley.nz/functions.html)
+3. R manual — `function` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/function.html)
+4. R Language Definition — Function objects. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Function-objects)
+5. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 26 (Functions). [Link](https://r4ds.hadley.nz/functions.html)
+6. tidyverse style guide — Functions. [Link](https://style.tidyverse.org/functions.html)
+7. R manual — `Vectorize()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Vectorize.html)
 
 ## What's Next?
 
-You can now write reusable R functions. Next:
-
-1. **R Special Values** — handle NA, NULL, NaN, and Inf in your functions
-2. **Getting Help in R** — find and understand R documentation
-3. **Functional Programming** — use functions as arguments to other functions
-
-Functions are the building blocks of all serious R programming.
+- **[R Anonymous Functions](R-Anonymous-Functions.html)** — short throwaway functions with `\(x)` syntax.
+- **[R Closures](R-Closures.html)** — functions that remember their environment.
+- **[Functional Programming in R](Functional-Programming-in-R.html)** — first-class functions, map/filter/reduce.
