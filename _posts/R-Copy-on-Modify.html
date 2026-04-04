@@ -1,387 +1,407 @@
 ---
-title: "Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)"
-description: "R copies your data when you modify it — but only when necessary. Learn how copy-on-modify works, how to detect copies, and how to avoid them."
-keywords: "copy-on-modify, R memory management, tracemem(), R object copying, R performance, lobstr, R memory"
+title: "Why R Copies Your Data: Copy-on-Modify Explained"
+description: "Master R's copy-on-modify semantics — when R copies data, when it doesn't, and how to track memory usage. Understand why reference semantics surprise you in R."
+keywords: "copy on modify R, R memory, R reference semantics, tracemem R, lobstr, R data copying"
 mathjax: false
 webr: true
 curriculum_id: "FR-fund-1"
 post_type: "FR"
-auto_link_terms: "copy-on-modify|R memory management|tracemem()"
+auto_link_terms: "copy-on-modify|R memory model|copy on modify"
 auto_link_case_sensitive: false
-fr_parent: "R-Data-Frames.html"
+fr_parent: "R-Data-Types.html"
 ---
 
-<h1>Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)</h1>
+<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Further Reading &gt; R Copy-on-Modify</nav>
 
-<p class="lead">When you assign <code>y &lt;- x</code> in R, both variables point to the same data in memory. R only makes a copy when you modify one of them. This "copy-on-modify" mechanism saves memory and is one of the most important things to understand about R performance.</p>
+<h1>Why R Copies Your Data: Copy-on-Modify Explained</h1>
 
-<p>You've probably heard that "R copies everything" and that's why it's slow. That's a half-truth. R <em>can</em> copy — but it's smarter than most people think. Understanding when R copies (and when it doesn't) lets you write faster code and avoid mysterious memory spikes.</p>
+<p class="lead">R uses <strong>copy-on-modify</strong> semantics — when you assign <code>y &lt;- x</code>, both names point to the same object in memory. Only when you modify one does R actually copy. This is both memory-efficient and a source of beginner confusion.</p>
 
 <h2>Introduction</h2>
 
-<p>In most programming languages, assignment creates a copy. In Python, <code>y = x</code> for a list creates a reference (both point to the same object, and changing one affects the other). R takes a middle path called <strong>copy-on-modify</strong>:</p>
+<p>In most programming languages, <code>y &lt;- x</code> makes a copy. In R, it doesn't — both names point to the same memory until one of them is modified. This "copy-on-modify" design saves memory when you're just reading data and defers the cost of copying until it's actually needed.</p>
 
-<ol>
-<li><code>y &lt;- x</code> — both <code>x</code> and <code>y</code> point to the <strong>same data</strong> (no copy yet)</li>
-<li>Modify <code>y</code> — <strong>now</strong> R makes a copy of the data for <code>y</code>, leaving <code>x</code> untouched</li>
-</ol>
+<p>This tutorial unpacks when R copies and when it doesn't, using the <code>tracemem()</code> function to watch copying happen in real time. Understanding this changes how you write efficient R code.</p>
 
-<p>This means assignment is cheap (no copying), and copies happen only when necessary (on modification). It's the best of both worlds: safe (no surprise mutations) and efficient (no unnecessary copies).</p>
+<h2>What is copy-on-modify?</h2>
+
+<p>When you assign one object to another name, R does NOT create a new copy. Both names point to the same memory.</p>
 
 <div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Step 1: x and y share the same data
-x &lt;- 1:1000000
-cat(&quot;x created:&quot;, object.size(x), &quot;bytes\n&quot;)
 
-# Step 2: Assignment doesn&#39;t copy
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">x &lt;- c(1, 2, 3, 4, 5)
+y &lt;- x           # no copy — both names point to same vector
+
+# tracemem() reports when an object gets copied
+tracemem(x)
+#&gt; [1] &quot;&lt;0x...&gt;&quot;
+
+# Modifying y triggers the copy
+y[1] &lt;- 99
+#&gt; tracemem[0x...]: y   &lt;- copy happened here
+
+x    # x is unchanged
+#&gt; [1] 1 2 3 4 5
+y
+#&gt; [1] 99  2  3  4  5</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>y &lt;- x</code> created a second name for the same vector — no memory allocation. The copy only happened when we modified <code>y[1]</code>. After that moment, <code>x</code> and <code>y</code> point to different objects.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>R is reference-sharing until you modify. Assignment is free; modification triggers copying.</strong> This is why you can pass large data frames to functions without worrying about memory — they share until the function modifies them.</div></div>
+
+<h2>When does R skip the copy?</h2>
+
+<p>R's internal code can detect "this object has only one name pointing to it" and modify in place without copying.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Single reference — modifies in place
+x &lt;- c(1, 2, 3)
+tracemem(x)
+x[1] &lt;- 99       # may modify in place (R 4.0+)
+# No tracemem copy message printed for in-place modify
+
+# Multiple references — forces copy
+x &lt;- c(1, 2, 3)
 y &lt;- x
-cat(&quot;After y &lt;- x, still same memory footprint\n&quot;)
+tracemem(x)
+x[1] &lt;- 99       # copy happens (x had 2 references)
+untracemem(x)</div>
 
-# Step 3: Modification triggers the copy
-y[1] &lt;- 999L
-cat(&quot;After modifying y, now two separate copies exist\n&quot;)
-cat(&quot;x[1]:&quot;, x[1], &quot;(unchanged)\n&quot;)
-cat(&quot;y[1]:&quot;, y[1], &quot;(modified)\n&quot;)</div>
     <div class="webr-buttons">
+
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
     </div>
+
     <pre class="webr-output"></pre>
+
   </div>
+
 </div>
 
-<p>The key insight: <code>y &lt;- x</code> is instant regardless of how large <code>x</code> is, because no data is copied. The copy only happens when you modify <code>y</code>.</p>
+<p>R 4.0+ has refcount tracking that can modify objects in place when it's safe. In older R versions, every modification triggered a copy regardless.</p>
 
-<h2>Names and Values: The Mental Model</h2>
+<h2>How do you see when R copies?</h2>
 
-<p>Think of R variables as <strong>name tags</strong>, not boxes. When you write <code>x &lt;- c(1, 2, 3)</code>, you create a value <code>c(1, 2, 3)</code> in memory and stick a name tag "x" on it. When you write <code>y &lt;- x</code>, you stick a second name tag "y" on the <em>same value</em>. No copying.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Both names point to the same value
-x &lt;- c(10, 20, 30)
-y &lt;- x
-
-# They&#39;re identical — same underlying data
-cat(&quot;x:&quot;, x, &quot;\n&quot;)
-cat(&quot;y:&quot;, y, &quot;\n&quot;)
-cat(&quot;identical(x, y):&quot;, identical(x, y), &quot;\n&quot;)
-
-# Modify y — NOW a copy happens
-y[2] &lt;- 99
-cat(&quot;\nAfter y[2] &lt;- 99:\n&quot;)
-cat(&quot;x:&quot;, x, &quot;\n&quot;)  # Still 10, 20, 30
-cat(&quot;y:&quot;, y, &quot;\n&quot;)  # Now 10, 99, 30</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-</div>
-
-<p>R guarantees that modifying <code>y</code> never affects <code>x</code>. That's the "safe" part. The "efficient" part is that the copy is deferred until it's actually needed.</p>
-
-<h2>When Does R Copy?</h2>
-
-<h4>Copies happen when:</h4>
+<p>Use <code>tracemem()</code> to print a message each time R copies an object.</p>
 
 <div class="webr-container">
+
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># 1. Modifying a shared vector
-x &lt;- 1:5
-y &lt;- x
-y[3] &lt;- 99    # Copy triggered here
 
-# 2. Modifying inside a function (usually)
-double_first &lt;- function(v) {
-  v[1] &lt;- v[1] * 2    # v is shared with the caller&#39;s variable
-  return(v)
-}
-original &lt;- c(10, 20, 30)
-result &lt;- double_first(original)
-cat(&quot;Original:&quot;, original, &quot;(unchanged)\n&quot;)
-cat(&quot;Result:&quot;, result, &quot;\n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-</div>
+    <div class="webr-editor" data-language="r">library(lobstr)
 
-<h4>Copies DON'T happen when:</h4>
+x &lt;- c(1:100)
+obj_addr(x)
+#&gt; [1] &quot;0x...&quot;
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># 1. Assignment without modification
-x &lt;- 1:1000000
-y &lt;- x            # No copy — just a new name tag
-z &lt;- y            # Still no copy — three name tags, one value
-
-# 2. Read-only operations
-cat(&quot;mean:&quot;, mean(x), &quot;\n&quot;)    # No copy — just reading
-cat(&quot;length:&quot;, length(x), &quot;\n&quot;) # No copy
-cat(&quot;x[1:5]:&quot;, x[1:5], &quot;\n&quot;)   # No copy (subsetting creates a new smaller object)
-
-# 3. Only one name pointing to the data
-x &lt;- 1:10
-# If y is removed or reassigned, x is the sole owner
-x[5] &lt;- 99   # No copy needed — x is the only name tag
-cat(&quot;Modified in place:&quot;, x, &quot;\n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-</div>
-
-<p>The last point is important: if only one name tag points to data, R can <strong>modify in place</strong> without copying. This is why removing temporary variables (or operating in a function's local scope) can speed up your code.</p>
-
-<h2>How Copy-on-Modify Affects Data Frames</h2>
-
-<p>Data frames are lists of column vectors. When you modify a column, R copies <strong>only that column</strong> — not the entire data frame. This is called a <strong>shallow copy</strong>:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Create a data frame with several columns
-df &lt;- data.frame(
-  a = 1:5,
-  b = letters[1:5],
-  c = rnorm(5)
-)
-
-# Modify one column
-df2 &lt;- df
-df2$a &lt;- df2$a * 10
-
-cat(&quot;Original df$a:&quot;, df$a, &quot;\n&quot;)
-cat(&quot;Modified df2$a:&quot;, df2$a, &quot;\n&quot;)
-
-# Only column &#39;a&#39; was copied!
-# Columns b and c are still shared between df and df2
-cat(&quot;df$b and df2$b identical:&quot;, identical(df$b, df2$b), &quot;\n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-</div>
-
-<p>This is efficient — modifying one column of a 1GB data frame doesn't copy all 1GB. Only the changed column gets a new copy.</p>
-
-<h4>Row modification is expensive</h4>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Column modification: only copies the modified column
-df &lt;- data.frame(x = 1:5, y = 6:10, z = 11:15)
-df$x[3] &lt;- 999
-cat(&quot;After modifying column: fast (shallow copy)\n&quot;)
-
-# Row modification: copies more data
-df[3, ] &lt;- c(100, 200, 300)
-cat(&quot;After modifying row: copies all affected columns\n&quot;)
-
-# This is why: columns are vectors, rows are NOT
-# Modifying a row touches every column vector
-print(df)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-</div>
-
-<blockquote><p><strong>Performance tip:</strong> When possible, work column-wise (modifying whole columns) rather than row-wise (modifying individual rows). This minimizes copies and is much faster for large data frames.</p></blockquote>
-
-<h2>Lists and Shallow Copying</h2>
-
-<p>Lists use the same copy-on-modify rule, but with an important nuance — <strong>shallow copies</strong>:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># A list with large elements
-big_list &lt;- list(
-  numbers = 1:1000000,
-  text = paste0(&quot;item_&quot;, 1:1000000)
-)
-
-cat(&quot;Original size:&quot;, object.size(big_list), &quot;bytes\n&quot;)
-
-# Assignment: no copy
-big_list2 &lt;- big_list
-
-# Modify one element: only THAT element is copied
-big_list2$numbers &lt;- big_list2$numbers * 2
-
-cat(&quot;Original numbers[1]:&quot;, big_list$numbers[1], &quot;\n&quot;)
-cat(&quot;Modified numbers[1]:&quot;, big_list2$numbers[1], &quot;\n&quot;)
-# The &#39;text&#39; element is still shared — not copied!</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-</div>
-
-<h2>Practical Implications: Writing Faster R Code</h2>
-
-<h4>Avoid growing vectors in loops</h4>
-
-<p>This is the #1 performance killer in R — and copy-on-modify explains why:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># BAD: Growing a vector triggers a copy every iteration
-bad_approach &lt;- function(n) {
-  result &lt;- c()
-  for (i in 1:n) {
-    result &lt;- c(result, i^2)  # Copy entire vector each time!
-  }
-  result
+# Copy-on-modify in a function
+modify &lt;- function(v) {
+  v[1] &lt;- 999
+  v
 }
 
-# GOOD: Pre-allocate, then fill
-good_approach &lt;- function(n) {
-  result &lt;- numeric(n)  # Allocate once
-  for (i in 1:n) {
-    result[i] &lt;- i^2    # Modify in place (single owner)
-  }
-  result
+y &lt;- modify(x)
+obj_addr(x)
+#&gt; [1] &quot;0x...&quot;         # x unchanged
+obj_addr(y)
+#&gt; [1] &quot;0x...different&quot;  # y is a new object</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>lobstr::obj_addr()</code> shows the memory address of an R object. If two names share an address, they share memory. If <code>modify()</code> had returned <code>v</code> without touching it, <code>y</code> would share <code>x</code>'s address.</p>
+
+<h2>When does copy-on-modify surprise you?</h2>
+
+<p>Three common scenarios catch beginners off guard.</p>
+
+<h4>Scenario 1: Modifying a data frame column</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(x = 1:1000, y = rnorm(1000))
+tracemem(df)
+
+df$x[1] &lt;- 999   # copies the entire data frame!
+#&gt; tracemem[...]: df</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Changing one element copies the entire data frame because R's refcount sees <code>df</code> as having multiple "parts" being modified. For heavy data manipulation, packages like <code>data.table</code> use reference semantics to avoid this.</p>
+
+<h4>Scenario 2: Function arguments</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">big_vector &lt;- 1:1e7   # 10 million elements
+
+show_length &lt;- function(v) {
+  length(v)   # just reading — no copy
 }
 
-# BEST: Vectorize — no loop at all
-best_approach &lt;- function(n) {
-  (1:n)^2
+modify_arg &lt;- function(v) {
+  v[1] &lt;- 999   # copies because we're modifying
+  v
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Passing to a read-only function: no copy. Passing to a modify-then-return function: copies once inside.</p>
+
+<h4>Scenario 3: Growing a vector in a loop</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Slow — allocates and copies every iteration
+result &lt;- c()
+for (i in 1:1000) {
+  result &lt;- c(result, i)
 }
 
-n &lt;- 10000
-cat(&quot;Bad:&quot;, system.time(bad_approach(n))[&quot;elapsed&quot;], &quot;sec\n&quot;)
-cat(&quot;Good:&quot;, system.time(good_approach(n))[&quot;elapsed&quot;], &quot;sec\n&quot;)
-cat(&quot;Best:&quot;, system.time(best_approach(n))[&quot;elapsed&quot;], &quot;sec\n&quot;)</div>
+# Fast — pre-allocated, modifies in place
+result &lt;- numeric(1000)
+for (i in 1:1000) {
+  result[i] &lt;- i
+}</div>
+
     <div class="webr-buttons">
+
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
     </div>
+
     <pre class="webr-output"></pre>
+
   </div>
+
 </div>
 
-<p>The "bad" approach copies the entire vector at each step: step 1 copies 1 element, step 2 copies 2 elements, ..., step n copies n elements. That's O(n²) copies total. Pre-allocation or vectorization avoids this entirely.</p>
+<p>Pre-allocated vectors can be modified in place (single reference). Growing with <code>c()</code> creates a new vector every iteration.</p>
 
-<h4>Avoid unnecessary intermediate copies</h4>
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Assuming R will mutate in place</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
 
 <div class="webr-container">
+
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Unnecessary copies
-x &lt;- rnorm(1000000)
-y &lt;- x          # Names point to same data
-z &lt;- y + 1      # Creates new vector for z (necessary — new values)
-w &lt;- z          # No copy — just a name
-w &lt;- w * 2      # Copy triggered (z also points to the same data)
 
-# Cleaner: avoid intermediate names
-x &lt;- rnorm(1000000)
-result &lt;- (x + 1) * 2  # One expression, fewer copies
+    <div class="webr-editor" data-language="r"># Trying to modify from inside a function
+modify_global &lt;- function(x) {
+  x[1] &lt;- 999    # only modifies local copy
+}
 
-cat(&quot;Result length:&quot;, length(result), &quot;\n&quot;)
-cat(&quot;First 5:&quot;, round(result[1:5], 3), &quot;\n&quot;)</div>
+my_v &lt;- c(1, 2, 3)
+modify_global(my_v)
+my_v
+#&gt; [1] 1 2 3   # unchanged!</div>
+
     <div class="webr-buttons">
+
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
     </div>
+
     <pre class="webr-output"></pre>
+
   </div>
+
 </div>
 
-<h4>Use data.table for truly in-place modification</h4>
+<p><strong>Why it is wrong:</strong> R passes arguments by copy-on-modify. The function's <code>x</code> is a local reference; modifying it doesn't touch <code>my_v</code>.</p>
 
-<p>The <code>data.table</code> package provides genuine modify-in-place operations with the <code>:=</code> operator:</p>
+<p>✅ <strong>Correct:</strong></p>
 
 <div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># With data.table, modification happens in place — no copies!
-# (Not available in WebR, but here&#39;s the syntax)
-# library(data.table)
-# dt &lt;- data.table(x = 1:5, y = 6:10)
-# dt[, z := x + y]   # Adds column z IN PLACE — no copy of dt!
 
-# Compare to base R / dplyr:
-df &lt;- data.frame(x = 1:5, y = 6:10)
-df$z &lt;- df$x + df$y   # Creates a copy of at least the column
-cat(&quot;data.table := modifies in place (no copy)\n&quot;)
-cat(&quot;Base R $ creates a copy of the modified column\n&quot;)
-print(df)</div>
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">modify_return &lt;- function(x) {
+  x[1] &lt;- 999
+  x
+}
+my_v &lt;- modify_return(my_v)
+my_v
+#&gt; [1] 999   2   3</div>
+
     <div class="webr-buttons">
+
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
     </div>
+
     <pre class="webr-output"></pre>
+
   </div>
+
 </div>
 
-<p>For datasets with millions of rows, <code>data.table</code>'s in-place modification can be 10-100x faster than base R or dplyr.</p>
+<h4>Mistake 2: Growing a vector with <code>c()</code> in a loop</h4>
 
-<h2>Environments: The Exception to Copy-on-Modify</h2>
+<p>❌ <strong>Wrong:</strong> (see Scenario 3 above)</p>
 
-<p>There's one R object that uses <strong>reference semantics</strong> (like Python) — environments:</p>
+<p>✅ <strong>Correct:</strong> Pre-allocate, then assign by index.</p>
+
+<h4>Mistake 3: Chained assignments with shared references</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
 
 <div class="webr-container">
+
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Environments are NOT copied on modify
-e1 &lt;- new.env(parent = emptyenv())
-e1$x &lt;- 42
 
-e2 &lt;- e1  # Same environment — NOT a copy!
-e2$x &lt;- 999
+    <div class="webr-editor" data-language="r">my_list &lt;- list(a = 1:3, b = 4:6)
+my_copy &lt;- my_list
+my_list$a[1] &lt;- 999
+# Did my_copy change? No — copy-on-modify triggered.
+my_copy$a
+#&gt; [1] 1 2 3</div>
 
-cat(&quot;e1$x:&quot;, e1$x, &quot;\n&quot;)  # 999 — e1 was affected!
-cat(&quot;e2$x:&quot;, e2$x, &quot;\n&quot;)  # 999 — same object
-
-# This is why R6 classes (which use environments) have reference semantics
-# and why environments are used for mutable state</div>
     <div class="webr-buttons">
+
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
     </div>
+
     <pre class="webr-output"></pre>
+
   </div>
+
 </div>
 
-<p>This is the exception that proves the rule. Regular R objects (vectors, lists, data frames) are copy-on-modify. Environments are modify-in-place. R6 classes exploit this for object-oriented programming with mutable state.</p>
+<p><strong>Actually this is fine</strong> — R correctly copied. But don't assume list elements are shared after modification.</p>
+
+<h4>Mistake 4: Using <code>&lt;&lt;-</code> to "avoid copies"</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">modify_via_global &lt;- function() {
+  my_v[1] &lt;&lt;- 999   # writes to global — confusing!
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>&lt;&lt;-</code> bypasses scoping rules, creating hidden dependencies. Avoid it except in closures where you deliberately capture state.</p>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Predict the Copies</h4>
+<h4>Exercise 1: Verify Same Address</h4>
+
+<p>Use <code>lobstr::obj_addr()</code> to verify that <code>x</code> and <code>y</code> share memory after assignment.</p>
 
 <div class="webr-container">
+
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Exercise: For each line, predict whether a copy happens
-# Write &quot;COPY&quot; or &quot;NO COPY&quot; next to each line, then verify
 
-x &lt;- 1:10          # ?
-y &lt;- x              # ?
-z &lt;- y              # ?
-y[5] &lt;- 99L         # ?
-x[1] &lt;- 0L          # ?
-w &lt;- z + 1          # ?
-rm(z)               # ?
-w[1] &lt;- 100         # ?
+    <div class="webr-editor" data-language="r"># install.packages(&quot;lobstr&quot;)
+library(lobstr)
 
-# Write your predictions, then check by running the code:
+my_x &lt;- c(1, 2, 3, 4, 5)
+my_y &lt;- my_x
+# Write your code below to check addresses
 </div>
+
     <div class="webr-buttons">
+
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
     </div>
+
     <pre class="webr-output"></pre>
+
   </div>
+
 </div>
 
 <details>
@@ -389,20 +409,11 @@ w[1] &lt;- 100         # ?
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-x &lt;- 1:10          # NO COPY — creates new object
-y &lt;- x              # NO COPY — second name tag on same data
-z &lt;- y              # NO COPY — third name tag on same data
-y[5] &lt;- 99L         # COPY — y gets its own copy (x and z still share)
-x[1] &lt;- 0L          # COPY — x gets its own copy (z still has the original)
-w &lt;- z + 1          # NEW OBJECT — z + 1 creates a new vector
-rm(z)               # NO COPY — just removes a name tag
-w[1] &lt;- 100         # NO COPY — w is the sole owner (modify in place)
-
-cat(&quot;x:&quot;, x, &quot;\n&quot;)
-cat(&quot;y:&quot;, y, &quot;\n&quot;)
-cat(&quot;w:&quot;, w, &quot;\n&quot;)
-# z doesn&#39;t exist anymore</div>
+    <div class="webr-editor" data-language="r">library(lobstr)
+my_x &lt;- c(1, 2, 3, 4, 5)
+my_y &lt;- my_x
+obj_addr(my_x) == obj_addr(my_y)
+#&gt; [1] TRUE</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -410,23 +421,49 @@ cat(&quot;w:&quot;, w, &quot;\n&quot;)
     <pre class="webr-output"></pre>
   </div>
 </div>
-
-<p><strong>Explanation:</strong> The key insight is that copies only happen when data has multiple name tags AND you modify through one of them. When <code>rm(z)</code> removes the last other reference, <code>w</code> becomes the sole owner and can be modified in place.</p>
 
 </details>
 
-<h4>Exercise 2: Pre-allocate vs Grow</h4>
+<h4>Exercise 2: Observe Copy on Modify</h4>
+
+<p>After assignment, modify <code>y</code> and check if addresses still match.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(lobstr)
+my_x &lt;- c(1, 2, 3)
+my_y &lt;- my_x
+my_y[1] &lt;- 99
+# Check addresses now
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Exercise: Write two versions of a function that creates
-# the first 20 Fibonacci numbers:
-# Version 1: Grow a vector with c()
-# Version 2: Pre-allocate with numeric(20)
-# Compare their outputs (should be identical)
-
-# Write your code below:
-</div>
+    <div class="webr-editor" data-language="r">library(lobstr)
+my_x &lt;- c(1, 2, 3)
+my_y &lt;- my_x
+my_y[1] &lt;- 99
+obj_addr(my_x) == obj_addr(my_y)
+#&gt; [1] FALSE</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -435,163 +472,162 @@ cat(&quot;w:&quot;, w, &quot;\n&quot;)
   </div>
 </div>
 
-<details>
-<summary>Click to reveal solution</summary>
+<p><strong>Explanation:</strong> Modifying <code>my_y</code> triggered the copy.</p>
+
+</details>
+
+<h4>Exercise 3: Track Copies in a Function</h4>
 
 <div class="webr-container">
+
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-# Version 1: Growing (slow for large n)
-fib_grow &lt;- function(n) {
-  result &lt;- c(1, 1)
-  for (i in 3:n) {
-    result &lt;- c(result, result[i-1] + result[i-2])
-  }
-  result
+
+    <div class="webr-editor" data-language="r">my_modify &lt;- function(v) {
+  v[1] &lt;- 999
+  v
 }
 
-# Version 2: Pre-allocated (fast)
-fib_prealloc &lt;- function(n) {
-  result &lt;- numeric(n)
-  result[1:2] &lt;- 1
-  for (i in 3:n) {
-    result[i] &lt;- result[i-1] + result[i-2]
-  }
-  result
-}
+my_x &lt;- 1:1000
+tracemem(my_x)
+# Call my_modify - how many copies happen?
+my_y &lt;- my_modify(my_x)
+untracemem(my_x)</div>
 
-# Compare
-cat(&quot;Grow:&quot;, fib_grow(20), &quot;\n&quot;)
-cat(&quot;Prealloc:&quot;, fib_prealloc(20), &quot;\n&quot;)
-cat(&quot;Match:&quot;, identical(fib_grow(20), fib_prealloc(20)), &quot;\n&quot;)</div>
     <div class="webr-buttons">
+
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
     </div>
+
     <pre class="webr-output"></pre>
+
   </div>
-</div>
 
-<p><strong>Explanation:</strong> Both produce the same result, but <code>fib_prealloc</code> is much faster for large <code>n</code> because it allocates memory once. <code>fib_grow</code> copies the entire vector at each step — at step 100, it copies 99 elements just to add one more.</p>
-
-</details>
-
-<h4>Exercise 3: Column vs Row Operations</h4>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Exercise: Create a 1000-row data frame with 5 numeric columns.
-# Compare the time to:
-# 1. Double every value in column &#39;a&#39; (column-wise)
-# 2. Double every value in row 500 (row-wise)
-# Which is faster? Why?
-
-# Write your code below:
-</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
 </div>
 
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-df &lt;- data.frame(
-  a = rnorm(1000), b = rnorm(1000), c = rnorm(1000),
-  d = rnorm(1000), e = rnorm(1000)
-)
-
-# Column-wise: modify one column vector
-t1 &lt;- system.time({
-  for (rep in 1:100) {
-    df_col &lt;- df
-    df_col$a &lt;- df_col$a * 2
-  }
-})
-
-# Row-wise: modify one row (touches all columns)
-t2 &lt;- system.time({
-  for (rep in 1:100) {
-    df_row &lt;- df
-    df_row[500, ] &lt;- df_row[500, ] * 2
-  }
-})
-
-cat(&quot;Column-wise (100 reps):&quot;, t1[&quot;elapsed&quot;], &quot;sec\n&quot;)
-cat(&quot;Row-wise (100 reps):&quot;, t2[&quot;elapsed&quot;], &quot;sec\n&quot;)
-cat(&quot;Column-wise is faster because it only copies one column vector.\n&quot;)
-cat(&quot;Row-wise modifies all 5 columns, triggering 5 copies.\n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-</div>
-
-<p><strong>Explanation:</strong> Column modification in a data frame triggers a copy of just that one column (shallow copy). Row modification touches every column, potentially triggering a copy of each one. For wide data frames, this difference is dramatic.</p>
+<p>One copy happens: when <code>my_modify</code> assigns to <code>v[1]</code>. The argument <code>v</code> initially shared with <code>my_x</code>, but the assignment triggered a copy.</p>
 
 </details>
+
+<h2>Complete Example: Measuring Memory Impact</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(lobstr)
+
+# Make a 10M element vector
+big &lt;- 1:1e7
+obj_size(big)
+#&gt; 40.00 MB
+
+# Assignment is free (still 40 MB total)
+big2 &lt;- big
+obj_size(big, big2)
+#&gt; 40.00 MB   (shared)
+
+# Modifying triggers a copy
+big2[1] &lt;- 0L
+obj_size(big, big2)
+#&gt; 80.00 MB   (two separate objects now)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>lobstr::obj_size()</code> is smart enough to report shared memory correctly. Before modification, two 40 MB vectors share memory and total 40 MB. After, they're separate and total 80 MB.</p>
 
 <h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
-<tr><th>Concept</th><th>What happens</th><th>Performance impact</th></tr>
+<tr>
+<th>Action</th>
+<th>Copies?</th>
+</tr>
 </thead>
 <tbody>
-<tr><td><code>y &lt;- x</code></td><td>Both point to same data</td><td>Free (no copy)</td></tr>
-<tr><td>Modify <code>y</code> when shared</td><td>R copies <code>y</code>'s data</td><td>One-time cost</td></tr>
-<tr><td>Modify <code>y</code> when sole owner</td><td>R modifies in place</td><td>Free (no copy)</td></tr>
-<tr><td>Growing vector in loop</td><td>Copy at every step</td><td>O(n²) — very slow</td></tr>
-<tr><td>Pre-allocate + fill</td><td>One allocation</td><td>O(n) — fast</td></tr>
-<tr><td>Column modification in df</td><td>Copies only that column</td><td>Fast (shallow copy)</td></tr>
-<tr><td>Row modification in df</td><td>Copies all affected columns</td><td>Slower</td></tr>
-<tr><td>Environments</td><td>Reference semantics (no copy)</td><td>Always in-place</td></tr>
+<tr>
+<td><code>y &lt;- x</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td>Pass <code>x</code> to function (read only)</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Modify <code>x</code> with single reference</td>
+<td>No (R 4.0+, in place)</td>
+</tr>
+<tr>
+<td>Modify <code>x</code> after <code>y &lt;- x</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>c(result, new)</code> in a loop</td>
+<td>Yes, every iteration</td>
+</tr>
+<tr>
+<td>Modify data frame column</td>
+<td>Usually yes (whole frame)</td>
+</tr>
 </tbody>
 </table>
 
-<p><strong>The three rules for fast R:</strong></p>
-<ol>
-<li>Pre-allocate vectors before loops</li>
-<li>Prefer vectorized operations over loops</li>
-<li>Work column-wise, not row-wise, on data frames</li>
-</ol>
-
 <h2>FAQ</h2>
 
-<h4>Does R really copy a 1GB data frame when I modify one cell?</h4>
+<h4>Is R pass-by-value or pass-by-reference?</h4>
 
-<p>No. R makes a <strong>shallow copy</strong> of the data frame structure and a <strong>deep copy</strong> of only the modified column. The other columns are still shared. So modifying one cell in a 1GB data frame with 10 columns copies about 100MB (one column), not 1GB.</p>
+<p>Pass-by-copy-on-modify. Names are references, but modifying through a reference triggers a copy. The end result feels like pass-by-value to the caller.</p>
 
-<h4>Is copy-on-modify the same as pass-by-value?</h4>
+<h4>Why do loops with <code>c()</code> get slow?</h4>
 
-<p>Similar but smarter. True pass-by-value copies data immediately. Copy-on-modify defers the copy until modification — so if the function only reads the data, no copy ever happens.</p>
+<p>Each <code>c(result, new)</code> copies <code>result</code> entirely because both the function call and the result name reference the vector. O(n²) total copying.</p>
 
-<h4>Why doesn't R use references like Python?</h4>
+<h4>Do <code>data.table</code> and R6 avoid copying?</h4>
 
-<p>Safety. In Python, <code>y = x</code> for a list means modifying <code>y</code> also changes <code>x</code> — a major source of bugs. R's copy-on-modify guarantees that modifying one variable never affects another. You trade some performance for much safer code.</p>
+<p>Yes — both use reference semantics. <code>dt[, new_col := x]</code> modifies <code>dt</code> in place. R6 objects are mutable references.</p>
 
-<h4>How do I check if a copy happened?</h4>
+<h4>How much memory does my object use?</h4>
 
-<p>Use <code>tracemem()</code> in a local R session (not available in WebR): <code>tracemem(x)</code> prints a message whenever <code>x</code> is copied. The <code>lobstr</code> package provides <code>obj_addr()</code> to compare memory addresses.</p>
+<p><code>object.size(x)</code> (base R) or <code>lobstr::obj_size(x)</code> (smarter about shared memory). <code>obj_size()</code> handles lists, environments, and shared references correctly.</p>
 
-<h4>When should I use data.table instead of base R?</h4>
+<h4>Can I force R to copy?</h4>
 
-<p>When you're working with data frames larger than ~1 million rows and performance matters. <code>data.table</code>'s <code>:=</code> operator provides genuine in-place modification, avoiding the copy overhead entirely.</p>
+<p>Rarely needed, but <code>x &lt;- rlang::duplicate(y)</code> makes an explicit copy. Usually you want copy-on-modify; explicit copying is a rare optimization choice.</p>
 
-<h2>What's Next?</h2>
-
-<p>Understanding copy-on-modify helps you write faster R code. Related topics:</p>
+<h2>References</h2>
 
 <ol>
-<li><strong>R Matrices</strong> — uniform numeric data without copy overhead</li>
-<li><strong>R Subsetting</strong> — how [], [[]], and $ interact with copy-on-modify</li>
-<li><strong>Data Wrangling with dplyr</strong> — modern data manipulation built on these principles</li>
+
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 2 (Names and values). <a href="https://adv-r.hadley.nz/names-values.html">Link</a></li>
+
+<li>lobstr package documentation. <a href="https://lobstr.r-lib.org/">Link</a></li>
+
+<li>R manual — <code>tracemem()</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/tracemem.html">Link</a></li>
+
+<li>R Internals — SEXP reference counting. <a href="https://cran.r-project.org/doc/manuals/r-release/R-ints.html">Link</a></li>
+
+<li>Wickham, H. — <em>Advanced R</em>, Section 2.5 (Modify in place). <a href="https://adv-r.hadley.nz/names-values.html#modify-in-place">Link</a></li>
+
+<li>data.table documentation — Reference semantics. <a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-reference-semantics.html">Link</a></li>
+
+<li>R Core — R 4.0 release notes (refcount improvements). <a href="https://cran.r-project.org/doc/manuals/r-devel/NEWS.html">Link</a></li>
+
 </ol>
