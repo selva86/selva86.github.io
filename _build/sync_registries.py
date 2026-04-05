@@ -108,35 +108,47 @@ def sync_sidebar(posts, dry_run=False):
 
 
 def sync_links_auto(posts, dry_run=False):
-    """Add missing auto_link terms to links.json."""
+    """Add new auto_link entries AND merge terms into existing entries."""
     with open(LINKS_PATH, 'r', encoding='utf-8') as f:
         links = json.load(f)
 
-    existing_urls = {entry['url'] for entry in links['auto_links']}
+    # Index existing entries by URL for lookup + mutation
+    existing_index = {entry['url']: entry for entry in links['auto_links']}
     added = 0
+    updated = 0
 
     for post in posts:
         terms_str = post.get('auto_link_terms', '')
         if not terms_str:
             continue
         filename = post['filename']
-        if filename in existing_urls:
+
+        new_terms = [t.strip() for t in terms_str.split('|') if t.strip()]
+        if not new_terms:
             continue
 
-        terms = [t.strip() for t in terms_str.split('|') if t.strip()]
-        if not terms:
+        if filename in existing_index:
+            # MERGE: union existing terms with new ones (case-insensitive dedup)
+            entry = existing_index[filename]
+            existing_terms = entry['terms']
+            existing_lc = {t.lower() for t in existing_terms}
+            added_terms = [t for t in new_terms if t.lower() not in existing_lc]
+            if added_terms:
+                entry['terms'] = existing_terms + added_terms
+                updated += 1
             continue
 
+        # ADD new entry
         case_sensitive = post.get('auto_link_case_sensitive', 'false').lower() == 'true'
-
         links['auto_links'].append({
             'url': filename,
             'title': post.get('title', filename),
-            'terms': terms,
+            'terms': new_terms,
             'case_sensitive': case_sensitive,
             'max_per_page': 1,
             'status': 'published'
         })
+        existing_index[filename] = links['auto_links'][-1]
         added += 1
 
     # Also sync PSEO reserved terms
@@ -148,7 +160,7 @@ def sync_links_auto(posts, dry_run=False):
                 # Check if already in links
                 terms = p.get('auto_link_terms', [])
                 url = p.get('url') or (p.get('id', '').replace('pseo-', '') + '.html')
-                if url in existing_urls:
+                if url in existing_index:
                     continue
                 if not terms:
                     continue
@@ -160,15 +172,15 @@ def sync_links_auto(posts, dry_run=False):
                     'max_per_page': 1,
                     'status': p.get('status', 'not_published')
                 })
-                existing_urls.add(url)
+                existing_index[url] = links['auto_links'][-1]
                 added += 1
 
-    if not dry_run and added > 0:
+    if not dry_run and (added > 0 or updated > 0):
         with open(LINKS_PATH, 'w', encoding='utf-8') as f:
             json.dump(links, f, indent=2, ensure_ascii=False)
             f.write('\n')
 
-    return added
+    return added, updated
 
 
 def sync_links_fr(posts, dry_run=False):
@@ -283,20 +295,20 @@ def main():
     print()
 
     sidebar_added = sync_sidebar(posts, dry_run)
-    auto_added = sync_links_auto(posts, dry_run)
+    auto_added, auto_updated = sync_links_auto(posts, dry_run)
     fr_added = sync_links_fr(posts, dry_run)
     curriculum_updated = sync_curriculum(posts, dry_run)
 
     print(f'\nSummary:')
     print(f'  Sidebar:    {sidebar_added} entries added')
-    print(f'  Auto-links: {auto_added} entries added')
+    print(f'  Auto-links: {auto_added} added, {auto_updated} merged')
     print(f'  Further Reading: {fr_added} entries added/updated')
     print(f'  Curriculum: {curriculum_updated} posts marked published')
 
     if dry_run:
         print('\n(Dry run — no files modified)')
     else:
-        total = sidebar_added + auto_added + fr_added + curriculum_updated
+        total = sidebar_added + auto_added + auto_updated + fr_added + curriculum_updated
         if total == 0:
             print('\nAll registries already in sync.')
         else:
