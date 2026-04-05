@@ -1,423 +1,421 @@
 ---
-title: "R Vectors: The Foundation of Everything in R (Master This First)"
+title: "R Vectors: The Foundation of Everything in R"
 slug: "R-Vectors"
-description: "Master R vectors: create, access, modify, filter, and use vectorized operations. Interactive examples covering everything from c() to named vectors."
-keywords: "R vectors, c() function, vector in R, R vector operations, R subsetting, named vectors, vectorized operations"
+description: "Master R vectors — create with c(), subset with [], filter with logical masks, use vectorized operations, and handle recycling. Interactive examples throughout."
+keywords: "R vectors, c() function, vector in R, R vector operations, R subsetting, named vectors, vectorized operations, vector recycling, R indexing"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-05"
 curriculum_id: "1.1.6"
 post_type: "C"
-auto_link_terms: "R vectors|vector in R|c() function"
+auto_link_terms: "R vectors|vector in R|c() function|vector recycling|vectorized operations"
 auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "R Vectors"
 sidebar_order: 6
 ---
 
-# R Vectors: The Foundation of Everything in R (Master This First)
+<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; R Vectors</nav>
 
-<p class="lead">A vector is R's most fundamental data structure — an ordered collection of values of the same type. In R, even a single number is a vector of length 1. Master vectors first, and everything else in R clicks into place.</p>
+# R Vectors: The Foundation of Everything in R
 
-Almost every R operation works on vectors. When you compute `mean(x)`, x is a vector. When you filter a data frame column, you're working with a vector. When you plot data, you're passing vectors to the plotting function. Vectors are everywhere.
-
-This tutorial covers everything you need: creating vectors, accessing elements, modifying them, filtering, vectorized operations (R's secret superpower), and named vectors.
+<p class="lead">A vector is R's most fundamental data structure — an ordered sequence of values of the same type. Every "number" in R is actually a vector of length 1, and every column in a data frame is a vector. Master vectors, and the rest of R clicks into place.</p>
 
 ## Introduction
 
-A **vector** is an ordered sequence of values where **every element has the same type** — all numeric, all character, or all logical. This single-type constraint is what makes vectors fast and predictable.
+Type `length(42)` in R. It returns `1` — because `42` is a vector of length one, not a scalar. R has no true scalar type; single values are just short vectors. This single insight explains why R's syntax behaves the way it does.
 
-Think of a vector as a row of mailboxes: each has a number (its position), and they all hold the same kind of mail (the type). You can look at one mailbox, a range of mailboxes, or all of them at once.
+This tutorial covers how to create vectors, access their elements four different ways, modify them, apply vectorized operations, and handle the trickiest beginner topic: recycling. Every example runs live in your browser — click **Run** to execute.
 
-```r
-# A vector in action
-temperatures <- c(72, 68, 75, 80, 77, 65, 71)
-days <- c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+By the end, you'll understand why `c(1, 2, 3) + c(10, 20, 30)` gives `11 22 33` without a loop, and you'll never write a `for` loop for element-wise math again.
 
-cat("Temperatures:", temperatures, "\n")
-cat("Days:", days, "\n")
-cat("Length:", length(temperatures), "\n")
-cat("Type:", class(temperatures), "\n")
-```
+## How do you create a vector in R?
 
-## Creating Vectors
-
-### The c() function
-
-The primary way to create a vector is `c()` (combine):
+R uses the `c()` function (short for "combine") to build vectors. Pass values separated by commas, and `c()` returns them packaged as a vector.
 
 ```r
-# Numeric vector
-prices <- c(9.99, 14.50, 3.25, 22.00)
-cat("Prices:", prices, "\n")
+# Create vectors of different types
+numbers <- c(10, 20, 30, 40, 50)
+names   <- c("Alice", "Bob", "Carol")
+flags   <- c(TRUE, FALSE, TRUE, TRUE)
 
-# Character vector
-colors <- c("red", "blue", "green", "yellow")
-cat("Colors:", colors, "\n")
-
-# Logical vector
-passed <- c(TRUE, FALSE, TRUE, TRUE, FALSE)
-cat("Passed:", passed, "\n")
-
-# Single value — still a vector (length 1)
-x <- 42
-cat("x is a vector of length", length(x), "\n")
-cat("is.vector(x):", is.vector(x), "\n")
+numbers
+#> [1] 10 20 30 40 50
+names
+#> [1] "Alice" "Bob"   "Carol"
+flags
+#> [1]  TRUE FALSE  TRUE  TRUE
 ```
 
-### Sequence shortcuts
+Three vectors, three types: numeric, character, logical. Each holds elements of the same type — mixing types forces R to coerce them all to the highest type present (see [R Data Types](R-Data-Types.html)).
 
-R provides powerful shortcuts for creating sequences:
+You can also generate vectors without typing every value. These shortcuts cover 95% of real-world use cases:
 
 ```r
-# Colon operator — integer sequence
-one_to_ten <- 1:10
-cat("1:10 →", one_to_ten, "\n")
+# Sequence of integers
+1:10
+#> [1]  1  2  3  4  5  6  7  8  9 10
 
-ten_to_one <- 10:1
-cat("10:1 →", ten_to_one, "\n")
+# Sequence with step size
+seq(0, 1, by = 0.25)
+#> [1] 0.00 0.25 0.50 0.75 1.00
 
-# seq() — flexible sequences
-by_twos <- seq(2, 20, by = 2)
-cat("Even numbers:", by_twos, "\n")
+# Repeat a value
+rep("A", times = 5)
+#> [1] "A" "A" "A" "A" "A"
 
-five_points <- seq(0, 1, length.out = 5)
-cat("5 evenly spaced:", five_points, "\n")
-
-# rep() — repeat values
-threes <- rep(3, times = 5)
-cat("rep(3, 5):", threes, "\n")
-
-pattern <- rep(c(1, 2, 3), times = 3)
-cat("Pattern repeated:", pattern, "\n")
-
-each_repeated <- rep(c("A", "B", "C"), each = 2)
-cat("Each repeated:", each_repeated, "\n")
+# Repeat a pattern
+rep(c(1, 2), times = 3)
+#> [1] 1 2 1 2 1 2
 ```
 
-Notice the difference between `times` and `each` in `rep()`: `times` repeats the whole vector; `each` repeats each element before moving to the next.
+The colon operator `1:10` makes integer sequences quickly. `seq()` gives precise control over step size or total length. `rep()` repeats values or patterns. These four — `c()`, `:`, `seq()`, `rep()` — create almost every vector you'll ever need.
 
-### Combining vectors
-
-You can combine existing vectors into larger ones using `c()`:
-
-```r
-first_half <- c(1, 2, 3)
-second_half <- c(4, 5, 6)
-
-# Combine into one vector
-combined <- c(first_half, second_half)
-cat("Combined:", combined, "\n")
-
-# Add single elements
-extended <- c(0, first_half, 3.5, second_half, 7)
-cat("Extended:", extended, "\n")
-```
-
-## Accessing Elements (Subsetting)
-
-R uses **square brackets** `[]` to access vector elements. R uses **1-based indexing** — the first element is at position 1, not 0.
-
-### By position
-
-```r
-fruits <- c("apple", "banana", "cherry", "date", "elderberry")
-
-# Single element
-cat("1st:", fruits[1], "\n")
-cat("3rd:", fruits[3], "\n")
-cat("Last:", fruits[length(fruits)], "\n")
-
-# Multiple elements
-cat("1st and 3rd:", fruits[c(1, 3)], "\n")
-cat("First three:", fruits[1:3], "\n")
-
-# Negative indexing — exclude elements
-cat("All except 2nd:", fruits[-2], "\n")
-cat("Except 1st and 5th:", fruits[c(-1, -5)], "\n")
-```
-
-**Key point:** Negative indices *exclude* elements. `fruits[-2]` means "everything except the 2nd element." You cannot mix positive and negative indices in the same bracket.
-
-### By logical vector
-
-This is the most powerful form of subsetting — and the foundation of data filtering in R:
-
-```r
-scores <- c(88, 72, 95, 61, 83, 77, 90)
-
-# Create a logical condition
-above_80 <- scores > 80
-cat("Above 80?", above_80, "\n")
-
-# Use the logical vector to filter
-cat("Scores above 80:", scores[above_80], "\n")
-
-# Do it in one step (most common pattern)
-cat("Scores above 80:", scores[scores > 80], "\n")
-cat("Scores 70-85:", scores[scores >= 70 & scores <= 85], "\n")
-
-# Count how many pass
-cat("Count above 80:", sum(scores > 80), "\n")
-cat("Percentage above 80:", mean(scores > 80) * 100, "%\n")
-```
-
-The pattern `vector[condition]` is one of the most important patterns in R. You'll use it constantly in data analysis.
-
-### By name
-
-Vectors can have named elements, which you can use for access:
+You can also attach names to vector elements, turning the vector into a lightweight dictionary:
 
 ```r
 # Named vector
-ages <- c(Alice = 25, Bob = 32, Carol = 28, David = 45)
-cat("Ages:", ages, "\n")
+prices <- c(apple = 1.20, bread = 2.50, milk = 3.00)
+prices
+#> apple bread  milk
+#>  1.20  2.50  3.00
 
 # Access by name
-cat("Alice's age:", ages["Alice"], "\n")
-cat("Bob and Carol:", ages[c("Bob", "Carol")], "\n")
-
-# See all names
-cat("Names:", names(ages), "\n")
-
-# Add names to an existing vector
-scores <- c(88, 72, 95)
-names(scores) <- c("Math", "English", "Science")
-cat("Scores:", scores, "\n")
-cat("Science:", scores["Science"], "\n")
+prices["bread"]
+#> bread
+#>   2.5
 ```
 
-Named vectors are like simple lookup tables. They're especially useful when you need to map codes to labels or store configuration values.
+Names appear above the values when printed. You can access elements by name using `["name"]`, which is often more readable than numeric indices.
 
-## Modifying Vectors
+[KEY INSIGHT]
+**There are no scalars in R — every value is a vector.** When you type `42`, R stores it as a length-1 vector. This is why R is vectorized by default: operators and functions naturally work on any length.
 
-### Change individual elements
+## How do you access elements in a vector?
+
+R has four ways to subset a vector: positive integers (keep), negative integers (drop), logical masks (filter), and character names (lookup). Each has a specific use case.
+
+![R Vector Indexing Modes](screenshots/R-Vectors-indexing-modes.webp)
+*Figure 1: The four indexing modes — positive, negative, logical, and character.*
+
+The most common method uses positive integer positions (R indices start at 1, not 0):
 
 ```r
-colors <- c("red", "blue", "green", "yellow")
-cat("Original:", colors, "\n")
+x <- c(10, 20, 30, 40, 50)
 
-# Change one element
-colors[2] <- "purple"
-cat("After change:", colors, "\n")
+# Single element
+x[1]
+#> [1] 10
 
-# Change multiple elements
-colors[c(1, 4)] <- c("orange", "pink")
-cat("After multiple changes:", colors, "\n")
+# Multiple elements
+x[c(2, 4)]
+#> [1] 20 40
 
-# Conditional replacement
-scores <- c(88, 45, 92, 38, 77, 55, 91)
-cat("Original scores:", scores, "\n")
-
-# Replace all failing scores with 50 (minimum grade policy)
-scores[scores < 50] <- 50
-cat("After minimum grade:", scores, "\n")
+# A range
+x[2:4]
+#> [1] 20 30 40
 ```
 
-The conditional replacement `scores[scores < 50] <- 50` is a powerful one-liner. It says: "find all elements below 50, and set them to 50."
+`x[1]` returns the first element. `x[c(2,4)]` returns elements 2 and 4. `x[2:4]` returns a slice. R returns a new vector containing the selected elements.
 
-### Add and remove elements
+Negative indices do the opposite — they remove elements and return everything else:
 
 ```r
-x <- c(10, 20, 30)
+x <- c(10, 20, 30, 40, 50)
+
+# Drop the first element
+x[-1]
+#> [1] 20 30 40 50
+
+# Drop elements 2 and 4
+x[-c(2, 4)]
+#> [1] 10 30 50
+```
+
+The `-` sign means "exclude these positions". Useful when you know what to remove but not what remains.
+
+Logical subsetting is R's superpower — you pass a logical vector the same length as `x`, and R keeps only the `TRUE` positions:
+
+```r
+x <- c(10, 20, 30, 40, 50)
+
+# Manual logical mask
+x[c(TRUE, FALSE, TRUE, FALSE, TRUE)]
+#> [1] 10 30 50
+
+# Condition-based mask (most common)
+x[x > 25]
+#> [1] 30 40 50
+
+# Multiple conditions
+x[x > 15 & x < 45]
+#> [1] 20 30 40
+```
+
+The condition `x > 25` evaluates to a logical vector `c(FALSE, FALSE, TRUE, TRUE, TRUE)`, then `x[mask]` keeps only the `TRUE` positions. This is the single most important subsetting pattern in R — you'll use it daily.
+
+Character subsetting works on named vectors:
+
+```r
+prices <- c(apple = 1.20, bread = 2.50, milk = 3.00)
+
+# Single item
+prices["milk"]
+#> milk
+#>    3
+
+# Multiple items
+prices[c("apple", "milk")]
+#> apple  milk
+#>   1.2   3.0
+```
+
+Name-based access makes code readable: `prices["apple"]` is clearer than `prices[1]` because it names the concept, not the position.
+
+[TIP]
+**Use logical subsetting (`x[x > threshold]`) instead of for loops for filtering.** It's more readable and several times faster. This is the most common R idiom — internalize it early.
+
+## How do you modify a vector?
+
+Vectors in R are modified by assigning to the subscripted position. The assignment replaces those positions with new values.
+
+```r
+x <- c(10, 20, 30, 40, 50)
+
+# Replace a single element
+x[2] <- 99
+x
+#> [1] 10 99 30 40 50
+
+# Replace multiple elements
+x[c(1, 3)] <- c(100, 300)
+x
+#> [1] 100  99 300  40  50
+
+# Replace by condition
+x[x > 50] <- 0
+x
+#> [1] 0 0 0 40 50
+```
+
+Each assignment writes to the positions selected by the subscript. The last pattern — `x[x > threshold] <- value` — zeroes out (or caps) values meeting a condition. It's the idiomatic way to clean outliers.
+
+Adding elements uses `c()`:
+
+```r
+x <- c(1, 2, 3)
 
 # Append to the end
-x <- c(x, 40, 50)
-cat("After append:", x, "\n")
+x <- c(x, 4, 5)
+x
+#> [1] 1 2 3 4 5
 
 # Prepend to the beginning
 x <- c(0, x)
-cat("After prepend:", x, "\n")
-
-# Insert in the middle (at position 3)
-x <- c(x[1:2], 15, x[3:length(x)])
-cat("After insert:", x, "\n")
-
-# Remove by position
-x <- x[-3]    # Remove the element at position 3
-cat("After remove:", x, "\n")
-
-# Remove by value (keep everything that's not 30)
-x <- x[x != 30]
-cat("After removing 30:", x, "\n")
+x
+#> [1] 0 1 2 3 4 5
 ```
 
-> **Note:** R vectors don't have a built-in "insert at position" or "delete" function like Python lists do. You create a new vector by combining the pieces you want. This isn't a problem in practice — R is designed for working with whole vectors, not individual element operations.
+`c()` is used for both creation AND growth. This works because `c()` flattens its arguments — combining a vector with new values produces a longer vector.
 
-## Vectorized Operations: R's Superpower
+## Why does R apply operators to whole vectors at once?
 
-**Vectorization** is the #1 reason R is fast at data analysis. When you apply an operation to a vector, R applies it to *every element simultaneously* — no loops needed.
-
-```r
-# Math on entire vectors — no loop required!
-prices <- c(10, 25, 8, 42, 15)
-
-# Add tax to every price (8%)
-with_tax <- prices * 1.08
-cat("Original: ", prices, "\n")
-cat("With tax: ", round(with_tax, 2), "\n")
-
-# Convert Fahrenheit to Celsius
-temps_f <- c(72, 68, 75, 80, 65)
-temps_c <- round((temps_f - 32) * 5/9, 1)
-cat("\nFahrenheit:", temps_f, "\n")
-cat("Celsius:   ", temps_c, "\n")
-```
-
-In Python, you'd need a for loop or list comprehension for this. In R, it's one line. This makes R code more concise, more readable, and significantly faster (R executes vectorized operations in optimized C code under the hood).
-
-### Element-wise operations on two vectors
-
-When you combine two vectors with an operator, R matches them element by element:
-
-```r
-# Element-wise operations
-quantities <- c(2, 1, 3, 4, 2)
-unit_prices <- c(10, 25, 8, 42, 15)
-
-totals <- quantities * unit_prices
-cat("Quantities: ", quantities, "\n")
-cat("Unit prices:", unit_prices, "\n")
-cat("Totals:     ", totals, "\n")
-cat("Grand total:", sum(totals), "\n")
-```
-
-### Recycling: what happens when vectors are different lengths
-
-If two vectors have different lengths, R **recycles** the shorter one — repeating it until it matches the longer one:
-
-```r
-# Same length — straightforward
-x <- c(1, 2, 3)
-y <- c(10, 20, 30)
-cat("Same length:", x + y, "\n")
-
-# Scalar + vector — scalar gets recycled
-cat("x + 100:", x + 100, "\n")  # 100 is recycled: c(100, 100, 100)
-
-# Different lengths — shorter recycled
-a <- c(1, 2, 3, 4, 5, 6)
-b <- c(10, 20)
-cat("Recycled:", a + b, "\n")  # b becomes c(10, 20, 10, 20, 10, 20)
-
-# Warning when lengths don't divide evenly
-a2 <- c(1, 2, 3, 4, 5)
-b2 <- c(10, 20)
-cat("Uneven recycle:", a2 + b2, "\n")  # Works but warns
-```
-
-Scalar recycling (adding a single number to a vector) is useful and common. Multi-element recycling can be a source of bugs — R will warn you when the lengths don't divide evenly.
-
-## Useful Vector Functions
-
-Here are the functions you'll use most often with vectors:
-
-```r
-x <- c(23, 45, 12, 67, 34, 89, 56, 8, 71, 42)
-
-# Summary statistics
-cat("Length:", length(x), "\n")
-cat("Sum:   ", sum(x), "\n")
-cat("Mean:  ", mean(x), "\n")
-cat("Median:", median(x), "\n")
-cat("Min:   ", min(x), "\n")
-cat("Max:   ", max(x), "\n")
-cat("Range: ", range(x), "\n")
-cat("SD:    ", round(sd(x), 2), "\n")
-
-# Position functions
-cat("\nPosition of max:", which.max(x), "(value:", x[which.max(x)], ")\n")
-cat("Position of min:", which.min(x), "(value:", x[which.min(x)], ")\n")
-```
-
-### Sorting and ordering
-
-```r
-x <- c(23, 45, 12, 67, 34)
-names(x) <- c("A", "B", "C", "D", "E")
-
-# sort() — returns sorted values
-cat("Ascending:", sort(x), "\n")
-cat("Descending:", sort(x, decreasing = TRUE), "\n")
-
-# order() — returns the indices that would sort the vector
-idx <- order(x)
-cat("Order indices:", idx, "\n")
-cat("Sorted via order:", x[idx], "\n")
-
-# rev() — reverse a vector
-cat("Reversed:", rev(x), "\n")
-
-# unique() — remove duplicates
-dupes <- c(1, 2, 2, 3, 3, 3, 4)
-cat("Unique values:", unique(dupes), "\n")
-cat("Duplicate table:\n")
-print(table(dupes))
-```
-
-`order()` is more useful than `sort()` in practice because it tells you *where* each sorted element came from — essential for sorting data frames (you sort by one column and need the other columns to follow along).
-
-### Set operations
+This is R's signature feature: **vectorization**. Arithmetic, comparison, and math functions apply element-by-element to entire vectors without a loop.
 
 ```r
 a <- c(1, 2, 3, 4, 5)
-b <- c(3, 4, 5, 6, 7)
+b <- c(10, 20, 30, 40, 50)
 
-cat("Union:", union(a, b), "\n")         # All unique values from both
-cat("Intersect:", intersect(a, b), "\n") # Values in both
-cat("Setdiff(a, b):", setdiff(a, b), "\n")  # In a but not b
-cat("Setdiff(b, a):", setdiff(b, a), "\n")  # In b but not a
-cat("Is 3 in a?", 3 %in% a, "\n")           # Membership test
-cat("Which of b are in a?", b %in% a, "\n")
+# Element-wise arithmetic
+a + b
+#> [1] 11 22 33 44 55
+
+a * 2
+#> [1]  2  4  6  8 10
+
+# Element-wise functions
+sqrt(c(4, 9, 16, 25))
+#> [1] 2 3 4 5
+
+# Element-wise comparison
+a > 3
+#> [1] FALSE FALSE FALSE  TRUE  TRUE
 ```
 
-The `%in%` operator is extremely useful for filtering: "show me all rows where the category is in this list."
+Every operator applies element-by-element. `a + b` adds first-to-first, second-to-second, and so on. `a * 2` multiplies every element by 2. Math functions like `sqrt()`, `log()`, `exp()` work element-wise too.
 
-## Handling Missing Values (NA)
+[KEY INSIGHT]
+**Vectorized operations are faster than loops because the iteration happens inside compiled C code.** When you write `a + b`, R doesn't loop in R — it calls a C routine that processes all elements at once. Loops in R are slow; vectorized operations are fast.
 
-Real data almost always has missing values. R represents these as `NA`. Here's how to work with vectors that contain NAs:
+When vectors of different lengths meet in an operation, R applies **recycling** — the shorter vector repeats from the start until it matches the longer one:
+
+![R Vector Recycling](screenshots/R-Vectors-recycling.webp)
+*Figure 2: Recycling repeats the shorter vector's elements to match the longer vector's length.*
 
 ```r
-# Vector with missing values
-temps <- c(72, NA, 75, 80, NA, 65, 71)
-cat("Temperatures:", temps, "\n")
+# Recycling in action
+long  <- c(1, 2, 3, 4, 5, 6)
+short <- c(10, 100)
 
-# Most functions return NA if any value is NA
-cat("Mean with NA:", mean(temps), "\n")
-
-# Use na.rm = TRUE to ignore NAs
-cat("Mean without NA:", mean(temps, na.rm = TRUE), "\n")
-cat("Sum without NA:", sum(temps, na.rm = TRUE), "\n")
-
-# Find and count NAs
-cat("Is NA:", is.na(temps), "\n")
-cat("NA count:", sum(is.na(temps)), "\n")
-cat("Non-NA count:", sum(!is.na(temps)), "\n")
-
-# Remove NAs from a vector
-clean_temps <- temps[!is.na(temps)]
-cat("Clean:", clean_temps, "\n")
-# Or use na.omit()
-cat("na.omit:", na.omit(temps), "\n")
+long + short
+#> [1]  11 102  13 104  15 106
 ```
 
-The `na.rm = TRUE` pattern appears in almost every R script that handles real data. Memorize it.
+`short` has length 2. R recycled it — the first element (10) was added to positions 1, 3, 5 and the second element (100) was added to positions 2, 4, 6. Recycling is powerful but silent, which makes it a common source of bugs when lengths don't match cleanly.
+
+[WARNING]
+**Recycling only warns when the longer length is NOT a multiple of the shorter.** If `length(short)` evenly divides `length(long)`, R silently recycles — no warning. Mismatched lengths get a warning but R still performs the operation.
+
+## What functions summarize a vector?
+
+R ships with dozens of vector functions. The ones you'll use most:
+
+```r
+x <- c(3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5)
+
+# Length and range
+length(x)
+#> [1] 11
+min(x)
+#> [1] 1
+max(x)
+#> [1] 9
+range(x)
+#> [1] 1 9
+
+# Summary statistics
+sum(x)
+#> [1] 44
+mean(x)
+#> [1] 4
+median(x)
+#> [1] 4
+sd(x)
+#> [1] 2.280351
+```
+
+These cover 80% of descriptive statistics. `sum()` and `mean()` are the most common. `range()` returns the min and max as a length-2 vector.
+
+Sorting and ordering:
+
+```r
+x <- c(3, 1, 4, 1, 5, 9, 2, 6)
+
+# Sort the values
+sort(x)
+#> [1] 1 1 2 3 4 5 6 9
+
+# Sort descending
+sort(x, decreasing = TRUE)
+#> [1] 9 6 5 4 3 2 1 1
+
+# Reverse the order
+rev(x)
+#> [1] 6 2 9 5 1 4 1 3
+
+# Unique values
+unique(c(1, 2, 2, 3, 3, 3))
+#> [1] 1 2 3
+```
+
+`sort()` orders values, `rev()` reverses without sorting, `unique()` removes duplicates. Combined, they handle most data-cleaning tasks.
+
+## Common Mistakes and How to Fix Them
+
+### Mistake 1: Off-by-one errors (R indices start at 1)
+
+❌ **Wrong:**
+```r
+my_x <- c(10, 20, 30, 40)
+my_x[0]
+#> numeric(0)
+```
+
+**Why it is wrong:** R's first index is 1, not 0 (unlike Python or JavaScript). `x[0]` returns an empty vector, not the first element.
+
+✅ **Correct:**
+```r
+my_x <- c(10, 20, 30, 40)
+my_x[1]
+#> [1] 10
+```
+
+### Mistake 2: Silent recycling with mismatched lengths
+
+❌ **Wrong:**
+```r
+a <- c(1, 2, 3, 4, 5)
+b <- c(10, 20, 30)
+a + b
+#> Warning: longer object length is not a multiple of shorter object length
+#> [1] 11 22 33 14 25
+```
+
+**Why it is wrong:** R recycles `b` (10, 20, 30, 10, 20) to match `a`, producing unexpected arithmetic. The warning is easy to miss in long output.
+
+✅ **Correct:**
+```r
+a <- c(1, 2, 3, 4, 5)
+b <- c(10, 20, 30, 40, 50)  # matching length
+a + b
+#> [1] 11 22 33 44 55
+```
+
+### Mistake 3: Using `==` to check for NA in a vector
+
+❌ **Wrong:**
+```r
+my_x <- c(1, 2, NA, 4)
+my_x[my_x == NA]
+#> [1] NA NA NA NA
+```
+
+**Why it is wrong:** Comparing anything to `NA` returns `NA`, not `TRUE`. The subset returns all `NA`s because the mask is all `NA`.
+
+✅ **Correct:**
+```r
+my_x <- c(1, 2, NA, 4)
+my_x[is.na(my_x)]
+#> [1] NA
+my_x[!is.na(my_x)]
+#> [1] 1 2 4
+```
+
+### Mistake 4: Growing a vector in a loop
+
+❌ **Wrong:**
+```r
+result <- c()
+for (i in 1:1000) {
+  result <- c(result, i * 2)   # slow — reallocates every iteration
+}
+```
+
+**Why it is wrong:** Each `c()` call copies the entire vector, so the loop is O(n²). For small loops this is invisible; for 100,000+ iterations it's painfully slow.
+
+✅ **Correct:**
+```r
+# Pre-allocate
+result <- numeric(1000)
+for (i in 1:1000) {
+  result[i] <- i * 2
+}
+
+# Or better: use vectorization, no loop needed
+result <- (1:1000) * 2
+```
 
 ## Practice Exercises
 
-### Exercise 1: Vector Basics
+Use `my_` prefix for exercise variables to avoid polluting tutorial state.
 
-Create a vector of daily step counts and analyze it:
+### Exercise 1: Create a Sequence
+
+Create a vector of the even numbers from 2 to 20 using `seq()`. Assign it to `my_evens` and print it.
 
 ```r
-# Exercise: A fitness tracker recorded daily steps for two weeks
-# Week 1: 8200, 10500, 7800, 12000, 9500, 15000, 6000
-# Week 2: 9000, 11200, 8500, 10000, 13500, 14000, 7500
-#
-# 1. Combine both weeks into one vector
-# 2. Find the total steps, daily average, best and worst day
-# 3. How many days exceeded 10,000 steps?
-# 4. What percentage of days exceeded 10,000 steps?
+# Exercise: create even numbers 2 to 20
+# Hint: seq(from, to, by = 2)
 
 # Write your code below:
 
@@ -427,35 +425,23 @@ Create a vector of daily step counts and analyze it:
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-week1 <- c(8200, 10500, 7800, 12000, 9500, 15000, 6000)
-week2 <- c(9000, 11200, 8500, 10000, 13500, 14000, 7500)
-
-all_steps <- c(week1, week2)
-cat("Total steps:", sum(all_steps), "\n")
-cat("Daily average:", round(mean(all_steps), 0), "\n")
-cat("Best day:", max(all_steps), "(day", which.max(all_steps), ")\n")
-cat("Worst day:", min(all_steps), "(day", which.min(all_steps), ")\n")
-cat("Days over 10k:", sum(all_steps > 10000), "\n")
-cat("Percent over 10k:", round(mean(all_steps > 10000) * 100, 1), "%\n")
+my_evens <- seq(2, 20, by = 2)
+my_evens
+#> [1]  2  4  6  8 10 12 14 16 18 20
 ```
 
-**Explanation:** `sum(all_steps > 10000)` counts how many TRUE values there are in the logical vector. `mean(all_steps > 10000)` gives the proportion, which we multiply by 100 for the percentage.
+**Explanation:** `seq()` generates arithmetic sequences. The `by = 2` argument creates a step of 2 between consecutive values.
 
 </details>
 
-### Exercise 2: Filtering and Replacing
+### Exercise 2: Filter with Logical Subsetting
 
-Clean a vector of test scores:
+Given `my_scores <- c(65, 78, 92, 54, 88, 71, 95, 49)`, extract only the passing scores (≥ 60).
 
 ```r
-# Exercise: A teacher has test scores with some data entry errors
-# scores <- c(88, 102, 75, -5, 91, 200, 83, 67, 95, -10)
-#
-# 1. Scores must be between 0 and 100
-# 2. Find and report which positions have invalid scores
-# 3. Replace invalid scores with NA
-# 4. Calculate the mean of valid scores only
+my_scores <- c(65, 78, 92, 54, 88, 71, 95, 49)
+# Exercise: extract scores >= 60
+# Hint: use a logical mask
 
 # Write your code below:
 
@@ -465,40 +451,23 @@ Clean a vector of test scores:
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-scores <- c(88, 102, 75, -5, 91, 200, 83, 67, 95, -10)
-cat("Original:", scores, "\n")
-
-# Find invalid positions
-invalid <- scores < 0 | scores > 100
-cat("Invalid positions:", which(invalid), "\n")
-cat("Invalid values:", scores[invalid], "\n")
-
-# Replace invalid with NA
-scores[invalid] <- NA
-cat("Cleaned:", scores, "\n")
-
-# Calculate mean of valid scores
-cat("Mean (valid only):", round(mean(scores, na.rm = TRUE), 1), "\n")
-cat("Valid count:", sum(!is.na(scores)), "of", length(scores), "\n")
+my_scores <- c(65, 78, 92, 54, 88, 71, 95, 49)
+my_passing <- my_scores[my_scores >= 60]
+my_passing
+#> [1] 65 78 92 88 71 95
 ```
 
-**Explanation:** The `|` (OR) operator combines two conditions. `which()` returns the positions where the condition is TRUE. Setting those positions to NA and using `na.rm = TRUE` cleanly handles the invalid data.
+**Explanation:** `my_scores >= 60` produces a logical vector, then `my_scores[...]` keeps only the `TRUE` positions.
 
 </details>
 
-### Exercise 3: Named Vectors as Lookup Tables
+### Exercise 3: Named Vector Lookup
 
-Create a grading system using named vectors:
+Create a named vector of 4 city populations (in millions), then extract two cities by name.
 
 ```r
-# Exercise: Create a named vector that maps letter grades to GPA values
-# A = 4.0, B = 3.0, C = 2.0, D = 1.0, F = 0.0
-#
-# A student's grades: c("A", "B", "A", "C", "B", "A")
-# 1. Use the lookup vector to convert letters to GPA values
-# 2. Calculate the student's GPA (mean of all grades)
-# Hint: You can use a named vector as a lookup: lookup[keys]
+# Exercise: named vector with city populations
+# Hint: c(city1 = value1, city2 = value2, ...)
 
 # Write your code below:
 
@@ -508,72 +477,168 @@ Create a grading system using named vectors:
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-# Create the lookup table
-gpa_lookup <- c(A = 4.0, B = 3.0, C = 2.0, D = 1.0, F = 0.0)
-
-# Student's grades
-grades <- c("A", "B", "A", "C", "B", "A")
-
-# Convert using the lookup vector
-gpa_values <- gpa_lookup[grades]
-cat("Grades:", grades, "\n")
-cat("GPA values:", gpa_values, "\n")
-cat("GPA:", round(mean(gpa_values), 2), "\n")
+my_cities <- c(Tokyo = 37.4, Delhi = 28.5, Shanghai = 25.6, Mumbai = 20.4)
+my_cities[c("Tokyo", "Mumbai")]
+#>  Tokyo Mumbai
+#>   37.4   20.4
 ```
 
-**Explanation:** `gpa_lookup[grades]` uses each element of `grades` as a name to look up the corresponding value in `gpa_lookup`. This is one of the most elegant patterns in R — using named vectors as dictionaries/hash maps.
+**Explanation:** Named vectors support character subsetting. Passing a character vector of names returns those elements in the requested order.
 
 </details>
+
+### Exercise 4: Vectorized Temperature Conversion
+
+Convert a vector of Celsius temperatures to Fahrenheit using the formula `F = C * 9/5 + 32`.
+
+```r
+# Exercise: vectorized Celsius to Fahrenheit
+# Hint: arithmetic operators apply element-by-element
+
+my_celsius <- c(-10, 0, 15, 25, 37, 100)
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_celsius <- c(-10, 0, 15, 25, 37, 100)
+my_fahrenheit <- my_celsius * 9/5 + 32
+my_fahrenheit
+#> [1]  14.0  32.0  59.0  77.0  98.6 212.0
+```
+
+**Explanation:** R applied `* 9/5 + 32` to every element of `my_celsius` in one vectorized expression — no loop needed.
+
+</details>
+
+### Exercise 5: Clean a Vector with NAs
+
+Given a vector with `NA` values, compute the mean of only the non-missing values WITHOUT using `na.rm`.
+
+```r
+# Exercise: mean of non-NA values (don't use na.rm)
+# Hint: filter with !is.na() first, then take mean
+
+my_temps <- c(72, NA, 68, 75, NA, 80, 69)
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_temps <- c(72, NA, 68, 75, NA, 80, 69)
+my_valid <- my_temps[!is.na(my_temps)]
+mean(my_valid)
+#> [1] 72.8
+```
+
+**Explanation:** `!is.na()` returns TRUE for non-missing values. Subsetting with this mask removes all NAs first, then `mean()` works on clean data.
+
+</details>
+
+## Complete Example: Analyzing a Student Grade Vector
+
+Here's a realistic scenario combining creation, subsetting, vectorized ops, and summary functions.
+
+```r
+# --- Student Grade Analysis ---
+
+# Step 1: Student scores (with one missing entry)
+scores <- c(Alice = 85, Bob = 72, Carol = 91, Dave = NA, Eve = 68, Frank = 95)
+scores
+#> Alice   Bob Carol  Dave   Eve Frank
+#>    85    72    91    NA    68    95
+
+# Step 2: Remove missing values
+valid_scores <- scores[!is.na(scores)]
+valid_scores
+#> Alice   Bob Carol   Eve Frank
+#>    85    72    91    68    95
+
+# Step 3: Identify students who passed (>= 70)
+passed <- valid_scores[valid_scores >= 70]
+names(passed)
+#> [1] "Alice" "Bob"   "Carol" "Frank"
+
+# Step 4: Compute class statistics
+cat("Class size:       ", length(scores), "\n")
+cat("Valid responses:  ", length(valid_scores), "\n")
+cat("Average score:    ", round(mean(valid_scores), 1), "\n")
+cat("Highest score:    ", max(valid_scores), "\n")
+cat("Number passed:    ", length(passed), "\n")
+#> Class size:        6
+#> Valid responses:   5
+#> Average score:     82.2
+#> Highest score:     95
+#> Number passed:     4
+
+# Step 5: Letter grades via vectorized comparison
+grades <- ifelse(valid_scores >= 90, "A",
+          ifelse(valid_scores >= 80, "B",
+          ifelse(valid_scores >= 70, "C", "F")))
+grades
+#> Alice   Bob Carol   Eve Frank
+#>   "B"   "C"   "A"   "F"   "A"
+```
+
+This pipeline uses every technique covered: named vector creation, logical subsetting to filter NAs, conditional subsetting for passed students, summary functions (`length`, `mean`, `max`), and vectorized `ifelse()` for letter grades. Every step runs element-by-element — no loops.
 
 ## Summary
 
-| Operation | Code | Example |
-|-----------|------|---------|
-| Create | `c()` | `c(1, 2, 3)` |
-| Sequence | `:`, `seq()` | `1:10`, `seq(0, 1, by = 0.1)` |
-| Repeat | `rep()` | `rep("x", 3)` |
-| Access by position | `[n]` | `x[3]` |
-| Access by condition | `[condition]` | `x[x > 5]` |
-| Access by name | `["name"]` | `ages["Alice"]` |
-| Exclude | `[-n]` | `x[-1]` |
-| Modify | `[n] <- value` | `x[2] <- 99` |
-| Length | `length()` | `length(x)` |
-| Sort | `sort()` | `sort(x, decreasing = TRUE)` |
-| Find position | `which()` | `which(x > 5)` |
-| Membership | `%in%` | `3 %in% x` |
-| Missing values | `na.rm = TRUE` | `mean(x, na.rm = TRUE)` |
-
-**R's superpower:** Vectorized operations apply to all elements at once — no loops needed. `x * 2` doubles every element. `x[x > 0]` filters in one step.
+| Task | Syntax | Example |
+|---|---|---|
+| Create | `c(...)` | `c(1, 2, 3)` |
+| Sequence | `a:b` or `seq()` | `1:10`, `seq(0, 1, 0.25)` |
+| Access | `x[positions]` | `x[2:4]` |
+| Drop | `x[-positions]` | `x[-1]` |
+| Filter | `x[condition]` | `x[x > 5]` |
+| Name | `c(a=1, b=2)` | `x["a"]` |
+| Modify | `x[pos] <- val` | `x[1] <- 99` |
+| Length | `length(x)` | `length(x)` |
+| Stats | `mean, sum, min, max, sd` | `mean(x)` |
+| Sort | `sort(x)` | `sort(x, decreasing=TRUE)` |
 
 ## FAQ
 
-### What's the difference between a vector and a list?
+### Why do R indices start at 1 instead of 0?
 
-A vector requires all elements to have the **same type** (all numeric, all character, etc.). A list can hold elements of **different types** — even other vectors, data frames, or models. Vectors are simpler and faster; lists are more flexible.
+R inherited 1-based indexing from S and from statistical/mathematical convention — matrix element (1,1) is the top-left corner in linear algebra. Most programming languages (C, Python, JavaScript) use 0-based indexing for historical pointer-arithmetic reasons. R's choice aligns with the way statisticians and mathematicians number things.
 
-### Can a vector have zero elements?
+### What's the difference between `c()` and `list()`?
 
-Yes. `c()` with no arguments creates an empty numeric vector. You can also create typed empty vectors: `character(0)`, `numeric(0)`, `logical(0)`. Empty vectors are useful when building up results in a loop.
+`c()` creates a vector — all elements must be the same type. If you mix types, R coerces them all to the most general type. `list()` creates a list — each element can be a different type and different length. Use `c()` for homogeneous data, `list()` for heterogeneous collections.
 
-### Why is R 1-indexed instead of 0-indexed?
+### How do I check if a vector contains a specific value?
 
-R was designed by statisticians, and statisticians count starting at 1 (the first observation, the first row). Most other languages (Python, Java, C) use 0-based indexing. This is a common source of confusion when switching between R and Python.
+Use `%in%`: `5 %in% c(1, 3, 5, 7)` returns `TRUE`. This is vectorized on the left side too: `c(2, 4) %in% c(1, 2, 3, 4, 5)` returns `c(TRUE, TRUE)`.
 
-### How do I add an element to a specific position?
+### What does `x[]` (empty brackets) do?
 
-R doesn't have an `insert()` function. You rebuild the vector: `c(x[1:2], new_value, x[3:length(x)])`. This seems awkward, but in practice you rarely insert single elements — R is designed for whole-vector operations.
+`x[]` returns the entire vector unchanged. It's useful on the left side of an assignment: `x[] <- 0` replaces all values with 0 while preserving attributes (like names). Different from `x <- 0`, which replaces `x` with a length-1 vector.
 
-### What's the maximum size of a vector?
+### Why does `c(1, "a")` return character instead of an error?
 
-Theoretically, up to 2^31 - 1 elements (~2.1 billion) on standard R, or 2^52 on 64-bit R with long vectors enabled. In practice, you're limited by RAM. A vector of 100 million doubles uses about 800 MB of memory.
+R coerces to the highest type in the coercion ladder (logical → integer → double → character). Since character is highest, the number becomes the string `"1"`. See [R Data Types](R-Data-Types.html) for the full coercion rules.
+
+## References
+
+1. R Core Team — *An Introduction to R*, Chapter 2 (Simple manipulations; numbers and vectors). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 3 (Vectors). CRC Press (2019). [Link](https://adv-r.hadley.nz/vectors-chap.html)
+3. R manual — `c()` reference (stat.ethz.ch). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/c.html)
+4. R manual — `seq()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/seq.html)
+5. R manual — `Extract` / subsetting reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.html)
+6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 20 (Vectors). [Link](https://r4ds.hadley.nz/base-R.html)
+7. R Language Definition — Vector objects. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Vector-objects)
 
 ## What's Next?
 
-Now that you've mastered vectors, you're ready for more complex data structures:
-
-1. **R Data Frames** — tabular data with rows and columns, where each column is a vector
-2. **R Lists** — the flexible container that holds any type of object
-3. **R Control Flow** — if/else, for loops, and while loops
-
-Each tutorial builds on your vector knowledge — data frames are collections of vectors, and most loop operations can be replaced by vectorized operations.
+- **[R Data Frames](R-Data-Frames.html)** — stacks of vectors side-by-side, R's workhorse for tabular data.
+- **[R Lists](R-Lists.html)** — collections that can hold vectors of mixed types and lengths.
+- **[R Subsetting](R-Subsetting.html)** — deep dive on `[`, `[[`, `$`, and `@` operators across all structures.
