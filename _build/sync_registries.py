@@ -43,7 +43,8 @@ def parse_front_matter(filepath):
 
 
 def sync_sidebar(posts, dry_run=False):
-    """Add missing [C] posts to sidebar.json."""
+    """Add missing [C] posts to sidebar.json (per sidebar_section) and
+    missing [EX] posts to the Practice Exercises section."""
     with open(SIDEBAR_PATH, 'r', encoding='utf-8') as f:
         sidebar = json.load(f)
 
@@ -74,6 +75,26 @@ def sync_sidebar(posts, dry_run=False):
             'text': post.get('sidebar_title', post.get('title', filename))
         }
         section_map[section_name]['items'].append(entry)
+        existing.add(filename)
+        added += 1
+
+    # Add [EX] posts to the Practice Exercises section (appended in order found)
+    EX_SECTION_NAME = 'Practice Exercises'
+    ex_section = section_map.get(EX_SECTION_NAME)
+    for post in posts:
+        if post.get('post_type') != 'EX':
+            continue
+        filename = post['filename']
+        if filename in existing:
+            continue
+        if ex_section is None:
+            print(f'  WARN: "{EX_SECTION_NAME}" section not found, skipping {filename}')
+            continue
+        entry = {
+            'href': filename,
+            'text': post.get('sidebar_title', post.get('title', filename)),
+        }
+        ex_section['items'].append(entry)
         existing.add(filename)
         added += 1
 
