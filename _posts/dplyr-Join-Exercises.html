@@ -1,0 +1,926 @@
+---
+title: "dplyr join() Exercises: 10 Left, Right, Inner & Full Join Problems — Solved Step-by-Step"
+description: "Practise dplyr joins with 10 left, right, inner & full join problems and worked solutions. Build real R skills through hands-on exercises, beginner to advanced."
+keywords: "dplyr join exercises, R join practice, left_join exercises, inner_join exercises, full_join exercises, right_join R, dplyr practice problems, R data wrangling exercises"
+mathjax: false
+webr: true
+curriculum_id: "E2.4"
+post_type: "EX"
+auto_link_terms: "dplyr join exercises|join practice problems|dplyr joins practice|left_join exercises|inner_join exercises"
+auto_link_case_sensitive: false
+fr_parent: "R-Joins.html"
+---
+<!-- md2html:generated -->
+
+<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; dplyr &gt; dplyr join() Exercises</nav>
+
+<h1>dplyr join() Exercises: 10 Left, Right, Inner & Full Join Problems</h1>
+
+<p class="lead">Ten progressive exercises turn <code>left_join()</code>, <code>right_join()</code>, <code>inner_join()</code>, and <code>full_join()</code> into reflexes — each problem runs in your browser, with a worked solution you can reveal after you try.</p>
+
+<h2>Introduction</h2>
+
+<p>Joins look simple in theory. Then your real tables arrive with mismatched keys, different column names, and duplicate rows, and the join you wrote quietly returns the wrong answer. These ten exercises fix that faster than any tutorial.</p>
+
+<p>You will solve ten problems against four tiny hand-built tables (employees, departments, salaries, projects). Each problem states the expected row count so you know when you are right. Difficulty climbs from a three-row inner join to debugging an unintended many-to-many explosion.</p>
+
+<p>If the four mutating joins (<code>left_join</code>, <code>right_join</code>, <code>inner_join</code>, <code>full_join</code>) are new to you, skim the parent <a href="R-Joins.html">dplyr joins tutorial</a> first. Otherwise, scroll to the setup block, click Run, and begin.</p>
+
+<p>All code here runs in one shared R session. Variables from one block are available in the next. Use distinct names like <code>my_result</code> in your own attempts so you do not overwrite the tutorial tables.</p>
+
+<h2>Setup: The Datasets We Will Use</h2>
+
+<p>Before the exercises, we build four small tables. They are tiny on purpose — you can eyeball every row and spot join bugs by hand. Run this block once. Every later exercise assumes these objects exist.</p>
+
+<p>The <code>employees</code> table has a <code>dept_id</code> key that points to <code>departments</code>. The <code>salaries</code> table keys on <code>dept_id</code> too. The <code>projects</code> table uses a different column name (<code>employee_id</code>) on purpose, to force you to handle mismatched keys.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Setup: load dplyr and build four small tables
+library(dplyr)
+
+employees &lt;- tibble(
+  emp_id  = c(1, 2, 3, 4, 5),
+  name    = c(&quot;Asha&quot;, &quot;Bo&quot;, &quot;Cara&quot;, &quot;Dan&quot;, &quot;Evi&quot;),
+  dept_id = c(10, 20, 10, 30, 20)
+)
+
+departments &lt;- tibble(
+  dept_id   = c(10, 20, 40),
+  dept_name = c(&quot;Sales&quot;, &quot;Engineering&quot;, &quot;Legal&quot;)
+)
+
+salaries &lt;- tibble(
+  dept_id    = c(10, 20, 30),
+  avg_salary = c(55000, 85000, 60000)
+)
+
+projects &lt;- tibble(
+  project_id  = c(&quot;P1&quot;, &quot;P2&quot;, &quot;P3&quot;, &quot;P4&quot;),
+  employee_id = c(1, 1, 3, 99),
+  project     = c(&quot;Alpha&quot;, &quot;Beta&quot;, &quot;Gamma&quot;, &quot;Ghost&quot;)
+)
+
+employees
+#&gt; # A tibble: 5 × 3
+#&gt;   emp_id name  dept_id
+#&gt;    &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1      1 Asha       10
+#&gt; 2      2 Bo         20
+#&gt; 3      3 Cara       10
+#&gt; 4      4 Dan        30
+#&gt; 5      5 Evi        20
+
+departments
+#&gt; # A tibble: 3 × 2
+#&gt;   dept_id dept_name
+#&gt;     &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1      10 Sales
+#&gt; 2      20 Engineering
+#&gt; 3      40 Legal</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Look closely at the keys. <code>employees$dept_id</code> contains 10, 20, 30. <code>departments$dept_id</code> contains 10, 20, 40. They overlap on {10, 20} only. Dept 30 (Dan) has no department row. Dept 40 (Legal) has no employees. These gaps drive every exercise below.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run the setup block first, once.</strong> Every exercise reuses <code>employees</code>, <code>departments</code>, <code>salaries</code>, and <code>projects</code>. If you reset the R session, run Setup again before continuing.</div></div>
+
+<h2>Warm-Up: Your First Joins (Exercises 1-3)</h2>
+
+<p>These three exercises use one join each. If you can get them right, you understand the core mechanics. Expected row counts are given — match them exactly.</p>
+
+<h4>Exercise 1: Attach department names (inner join)</h4>
+
+<p>Join <code>employees</code> to <code>departments</code> so every row has a <code>dept_name</code>. Drop any employee whose <code>dept_id</code> is missing from <code>departments</code>. Save to <code>ans1</code>. Expected: <strong>4 rows</strong> (Dan is dropped because dept 30 is not in <code>departments</code>).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: inner join employees and departments on dept_id
+# Hint: inner_join keeps only matching keys
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ans1 &lt;- employees |&gt; inner_join(departments, by = &quot;dept_id&quot;)
+ans1
+#&gt; # A tibble: 4 × 4
+#&gt;   emp_id name  dept_id dept_name
+#&gt;    &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1      1 Asha       10 Sales
+#&gt; 2      2 Bo         20 Engineering
+#&gt; 3      3 Cara       10 Sales
+#&gt; 4      5 Evi        20 Engineering</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>inner_join()</code> keeps rows only when the key exists in both tables. Dan has <code>dept_id = 30</code>, which is absent from <code>departments</code>, so Dan is dropped. Dept 40 (Legal) has no employees and is also dropped. Four rows survive.</p>
+
+</details>
+
+<h4>Exercise 2: Keep every employee (left join)</h4>
+
+<p>Same tables, same key. But this time keep every employee, even the ones without a department. Save to <code>ans2</code>. Expected: <strong>5 rows</strong> (Dan stays, with <code>dept_name = NA</code>).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: left join - keep every employee
+# Hint: left_join keeps all rows from the left table
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ans2 &lt;- employees |&gt; left_join(departments, by = &quot;dept_id&quot;)
+ans2
+#&gt; # A tibble: 5 × 4
+#&gt;   emp_id name  dept_id dept_name
+#&gt;    &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1      1 Asha       10 Sales
+#&gt; 2      2 Bo         20 Engineering
+#&gt; 3      3 Cara       10 Sales
+#&gt; 4      4 Dan        30 NA
+#&gt; 5      5 Evi        20 Engineering</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>left_join()</code> keeps every row from the left table (<code>employees</code>). When the right table has no match, the new columns fill with <code>NA</code>. This is the single most common join — use it whenever you want to enrich a primary table without losing rows.</p>
+
+</details>
+
+<h4>Exercise 3: See what is missing on both sides (full join)</h4>
+
+<p>Join <code>departments</code> and <code>salaries</code> on <code>dept_id</code>. Show every department and every salary record, even orphans. Save to <code>ans3</code>. Expected: <strong>4 rows</strong> (depts 10, 20 match; dept 40 is in departments only; dept 30 is in salaries only).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: full join - keep everything from both tables
+# Hint: full_join returns the union of keys
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ans3 &lt;- departments |&gt; full_join(salaries, by = &quot;dept_id&quot;)
+ans3
+#&gt; # A tibble: 4 × 3
+#&gt;   dept_id dept_name   avg_salary
+#&gt;     &lt;dbl&gt; &lt;chr&gt;            &lt;dbl&gt;
+#&gt; 1      10 Sales            55000
+#&gt; 2      20 Engineering      85000
+#&gt; 3      40 Legal               NA
+#&gt; 4      30 NA               60000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>full_join()</code> returns the union of keys from both tables. Legal (dept 40) has no salary record, so <code>avg_salary</code> is <code>NA</code>. Dept 30 has a salary but no department name. A full join is the join you use when you need to audit data — it shows gaps on both sides.</p>
+
+</details>
+
+<h2>Core Problems: Join Types That Feel Alike (Exercises 4-7)</h2>
+
+<p>Warm-up done. These four exercises mix join types, chain joins together, and handle mismatched column names.</p>
+
+<h4>Exercise 4: Right join, and rewrite it as a left join</h4>
+
+<p>First: use <code>right_join()</code> to join <code>employees</code> to <code>departments</code> on <code>dept_id</code>. Save to <code>ans4a</code>. Expected: <strong>5 rows</strong> (the 4 matched employees + Legal with <code>NA</code> name).</p>
+
+<p>Then: rewrite the same result using <code>left_join()</code> instead, by swapping the arguments. Save to <code>ans4b</code>. The two should match.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 4: right_join vs left_join equivalence
+# Hint: right_join(A, B) == left_join(B, A) with columns reordered
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ans4a &lt;- employees |&gt; right_join(departments, by = &quot;dept_id&quot;)
+ans4a
+#&gt; # A tibble: 5 × 4
+#&gt;   emp_id name  dept_id dept_name
+#&gt;    &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1      1 Asha       10 Sales
+#&gt; 2      3 Cara       10 Sales
+#&gt; 3      2 Bo         20 Engineering
+#&gt; 4      5 Evi        20 Engineering
+#&gt; 5     NA NA         40 Legal
+
+ans4b &lt;- departments |&gt; left_join(employees, by = &quot;dept_id&quot;)
+ans4b
+#&gt; # A tibble: 5 × 4
+#&gt;   dept_id dept_name   emp_id name
+#&gt;     &lt;dbl&gt; &lt;chr&gt;        &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1      10 Sales            1 Asha
+#&gt; 2      10 Sales            3 Cara
+#&gt; 3      20 Engineering      2 Bo
+#&gt; 4      20 Engineering      5 Evi
+#&gt; 5      40 Legal           NA NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>right_join(A, B)</code> and <code>left_join(B, A)</code> return the same rows — only the column order differs. Most R style guides recommend <code>left_join()</code> because it reads naturally: "start with this table, attach extras." Use <a class="auto-link" href="R-Joins.html" title="R Joins Explained: inner_join, left_join, full_join — With Visual Diagrams">right_join</a> only when pipe order makes it clearer.</p>
+
+</details>
+
+<h4>Exercise 5: Chain two joins</h4>
+
+<p>Build a single table that has every employee, their department name, and their department's average salary. Use two joins. Save to <code>ans5</code>. Expected: <strong>5 rows</strong> (all employees; Dan has a salary but no dept name; Cara and Asha share dept 10).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 5: chain employees -&gt; departments -&gt; salaries
+# Hint: two left_join calls in a pipe
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ans5 &lt;- employees |&gt;
+  left_join(departments, by = &quot;dept_id&quot;) |&gt;
+  left_join(salaries,    by = &quot;dept_id&quot;)
+ans5
+#&gt; # A tibble: 5 × 5
+#&gt;   emp_id name  dept_id dept_name   avg_salary
+#&gt;    &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt; &lt;chr&gt;            &lt;dbl&gt;
+#&gt; 1      1 Asha       10 Sales            55000
+#&gt; 2      2 Bo         20 Engineering      85000
+#&gt; 3      3 Cara       10 Sales            55000
+#&gt; 4      4 Dan        30 NA               60000
+#&gt; 5      5 Evi        20 Engineering      85000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Chaining joins is just piping the result of one join into the next. Because both joins share the <code>dept_id</code> key, you can write both <code>by = &quot;dept_id&quot;</code> the same way. Dan keeps his salary (dept 30 exists in <code>salaries</code>) but has no <code>dept_name</code> (dept 30 is missing from <code>departments</code>).</p>
+
+</details>
+
+<h4>Exercise 6: Join when key columns have different names</h4>
+
+<p><code>employees</code> uses <code>emp_id</code>. <code>projects</code> uses <code>employee_id</code>. Join them so every employee gets their project list. Keep every employee, even those with no project. Save to <code>ans6</code>. Expected: <strong>6 rows</strong> (Asha has 2 projects; Cara has 1; Bo, Dan, Evi have <code>NA</code> project rows; the orphan project "Ghost" is dropped).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 6: join on mismatched column names
+# Hint: use by = c(&quot;emp_id&quot; = &quot;employee_id&quot;)
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ans6 &lt;- employees |&gt;
+  left_join(projects, by = c(&quot;emp_id&quot; = &quot;employee_id&quot;))
+ans6
+#&gt; # A tibble: 6 × 5
+#&gt;   emp_id name  dept_id project_id project
+#&gt;    &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt; &lt;chr&gt;      &lt;chr&gt;
+#&gt; 1      1 Asha       10 P1         Alpha
+#&gt; 2      1 Asha       10 P2         Beta
+#&gt; 3      2 Bo         20 NA         NA
+#&gt; 4      3 Cara       10 P3         Gamma
+#&gt; 5      4 Dan        30 NA         NA
+#&gt; 6      5 Evi        20 NA         NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>by = c(&quot;left_col&quot; = &quot;right_col&quot;)</code> syntax maps differently named keys. The result keeps the left table's column name (<code>emp_id</code>). Asha appears twice because she has two projects — this row expansion is normal and expected for one-to-many joins.</p>
+
+</details>
+
+<h4>Exercise 7: Join on multiple keys</h4>
+
+<p>Two tiny tables are built inline below. <code>sales_q</code> has one row per (region, quarter). <code>targets_q</code> has the target for each (region, quarter). Inner join them on <strong>both</strong> keys. Save to <code>ans7</code>. Expected: <strong>3 rows</strong> (three combinations match; two targets rows have no sales).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 7: join on multiple keys
+# Hint: by = c(&quot;region&quot;, &quot;quarter&quot;)
+
+sales_q &lt;- tibble(
+  region = c(&quot;N&quot;, &quot;N&quot;, &quot;S&quot;, &quot;S&quot;),
+  quarter = c(&quot;Q1&quot;, &quot;Q2&quot;, &quot;Q1&quot;, &quot;Q2&quot;),
+  sales   = c(100, 120, 80, 95)
+)
+
+targets_q &lt;- tibble(
+  region  = c(&quot;N&quot;, &quot;N&quot;, &quot;N&quot;, &quot;S&quot;),
+  quarter = c(&quot;Q1&quot;, &quot;Q2&quot;, &quot;Q3&quot;, &quot;Q1&quot;),
+  target  = c(110, 115, 120, 90)
+)
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ans7 &lt;- sales_q |&gt; inner_join(targets_q, by = c(&quot;region&quot;, &quot;quarter&quot;))
+ans7
+#&gt; # A tibble: 3 × 4
+#&gt;   region quarter sales target
+#&gt;   &lt;chr&gt;  &lt;chr&gt;   &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 N      Q1        100    110
+#&gt; 2 N      Q2        120    115
+#&gt; 3 S      Q1         80     90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Pass a character vector to <code>by =</code> to join on multiple keys. Both columns must match simultaneously. Only three (region, quarter) pairs appear in both tables: (N, Q1), (N, Q2), (S, Q1). The rest are dropped by the inner join.</p>
+
+</details>
+
+<h2>Advanced Challenges: Filter Joins and Debugging (Exercises 8-10)</h2>
+
+<p>The last three exercises move past basic joining. You will <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">filter rows</a> by membership in another table and debug joins that silently produce wrong answers.</p>
+
+<h4>Exercise 8: Filter employees by project membership</h4>
+
+<p>Use <code>semi_join()</code> to return only employees who have <strong>at least one project</strong>. Save to <code>ans8a</code>. Expected: <strong>2 rows</strong> (Asha and Cara).</p>
+
+<p>Then use <code>anti_join()</code> to return employees with <strong>no projects</strong>. Save to <code>ans8b</code>. Expected: <strong>3 rows</strong> (Bo, Dan, Evi).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 8: semi_join keeps matches; anti_join keeps non-matches
+# Hint: both filter employees without adding project columns
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ans8a &lt;- employees |&gt; semi_join(projects, by = c(&quot;emp_id&quot; = &quot;employee_id&quot;))
+ans8a
+#&gt; # A tibble: 2 × 3
+#&gt;   emp_id name  dept_id
+#&gt;    &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1      1 Asha       10
+#&gt; 2      3 Cara       10
+
+ans8b &lt;- employees |&gt; anti_join(projects, by = c(&quot;emp_id&quot; = &quot;employee_id&quot;))
+ans8b
+#&gt; # A tibble: 3 × 3
+#&gt;   emp_id name  dept_id
+#&gt;    &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1      2 Bo         20
+#&gt; 2      4 Dan        30
+#&gt; 3      5 Evi        20
+#&gt; # columns preserved exactly as in employees</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>semi_join()</code> and <code>anti_join()</code> are <strong>filtering joins</strong>. They return rows from the left table only — no columns from the right table are added. <code>semi_join</code> keeps rows that have a match; <code>anti_join</code> keeps rows that do not. Use them when you want to subset one table by membership in another without altering its columns.</p>
+
+</details>
+
+<h4>Exercise 9: Spot the row explosion</h4>
+
+<p>The <code>coupons</code> table below has <strong>duplicated keys</strong> — the same <code>customer_id</code> appears several times. Join <code>customers</code> to <code>coupons</code> with a left join on <code>customer_id</code> and examine how many rows come back. Save to <code>ans9</code>. Expected: <strong>5 rows</strong>, not 3, because customer 1 has three coupons.</p>
+
+<p>Then answer for yourself: is this a bug or expected behaviour?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 9: duplicate keys create row explosion
+# Hint: left_join multiplies rows when the right side has duplicates
+
+customers &lt;- tibble(
+  customer_id = c(1, 2, 3),
+  cust_name   = c(&quot;Amy&quot;, &quot;Ben&quot;, &quot;Cal&quot;)
+)
+
+coupons &lt;- tibble(
+  customer_id = c(1, 1, 1, 2),
+  coupon_code = c(&quot;X10&quot;, &quot;X20&quot;, &quot;X30&quot;, &quot;Y5&quot;)
+)
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ans9 &lt;- customers |&gt; left_join(coupons, by = &quot;customer_id&quot;)
+ans9
+#&gt; # A tibble: 5 × 3
+#&gt;   customer_id cust_name coupon_code
+#&gt;         &lt;dbl&gt; &lt;chr&gt;     &lt;chr&gt;
+#&gt; 1           1 Amy       X10
+#&gt; 2           1 Amy       X20
+#&gt; 3           1 Amy       X30
+#&gt; 4           2 Ben       Y5
+#&gt; 5           3 Cal       NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The result has 5 rows because Amy matches three coupons. This is <strong>expected</strong> for one-to-many joins and is exactly the behaviour you want when you need all coupons per customer. It becomes a <strong>bug</strong> only when you think you are doing a one-to-one join. If your join produces more rows than the left table had, check your right-side table for duplicated keys — that is the signal.</p>
+
+</details>
+
+<h4>Exercise 10: Detect and fix an unintended many-to-many join</h4>
+
+<p>Two new tables below share the key <code>product_id</code>. Both sides have duplicates — <code>orders</code> has two rows for product 101, and <code>prices</code> has two rows for product 101 (two price tiers). A naive left_join multiplies them into a 4-row cross product for that one product.</p>
+
+<p>Do the naive join first and observe the row count. Then fix it by deduplicating <code>prices</code> to keep only the latest price per product before joining. Save the fixed result to <code>ans10</code>. Expected after fix: <strong>3 rows</strong> (one row per order).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 10: many-to-many explosion and its fix
+# Hint: use slice_max or distinct on the right table first
+
+orders &lt;- tibble(
+  order_id   = c(&quot;O1&quot;, &quot;O2&quot;, &quot;O3&quot;),
+  product_id = c(101, 101, 102),
+  qty        = c(2, 1, 3)
+)
+
+prices &lt;- tibble(
+  product_id = c(101, 101, 102),
+  price_date = as.Date(c(&quot;2026-01-01&quot;, &quot;2026-03-01&quot;, &quot;2026-02-01&quot;)),
+  price      = c(9.99, 11.99, 4.50)
+)
+
+# First: do the naive join and check the row count.
+# Then: fix it. Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Naive join: 4 rows (the explosion)
+naive &lt;- orders |&gt; left_join(prices, by = &quot;product_id&quot;)
+nrow(naive)
+#&gt; [1] 4
+
+# Fix: keep only the latest price per product, then join
+latest_prices &lt;- prices |&gt;
+  group_by(product_id) |&gt;
+  slice_max(price_date, n = 1) |&gt;
+  ungroup()
+
+ans10 &lt;- orders |&gt; left_join(latest_prices, by = &quot;product_id&quot;)
+ans10
+#&gt; # A tibble: 3 × 5
+#&gt;   order_id product_id   qty price_date price
+#&gt;   &lt;chr&gt;         &lt;dbl&gt; &lt;dbl&gt; &lt;date&gt;     &lt;dbl&gt;
+#&gt; 1 O1              101     2 2026-03-01 11.99
+#&gt; 2 O2              101     1 2026-03-01 11.99
+#&gt; 3 O3              102     3 2026-02-01  4.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The naive join has 4 rows because product 101 has 2 orders and 2 prices, so the join creates 2 x 2 = 4 rows for that product. Real order tables expect one price per order, not two. The fix: reduce the right side to one row per key before joining. <code>slice_max(price_date, n = 1)</code> keeps the most recent price per product. Since dplyr 1.1.0, an uncontrolled many-to-many join also warns you — that warning is a red flag, not noise.</p>
+
+</details>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Omitting <code>by =</code> and hoping for the best</h4>
+
+<p>Leaving <code>by =</code> out lets dplyr guess keys by common column names. That works until your tables gain a shared column (<code>updated_at</code>, <code>id</code>) that was not meant as a join key.</p>
+
+<p>Bad:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Joins on ALL shared columns, which may silently change
+employees |&gt; left_join(departments)
+#&gt; Joining with `by = join_by(dept_id)`</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Good:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Explicit, stable, reviewable
+employees |&gt; left_join(departments, by = &quot;dept_id&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Always name the key. It is one extra argument and it stops silent bugs.</p>
+
+<h4>Mistake 2: Ignoring the many-to-many warning</h4>
+
+<p>Since dplyr 1.1.0, <code>left_join()</code> warns when the right side has duplicate keys and the match is not one-to-one. Many learners ignore it. If the row count jumps, the warning was pointing at a real bug — fix the right side before joining.</p>
+
+<h4>Mistake 3: Type mismatch on keys drops every match</h4>
+
+<p>If the left key is <code>character</code> ("101") and the right key is <code>numeric</code> (101), every join returns zero matches without error. Check key types before joining:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Check before you join
+typeof(orders$product_id)
+typeof(prices$product_id)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>If they differ, coerce one side with <code>as.character()</code> or <code>as.integer()</code>.</p>
+
+<h4>Mistake 4: Using <code>inner_join()</code> when you meant <code>left_join()</code></h4>
+
+<p><code>inner_join()</code> drops left-table rows that have no match. If you joined a primary table to a lookup and your row count fell, you probably wanted <code>left_join()</code>. Rule of thumb: **when enriching a primary table, default to <code>left_join()</code>**.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Row count is your primary sanity check.</strong> After every join, compare <code>nrow(result)</code> to the left table's row count. If the counts differ and you did not expect them to, stop and inspect before continuing.</div></div>
+
+<h2>Summary</h2>
+
+<p>These four mutating joins are the workhorses. Commit the row-keeping rules to memory:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Join</th>
+<th>Keeps from Left</th>
+<th>Keeps from Right</th>
+<th>Typical Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inner_join()</code></td>
+<td>matches only</td>
+<td>matches only</td>
+<td>Strict — both sides required</td>
+</tr>
+<tr>
+<td><code>left_join()</code></td>
+<td>all rows</td>
+<td>matches only</td>
+<td>Enrich the primary table</td>
+</tr>
+<tr>
+<td><code>right_join()</code></td>
+<td>matches only</td>
+<td>all rows</td>
+<td>Rarely used; prefer left_join</td>
+</tr>
+<tr>
+<td><code>full_join()</code></td>
+<td>all rows</td>
+<td>all rows</td>
+<td>Audit gaps on both sides</td>
+</tr>
+<tr>
+<td><code>semi_join()</code></td>
+<td>matches only</td>
+<td>none (filter)</td>
+<td>"Keep rows that exist over there"</td>
+</tr>
+<tr>
+<td><code>anti_join()</code></td>
+<td>non-matches only</td>
+<td>none (filter)</td>
+<td>"Keep rows missing over there"</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A join is a question about row-keeping, not table-merging.</strong> Pick the join by asking "which rows must survive?" — left? right? both? intersection? The answer names the join.</div></div>
+
+<h2>FAQ</h2>
+
+<h4>How is <code>left_join()</code> different from base R <code>merge()</code>?</h4>
+
+<p><code>merge()</code> is slower, reorders rows by default, and renames duplicate columns with <code>.x</code> and <code>.y</code> suffixes. <code>left_join()</code> preserves the left table's row order, is faster on large tables, and matches the dplyr style. Both work; <code>left_join()</code> is idiomatic tidyverse.</p>
+
+<h4>Why does my join produce more rows than the left table had?</h4>
+
+<p>The right table has duplicate keys. Each duplicate creates a new row in the result. Check for duplicates on the right side with <code>count(right_table, key) |&gt; filter(n &gt; 1)</code>. If the duplication is intentional (like Asha's two projects above), leave it; otherwise deduplicate with <code>distinct()</code> or <code>slice_max()</code> first.</p>
+
+<h4>When should I use <code>semi_join()</code> instead of <code>inner_join() |&gt; select()</code>?</h4>
+
+<p>Use <code>semi_join()</code> when you only want to filter the left table by membership in the right table — you do not need any columns from the right table. It is clearer and avoids accidentally creating duplicates when the right side has many rows per key.</p>
+
+<h4>Can I join on more than two columns?</h4>
+
+<p>Yes. Pass a character vector: <code>by = c(&quot;region&quot;, &quot;quarter&quot;, &quot;product_id&quot;)</code>. All listed columns must match for a row to join. This is exactly what Exercise 7 demonstrated.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>dplyr mutating joins documentation. <a href="https://dplyr.tidyverse.org/reference/mutate-joins.html">Link</a></li>
+
+<li>dplyr filtering joins documentation. <a href="https://dplyr.tidyverse.org/reference/filter-joins.html">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., & Grolemund, G. — <em>R for Data Science (2e)</em>, Chapter 19: Joins. <a href="https://r4ds.hadley.nz/joins.html">Link</a></li>
+
+<li>Posit — dplyr 1.1.0: Joins announcement (introduces <code>join_by()</code> and many-to-many warning). <a href="https://www.tidyverse.org/blog/2023/01/dplyr-1-1-0-joins/">Link</a></li>
+
+<li>STAT 545 — Join cheatsheet. <a href="https://stat545.com/join-cheatsheet.html">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><a href="R-Joins.html">R Joins: left, right, inner, full</a> — the parent tutorial that walks through each mutating join with diagrams.</li>
+
+<li><a href="dplyr-group-by-summarise-Exercises.html">dplyr group_by() & summarise() Exercises</a> — ten more problems covering aggregation and per-group slicing.</li>
+
+<li><a href="dplyr-Filter-Select.html">dplyr filter() and select()</a> — upstream verbs you often use before joining.</li>
+
+</ul>
