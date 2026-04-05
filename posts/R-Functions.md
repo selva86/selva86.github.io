@@ -1,15 +1,15 @@
 ---
-title: "Write Better R Functions: Arguments, Defaults, Scope"
+title: "Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise"
 slug: "R-Functions"
-description: "Write better R functions — define arguments with defaults, understand scoping rules, return values cleanly, and know when to vectorize. Interactive examples throughout."
-keywords: "R functions, function() in R, function arguments, default arguments R, R function scope, return() in R, vectorized functions"
+description: "Stop copy-pasting code. Learn to write clean R functions with default arguments, explicit return values, proper scoping rules, and built-in error checking."
+keywords: "R functions, writing functions in R, R function arguments, default arguments R, lexical scoping R, return values R, vectorization R, R function syntax"
+auto_link_terms: "writing R functions|R function arguments|R function scope|lexical scoping|default arguments in R|return value in R"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-05"
+date: "2026-03-29"
 curriculum_id: "1.1.10"
 post_type: "C"
-auto_link_terms: "R functions|function() in R|function arguments|function in R"
-auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "Writing R Functions"
 sidebar_order: 10
@@ -17,300 +17,424 @@ sidebar_order: 10
 
 <nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; Writing R Functions</nav>
 
-# Write Better R Functions: Arguments, Defaults, Scope
+# Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise
 
-<p class="lead">R functions package a sequence of operations behind a name, taking arguments as input and returning a value as output. Mastering function arguments, default values, scoping, and return semantics is the single biggest step from "R user" to "R programmer."</p>
+<p class="lead">An R function is a reusable block of code you call by name with arguments. Writing your own functions lets you turn repeated steps into a single command, cut bugs, and make scripts readable.</p>
 
 ## Introduction
 
-In R, functions are first-class objects. You create them with the `function` keyword, store them in variables, pass them to other functions, and return them from other functions. This is why R feels so programmable once you get comfortable writing functions.
+You have written the same five lines of code three times in the same script. Now you have three places to fix the same bug. That is the signal to write a function.
 
-This tutorial covers how to define functions, use positional and named arguments, set defaults, understand lexical scope, return values correctly, and decide when to vectorize. Every example runs live in your browser — click **Run** to try.
+A function wraps a chunk of logic behind a name. You call it with different inputs and get consistent outputs. The logic lives in exactly one place, so fixing a bug fixes it everywhere. That is the first reason to write functions. The second is readability: a call like `clean_dates(sales)` tells a reader what you meant, while twelve lines of string manipulation do not.
 
-By the end you'll write functions that work the first time and read cleanly six months later.
+In this tutorial you will learn how R functions are built piece by piece: arguments, defaults, the body, and the return value. You will see how R decides which argument goes where when you call a function, how it finds variables using lexical scoping, how to accept any number of extra arguments with `...`, and how to validate inputs so your function fails with a clear message instead of a cryptic crash.
 
-## How do you define a function in R?
+Every code block below is runnable. Click Run and the code executes in your browser. Edit the values, run again, and watch what changes. Blocks build on one another, so run them top to bottom the first time through.
 
-Use `function(args) { body }` and assign it to a name. The last expression in the body is returned automatically.
+## What is a function in R? (anatomy)
 
-![R Function Anatomy](screenshots/R-Functions-anatomy.webp)
-*Figure 1: The anatomy of an R function — name, arguments, body, return value.*
+Every R function has four parts: a **name**, a list of **arguments**, a **body**, and a **return value**. You assign the whole thing to a name with `<-`, just like any other object in R.
+
+![Anatomy of an R function](screenshots/R-Functions-anatomy.webp)
+*Figure 1: The four parts of every R function: name, arguments, body, and return value.*
+
+Let's build the simplest possible function: one that squares a number. The argument is `x`, the body multiplies `x` by itself, and the last expression in the body is the return value.
 
 ```r
-# Minimal function
+# Define a function called square
 square <- function(x) {
   x * x
 }
 
-square(5)
+# Call it with an argument
+result <- square(5)
+print(result)
 #> [1] 25
-square(7)
-#> [1] 49
 ```
 
-`square` takes one argument `x` and returns `x * x`. No `return()` needed — the last line is the return value by convention. This keeps functions short.
-
-For multi-argument functions, separate arguments with commas:
-
-```r
-# Two arguments
-bmi <- function(weight_kg, height_m) {
-  weight_kg / (height_m ^ 2)
-}
-
-bmi(70, 1.75)
-#> [1] 22.85714
-
-# Call with named arguments (order doesn't matter)
-bmi(height_m = 1.75, weight_kg = 70)
-#> [1] 22.85714
-```
-
-R supports both positional calling (`bmi(70, 1.75)`) and named calling (`bmi(weight_kg = 70, height_m = 1.75)`). Named calls are self-documenting and order-independent.
-
-[KEY INSIGHT]
-**Named arguments make function calls self-documenting.** `lm(y ~ x, data = df)` is clearer than `lm(y ~ x, df)` even though both work. For any function call with 3+ arguments, name them.
-
-## How do you set default argument values?
-
-Give arguments a default value with `=` in the function signature. Defaults make arguments optional.
-
-```r
-# Function with defaults
-greet <- function(name, greeting = "Hello", punct = "!") {
-  paste0(greeting, ", ", name, punct)
-}
-
-# Use all defaults
-greet("Alice")
-#> [1] "Hello, Alice!"
-
-# Override one default
-greet("Bob", greeting = "Hi")
-#> [1] "Hi, Bob!"
-
-# Override multiple
-greet("Carol", greeting = "Hey", punct = "?")
-#> [1] "Hey, Carol?"
-```
-
-`greeting = "Hello"` means "if the caller doesn't provide `greeting`, use 'Hello'". Defaults turn required arguments into optional ones — the function still works with minimal input but can be customized.
+What happened: `function(x) { x * x }` creates a function object, and `<-` binds that object to the name `square`. Calling `square(5)` runs the body with `x = 5`, and R returns the value of the last expression (`x * x = 25`). You now have a reusable tool you can call as many times as you want.
 
 [TIP]
-**Default arguments can reference other arguments.** `function(x, n = length(x))` sets `n` to the length of `x` by default. This pattern is common in statistical functions.
+**Name functions with verbs, not nouns.** A function *does* something, so clean_dates() or compute_tax() reads better than dates() or tax(). Save nouns for the variables that hold data.
 
-## How do R functions return values?
-
-R returns the **last evaluated expression** automatically. Explicit `return()` is for early exit only.
+Function bodies can be longer. When you need intermediate values, assign them with `<-` inside the body. They are local to the function and disappear when the function finishes.
 
 ```r
-# Implicit return — last expression
-absolute_value <- function(x) {
-  if (x < 0) {
-    -x
-  } else {
-    x
-  }
+# A function with intermediate local variables
+bmi_calc <- function(weight_kg, height_m) {
+  bmi <- weight_kg / (height_m ^ 2)
+  rounded <- round(bmi, 1)
+  rounded
 }
-absolute_value(-7)
-#> [1] 7
 
-# Explicit return() for early exit
-safe_divide <- function(a, b) {
-  if (b == 0) {
-    return(NA)
-  }
-  a / b
+bmi_calc(weight_kg = 72, height_m = 1.75)
+#> [1] 23.5
+```
+
+The variables `bmi` and `rounded` exist only while the function runs. After the call, they are gone — you cannot type `bmi` at the prompt and see 23.5. Only the returned value (`rounded`) leaves the function. Isolation like this is why functions are safer than copy-pasted scripts: local work stays local.
+
+## How do you set default arguments in R functions?
+
+Arguments without defaults are **required** — omitting one throws an error. Arguments with defaults are **optional**; R uses the default when you do not provide a value. This lets you build flexible functions that have sensible behavior out of the box.
+
+![How R matches arguments](screenshots/R-Functions-arg-matching.webp)
+*Figure 2: R matches arguments in four steps: exact name, partial name, position, then defaults.*
+
+Here is a function with one required argument (`name`) and one with a default (`greeting`).
+
+```r
+# One required argument, one with a default
+greet <- function(name, greeting = "Hello") {
+  paste0(greeting, ", ", name, "!")
 }
-safe_divide(10, 2)
+
+# Call using position (name first)
+greet("Selva")
+#> [1] "Hello, Selva!"
+
+# Override the default by name
+greet("Selva", greeting = "Welcome")
+#> [1] "Welcome, Selva!"
+
+# Call fully by name — order does not matter
+greet(greeting = "Hi", name = "Priya")
+#> [1] "Hi, Priya!"
+```
+
+Three calls, three ways to pass the same arguments. R matches arguments in a fixed order: first by exact name, then by partial name, then by position, and finally it fills in missing ones from the defaults. Passing by name is the safest style — your call keeps working even if the function's author reorders arguments later.
+
+[WARNING]
+**Partial-name matching is fragile.** R will let greet("Selva", gr = "Hi") match `gr` to `greeting`, but a future argument starting with `g` would silently break your code. Always write argument names in full.
+
+Defaults can reference other arguments. The default is evaluated **when the function is called**, not when it is defined. This is called lazy evaluation, and it lets you write defaults that depend on the user's inputs.
+
+```r
+# Default that depends on another argument
+price_with_tax <- function(price, tax_rate = 0.08, tax = price * tax_rate) {
+  price + tax
+}
+
+# Use the default tax (8% of price)
+price_with_tax(price = 100)
+#> [1] 108
+
+# Override tax_rate — the tax default recomputes
+price_with_tax(price = 100, tax_rate = 0.20)
+#> [1] 120
+
+# Override tax directly — tax_rate is ignored
+price_with_tax(price = 100, tax = 5)
+#> [1] 105
+```
+
+The `tax` argument defaults to `price * tax_rate`, so you get the right tax amount whether you override nothing, the rate, or the tax itself. You did not have to compute anything yourself. Lazy defaults let you express relationships between arguments in the signature itself.
+
+## How does an R function return values?
+
+Every R function returns exactly one object. If the function's last expression produces a value, R returns that value — you do not need to write `return()`. This is called an **implicit return**, and it is the idiomatic R style for short functions.
+
+```r
+# Implicit return: last expression is returned
+area <- function(length, width) {
+  length * width   # no return() needed
+}
+
+area(3, 4)
+#> [1] 12
+```
+
+The function has one expression, `length * width`, and R returns it. Short functions read more clearly this way. Adding `return()` here would only add noise.
+
+Use **explicit** `return()` when you need to exit early, typically to handle an edge case before the main logic runs. Early returns flatten nested `if`/`else` branches and make the code easier to follow.
+
+```r
+# Early return guards against bad input
+safe_div <- function(a, b) {
+  if (b == 0) {
+    return(NA)          # exit now, skip the rest
+  }
+  a / b                 # implicit return of the normal result
+}
+
+safe_div(10, 2)
 #> [1] 5
-safe_divide(10, 0)
+safe_div(10, 0)
 #> [1] NA
 ```
 
-Both functions work the same way. `return()` is only needed when you want to exit before reaching the last line (e.g., guard clauses at the top of a function).
+The guard `if (b == 0) return(NA)` handles the divide-by-zero case up front, and the rest of the body assumes `b` is safe. Compared to an `if`/`else` wrapping the whole body, the early-return style keeps the main logic at the left margin where the eye expects it.
 
-To return multiple values, package them in a list:
+A function can return only one object, but that object can be a **list**. This is how you return "multiple values" in R: bundle them into a named list.
 
 ```r
-summarize <- function(x) {
+# Return multiple values as a named list
+describe_vec <- function(x) {
   list(
     mean = mean(x),
-    median = median(x),
-    sd = sd(x),
-    n = length(x)
+    sd   = sd(x),
+    n    = length(x)
   )
 }
 
-result <- summarize(c(3, 7, 2, 9, 5, 8, 1, 6))
-result$mean
-#> [1] 5.125
-result$sd
-#> [1] 2.900123
+stats_out <- describe_vec(c(4, 8, 15, 16, 23, 42))
+stats_out$mean
+#> [1] 18
+stats_out$sd
+#> [1] 13.62351
+stats_out$n
+#> [1] 6
 ```
 
-Lists are the idiomatic way to return multiple values in R. The caller accesses results with `$` or `[[ ]]`.
+The caller pulls out whatever they need with `$name`. Named lists are self-documenting — `stats_out$mean` is clearer than `stats_out[[1]]`, and adding a new output later will not renumber existing ones.
 
-## How does R find variable names inside functions?
+[KEY INSIGHT]
+**R functions return exactly one object, but that object can be anything — a number, a vector, a list, a data frame, even another function.** "Returning multiple values" in R means returning a single list that contains them.
 
-R uses **lexical scoping** — variables are looked up in the environment where the function was *defined*, not where it's called.
+## What is lexical scoping in R?
+
+Variables created inside a function are **local**. They exist only while the function runs and disappear when it returns. Variables from outside the function are **free**, and R finds them using a rule called **lexical scoping**.
+
+![How R resolves a variable](screenshots/R-Functions-scope-chain.webp)
+*Figure 3: How R searches environments to resolve a variable name inside a function.*
+
+First, watch how local variables vanish when the function returns:
 
 ```r
-y <- 100
-
-add_y <- function(x) {
-  x + y
+# Locals are destroyed when the function exits
+local_demo <- function() {
+  secret <- 42
+  secret * 2
 }
 
-add_y(5)
-#> [1] 105
+local_demo()
+#> [1] 84
 
-y <- 200
-add_y(5)
-#> [1] 205
-
-silly <- function() {
-  z <- 50
-  z
-}
-silly()
-#> [1] 50
-exists("z")
+# secret is not visible here
+exists("secret")
 #> [1] FALSE
 ```
 
-Inside `add_y`, `x` is local (the argument) and `y` is found in the global environment. Variables created inside a function (like `z` in `silly`) disappear when the function exits.
+`secret` lived inside `local_demo()` only. Outside, `exists("secret")` returns FALSE. This isolation is a feature: function internals cannot pollute your workspace, and your workspace cannot accidentally change function internals.
+
+When a function uses a name it did not define locally, R searches **outward** — first in the environment where the function was defined, then up the chain toward the global environment.
+
+```r
+# The free variable `threshold` comes from outside
+threshold <- 170
+
+is_tall <- function(height) {
+  height > threshold    # threshold is not local — R searches outward
+}
+
+is_tall(175)
+#> [1] TRUE
+is_tall(165)
+#> [1] FALSE
+
+# Change the global, and the function sees the new value
+threshold <- 180
+is_tall(175)
+#> [1] FALSE
+```
+
+The function does not hard-code 170 — it looks up `threshold` in the global environment every time it runs. Change the global, and the function's behavior changes. That is lexical scoping in action.
 
 [WARNING]
-**Don't rely on global variables inside functions.** It makes your function non-reproducible: the same call may return different results if the global changes. Pass everything the function needs as arguments.
+**Modifying a global from inside a function with the super-assignment operator is almost always a mistake.** It creates invisible couplings that make code hard to debug. If a function needs to change something, return the new value and let the caller assign.
 
-## When should a function be vectorized?
+## How do you pass extra arguments with `...`?
 
-A function is **vectorized** if it naturally works on vectors without needing a loop. Vectorized functions are faster and compose better.
-
-```r
-# Naturally vectorized
-square <- function(x) x * x
-square(5)
-#> [1] 25
-square(c(1, 2, 3, 4))
-#> [1] 1 4 9 16
-
-# Not vectorized
-classify <- function(x) {
-  if (x > 0) "positive"
-  else if (x < 0) "negative"
-  else "zero"
-}
-classify(5)
-#> [1] "positive"
-```
-
-`square` is vectorized because `*` is vectorized. `classify` isn't — it uses scalar `if/else`. To vectorize it, use `ifelse()`:
+The special argument `...` (three dots, also called "dots") lets a function accept any number of extra arguments and forward them to another function. You use it when you are writing a **wrapper** — a function that adds a little bit of behavior around an existing one.
 
 ```r
-classify_vec <- function(x) {
-  ifelse(x > 0, "positive",
-  ifelse(x < 0, "negative", "zero"))
+# Wrapper that forwards extra args to any stat function
+apply_fn <- function(x, fn, ...) {
+  result <- fn(x, ...)       # forward ... to fn
+  cat("Input length:", length(x), "| Output:", result, "\n")
+  result
 }
-classify_vec(c(3, -1, 0, 7, -5))
-#> [1] "positive" "negative" "zero"     "positive" "negative"
+
+# Forward na.rm = TRUE to mean()
+apply_fn(c(1, 2, NA, 4), mean, na.rm = TRUE)
+#> Input length: 4 | Output: 2.333333
+#> [1] 2.333333
+
+# Forward trim to mean()
+apply_fn(c(1, 2, 100, 3, 4), mean, trim = 0.2)
+#> Input length: 5 | Output: 3
+#> [1] 3
 ```
 
-`ifelse()` is fast because it uses R's internal vectorization.
+The wrapper does not care what arguments `mean()` accepts — it just collects them with `...` and passes them through. You can swap `mean` for `sum`, `median`, or any other function, and the wrapper still works. This is how functions like `lapply()`, `aggregate()`, and most plotting wrappers stay flexible.
+
+[TIP]
+**Use `...` to forward plot or formatting options through your function.** If your my_plot() wraps plot(), take `...` and pass it on — callers can still pass col, pch, main, and every other base-R plot arg without you having to list them.
+
+## How should your R functions validate inputs?
+
+A function that silently returns nonsense is harder to debug than one that stops loudly. Check your inputs at the top of the function. If they are wrong, stop immediately with a clear message — do not let bad data flow through your logic.
+
+The fastest check is `stopifnot()`. It stops execution if any of its conditions is FALSE.
+
+```r
+# stopifnot() halts with the failing condition
+safe_sqrt <- function(x) {
+  stopifnot(is.numeric(x), all(x >= 0))
+  sqrt(x)
+}
+
+safe_sqrt(c(4, 9, 16))
+#> [1] 2 3 4
+
+# This call fails loudly (commented to keep the notebook running):
+# safe_sqrt(c(4, -1, 9))
+#> Error in safe_sqrt(c(4, -1, 9)) : all(x >= 0) is not TRUE
+```
+
+`stopifnot()` is terse and fine for internal helpers. For functions you share, write a custom `stop()` with a message that explains both the problem **and the fix**. Commenting out the failing call keeps the notebook flow intact while still showing readers the expected error.
+
+```r
+# Custom stop() with actionable message
+divide <- function(a, b) {
+  if (!is.numeric(a) || !is.numeric(b)) {
+    stop("Both `a` and `b` must be numeric. Got: a=", class(a), ", b=", class(b))
+  }
+  if (b == 0) {
+    stop("`b` is zero. Provide a non-zero denominator.")
+  }
+  a / b
+}
+
+divide(10, 2)
+#> [1] 5
+# divide(10, 0)
+#> Error in divide(10, 0) : `b` is zero. Provide a non-zero denominator.
+```
+
+The error message names the argument (`b`), tells the user what is wrong ("is zero"), and tells them how to fix it ("Provide a non-zero denominator"). Future-you will thank present-you at 2 a.m. when this message appears in a log.
+
+[KEY INSIGHT]
+**Validate at the boundary, trust the internals.** Check inputs once, at the top of the public function. Helper functions called from inside can assume the data is already clean.
 
 ## Common Mistakes and How to Fix Them
 
-### Mistake 1: Using `return` without parentheses
+### Mistake 1: Defining a function without assigning it
 
 ❌ **Wrong:**
 ```r
-my_fn <- function(x) {
-  return x * 2
+function(x) {
+  x * 2
 }
+# Then trying to call:
+# double(5)
+#> Error: could not find function "double"
 ```
 
-**Why it is wrong:** `return()` is a function in R, not a keyword. It needs parentheses.
+**Why it is wrong:** `function(...) { ... }` creates a function object, but nothing holds a reference to it. Without `<-`, the object is immediately garbage-collected and has no name to call.
 
 ✅ **Correct:**
 ```r
-my_fn <- function(x) {
-  return(x * 2)
+double <- function(x) {
+  x * 2
 }
-my_fn(5)
+double(5)
 #> [1] 10
 ```
 
-### Mistake 2: Shadowing an argument
+### Mistake 2: Using `=` instead of `<-` inside the body
 
 ❌ **Wrong:**
 ```r
-compute <- function(x) {
-  x <- x * 2
-  x
+# Mixing = and <- confuses readers and breaks style checkers
+bad_fn <- function(x, y) {
+  z = x + y
+  z
 }
-compute(5)
-#> [1] 10   # fine, but confuses readers
 ```
 
-**Why it is wrong:** Reassigning the argument makes it hard to reason about what `x` refers to at any point.
+**Why it is wrong:** `=` and `<-` both assign at the top level of a function body, but mixing them is a style error that confuses readers and tools. Named-argument calls at the call site use `=` (e.g., `mean(x, na.rm = TRUE)`), and keeping `<-` for assignment avoids visual collision with named args.
 
 ✅ **Correct:**
 ```r
-compute <- function(x) {
-  doubled <- x * 2
-  doubled
+good_fn <- function(x, y) {
+  z <- x + y
+  z
 }
+good_fn(3, 4)
+#> [1] 7
 ```
 
-### Mistake 3: Returning via print
+### Mistake 3: Depending on a global variable that can change
 
 ❌ **Wrong:**
 ```r
-compute_mean <- function(x) {
-  print(mean(x))
+rate <- 0.08
+with_tax_bad <- function(price) {
+  price * (1 + rate)   # rate comes from global — caller may change it
 }
-result <- compute_mean(c(1, 2, 3))
-#> [1] 2
+
+rate <- 0.20                 # someone else's script changes this
+with_tax_bad(100)            # now returns 120, not 108
+#> [1] 120
 ```
 
-**Why it is wrong:** `print()` has side effects and returns its value invisibly. Confusing for readers.
+**Why it is wrong:** The function's output depends on a variable the caller might not realize they are affecting. Tests pass, then mysteriously fail when scripts run in a different order.
 
 ✅ **Correct:**
 ```r
-compute_mean <- function(x) {
+with_tax_good <- function(price, rate = 0.08) {
+  price * (1 + rate)
+}
+with_tax_good(100)
+#> [1] 108
+with_tax_good(100, rate = 0.20)
+#> [1] 120
+```
+
+### Mistake 4: Deep nesting instead of an early return
+
+❌ **Wrong:**
+```r
+classify_bad <- function(x) {
+  if (is.numeric(x)) {
+    if (length(x) > 0) {
+      if (!any(is.na(x))) {
+        mean(x)
+      } else {
+        NA
+      }
+    } else {
+      NA
+    }
+  } else {
+    NA
+  }
+}
+```
+
+**Why it is wrong:** Three levels of `if` for three guard conditions pushes the real logic far to the right and forces the reader to match braces to find the main path.
+
+✅ **Correct:**
+```r
+classify_good <- function(x) {
+  if (!is.numeric(x))    return(NA)
+  if (length(x) == 0)    return(NA)
+  if (any(is.na(x)))     return(NA)
   mean(x)
 }
-```
-
-### Mistake 4: Missing required argument
-
-❌ **Wrong:**
-```r
-greet <- function(name, greeting) {
-  paste0(greeting, ", ", name)
-}
-greet("Alice")
-#> Error in paste0(greeting, ", ", name) : argument "greeting" is missing
-```
-
-✅ **Correct:**
-```r
-greet <- function(name, greeting = "Hello") {
-  paste0(greeting, ", ", name)
-}
-greet("Alice")
-#> [1] "Hello, Alice"
+classify_good(c(2, 4, 6))
+#> [1] 4
 ```
 
 ## Practice Exercises
 
-### Exercise 1: Circle Area
+### Exercise 1: Convert Celsius to Fahrenheit
 
-Write `my_area(radius)` that returns the area of a circle.
+Write a function `celsius_to_f(c)` that converts a Celsius temperature to Fahrenheit. Formula: `f = c * 9/5 + 32`. Test it on `0` (expect 32) and `100` (expect 212).
 
 ```r
-# Hint: use pi
+# Exercise: write celsius_to_f(c)
+# Hint: one-line body, implicit return
 
 # Write your code below:
 
@@ -320,100 +444,27 @@ Write `my_area(radius)` that returns the area of a circle.
 <summary>Click to reveal solution</summary>
 
 ```r
-my_area <- function(radius) {
-  pi * radius ^ 2
+celsius_to_f <- function(c) {
+  c * 9/5 + 32
 }
-my_area(5)
-#> [1] 78.53982
+
+celsius_to_f(0)
+#> [1] 32
+celsius_to_f(100)
+#> [1] 212
 ```
+
+**Explanation:** R is vectorised, so this function also works on a whole vector: `celsius_to_f(c(0, 25, 100))` returns `c(32, 77, 212)`. No loop needed.
 
 </details>
 
-### Exercise 2: Default Argument
+### Exercise 2: Summary statistics as a named list
 
-Write `my_greet(name, formal = FALSE)` that greets formally or casually.
-
-```r
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+Write `summary_stats(x)` that returns a named list containing `mean`, `median`, and `sd` of a numeric vector. Save the result to `my_stats` and access `my_stats$mean`.
 
 ```r
-my_greet <- function(name, formal = FALSE) {
-  if (formal) paste0("Hello, Mr/Ms ", name)
-  else paste0("Hi, ", name)
-}
-my_greet("Alice")
-#> [1] "Hi, Alice"
-my_greet("Alice", formal = TRUE)
-#> [1] "Hello, Mr/Ms Alice"
-```
-
-</details>
-
-### Exercise 3: Return Multiple Values
-
-Write `my_stats(x)` returning a list with mean, median, sd.
-
-```r
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-my_stats <- function(x) {
-  list(mean = mean(x), median = median(x), sd = sd(x))
-}
-my_stats(c(10, 20, 30, 40, 50))
-#> $mean
-#> [1] 30
-#>
-#> $median
-#> [1] 30
-#>
-#> $sd
-#> [1] 15.81139
-```
-
-</details>
-
-### Exercise 4: Early Return
-
-Write `my_safe_log(x)` returning `NA` if x ≤ 0, else `log(x)`.
-
-```r
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-my_safe_log <- function(x) {
-  if (x <= 0) return(NA)
-  log(x)
-}
-my_safe_log(10)
-#> [1] 2.302585
-my_safe_log(-5)
-#> [1] NA
-```
-
-</details>
-
-### Exercise 5: Vectorized Sign
-
-Write `my_sign(x)` returning "pos", "neg", or "zero" for each element.
-
-```r
-my_nums <- c(3, -1, 0, 5, -2, 0, 7)
+# Exercise: write summary_stats(x)
+# Hint: return list(mean = ..., median = ..., sd = ...)
 
 # Write your code below:
 
@@ -423,120 +474,182 @@ my_nums <- c(3, -1, 0, 5, -2, 0, 7)
 <summary>Click to reveal solution</summary>
 
 ```r
-my_sign <- function(x) {
-  ifelse(x > 0, "pos", ifelse(x < 0, "neg", "zero"))
-}
-my_nums <- c(3, -1, 0, 5, -2, 0, 7)
-my_sign(my_nums)
-#> [1] "pos"  "neg"  "zero" "pos"  "neg"  "zero" "pos"
-```
-
-</details>
-
-## Complete Example: A Data Summarizer
-
-```r
-# --- summarize_vector: comprehensive stats function ---
-
-summarize_vector <- function(x, na.rm = TRUE, digits = 2) {
-  if (!is.numeric(x)) {
-    return(list(error = "Input must be numeric"))
-  }
-
-  n_na <- sum(is.na(x))
-  if (na.rm) x <- x[!is.na(x)]
-
-  if (length(x) == 0) {
-    return(list(n = 0, note = "No valid values"))
-  }
-
+summary_stats <- function(x) {
   list(
-    n = length(x),
-    n_missing = n_na,
-    mean = round(mean(x), digits),
-    median = round(median(x), digits),
-    sd = round(sd(x), digits),
-    min = min(x),
-    max = max(x)
+    mean   = mean(x),
+    median = median(x),
+    sd     = sd(x)
   )
 }
 
-data <- c(23, 45, NA, 67, 12, NA, 89, 34, 56, 78)
-summarize_vector(data)
-#> $n
-#> [1] 8
-#>
-#> $n_missing
-#> [1] 2
-#>
-#> $mean
-#> [1] 50.5
-#>
-#> $median
-#> [1] 50.5
-#>
-#> $sd
-#> [1] 27.26
-#>
-#> $min
-#> [1] 12
-#>
-#> $max
-#> [1] 89
-
-summarize_vector(c("a", "b", "c"))
-#> $error
-#> [1] "Input must be numeric"
+my_stats <- summary_stats(c(10, 20, 30, 40, 50))
+my_stats$mean
+#> [1] 30
+my_stats$median
+#> [1] 30
+my_stats$sd
+#> [1] 15.81139
 ```
 
-This function uses five patterns: argument defaults, guard clauses with early return, NA handling, list-based multiple returns, and type checking. Real R functions look like this.
+**Explanation:** Returning a named list is the standard R pattern for "multiple outputs". Callers pull out what they need by name.
+
+</details>
+
+### Exercise 3: Clipping with defaults
+
+Write `clip(x, lo = 0, hi = 1)` that returns `x` with any value below `lo` replaced by `lo` and any value above `hi` replaced by `hi`. Defaults should clip to the `[0, 1]` range. Test on `c(-0.5, 0.3, 0.7, 1.5)`.
+
+```r
+# Exercise: write clip(x, lo = 0, hi = 1)
+# Hint: pmax() and pmin() do this in one line
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+clip <- function(x, lo = 0, hi = 1) {
+  pmin(pmax(x, lo), hi)
+}
+
+clip(c(-0.5, 0.3, 0.7, 1.5))
+#> [1] 0.0 0.3 0.7 1.0
+clip(c(-0.5, 0.3, 0.7, 1.5), lo = -1, hi = 1)
+#> [1] -0.5  0.3  0.7  1.0
+```
+
+**Explanation:** `pmax(x, lo)` returns the elementwise maximum, raising any value below `lo` up to `lo`. Wrapping that in `pmin(..., hi)` caps any value above `hi` at `hi`. Default arguments keep the common `[0, 1]` call short.
+
+</details>
+
+### Exercise 4: Safe logarithm with validation
+
+Write `safe_log(x)` that returns `log(x)` for positive `x` but calls `stop()` with a helpful message if any value in `x` is not positive. Include the offending values in the error message.
+
+```r
+# Exercise: write safe_log(x)
+# Hint: use stop() and paste the bad values into the message
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+safe_log <- function(x) {
+  bad <- x[x <= 0]
+  if (length(bad) > 0) {
+    stop("safe_log() requires positive values. Got: ", paste(bad, collapse = ", "))
+  }
+  log(x)
+}
+
+safe_log(c(1, 2.718, 10))
+#> [1] 0.000000 0.999896 2.302585
+# safe_log(c(2, -1, 0, 5))
+#> Error in safe_log(c(2, -1, 0, 5)) : safe_log() requires positive values. Got: -1, 0
+```
+
+**Explanation:** The function identifies which values are bad before calling `stop()`, then lists them in the message. The user now knows *which* inputs to fix, not just that something was wrong.
+
+</details>
+
+## Complete Example
+
+Let's pull everything together. You will write `describe_numeric()`, a function that takes a data frame, validates the input, computes summary statistics for every numeric column, and returns the results as a data frame.
+
+The function uses nearly every idea from this tutorial: a required argument, default arguments, input validation, `...` to forward arguments, local variables, early return, and a single clear return value.
+
+```r
+# A real-world function: describe numeric columns of a data frame
+describe_numeric <- function(df, digits = 2, na.rm = TRUE, ...) {
+  # 1. Validate inputs with clear messages
+  if (!is.data.frame(df)) {
+    stop("`df` must be a data frame. Got: ", class(df)[1])
+  }
+
+  # 2. Pick numeric columns — early return if none
+  num_cols <- sapply(df, is.numeric)
+  if (!any(num_cols)) {
+    return(data.frame(column = character(0), mean = numeric(0), sd = numeric(0)))
+  }
+
+  # 3. Compute stats on each numeric column
+  numeric_df <- df[, num_cols, drop = FALSE]
+  means <- sapply(numeric_df, mean, na.rm = na.rm, ...)
+  sds   <- sapply(numeric_df, sd,   na.rm = na.rm, ...)
+
+  # 4. Assemble the result (single return object, as a data frame)
+  data.frame(
+    column = names(numeric_df),
+    mean   = round(means, digits),
+    sd     = round(sds,   digits),
+    row.names = NULL
+  )
+}
+
+# Try it on mtcars
+report <- describe_numeric(mtcars, digits = 1)
+head(report, 5)
+#>   column   mean     sd
+#> 1    mpg   20.1    6.0
+#> 2    cyl    6.2    1.8
+#> 3   disp  230.7  123.9
+#> 4     hp  146.7   68.6
+#> 5   drat    3.6    0.5
+```
+
+The call `describe_numeric(mtcars, digits = 1)` overrides only the `digits` default; everything else uses its default. The output is one tidy data frame where each row describes one input column. You could write it to CSV, print it, or plot it — the caller decides.
+
+Notice how the function reads as a short story: validate, select, compute, assemble, return. Each step is one small block. That is the payoff of composing small ideas (defaults, `...`, validation, early return) into one readable function.
 
 ## Summary
 
-| Concept | Syntax | Example |
-|---|---|---|
-| Define | `f <- function(x) { ... }` | `sq <- function(x) x*x` |
-| Default | `function(x = value)` | `function(x, n = 10)` |
-| Implicit return | last expression | `function(x) x * 2` |
-| Explicit return | `return(value)` | `return(NA)` |
-| Multiple returns | list | `list(a = 1, b = 2)` |
-| Named call | `f(arg = value)` | `lm(y ~ x, data = df)` |
-| Scope | Lexical | Outer vars visible |
+| Concept | Rule of thumb |
+|---|---|
+| Function syntax | `name <- function(args) { body }` — body's last expression is returned |
+| Arguments | Required args have no default; optional args have one. Name args at call sites. |
+| Defaults | Put sensible defaults in the signature; they can reference other arguments. |
+| Return | Use implicit return for short functions; `return()` only for early exits. |
+| Multiple outputs | Return a named list (or data frame) — R functions return exactly one object. |
+| Scope | Locals vanish on return; free variables use lexical scoping. |
+| `...` | Forward extra arguments to inner functions in wrappers. |
+| Validation | Check inputs at the top with `stopifnot()` or `stop()` and clear messages. |
+| Globals | Don't modify them from inside a function; return the new value instead. |
 
 ## FAQ
 
-### Should I always use explicit `return()`?
+### Should I use `=` or `<-` for assignment inside functions?
 
-No. R's convention is implicit return (last expression) for the main value, explicit `return()` only for early exits.
+Use `<-` inside function bodies. Both operators assign, but `=` at call sites means "named argument" (e.g., `mean(x, na.rm = TRUE)`). Keeping `<-` for assignment makes the distinction visually obvious and matches the tidyverse and Advanced R style guides.
 
-### How many arguments is too many?
+### Can I return more than one value from an R function?
 
-~5-7 is a soft limit. Beyond that, group related arguments into a list.
+No — an R function returns exactly one object. The standard pattern is to bundle the things you want to return into a **named list** (or a data frame), which is itself one object. The caller extracts individual pieces with `result$mean`, `result$sd`, and so on.
 
-### What does `...` mean?
+### What's the difference between `stop()` and `warning()`?
 
-The `...` collects extra arguments you didn't name. Useful in wrapper functions: `my_plot <- function(x, ...) plot(x, col="red", ...)`.
+`stop()` halts execution and raises an error — code after it does not run. `warning()` prints a warning message but execution continues. Use `stop()` when the problem makes the rest of the function meaningless (bad types, impossible values). Use `warning()` when the function can still produce something useful but the user should know about an issue (e.g., `NA` values were dropped).
 
-### Can I define a function inside another function?
+### When should I NOT write a function?
 
-Yes — these are closures. The inner function remembers the outer environment.
-
-### How do I debug a function?
-
-Insert `browser()` inside, or wrap with `debug(fn); fn(...)` to step through it.
+Skip the function if the code runs once and reads clearly in place, or if the "function" would just rename a single existing call (`my_mean <- function(x) mean(x)` adds nothing). The usual rule of thumb: once you have written the same logic three times, wrap it in a function.
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Chapter 10 (Writing your own functions). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 6 (Functions). [Link](https://adv-r.hadley.nz/functions.html)
-3. R manual — `function` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/function.html)
-4. R Language Definition — Function objects. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Function-objects)
-5. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 26 (Functions). [Link](https://r4ds.hadley.nz/functions.html)
-6. tidyverse style guide — Functions. [Link](https://style.tidyverse.org/functions.html)
-7. R manual — `Vectorize()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Vectorize.html)
+1. Wickham, H. — *Advanced R*, 2nd ed., Ch 6 Functions. [adv-r.hadley.nz/functions.html](https://adv-r.hadley.nz/functions.html)
+2. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd ed., Ch 25 Functions. [r4ds.hadley.nz/functions.html](https://r4ds.hadley.nz/functions.html)
+3. R Core Team — *An Introduction to R*, §10 Writing your own functions. [cran.r-project.org/doc/manuals/r-release/R-intro.html](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+4. Tidyverse Style Guide — Functions. [style.tidyverse.org/functions.html](https://style.tidyverse.org/functions.html)
+5. R Documentation — `stopifnot()`. [rdocumentation.org](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/stopifnot)
+6. Dataquest — Writing Functions in R. [dataquest.io/blog/write-functions-in-r](https://www.dataquest.io/blog/write-functions-in-r/)
 
 ## What's Next?
 
-- **[R Anonymous Functions](R-Anonymous-Functions.html)** — short throwaway functions with `\(x)` syntax.
-- **[R Closures](R-Closures.html)** — functions that remember their environment.
-- **[Functional Programming in R](Functional-Programming-in-R.html)** — first-class functions, map/filter/reduce.
+- **[R Control Flow](R-Control-Flow.html)** — Conditionals and loops are the building blocks you will use inside function bodies. Review `if`/`else`, `for`, and `while` before diving deeper into function design.
+- **[R Special Values](R-Special-Values.html)** — Learn how `NA`, `NULL`, `NaN`, and `Inf` behave in R, so your functions handle them correctly instead of returning mystery results.
