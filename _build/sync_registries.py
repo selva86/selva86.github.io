@@ -154,6 +154,12 @@ def sync_links_auto(posts, dry_run=False):
         if not new_terms:
             continue
 
+        # Detect pipe-split corruption: a term with unbalanced parens
+        # probably means a literal "|" inside what should have been one term.
+        for t in new_terms:
+            if t.count('(') != t.count(')'):
+                print(f'  WARN: {filename} term "{t}" has unbalanced parens — possible "|" inside a term corrupted the split')
+
         if filename in existing_index:
             # MERGE: union existing terms with new ones (case-insensitive dedup)
             entry = existing_index[filename]
@@ -278,6 +284,12 @@ def sync_links_fr(posts, dry_run=False):
         curriculum_id = post.get('curriculum_id', '')
 
         for parent in parents:
+            # Verify fr_parent target exists as fragment or legacy root
+            parent_frag = os.path.join(POSTS_DIR, parent)
+            parent_root = os.path.join(REPO_ROOT, parent)
+            if not os.path.exists(parent_frag) and not os.path.exists(parent_root):
+                print(f'  WARN: {filename} fr_parent "{parent}" not found (no fragment or legacy root) — FR link will be dangling')
+
             if parent not in links['further_reading']:
                 links['further_reading'][parent] = []
 
@@ -365,6 +377,25 @@ def main():
             posts.append(meta)
 
     print(f'Found {len(posts)} posts in _posts/')
+
+    # Validate required frontmatter fields by post_type (warn on missing)
+    required = {
+        'C': ['title', 'sidebar_section'],
+        'EX': ['title', 'sidebar_title', 'fr_parent'],
+        'FR': ['title', 'fr_parent'],
+        'PSEO': ['title', 'fr_parent'],
+    }
+    warnings = 0
+    for post in posts:
+        pt = post.get('post_type')
+        if pt not in required:
+            continue
+        missing = [f for f in required[pt] if not post.get(f)]
+        if missing:
+            print(f'  WARN: {post["filename"]} [{pt}] missing: {", ".join(missing)}')
+            warnings += 1
+    if warnings:
+        print(f'  ({warnings} posts have missing required fields — registry sync may be incomplete)')
     print()
 
     sidebar_added = sync_sidebar(posts, dry_run)
