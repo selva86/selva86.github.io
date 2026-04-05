@@ -1162,7 +1162,29 @@ def generate_feed(post_files):
     print(f"  Feed: {len(entries)} entries written to feed.xml")
 
 
+def _mtime_or_zero(path):
+    """Return file mtime or 0 if the file doesn't exist."""
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0
+
+
 def main():
+    # Flags:
+    #   --full           Rebuild every page regardless of mtimes
+    #   --only <name>    Rebuild only the given fragment (slug or filename)
+    force_full = '--full' in sys.argv
+    only_target = None
+    if '--only' in sys.argv:
+        idx = sys.argv.index('--only')
+        if idx + 1 < len(sys.argv):
+            only_target = sys.argv[idx + 1]
+            # Normalize: accept slug, slug.html, or _posts/slug.html
+            only_target = os.path.basename(only_target)
+            if not only_target.endswith('.html'):
+                only_target += '.html'
+
     with open(TEMPLATE_PATH, 'r', encoding='utf-8') as f:
         template = f.read()
 
@@ -1177,19 +1199,62 @@ def main():
 
     sidebar_map = load_sidebar_map()
 
+    # "Global" dependencies — when any of these changes, every page must rebuild
+    # because the change affects every output. sidebar.json feeds into every
+    # page's nav; template.html is embedded in every page; build.py changes
+    # mean the generation logic itself changed.
+    global_deps_mtime = max(
+        _mtime_or_zero(TEMPLATE_PATH),
+        _mtime_or_zero(SIDEBAR_PATH),
+        _mtime_or_zero(os.path.abspath(__file__)),
+    )
+
+    if only_target:
+        if only_target not in post_files:
+            print(f"ERROR: --only target '{only_target}' not found in _posts/")
+            sys.exit(1)
+        targets = [only_target]
+    else:
+        targets = sorted(post_files)
+
     built = []
-    for post_file in sorted(post_files):
+    skipped = 0
+    for post_file in targets:
         post_path = os.path.join(POSTS_DIR, post_file)
         output_path = os.path.join(REPO_ROOT, post_file)
+
+        # Decide whether to rebuild
+        needs_build = force_full or only_target is not None
+        if not needs_build:
+            out_mtime = _mtime_or_zero(output_path)
+            if out_mtime == 0:
+                needs_build = True  # output missing
+            else:
+                frag_mtime = _mtime_or_zero(post_path)
+                if frag_mtime > out_mtime or global_deps_mtime > out_mtime:
+                    needs_build = True
+
+        if not needs_build:
+            skipped += 1
+            continue
+
         page_html = build_post(template, post_path, sidebar_map)
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(page_html)
         print(f"Built: {post_file}")
         built.append(post_file)
 
-    update_sitemap(built)
-    generate_feed(post_files)
-    print(f"\nDone. {len(built)} page(s) built.")
+    # Sitemap and feed always regenerate from the full post_files list —
+    # they are cheap and must stay in sync with what actually exists on disk.
+    update_sitemap(sorted(post_files))
+    generate_feed(sorted(post_files))
+
+    if only_target:
+        print(f"\nDone. 1 page built (--only {only_target}).")
+    elif force_full:
+        print(f"\nDone. {len(built)} page(s) built (--full).")
+    else:
+        print(f"\nDone. {len(built)} page(s) built, {skipped} skipped (up-to-date).")
 
 
 if __name__ == '__main__':

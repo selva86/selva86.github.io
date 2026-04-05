@@ -108,7 +108,12 @@ def sync_sidebar(posts, dry_run=False):
 
 
 def sync_links_auto(posts, dry_run=False):
-    """Add new auto_link entries AND merge terms into existing entries."""
+    """Add new auto_link entries AND merge terms into existing entries.
+
+    Returns (added, updated, new_terms_set) where new_terms_set contains
+    all terms that were newly added to the registry (for affected-fragment
+    re-linking).
+    """
     with open(LINKS_PATH, 'r', encoding='utf-8') as f:
         links = json.load(f)
 
@@ -116,6 +121,7 @@ def sync_links_auto(posts, dry_run=False):
     existing_index = {entry['url']: entry for entry in links['auto_links']}
     added = 0
     updated = 0
+    new_terms_set = set()  # terms newly introduced to the registry (published only)
 
     for post in posts:
         terms_str = post.get('auto_link_terms', '')
@@ -136,6 +142,8 @@ def sync_links_auto(posts, dry_run=False):
             if added_terms:
                 entry['terms'] = existing_terms + added_terms
                 updated += 1
+                if entry.get('status') == 'published':
+                    new_terms_set.update(added_terms)
             continue
 
         # ADD new entry
@@ -150,6 +158,7 @@ def sync_links_auto(posts, dry_run=False):
         })
         existing_index[filename] = links['auto_links'][-1]
         added += 1
+        new_terms_set.update(new_terms)
 
     # Also sync PSEO reserved terms
     if os.path.exists(PSEO_PATH):
@@ -164,23 +173,66 @@ def sync_links_auto(posts, dry_run=False):
                     continue
                 if not terms:
                     continue
+                status = p.get('status', 'not_published')
                 links['auto_links'].append({
                     'url': url,
                     'title': p.get('title', ''),
                     'terms': terms,
                     'case_sensitive': p.get('case_sensitive', True),
                     'max_per_page': 1,
-                    'status': p.get('status', 'not_published')
+                    'status': status
                 })
                 existing_index[url] = links['auto_links'][-1]
                 added += 1
+                if status == 'published':
+                    new_terms_set.update(terms)
 
     if not dry_run and (added > 0 or updated > 0):
         with open(LINKS_PATH, 'w', encoding='utf-8') as f:
             json.dump(links, f, indent=2, ensure_ascii=False)
             f.write('\n')
 
-    return added, updated
+    return added, updated, new_terms_set, links
+
+
+def reinject_affected_fragments(new_terms_set, links_data=None, dry_run=False, verbose=False):
+    """After registry changes, re-run link injection on _posts fragments
+    that mention any of the newly-added terms. Returns count of fragments
+    that gained new links.
+
+    Only scans fragments whose body contains at least one new term
+    (keeps the scope small). Injection is idempotent — fragments already
+    at max_per_page for a URL won't gain duplicates.
+    """
+    if not new_terms_set:
+        return 0
+
+    # Import here to avoid circular import at module load
+    from link_injector import find_affected_fragments, inject_links_for_fragment
+    from auto_link import load_links
+
+    affected = find_affected_fragments(POSTS_DIR, new_terms_set, case_insensitive=True)
+    if not affected:
+        return 0
+
+    # Use the passed in-memory links_data (reflects pending changes),
+    # or fall back to loading from disk (if called standalone).
+    if links_data is None:
+        links_data = load_links()
+
+    re_injected = 0
+    for frag_path in affected:
+        self_url = os.path.basename(frag_path)
+        added = inject_links_for_fragment(
+            frag_path, self_url,
+            links_data=links_data,
+            verbose=verbose,
+            dry_run=dry_run,
+        )
+        if added > 0:
+            re_injected += 1
+
+    return re_injected
 
 
 def sync_links_fr(posts, dry_run=False):
@@ -295,20 +347,26 @@ def main():
     print()
 
     sidebar_added = sync_sidebar(posts, dry_run)
-    auto_added, auto_updated = sync_links_auto(posts, dry_run)
+    auto_added, auto_updated, new_terms_set, links_data = sync_links_auto(posts, dry_run)
     fr_added = sync_links_fr(posts, dry_run)
     curriculum_updated = sync_curriculum(posts, dry_run)
+
+    # Re-inject auto-links into affected fragments whenever new terms
+    # were introduced (new entries or merged terms). This keeps _posts/
+    # fragments as the source of truth for links.
+    re_injected = reinject_affected_fragments(new_terms_set, links_data=links_data, dry_run=dry_run)
 
     print(f'\nSummary:')
     print(f'  Sidebar:    {sidebar_added} entries added')
     print(f'  Auto-links: {auto_added} added, {auto_updated} merged')
     print(f'  Further Reading: {fr_added} entries added/updated')
     print(f'  Curriculum: {curriculum_updated} posts marked published')
+    print(f'  Re-linked fragments: {re_injected}')
 
     if dry_run:
         print('\n(Dry run — no files modified)')
     else:
-        total = sidebar_added + auto_added + auto_updated + fr_added + curriculum_updated
+        total = sidebar_added + auto_added + auto_updated + fr_added + curriculum_updated + re_injected
         if total == 0:
             print('\nAll registries already in sync.')
         else:

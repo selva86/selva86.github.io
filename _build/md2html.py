@@ -285,8 +285,10 @@ def convert(md_text):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: python md2html.py <markdown-file>")
+        print("Usage: python md2html.py <markdown-file> [--skip-links]")
         sys.exit(1)
+
+    skip_links = '--skip-links' in sys.argv
 
     with open(sys.argv[1], 'r', encoding='utf-8') as f:
         md = f.read()
@@ -303,3 +305,19 @@ if __name__ == '__main__':
         f.write(result)
 
     print(f"Converted: {outpath}")
+
+    # Inject auto-links from links.json registry into the fragment
+    # (makes _posts/*.html the source of truth for auto-links, so subsequent
+    #  builds preserve them)
+    if not skip_links:
+        try:
+            from link_injector import inject_links_for_fragment, inject_fr_for_fragment
+            self_url = basename + '.html'
+            added = inject_links_for_fragment(outpath, self_url, verbose=False)
+            if added > 0:
+                print(f"Injected {added} auto-links")
+            if inject_fr_for_fragment(outpath):
+                print("Injected Further Reading section")
+        except Exception as e:
+            print(f"WARNING: auto-link injection failed: {e}")
+            print("  (fragment written without auto-links; run link_injector.py manually)")
