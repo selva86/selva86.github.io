@@ -1,0 +1,1238 @@
+---
+title: "data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step"
+description: "Practise data.table with 12 hands-on high-performance data manipulation problems and worked R solutions. Progressive exercises from beginner to advanced."
+keywords: "data.table exercises, data.table practice, R data.table tutorial, data.table DT syntax, data.table by group, data.table join, data.table aggregation, setkey"
+mathjax: false
+webr: true
+curriculum_id: "E2.7"
+post_type: "EX"
+auto_link_terms: "data.table exercises|data.table practice|data.table problems"
+auto_link_case_sensitive: false
+fr_parent: "dplyr-filter-select.html"
+---
+<!-- md2html:generated -->
+
+<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; dplyr &gt; data.table Exercises</nav>
+
+<h1>data.table Exercises: 12 High-Performance Data Manipulation Problems</h1>
+
+<p class="lead">Twelve hands-on exercises to master the <code>data.table</code> package in R — from basic row filtering and <code>by=</code> aggregation to chained operations, joins, rolling joins, reshaping, and update-by-reference with <code>:=</code>. Every exercise has a runnable solution you can execute right in your browser.</p>
+
+<h2>Introduction</h2>
+
+<p><code>data.table</code> is the fastest general-purpose data manipulation package in R. It handles millions of rows on a laptop, uses a compact <code>DT[i, j, by]</code> syntax, and modifies data in place to avoid memory copies. But the compactness is a double-edged sword — the syntax rewards practice. Reading one tutorial will not make you fluent. Solving problems will.</p>
+
+<p>These 12 exercises build that fluency. The first four cover the essentials: filtering rows, picking columns, and computing summaries on a single table. The middle four use <code>by=</code> grouping, <code>.SD</code>, chaining, and update-by-reference. The last four tackle joins, rolling joins, reshaping, and group-wise windowed calculations — the moves you use in real analysis work.</p>
+
+<p>Each problem states the task, gives you a starter block to edit, and hides the solution behind a click-to-reveal. Write your own answer first, run it, compare with the reveal, then read the explanation. If you are new to data.table, skim the <a href="#quick-reference">Quick Reference</a> below before starting. If you want a conceptual refresher on tidy data manipulation, the <a href="dplyr-filter-select.html">parent dplyr filter and select tutorial</a> covers the equivalent tidyverse verbs.</p>
+
+<p>All code on this page runs in a shared R session — variables you create in one block are available in the next. Use distinct names like <code>my_dt</code> and <code>my_result</code> in your answers so you do not overwrite variables from earlier blocks.</p>
+
+<h2>Quick Reference</h2>
+
+<p>Here is a one-screen cheat sheet before you start. Skim it, then jump to Exercise 1.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Syntax</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Convert a data.frame</td>
+<td><code>as.data.table()</code></td>
+<td><code>DT &lt;- as.data.table(mtcars)</code></td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> rows</td>
+<td><code>DT[i, ]</code></td>
+<td><code>DT[mpg &gt; 20]</code></td>
+</tr>
+<tr>
+<td><a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">Select columns</a></td>
+<td><code>DT[, j]</code></td>
+<td><code>DT[, .(mpg, cyl)]</code></td>
+</tr>
+<tr>
+<td>Compute new columns</td>
+<td><code>DT[, .(new = ...)]</code></td>
+<td><code>DT[, .(avg = mean(mpg))]</code></td>
+</tr>
+<tr>
+<td>Group aggregation</td>
+<td><code>DT[, j, by=]</code></td>
+<td><code>DT[, mean(mpg), by=cyl]</code></td>
+</tr>
+<tr>
+<td>Update by reference</td>
+<td><code>:=</code></td>
+<td><code>DT[, kpl := mpg * 0.425]</code></td>
+</tr>
+<tr>
+<td>Chain operations</td>
+<td><code>DT[...][...]</code></td>
+<td><code>DT[mpg &gt; 20][, .N, by=cyl]</code></td>
+</tr>
+<tr>
+<td>Apply to many columns</td>
+<td><code>.SD</code>, <code>.SDcols</code></td>
+<td><code>DT[, lapply(.SD, mean), .SDcols=1:3]</code></td>
+</tr>
+<tr>
+<td>Row count per group</td>
+<td><code>.N</code></td>
+<td><code>DT[, .N, by=cyl]</code></td>
+</tr>
+<tr>
+<td>Fast sort</td>
+<td><code>setorder()</code></td>
+<td><code>setorder(DT, -mpg)</code></td>
+</tr>
+<tr>
+<td>Set join keys</td>
+<td><code>setkey()</code></td>
+<td><code>setkey(DT, cyl)</code></td>
+</tr>
+<tr>
+<td>Join</td>
+<td><code>X[Y, on=]</code></td>
+<td><code>X[Y, on=&quot;id&quot;]</code></td>
+</tr>
+<tr>
+<td>Reshape <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data in R: What It Is & Why Every Analysis Depends on Getting It Right">wide to long</a></td>
+<td><code>melt()</code></td>
+<td><code>melt(DT, id.vars=&quot;id&quot;)</code></td>
+</tr>
+<tr>
+<td>Reshape long to wide</td>
+<td><code>dcast()</code></td>
+<td><code>dcast(DT, id ~ var)</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Load data.table once, then reuse the tables for every exercise.</strong> The first code block below loads the package and builds two working tables. Because all blocks on this page share one R session, later blocks can reference <code>dt_cars</code> and <code>dt_iris</code> without reloading.</div></div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load data.table and build two working tables from built-in datasets
+library(data.table)
+
+dt_cars &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+dt_iris &lt;- as.data.table(iris)
+
+# Confirm the shapes and types
+dim(dt_cars)
+#&gt; [1] 32 12
+dim(dt_iris)
+#&gt; [1] 150   5
+class(dt_cars)
+#&gt; [1] &quot;data.table&quot; &quot;data.frame&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Both tables now carry the <code>data.table</code> class (plus <code>data.frame</code> for backward compatibility). <code>dt_cars</code> has 32 rows and 12 columns — note the 12th column <code>model</code> was created from the row names. <code>dt_iris</code> has the classic 150 flower measurements. You are ready to begin.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>data.table modifies objects in place.</strong> Unlike base R or dplyr, operations with <code>:=</code> change the original table without assignment. If you want to preserve the original, run <code>copy()</code> first — we cover this in Mistake 1 below.</div></div>
+
+<h2>Exercise 1: Convert and filter rows</h2>
+
+<p>Convert the built-in <code>airquality</code> dataset to a data.table called <code>my_aq</code>. Then select the rows where <code>Temp</code> is greater than 80 and <code>Month</code> equals 8. Save the filtered result to <code>my_result</code> and print its row count.</p>
+
+<p><strong>Expected output:</strong> a data.table with 18 rows and 6 columns.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: convert airquality to a data.table, then filter rows
+# Hint: use as.data.table() then DT[i] with compound conditions using &amp;
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_aq &lt;- as.data.table(airquality)
+my_result &lt;- my_aq[Temp &gt; 80 &amp; Month == 8]
+nrow(my_result)
+#&gt; [1] 18
+head(my_result, 3)
+#&gt;    Ozone Solar.R Wind Temp Month Day
+#&gt; 1:    39      83  6.9   81     8   1
+#&gt; 2:     9      24 13.8   81     8   5
+#&gt; 3:    16      77  7.4   82     8   6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Inside <code>DT[i]</code>, bare column names like <code>Temp</code> and <code>Month</code> are evaluated in the table's scope — you do not write <code>my_aq$Temp</code>. The <code>&amp;</code> operator combines two row conditions, and rows where either side is <code>NA</code> are dropped automatically. August (<code>Month == 8</code>) had 18 days where the temperature exceeded 80 degrees.</p>
+
+</details>
+
+<h2>Exercise 2: Select columns and compute a new one</h2>
+
+<p>From <code>dt_cars</code>, create a new data.table <code>my_result</code> that contains only three columns: <code>model</code>, <code>mpg</code>, and a new column <code>kpl</code> (kilometres per litre, computed as <code>mpg * 0.425</code>). Do not modify <code>dt_cars</code>.</p>
+
+<p><strong>Expected output:</strong> 32 rows and 3 columns.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: select model and mpg, plus a computed kpl column
+# Hint: inside j, use .(name = expression) to build a new table
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_result &lt;- dt_cars[, .(model, mpg, kpl = mpg * 0.425)]
+head(my_result, 3)
+#&gt;                model  mpg    kpl
+#&gt; 1:         Mazda RX4 21.0 8.9250
+#&gt; 2:     Mazda RX4 Wag 21.0 8.9250
+#&gt; 3:        Datsun 710 22.8 9.6900
+dim(my_result)
+#&gt; [1] 32  3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>.()</code> is shorthand for <code>list()</code> inside <code>j</code>. When <code>j</code> returns a list, data.table builds a new table with those columns. Existing columns like <code>model</code> and <code>mpg</code> are referenced by name; new columns get a name via <code>=</code>. Because we assigned the result to <code>my_result</code>, the original <code>dt_cars</code> is untouched — no <code>:=</code> was used.</p>
+
+</details>
+
+<h2>Exercise 3: Compound conditions with %chin%</h2>
+
+<p>From <code>dt_cars</code>, find rows where the car is a six-cylinder (<code>cyl == 6</code>) OR has a manual transmission (<code>am == 1</code>) AND has more than 100 horsepower. Then keep only the columns <code>model</code>, <code>cyl</code>, <code>hp</code>, and <code>am</code>. Save to <code>my_result</code>.</p>
+
+<p><strong>Expected output:</strong> 20 rows, 4 columns.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: OR condition combined with AND, then column selection
+# Hint: parentheses matter — R evaluates &amp; before |
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_result &lt;- dt_cars[(cyl == 6 | am == 1) &amp; hp &gt; 100, .(model, cyl, hp, am)]
+my_result
+#&gt;                 model cyl  hp am
+#&gt;  1:         Mazda RX4   6 110  1
+#&gt;  2:     Mazda RX4 Wag   6 110  1
+#&gt;  3:    Hornet 4 Drive   6 110  0
+#&gt;  4: Hornet Sportabout   8 175  0
+#&gt; ...
+nrow(my_result)
+#&gt; [1] 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> R evaluates <code>&amp;</code> before <code>|</code>, so without the parentheses your condition would become <code>cyl == 6 | (am == 1 &amp; hp &gt; 100)</code> — a different question entirely. Always parenthesise when mixing <code>|</code> and <code>&amp;</code>. The column list <code>.(model, cyl, hp, am)</code> sits in <code>j</code>; because we also passed an <code>i</code> condition, this is a single filter-then-select in one call.</p>
+
+</details>
+
+<h2>Exercise 4: Group aggregation with by=</h2>
+
+<p>Using <code>dt_cars</code>, compute the mean <code>mpg</code> and the number of cars per cylinder count. Name the columns <code>avg_mpg</code> and <code>n_cars</code>. Save to <code>my_result</code> and sort by <code>cyl</code> ascending.</p>
+
+<p><strong>Expected output:</strong> 3 rows (one per cylinder count: 4, 6, 8).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 4: group-by aggregation
+# Hint: use .(new1 = ..., new2 = ...) in j, and by=cyl. Use .N for row counts.
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_result &lt;- dt_cars[, .(avg_mpg = mean(mpg), n_cars = .N), by = cyl]
+setorder(my_result, cyl)
+my_result
+#&gt;    cyl  avg_mpg n_cars
+#&gt; 1:   4 26.66364     11
+#&gt; 2:   6 19.74286      7
+#&gt; 3:   8 15.10000     14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>.N</code> is a special symbol that holds the number of rows in each group. Combined with <code>by = cyl</code>, data.table splits the table into cylinder groups, computes <code>mean(mpg)</code> and <code>.N</code> per group, and returns a 3-row summary. <code>setorder()</code> sorts the result in place — faster than <code>order()</code> because no copy is made. Four-cylinder cars average 26.7 mpg; eight-cylinder cars only 15.1.</p>
+
+</details>
+
+<h2>Exercise 5: Multi-column aggregation with .SD</h2>
+
+<p>Compute the mean of all four numeric columns (<code>Sepal.Length</code>, <code>Sepal.Width</code>, <code>Petal.Length</code>, <code>Petal.Width</code>) in <code>dt_iris</code>, grouped by <code>Species</code>. Save to <code>my_result</code>.</p>
+
+<p><strong>Expected output:</strong> 3 rows (one per species), 5 columns.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 5: apply mean() to many columns at once
+# Hint: use lapply(.SD, mean) with .SDcols to target numeric columns
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_result &lt;- dt_iris[, lapply(.SD, mean), by = Species,
+                     .SDcols = c(&quot;Sepal.Length&quot;, &quot;Sepal.Width&quot;,
+                                 &quot;Petal.Length&quot;, &quot;Petal.Width&quot;)]
+my_result
+#&gt;       Species Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; 1:     setosa        5.006       3.428        1.462       0.246
+#&gt; 2: versicolor        5.939       2.770        4.260       1.326
+#&gt; 3:  virginica        6.588       2.974        5.552       2.026</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>.SD</code> stands for "Subset of Data" — it is a data.table containing the current group's rows for the columns listed in <code>.SDcols</code>. <code>lapply(.SD, mean)</code> applies <code>mean()</code> to each column of that subset. Without <code>.SDcols</code>, <code>.SD</code> would include every non-grouping column, including <code>Species</code> if it were numeric. Virginica irises have petals roughly 3.8x longer than setosa.</p>
+
+</details>
+
+<h2>Exercise 6: Chain operations with DT[...][...]</h2>
+
+<p>Using <code>dt_cars</code>, find the top 3 cars (by <code>hp</code>) among automatic transmissions (<code>am == 0</code>), then keep only <code>model</code>, <code>hp</code>, and <code>mpg</code>. Solve it in one expression using chaining. Save to <code>my_result</code>.</p>
+
+<p><strong>Expected output:</strong> 3 rows, 3 columns.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 6: filter, sort, head, select — all chained
+# Hint: DT[i][order()][1:3][, j] stacks four operations left-to-right
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_result &lt;- dt_cars[am == 0][order(-hp)][1:3, .(model, hp, mpg)]
+my_result
+#&gt;                 model  hp  mpg
+#&gt; 1: Cadillac Fleetwood 205 10.4
+#&gt; 2:Lincoln Continental 215 10.4
+#&gt; 3:         Camaro Z28 245 13.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Each <code>[]</code> consumes the table returned by the previous step, so you can read chains left to right: "take automatics, sort by horsepower descending, take the first three, keep these columns." The minus sign in <code>order(-hp)</code> sorts descending. This is equivalent to piping in dplyr — one operation per bracket keeps each step readable.</p>
+
+</details>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Chaining lets you build a pipeline without temporary variables.</strong> Each <code>[]</code> returns a fresh data.table that becomes the input for the next bracket. This keeps memory usage low and reads almost like English — filter, then sort, then slice, then pick columns.</div></div>
+
+<h2>Exercise 7: Update by reference with :=</h2>
+
+<p>Add two new columns to <code>dt_cars</code> in place: <code>kpl</code> (kilometres per litre = <code>mpg * 0.425</code>) and <code>power_weight</code> (<code>hp / wt</code>). Use the multi-column <code>:=</code> form. Then print the first 3 rows of the updated table.</p>
+
+<p><strong>Expected output:</strong> <code>dt_cars</code> now has 14 columns (was 12).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 7: add two columns in place
+# Hint: DT[, c(&quot;a&quot;, &quot;b&quot;) := .(expr1, expr2)]
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">dt_cars[, c(&quot;kpl&quot;, &quot;power_weight&quot;) := .(mpg * 0.425, hp / wt)]
+ncol(dt_cars)
+#&gt; [1] 14
+head(dt_cars[, .(model, mpg, kpl, hp, power_weight)], 3)
+#&gt;            model  mpg    kpl  hp power_weight
+#&gt; 1:     Mazda RX4 21.0 8.9250 110     41.98473
+#&gt; 2: Mazda RX4 Wag 21.0 8.9250 110     38.46154
+#&gt; 3:    Datsun 710 22.8 9.6900  93     40.08621</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>:=</code> operator modifies <code>dt_cars</code> in place — no assignment needed on the left. The multi-column form uses a character vector of names on the left and a list of expressions on the right. Because the update happens in place, it is memory-efficient: data.table does not copy the whole table to add two columns.</p>
+
+</details>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>:= changes the original table, even without assignment.</strong> If you run <code>dt_cars[, kpl := mpg * 0.425]</code>, the column sticks. If you need an untouched copy for later, run <code>safe &lt;- copy(dt_cars)</code> BEFORE the update.</div></div>
+
+<h2>Exercise 8: Sort with setorder and setkey</h2>
+
+<p>Sort <code>dt_cars</code> in place by <code>cyl</code> ascending and <code>mpg</code> descending using <code>setorder()</code>. Then set <code>cyl</code> as the key using <code>setkey()</code> for fast filtering. Verify the sort order and the key.</p>
+
+<p><strong>Expected output:</strong> <code>key(dt_cars)</code> returns <code>&quot;cyl&quot;</code>, and the first row is a 4-cylinder with the highest mpg.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 8: in-place sort, then set a key
+# Hint: setorder(DT, col1, -col2) sorts; setkey(DT, col) indexes
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">setorder(dt_cars, cyl, -mpg)
+setkey(dt_cars, cyl)
+key(dt_cars)
+#&gt; [1] &quot;cyl&quot;
+head(dt_cars[, .(model, cyl, mpg)], 3)
+#&gt;             model cyl  mpg
+#&gt; 1: Toyota Corolla   4 33.9
+#&gt; 2:  Fiat 128       4 32.4
+#&gt; 3: Honda Civic     4 30.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>setorder()</code> sorts a data.table in place (no copy), using a fast radix algorithm. Prefix a column with <code>-</code> to sort it descending. <code>setkey()</code> tells data.table to keep the table indexed on <code>cyl</code>, which makes future filters like <code>dt_cars[.(4)]</code> or joins on <code>cyl</code> much faster. Note <code>setorder()</code> does not create a key, and <code>setkey()</code> also physically reorders rows — they are related but distinct.</p>
+
+</details>
+
+<h2>Exercise 9: Join two data.tables</h2>
+
+<p>Build two small tables from <code>starwars</code>-style data. Join them on <code>id</code> to see each person's planet name. Keep all rows from the people table (left join).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Starter data — run this first
+people &lt;- data.table(id = c(1, 2, 3, 4),
+                     name = c(&quot;Luke&quot;, &quot;Leia&quot;, &quot;Han&quot;, &quot;Chewie&quot;),
+                     planet_id = c(10, 10, 20, 30))
+planets &lt;- data.table(planet_id = c(10, 20),
+                      planet = c(&quot;Tatooine&quot;, &quot;Corellia&quot;))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Join <code>people</code> with <code>planets</code> on <code>planet_id</code> so every person keeps their row even if no planet matches. Save to <code>my_result</code>.</p>
+
+<p><strong>Expected output:</strong> 4 rows — Chewie's planet is <code>NA</code> because planet 30 is not in <code>planets</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 9: left join
+# Hint: X[Y, on=] returns rows from Y joined with matches from X.
+# For a left join keeping all of people, write planets[people, on=&quot;planet_id&quot;]
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">people &lt;- data.table(id = c(1, 2, 3, 4),
+                     name = c(&quot;Luke&quot;, &quot;Leia&quot;, &quot;Han&quot;, &quot;Chewie&quot;),
+                     planet_id = c(10, 10, 20, 30))
+planets &lt;- data.table(planet_id = c(10, 20),
+                      planet = c(&quot;Tatooine&quot;, &quot;Corellia&quot;))
+
+my_result &lt;- planets[people, on = &quot;planet_id&quot;]
+my_result
+#&gt;    planet_id   planet id   name
+#&gt; 1:        10 Tatooine  1   Luke
+#&gt; 2:        10 Tatooine  2   Leia
+#&gt; 3:        20 Corellia  3    Han
+#&gt; 4:        30     &lt;NA&gt;  4 Chewie</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> In data.table's join syntax <code>X[Y, on=]</code>, the outer table <code>X</code> is joined FROM and the rows come from <code>Y</code>. So <code>planets[people, on=&quot;planet_id&quot;]</code> returns all four people rows with matched planet columns attached. Chewie's row has <code>NA</code> for <code>planet</code> because no planet with id 30 exists. This is equivalent to <code>dplyr::left_join(people, planets, by=&quot;planet_id&quot;)</code>.</p>
+
+</details>
+
+<h2>Exercise 10: Rolling join</h2>
+
+<p>You have sensor readings and need to match each event to the most recent sensor reading BEFORE the event time. This is a rolling join.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Starter data
+readings &lt;- data.table(t = c(1, 3, 7, 10), value = c(10, 30, 70, 100))
+events   &lt;- data.table(t = c(2, 5, 9))
+setkey(readings, t)
+setkey(events, t)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Roll the <code>value</code> from <code>readings</code> forward onto each event, so each event gets the most recent prior reading. Save to <code>my_result</code>.</p>
+
+<p><strong>Expected output:</strong> 3 rows — event times <code>2, 5, 9</code> get values <code>10, 30, 70</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 10: rolling join
+# Hint: readings[events, roll = TRUE] rolls the prior value forward
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">readings &lt;- data.table(t = c(1, 3, 7, 10), value = c(10, 30, 70, 100))
+events   &lt;- data.table(t = c(2, 5, 9))
+setkey(readings, t)
+setkey(events, t)
+
+my_result &lt;- readings[events, roll = TRUE]
+my_result
+#&gt;    t value
+#&gt; 1: 2    10
+#&gt; 2: 5    30
+#&gt; 3: 9    70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>roll = TRUE</code>, when an event time does not match a reading time exactly, data.table carries the last prior reading forward. Event at <code>t=2</code> has no exact reading, so the reading at <code>t=1</code> (value 10) is used. Event at <code>t=5</code> gets the reading at <code>t=3</code> (value 30). This is the standard pattern for matching time-stamped events to price ticks, sensor states, or version history.</p>
+
+</details>
+
+<h2>Exercise 11: Reshape wide to long with melt</h2>
+
+<p>Reshape <code>dt_iris</code> so that the four numeric measurements collapse into two columns: <code>measurement</code> (holding names like "Sepal.Length") and <code>value</code> (holding the number). Keep <code>Species</code> as the id column. Save to <code>my_long</code>.</p>
+
+<p><strong>Expected output:</strong> 600 rows (150 flowers x 4 measurements), 3 columns.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 11: wide to long
+# Hint: melt(DT, id.vars=, variable.name=, value.name=)
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_long &lt;- melt(dt_iris,
+                id.vars = &quot;Species&quot;,
+                variable.name = &quot;measurement&quot;,
+                value.name = &quot;value&quot;)
+dim(my_long)
+#&gt; [1] 600   3
+head(my_long, 3)
+#&gt;    Species  measurement value
+#&gt; 1:  setosa Sepal.Length   5.1
+#&gt; 2:  setosa Sepal.Length   4.9
+#&gt; 3:  setosa Sepal.Length   4.7
+tail(my_long, 3)
+#&gt;      Species measurement value
+#&gt; 1: virginica Petal.Width   2.3
+#&gt; 2: virginica Petal.Width   1.8
+#&gt; 3: virginica Petal.Width   1.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>melt()</code> pivots wide tables into long (tidy) format. <code>id.vars</code> is the column to keep intact (repeated for each measurement). The four measurement columns become the values of <code>measurement</code>, and their numbers become the values of <code>value</code>. The row count multiplies by the number of melted columns: 150 x 4 = 600. This long shape is what <code>ggplot2</code> expects for facetting.</p>
+
+</details>
+
+<h2>Exercise 12: Lag and cumulative sum by group</h2>
+
+<p>Using <code>dt_iris</code>, create a new data.table <code>my_result</code> that for each <code>Species</code> has:</p>
+
+<ul>
+
+<li><code>row</code> = row number within species</li>
+
+<li><code>length</code> = <code>Sepal.Length</code></li>
+
+<li><code>prev_length</code> = the previous row's <code>Sepal.Length</code> within the same species</li>
+
+<li><code>cum_length</code> = running total of <code>Sepal.Length</code> within the same species</li>
+
+</ul>
+
+<p>Keep only species <code>setosa</code> and the first 5 rows for brevity.</p>
+
+<p><strong>Expected output:</strong> 5 rows showing lag and cumulative sum.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 12: window-style calculations within groups
+# Hint: shift() gives lag; cumsum() gives running total. Both work inside j with by=.
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_result &lt;- dt_iris[, .(row = seq_len(.N),
+                         length = Sepal.Length,
+                         prev_length = shift(Sepal.Length),
+                         cum_length = cumsum(Sepal.Length)),
+                     by = Species]
+my_result[Species == &quot;setosa&quot;][1:5]
+#&gt;    Species row length prev_length cum_length
+#&gt; 1:  setosa   1    5.1          NA        5.1
+#&gt; 2:  setosa   2    4.9         5.1       10.0
+#&gt; 3:  setosa   3    4.7         4.9       14.7
+#&gt; 4:  setosa   4    4.6         4.7       19.3
+#&gt; 5:  setosa   5    5.0         4.6       24.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>shift()</code> is data.table's lag/lead function — by default it shifts values down by 1, so row i receives row i-1's value. The first row of each group has <code>NA</code> because there is no prior value. <code>cumsum()</code> runs a cumulative sum, resetting at each group boundary because of <code>by = Species</code>. These two are the most common window functions in practice.</p>
+
+</details>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use shift() with type="lead" to look ahead.</strong> Pass <code>type = &quot;lead&quot;</code> for the opposite direction: row i receives row i+1's value. The last row of each group becomes <code>NA</code>.</div></div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Modifying a data.table inside a function without copy()</h4>
+
+<p>Functions that use <code>:=</code> will silently change the caller's table.</p>
+
+<p>Wrong:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">add_kpl &lt;- function(dt) {
+  dt[, kpl := mpg * 0.425]
+  dt
+}
+safe &lt;- data.table(mpg = c(20, 25))
+result &lt;- add_kpl(safe)
+# safe is now modified too — it grew a kpl column</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> data.table passes tables by reference, and <code>:=</code> mutates. The caller did not ask for <code>safe</code> to change.</p>
+
+<p>Correct:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">add_kpl &lt;- function(dt) {
+  out &lt;- copy(dt)
+  out[, kpl := mpg * 0.425]
+  out
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Call <code>copy()</code> at the top of any function that uses <code>:=</code> on its argument.</p>
+
+<h4>Mistake 2: Forgetting the leading comma in DT[, j]</h4>
+
+<p>If you want to select columns only, you must keep the comma.</p>
+
+<p>Wrong:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">dt_cars[.(mpg, cyl)]   # data.table thinks you are doing a key-based lookup</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>DT[.(...)]</code> with no comma is interpreted as a join/key-lookup. With a leading comma <code>DT[, .(mpg, cyl)]</code>, the expression is read as <code>j</code>.</p>
+
+<p>Correct:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">dt_cars[, .(mpg, cyl)]   # the comma says: no row filter, select these columns</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Assigning a chain that starts with :=</h4>
+
+<p><code>:=</code> returns the table invisibly — assigning it creates confusion.</p>
+
+<p>Wrong:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">result &lt;- dt_cars[, kpl := mpg * 0.425]
+# result and dt_cars now point to the SAME object</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>:=</code> mutates and returns the original table. The new <code>result</code> is not a copy; any later edit to one affects the other.</p>
+
+<p>Correct:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">dt_cars[, kpl := mpg * 0.425]     # just update in place
+result &lt;- copy(dt_cars)           # then explicitly copy if needed</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Grouping inside j instead of using by=</h4>
+
+<p>Using <code>tapply()</code> or manual subsetting inside <code>j</code> defeats the optimiser.</p>
+
+<p>Wrong:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">dt_cars[, tapply(mpg, cyl, mean)]   # works but slow and returns a named vector</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> data.table has a fast <code>by=</code> optimiser that skips R-level overhead. Using <code>tapply()</code> inside <code>j</code> bypasses it.</p>
+
+<p>Correct:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">dt_cars[, .(avg = mean(mpg)), by = cyl]   # optimised group-by, returns a data.table</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Key syntax</th>
+<th>Exercises</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Filter rows</td>
+<td><code>DT[i]</code></td>
+<td>1, 3</td>
+</tr>
+<tr>
+<td>Select/compute columns</td>
+<td><code>DT[, .(...)]</code></td>
+<td>2, 3</td>
+</tr>
+<tr>
+<td>Group aggregate</td>
+<td><code>DT[, j, by=]</code></td>
+<td>4, 5</td>
+</tr>
+<tr>
+<td>Multi-column ops</td>
+<td><code>.SD</code>, <code>.SDcols</code></td>
+<td>5</td>
+</tr>
+<tr>
+<td>Chain operations</td>
+<td><code>DT[...][...][...]</code></td>
+<td>6</td>
+</tr>
+<tr>
+<td>Update in place</td>
+<td><code>:=</code></td>
+<td>7</td>
+</tr>
+<tr>
+<td>Sort / key</td>
+<td><code>setorder()</code>, <code>setkey()</code></td>
+<td>8</td>
+</tr>
+<tr>
+<td>Join</td>
+<td><code>X[Y, on=]</code></td>
+<td>9, 10</td>
+</tr>
+<tr>
+<td>Reshape</td>
+<td><code>melt()</code>, <code>dcast()</code></td>
+<td>11</td>
+</tr>
+<tr>
+<td>Window / group-wise</td>
+<td><code>shift()</code>, <code>cumsum()</code> with <code>by=</code></td>
+<td>12</td>
+</tr>
+</tbody>
+</table>
+
+<p>If you solved all 12 without peeking, you can handle 90% of real-world data.table tasks.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is data.table really faster than dplyr?</strong></p>
+
+<p>For filter, group-by, and join on large tables (1M+ rows), yes — often 2-10x faster. For small tables, the gap is invisible. The real win is memory: <code>:=</code> updates in place, so you can work with tables close to your RAM limit without running out.</p>
+
+<p><strong>How do I install data.table?</strong></p>
+
+<p><code>install.packages(&quot;data.table&quot;)</code> in R. It is a zero-dependency package and installs in seconds. No system libraries needed.</p>
+
+<p><strong>Does := return the updated table?</strong></p>
+
+<p>It returns the table invisibly for chaining, but you should not assign the result. Call <code>DT[, col := value]</code> as a standalone statement. Assigning the result creates a second name for the same object, not a copy.</p>
+
+<p><strong>What does .SD mean?</strong></p>
+
+<p>"Subset of Data." Inside <code>j</code>, <code>.SD</code> is a data.table containing the current group's rows for the columns listed in <code>.SDcols</code>. It exists so you can write <code>lapply(.SD, fn)</code> to apply a function across many columns without listing them one by one.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Dowle, M., Srinivasan, A. — data.table package documentation. CRAN. <a href="https://cran.r-project.org/package=data.table">Link</a></li>
+
+<li>data.table GitHub repository — Rdatatable/data.table. <a href="https://github.com/Rdatatable/data.table">Link</a></li>
+
+<li>data.table vignettes — Introduction, <a class="auto-link" href="R6-Classes-in-R.html" title="R6 Classes in R: Reference Semantics & Mutable State Tutorial">Reference semantics</a>, Keys and fast binary search. <a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-intro.html">Link</a></li>
+
+<li>Atrebas — data.table cheat sheet. <a href="https://atrebas.github.io/post/2020-06-14-datatable-introduction/">Link</a></li>
+
+<li>Wickham, H., Grolemund, G. — <em>R for Data Science</em>, 2nd edition. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+<li>Dowle, M. — data.table FAQ vignette. <a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-faq.html">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><a href="dplyr-filter-select-Exercises.html">dplyr filter() and select() Exercises</a> — practise the tidyverse equivalent of Exercises 1-3 above.</li>
+
+<li><a href="dplyr-group-by-summarise-Exercises.html">dplyr group_by() and summarise() Exercises</a> — contrast Exercises 4-5 with the dplyr aggregation pattern.</li>
+
+<li><a href="R-Joins.html">R Joins Tutorial</a> — deeper dive into inner, left, right, full, and rolling joins.</li>
+
+</ul>
