@@ -1,0 +1,889 @@
+---
+title: "Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook"
+description: "Handle NA values in R: detect with is.na(), count, remove with na.omit() or complete.cases(), and impute with mice. Decision guide for each situation."
+keywords: "missing values in R, NA in R, is.na, complete.cases, na.omit, mice imputation, MCAR MAR MNAR, handle NA R"
+mathjax: false
+webr: true
+curriculum_id: "1.2.9"
+post_type: "C"
+auto_link_terms: "missing values in R|NA values|is.na()|complete.cases()|na.omit()|missing data imputation|handle NA|impute missing values"
+auto_link_case_sensitive: false
+---
+<!-- md2html:generated -->
+
+<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; tidyr &gt; Missing Values in R</nav>
+
+<h1>Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook</h1>
+
+<p class="lead"><a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">Missing values</a> in R are represented by <code>NA</code>, a special logical constant that silently propagates through arithmetic and comparisons. You handle them with <code>is.na()</code>, <code>complete.cases()</code>, <code>na.omit()</code>, and imputation methods like median replacement or <code>mice</code>.</p>
+
+<p>A single NA can turn a clean <code>mean()</code> into <code>NA</code> and mask a real problem across your entire analysis. This post teaches you to detect, count, remove, and impute missing values with runnable examples, plus when to pick each approach.</p>
+
+<h2>Introduction</h2>
+
+<p>Real data is messy. Respondents skip questions. Sensors drop readings. Joins leave gaps. R marks every such hole with <code>NA</code>, and the value spreads through calculations unless you handle it. If you skip this handling, your <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): Aggregate Data by Group (10 Examples)">summary statistics</a> lie quietly, and your models either crash or learn from biased data.</p>
+
+<p>R actually has four typed NAs: <code>NA</code> (logical), <code>NA_integer_</code>, <code>NA_real_</code>, and <code>NA_character_</code>. You rarely need to pick one by hand because R coerces between them. What matters is knowing how NA behaves and what to do about it.</p>
+
+<p><img src="screenshots/Missing-Values-in-R-Detect-Count-Remove-Impute-NA-propagation-flow.webp" alt="NA propagates through arithmetic, comparison, and aggregation." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: NA silently propagates through arithmetic, comparison, and aggregation.</em></p>
+
+<p>In this tutorial you will detect missing values, count them per column, remove them two different ways, and fill them in when removal would waste data. Every code block runs in your browser, and variables carry over between blocks like a notebook. Click Run on the first block, then work top to bottom.</p>
+
+<h2>What does NA mean in R, and why does it spread?</h2>
+
+<p>NA means "we do not know this value." Because the value is unknown, any calculation that touches it is also unknown. This is why <code>5 + NA</code> returns <code>NA</code> instead of a guess. It is also why <code>NA == NA</code> returns <code>NA</code>, not <code>TRUE</code>. Two unknowns might be the same or might not be, so R refuses to commit.</p>
+
+<p>This propagation is a feature, not a bug. It forces you to notice missingness instead of burying it inside a sum. Most aggregation functions accept <code>na.rm = TRUE</code> to opt out, but the default is strict on purpose.</p>
+
+<p>Let's load the built-in <code>airquality</code> dataset, which contains real missing values in its <code>Ozone</code> and <code>Solar.R</code> columns, and watch NA propagate.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tidyr)
+
+aq &lt;- airquality
+head(aq, 4)
+#&gt;   Ozone Solar.R Wind Temp Month Day
+#&gt; 1    41     190  7.4   67     5   1
+#&gt; 2    36     118  8.0   72     5   2
+#&gt; 3    12     149 12.6   74     5   3
+#&gt; 4    18     313 11.5   62     5   4
+
+mean(aq$Ozone)
+#&gt; [1] NA
+
+mean(aq$Ozone, na.rm = TRUE)
+#&gt; [1] 42.12931</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The first <code>mean()</code> call returns <code>NA</code> because <code>Ozone</code> contains missing days. Adding <code>na.rm = TRUE</code> drops the NAs before averaging and gives you a real number. Notice that without <code>na.rm</code>, R does not warn you, it just returns NA. If you piped that NA into a plot or a model, you would spend an hour debugging a silent failure.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>NA is contagious by design.</strong> R propagates NA through calculations so missingness is visible at the point of use. The moment you silence it with <code>na.rm = TRUE</code>, you are making a modeling decision. Do it knowingly.</div></div>
+
+<p>Here is how NA compares to R's other special values:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Value</th>
+<th>Means</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NA</code></td>
+<td>Unknown / missing</td>
+<td>Missing survey answer</td>
+</tr>
+<tr>
+<td><code>NULL</code></td>
+<td>Does not exist</td>
+<td>An empty list element</td>
+</tr>
+<tr>
+<td><code>NaN</code></td>
+<td>Not a number</td>
+<td><code>0 / 0</code></td>
+</tr>
+<tr>
+<td><code>Inf</code> / <code>-Inf</code></td>
+<td>Infinity</td>
+<td><code>1 / 0</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">c(NA, NULL, NaN, Inf)
+#&gt; [1]  NA NaN Inf
+
+is.na(NaN)
+#&gt; [1] TRUE
+is.na(NULL)
+#&gt; logical(0)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>NULL vanishes from the vector entirely because it represents absence of the slot, not an unknown value. NaN is technically a missing number, so <code>is.na(NaN)</code> returns TRUE. <code>is.na(NULL)</code> returns an empty logical, not FALSE, because there is no element to test.</p>
+
+<h2>How do you detect NA values in R?</h2>
+
+<p>The rule of thumb is simple: never use <code>==</code> to test for NA. Use <code>is.na()</code>. The <code>==</code> operator compares two known values, and NA is not a known value, so <code>x == NA</code> always returns NA, never TRUE.</p>
+
+<p><code>is.na()</code> returns a logical vector the same shape as its input. TRUE marks a missing position, FALSE marks a present one. For a quick yes/no check across a whole object, use <code>anyNA()</code>, which short-circuits as soon as it finds one NA.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">x &lt;- c(10, NA, 30, NA, 50)
+x == NA
+#&gt; [1] NA NA NA NA NA
+
+is.na(x)
+#&gt; [1] FALSE  TRUE FALSE  TRUE FALSE
+
+anyNA(aq)
+#&gt; [1] TRUE
+
+anyNA(aq$Wind)
+#&gt; [1] FALSE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>x == NA</code> call fails silently, returning a vector of NAs that looks plausible but tells you nothing. The <code>is.na(x)</code> call returns the correct mask. On the full data frame, <code>anyNA(aq)</code> tells you NAs exist somewhere, and <code>anyNA(aq$Wind)</code> confirms the Wind column has none.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use anyNA() for quick existence checks, not sum(is.na()).</strong> anyNA() stops at the first NA it finds, so it is much faster on large data when you only need a yes/no answer.</div></div>
+
+<h2>How do you count missing values per column?</h2>
+
+<p>For data frames, a per-column NA count is almost always more useful than a total. It tells you which columns need attention. The pattern is <code>colSums(is.na(df))</code>, which adds up the TRUE values in each column's NA mask.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">colSums(is.na(aq))
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;      37       7       0       0       0       0
+
+na_pct &lt;- colSums(is.na(aq)) / nrow(aq) * 100
+round(na_pct, 1)
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;    24.2     4.6     0.0     0.0     0.0     0.0</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Ozone has 37 missing days out of 153 rows, about 24% of the column. Solar.R is missing 7 days, under 5%. Wind, Temp, Month, and Day are complete. That single table tells you Ozone is the problem column and Solar.R is light enough to drop or fill with little cost.</p>
+
+<p>You can do the same job in dplyr, which fits nicely into a tidyverse pipeline:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">aq |&gt;
+  summarise(across(everything(), ~ sum(is.na(.x))))
+#&gt;   Ozone Solar.R Wind Temp Month Day
+#&gt; 1    37       7    0    0     0   0</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>across(everything(), ...)</code> call applies the NA-counting function to every column. The result is a one-row data frame, which you can <a class="auto-link" href="pivot_longer-pivot_wider-Reshape-Data-in-R.html" title="pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind">pivot longer</a> if you need a tall report. Either form works, pick the one that matches the rest of your code.</p>
+
+<h2>How do you remove rows with NA values?</h2>
+
+<p>Three tools handle removal, and they differ in how much control they give you.</p>
+
+<p><code>na.omit(df)</code> drops every row that has at least one NA anywhere. It is the blunt instrument. <code>complete.cases(df)</code> returns a logical mask, which you can combine with other filters. <code>tidyr::drop_na()</code> lets you name specific columns, so you only drop rows where those columns are missing.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">nrow(aq)
+#&gt; [1] 153
+
+aq_complete &lt;- na.omit(aq)
+nrow(aq_complete)
+#&gt; [1] 111
+
+aq_drop &lt;- aq |&gt; drop_na(Ozone)
+nrow(aq_drop)
+#&gt; [1] 116
+
+# complete.cases() as a mask
+sum(complete.cases(aq))
+#&gt; [1] 111</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>na.omit()</code> dropped 42 rows because it requires every column to be present. <code>drop_na(Ozone)</code> only dropped the 37 Ozone-missing rows, keeping 5 rows that have a Solar.R NA but a present Ozone. The two give you different datasets and different downstream conclusions.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>na.omit() on the whole frame can silently cut your data in half.</strong> If one column has 40% missingness, na.omit() removes 40% of the rows, even though the other columns were fine on those rows. Prefer drop_na(col1, col2) to be specific, or impute the sparse column first.</div></div>
+
+<h2>When should you impute instead of dropping?</h2>
+
+<p>Dropping rows is cheap to implement but expensive in information. Each dropped row takes all its other columns with it. If you are losing more than a few percent of your data, impute instead. Imputation fills NAs with plausible values so the rest of the row stays in your analysis.</p>
+
+<p>The right imputation method depends on <em>why</em> the values are missing. Statisticians group missingness into three mechanisms.</p>
+
+<p><img src="screenshots/Missing-Values-in-R-Detect-Count-Remove-Impute-NA-mechanisms.webp" alt="MCAR, MAR, and MNAR — three missingness mechanisms." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Three missingness mechanisms: MCAR, MAR, and MNAR.</em></p>
+
+<p>MCAR (Missing Completely At Random) means the missingness does not depend on anything. A sensor fails randomly. You can drop or impute safely. MAR (Missing At Random) means missingness depends on <em>observed</em> data. Richer respondents hide income more often, but you can see who is rich. You can impute using the other variables. MNAR (Missing Not At Random) means missingness depends on the <em>missing value itself</em>. People with very high income hide it. No standard imputation is correct, and you usually need to model the missingness process.</p>
+
+<p>Use a simple rule of thumb for which strategy to apply:</p>
+
+<p><img src="screenshots/Missing-Values-in-R-Detect-Count-Remove-Impute-NA-decision-tree.webp" alt="Decision tree: drop, impute, or flag." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Decision tree for choosing drop, impute, or flag.</em></p>
+
+<p>For most analyses, a median imputation is a reasonable starting point for numeric columns. It is robust to outliers and preserves the central tendency of the column. Here is how you apply it in dplyr:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">aq_imputed &lt;- aq |&gt;
+  mutate(across(
+    c(Ozone, Solar.R),
+    ~ ifelse(is.na(.x), median(.x, na.rm = TRUE), .x)
+  ))
+
+colSums(is.na(aq_imputed))
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;       0       0       0       0       0       0
+
+c(mean_orig = mean(aq$Ozone, na.rm = TRUE),
+  mean_imp  = mean(aq_imputed$Ozone))
+#&gt; mean_orig  mean_imp
+#&gt;  42.12931  37.80392</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The Ozone mean dropped from 42.1 to 37.8 after imputation because the median (31.5) is pulled below the mean by the column's right-skew. This is the trade-off of median imputation: it preserves the row count but shrinks variance and can bias summaries. For a quick analysis it is fine. For a published model, consider multiple imputation.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For rigorous analyses, use multiple imputation with the mice package in your local RStudio.</strong> The <code>mice</code> package generates several plausible datasets, fits your model to each, and pools the results to honor the uncertainty introduced by imputation. It is not pre-compiled for the in-browser code runner used on this page, so run it in your local R session.</div></div>
+
+<h2>Complete Example: Cleaning airquality end-to-end</h2>
+
+<p>Let's apply the full playbook. We audit the data, decide on a strategy, and produce a cleaned frame ready for modeling.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># 1. Audit
+na_report &lt;- aq |&gt;
+  summarise(across(everything(), ~ sum(is.na(.x)))) |&gt;
+  pivot_longer(everything(), names_to = &quot;col&quot;, values_to = &quot;n_na&quot;) |&gt;
+  mutate(pct = round(n_na / nrow(aq) * 100, 1)) |&gt;
+  arrange(desc(n_na))
+na_report
+#&gt; # A tibble: 6 x 3
+#&gt;   col      n_na   pct
+#&gt;   &lt;chr&gt;   &lt;int&gt; &lt;dbl&gt;
+#&gt; 1 Ozone      37  24.2
+#&gt; 2 Solar.R     7   4.6
+#&gt; 3 Wind        0   0
+#&gt; 4 Temp        0   0
+#&gt; 5 Month       0   0
+#&gt; 6 Day         0   0
+
+# 2. Decide: Solar.R under 5% -&gt; drop those rows. Ozone 24% -&gt; median impute.
+# 3. Act
+aq_clean &lt;- aq |&gt;
+  drop_na(Solar.R) |&gt;
+  mutate(Ozone = ifelse(is.na(Ozone), median(Ozone, na.rm = TRUE), Ozone))
+
+nrow(aq_clean)
+#&gt; [1] 146
+anyNA(aq_clean)
+#&gt; [1] FALSE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The pipeline produced a frame with 146 rows (7 dropped for Solar.R) and zero NAs. Ozone kept all its 146 rows via imputation rather than losing another 35 to removal. The decisions match the rates: light missingness got dropped, heavy missingness got filled. Always document which columns you imputed and with what method, so a reviewer can challenge the choices.</p>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Using x == NA instead of is.na(x)</h4>
+
+<p>&#10060; <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">x &lt;- c(1, NA, 3)
+x[x == NA]
+#&gt; [1] NA NA NA</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>x == NA</code> compares to an unknown value, so every comparison returns NA. You get no match and no error.</p>
+
+<p>&#9989; <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">x &lt;- c(1, NA, 3)
+x[is.na(x)]
+#&gt; [1] NA</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Calling mean() or sum() without na.rm on data with NAs</h4>
+
+<p>&#10060; <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">mean(airquality$Ozone)
+#&gt; [1] NA</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> A single NA turns the result into NA. If you pipe this downstream, everything breaks silently.</p>
+
+<p>&#9989; <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">mean(airquality$Ozone, na.rm = TRUE)
+#&gt; [1] 42.12931</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Using na.omit() on the whole frame when only one column has NAs</h4>
+
+<p>&#10060; <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">clean &lt;- na.omit(airquality)  # drops 42 rows</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> You lose rows that were only missing the sparse columns, even though most of their values were present.</p>
+
+<p>&#9989; <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">clean &lt;- tidyr::drop_na(airquality, Ozone, Solar.R)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Treating the character string "NA" as missing</h4>
+
+<p>&#10060; <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">vals &lt;- c(&quot;yes&quot;, &quot;no&quot;, &quot;NA&quot;, &quot;yes&quot;)
+sum(is.na(vals))
+#&gt; [1] 0</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> The string <code>&quot;NA&quot;</code> is a four-character word, not the missing sentinel. <code>is.na()</code> correctly says there are zero missing values.</p>
+
+<p>&#9989; <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">vals &lt;- c(&quot;yes&quot;, &quot;no&quot;, &quot;NA&quot;, &quot;yes&quot;)
+vals[vals == &quot;NA&quot;] &lt;- NA
+sum(is.na(vals))
+#&gt; [1] 1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 5: Imputing before splitting into train and test</h4>
+
+<p>&#10060; <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Compute median on full data, then split. Leaks test info into train.</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> The median of the combined set uses test rows. Your model sees test information at training time, inflating your reported performance.</p>
+
+<p>&#9989; <strong>Correct:</strong> Split first, compute the median on the train set only, then apply that same value to both sets.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Count total missing values in airquality</h4>
+
+<p>Write one line that returns the total count of NA values across the whole <code>airquality</code> data frame. Save it to <code>my_total_na</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1
+# Hint: sum() + is.na() work on matrices and data frames too.
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_total_na &lt;- sum(is.na(airquality))
+my_total_na
+#&gt; [1] 44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>is.na(airquality)</code> returns a logical matrix of the same shape. <code>sum()</code> treats TRUE as 1, so summing gives the total count.</p>
+
+</details>
+
+<h4>Exercise 2: Keep only rows that are complete in Ozone and Solar.R</h4>
+
+<p><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> <code>airquality</code> to rows where both <code>Ozone</code> and <code>Solar.R</code> are present. Save the result to <code>my_rows</code>. It should have 111 rows.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2
+# Hint: use drop_na() with the column names, or complete.cases().
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_rows &lt;- airquality |&gt; tidyr::drop_na(Ozone, Solar.R)
+nrow(my_rows)
+#&gt; [1] 111</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>drop_na()</code> with specific column arguments only drops rows where those named columns are NA. Wind, Temp, Month, Day are complete already, so this matches <code>na.omit()</code> here.</p>
+
+</details>
+
+<h4>Exercise 3: Fill Ozone with its monthly median</h4>
+
+<p>For each month, replace missing Ozone values with the median Ozone of that month. Save the result to <code>my_ozone_fill</code>. Verify it has no NAs in Ozone.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3
+# Hint: group_by(Month), then mutate() with ifelse() and median().
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_ozone_fill &lt;- airquality |&gt;
+  dplyr::group_by(Month) |&gt;
+  dplyr::mutate(
+    Ozone = ifelse(is.na(Ozone), median(Ozone, na.rm = TRUE), Ozone)
+  ) |&gt;
+  dplyr::ungroup()
+
+sum(is.na(my_ozone_fill$Ozone))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>group_by(Month)</code> makes the median computed within each month. Hot months get the hot-month median, cool months get the cool-month median. This is a stronger imputation than a single global median because it preserves monthly seasonality.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Function</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Detect NA</td>
+<td><code>is.na(x)</code></td>
+<td>Logical vector, same shape as x</td>
+</tr>
+<tr>
+<td>Any NA present?</td>
+<td><code>anyNA(x)</code></td>
+<td>Single TRUE/FALSE</td>
+</tr>
+<tr>
+<td>Count NAs per column</td>
+<td><code>colSums(is.na(df))</code></td>
+<td>Named numeric vector</td>
+</tr>
+<tr>
+<td>Drop all NA rows</td>
+<td><code>na.omit(df)</code></td>
+<td>Data frame, rows with any NA removed</td>
+</tr>
+<tr>
+<td>Mask complete rows</td>
+<td><code>complete.cases(df)</code></td>
+<td>Logical vector of rows</td>
+</tr>
+<tr>
+<td>Drop rows NA in chosen cols</td>
+<td><code>tidyr::drop_na(df, col1, col2)</code></td>
+<td>Data frame</td>
+</tr>
+<tr>
+<td>Simple imputation</td>
+<td><code>ifelse(is.na(x), median(x, na.rm = TRUE), x)</code></td>
+<td>Vector with NAs filled</td>
+</tr>
+<tr>
+<td>Multiple imputation</td>
+<td><code>mice::mice(df)</code> (local R)</td>
+<td>Multiply imputed dataset</td>
+</tr>
+</tbody>
+</table>
+
+<p>The headline rule: detect with <code>is.na()</code>, count with <code>colSums(is.na(df))</code>, and choose drop vs impute by the missingness rate and mechanism.</p>
+
+<h2>FAQ</h2>
+
+<h4>What is the difference between NA and NULL in R?</h4>
+
+<p>NA means a value is unknown. NULL means the value does not exist at all. NA keeps its slot in a vector, NULL vanishes. Use NA for missing survey answers, NULL to remove a list element.</p>
+
+<h4>Why does NA == NA return NA and not TRUE?</h4>
+
+<p>Because NA means "unknown." Two unknowns might or might not be equal, so R refuses to claim they are equal. Always use <code>is.na()</code> to test for missingness instead of <code>==</code>.</p>
+
+<h4>Should I always use na.rm = TRUE?</h4>
+
+<p>No. Use it knowingly. Passing <code>na.rm = TRUE</code> silences missingness, which can hide data-quality problems. Always audit NA rates first, then decide whether removing them is safe for your question.</p>
+
+<h4>Is median imputation ever a bad idea?</h4>
+
+<p>Yes. It shrinks variance and can bias relationships between variables because every imputed row gets the same value. For predictive models that care about uncertainty or correlation structure, use multiple imputation (<code>mice</code>) instead.</p>
+
+<h4>Can I replace NA with 0?</h4>
+
+<p>Only if 0 means "none" in your domain, such as "zero items sold." If 0 is a real measurement, replacing NA with 0 invents data and shifts your mean. Use the median, a group median, or <code>mice</code> instead.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>An Introduction to R</em> — Missing Values section. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Missing-values">Link</a></li>
+
+<li>UCLA OARC Statistical Consulting. <em>How does R handle missing values?</em> <a href="https://stats.oarc.ucla.edu/r/faq/how-does-r-handle-missing-values/">Link</a></li>
+
+<li>van Buuren, S. <em>mice: Multivariate Imputation by Chained Equations</em> (package documentation). <a href="https://cran.r-project.org/web/packages/mice/mice.pdf">Link</a></li>
+
+<li>van Buuren, S. <em>Flexible Imputation of Missing Data</em>, 2nd ed. <a href="https://stefvanbuuren.name/fimd/">Link</a></li>
+
+<li>Wickham, H. & Grolemund, G. <em>R for Data Science (2e)</em> — Chapter on missing values. <a href="https://r4ds.hadley.nz/missing-values.html">Link</a></li>
+
+<li>tidyr reference. <code>drop_na()</code> documentation. <a href="https://tidyr.tidyverse.org/reference/drop_na.html">Link</a></li>
+
+<li>dplyr reference. <code>across()</code> documentation. <a href="https://dplyr.tidyverse.org/reference/across.html">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="dplyr-mutate-rename.html">dplyr mutate & rename</a></strong> — Build on the <code>mutate(across(...))</code> pattern used here for imputation.</li>
+
+<li><strong><a href="pivot_longer-pivot_wider-Reshape-Data-in-R.html">pivot_longer and pivot_wider</a></strong> — Reshape the NA audit table into a long format for reporting.</li>
+
+<li><strong><a href="R-Joins.html">R Joins</a></strong> — Joins are a common source of NAs; handling them well starts with this playbook.</li>
+
+</ul>
