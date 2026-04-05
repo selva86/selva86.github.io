@@ -1,0 +1,821 @@
+---
+title: "purrr Exercises: 10 Functional Programming Practice Problems — Solved Step-by-Step"
+description: "Practise purrr with 10 functional programming problems and worked solutions. Build real R skills through hands-on exercises, beginner to advanced."
+keywords: "purrr exercises, purrr map exercises, functional programming R exercises, purrr practice problems, map2 pmap exercises, tidyverse iteration practice, R functional programming practice, purrr tutorial problems"
+mathjax: false
+webr: true
+curriculum_id: "E2.8"
+post_type: "EX"
+auto_link_terms: "purrr exercises|purrr practice problems|purrr map exercises|functional programming exercises R|map2 practice|pmap practice|map_dfr exercises"
+auto_link_case_sensitive: false
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Functional Programming &gt; purrr Exercises</nav>
+
+<h1>purrr Exercises: 10 Functional Programming Practice Problems</h1>
+
+<p class="lead">Ten runnable exercises to practise <code>purrr::map()</code>, <code>map2()</code>, <code>pmap()</code>, typed variants, row-wise operations, and safe iteration — each with a worked solution and explanation you can run in your browser.</p>
+
+<h2>Introduction</h2>
+
+<p>Reading about <code>map()</code> is quick. Writing <code>map_dfr()</code> fluently — remembering which typed variant to reach for, when to use <code>map2()</code> versus <code>pmap()</code>, and how to handle errors mid-iteration — takes practice. These ten exercises give you that practice.</p>
+
+<p>The problems grow from simple to genuine. The first three ask you to compute column summaries with <code>map_dbl()</code>, <code>map_chr()</code>, and <code>map_int()</code>. The middle four bring in <code>map_lgl()</code>, <code>map_dfr()</code>, <code>map2()</code>, and <code>pmap()</code>. The last three mix purrr with <code>nest()</code> for split-apply-combine, <code>safely()</code> for error-tolerant pipelines, and the <code>\(x)</code> lambda shortcut for compact code.</p>
+
+<p>Try writing your own answer first. Run it. Compare with the solution. Read the short explanation under the solution to check your reasoning. If you are new to functional programming in R, skim the parent tutorial on <a href="Functional-Programming-in-R.html">Functional Programming in R</a> before starting.</p>
+
+<p>All code on this page runs in one shared R session, so variables you create in one block are available in the next. Use distinct names like <code>my_result</code> in your exercise code so you do not overwrite tutorial variables from earlier blocks.</p>
+
+<h2>Quick Reference</h2>
+
+<p>Skim this cheat sheet before you start. It lists the functions you will use in the ten exercises.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Function</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Apply a function, return list</td>
+<td><code>map()</code></td>
+<td><code>map(mtcars, mean)</code></td>
+</tr>
+<tr>
+<td>Return numeric vector</td>
+<td><code>map_dbl()</code></td>
+<td><code>map_dbl(mtcars, mean)</code></td>
+</tr>
+<tr>
+<td>Return character vector</td>
+<td><code>map_chr()</code></td>
+<td><code>map_chr(iris, class)</code></td>
+</tr>
+<tr>
+<td>Return integer vector</td>
+<td><code>map_int()</code></td>
+<td><code>map_int(iris, n_distinct)</code></td>
+</tr>
+<tr>
+<td>Return logical vector</td>
+<td><code>map_lgl()</code></td>
+<td><code>map_lgl(mtcars, is.numeric)</code></td>
+</tr>
+<tr>
+<td>Iterate and row-bind tibbles</td>
+<td><code>map_dfr()</code></td>
+<td><code>map_dfr(list_of_dfs, identity)</code></td>
+</tr>
+<tr>
+<td>Walk two inputs in parallel</td>
+<td><code>map2()</code></td>
+<td><code>map2(x, y, \(a, b) a * b)</code></td>
+</tr>
+<tr>
+<td>Walk many inputs in parallel</td>
+<td><code>pmap()</code></td>
+<td><code>pmap(list(x, y, z), fn)</code></td>
+</tr>
+<tr>
+<td>Error-tolerant wrapper</td>
+<td><code>safely()</code></td>
+<td><code>safely(log)(x)</code></td>
+</tr>
+<tr>
+<td>Anonymous function (R 4.1+)</td>
+<td><code>\(x)</code></td>
+<td><code>map_dbl(x, \(v) v^2)</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Load purrr once. Every later block reuses it.</strong> The first code block loads <code>purrr</code> and <code>dplyr</code> and previews the datasets. Because all blocks share a single R session, later exercises can call <code>map()</code> and friends without reloading.</div></div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load libraries and preview the datasets we will use
+library(purrr)
+library(dplyr)
+
+# mtcars: 32 rows, 11 numeric columns
+head(mtcars, 3)
+#&gt;                mpg cyl disp  hp drat    wt  qsec vs am gear carb
+#&gt; Mazda RX4     21.0   6  160 110 3.90 2.620 16.46  0  1    4    4
+#&gt; Mazda RX4 Wag 21.0   6  160 110 3.90 2.875 17.02  0  1    4    4
+#&gt; Datsun 710    22.8   4  108  93 3.85 2.320 18.61  1  1    4    1
+
+# iris: 150 rows, 4 numeric + 1 factor column
+head(iris, 3)
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1          5.1         3.5          1.4         0.2  setosa
+#&gt; 2          4.9         3.0          1.4         0.2  setosa
+#&gt; 3          4.7         3.2          1.3         0.2  setosa</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Both datasets are ready. <code>mtcars</code> gives clean numeric columns for simple <code>map_dbl()</code> reductions. <code>iris</code> mixes numeric and factor columns, which is perfect for <code>map_chr()</code> and <code>map_lgl()</code> practice.</p>
+
+<h2>Easy (1-3): Column Summaries with Typed map() Variants</h2>
+
+<p>Start here if you have barely used purrr before. Each exercise applies one function to each column of a data frame — the bread-and-butter purrr pattern.</p>
+
+<h4>Exercise 1: Column means with map_dbl()</h4>
+
+<p>Compute the mean of every column in <code>mtcars</code>. Save the result to <code>my_means</code>. The output should be a named numeric vector of length 11, not a list.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: mean of each column
+# Hint: map_dbl(mtcars, mean) — the _dbl returns a numeric vector
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_means &lt;- map_dbl(mtcars, mean)
+
+print(round(my_means, 2))
+#&gt;    mpg    cyl   disp     hp   drat     wt   qsec     vs     am   gear   carb
+#&gt;  20.09   6.19 230.72 146.69   3.60   3.22  17.85   0.44   0.41   3.69   2.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map_dbl()</code> applies <code>mean()</code> to each column of <code>mtcars</code> and collects the results in a numeric vector. A data frame is a list of columns under the hood, so purrr iterates column-by-column. The output keeps column names as vector names. If you had used plain <code>map(mtcars, mean)</code> you would get a list of eleven single-element <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> instead.</p>
+
+</details>
+
+<h4>Exercise 2: Column classes with map_chr()</h4>
+
+<p>Get the class of each column in <code>iris</code>. Save to <code>my_classes</code>. The output should be a named character vector.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: class of each column
+# Hint: map_chr(iris, class) — _chr returns character vector
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_classes &lt;- map_chr(iris, class)
+
+print(my_classes)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width      Species
+#&gt;    &quot;numeric&quot;    &quot;numeric&quot;    &quot;numeric&quot;    &quot;numeric&quot;     &quot;factor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map_chr()</code> expects each function call to return a length-1 character value. <code>class()</code> on a simple column does exactly that. The four measurement columns are numeric; <code>Species</code> is a factor. If any column had multiple classes (like a tibble column tagged <code>c(&quot;ordered&quot;, &quot;factor&quot;)</code>), <code>map_chr()</code> would error — it is strict about the length-1 rule, which catches surprises early.</p>
+
+</details>
+
+<h4>Exercise 3: Unique values per column with map_int()</h4>
+
+<p>Count distinct values in each <code>iris</code> column. Save to <code>my_uniques</code>. Use <code>dplyr::n_distinct()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: count distinct values per column
+# Hint: map_int(iris, n_distinct)
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_uniques &lt;- map_int(iris, n_distinct)
+
+print(my_uniques)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width      Species
+#&gt;           35           23           43           22            3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map_int()</code> requires each call to return a length-1 integer. <code>n_distinct()</code> returns an integer count, so the pair is a perfect match. <code>Species</code> has three distinct levels, which matches the three iris species. <code>Petal.Length</code> varies most (43 unique values out of 150 rows), a hint that it discriminates species well.</p>
+
+<p>[TIP]</p>
+<p><strong>Pick the typed variant that matches your return type.</strong> Use <code>map_dbl()</code> for doubles, <code>map_int()</code> for integers, <code>map_chr()</code> for strings, <code>map_lgl()</code> for logicals. You get a simple vector back instead of a list, and purrr errors loudly if any iteration returns the wrong type — which catches bugs that <code>sapply()</code> hides.</p>
+
+</details>
+
+<h2>Medium (4-7): Logical Predicates, Row-Binding, and Parallel Iteration</h2>
+
+<p>These four exercises mix two ideas at once. Take them slowly.</p>
+
+<h4>Exercise 4: Find columns with all positive values</h4>
+
+<p>For each column in <code>mtcars</code>, check whether every value is strictly greater than zero. Save the named logical vector to <code>my_positive</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 4: which columns are all positive?
+# Hint: map_lgl(mtcars, \(col) all(col &gt; 0))
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_positive &lt;- map_lgl(mtcars, \(col) all(col &gt; 0))
+
+print(my_positive)
+#&gt;   mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#&gt;  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE FALSE  TRUE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map_lgl()</code> returns a logical vector by calling your function once per column. The anonymous function <code>\(col) all(col &gt; 0)</code> is R 4.1+ shorthand for <code>function(col) all(col &gt; 0)</code>. <code>vs</code> and <code>am</code> contain zeros (they are 0/1 dummy variables), so <code>all(col &gt; 0)</code> returns <code>FALSE</code> for those. This pattern is the purrr way to build column-level predicates for filtering.</p>
+
+</details>
+
+<h4>Exercise 5: Per-group linear models with map_dfr()</h4>
+
+<p>Split <code>mtcars</code> by <code>cyl</code>, fit <code>mpg ~ wt</code> inside each group, and return a tibble where each row has the group's <code>cyl</code>, intercept, and slope. Save to <code>my_models</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 5: lm per cyl group, return tibble
+# Hint: split(mtcars, mtcars$cyl) gives a list; map_dfr returns a tibble
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_models &lt;- split(mtcars, mtcars$cyl) |&gt;
+  map_dfr(\(df) tibble(
+    cyl       = df$cyl[1],
+    intercept = coef(lm(mpg ~ wt, data = df))[1],
+    slope     = coef(lm(mpg ~ wt, data = df))[2]
+  ))
+
+print(my_models)
+#&gt; # A tibble: 3 × 3
+#&gt;     cyl intercept  slope
+#&gt;   &lt;dbl&gt;     &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1     4      39.6  -5.65
+#&gt; 2     6      28.4  -2.78
+#&gt; 3     8      23.9  -2.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>split()</code> turns <code>mtcars</code> into a list of three data frames, one per <code>cyl</code> value. <code>map_dfr()</code> iterates over the list, runs the anonymous function on each piece, and row-binds the returned tibbles into one. Each row captures one group's regression: four-cylinder cars lose 5.65 mpg per 1,000-lb weight increase, while eight-cylinder cars lose only 2.19.</p>
+
+<p>[KEY INSIGHT]</p>
+<p><strong>map_dfr() = iterate plus row-bind.</strong> Whenever you have a list of items and want to produce one tibble with one row (or block of rows) per item, <code>map_dfr()</code> is the tool. It replaces the common <code>do.call(rbind, lapply(x, fn))</code> pattern with a single, clearer call.</p>
+
+</details>
+
+<h4>Exercise 6: Parallel iteration with map2()</h4>
+
+<p>You have two vectors of equal length: <code>values &lt;- c(10, 20, 30, 40)</code> and <code>weights &lt;- c(0.1, 0.2, 0.3, 0.4)</code>. Compute the weighted value (value * weight) for each pair. Save the numeric vector to <code>my_wtd</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 6: pairwise weighted values
+# Hint: map2_dbl(values, weights, \(v, w) v * w)
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">values  &lt;- c(10, 20, 30, 40)
+weights &lt;- c(0.1, 0.2, 0.3, 0.4)
+
+my_wtd &lt;- map2_dbl(values, weights, \(v, w) v * w)
+
+print(my_wtd)
+#&gt; [1]  1  4  9 16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map2_dbl()</code> walks two input vectors in parallel, passing the i-th element of each into the function. The function returns one double per pair, so you get a length-4 numeric vector. This is the clean replacement for a for-loop that zips two inputs. In plain R you would write <code>values * weights</code> here — <code>map2()</code> shows its real value when the function is more complex than arithmetic.</p>
+
+<p>[WARNING]</p>
+<p><strong><a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map2</a>() requires equal-length inputs.</strong> If <code>values</code> has 4 elements and <code>weights</code> has 3, <code>map2()</code> errors immediately. It does not recycle silently the way <code>values * weights</code> does. That strictness is a feature: it forces you to notice the mismatch.</p>
+
+</details>
+
+<h4>Exercise 7: Three-argument iteration with pmap()</h4>
+
+<p>You have three vectors: <code>names &lt;- c(&quot;Alice&quot;, &quot;Bob&quot;, &quot;Carol&quot;)</code>, <code>scores &lt;- c(92, 78, 85)</code>, <code>grades &lt;- c(&quot;A&quot;, &quot;C&quot;, &quot;B&quot;)</code>. Build a character vector where each element reads like <code>&quot;Alice scored 92 (grade A)&quot;</code>. Save to <code>my_labels</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 7: format three aligned vectors
+# Hint: pmap_chr(list(names, scores, grades), \(n, s, g) sprintf(&quot;%s scored %d (grade %s)&quot;, n, s, g))
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">names  &lt;- c(&quot;Alice&quot;, &quot;Bob&quot;, &quot;Carol&quot;)
+scores &lt;- c(92, 78, 85)
+grades &lt;- c(&quot;A&quot;, &quot;C&quot;, &quot;B&quot;)
+
+my_labels &lt;- pmap_chr(
+  list(names, scores, grades),
+  \(n, s, g) sprintf(&quot;%s scored %d (grade %s)&quot;, n, s, g)
+)
+
+print(my_labels)
+#&gt; [1] &quot;Alice scored 92 (grade A)&quot; &quot;Bob scored 78 (grade C)&quot;
+#&gt; [3] &quot;Carol scored 85 (grade B)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>pmap()</code> is <code>map2()</code> generalised to any number of inputs. You pass a list of vectors; purrr walks them row-wise, calling your function once per aligned tuple. The function takes as many arguments as there are list elements. <code>pmap_chr()</code> forces each call to return a length-1 string, giving you a character vector at the end. This is the tidy replacement for <code>mapply()</code> when you need more than two inputs.</p>
+
+</details>
+
+<h2>Challenging (8-10): List-Columns, Error Handling, and Lambdas</h2>
+
+<p>These last three combine purrr with other tidyverse tools and defensive coding. They are what separate purrr users from purrr fluency.</p>
+
+<h4>Exercise 8: Per-group correlations with nest() + map()</h4>
+
+<p>For each <code>cyl</code> group in <code>mtcars</code>, compute the Pearson correlation between <code>mpg</code> and <code>wt</code>. Return a tibble with columns <code>cyl</code> and <code>cor_mpg_wt</code>. Save to <code>my_cors</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 8: correlation per group using nest + map
+# Hint: mtcars |&gt; group_by(cyl) |&gt; tidyr::nest() then mutate(cor = map_dbl(data, \(d) cor(d$mpg, d$wt)))
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+my_cors &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  nest() |&gt;
+  mutate(cor_mpg_wt = map_dbl(data, \(d) cor(d$mpg, d$wt))) |&gt;
+  select(cyl, cor_mpg_wt) |&gt;
+  arrange(cyl)
+
+print(my_cors)
+#&gt; # A tibble: 3 × 2
+#&gt; # Groups:   cyl [3]
+#&gt;     cyl cor_mpg_wt
+#&gt;   &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1     4     -0.713
+#&gt; 2     6     -0.682
+#&gt; 3     8     -0.650</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>nest()</code> turns each group into a single row with a <code>data</code> list-column holding the group's sub-tibble. <code>map_dbl(data, ...)</code> then walks that list-column, computing one correlation per group. All three groups show a strong negative correlation between mpg and wt — heavier cars use more fuel, across every cylinder count.</p>
+
+<p>[TIP]</p>
+<p><strong>nest() + map() is the tidyverse split-apply-combine pattern.</strong> It keeps everything in one tibble (no list-of-data-frames bookkeeping), composes cleanly with <code>mutate()</code>, and lets you attach fitted models, plots, or summaries as new list-columns.</p>
+
+</details>
+
+<h4>Exercise 9: Error-tolerant logging with safely()</h4>
+
+<p>You have a vector <code>inputs &lt;- c(100, 10, -1, 1, -5)</code>. Applying <code>log()</code> to negatives returns <code>NaN</code> with a warning. Use <code>safely()</code> to wrap <code>log()</code> so each call returns a list with <code>result</code> and <code>error</code>. Save the full list of results to <code>my_safe</code>. Then extract just the numeric results (with NULL for errors) using <code>map()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 9: safely wrap log()
+# Hint: safe_log &lt;- safely(log); my_safe &lt;- map(inputs, safe_log)
+# safely() never throws — but log(negative) gives NaN, not an error.
+# Wrap in a stricter function: \(x) if (x &lt;= 0) stop(&quot;non-positive&quot;) else log(x)
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">inputs &lt;- c(100, 10, -1, 1, -5)
+
+strict_log &lt;- function(x) {
+  if (x &lt;= 0) stop(&quot;non-positive input&quot;)
+  log(x)
+}
+safe_log &lt;- safely(strict_log)
+
+my_safe &lt;- map(inputs, safe_log)
+
+# Extract the result field only (NULL where there was an error)
+results &lt;- map(my_safe, &quot;result&quot;)
+print(results)
+#&gt; [[1]]
+#&gt; [1] 4.605
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 2.303
+#&gt;
+#&gt; [[3]]
+#&gt; NULL
+#&gt;
+#&gt; [[4]]
+#&gt; [1] 0
+#&gt;
+#&gt; [[5]]
+#&gt; NULL
+
+# Extract error messages
+errors &lt;- map(my_safe, &quot;error&quot;) |&gt; compact()
+print(errors[[1]]$message)
+#&gt; [1] &quot;non-positive input&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>safely()</code> returns a new function that never throws. Instead, it returns a list with two slots: <code>result</code> (the value, or <code>NULL</code> on error) and <code>error</code> (the condition, or <code>NULL</code> on success). This lets you run iterations that would otherwise halt at the first failure, then inspect what went wrong afterwards. <code>map(my_safe, &quot;result&quot;)</code> uses purrr's shortcut for extracting a named element from each list. It is the purrr idiom for "get the third field of every element".</p>
+
+</details>
+
+<h4>Exercise 10: Lambda shortcut for column scaling</h4>
+
+<p>Scale every numeric column of <code>iris</code> to have mean 0 and standard deviation 1. Use the <code>\(x)</code> anonymous-function shortcut. Return a data frame with the scaled numeric columns plus the original <code>Species</code> column. Save to <code>my_scaled</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 10: z-score every numeric column
+# Hint: use map() with \(col) (col - mean(col)) / sd(col), then cbind Species
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">numeric_cols &lt;- iris |&gt; select(where(is.numeric))
+
+scaled_list &lt;- map(numeric_cols, \(col) (col - mean(col)) / sd(col))
+
+my_scaled &lt;- as.data.frame(scaled_list)
+my_scaled$Species &lt;- iris$Species
+
+head(my_scaled, 3)
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1   -0.8976739  1.01560199    -1.335752   -1.311052  setosa
+#&gt; 2   -1.1392005 -0.13153881    -1.335752   -1.311052  setosa
+#&gt; 3   -1.3807271  0.32731751    -1.392399   -1.311052  setosa
+
+# Verify: every numeric column now has mean ~0, sd 1
+round(map_dbl(my_scaled[, 1:4], mean), 10)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;            0            0            0            0
+round(map_dbl(my_scaled[, 1:4], sd), 2)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;            1            1            1            1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>select(where(is.numeric))</code> picks the four measurement columns. <code>map()</code> then applies the z-score formula to each column. Because <code>map()</code> returns a list, <code>as.data.frame()</code> reshapes it back to a data frame. The verification step reuses <code>map_dbl()</code> to confirm each scaled column has mean zero and standard deviation one.</p>
+
+<p>[KEY INSIGHT]</p>
+<p>**The <code>\(x)</code> lambda keeps functional code compact.** Before R 4.1 you wrote <code>function(x) x^2</code>. Now you write <code>\(x) x^2</code>. Combined with typed map variants, you get one-line transformations that read left-to-right: "for each column, compute the z-score". No loop counter, no intermediate accumulator.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Ten exercises, ten purrr patterns. You practised:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Pattern</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map_dbl()</code>, <code>map_chr()</code>, <code>map_int()</code>, <code>map_lgl()</code></td>
+<td>Apply a function to each element, return a typed vector</td>
+</tr>
+<tr>
+<td><code>map_dfr()</code></td>
+<td>Apply a function that returns a tibble, row-bind results</td>
+</tr>
+<tr>
+<td><code>map2()</code> / <code>map2_dbl()</code></td>
+<td>Walk two equal-length inputs in parallel</td>
+</tr>
+<tr>
+<td><code>pmap()</code> / <code>pmap_chr()</code></td>
+<td>Walk three or more inputs in parallel</td>
+</tr>
+<tr>
+<td><code>nest() + map()</code></td>
+<td>Split-apply-combine with list-columns</td>
+</tr>
+<tr>
+<td><code>safely()</code></td>
+<td>Wrap a function so it never throws</td>
+</tr>
+<tr>
+<td><code>\(x)</code> lambda</td>
+<td>Compact <a class="auto-link" href="R-Anonymous-Functions.html" title="R Anonymous Functions: \\(x) Syntax & When to Use Lambda Style">anonymous functions</a> in one-liners</td>
+</tr>
+</tbody>
+</table>
+
+<p>The underlying skill is picking the right variant for the return type you want. Once you internalise "list out? use <code>map()</code>. Named numeric? use <code>map_dbl()</code>. Row-bind tibbles? <code>map_dfr()</code>", most iteration problems become one line of code.</p>
+
+<h2>FAQ</h2>
+
+<p>**Q: When should I use purrr instead of base R <code>sapply()</code> or <code>lapply()</code>?** Use purrr when you want type safety. <code>sapply()</code> will silently return a list if one iteration returns a different length — purrr's <code>map_dbl()</code> errors instead. Use <code>lapply()</code> when you are writing a package and want zero dependencies.</p>
+
+<p>**Q: What is the difference between <code>\(x)</code> and <code>~ .x</code>?** Both define anonymous functions inside purrr calls. <code>\(x) x^2</code> is base R 4.1+ syntax and works anywhere. <code>~ .x^2</code> is purrr's older twiddle syntax. Prefer <code>\(x)</code> today — it is standard R and reads the same everywhere.</p>
+
+<p>**Q: What replaces <code>do.call(rbind, lapply(x, fn))</code>?** <code>map_dfr(x, fn)</code>. It iterates and row-binds in one step, and it keeps a <code>.id</code> column if you pass <code>.id = &quot;source&quot;</code>, labelling each row with its list-name.</p>
+
+<p>**Q: Do I need to unlist the result of <code>map_dbl()</code>?** No. <code>map_dbl()</code> already returns a plain numeric vector. You only need <code>unlist()</code> on <code>map()</code> output — and even then, prefer switching to a typed variant (<code>map_dbl()</code>, <code>map_int()</code>, etc.) which returns the right type directly.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. CRC Press (2019). Chapter 9: Functionals. <a href="https://adv-r.hadley.nz/functionals.html">Link</a></li>
+
+<li>Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. — <em>R for Data Science</em>, 2nd Edition. Chapter 27: Iteration. <a href="https://r4ds.hadley.nz/iteration.html">Link</a></li>
+
+<li>purrr package documentation — official function reference. <a href="https://purrr.tidyverse.org/reference/index.html">Link</a></li>
+
+<li>purrr 1.0.0 release notes — modern map semantics and lambda syntax. <a href="https://www.tidyverse.org/blog/2022/12/purrr-1-0-0/">Link</a></li>
+
+<li>tidyr nest documentation — list-columns and <code>nest()</code>. <a href="https://tidyr.tidyverse.org/reference/nest.html">Link</a></li>
+
+<li>R Core Team — <em>An Introduction to R</em>: functionals and apply-family. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a> — the mindset behind map, reduce, and filter.</li>
+
+<li><a href="purrr-map-Variants.html">purrr map() Variants</a> — deep dive on every map variant with the mental model.</li>
+
+<li><a href="R-Functional-Programming-Exercises.html">R Functional Programming Exercises</a> — base R versions (Map, <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a>, Filter) for comparison.</li>
+
+</ul>
