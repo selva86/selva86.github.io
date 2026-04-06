@@ -69,6 +69,7 @@ def convert(md_text):
     lines = body.split('\n')
     out = []
     i = 0
+    webr_enabled = str(fm.get('webr', 'true')).lower() == 'true'
 
     while i < len(lines):
         line = lines[i]
@@ -121,16 +122,19 @@ def convert(md_text):
                         if i < len(lines):
                             i += 1  # skip closing ```
                         code = escape_html('\n'.join(code_lines))
-                        html_block.append(f'<div class="webr-container">')
-                        html_block.append(f'  <div class="webr-code-block">')
-                        html_block.append(f'    <div class="webr-editor" data-language="r">{code}</div>')
-                        html_block.append(f'    <div class="webr-buttons">')
-                        html_block.append(f'      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>')
-                        html_block.append(f'      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>')
-                        html_block.append(f'    </div>')
-                        html_block.append(f'    <pre class="webr-output"></pre>')
-                        html_block.append(f'  </div>')
-                        html_block.append(f'</div>')
+                        if webr_enabled:
+                            html_block.append(f'<div class="webr-container">')
+                            html_block.append(f'  <div class="webr-code-block">')
+                            html_block.append(f'    <div class="webr-editor" data-language="r">{code}</div>')
+                            html_block.append(f'    <div class="webr-buttons">')
+                            html_block.append(f'      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>')
+                            html_block.append(f'      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>')
+                            html_block.append(f'    </div>')
+                            html_block.append(f'    <pre class="webr-output"></pre>')
+                            html_block.append(f'  </div>')
+                            html_block.append(f'</div>')
+                        else:
+                            html_block.append(f'<pre><code class="language-r">{code}</code></pre>')
                         continue
                     # Process inline markdown on text lines inside details
                     # (bold, italic, code, links, images)
@@ -157,7 +161,7 @@ def convert(md_text):
                 i += 1  # skip closing ```
             code = '\n'.join(code_lines)
 
-            if lang == 'r':
+            if lang == 'r' and webr_enabled:
                 ecode = escape_html(code)
                 out.append(f'<div class="webr-container">')
                 out.append(f'  <div class="webr-code-block">')
@@ -169,6 +173,9 @@ def convert(md_text):
                 out.append(f'    <pre class="webr-output"></pre>')
                 out.append(f'  </div>')
                 out.append(f'</div>')
+            elif lang == 'r':
+                ecode = escape_html(code)
+                out.append(f'<pre><code class="language-r">{ecode}</code></pre>')
             elif lang == 'mermaid':
                 # Mermaid diagrams should be pre-rendered to .webp via render_mermaid.py
                 # Show as static code block if found inline (fallback)
