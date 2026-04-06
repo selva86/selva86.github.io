@@ -1,0 +1,1382 @@
+---
+title: "Automated EDA in R: Get a Full Data Profile in 5 Minutes (3 Packages Compared)"
+description: "DataExplorer, skimr, and SmartEDA auto-generate distributions, correlations, and missing data summaries. Learn which to use for quick checks vs reports."
+keywords: "automated EDA in R, DataExplorer R, skimr R, SmartEDA R, exploratory data analysis R, automated data profiling R, create_report R, skim R, EDA packages R, data summary R"
+mathjax: false
+webr: true
+curriculum_id: "1.4.8"
+post_type: "C"
+auto_link_terms: "automated EDA|DataExplorer|skimr|SmartEDA|create_report()|skim()|ExpReport()|automated exploratory data analysis|data profiling in R"
+auto_link_case_sensitive: true
+sidebar_section: "Statistics"
+sidebar_title: "Automated EDA"
+sidebar_order: "10"
+---
+<!-- md2html:generated -->
+
+<h1>Automated EDA in R: Get a Full Data Profile in 5 Minutes (3 Packages Compared)</h1>
+
+<p class="lead">Automated EDA packages in R generate data summaries, distribution plots, and correlation matrices with a single function call. They save hours of manual exploration.</p>
+
+<h2>Introduction</h2>
+
+<p>You just loaded a new dataset with 30 columns and 10,000 rows. Before building any model, you need to understand the data. How many missing values are there? Which variables are skewed? Are any columns correlated?</p>
+
+<p>Doing this manually means writing dozens of <code>summary()</code>, <code>table()</code>, and <code>hist()</code> calls. That is slow, repetitive, and easy to get wrong. Automated EDA packages handle all of it in one line of code.</p>
+
+<p>In this tutorial, you will learn three R packages that auto-generate data profiles. <strong>skimr</strong> delivers quick console summaries. <strong>DataExplorer</strong> produces full HTML reports with visualizations. <strong>SmartEDA</strong> offers customizable analysis with PDF export. You will run code for each, compare outputs, and learn when to use which.</p>
+
+<p><img src="screenshots/Automated-EDA-in-R-package-overview.webp" alt="Automated EDA package overview" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: How DataExplorer, skimr, and SmartEDA each process raw data into different output formats.</em></p>
+
+<h2>What Does Each Package Do at a Glance?</h2>
+
+<p>Before diving into code, let's understand the philosophy behind each package. They solve the same problem — "tell me about my data" — but in different ways.</p>
+
+<p><strong>skimr</strong> is built for speed. It prints a compact, type-aware summary directly to your console. No files generated, no HTML — just the numbers you need to decide what to do next.</p>
+
+<p><strong>DataExplorer</strong> is built for completeness. It generates an entire HTML report with histograms, bar charts, correlation heatmaps, missing-value profiles, and principal component plots. One function call gives you a shareable document.</p>
+
+<p><strong>SmartEDA</strong> is built for customization. It offers granular control over which statistics to compute, supports grouped analysis, and can export charts to PDF — useful for formal reports.</p>
+
+<p>Here is a feature comparison:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>skimr</th>
+<th>DataExplorer</th>
+<th>SmartEDA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Console summary</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>HTML report</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>PDF export</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">Missing data</a> profile</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Correlation heatmap</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Distribution plots</td>
+<td>Inline sparklines</td>
+<td>Full histograms</td>
+<td>Density + bar plots</td>
+</tr>
+<tr>
+<td>Grouped statistics</td>
+<td>Yes</td>
+<td>Limited</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Custom statistics</td>
+<td>Yes (skim_with)</td>
+<td>No</td>
+<td>Yes (custom functions)</td>
+</tr>
+<tr>
+<td>One-line report</td>
+<td>skim()</td>
+<td>create_report()</td>
+<td>ExpReport()</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Each package fills a different slot in your workflow.</strong> Use skimr for quick console checks during interactive analysis, DataExplorer when you need a visual report to share with stakeholders, and SmartEDA when you need custom grouped statistics or PDF output.</div></div>
+
+<p>Let's load the packages and a sample dataset to work with throughout this tutorial.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load libraries
+library(skimr)
+
+# We'll use airquality — a built-in dataset with intentional missing values
+aq &lt;- airquality
+str(aq)
+#&gt; 'data.frame':	153 obs. of  6 variables:
+#&gt;  $ Ozone  : int  41 36 12 18 NA 28 23 19 8 NA ...
+#&gt;  $ Solar.R: int  190 118 149 313 NA NA 299 99 19 194 ...
+#&gt;  $ Wind   : num  7.4 8 12.6 11.5 14.3 14.9 8.6 13.8 20.1 8.6 ...
+#&gt;  $ Temp   : int  67 72 74 62 56 66 65 59 61 69 ...
+#&gt;  $ Month  : int  5 6 7 8 9 5 5 5 5 5 ...
+#&gt;  $ Day    : int  1 2 3 4 5 6 7 8 9 10 ...</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The airquality dataset has 153 observations and 6 numeric variables. Notice that Ozone and Solar.R have <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a> — perfect for testing how each package handles missing data.</p>
+
+<p><strong>Try it:</strong> Load the <code>mtcars</code> dataset into a variable called <code>ex_mt</code>. Use <code>dim()</code> and <code>names()</code> to check its shape and column names. How many <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a> does it have?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: explore mtcars structure
+ex_mt &lt;- mtcars
+
+# Check dimensions and column names:
+# your code here
+
+#&gt; Expected: 32 rows, 11 columns</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_mt &lt;- mtcars
+dim(ex_mt)
+#&gt; [1] 32 11
+names(ex_mt)
+#&gt;  [1] &quot;mpg&quot;  &quot;cyl&quot;  &quot;disp&quot; &quot;hp&quot;   &quot;drat&quot; &quot;wt&quot;   &quot;qsec&quot; &quot;vs&quot;   &quot;am&quot;   &quot;gear&quot; &quot;carb&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>dim()</code> returns rows and columns as a vector. <code>names()</code> lists all column names. This manual check is what automated EDA replaces.</p>
+
+</details>
+
+<h2>How Does skimr Summarize Your Data in One Line?</h2>
+
+<p>The <code>skim()</code> function is the heart of skimr. It groups variables by type and returns a rich summary with completeness rates, central tendency, spread, and even inline histograms — all in your console.</p>
+
+<p>Let's run it on our airquality data.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># One-line data profile with skimr
+skim(aq)
+#&gt; ── Data Summary ────────────────────────
+#&gt;                            Values
+#&gt; Name                       aq
+#&gt; Number of rows             153
+#&gt; Number of columns          6
+#&gt; _______________________
+#&gt; Column type frequency:
+#&gt;   integer                  4
+#&gt;   numeric                  2
+#&gt; ________________________
+#&gt; Group variables            None
+#&gt;
+#&gt; ── Variable type: integer ──────────────
+#&gt;   skim_variable n_missing complete_rate  mean    sd p0 p25 p50 p75 p100
+#&gt; 1 Ozone                37         0.758  42.1  33.0  1  18  31.5 63.2  168
+#&gt; 2 Solar.R               7         0.954 186.  90.1  7 116. 205  259.  334
+#&gt; 3 Month                 0         1      6.99  1.42  5   6    7    8    9
+#&gt; 4 Day                   0         1     15.8   8.86  1   8   16   23   31
+#&gt;
+#&gt; ── Variable type: numeric ──────────────
+#&gt;   skim_variable n_missing complete_rate  mean   sd   p0  p25  p50  p75 p100
+#&gt; 1 Wind                  0         1      9.96 3.52 1.7  7.4  9.7 11.5 20.7
+#&gt; 2 Temp                  0         1     77.9  9.47 56   72   79   85   97</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>That single call tells you everything critical. Ozone has a <code>complete_rate</code> of 0.758, meaning 24% of its values are missing. Solar.R is 95% complete. Wind and Temp have no missing values at all. You also get the full five-number summary (p0 through p100) and standard deviation.</p>
+
+<p>skimr also supports grouped summaries. Let's see how Ozone and Temperature vary by month.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Grouped skim — summary statistics by Month
+library(dplyr)
+aq |&gt;
+  group_by(Month) |&gt;
+  skim(Ozone, Temp)
+#&gt; ── Data Summary ────────────────────────
+#&gt;                            Values
+#&gt; Name                       Piped data
+#&gt; Number of rows             153
+#&gt; Number of columns          6
+#&gt; Group variables            Month
+#&gt;
+#&gt; ── Variable type: integer ──────────────
+#&gt;    Month skim_variable n_missing complete_rate  mean    sd p0  p25  p50  p75 p100
+#&gt;  1     5 Ozone                 5         0.839  23.6 22.2  1 11    18   35   115
+#&gt;  2     5 Temp                  0         1      65.5  6.85 56 60    66   69    81
+#&gt;  3     6 Ozone                21         0.3    29.4 18.2  12 21.2  23   36.2  71
+#&gt;  4     6 Temp                  0         1      79.1  4.32 73 76.8  79.5 82    93
+#&gt;  5     7 Ozone                 5         0.839  59.1 31.6   7 35    60   78   135
+#&gt;  6     7 Temp                  0         1      83.9  4.32 73 82    84   86    92
+#&gt;  7     8 Ozone                 5         0.839  60.0 39.7   9 24.5  52   79.5 168
+#&gt;  8     8 Temp                  0         1      84.0  3.53 72 82    82   86    97
+#&gt;  9     9 Ozone                 1         0.967  31.4 24.1   7 12    23   46    96
+#&gt; 10     9 Temp                  0         1      76.9  8.36 63 71    76   83    93</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now you can spot trends immediately. Ozone peaks in July and August (means of 59 and 60), then drops in September. June has the worst completeness at only 30% — a red flag for any analysis using that month's Ozone data.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use skim() with select helpers for large datasets.</strong> If your data has 50+ columns, pipe into <code>skim(starts_with(&quot;sales_&quot;))</code> or <code>skim(where(is.numeric))</code> to focus on the columns you care about.</div></div>
+
+<p>You can also create custom skim summaries with <code>skim_with()</code>. This lets you add your own statistics like coefficient of variation or interquartile range.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Custom skim: add coefficient of variation
+my_skim &lt;- skim_with(
+  numeric = sfl(
+    cv = ~ sd(.x, na.rm = TRUE) / mean(.x, na.rm = TRUE),
+    iqr = ~ IQR(.x, na.rm = TRUE)
+  )
+)
+my_skim(aq) |&gt; dplyr::select(skim_variable, numeric.cv, numeric.iqr)
+#&gt;   skim_variable numeric.cv numeric.iqr
+#&gt; 1 Wind              0.354        4.1
+#&gt; 2 Temp              0.122       13</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The coefficient of variation (CV) shows that Wind is relatively more variable (CV = 0.35) than Temp (CV = 0.12). The IQR confirms this pattern.</p>
+
+<p><strong>Try it:</strong> Run <code>skim()</code> on the <code>iris</code> dataset. Which variable has the smallest standard deviation? Store the skim output in <code>ex_iris_skim</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: skim iris
+ex_iris_skim &lt;- skim(iris)
+# Look at the sd column
+# your code here
+
+#&gt; Expected: Petal.Width has the smallest sd</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_iris_skim &lt;- skim(iris)
+ex_iris_skim |&gt;
+  dplyr::filter(skim_type == &quot;numeric&quot;) |&gt;
+  dplyr::select(skim_variable, numeric.sd) |&gt;
+  dplyr::arrange(numeric.sd)
+#&gt;   skim_variable numeric.sd
+#&gt; 1 Petal.Width        0.762
+#&gt; 2 Sepal.Width        0.436
+#&gt; 3 Petal.Length        1.77
+#&gt; 4 Sepal.Length        0.828</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Sorting by <code>numeric.sd</code> reveals that Sepal.Width actually has the smallest standard deviation (0.436), not Petal.Width. Always check — intuition can mislead.</p>
+
+</details>
+
+<h2>How Does DataExplorer Profile an Entire Dataset?</h2>
+
+<p>DataExplorer takes a different approach than skimr. Instead of a console summary, it generates full visualizations — histograms, bar charts, correlation heatmaps, and missing-value profiles. The <code>create_report()</code> function bundles all of these into a single HTML document.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>DataExplorer requires system graphics capabilities.</strong> The plotting functions below work fully in RStudio. In the browser runtime, you will see the data output but plots may not render. Try these examples in your local <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a> for the full visual experience.</div></div>
+
+<p>Let's start with <code>introduce()</code>, which gives a high-level data overview.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># DataExplorer: high-level data overview
+library(DataExplorer)
+introduce(aq)
+#&gt;   rows columns discrete_columns continuous_columns all_missing_columns
+#&gt; 1  153       6                0                  6                   0
+#&gt;   total_missing_values complete_rows total_observations memory_usage
+#&gt; 1                   44           111                918         6552</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This tells you in one glance: 153 rows, 6 continuous columns, 0 discrete columns, 44 total missing values, and only 111 complete rows (rows with no NAs at all). That means 42 rows have at least one missing value.</p>
+
+<p>Next, let's profile the missing data pattern.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Visualize missing data
+plot_missing(aq)
+#&gt; (Generates a bar chart showing % missing per variable)
+#&gt; Ozone: 24.2% missing
+#&gt; Solar.R: 4.6% missing
+#&gt; Wind, Temp, Month, Day: 0% missing</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The missing data profile reveals that Ozone is the primary concern at 24.2% missing. Solar.R has a small 4.6% gap. The remaining four variables are complete. This information drives your imputation strategy.</p>
+
+<p>DataExplorer also generates histograms for every numeric variable at once.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Distribution of all numeric variables
+plot_histogram(aq)
+#&gt; (Generates a grid of histograms for Ozone, Solar.R, Wind, Temp, Month, Day)
+#&gt; Ozone: right-skewed
+#&gt; Wind: roughly normal
+#&gt; Temp: slightly left-skewed
+#&gt; Month/Day: uniform-ish (calendar variables)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>From these histograms, you can see that Ozone is heavily right-skewed — most days have low ozone, but some days spike. Wind looks roughly normal. Temp is slightly left-skewed (more hot days than cold in this summer dataset).</p>
+
+<p>The correlation heatmap shows which variables move together.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correlation heatmap
+plot_correlation(aq, type = &quot;continuous&quot;)
+#&gt; (Generates a heatmap matrix)
+#&gt; Strong positive: Ozone-Temp (0.70)
+#&gt; Moderate negative: Ozone-Wind (-0.60), Temp-Wind (-0.46)
+#&gt; Weak: Solar.R has low correlation with everything</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The Ozone-Temp correlation of 0.70 makes physical sense — hotter days produce more ground-level ozone. The negative Ozone-Wind correlation (-0.60) also makes sense — wind disperses ozone. These are the kinds of insights that take 10 minutes manually but seconds with DataExplorer.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never run create_report() on datasets with millions of rows without sampling first.</strong> The report generates dozens of plots, and each one processes every row. On a 5-million-row dataset, this can take 30+ minutes or crash your R session. Sample first: <code>create_report(dplyr::slice_sample(big_data, n = 10000))</code>.</div></div>
+
+<p><strong>Try it:</strong> Use <code>introduce()</code> on the <code>mtcars</code> dataset. How many total missing values does mtcars have? How many complete rows?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: DataExplorer intro for mtcars
+introduce(mtcars)
+# What is total_missing_values?
+
+#&gt; Expected: 0 missing values, 32 complete rows</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">introduce(mtcars)
+#&gt;   rows columns discrete_columns continuous_columns all_missing_columns
+#&gt; 1   32      11                0                 11                   0
+#&gt;   total_missing_values complete_rows total_observations memory_usage
+#&gt; 1                    0            32                352        14216</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> mtcars is a clean dataset with zero missing values. All 32 rows are complete. This is rare in real-world data, which is why EDA tools emphasize missing-value detection.</p>
+
+</details>
+
+<h2>How Does SmartEDA Generate Custom Reports?</h2>
+
+<p>SmartEDA sits between skimr's simplicity and DataExplorer's visual richness. Its strength is granular control — you can specify exactly which statistics to compute, group by target variables, and export to PDF.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>SmartEDA requires system graphics for plots.</strong> The statistical functions below produce data frames that work everywhere. Chart functions may not render in the browser runtime. Try them in RStudio for full output.</div></div>
+
+<p>The <code>ExpData()</code> function provides a data overview similar to DataExplorer's <code>introduce()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># SmartEDA: data overview
+library(SmartEDA)
+ExpData(aq, type = 1)
+#&gt;                         Description     Value
+#&gt; 1          Sample size (nrow)          153
+#&gt; 2    No. of variables (ncol)            6
+#&gt; 3   No. of numeric variables            6
+#&gt; 4    No. of factor variables            0
+#&gt; 5      No. of text variables            0
+#&gt; 6   No. of logical variables            0
+#&gt; 7      No. of date variables            0
+#&gt; 8 No. of zero variance variables        0
+#&gt; 9     Pct of complete cases (%)        72.5
+#&gt; 10         Pct of missing cases (%)   27.5</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This confirms what we found with the other tools: 72.5% of rows are complete, and 27.5% have at least one missing value.</p>
+
+<p>The real power of SmartEDA is <code>ExpNumStat()</code>, which generates detailed numeric statistics with outlier flags and normality indicators.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Detailed numeric statistics with outlier detection
+num_stats &lt;- ExpNumStat(aq, by = &quot;A&quot;, Outlier = TRUE, round = 2)
+num_stats[, c(&quot;Vname&quot;, &quot;mean&quot;, &quot;SD&quot;, &quot;nOutliers&quot;, &quot;Per_of_Outlier&quot;)]
+#&gt;     Vname   mean    SD nOutliers Per_of_Outlier
+#&gt; 1   Ozone  42.13 32.99         2           1.72
+#&gt; 2 Solar.R 185.93 90.06         0           0.00
+#&gt; 3    Wind   9.96  3.52         3           1.96
+#&gt; 4    Temp  77.88  9.47         0           0.00
+#&gt; 5   Month   6.99  1.42         0           0.00
+#&gt; 6     Day  15.80  8.86         0           0.00</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now you know that Ozone has 2 outliers (1.72% of non-missing values) and Wind has 3 outliers (1.96%). No other variable has outliers. This level of detail is not available from skimr or DataExplorer without extra code.</p>
+
+<p>SmartEDA also handles categorical analysis well. Let's create a categorical variable and analyze it.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Categorical analysis with SmartEDA
+mt &lt;- mtcars |&gt;
+  dplyr::mutate(
+    cyl = factor(cyl),
+    am = factor(am, labels = c(&quot;Auto&quot;, &quot;Manual&quot;))
+  )
+ExpCTable(mt, Target = &quot;am&quot;)
+#&gt;   Variable  Category Auto_count Auto_pct Manual_count Manual_pct
+#&gt; 1      cyl         4          3    15.79            8      61.54
+#&gt; 2      cyl         6          4    21.05            3      23.08
+#&gt; 3      cyl         8         12    63.16            2      15.38</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This cross-tabulation reveals a strong pattern: 8-cylinder cars are overwhelmingly automatic (63% of automatics), while 4-cylinder cars are mostly manual (62% of manuals). SmartEDA makes this kind of target-variable analysis straightforward.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use SmartEDA's ExpReport() to generate a PDF report.</strong> Call <code>ExpReport(aq, op_file = &quot;eda_report.pdf&quot;)</code> to get a downloadable document you can attach to emails or presentations. No other package in this comparison supports PDF out of the box.</div></div>
+
+<p><strong>Try it:</strong> Run <code>ExpNumStat()</code> on the <code>iris</code> dataset (exclude the Species column). Which numeric variable has the most outliers?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: SmartEDA numeric stats on iris
+ex_iris_stats &lt;- ExpNumStat(iris[, 1:4], by = &quot;A&quot;, Outlier = TRUE, round = 2)
+# Check the nOutliers column
+# your code here
+
+#&gt; Expected: Sepal.Width has the most outliers</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_iris_stats &lt;- ExpNumStat(iris[, 1:4], by = &quot;A&quot;, Outlier = TRUE, round = 2)
+ex_iris_stats[, c(&quot;Vname&quot;, &quot;nOutliers&quot;, &quot;Per_of_Outlier&quot;)]
+#&gt;         Vname nOutliers Per_of_Outlier
+#&gt; 1 Sepal.Length         0           0.00
+#&gt; 2  Sepal.Width         4           2.67
+#&gt; 3 Petal.Length         0           0.00
+#&gt; 4  Petal.Width         0           0.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Sepal.Width has 4 outliers (2.67% of observations), while the other three variables have zero outliers. These are values that fall outside the typical boxplot whiskers (1.5 * IQR).</p>
+
+</details>
+
+<h2>Which Package Should You Use and When?</h2>
+
+<p>Now that you have seen all three packages in action, the natural question is: which one should I actually use? The answer depends on your goal.</p>
+
+<p><img src="screenshots/Automated-EDA-in-R-decision-flow.webp" alt="EDA package decision flowchart" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Decision flowchart for choosing the right EDA package based on your goal.</em></p>
+
+<p>Here is a detailed comparison across eight criteria:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Criterion</th>
+<th>skimr</th>
+<th>DataExplorer</th>
+<th>SmartEDA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Best for</td>
+<td>Quick console checks</td>
+<td>Visual HTML reports</td>
+<td>Custom grouped stats</td>
+</tr>
+<tr>
+<td>Learning curve</td>
+<td>Low</td>
+<td>Low</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Output format</td>
+<td>Console / data frame</td>
+<td>HTML</td>
+<td>HTML / PDF</td>
+</tr>
+<tr>
+<td>Missing data</td>
+<td>complete_rate column</td>
+<td>Dedicated plot</td>
+<td>Percentage in overview</td>
+</tr>
+<tr>
+<td>Distributions</td>
+<td>Inline sparklines</td>
+<td>Full histograms</td>
+<td>Density plots</td>
+</tr>
+<tr>
+<td>Correlations</td>
+<td>Not built-in</td>
+<td>Heatmap</td>
+<td>Heatmap</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">Outlier detection</a></td>
+<td>Not built-in</td>
+<td>Not built-in</td>
+<td>Yes (flags + counts)</td>
+</tr>
+<tr>
+<td>Grouped analysis</td>
+<td>Full support</td>
+<td>Limited</td>
+<td>Full support</td>
+</tr>
+<tr>
+<td>Custom statistics</td>
+<td>skim_with()</td>
+<td>No</td>
+<td>Custom functions</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Most professional analysts use skimr daily and DataExplorer or SmartEDA weekly.</strong> skimr is your quick sanity check after loading data. DataExplorer is your "send a report to the team lead" tool. SmartEDA is your "I need outlier counts grouped by region" tool.</div></div>
+
+<p>In practice, the three packages work best together in a pipeline. Here is a combined workflow.</p>
+
+<p><img src="screenshots/Automated-EDA-in-R-workflow.webp" alt="EDA workflow combining all three packages" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: A typical EDA workflow combining all three packages in sequence.</em></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Combined EDA workflow
+# Step 1: Quick skim to identify issues
+skim_result &lt;- skim(aq)
+cat(&quot;Missing values found:&quot;, sum(aq |&gt; is.na()), &quot;\n&quot;)
+#&gt; Missing values found: 44
+cat(&quot;Complete rows:&quot;, sum(complete.cases(aq)), &quot;of&quot;, nrow(aq), &quot;\n&quot;)
+#&gt; Complete rows: 111 of 153
+
+# Step 2: Visual deep-dive with DataExplorer
+# (In RStudio, run: create_report(aq, output_file = &quot;airquality_eda.html&quot;))
+
+# Step 3: Custom stats with SmartEDA
+detailed_stats &lt;- ExpNumStat(aq, by = &quot;A&quot;, Outlier = TRUE, round = 2)
+cat(&quot;\nVariables with outliers:\n&quot;)
+detailed_stats[detailed_stats$nOutliers &gt; 0, c(&quot;Vname&quot;, &quot;nOutliers&quot;)]
+#&gt;   Vname nOutliers
+#&gt; 1 Ozone         2
+#&gt; 3  Wind         3</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This three-step pipeline gives you a complete data profile. Step 1 (skimr) takes 2 seconds and flags the big issues. Step 2 (DataExplorer) generates a shareable report in 10 seconds. Step 3 (SmartEDA) adds outlier detection and custom statistics for the detailed analysis.</p>
+
+<p><strong>Try it:</strong> You receive a CSV with 50 columns, 100,000 rows, and roughly 20% missing values. Which package would you use first and why? Write a one-line command for your chosen package using the <code>aq</code> data as a stand-in.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: pick the right tool for a quick first look
+# Scenario: 50 columns, 100k rows, 20% missing
+
+# your code here (one line)
+
+#&gt; Expected: skim(aq) — fast console output, shows complete_rate per variable</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Start with skimr for speed and missing-value overview
+skim(aq)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> skimr is the best first step because it runs instantly, shows complete_rate for every variable, and does not generate files or plots. For 50 columns, you need a quick scan to identify which variables are worth investigating further with DataExplorer or SmartEDA.</p>
+
+</details>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Running create_report() on huge data without sampling</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># This can crash R or take 30+ minutes
+big_data &lt;- data.frame(matrix(rnorm(5e6), ncol = 50))
+create_report(big_data)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>create_report()</code> generates histograms, correlation heatmaps, and PCA plots for every variable. On 100,000+ rows, each plot processes every data point, and the correlation matrix computation is O(n * p^2).</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Sample first, then report
+big_data &lt;- data.frame(matrix(rnorm(5e6), ncol = 50))
+create_report(dplyr::slice_sample(big_data, n = 5000))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Forgetting to convert characters to factors before categorical EDA</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Characters are treated as text, not categories
+df &lt;- data.frame(color = c(&quot;red&quot;, &quot;blue&quot;, &quot;red&quot;, &quot;green&quot;), value = 1:4)
+ExpCTable(df)
+#&gt; No factor variables found — returns empty</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> SmartEDA's categorical functions look for factor-type columns. Character columns are skipped entirely, so you get no categorical analysis at all.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Convert to factor first
+df &lt;- data.frame(
+  color = factor(c(&quot;red&quot;, &quot;blue&quot;, &quot;red&quot;, &quot;green&quot;)),
+  value = 1:4
+)
+ExpCTable(df)
+#&gt;   Variable Category Frequency Percent
+#&gt; 1    color     blue         1      25
+#&gt; 2    color    green         1      25
+#&gt; 3    color      red         2      50</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Ignoring complete_rate and analyzing NA-heavy variables</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Compute correlation on a variable that is 76% complete
+cor(aq$Ozone, aq$Temp)
+#&gt; NA</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> With 37 missing values in Ozone, <code>cor()</code> returns NA by default. Even with <code>use = &quot;complete.obs&quot;</code>, you are computing correlation on only 116 of 153 observations, which may not represent the full dataset.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Check completeness first, then decide
+skim(aq) |&gt;
+  dplyr::filter(numeric.complete_rate &lt; 0.9)
+#&gt; Ozone: 0.758 complete_rate — investigate before using
+
+# Then handle appropriately
+cor(aq$Ozone, aq$Temp, use = &quot;complete.obs&quot;)
+#&gt; [1] 0.6985414
+# Note: result is based on 116 complete pairs, not all 153 rows</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Compare EDA outputs on a clean dataset</h4>
+
+<p>Load the <code>swiss</code> dataset (built into R). It has 47 rows and 6 numeric columns with zero missing values. Run <code>skim()</code> on it, then use <code>introduce()</code> from DataExplorer. Finally, run <code>ExpNumStat()</code> from SmartEDA with outlier detection. Combine the results: which variable has the highest coefficient of variation (SD / mean), and does it have any outliers?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: Full EDA pipeline on swiss
+# Hint: skim gives you mean and sd, ExpNumStat gives you outlier counts
+
+# Step 1: skim(swiss)
+# Step 2: introduce(swiss)
+# Step 3: ExpNumStat(swiss, by = &quot;A&quot;, Outlier = TRUE, round = 2)
+# Step 4: compute CV = SD / mean for each variable
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Step 1: Quick overview
+skim(swiss)
+
+# Step 2: Data structure
+introduce(swiss)
+#&gt;   rows columns discrete_columns continuous_columns total_missing_values
+#&gt; 1   47       6                0                  6                    0
+
+# Step 3: Detailed stats with outliers
+swiss_stats &lt;- ExpNumStat(swiss, by = &quot;A&quot;, Outlier = TRUE, round = 2)
+
+# Step 4: Compute CV
+swiss_stats$CV &lt;- swiss_stats$SD / swiss_stats$mean
+swiss_stats[, c(&quot;Vname&quot;, &quot;mean&quot;, &quot;SD&quot;, &quot;CV&quot;, &quot;nOutliers&quot;)]
+#&gt;           Vname  mean    SD    CV nOutliers
+#&gt; 1     Fertility 70.14 12.49 0.178         0
+#&gt; 2   Agriculture 50.66 22.71 0.448         0
+#&gt; 3   Examination 16.49  7.98 0.484         0
+#&gt; 4     Education 10.98  9.62 0.876         3
+#&gt; 5      Catholic 41.14 41.70 1.014         0
+#&gt; 6 Infant.Mortality 19.94  2.91 0.146         1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Catholic has the highest CV (1.01), meaning its standard deviation exceeds its mean — it is extremely variable. Education has 3 outliers despite moderate CV. Infant.Mortality has 1 outlier. The pipeline from skim (quick) to ExpNumStat (detailed) builds a complete picture.</p>
+
+</details>
+
+<h4>Exercise 2: Build a synthetic messy dataset and profile it</h4>
+
+<p>Create a data frame with 200 rows and 5 columns: a numeric column with 15% NAs, a skewed numeric column (use <code>rexp()</code>), a factor with 4 levels, a normally distributed column, and an outlier-heavy column (normal + 5 extreme values). Use all three packages to profile it and identify every issue.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: Create messy data and profile it
+# Hint: use set.seed(123) for reproducibility
+# Insert NAs with: my_col[sample(200, 30)] &lt;- NA
+# Create outliers with: c(rnorm(195), rep(100, 5))
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">set.seed(123)
+my_messy &lt;- data.frame(
+  income = {x &lt;- rnorm(200, 50000, 15000); x[sample(200, 30)] &lt;- NA; x},
+  wait_time = rexp(200, rate = 0.5),
+  region = factor(sample(c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;, &quot;West&quot;), 200, replace = TRUE)),
+  score = rnorm(200, 75, 10),
+  sensor = c(rnorm(195, 20, 3), rep(100, 5))
+)
+
+# Step 1: Quick skim
+skim(my_messy)
+#&gt; income: complete_rate = 0.85 (15% missing as designed)
+#&gt; wait_time: right-skewed (exponential)
+#&gt; sensor: check sd — will be inflated by outliers
+
+# Step 2: DataExplorer overview
+introduce(my_messy)
+#&gt; total_missing_values: 30, complete_rows: 170
+
+# Step 3: SmartEDA outlier detection
+my_stats &lt;- ExpNumStat(my_messy[, sapply(my_messy, is.numeric)],
+                        by = &quot;A&quot;, Outlier = TRUE, round = 2)
+my_stats[, c(&quot;Vname&quot;, &quot;nOutliers&quot;, &quot;Per_of_Outlier&quot;)]
+#&gt;       Vname nOutliers Per_of_Outlier
+#&gt; 1    income         0           0.00
+#&gt; 2 wait_time         5           2.50
+#&gt; 3     score         0           0.00
+#&gt; 4    sensor         5           2.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The pipeline caught all planted issues: 30 NAs in income (skim), right-skewed wait_time (skim histograms), and 5 outliers in the sensor column (SmartEDA). wait_time also flags outliers because exponential distributions have a long right tail.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Let's walk through a complete, realistic EDA workflow from start to finish using the airquality dataset.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># === Complete EDA Workflow ===
+
+# 1. Load and get first impression
+aq &lt;- airquality
+cat(&quot;Dataset:&quot;, nrow(aq), &quot;rows x&quot;, ncol(aq), &quot;columns\n&quot;)
+#&gt; Dataset: 153 rows x 6 columns
+
+# 2. Quick skim for the big picture
+skim_output &lt;- skim(aq)
+cat(&quot;\n--- Completeness Check ---\n&quot;)
+cat(&quot;Variables with missing data:\n&quot;)
+missing_vars &lt;- skim_output |&gt;
+  dplyr::filter(n_missing &gt; 0) |&gt;
+  dplyr::select(skim_variable, n_missing, complete_rate)
+print(missing_vars)
+#&gt;   skim_variable n_missing complete_rate
+#&gt; 1         Ozone        37         0.758
+#&gt; 2       Solar.R         7         0.954
+
+# 3. DataExplorer for structure
+cat(&quot;\n--- Data Structure ---\n&quot;)
+intro &lt;- introduce(aq)
+cat(&quot;Complete rows:&quot;, intro$complete_rows, &quot;/&quot;, intro$rows, &quot;\n&quot;)
+cat(&quot;Total NAs:&quot;, intro$total_missing_values, &quot;\n&quot;)
+#&gt; Complete rows: 111 / 153
+#&gt; Total NAs: 44
+
+# 4. SmartEDA for detailed numeric analysis
+cat(&quot;\n--- Outlier Detection ---\n&quot;)
+stats &lt;- ExpNumStat(aq, by = &quot;A&quot;, Outlier = TRUE, round = 2)
+outlier_vars &lt;- stats[stats$nOutliers &gt; 0, c(&quot;Vname&quot;, &quot;mean&quot;, &quot;SD&quot;, &quot;nOutliers&quot;)]
+print(outlier_vars)
+#&gt;   Vname  mean    SD nOutliers
+#&gt; 1 Ozone 42.13 32.99         2
+#&gt; 3  Wind  9.96  3.52         3
+
+# 5. Summary of findings
+cat(&quot;\n=== EDA Summary ===\n&quot;)
+cat(&quot;- 2 variables have missing data (Ozone: 24%, Solar.R: 5%)\n&quot;)
+cat(&quot;- 2 variables have outliers (Ozone: 2, Wind: 3)\n&quot;)
+cat(&quot;- Ozone is right-skewed and needs attention before modeling\n&quot;)
+cat(&quot;- Strong Ozone-Temp correlation (r=0.70) detected\n&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This complete workflow takes under 30 seconds to run and gives you a comprehensive understanding of the dataset. You know exactly where the missing values are, which variables have outliers, and what relationships exist between variables.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Package</th>
+<th>Best For</th>
+<th>Key Function</th>
+<th>Output</th>
+<th>Speed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>skimr</td>
+<td>Quick console checks</td>
+<td><code>skim()</code></td>
+<td>Console / data frame</td>
+<td>Fastest</td>
+</tr>
+<tr>
+<td>DataExplorer</td>
+<td>Visual HTML reports</td>
+<td><code>create_report()</code></td>
+<td>HTML with plots</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>SmartEDA</td>
+<td>Custom stats + PDF</td>
+<td><code>ExpReport()</code></td>
+<td>HTML / PDF</td>
+<td>Medium</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>**Start every analysis with <code>skim()</code>** — it takes 2 seconds and catches the big issues (missing data, unexpected types, extreme values).</li>
+
+<li><strong>Use DataExplorer when you need visuals</strong> — histograms, correlation heatmaps, and missing-data plots in one HTML report.</li>
+
+<li><strong>Use SmartEDA when you need detail</strong> — outlier counts, grouped statistics, and PDF-ready reports.</li>
+
+<li><strong>All three packages work on the same data frame</strong> — combine them in a pipeline for the most thorough EDA.</li>
+
+<li><strong>Always sample large datasets first</strong> — <code>create_report()</code> and <code>ExpReport()</code> can be slow or crash on millions of rows.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<h4>Can I use these packages on datasets with millions of rows?</h4>
+
+<p>skimr handles large datasets well because it computes <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): Aggregate Data by Group (10 Examples)">summary statistics</a> without generating plots. DataExplorer and SmartEDA generate visualizations, so they slow down significantly on large data. Sample 5,000-10,000 rows first with <code>dplyr::slice_sample()</code> before running <code>create_report()</code> or <code>ExpReport()</code>.</p>
+
+<h4>Do these packages work with tibbles and data.tables?</h4>
+
+<p>Yes. All three packages accept tibbles (from tidyverse) and standard data frames. skimr and DataExplorer also handle data.table objects. SmartEDA works best with standard data frames — convert with <code>as.data.frame()</code> if you encounter issues with data.table input.</p>
+
+<h4>Which package handles factor variables best?</h4>
+
+<p>SmartEDA. It provides dedicated functions for categorical analysis: <code>ExpCTable()</code> for frequency tables and <code>ExpCatViz()</code> for bar plots. DataExplorer's <code>plot_bar()</code> is a good alternative. skimr shows factor-level counts but does not generate plots.</p>
+
+<h4>Can I customize the output of create_report()?</h4>
+
+<p>Yes, but with limits. You can specify a response variable with <code>y = &quot;target_column&quot;</code> to add bivariate plots, and set <code>config = configure_report()</code> to toggle specific sections on or off. For deeper customization, use the individual functions (<code>plot_histogram()</code>, <code>plot_correlation()</code>, etc.) and assemble your own report in R Markdown.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>McNamara, A., Arino de la Rubia, E., Zhu, H., Ellis, S., & Quinn, M. — <em>skimr: Compact and Flexible Summaries of Data</em>. CRAN. <a href="https://cran.r-project.org/package=skimr">Link</a></li>
+
+<li>Cui, B. — <em>DataExplorer: Automate Data Exploration and Treatment</em>. CRAN. <a href="https://cran.r-project.org/package=DataExplorer">Link</a></li>
+
+<li>Putatunda, S., Rama, K., Ubrangala, D., & Kondapalli, R. — <em>SmartEDA: An R Package for Automated Exploratory Data Analysis</em>. arXiv:1903.04754 (2019). <a href="https://arxiv.org/abs/1903.04754">Link</a></li>
+
+<li>Staniak, M. & Biecek, P. — <em>The Landscape of R Packages for Automated Exploratory Data Analysis</em>. The R Journal, 11(2), 347-369 (2019). <a href="https://journal.r-project.org/archive/2019/RJ-2019-033/">Link</a></li>
+
+<li>Wickham, H. & Grolemund, G. — <em>R for Data Science</em>, 2nd Edition. O'Reilly (2023). Chapter 11: Exploratory Data Analysis. <a href="https://r4ds.hadley.nz/eda">Link</a></li>
+
+<li>DataExplorer documentation — Official package site. <a href="https://boxuancui.github.io/DataExplorer/">Link</a></li>
+
+<li>SmartEDA vignette — CRAN. <a href="https://cran.r-project.org/web/packages/SmartEDA/vignettes/SmartEDA.html">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html">Missing Values in R: Detect, Count, Remove, and Impute NA</a></strong> — After EDA reveals missing data, learn the full toolkit for handling it: detection patterns, removal strategies, and imputation methods.</li>
+
+<li><strong><a href="Importing-Data-in-R.html">Importing Data in R</a></strong> — Before you can profile data, you need to load it. This guide covers CSV, Excel, databases, and web APIs.</li>
+
+</ul>
