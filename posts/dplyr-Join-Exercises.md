@@ -14,7 +14,6 @@ auto_link_case_sensitive: false
 fr_parent: "R-Joins.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; dplyr &gt; dplyr join() Exercises</nav>
 
 # dplyr join() Exercises: 10 Left, Right, Inner & Full Join Problems
 

@@ -15,7 +15,6 @@ sidebar_title: "Writing R Functions"
 sidebar_order: 10
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; Writing R Functions</nav>
 
 # Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise
 

@@ -14,7 +14,6 @@ auto_link_case_sensitive: false
 fr_parent: "dplyr-filter-select.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; dplyr &gt; data.table Exercises</nav>
 
 # data.table Exercises: 12 High-Performance Data Manipulation Problems
 

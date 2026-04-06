@@ -14,7 +14,6 @@ auto_link_case_sensitive: false
 fr_parent: "Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; tidyr &gt; Missing Data Exercises</nav>
 
 # Missing Data in R Exercises: 10 NA Detection & Imputation Problems
 

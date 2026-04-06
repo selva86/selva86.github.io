@@ -13,7 +13,6 @@ post_type: "FR"
 fr_parent: "pivot_longer-pivot_wider-Reshape-Data-in-R.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; tidyr &gt; tidyr expand() and complete()</nav>
 
 # tidyr expand() & complete() in R: Make Implicit Missing Values Explicit
 

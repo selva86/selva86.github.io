@@ -15,7 +15,6 @@ sidebar_title: "R Control Flow"
 sidebar_order: 9
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; R Control Flow</nav>
 
 # R Control Flow: if/else, for, while — Stop Avoiding Loops
 

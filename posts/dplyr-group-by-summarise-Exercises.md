@@ -14,7 +14,6 @@ auto_link_case_sensitive: false
 fr_parent: "dplyr-group-by-summarise.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; dplyr &gt; dplyr group_by() &amp; summarise() Exercises</nav>
 
 # dplyr group_by() & summarise() Exercises: 10 Aggregation Problems
 

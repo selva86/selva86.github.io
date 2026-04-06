@@ -15,7 +15,6 @@ sidebar_title: "Missing Values (NA)"
 sidebar_order: 10
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; tidyr &gt; Missing Values in R</nav>
 
 # Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook
 

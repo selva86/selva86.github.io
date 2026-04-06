@@ -15,7 +15,6 @@ sidebar_title: "pivot_longer & pivot_wider"
 sidebar_order: 9
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; tidyr &gt; pivot_longer() and pivot_wider()</nav>
 
 # pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind
 

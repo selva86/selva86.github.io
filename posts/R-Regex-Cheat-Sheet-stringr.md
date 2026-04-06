@@ -13,7 +13,6 @@ auto_link_case_sensitive: false
 fr_parent: "stringr-in-R.html"
 ---
 
-<nav class="breadcrumb-nav">Home > Data Wrangling > String & Date Manipulation > R Regex Cheat Sheet</nav>
 
 # R Regex Cheat Sheet: 30 Patterns With stringr Examples — Copy and Paste
 

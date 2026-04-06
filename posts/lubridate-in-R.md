@@ -15,7 +15,6 @@ sidebar_title: "lubridate"
 sidebar_order: 12
 ---
 
-<nav class="breadcrumb-nav">Home > Data Wrangling > String & Date Manipulation > lubridate in R</nav>
 
 # lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever
 

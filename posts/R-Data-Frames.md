@@ -15,7 +15,6 @@ sidebar_title: "R Data Frames"
 sidebar_order: 7
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; R Data Frames</nav>
 
 # R Data Frames: Every Operation You'll Actually Need
 

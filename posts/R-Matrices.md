@@ -13,7 +13,6 @@ auto_link_case_sensitive: false
 fr_parent: "R-Data-Frames.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Further Reading &gt; R Matrices</nav>
 
 # R Matrices: Fast Linear Algebra Data Frames Can't Do
 

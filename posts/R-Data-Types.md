@@ -15,7 +15,6 @@ sidebar_title: "R Data Types"
 sidebar_order: 5
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; R Data Types</nav>
 
 # R Data Types: Which Type Is Your Variable?
 

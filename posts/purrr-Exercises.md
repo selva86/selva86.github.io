@@ -14,7 +14,6 @@ auto_link_case_sensitive: false
 fr_parent: "Functional-Programming-in-R.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Functional Programming &gt; purrr Exercises</nav>
 
 # purrr Exercises: 10 Functional Programming Practice Problems
 

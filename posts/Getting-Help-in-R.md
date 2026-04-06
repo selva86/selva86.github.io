@@ -15,7 +15,6 @@ sidebar_title: "Getting Help in R"
 sidebar_order: 12
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; Getting Help in R</nav>
 
 # Stuck in R? 6 Ways to Get Unstuck Fast
 

@@ -13,7 +13,6 @@ auto_link_case_sensitive: false
 fr_parent: "stringr-in-R.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; Further Reading &gt; R Regular Expressions with stringr</nav>
 
 # R Regular Expressions: Pattern Matching with stringr (20 Examples)
 

@@ -15,7 +15,6 @@ sidebar_title: "R Lists"
 sidebar_order: 8
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; R Lists</nav>
 
 # R Lists: When Data Frames Aren't Flexible Enough
 

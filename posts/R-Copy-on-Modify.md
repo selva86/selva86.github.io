@@ -13,7 +13,6 @@ auto_link_case_sensitive: false
 fr_parent: "R-Data-Types.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Further Reading &gt; R Copy-on-Modify</nav>
 
 # Why R Copies Your Data: Copy-on-Modify Explained
 

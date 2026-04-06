@@ -15,7 +15,6 @@ sidebar_title: "Web Scraping (rvest)"
 sidebar_order: 15
 ---
 
-<nav class="breadcrumb-nav">Home > Data Wrangling > Databases & Web > Web Scraping in R with rvest</nav>
 
 # Web Scraping in R with rvest: Extract Any Table or Text in 10 Minutes
 

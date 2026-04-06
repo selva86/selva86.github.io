@@ -15,7 +15,6 @@ sidebar_title: "DBI & Databases"
 sidebar_order: 13
 ---
 
-<nav class="breadcrumb-nav">Home > Data Wrangling > Connecting R to Databases > Connect R to Any Database</nav>
 
 # Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL
 

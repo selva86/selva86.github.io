@@ -15,7 +15,6 @@ sidebar_title: "REST APIs (httr2)"
 sidebar_order: 16
 ---
 
-<nav class="breadcrumb-nav">Home > Data Wrangling > Databases & Web > REST APIs in R with httr2</nav>
 
 # REST APIs in R with httr2: GET, POST, OAuth, and Paginated Results
 

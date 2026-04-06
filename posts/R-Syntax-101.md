@@ -15,7 +15,6 @@ sidebar_title: "R Syntax 101"
 sidebar_order: 4
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; R Syntax 101</nav>
 
 # R Syntax 101: Write Your First Working Script in 10 Minutes
 

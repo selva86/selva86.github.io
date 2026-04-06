@@ -14,7 +14,6 @@ auto_link_case_sensitive: false
 fr_parent: "pivot_longer-pivot_wider-Reshape-Data-in-R.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; tidyr &gt; tidyr Reshaping Exercises</nav>
 
 # tidyr Reshaping Exercises: 10 pivot_longer & pivot_wider Problems
 

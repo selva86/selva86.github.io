@@ -15,7 +15,6 @@ sidebar_title: "R Vectors"
 sidebar_order: 6
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; R Vectors</nav>
 
 # R Vectors: The Foundation of Everything in R
 

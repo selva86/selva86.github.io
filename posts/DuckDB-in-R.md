@@ -15,7 +15,6 @@ sidebar_title: "DuckDB & duckplyr"
 sidebar_order: 14
 ---
 
-<nav class="breadcrumb-nav">Home > Data Wrangling > Connecting R to Databases > DuckDB in R</nav>
 
 # DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds
 

@@ -15,7 +15,6 @@ sidebar_title: "stringr"
 sidebar_order: 11
 ---
 
-<nav class="breadcrumb-nav">Home > Data Wrangling > String & Date Manipulation > stringr in R</nav>
 
 # stringr in R: 15 Functions That Handle Every String Task You'll Actually Encounter
 

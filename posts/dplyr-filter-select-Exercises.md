@@ -14,7 +14,6 @@ auto_link_case_sensitive: false
 fr_parent: "dplyr-filter-select.html"
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Data Wrangling &gt; dplyr &gt; dplyr filter() &amp; select() Exercises</nav>
 
 # dplyr filter() & select() Exercises: 12 Practice Problems
 

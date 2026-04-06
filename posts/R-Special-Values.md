@@ -15,7 +15,6 @@ sidebar_title: "R Special Values"
 sidebar_order: 11
 ---
 
-<nav class="breadcrumb-nav">Home &gt; Learn R &gt; Fundamentals &gt; R Special Values</nav>
 
 # R's Four Special Values: NA, NULL, NaN, Inf
 

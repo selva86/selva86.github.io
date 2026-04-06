@@ -13,7 +13,6 @@ auto_link_case_sensitive: false
 fr_parent: "lubridate-in-R.html"
 ---
 
-<nav class="breadcrumb-nav">Home > Data Wrangling > String & Date Manipulation > lubridate Cheat Sheet</nav>
 
 # lubridate Cheat Sheet: Parse, Extract, Modify, and Do Arithmetic on Dates
 
