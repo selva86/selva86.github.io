@@ -1,0 +1,1398 @@
+---
+title: "ggplot2 Scales: Control Every Axis, Colour, and Size — The Full Reference"
+description: "Scales control how data maps to visuals in ggplot2. Master scale_x_log10(), scale_color_brewer(), scale_fill_manual(), axis limits, breaks, and labels."
+keywords: "ggplot2 scales, scale_x_continuous, scale_color_brewer, scale_fill_manual, scale_x_log10, ggplot2 axis limits, ggplot2 breaks labels, ggplot2 color scale, ggplot2 size scale, expand ggplot2"
+mathjax: false
+webr: true
+curriculum_id: "1.3.9"
+post_type: "C"
+auto_link_terms: "ggplot2 scales|scale_x_continuous()|scale_color_brewer()|scale_fill_manual()|scale_x_log10()|ggplot2 axis scale|scale_y_continuous()"
+auto_link_case_sensitive: true
+sidebar_section: "Visualization"
+sidebar_title: "ggplot2 Scales"
+sidebar_order: "6"
+---
+<!-- md2html:generated -->
+
+<h1>ggplot2 Scales: Control Every Axis, Colour, and Size — The Full Reference</h1>
+
+<p class="lead">Scales control how ggplot2 maps data values to visual properties like position, colour, size, and transparency. Mastering them gives you complete control over every axis, legend, and colour palette in your plots.</p>
+
+<h2>Introduction</h2>
+
+<p>Every time you write <code>aes(x = ..., y = ...)</code>, ggplot2 silently picks a default scale behind the scenes. Most of the time, those defaults work fine. But when you need log-transformed axes, custom colour palettes, formatted currency labels, or exact axis limits, you need to take control of scales yourself.</p>
+
+<p>Scales are the bridge between your data and the visual output. They translate a numeric column into an x-axis position, a factor column into a colour, or a continuous variable into point size. Every aesthetic you map inside <code>aes()</code> has a corresponding scale, whether you see it or not.</p>
+
+<p>In this tutorial, you will learn the scale naming convention, position scales for continuous and discrete axes, log and sqrt transformations, colour and fill scales (Brewer, manual, gradient, viridis), size and alpha scales, and the shared components that all scales have in common: breaks, labels, limits, and expand. All code runs directly in your browser — no setup required.</p>
+
+<p><img src="screenshots/ggplot2-Scales-overview-mindmap.webp" alt="ggplot2 scales overview" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: The four families of ggplot2 scales and their shared components.</em></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load libraries (persists for all code blocks)
+library(ggplot2)
+library(scales)
+
+# Base scatter plot we'll reuse throughout
+p_base &lt;- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(size = 3)
+p_base
+#&gt; (scatter plot of weight vs fuel efficiency)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This base plot uses the default scales for both axes. Every section below shows you how to override those defaults.</p>
+
+<h2>How Does the ggplot2 Scale Naming Convention Work?</h2>
+
+<p>Every scale function in ggplot2 follows a three-part naming pattern: <code>scale_</code> + the aesthetic name + the scale type. Once you know this pattern, you can guess the right function for any situation without looking it up.</p>
+
+<p>For example, <code>scale_x_continuous()</code> controls a continuous x-axis. <code>scale_color_brewer()</code> applies a Brewer palette to the colour aesthetic. <code>scale_fill_manual()</code> lets you hand-pick fill colours.</p>
+
+<p><img src="screenshots/ggplot2-Scales-naming-convention.webp" alt="Scale naming convention" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Every scale function follows the scale_ + aesthetic_ + type pattern.</em></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># The default plot adds scales implicitly
+# These two plots are identical:
+p_implicit &lt;- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point()
+
+p_explicit &lt;- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  scale_x_continuous() +
+  scale_y_continuous()
+
+# Both produce the same output
+p_explicit
+#&gt; (same scatter plot as before — explicit scales match the defaults)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The explicit version does nothing new here, but it shows you exactly where to plug in customisations. Every argument you pass to <code>scale_x_continuous()</code> — breaks, labels, limits, expand — overrides the defaults.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The naming convention is your cheat sheet.</strong> If you know the aesthetic (x, y, color, fill, size, alpha) and the data type (continuous, discrete, manual, brewer, log10), you can construct the function name: <code>scale_color_viridis_d()</code>, <code>scale_y_log10()</code>, <code>scale_fill_gradient2()</code>. No memorisation needed.</div></div>
+
+<p>The most common aesthetics are <code>x</code>, <code>y</code>, <code>color</code> (or <code>colour</code>), <code>fill</code>, <code>size</code>, and <code>alpha</code>. The most common types are <code>continuous</code>, <code>discrete</code>, <code>manual</code>, <code>brewer</code>, <code>log10</code>, <code>sqrt</code>, <code>reverse</code>, <code>gradient</code>, <code>gradient2</code>, and <code>viridis_c</code>/<code>viridis_d</code>.</p>
+
+<p><strong>Try it:</strong> What scale function would you use to apply a manual colour palette to the <code>color</code> aesthetic? Write it as a call with <code>values = c(&quot;red&quot;, &quot;blue&quot;)</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: write the correct scale function
+ex_plot &lt;- ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
+  geom_point(size = 3)
+  # Add the correct scale function here
+
+# Test: add your scale to ex_plot
+ex_plot
+#&gt; Expected: scatter with red and blue points (plus a third colour for 3 levels)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_plot &lt;- ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c(&quot;red&quot;, &quot;blue&quot;, &quot;darkgreen&quot;))
+ex_plot
+#&gt; (scatter plot with three custom colours for 4, 6, and 8 cylinders)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale_color_manual()</code> follows the pattern: scale_ + color_ + manual. You need one colour per factor level (mtcars has 3 cylinder groups).</p>
+
+</details>
+
+<h2>How Do You Customise Position Scales for Continuous and Discrete Axes?</h2>
+
+<p>Position scales control the x-axis and y-axis. For numeric data, you use <code>scale_x_continuous()</code> and <code>scale_y_continuous()</code>. For categorical data, you use <code>scale_x_discrete()</code> and <code>scale_y_discrete()</code>. Both share the same core arguments: <code>breaks</code>, <code>labels</code>, <code>limits</code>, and <code>expand</code>.</p>
+
+<p>Let's start with continuous axes. The <code>breaks</code> argument sets where tick marks appear. The <code>labels</code> argument controls what text is printed at each tick. The <code>limits</code> argument defines the axis range.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Custom breaks, labels, and limits on the y-axis
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(size = 3) +
+  scale_y_continuous(
+    name = &quot;Fuel Efficiency (miles per gallon)&quot;,
+    breaks = seq(10, 35, by = 5),
+    limits = c(10, 35)
+  ) +
+  scale_x_continuous(
+    name = &quot;Weight (1000 lbs)&quot;,
+    breaks = seq(1, 6, by = 1)
+  )
+#&gt; (scatter plot with clean 5-unit y-axis ticks from 10 to 35)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>breaks</code> argument accepts a numeric vector or a function. The <code>labels</code> argument can be a character vector (same length as breaks) or a labelling function from the scales package.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Format labels as dollar amounts (hypothetical price data)
+price_data &lt;- data.frame(
+  item = c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;, &quot;E&quot;),
+  price = c(1200, 4500, 800, 6700, 3200)
+)
+
+ggplot(price_data, aes(x = item, y = price)) +
+  geom_col(fill = &quot;steelblue&quot;) +
+  scale_y_continuous(
+    labels = label_dollar(),
+    breaks = seq(0, 7000, by = 1000)
+  )
+#&gt; (bar chart with y-axis labels like $0, $1,000, $2,000, ...)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>For discrete axes, you can reorder and relabel categories directly in the scale.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Reorder and relabel discrete axis
+ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
+  geom_boxplot(fill = &quot;lightblue&quot;) +
+  scale_x_discrete(
+    limits = c(&quot;4&quot;, &quot;6&quot;, &quot;8&quot;),
+    labels = c(&quot;4&quot; = &quot;Four&quot;, &quot;6&quot; = &quot;Six&quot;, &quot;8&quot; = &quot;Eight&quot;)
+  ) +
+  labs(x = &quot;Cylinders&quot;)
+#&gt; (boxplot with relabelled x-axis: Four, Six, Eight)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>expand</code> argument controls the padding between your data and the axis edges. By default, ggplot2 adds 5% padding on each side for continuous axes. Use <code>expansion()</code> to change this.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Remove axis padding so bars touch the axis
+ggplot(price_data, aes(x = item, y = price)) +
+  geom_col(fill = &quot;steelblue&quot;) +
+  scale_y_continuous(
+    labels = label_dollar(),
+    expand = expansion(mult = c(0, 0.05))
+  )
+#&gt; (bar chart with bars starting exactly at $0, 5% padding at top)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>mult</code> argument adds proportional padding. Setting the lower bound to 0 removes the gap below the bars, while keeping a small 5% cushion at the top.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Setting limits removes data outside the range.</strong> When you use <code>limits = c(15, 30)</code> in a scale, ggplot2 converts out-of-bounds points to NA before computing statistics. If you just want to zoom in visually, use <code>coord_cartesian(ylim = c(15, 30))</code> instead — it keeps all data intact.</div></div>
+
+<p><img src="screenshots/ggplot2-Scales-limits-vs-zoom.webp" alt="Limits vs coord zoom" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Setting limits removes data; coord_cartesian() zooms without data loss.</em></p>
+
+<p><strong>Try it:</strong> Create a bar chart of <code>mtcars</code> cylinder counts using <code>geom_bar()</code>. Format the y-axis with <code>label_comma()</code> and remove the bottom padding with <code>expansion()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: formatted y-axis with no bottom padding
+ex_bars &lt;- ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_bar(fill = &quot;coral&quot;)
+  # Add scale_y_continuous with label_comma() and expansion()
+
+ex_bars
+#&gt; Expected: bar chart with comma-formatted counts, bars touching the x-axis</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_bars &lt;- ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_bar(fill = &quot;coral&quot;) +
+  scale_y_continuous(
+    labels = label_comma(),
+    expand = expansion(mult = c(0, 0.05))
+  )
+ex_bars
+#&gt; (bar chart: 4-cyl = 11, 6-cyl = 7, 8-cyl = 14, bars start at 0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>label_comma()</code> adds thousand separators (not visible here with small counts, but essential for large values). <code>expansion(mult = c(0, 0.05))</code> removes bottom padding.</p>
+
+</details>
+
+<h2>How Do You Apply Log, Sqrt, and Reverse Transformations?</h2>
+
+<p>When your data spans several orders of magnitude, a linear axis compresses most of your points into a tiny region. Log transformations spread the data evenly by working on a multiplicative scale instead of an additive one.</p>
+
+<p>The simplest approach is <code>scale_x_log10()</code> or <code>scale_y_log10()</code>. These apply a base-10 logarithm to the axis.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Diamonds data: price spans $326 to $18,823
+# Linear axis compresses most points at the bottom
+p_linear &lt;- ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  labs(title = &quot;Linear scale&quot;)
+
+# Log10 axis reveals the relationship clearly
+p_log &lt;- ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = &quot;Log10 scale&quot;)
+
+p_log
+#&gt; (scatter with even spread across both axes, clear linear trend on log-log)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>On the log-log scale, the relationship between carat and price looks nearly linear. This tells you that price scales as a power of carat weight — something the linear plot hides.</p>
+
+<p>You can also use <code>scale_x_sqrt()</code> for a milder transformation, or <code>scale_x_reverse()</code> to flip the axis direction.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Reverse the x-axis (useful for time running right-to-left)
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(size = 3) +
+  scale_x_reverse(name = &quot;Weight (heaviest on left)&quot;)
+#&gt; (scatter plot with x-axis running from 5.5 on the left to 1.5 on the right)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>For cleaner tick labels on log scales, use <code>breaks_log()</code> from the scales package. This places breaks at powers of 10.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Clean log-scale labels with breaks_log()
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  scale_x_log10(
+    breaks = breaks_log(n = 6),
+    labels = label_number(accuracy = 0.1)
+  ) +
+  scale_y_log10(
+    breaks = breaks_log(n = 5),
+    labels = label_dollar()
+  )
+#&gt; (log-log scatter with ticks at 0.3, 1.0, 3.0 on x; $300, $1,000, $3,000, $10,000 on y)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>breaks_log()</code> function places ticks at sensible powers, and <code>label_dollar()</code> formats the y-axis as currency.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use log scales when data spans more than one order of magnitude.</strong> A variable ranging from 100 to 100,000 is a strong candidate. If the range is only 2x-3x (e.g., 10 to 30), a linear axis is clearer.</div></div>
+
+<p><strong>Try it:</strong> Create a scatter plot of <code>diamonds</code> with <code>carat</code> on the x-axis and <code>price</code> on the y-axis. Apply <code>scale_y_log10()</code> and format the labels with <code>label_dollar()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: log-scaled y-axis with dollar labels
+ex_log &lt;- ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.1, size = 0.5)
+  # Add scale_y_log10 with label_dollar()
+
+ex_log
+#&gt; Expected: scatter with dollar-formatted log y-axis</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_log &lt;- ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  scale_y_log10(labels = label_dollar())
+ex_log
+#&gt; (scatter plot with y-axis: $300, $1,000, $3,000, $10,000)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale_y_log10()</code> transforms the axis, and <code>labels = label_dollar()</code> formats each break as a dollar amount.</p>
+
+</details>
+
+<h2>How Do You Control Colour and Fill Scales?</h2>
+
+<p>Colour scales are where ggplot2 really shines. There are two aesthetics to know: <code>color</code> (outlines and points) and <code>fill</code> (area fills in bars, boxes, and polygons). Each has discrete and continuous variants.</p>
+
+<p>For discrete data, the most popular choice is <code>scale_color_brewer()</code>, which uses the ColorBrewer palettes designed by cartographer Cynthia Brewer. These palettes are perceptually balanced and many are colourblind-safe.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># ColorBrewer palette for discrete colour
+ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
+  geom_point(size = 4) +
+  scale_color_brewer(palette = &quot;Set2&quot;, name = &quot;Cylinders&quot;)
+#&gt; (scatter with 3 distinct, pleasing colours for 4, 6, 8 cylinders)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>palette</code> argument selects a specific palette. Good choices include "Set1" (bold), "Set2" (muted), "Dark2" (dark), "Paired" (12 colours), and "Pastel1" (soft). For sequential data, try "Blues", "Greens", or "YlOrRd".</p>
+
+<p>When you need exact colours, use <code>scale_fill_manual()</code> or <code>scale_color_manual()</code> with a named vector.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Manual fill colours with a named vector
+cyl_colors &lt;- c(&quot;4&quot; = &quot;#2196F3&quot;, &quot;6&quot; = &quot;#FF9800&quot;, &quot;8&quot; = &quot;#F44336&quot;)
+
+ggplot(mtcars, aes(x = factor(cyl), y = mpg, fill = factor(cyl))) +
+  geom_boxplot() +
+  scale_fill_manual(values = cyl_colors, name = &quot;Cylinders&quot;)
+#&gt; (boxplot with blue=4cyl, orange=6cyl, red=8cyl)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The named vector maps each factor level to a specific hex colour. This is essential when you have brand colours or need consistent colours across multiple plots.</p>
+
+<p>For continuous colour data, use gradient scales. <code>scale_color_gradient()</code> creates a two-colour gradient, and <code>scale_color_gradient2()</code> creates a diverging three-colour gradient with a midpoint.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Diverging gradient: blue-white-red around the median mpg
+median_mpg &lt;- median(mtcars$mpg)
+
+ggplot(mtcars, aes(x = wt, y = hp, color = mpg)) +
+  geom_point(size = 4) +
+  scale_color_gradient2(
+    low = &quot;blue&quot;, mid = &quot;white&quot;, high = &quot;red&quot;,
+    midpoint = median_mpg,
+    name = &quot;MPG&quot;
+  )
+#&gt; (scatter: blue = high mpg, red = low mpg, white = median)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The diverging palette highlights which cars are above or below the median fuel efficiency.</p>
+
+<p>For the best perceptual uniformity and colourblind safety, use the viridis scales: <code>scale_color_viridis_d()</code> for discrete data and <code>scale_color_viridis_c()</code> for continuous.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Viridis for colourblind-safe continuous palette
+ggplot(faithfuld, aes(x = waiting, y = eruptions, fill = density)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = &quot;magma&quot;, name = &quot;Density&quot;)
+#&gt; (heatmap with magma palette: black -&gt; red -&gt; yellow -&gt; white)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>option</code> argument selects the viridis variant: "viridis" (default), "magma", "inferno", "plasma", or "cividis" (optimised for colour vision deficiency).</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Preview all Brewer palettes in one command.</strong> Run <code>RColorBrewer::display.brewer.all()</code> to see every available palette grouped by type (sequential, qualitative, diverging).</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Both colour and color work in ggplot2.</strong> The package accepts both British and American spellings: <code>scale_colour_brewer()</code> and <code>scale_color_brewer()</code> are identical.</div></div>
+
+<p><strong>Try it:</strong> Create a boxplot of <code>iris</code> with <code>Species</code> on the x-axis, <code>Sepal.Length</code> on the y-axis, and a manual fill scale using three colours of your choice.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: manual fill scale on iris boxplot
+ex_fill &lt;- ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+  geom_boxplot()
+  # Add scale_fill_manual with 3 colours
+
+ex_fill
+#&gt; Expected: boxplot with your 3 custom fill colours</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_fill &lt;- ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c(&quot;setosa&quot; = &quot;#66c2a5&quot;,
+                                &quot;versicolor&quot; = &quot;#fc8d62&quot;,
+                                &quot;virginica&quot; = &quot;#8da0cb&quot;))
+ex_fill
+#&gt; (boxplot with three distinct custom fill colours)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Named vectors ensure each species gets the exact colour you intend, regardless of factor level order.</p>
+
+</details>
+
+<h2>How Do You Control Size and Alpha Scales?</h2>
+
+<p>Size and alpha (transparency) scales map continuous values to point size or opacity. They are less common than colour scales but essential for bubble charts and overplotted scatter plots.</p>
+
+<p>The key distinction is between <code>scale_size()</code> and <code>scale_size_area()</code>. The default <code>scale_size()</code> maps values to the point radius. This means a value twice as large gets a circle with twice the radius — but four times the area. That distorts perception. Use <code>scale_size_area()</code> instead, which maps values to circle area so that visual proportions are honest.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Bubble chart with area-proportional sizing
+ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
+  geom_point(alpha = 0.6, color = &quot;steelblue&quot;) +
+  scale_size_area(max_size = 15, name = &quot;Horsepower&quot;) +
+  labs(title = &quot;Bubble chart: size proportional to horsepower&quot;)
+#&gt; (scatter with bubbles — larger circles = more horsepower)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>With <code>scale_size_area()</code>, a car with 200 hp has a circle with twice the area of a car with 100 hp. This is visually honest. The <code>max_size</code> argument controls the largest bubble's diameter in mm.</p>
+
+<p>For overplotted data, <code>scale_alpha_continuous()</code> lets you map a variable to transparency. Points in dense regions become semi-transparent, revealing the underlying distribution.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Alpha scale to handle overplotting
+ggplot(diamonds, aes(x = carat, y = price, alpha = depth)) +
+  geom_point(size = 1, color = &quot;purple&quot;) +
+  scale_alpha_continuous(range = c(0.1, 0.9), name = &quot;Depth (%)&quot;) +
+  scale_y_continuous(labels = label_dollar())
+#&gt; (scatter: deeper diamonds are more opaque, shallower are more transparent)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>range</code> argument in <code>scale_alpha_continuous()</code> sets the minimum and maximum opacity. A range of <code>c(0.1, 0.9)</code> ensures even the faintest points are still visible.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>scale_size() maps to radius, scale_size_area() maps to area.</strong> Using <code>scale_size()</code> for bubble charts makes small values look disproportionately tiny and large values disproportionately huge. Always use <code>scale_size_area()</code> when size should represent a quantitative value.</div></div>
+
+<p><strong>Try it:</strong> Create a bubble chart of <code>mtcars</code> with <code>disp</code> on x, <code>mpg</code> on y, and <code>hp</code> mapped to size using <code>scale_size_area()</code>. Set <code>max_size = 12</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: bubble chart with area-proportional sizing
+ex_bubble &lt;- ggplot(mtcars, aes(x = disp, y = mpg, size = hp)) +
+  geom_point(alpha = 0.6)
+  # Add scale_size_area with max_size = 12
+
+ex_bubble
+#&gt; Expected: bubble chart with honestly-sized circles</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_bubble &lt;- ggplot(mtcars, aes(x = disp, y = mpg, size = hp)) +
+  geom_point(alpha = 0.6, color = &quot;darkgreen&quot;) +
+  scale_size_area(max_size = 12, name = &quot;Horsepower&quot;)
+ex_bubble
+#&gt; (bubble chart with area-proportional circles up to 12mm)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale_size_area()</code> ensures the visual area of each bubble is proportional to horsepower, making the chart perceptually accurate.</p>
+
+</details>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Using limits to zoom instead of coord_cartesian()</h4>
+
+<p>This is the most common scale mistake. Setting <code>limits</code> inside a scale function removes data outside the range before stats are computed.</p>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># This REMOVES points outside 15-30 mpg
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;) +
+  scale_y_continuous(limits = c(15, 30))
+#&gt; Warning: Removed 6 rows containing missing values
+#&gt; (regression line computed on FEWER points — slope is wrong)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Six data points are converted to NA. The regression line is fitted to the remaining data, giving a different slope than the full dataset.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># This ZOOMS without removing any data
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;) +
+  coord_cartesian(ylim = c(15, 30))
+#&gt; (regression line computed on ALL 32 points, view zoomed to 15-30)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Using scale_size() instead of scale_size_area() for bubble charts</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># scale_size maps to RADIUS — visually dishonest
+ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
+  geom_point(alpha = 0.5) +
+  scale_size(range = c(2, 15))
+#&gt; (300hp circle looks ~9x bigger than 100hp circle, not 3x)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> A circle with 3x the radius has 9x the area. Readers perceive area, not radius, so the 300hp car looks far too large relative to a 100hp car.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
+  geom_point(alpha = 0.5) +
+  scale_size_area(max_size = 15)
+#&gt; (300hp circle has 3x the area of 100hp circle — visually honest)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Forgetting to load the scales package</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Without library(scales), label_dollar() is not found
+# Error: could not find function &quot;label_dollar&quot;
+ggplot(price_data, aes(x = item, y = price)) +
+  geom_col() +
+  scale_y_continuous(labels = label_dollar())</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Functions like <code>label_dollar()</code>, <code>label_comma()</code>, <code>label_percent()</code>, and <code>breaks_log()</code> live in the scales package. ggplot2 imports some scales functions, but the label helpers need an explicit <code>library(scales)</code>.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(scales)  # Load at the top of your script
+ggplot(price_data, aes(x = item, y = price)) +
+  geom_col(fill = &quot;steelblue&quot;) +
+  scale_y_continuous(labels = label_dollar())
+#&gt; (bar chart with $-formatted y-axis)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Passing character strings as breaks on a continuous axis</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># breaks must be numeric for a continuous scale
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  scale_x_continuous(breaks = c(&quot;light&quot;, &quot;medium&quot;, &quot;heavy&quot;))
+#&gt; Error: non-numeric breaks</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Continuous scales expect numeric break positions. If you want text labels at specific positions, set numeric breaks and character labels separately.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  scale_x_continuous(
+    breaks = c(2, 3.5, 5),
+    labels = c(&quot;Light&quot;, &quot;Medium&quot;, &quot;Heavy&quot;)
+  )
+#&gt; (scatter with text labels at numeric positions 2, 3.5, 5)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Polished scatter with Brewer palette and formatted axes</h4>
+
+<p>Create a scatter plot of <code>mtcars</code> with <code>wt</code> on x, <code>mpg</code> on y, and <code>factor(cyl)</code> mapped to colour. Use <code>scale_color_brewer()</code> with the "Dark2" palette. Set y-axis breaks at every 5 units and label the x-axis as "Weight (1000 lbs)". Remove the bottom y-axis padding.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: polished scatter
+# Hint: combine scale_color_brewer, scale_y_continuous, scale_x_continuous
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_scatter &lt;- ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = &quot;Dark2&quot;, name = &quot;Cylinders&quot;) +
+  scale_x_continuous(name = &quot;Weight (1000 lbs)&quot;) +
+  scale_y_continuous(
+    breaks = seq(10, 35, by = 5),
+    expand = expansion(mult = c(0, 0.05))
+  )
+my_scatter
+#&gt;   (scatter: 3 Dark2 colours, y breaks at 10,15,20,25,30,35, no bottom gap)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Three separate scale functions control colour, x-axis, and y-axis independently. Each scale only affects its own aesthetic.</p>
+
+</details>
+
+<h4>Exercise 2: Log-scaled bubble chart with viridis fill</h4>
+
+<p>Using the <code>diamonds</code> dataset, create a scatter plot of <code>carat</code> (x) vs <code>price</code> (y). Map <code>cut</code> to colour using <code>scale_color_viridis_d()</code>. Apply log10 to both axes with dollar-formatted y labels and comma-formatted x labels. Add a <code>labs()</code> title of "Diamond Price by Carat and Cut".</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: log bubble with viridis
+# Hint: scale_x_log10 + scale_y_log10 + scale_color_viridis_d
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_diamonds &lt;- ggplot(diamonds, aes(x = carat, y = price, color = cut)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  scale_x_log10(labels = label_comma()) +
+  scale_y_log10(labels = label_dollar()) +
+  scale_color_viridis_d(option = &quot;viridis&quot;, name = &quot;Cut&quot;) +
+  labs(title = &quot;Diamond Price by Carat and Cut&quot;)
+my_diamonds
+#&gt; (log-log scatter with viridis palette, dollar y-axis, comma x-axis)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Log10 scales reveal the linear relationship on log-log axes. Viridis is colourblind-safe and perceptually uniform. Label functions format the tick text without affecting the underlying data.</p>
+
+</details>
+
+<h4>Exercise 3: Diverging gradient heatmap</h4>
+
+<p>Create a correlation heatmap of <code>mtcars</code> using <code>geom_tile()</code>. Compute the correlation matrix, reshape it to long format, and map the correlation value to <code>fill</code>. Use <code>scale_fill_gradient2()</code> with blue for negative, white for zero, and red for positive correlations.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: correlation heatmap
+# Hint: cor(), reshape with expand.grid or data.frame, scale_fill_gradient2
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_cor &lt;- cor(mtcars[, 1:7])
+my_cor_long &lt;- data.frame(
+  row = rep(colnames(my_cor), each = ncol(my_cor)),
+  col = rep(colnames(my_cor), times = nrow(my_cor)),
+  value = as.vector(my_cor)
+)
+
+my_heatmap &lt;- ggplot(my_cor_long, aes(x = col, y = row, fill = value)) +
+  geom_tile(color = &quot;white&quot;) +
+  scale_fill_gradient2(
+    low = &quot;blue&quot;, mid = &quot;white&quot;, high = &quot;red&quot;,
+    midpoint = 0, limits = c(-1, 1),
+    name = &quot;Correlation&quot;
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = &quot;mtcars Correlation Heatmap&quot;, x = &quot;&quot;, y = &quot;&quot;)
+my_heatmap
+#&gt; (heatmap: blue=negative, white=zero, red=positive correlations)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale_fill_gradient2()</code> creates a diverging palette anchored at zero. The <code>limits = c(-1, 1)</code> ensures the colour range spans the full correlation range. Reshaping the matrix to long format lets ggplot2 map <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a> to aesthetics.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Let's build a publication-quality scatter plot that combines multiple scale customisations in a single chart. We will use log axes, a Brewer colour palette, formatted labels, custom breaks, and a polished legend.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Complete example: polished diamond scatter plot
+set.seed(99)
+diamond_sample &lt;- diamonds[sample(nrow(diamonds), 2000), ]
+
+p_final &lt;- ggplot(diamond_sample, aes(
+  x = carat, y = price,
+  color = cut, size = depth
+)) +
+  geom_point(alpha = 0.6) +
+
+  # Position scales: log10 with formatted labels
+  scale_x_log10(
+    name = &quot;Carat Weight&quot;,
+    breaks = c(0.3, 0.5, 1, 2, 3, 5),
+    labels = label_number(accuracy = 0.1)
+  ) +
+  scale_y_log10(
+    name = &quot;Price (USD)&quot;,
+    breaks = c(500, 1000, 2500, 5000, 10000, 18000),
+    labels = label_dollar()
+  ) +
+
+  # Colour scale: Brewer palette
+  scale_color_brewer(
+    palette = &quot;Set1&quot;,
+    name = &quot;Cut Quality&quot;
+  ) +
+
+  # Size scale: area-proportional
+  scale_size_area(
+    max_size = 8,
+    name = &quot;Depth (%)&quot;
+  ) +
+
+  labs(title = &quot;Diamond Prices by Carat, Cut, and Depth&quot;) +
+  theme_minimal()
+
+p_final
+#&gt; (polished log-log scatter: 5 Brewer colours for cut, bubble size for depth,
+#&gt;  dollar labels on y-axis, clean carat labels on x-axis)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This chart uses four different scales at once: <code>scale_x_log10()</code> for the x position, <code>scale_y_log10()</code> for the y position, <code>scale_color_brewer()</code> for the colour aesthetic, and <code>scale_size_area()</code> for the size aesthetic. Each scale independently controls its own aesthetic without interfering with the others.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Scale Family</th>
+<th>Key Functions</th>
+<th>When to Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Position (continuous)</td>
+<td><code>scale_x_continuous()</code>, <code>scale_y_continuous()</code></td>
+<td>Customise breaks, labels, limits on numeric axes</td>
+</tr>
+<tr>
+<td>Position (discrete)</td>
+<td><code>scale_x_discrete()</code>, <code>scale_y_discrete()</code></td>
+<td>Reorder or relabel categories</td>
+</tr>
+<tr>
+<td>Position (transform)</td>
+<td><code>scale_x_log10()</code>, <code>scale_x_sqrt()</code>, <code>scale_x_reverse()</code></td>
+<td>Spread skewed data or flip axis direction</td>
+</tr>
+<tr>
+<td>Colour (discrete)</td>
+<td><code>scale_color_brewer()</code>, <code>scale_color_manual()</code>, <code>scale_color_viridis_d()</code></td>
+<td>Map categories to distinct colours</td>
+</tr>
+<tr>
+<td>Colour (continuous)</td>
+<td><code>scale_color_gradient()</code>, <code>scale_color_gradient2()</code>, <code>scale_color_viridis_c()</code></td>
+<td>Map numeric values to colour gradients</td>
+</tr>
+<tr>
+<td>Fill</td>
+<td><code>scale_fill_*()</code></td>
+<td>Same as colour, but for area fills (bars, boxes, tiles)</td>
+</tr>
+<tr>
+<td>Size</td>
+<td><code>scale_size_area()</code></td>
+<td>Bubble charts with honest area encoding</td>
+</tr>
+<tr>
+<td>Alpha</td>
+<td><code>scale_alpha_continuous()</code></td>
+<td><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a> overplotting by mapping transparency</td>
+</tr>
+<tr>
+<td>Shared arguments</td>
+<td><code>breaks</code>, <code>labels</code>, <code>limits</code>, <code>expand</code>, <code>name</code></td>
+<td>Work across all scale types</td>
+</tr>
+</tbody>
+</table>
+
+<p>The golden rule: every aesthetic you map in <code>aes()</code> has a corresponding scale. Learn the naming pattern <code>scale_&lt;aesthetic&gt;_&lt;type&gt;()</code>, and you can control any visual property in ggplot2.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between limits in a scale and coord_cartesian()?</strong></p>
+
+<p>Setting <code>limits</code> inside a scale function (e.g., <code>scale_y_continuous(limits = c(10, 30))</code>) removes data outside the range before stats are computed. <code>coord_cartesian(ylim = c(10, 30))</code> performs a visual zoom — all data is kept, and stats are computed on the full dataset. Use <code>coord_cartesian()</code> when you want to zoom without affecting fitted lines or summaries.</p>
+
+<p><strong>How do I remove the gap between my data and the axes?</strong></p>
+
+<p>Use the <code>expand</code> argument with <code>expansion(mult = 0)</code> or <code>expansion(add = 0)</code>. For bar charts, <code>expansion(mult = c(0, 0.05))</code> removes the bottom gap while keeping a small top cushion. This makes bars start exactly at the axis baseline.</p>
+
+<p><strong>Can I use different scales for different facets?</strong></p>
+
+<p>By default, all facets share the same scales. Use <code>facet_wrap(~ variable, scales = &quot;free&quot;)</code> to let each facet have its own axis range. You can also use <code>scales = &quot;free_x&quot;</code> or <code>scales = &quot;free_y&quot;</code> for just one axis. However, you cannot apply completely different scale types per facet.</p>
+
+<p><strong>How do I reverse a colour gradient?</strong></p>
+
+<p>Use <code>direction = -1</code> inside Brewer or viridis scales: <code>scale_color_brewer(direction = -1)</code>. For gradient scales, swap the <code>low</code> and <code>high</code> arguments. For viridis, use <code>scale_color_viridis_c(direction = -1)</code>.</p>
+
+<p><strong>Why does scale_size() make small values look too big compared to large values?</strong></p>
+
+<p><code>scale_size()</code> maps values to the circle radius. Doubling the radius quadruples the area. Since humans perceive area (not radius), a value of 200 looks 4x bigger than 100 instead of 2x. Switch to <code>scale_size_area()</code>, which maps values to area directly. A value of 200 will have exactly twice the visual area of 100.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H. — <em>ggplot2: Elegant Graphics for Data Analysis</em>, 3rd Edition. Chapters 10-11: Position Scales and Colour Scales. <a href="https://ggplot2-book.org/scales-position.html">Link</a></li>
+
+<li>ggplot2 documentation — scale_continuous reference. <a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html">Link</a></li>
+
+<li>ggplot2 documentation — scale_colour_brewer reference. <a href="https://ggplot2.tidyverse.org/reference/scale_brewer.html">Link</a></li>
+
+<li>scales package documentation — Label functions reference. <a href="https://scales.r-lib.org/reference/index.html">Link</a></li>
+
+<li>Brewer, C. — ColorBrewer: Color Advice for Cartography. <a href="https://colorbrewer2.org/">Link</a></li>
+
+<li>Wilke, C. — <em>Fundamentals of Data Visualization</em>. Chapter 4: Color Scales. <a href="https://clauswilke.com/dataviz/color-basics.html">Link</a></li>
+
+<li>Wickham, H. & Grolemund, G. — <em>R for Data Science</em>, 2nd Edition. Chapter 12: Communication. <a href="https://r4ds.hadley.nz/communication.html">Link</a></li>
+
+<li>ggplot2 documentation — scale_manual reference. <a href="https://ggplot2.tidyverse.org/reference/scale_manual.html">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<p>Now that you can control every axis, colour, and size in your plots, explore these related tutorials:</p>
+
+<ul>
+
+<li><strong><a href="Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html">ggplot2 Theme Customisation</a></strong> — Change fonts, backgrounds, gridlines, and overall plot appearance</li>
+
+<li><strong><a href="Top50-Ggplot2-Visualizations-MasterList-R-Code.html">Top 50 ggplot2 Visualisations</a></strong> — The masterlist of chart types with complete code for each</li>
+
+<li><strong><a href="ggplot2-cheatsheet.html">ggplot2 Quick Reference</a></strong> — A compact cheat sheet of the most common ggplot2 functions</li>
+
+</ul>
+
+<div id="auto-further-reading">
+<h2>Further Reading</h2>
+<ul class="further-reading-list">
+<li><a href="ggplot2-Log-Scale.html">ggplot2 Log Scale in R: When & How to Transform Axes (with Examples)</a></li>
+<li><a href="ggplot2-Secondary-Axis.html">ggplot2 Secondary Axis in R: Add a Second Y-Axis the Right Way</a></li>
+</ul>
+</div>

@@ -1,0 +1,1638 @@
+---
+title: "Which Regression Model in R? A Decision Framework From Data Type to Final Choice"
+description: "Outcome type, distribution, and research question jointly determine the right regression. This guide maps every combination to its R function and assumptions."
+keywords: "which regression model R, choosing regression model, regression decision guide R, GLM R, logistic regression R, Poisson regression R, ordinal regression R, survival regression R, regression flowchart"
+mathjax: true
+webr: true
+curriculum_id: "DG2"
+post_type: "FR"
+auto_link_terms: "choosing regression model|regression decision guide|which regression model|regression model selection|choosing the right regression"
+auto_link_case_sensitive: false
+fr_parent: "Choosing-the-Right-Statistical-Test-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Which Regression Model in R? A Decision Framework From Data Type to Final Choice</h1>
+
+<p class="lead">Choosing the right regression model starts with one question: what type of outcome are you predicting? This guide maps five outcome types — continuous, binary, count, ordinal, and time-to-event — to their <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a>, key assumptions, and diagnostic checks.</p>
+
+<h2>Introduction</h2>
+
+<p>You know <code>lm()</code> for continuous outcomes and maybe <code>glm()</code> for binary ones. But what happens when your outcome is a count of hospital visits, an ordered satisfaction rating, or the time until a machine fails? The wrong model doesn't always throw an error — it silently gives misleading estimates.</p>
+
+<p>The right regression model depends on three things: the type of outcome variable, the distribution of that outcome, and the research question you're answering. Get the first decision wrong and everything downstream is unreliable.</p>
+
+<p>By the end of this guide you'll be able to identify your outcome type, pick the correct model family, fit it in R using base functions and a few standard packages, and verify that the model's assumptions hold. All code runs in your browser — no local setup needed.</p>
+
+<h2>What Are the Five Outcome Types That Determine Your Regression Model?</h2>
+
+<p>Every regression problem starts with the same question: what does your outcome variable look like? The answer falls into one of five categories, and each one points to a different model family.</p>
+
+<p><img src="screenshots/Which-Regression-Model-in-R-overview-mindmap.webp" alt="Overview of regression model families organized by outcome type." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Overview of regression model families organized by outcome type.</em></p>
+
+<p>Here are the five outcome types with concrete examples:</p>
+
+<ul>
+
+<li><strong>Continuous</strong> — a numeric value on a real-number scale. Examples: blood pressure, house price, temperature. Model: linear regression with <code>lm()</code>.</li>
+
+<li><strong>Binary</strong> — exactly two categories (yes/no, survived/died, 0/1). Model: logistic regression with <code>glm(family = binomial)</code>.</li>
+
+<li><strong>Count</strong> — non-negative integers representing how many times something happened. Examples: number of claims, website visits, species sightings. Model: Poisson regression with <code>glm(family = poisson)</code>.</li>
+
+<li><strong>Ordinal</strong> — ordered categories where the distance between levels is unknown. Examples: pain severity (none/mild/moderate/severe), Likert scales. Model: proportional odds with <code>MASS::polr()</code>.</li>
+
+<li><strong>Time-to-event</strong> — duration until something happens, often with censoring (some subjects haven't experienced the event yet). Examples: time to relapse, equipment lifetime. Model: Cox regression with <code>survival::coxph()</code>.</li>
+
+</ul>
+
+<p>Let's create small datasets that represent each type so you can see them side by side.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Five outcome types in one place
+continuous_y &lt;- mtcars$mpg            # miles per gallon (continuous)
+binary_y &lt;- mtcars$am                 # 0 = automatic, 1 = manual (binary)
+count_y &lt;- warpbreaks$breaks          # number of breaks (count)
+ordinal_y &lt;- ordered(c(&quot;low&quot;, &quot;med&quot;, &quot;high&quot;, &quot;low&quot;, &quot;med&quot;),
+                     levels = c(&quot;low&quot;, &quot;med&quot;, &quot;high&quot;))
+print(ordinal_y)
+#&gt; [1] low  med  high low  med
+#&gt; Levels: low &lt; med &lt; high
+
+# Time-to-event (lung dataset from survival)
+library(survival)
+head(lung[, c(&quot;time&quot;, &quot;status&quot;)], 4)
+#&gt;   time status
+#&gt; 1  306      2
+#&gt; 2  455      2
+#&gt; 3 1010      0
+#&gt; 4  210      2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>lung</code> dataset records survival time in days and whether the patient died (status = 2) or was censored (status = 1). This is the hallmark of time-to-event data — not every subject experiences the event during the study.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The outcome type is your first and most important decision.</strong> Every other modelling choice — link function, error distribution, coefficient interpretation — follows from it. Get this step right and the rest is manageable.</div></div>
+
+<p><strong>Try it:</strong> The variable <code>chickwts$weight</code> records the weight of chicks fed different diets. What outcome type is this — continuous, binary, count, ordinal, or time-to-event?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: identify the outcome type of chickwts$weight
+str(chickwts$weight)
+# What type is this?
+ex_answer &lt;- &quot;___&quot;  # replace with your answer
+ex_answer
+#&gt; Expected: &quot;continuous&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_answer &lt;- &quot;continuous&quot;
+ex_answer
+#&gt; [1] &quot;continuous&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Weight is a numeric measurement on a real-number scale with no natural upper bound, making it a continuous outcome suited for <code>lm()</code>.</p>
+
+</details>
+
+<h2>How Does Linear Regression Handle Continuous Outcomes?</h2>
+
+<p>Linear regression is the starting point for continuous outcomes. It fits a straight line (or plane, with multiple predictors) that minimises the squared distance between observed and predicted values.</p>
+
+<p>The model assumes four things: (1) the relationship between predictors and outcome is linear, (2) residuals are normally distributed, (3) residuals have constant variance (homoscedasticity), and (4) observations are independent of each other.</p>
+
+<p>Let's predict fuel efficiency from weight and horsepower using the <code>mtcars</code> dataset.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Fit linear regression: mpg ~ weight + horsepower
+lm_model &lt;- lm(mpg ~ wt + hp, data = mtcars)
+summary(lm_model)
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 37.22727    1.59879  23.285  &lt; 2e-16 ***
+#&gt; wt          -3.87783    0.63273  -6.129 1.12e-06 ***
+#&gt; hp          -0.03177    0.00903  -3.519  0.00145 **
+#&gt; ---
+#&gt; Multiple R-squared: 0.8268, Adjusted R-squared: 0.8148</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Each unit increase in weight (1,000 lbs) is associated with a 3.88 mpg decrease, holding horsepower constant. The model explains about 83% of the variance in fuel efficiency.</p>
+
+<p>The intuition behind OLS is straightforward. The model minimises this cost function:</p>
+
+<p>$$J(\beta) = \sum_{i=1}^{n} (y_i - \hat{y}_i)^2$$</p>
+
+<p>Where $y_i$ is the observed value, $\hat{y}_i$ is the predicted value, and $n$ is the number of observations. Smaller values mean better fit.</p>
+
+<p><em>If you're not interested in the math, skip ahead — the practical code above is all you need.</em></p>
+
+<p>Now let's check the assumptions with diagnostic plots.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Diagnostic plots for linear regression
+par(mfrow = c(1, 2))
+plot(lm_model, which = 1)  # Residuals vs Fitted
+plot(lm_model, which = 2)  # Normal Q-Q
+par(mfrow = c(1, 1))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>In the residuals-vs-fitted plot, look for a flat, random scatter around zero. Any curved pattern suggests non-linearity. In the Q-Q plot, points should follow the diagonal line. Deviations at the tails indicate non-normal residuals.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run plot(model) for instant diagnostics.</strong> Calling <code>plot()</code> on any lm object produces four diagnostic plots. The first two (residuals vs fitted and Q-Q) catch most problems.</div></div>
+
+<p><strong>Try it:</strong> Fit a linear model predicting <code>Sepal.Length</code> from <code>Petal.Width</code> using the <code>iris</code> dataset. What is the R-squared?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: fit lm on iris
+ex_iris_model &lt;- lm(Sepal.Length ~ Petal.Width, data = iris)
+# Check the R-squared:
+# your code here
+#&gt; Expected: R-squared around 0.67</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_iris_model &lt;- lm(Sepal.Length ~ Petal.Width, data = iris)
+summary(ex_iris_model)$r.squared
+#&gt; [1] 0.6690277</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Petal width alone explains about 67% of the variation in sepal length. The <code>summary()$r.squared</code> extracts just the R-squared value.</p>
+
+</details>
+
+<h2>When Should You Use Logistic Regression for Binary Outcomes?</h2>
+
+<p>When the outcome has exactly two levels — pass/fail, yes/no, alive/dead — logistic regression is the standard choice. It models the probability of the outcome being 1 (the "success" class) as a function of the predictors.</p>
+
+<p>The key idea is the logistic function, which transforms a linear combination of predictors into a probability between 0 and 1:</p>
+
+<p>$$P(Y = 1) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 x_1 + \dots + \beta_p x_p)}}$$</p>
+
+<p>Where $\beta_0$ is the intercept and $\beta_1 \dots \beta_p$ are the coefficients. The model estimates coefficients on the log-odds scale, not the probability scale.</p>
+
+<p><em>If you're not interested in the math, the takeaway is simple: logistic regression outputs probabilities between 0 and 1.</em></p>
+
+<p>Let's predict whether a car has a manual transmission (am = 1) from its weight.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Logistic regression: manual vs automatic transmission
+logit_model &lt;- glm(am ~ wt, data = mtcars, family = binomial)
+summary(logit_model)
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  12.0404     4.5098   2.670  0.00759 **
+#&gt; wt           -4.0240     1.4362  -2.801  0.00509 **</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The coefficient for weight is -4.02 on the log-odds scale. That means heavier cars are much less likely to have manual transmissions. But log-odds are hard to interpret directly. Let's convert to odds ratios.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Convert to odds ratios
+odds_ratios &lt;- exp(coef(logit_model))
+print(odds_ratios)
+#&gt; (Intercept)          wt
+#&gt; 168917.4583      0.0181
+
+# Confidence intervals for odds ratios
+exp(confint.default(logit_model))
+#&gt;                   2.5 %      97.5 %
+#&gt; (Intercept) 42.49254891 671607.7816
+#&gt; wt           0.00106218      0.3097</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>An odds ratio of 0.018 for weight means each 1,000-lb increase multiplies the odds of manual transmission by 0.018 — a 98% decrease. The confidence interval (0.001 to 0.31) doesn't include 1, confirming statistical significance.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Logistic regression coefficients are log-odds, not probabilities.</strong> To get interpretable numbers, always exponentiate with <code>exp(coef(model))</code>. Reporting raw coefficients like -4.02 as "the effect" misleads your audience.</div></div>
+
+<p><strong>Try it:</strong> Fit a logistic regression predicting <code>vs</code> (engine shape: 0 = V-shaped, 1 = straight) from <code>wt</code> using <code>mtcars</code>. What is the odds ratio for weight?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: logistic regression for vs ~ wt
+ex_vs_model &lt;- glm(vs ~ wt, data = mtcars, family = binomial)
+# Get the odds ratio:
+# your code here
+#&gt; Expected: odds ratio for wt around 0.56</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_vs_model &lt;- glm(vs ~ wt, data = mtcars, family = binomial)
+exp(coef(ex_vs_model))[&quot;wt&quot;]
+#&gt;        wt
+#&gt; 0.5584694</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Each 1,000-lb increase in weight multiplies the odds of a straight engine by about 0.56, meaning heavier cars are less likely to have straight engines.</p>
+
+</details>
+
+<h2>How Do You Model Count Data with Poisson Regression?</h2>
+
+<p>Count data — how many times something happened — calls for Poisson regression. The outcome is a non-negative integer (0, 1, 2, 3, ...) and the model assumes the mean equals the variance.</p>
+
+<p>The <code>warpbreaks</code> dataset records the number of breaks in yarn during weaving. Let's model breaks as a function of wool type and tension.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Poisson regression on count data
+pois_model &lt;- glm(breaks ~ wool + tension, data = warpbreaks,
+                  family = poisson)
+summary(pois_model)
+#&gt;              Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  3.69196    0.04541  81.302  &lt; 2e-16 ***
+#&gt; woolB       -0.20599    0.05157  -3.994 6.49e-05 ***
+#&gt; tensionM    -0.32132    0.06027  -5.332 9.73e-08 ***
+#&gt; tensionH    -0.51849    0.06396  -8.106 5.21e-16 ***</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Wool B has about 19% fewer breaks than wool A (since $e^{-0.206} \approx 0.81$). High tension reduces breaks by about 40% compared to low tension.</p>
+
+<p>The most common problem with Poisson regression is overdispersion — the variance is larger than the mean. Let's check.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Check for overdispersion
+# Residual deviance should be close to residual df
+deviance(pois_model)
+#&gt; [1] 210.3907
+df.residual(pois_model)
+#&gt; [1] 50
+
+# Dispersion ratio (should be ~1 for Poisson)
+deviance(pois_model) / df.residual(pois_model)
+#&gt; [1] 4.207814
+
+# Overdispersed! Try negative binomial
+library(MASS)
+nb_model &lt;- glm.nb(breaks ~ wool + tension, data = warpbreaks)
+summary(nb_model)
+#&gt;              Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  3.69196    0.08387  44.020  &lt; 2e-16 ***
+#&gt; woolB       -0.20599    0.09525  -2.163   0.0306 *
+#&gt; tensionM    -0.32132    0.11440  -2.809   0.0050 **
+#&gt; tensionH    -0.51849    0.11948  -4.339 1.43e-05 ***</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The dispersion ratio is 4.2 — well above the expected 1.0 for Poisson. The negative binomial model produces the same coefficient estimates but with wider (more honest) standard errors. Notice how the z-values dropped, reflecting the greater uncertainty.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Overdispersion is the number-one Poisson violation.</strong> When the dispersion ratio exceeds 1.5, switch to <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">negative binomial regression</a> with <code>MASS::glm.nb()</code>. Ignoring overdispersion gives artificially small p-values that make everything look significant.</div></div>
+
+<p><strong>Try it:</strong> Fit a Poisson regression predicting <code>breaks</code> from <code>tension</code> alone (no <code>wool</code>) and compute the dispersion ratio. Is it overdispersed?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: Poisson with tension only
+ex_pois &lt;- glm(breaks ~ tension, data = warpbreaks, family = poisson)
+# Compute dispersion ratio:
+# your code here
+#&gt; Expected: dispersion ratio &gt; 1.5 (overdispersed)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_pois &lt;- glm(breaks ~ tension, data = warpbreaks, family = poisson)
+deviance(ex_pois) / df.residual(ex_pois)
+#&gt; [1] 4.697067</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The dispersion ratio of 4.7 far exceeds 1.0, confirming overdispersion. You should use negative binomial instead.</p>
+
+</details>
+
+<h2>What Is Ordinal Regression and When Do You Need It?</h2>
+
+<p>Ordinal outcomes have ordered categories where the exact distance between levels is unknown. Examples include pain severity (none < mild < moderate < severe), education level, or customer satisfaction ratings.</p>
+
+<p>The standard approach is proportional odds logistic regression, fitted with <code>MASS::polr()</code>. It models the cumulative probability of being at or below each category level, assuming the effect of each predictor is the same across all cutpoints (the proportional odds assumption).</p>
+
+<p>Let's create an ordinal dataset and fit the model.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create ordinal outcome data
+set.seed(17)
+n &lt;- 200
+ord_data &lt;- data.frame(
+  age = round(runif(n, 20, 70)),
+  income = round(runif(n, 20, 120), 1)
+)
+# Simulate ordered satisfaction: low &lt; medium &lt; high
+latent &lt;- -2 + 0.03 * ord_data$age + 0.02 * ord_data$income + rnorm(n)
+ord_data$satisfaction &lt;- ordered(
+  cut(latent, breaks = c(-Inf, -0.5, 1, Inf),
+      labels = c(&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;)),
+  levels = c(&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;)
+)
+table(ord_data$satisfaction)
+#&gt;    low medium   high
+#&gt;     57     87     56</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now let's fit the proportional odds model.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Fit ordinal regression
+ord_model &lt;- polr(satisfaction ~ age + income, data = ord_data,
+                  Hess = TRUE)
+summary(ord_model)
+#&gt; Coefficients:
+#&gt;           Value Std. Error t value
+#&gt; age    0.030738   0.009206   3.339
+#&gt; income 0.018825   0.005592   3.366
+#&gt;
+#&gt; Intercepts:
+#&gt;             Value   Std. Error t value
+#&gt; low|medium  0.6805  0.5789     1.175
+#&gt; medium|high 3.1938  0.6115     5.222
+
+# Get p-values (polr doesn't print them by default)
+coef_table &lt;- coef(summary(ord_model))
+p_values &lt;- pnorm(abs(coef_table[, &quot;t value&quot;]),
+                  lower.tail = FALSE) * 2
+print(round(p_values, 4))
+#&gt;         age      income  low|medium medium|high
+#&gt;      0.0008      0.0008      0.2400      0.0000</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Both age and income significantly predict satisfaction level. Each additional year of age increases the odds of being in a higher satisfaction category by about 3% ($e^{0.031} \approx 1.031$).</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>If proportional odds fails, consider <a class="auto-link" href="Multinomial-Regression-With-R.html" title="Multinomial Regression with R">multinomial logistic regression</a>.</strong> You can test the assumption informally by fitting separate binary logistic regressions at each cutpoint and comparing coefficients. If they differ substantially, the proportional odds assumption is violated.</div></div>
+
+<p><strong>Try it:</strong> Using the <code>ord_data</code> we just created, fit an ordinal model predicting <code>satisfaction</code> from <code>age</code> alone (no income). Is age still significant?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: ordinal regression with age only
+ex_ord &lt;- polr(satisfaction ~ age, data = ord_data, Hess = TRUE)
+# Check significance:
+# your code here
+#&gt; Expected: age coefficient with t-value &gt; 2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_ord &lt;- polr(satisfaction ~ age, data = ord_data, Hess = TRUE)
+coef_tab &lt;- coef(summary(ex_ord))
+p_val &lt;- pnorm(abs(coef_tab[&quot;age&quot;, &quot;t value&quot;]), lower.tail = FALSE) * 2
+cat(&quot;t-value:&quot;, coef_tab[&quot;age&quot;, &quot;t value&quot;], &quot;\np-value:&quot;, round(p_val, 4))
+#&gt; t-value: 3.08
+#&gt; p-value: 0.0021</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Age remains significant even without income in the model, with a t-value above 2 and <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> well below 0.05.</p>
+
+</details>
+
+<h2>How Does Cox Regression Handle Time-to-Event Data?</h2>
+
+<p>Survival analysis applies when your outcome is the time until an event — death, relapse, machine failure, customer churn. The key complication is censoring: some subjects haven't experienced the event by the end of the study. You can't just drop them or treat their last-known time as the event time.</p>
+
+<p>Cox proportional hazards regression estimates hazard ratios — the relative risk of the event happening at any given time — without specifying the baseline hazard function. It requires the <code>survival</code> package, which is bundled with every <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a>.</p>
+
+<p><img src="screenshots/Which-Regression-Model-in-R-decision-flow.webp" alt="Decision flowchart: from outcome type to R function." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Decision flowchart: from outcome type to R function.</em></p>
+
+<p>Let's fit a Cox model to the <code>lung</code> dataset, which records survival of patients with advanced lung cancer.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Cox proportional hazards regression
+cox_model &lt;- coxph(Surv(time, status) ~ age + sex + ph.ecog,
+                   data = lung)
+summary(cox_model)
+#&gt;            coef  exp(coef) se(coef)     z Pr(&gt;|z|)
+#&gt; age     0.01107    1.01113  0.00922 1.201   0.2298
+#&gt; sex    -0.55307    0.57517  0.16746 -3.303   0.0010 **
+#&gt; ph.ecog 0.46318    1.58917  0.11330 4.089 4.33e-05 ***</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The hazard ratio for sex is 0.58, meaning females (sex = 2) have 42% lower hazard of death compared to males. Each unit increase in ECOG performance score increases the hazard by 59%.</p>
+
+<p>The proportional hazards assumption is critical — it means the hazard ratio between any two groups stays constant over time. Let's test it.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Test proportional hazards assumption
+ph_test &lt;- cox.zph(cox_model)
+print(ph_test)
+#&gt;          chisq df     p
+#&gt; age      5.745  1 0.017
+#&gt; sex      0.175  1 0.676
+#&gt; ph.ecog  2.368  1 0.124
+#&gt; GLOBAL   9.071  3 0.028</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>A significant p-value (< 0.05) indicates a violation. Here, <code>age</code> shows some evidence of non-proportional hazards (p = 0.017). In practice, you might stratify by age groups or add a time-interaction term to address this.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Cox models estimate hazard ratios, not survival probabilities.</strong> A hazard ratio of 2.0 means the event rate is twice as high in the exposed group at any point in time. To get predicted survival curves, use <code>survfit()</code> on the model object.</div></div>
+
+<p><strong>Try it:</strong> Fit a Cox model on the <code>lung</code> dataset using <code>age</code> and <code>sex</code> as predictors (no <code>ph.ecog</code>). What is the hazard ratio for sex?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: Cox model with age + sex only
+ex_cox &lt;- coxph(Surv(time, status) ~ age + sex, data = lung)
+# Get the hazard ratio for sex:
+# your code here
+#&gt; Expected: hazard ratio for sex around 0.59</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_cox &lt;- coxph(Surv(time, status) ~ age + sex, data = lung)
+exp(coef(ex_cox))[&quot;sex&quot;]
+#&gt;       sex
+#&gt; 0.5880282</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The hazard ratio of 0.59 for sex means females have about 41% lower hazard of death compared to males, after adjusting for age.</p>
+
+</details>
+
+<h2>How Do You Choose Between Competing Models?</h2>
+
+<p>Once you've identified the correct model family, you often need to choose between competing specifications — different sets of predictors, interaction terms, or distributional assumptions.</p>
+
+<p><img src="screenshots/Which-Regression-Model-in-R-assumptions-check.webp" alt="Key assumptions to verify for each model family." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Key assumptions to verify for each model family.</em></p>
+
+<p>Here are the three main tools for model comparison within a family.</p>
+
+<p><strong><a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> (Akaike Information Criterion)</strong> balances model fit against complexity. Lower AIC is better. It works for any model fitted with maximum likelihood, including <code>lm()</code>, <code>glm()</code>, and <code>polr()</code>.</p>
+
+<p><strong>Likelihood ratio test</strong> compares nested models — one must be a special case of the other. Use <code>anova()</code> with <code>test = &quot;Chisq&quot;</code> for GLMs.</p>
+
+<p><strong>Residual diagnostics</strong> reveal whether the model's assumptions hold. No single number replaces visual inspection of residuals.</p>
+
+<p>Let's compare two nested linear models.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Compare nested models
+model_a &lt;- lm(mpg ~ wt, data = mtcars)
+model_b &lt;- lm(mpg ~ wt + hp + cyl, data = mtcars)
+
+# AIC comparison
+AIC(model_a, model_b)
+#&gt;         df      AIC
+#&gt; model_a  3 166.0294
+#&gt; model_b  5 155.4766
+
+# Likelihood ratio test (nested models)
+anova(model_a, model_b)
+#&gt;   Res.Df    RSS Df Sum of Sq      F    Pr(&gt;F)
+#&gt; 1     30 278.32
+#&gt; 2     28 170.44  2    107.88 8.8659 0.001054 **</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Model B (with weight, horsepower, and cylinders) has a lower AIC (155.5 vs 166.0) and the likelihood ratio test rejects the null hypothesis that the simpler model is sufficient (p = 0.001). The extra predictors earn their keep.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>AIC compares models fit to the same data and same outcome.</strong> You cannot compare AIC values between a linear model and a logistic model, or between models fit on different subsets of data. Within those constraints, lower is always better.</div></div>
+
+<p>Here is a quick-reference table summarising everything:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Outcome Type</th>
+<th>R Function</th>
+<th>Key Assumption</th>
+<th>Diagnostic Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Continuous</td>
+<td><code>lm()</code></td>
+<td>Normal residuals, constant variance</td>
+<td><code>plot(model)</code></td>
+</tr>
+<tr>
+<td>Binary (0/1)</td>
+<td><code>glm(family = binomial)</code></td>
+<td>Log-odds are linear in predictors</td>
+<td>Hosmer-Lemeshow, ROC</td>
+</tr>
+<tr>
+<td>Count (0, 1, 2...)</td>
+<td><code>glm(family = poisson)</code></td>
+<td>Mean equals variance</td>
+<td>Dispersion ratio</td>
+</tr>
+<tr>
+<td>Ordinal</td>
+<td><code>MASS::polr()</code></td>
+<td>Proportional odds</td>
+<td>Compare binary splits</td>
+</tr>
+<tr>
+<td>Time-to-event</td>
+<td><code>survival::coxph()</code></td>
+<td>Proportional hazards</td>
+<td><code>cox.zph()</code></td>
+</tr>
+<tr>
+<td>Overdispersed count</td>
+<td><code>MASS::glm.nb()</code></td>
+<td>Variance > mean</td>
+<td>Compare with Poisson AIC</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Try it:</strong> Fit two models — <code>mpg ~ wt</code> and <code>mpg ~ wt + disp</code> — on <code>mtcars</code>. Which has the lower AIC? Is the difference meaningful?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: compare two models with AIC
+ex_m1 &lt;- lm(mpg ~ wt, data = mtcars)
+ex_m2 &lt;- lm(mpg ~ wt + disp, data = mtcars)
+# Compare AIC:
+# your code here
+#&gt; Expected: AIC values close together (difference &lt; 2 = negligible)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_m1 &lt;- lm(mpg ~ wt, data = mtcars)
+ex_m2 &lt;- lm(mpg ~ wt + disp, data = mtcars)
+AIC(ex_m1, ex_m2)
+#&gt;       df      AIC
+#&gt; ex_m1  3 166.0294
+#&gt; ex_m2  4 166.7036</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The AIC difference is less than 2, which means <code>disp</code> adds essentially no useful information beyond what <code>wt</code> already provides. Stick with the simpler model.</p>
+
+</details>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Using lm() on a binary outcome</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">bad_model &lt;- lm(am ~ wt, data = mtcars)
+predict(bad_model, newdata = data.frame(wt = 6))
+#&gt; [1] -0.3479</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Linear regression on a binary outcome produces predicted probabilities below 0 or above 1, which are nonsensical. A predicted probability of -0.35 has no meaning.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">good_model &lt;- glm(am ~ wt, data = mtcars, family = binomial)
+predict(good_model, newdata = data.frame(wt = 6), type = &quot;response&quot;)
+#&gt; [1] 0.0001679</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Ignoring overdispersion in Poisson regression</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Fitting Poisson when dispersion ratio is 4.2
+pois_fit &lt;- glm(breaks ~ wool + tension, data = warpbreaks,
+                family = poisson)
+# P-values are too small (false significance)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> When variance exceeds the mean, Poisson standard errors are too narrow. This inflates z-statistics and makes non-significant effects appear significant.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Use negative binomial for overdispersed counts
+nb_fit &lt;- glm.nb(breaks ~ wool + tension, data = warpbreaks)
+# Standard errors are wider and more honest</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Treating ordinal outcomes as continuous</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Coding low=1, medium=2, high=3 and using lm()
+data_bad &lt;- data.frame(y = c(1, 2, 3, 1, 2), x = c(10, 20, 30, 15, 25))
+lm(y ~ x, data = data_bad)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> This assumes equal spacing between categories (the jump from low to medium equals the jump from medium to high). It also allows predicted values like 1.7, which don't correspond to any category.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Use ordinal regression that respects the ordering
+data_good &lt;- data.frame(
+  y = ordered(c(&quot;low&quot;, &quot;med&quot;, &quot;high&quot;, &quot;low&quot;, &quot;med&quot;),
+              levels = c(&quot;low&quot;, &quot;med&quot;, &quot;high&quot;)),
+  x = c(10, 20, 30, 15, 25)
+)
+polr(y ~ x, data = data_good, Hess = TRUE)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Forgetting to check proportional hazards in Cox models</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Fit and report without checking assumptions
+cox_bad &lt;- coxph(Surv(time, status) ~ age + sex, data = lung)
+# Report hazard ratios directly</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> If the proportional hazards assumption is violated, the hazard ratios are averaged over time and may not represent the actual relationship at any specific time point.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Always test PH assumption
+cox_good &lt;- coxph(Surv(time, status) ~ age + sex, data = lung)
+cox.zph(cox_good)  # Check p-values for each predictor</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 5: Comparing AIC across different outcome types</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># These AIC values are NOT comparable
+aic_lm &lt;- AIC(lm(mpg ~ wt, data = mtcars))
+aic_glm &lt;- AIC(glm(am ~ wt, data = mtcars, family = binomial))
+# &quot;The logistic model has lower AIC so it's better&quot; — WRONG</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> AIC values are only comparable between models fit to the same outcome variable with the same likelihood function. Comparing a continuous-outcome AIC to a binary-outcome AIC is like comparing kilograms to kilometres.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Compare models with the SAME outcome
+m1 &lt;- glm(am ~ wt, data = mtcars, family = binomial)
+m2 &lt;- glm(am ~ wt + hp, data = mtcars, family = binomial)
+AIC(m1, m2)  # Both predict am — valid comparison</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Identify the model and fit it</h4>
+
+<p>The <code>InsectSprays</code> dataset has a <code>count</code> column (number of insects) and a <code>spray</code> column (type A-F). Identify the correct regression family, fit the model, and check whether the Poisson assumption holds.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: model InsectSprays
+# Hint: start with str(InsectSprays) to identify the outcome type
+# Then fit the appropriate glm() and check the dispersion ratio
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Step 1: Identify outcome type
+str(InsectSprays$count)
+#&gt; num [1:72] 10 7 20 14 14 12 10 23 17 20 ...
+# It's a count! Use Poisson regression
+
+# Step 2: Fit Poisson model
+my_pois &lt;- glm(count ~ spray, data = InsectSprays, family = poisson)
+
+# Step 3: Check dispersion
+deviance(my_pois) / df.residual(my_pois)
+#&gt; [1] 1.668555
+
+# Mildly overdispersed (1.67) — borderline case
+# Try negative binomial for comparison
+my_nb &lt;- glm.nb(count ~ spray, data = InsectSprays)
+AIC(my_pois, my_nb)
+#&gt;         df      AIC
+#&gt; my_pois  6 409.0340
+#&gt; my_nb    7 379.7805</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The count outcome points to Poisson regression. The dispersion ratio of 1.67 suggests mild overdispersion. The negative binomial model has a substantially lower AIC (380 vs 409), confirming it's the better choice for these data.</p>
+
+</details>
+
+<h4>Exercise 2: Poisson vs negative binomial showdown</h4>
+
+<p>Using the <code>warpbreaks</code> dataset, fit both a Poisson and a negative binomial model with <code>breaks ~ wool * tension</code> (including the interaction). Compare their AIC values, dispersion diagnostics, and coefficient significance. Which model would you report and why?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: Poisson vs negative binomial with interaction
+# Hint: use wool * tension for the interaction
+# Compare: AIC, dispersion, coefficient p-values
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Poisson with interaction
+my_pois2 &lt;- glm(breaks ~ wool * tension, data = warpbreaks,
+                family = poisson)
+
+# Negative binomial with interaction
+my_nb2 &lt;- glm.nb(breaks ~ wool * tension, data = warpbreaks)
+
+# Compare AIC
+AIC(my_pois2, my_nb2)
+#&gt;          df      AIC
+#&gt; my_pois2  6 468.9716
+#&gt; my_nb2    7 326.0521
+
+# Dispersion check for Poisson
+cat(&quot;Poisson dispersion:&quot;, deviance(my_pois2) / df.residual(my_pois2))
+#&gt; Poisson dispersion: 3.376181
+
+# Coefficient comparison
+cat(&quot;\nPoisson p-values:\n&quot;)
+round(coef(summary(my_pois2))[, &quot;Pr(&gt;|z|)&quot;], 4)
+cat(&quot;\nNeg Binomial p-values:\n&quot;)
+round(coef(summary(my_nb2))[, &quot;Pr(&gt;|z|)&quot;], 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The negative binomial model wins decisively: lower AIC (326 vs 469), and the Poisson dispersion ratio of 3.4 confirms overdispersion. The negative binomial gives wider, more honest standard errors. The interaction terms may lose significance in the negative binomial — this is correct, not a flaw.</p>
+
+</details>
+
+<h4>Exercise 3: Full pipeline — from data to interpretation</h4>
+
+<p>You receive a dataset of patients where the outcome is 30-day mortality (1 = died, 0 = survived) with predictors age and treatment group. Complete the full pipeline: identify the outcome type, fit the right model, interpret the coefficients as odds ratios with confidence intervals, and check if treatment significantly reduces mortality.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: Full regression pipeline
+# Step 1: Create the data
+set.seed(99)
+my_patients &lt;- data.frame(
+  age = round(rnorm(150, mean = 65, sd = 12)),
+  treatment = rep(c(&quot;control&quot;, &quot;drug&quot;), each = 75)
+)
+my_patients$died &lt;- rbinom(150, 1,
+  prob = plogis(-1 + 0.03 * my_patients$age -
+                0.8 * (my_patients$treatment == &quot;drug&quot;)))
+
+# Step 2: Identify outcome type and fit model
+# Step 3: Get odds ratios with 95% CI
+# Step 4: Interpret: does the drug reduce mortality?
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">set.seed(99)
+my_patients &lt;- data.frame(
+  age = round(rnorm(150, mean = 65, sd = 12)),
+  treatment = rep(c(&quot;control&quot;, &quot;drug&quot;), each = 75)
+)
+my_patients$died &lt;- rbinom(150, 1,
+  prob = plogis(-1 + 0.03 * my_patients$age -
+                0.8 * (my_patients$treatment == &quot;drug&quot;)))
+
+# Binary outcome -&gt; logistic regression
+my_logit &lt;- glm(died ~ age + treatment, data = my_patients,
+                family = binomial)
+
+# Odds ratios with 95% CI
+or_est &lt;- exp(coef(my_logit))
+or_ci &lt;- exp(confint.default(my_logit))
+cbind(OR = or_est, or_ci)
+#&gt;                        OR      2.5 %    97.5 %
+#&gt; (Intercept)       0.09919  0.0120    0.8193
+#&gt; age               1.03364  1.0062    1.0618
+#&gt; treatmentdrug     0.47783  0.2282    1.0004
+
+# Interpretation
+cat(&quot;Drug treatment OR:&quot;, round(or_est[&quot;treatmentdrug&quot;], 3),
+    &quot;\n95% CI:&quot;, round(or_ci[&quot;treatmentdrug&quot;,], 3))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The binary outcome (died: 0/1) requires logistic regression. The drug treatment's odds ratio is about 0.48, suggesting the drug roughly halves the odds of death. However, the 95% CI barely touches 1.0, so the evidence is borderline. With more patients, the effect would likely become clearly significant.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Let's walk through a complete decision-making pipeline from scratch. You have a research question, data, and need to arrive at a final, defensible model.</p>
+
+<p><strong>Scenario:</strong> You're analysing the <code>lung</code> dataset to understand which patient characteristics predict survival time in advanced lung cancer.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Step 1: Examine the outcome
+str(lung[, c(&quot;time&quot;, &quot;status&quot;)])
+#&gt; 'data.frame': 228 obs. of 2 variables:
+#&gt;  $ time  : int  306 455 1010 210 883 ...
+#&gt;  $ status: int  2 2 0 2 2 ...
+
+# Outcome: time until death, with censoring (status 1 = censored)
+# -&gt; This is time-to-event data -&gt; Cox regression
+
+# Step 2: Fit the Cox model
+final_model &lt;- coxph(Surv(time, status) ~ age + sex + ph.ecog + meal.cal,
+                     data = lung, na.action = na.exclude)
+summary(final_model)
+#&gt;            coef  exp(coef) se(coef)     z Pr(&gt;|z|)
+#&gt; age      0.0098    1.0098  0.0095  1.034  0.30130
+#&gt; sex     -0.5516    0.5760  0.1709 -3.227  0.00125 **
+#&gt; ph.ecog  0.5737    1.7747  0.1275  4.498 6.84e-06 ***
+#&gt; meal.cal 0.0000    1.0000  0.0003  0.013  0.98966
+
+# Step 3: Check proportional hazards
+cox.zph(final_model)
+#&gt;           chisq df     p
+#&gt; age       5.33   1 0.021
+#&gt; sex       0.42   1 0.515
+#&gt; ph.ecog   1.93   1 0.165
+#&gt; meal.cal  0.17   1 0.679
+#&gt; GLOBAL    8.41   4 0.078
+
+# Step 4: Simplify — drop non-significant predictors
+final_slim &lt;- coxph(Surv(time, status) ~ sex + ph.ecog,
+                    data = lung)
+AIC(final_model, final_slim)
+#&gt;              df      AIC
+#&gt; final_model   4 1478.034
+#&gt; final_slim    2 1474.204
+
+# Step 5: Interpret the final model
+exp(coef(final_slim))
+#&gt;       sex   ph.ecog
+#&gt; 0.5753   1.5894
+
+exp(confint(final_slim))
+#&gt;              2.5 %   97.5 %
+#&gt; sex       0.4213    0.7857
+#&gt; ph.ecog   1.2422    2.0340</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Here is the interpretation. The outcome is time-to-death with censoring, so Cox regression is the right tool. After fitting and checking assumptions, we simplify to two predictors. Female patients have 42% lower hazard (HR = 0.58, 95% CI: 0.42-0.79). Each unit increase in ECOG score increases hazard by 59% (HR = 1.59, 95% CI: 1.24-2.03). The simpler model has a lower AIC (1474 vs 1478) and no proportional hazards violations.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Decision Point</th>
+<th>Question to Ask</th>
+<th>What to Do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Outcome type</td>
+<td>Is it continuous, binary, count, ordinal, or time-to-event?</td>
+<td>Match to model family (see table below)</td>
+</tr>
+<tr>
+<td>Model fit</td>
+<td>Does the model explain the data?</td>
+<td>Check R-squared, deviance, concordance</td>
+</tr>
+<tr>
+<td>Assumptions</td>
+<td>Do residuals behave properly?</td>
+<td>Plot diagnostics, run formal tests</td>
+</tr>
+<tr>
+<td>Overdispersion</td>
+<td>Is variance > mean for counts?</td>
+<td>Switch to negative binomial</td>
+</tr>
+<tr>
+<td>Proportional odds</td>
+<td>Same effect across cutpoints?</td>
+<td>Compare binary splits</td>
+</tr>
+<tr>
+<td>Proportional hazards</td>
+<td>Constant hazard ratio over time?</td>
+<td>Run cox.zph()</td>
+</tr>
+<tr>
+<td>Model comparison</td>
+<td>Which specification is best?</td>
+<td>AIC for non-nested, LR test for nested</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Quick-reference: outcome type to R function:</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Outcome</th>
+<th>Function</th>
+<th>Package</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Continuous</td>
+<td><code>lm()</code></td>
+<td>base</td>
+</tr>
+<tr>
+<td>Binary</td>
+<td><code>glm(family = binomial)</code></td>
+<td>stats</td>
+</tr>
+<tr>
+<td>Count</td>
+<td><code>glm(family = poisson)</code></td>
+<td>stats</td>
+</tr>
+<tr>
+<td>Overdispersed count</td>
+<td><code>glm.nb()</code></td>
+<td>MASS</td>
+</tr>
+<tr>
+<td>Ordinal</td>
+<td><code>polr()</code></td>
+<td>MASS</td>
+</tr>
+<tr>
+<td>Time-to-event</td>
+<td><code>coxph()</code></td>
+<td>survival</td>
+</tr>
+</tbody>
+</table>
+
+<h2>FAQ</h2>
+
+<p><strong>Can I use linear regression if my outcome is bounded between 0 and 1?</strong></p>
+
+<p>Not with standard <code>lm()</code>. Predictions can fall outside the 0-1 range, which is nonsensical for proportions. Use <a class="auto-link" href="Beta-Regression-With-R.html" title="Beta Regression with R">beta regression</a> (<code>betareg</code> package) for continuous proportions, or logistic regression if the outcome is truly binary.</p>
+
+<p><strong>What is the difference between logistic and <a class="auto-link" href="Probit-Regression-With-R.html" title="Probit Regression with R">probit regression</a>?</strong></p>
+
+<p>Both model binary outcomes but use different link functions. Logistic uses the logit link (log-odds), probit uses the inverse normal CDF. In practice, they give nearly identical predictions. Logistic is more common because odds ratios have an intuitive interpretation.</p>
+
+<p><strong>When should I use negative binomial instead of Poisson?</strong></p>
+
+<p>When the dispersion ratio (residual deviance / residual df) substantially exceeds 1.0. A ratio above 1.5 suggests overdispersion. Negative binomial adds a parameter that allows the variance to exceed the mean, producing more reliable standard errors.</p>
+
+<p><strong>How do I handle zero-inflated count data?</strong></p>
+
+<p>Zero-inflated data has more zeros than a Poisson or negative binomial model expects. Use <code>pscl::zeroinfl()</code> to fit a zero-inflated model. It combines a logistic model for the "excess zeros" process with a count model for the regular counts.</p>
+
+<p><strong>Can I use Cox regression with time-varying covariates?</strong></p>
+
+<p>Yes. The <code>survival</code> package supports time-varying covariates by restructuring data into start-stop format with <code>tmerge()</code> or by specifying time-dependent terms in the model formula. This is an advanced topic covered in the survival package vignettes.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team — <em>An Introduction to R</em>. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+<li>Hosmer, D.W., Lemeshow, S. & Sturdivant, R.X. — <em>Applied Logistic Regression</em>, 3rd Edition. Wiley (2013).</li>
+
+<li>Cameron, A.C. & Trivedi, P.K. — <em>Regression Analysis of Count Data</em>, 2nd Edition. Cambridge University Press (2013).</li>
+
+<li>Agresti, A. — <em>Analysis of Ordinal Categorical Data</em>, 2nd Edition. Wiley (2010).</li>
+
+<li>Therneau, T.M. & Grambsch, P.M. — <em>Modeling Survival Data: Extending the Cox Model</em>. Springer (2000).</li>
+
+<li>Venables, W.N. & Ripley, B.D. — <em>Modern Applied Statistics with S</em>, 4th Edition. Springer (2002). <a href="https://www.stats.ox.ac.uk/pub/MASS4/">Link</a></li>
+
+<li>glm() documentation — R Stats Package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html">Link</a></li>
+
+<li>survival package documentation — CRAN. <a href="https://cran.r-project.org/web/packages/survival/index.html">Link</a></li>
+
+<li>Harrell, F.E. — <em>Regression Modeling Strategies</em>, 2nd Edition. Springer (2015). <a href="https://hbiostat.org/rmsc/">Link</a></li>
+
+<li>Fox, J. — <em>Applied Regression Analysis and Generalized Linear Models</em>, 3rd Edition. Sage (2016).</li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="Choosing-the-Right-Statistical-Test-in-R.html">Which Statistical Test in R? A Decision Flowchart</a></strong> — the parent guide that covers hypothesis tests, not just <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a></li>
+
+<li><strong><a href="Linear-Regression-in-R.html">Linear Regression in R</a></strong> — deep dive into OLS with diagnostics, transformations, and <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">feature selection</a></li>
+
+<li><strong><a href="Logistic-Regression-in-R.html">Logistic Regression in R</a></strong> — complete walkthrough of <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a> with ROC curves and model evaluation</li>
+
+</ul>

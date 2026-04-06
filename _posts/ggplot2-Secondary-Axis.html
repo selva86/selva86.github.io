@@ -1,0 +1,1118 @@
+---
+title: "ggplot2 Secondary Axis in R: Add a Second Y-Axis the Right Way"
+description: "Add a second y-axis in ggplot2 using sec_axis() with a mathematical transformation. Learn when dual axes help, when they mislead, and how to align scales."
+keywords: "ggplot2 secondary axis, sec_axis, second y-axis ggplot2, dual axis ggplot2, dup_axis, ggplot2 two y axes, scale_y_continuous sec.axis, secondary axis R, ggplot dual y axis"
+mathjax: false
+webr: true
+curriculum_id: "FR-ggpl-2"
+post_type: "FR"
+auto_link_terms: "sec_axis()|dup_axis()|secondary axis|second y-axis|dual axis|secondary y-axis|dual y-axis"
+auto_link_case_sensitive: false
+fr_parent: "ggplot2-Scales.html"
+---
+<!-- md2html:generated -->
+
+<h1>ggplot2 Secondary Axis in R: Add a Second Y-Axis the Right Way</h1>
+
+<p class="lead"><code>sec_axis()</code> adds a secondary y-axis (or x-axis) to a ggplot2 plot by applying a mathematical transformation to the primary axis — it does not create an independent axis.</p>
+
+<h2>Introduction</h2>
+
+<p>You have temperature in Celsius on one axis and rainfall in millimetres on the other. Both belong on the same time-series plot, but their scales are completely different. How do you show both without creating a mess?</p>
+
+<p>ggplot2 solves this with <code>sec_axis()</code>, a function that creates a secondary axis by transforming the primary axis's scale. The key insight is that ggplot2 does not support two truly independent y-axes. Instead, you rescale one variable to fit the primary axis, then label the secondary axis with the inverse transformation so readers see the original units.</p>
+
+<p>In this tutorial, you will learn how <code>sec_axis()</code> works under the hood and how to compute the transformation coefficient from your data. You will also learn how to style dual-axis plots for readability — and when to avoid dual axes altogether. All code runs directly in your browser.</p>
+
+<h2>How does sec_axis() work?</h2>
+
+<p>The <code>sec_axis()</code> function lives inside <code>scale_y_continuous()</code> (or <code>scale_x_continuous()</code>). It takes a transformation formula and applies it to the primary axis tick values to produce the secondary axis labels.</p>
+
+<p>The transformation must be strictly monotonic — every input maps to exactly one output with no reversals. Linear transformations like <code>~ . * 1.8 + 32</code> (Celsius to Fahrenheit) are the most common.</p>
+
+<p>Let's start with the simplest case: a single variable plotted with a unit-conversion secondary axis.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# Sample temperature data in Celsius
+temp_data &lt;- data.frame(
+  day = 1:10,
+  temp_c = c(18, 20, 22, 25, 28, 30, 27, 24, 21, 19)
+)
+
+p_basic &lt;- ggplot(temp_data, aes(x = day, y = temp_c)) +
+  geom_line(linewidth = 1, color = &quot;steelblue&quot;) +
+  geom_point(size = 2, color = &quot;steelblue&quot;) +
+  scale_y_continuous(
+    name = &quot;Temperature (°C)&quot;,
+    sec.axis = sec_axis(~ . * 1.8 + 32, name = &quot;Temperature (°F)&quot;)
+  ) +
+  labs(x = &quot;Day&quot;) +
+  theme_minimal()
+
+print(p_basic)
+#&gt; A line plot with Celsius on the left axis and Fahrenheit on the right axis</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The left axis shows Celsius. The right axis shows the same data converted to Fahrenheit using the formula <code>F = C * 1.8 + 32</code>. Both axes represent the same variable in different units — this is the cleanest use case for <code>sec_axis()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>sec_axis() does not create an independent axis.</strong> It relabels the primary axis using a formula. The right-side tick marks are computed from the left-side tick marks, not from a separate variable.</div></div>
+
+<p><strong>Try it:</strong> Create a plot of distances in kilometres (use <code>data.frame(trip = 1:5, km = c(10, 25, 42, 8, 55))</code>) with a secondary axis that shows miles. The conversion is <code>miles = km * 0.621</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: add a km-to-miles secondary axis
+trip_data &lt;- data.frame(trip = 1:5, km = c(10, 25, 42, 8, 55))
+
+ex_p1 &lt;- ggplot(trip_data, aes(x = trip, y = km)) +
+  geom_col(fill = &quot;coral&quot;) +
+  scale_y_continuous(
+    name = &quot;Distance (km)&quot;,
+    sec.axis = sec_axis(~ . * 0.621, name = &quot;Distance (miles)&quot;)
+  )
+# your code here — modify the sec_axis formula if needed
+
+print(ex_p1)
+#&gt; Expected: bar chart with km on left, miles on right</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">trip_data &lt;- data.frame(trip = 1:5, km = c(10, 25, 42, 8, 55))
+
+ex_p1 &lt;- ggplot(trip_data, aes(x = trip, y = km)) +
+  geom_col(fill = &quot;coral&quot;) +
+  scale_y_continuous(
+    name = &quot;Distance (km)&quot;,
+    sec.axis = sec_axis(~ . * 0.621, name = &quot;Distance (miles)&quot;)
+  ) +
+  theme_minimal()
+
+print(ex_p1)
+#&gt; Bar chart with km on the left axis and miles on the right axis</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The formula <code>~ . * 0.621</code> converts each km tick value to miles for the right axis.</p>
+
+</details>
+
+<h2>How do you compute the transformation coefficient?</h2>
+
+<p>Unit conversions are straightforward because the formula is known. The harder case is plotting two different variables on the same chart — say, unemployment count and personal savings rate from R's built-in <code>economics</code> dataset.</p>
+
+<p>The trick is a two-step process. First, rescale the second variable so it fits within the primary axis range. Second, use the inverse of that rescaling as the <code>sec_axis()</code> transformation so the right axis shows the original values.</p>
+
+<p>Here is how to compute the linear transformation coefficients from the data.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Use the economics dataset (comes with ggplot2)
+econ &lt;- economics[economics$date &gt;= as.Date(&quot;2005-01-01&quot;), ]
+
+# Primary variable: unemploy (thousands of people)
+# Secondary variable: psavert (personal savings rate, %)
+
+# Step 1: Compute the scaling coefficient and offset
+coeff &lt;- (max(econ$unemploy) - min(econ$unemploy)) /
+         (max(econ$psavert) - min(econ$psavert))
+offset &lt;- min(econ$unemploy) - coeff * min(econ$psavert)
+
+cat(&quot;Coefficient:&quot;, round(coeff, 1), &quot;\n&quot;)
+#&gt; Coefficient: 978.3
+cat(&quot;Offset:&quot;, round(offset, 1), &quot;\n&quot;)
+#&gt; Offset: 3948.5</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The coefficient tells you how many units of the primary variable correspond to one unit of the secondary variable. The offset aligns the minimums. Now plot both variables, scaling <code>psavert</code> into the <code>unemploy</code> range.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">p_dual &lt;- ggplot(econ, aes(x = date)) +
+  geom_line(aes(y = unemploy), color = &quot;steelblue&quot;, linewidth = 0.8) +
+  geom_line(aes(y = psavert * coeff + offset), color = &quot;tomato&quot;, linewidth = 0.8) +
+  scale_y_continuous(
+    name = &quot;Unemployed (thousands)&quot;,
+    sec.axis = sec_axis(~ (. - offset) / coeff, name = &quot;Savings Rate (%)&quot;)
+  ) +
+  labs(x = NULL) +
+  theme_minimal()
+
+print(p_dual)
+#&gt; Line chart: blue = unemployment (left axis), red = savings rate (right axis)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The blue line reads off the left axis (unemployment). The red line reads off the right axis (savings rate). The <code>sec_axis()</code> formula is the inverse of the scaling: <code>(. - offset) / coeff</code> undoes the <code>* coeff + offset</code> applied to the data.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always compute the scaling coefficient from your data's actual ranges.</strong> Guessing a round number like 1000 leads to one variable being squashed at the top or bottom of the plot.</div></div>
+
+<p><strong>Try it:</strong> Compute the coefficient and offset to plot <code>mtcars$mpg</code> (primary, left axis) against <code>mtcars$hp</code> (secondary, right axis). Print both values.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: compute coeff and offset for mpg vs hp
+ex_coeff &lt;- (max(mtcars$mpg) - min(mtcars$mpg)) /
+            (max(mtcars$hp) - min(mtcars$hp))
+ex_offset &lt;- min(mtcars$mpg) - ex_coeff * min(mtcars$hp)
+
+cat(&quot;Coefficient:&quot;, round(ex_coeff, 3), &quot;\n&quot;)
+#&gt; Expected: Coefficient: ~0.075
+cat(&quot;Offset:&quot;, round(ex_offset, 2), &quot;\n&quot;)
+#&gt; Expected: Offset: ~6.11</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_coeff &lt;- (max(mtcars$mpg) - min(mtcars$mpg)) /
+            (max(mtcars$hp) - min(mtcars$hp))
+ex_offset &lt;- min(mtcars$mpg) - ex_coeff * min(mtcars$hp)
+
+cat(&quot;Coefficient:&quot;, round(ex_coeff, 3), &quot;\n&quot;)
+#&gt; [1] Coefficient: 0.075
+cat(&quot;Offset:&quot;, round(ex_offset, 2), &quot;\n&quot;)
+#&gt; [1] Offset: 6.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The coefficient maps the hp range (52-335) onto the mpg range (10.4-33.9). The offset shifts the minimum of hp to align with the minimum of mpg.</p>
+
+</details>
+
+<h2>How do you style a dual-axis plot so readers can tell which axis belongs to which line?</h2>
+
+<p>A dual-axis plot without colour-coding is a puzzle. Readers stare at two lines and two y-axes with no way to match them. The fix is to colour the axis titles, labels, and tick marks to match the corresponding line.</p>
+
+<p>Use <code>theme()</code> to target the left and right axis elements separately.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">p_styled &lt;- ggplot(econ, aes(x = date)) +
+  geom_line(aes(y = unemploy), color = &quot;steelblue&quot;, linewidth = 0.8) +
+  geom_line(aes(y = psavert * coeff + offset), color = &quot;tomato&quot;, linewidth = 0.8) +
+  scale_y_continuous(
+    name = &quot;Unemployed (thousands)&quot;,
+    sec.axis = sec_axis(~ (. - offset) / coeff, name = &quot;Savings Rate (%)&quot;)
+  ) +
+  labs(x = NULL, title = &quot;US Unemployment vs Personal Savings Rate&quot;) +
+  theme_minimal() +
+  theme(
+    axis.title.y.left  = element_text(color = &quot;steelblue&quot;, size = 12),
+    axis.text.y.left   = element_text(color = &quot;steelblue&quot;),
+    axis.title.y.right = element_text(color = &quot;tomato&quot;, size = 12),
+    axis.text.y.right  = element_text(color = &quot;tomato&quot;)
+  )
+
+print(p_styled)
+#&gt; Dual-axis plot with blue left axis (unemployment) and red right axis (savings)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now each axis visually matches its line. The blue title "Unemployed (thousands)" pairs with the blue line; the red title "Savings Rate (%)" pairs with the red line. This is not optional decoration — it is a readability requirement.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Without colour-coding, readers cannot determine which line maps to which axis.</strong> A dual-axis plot missing this step is worse than two separate plots because it actively confuses.</div></div>
+
+<p><strong>Try it:</strong> Modify the styled plot above so the right axis uses "darkgreen" instead of "tomato". Change the corresponding <code>geom_line()</code> colour to match.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: change right axis to darkgreen
+ex_styled &lt;- ggplot(econ, aes(x = date)) +
+  geom_line(aes(y = unemploy), color = &quot;steelblue&quot;, linewidth = 0.8) +
+  geom_line(aes(y = psavert * coeff + offset), color = &quot;darkgreen&quot;, linewidth = 0.8) +
+  scale_y_continuous(
+    name = &quot;Unemployed (thousands)&quot;,
+    sec.axis = sec_axis(~ (. - offset) / coeff, name = &quot;Savings Rate (%)&quot;)
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.y.left  = element_text(color = &quot;steelblue&quot;),
+    axis.text.y.left   = element_text(color = &quot;steelblue&quot;),
+    # your code here — style the right axis darkgreen
+    axis.title.y.right = element_text(color = &quot;darkgreen&quot;),
+    axis.text.y.right  = element_text(color = &quot;darkgreen&quot;)
+  )
+
+print(ex_styled)
+#&gt; Expected: right axis and line both in dark green</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_styled &lt;- ggplot(econ, aes(x = date)) +
+  geom_line(aes(y = unemploy), color = &quot;steelblue&quot;, linewidth = 0.8) +
+  geom_line(aes(y = psavert * coeff + offset), color = &quot;darkgreen&quot;, linewidth = 0.8) +
+  scale_y_continuous(
+    name = &quot;Unemployed (thousands)&quot;,
+    sec.axis = sec_axis(~ (. - offset) / coeff, name = &quot;Savings Rate (%)&quot;)
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.y.left  = element_text(color = &quot;steelblue&quot;),
+    axis.text.y.left   = element_text(color = &quot;steelblue&quot;),
+    axis.title.y.right = element_text(color = &quot;darkgreen&quot;),
+    axis.text.y.right  = element_text(color = &quot;darkgreen&quot;)
+  )
+
+print(ex_styled)
+#&gt; Dual-axis plot with green right axis matching the green savings-rate line</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Both <code>axis.title.y.right</code> and <code>axis.text.y.right</code> must be set to the same colour as the <code>geom_line()</code> for the secondary variable.</p>
+
+</details>
+
+<h2>When should you use a secondary axis (and when should you avoid it)?</h2>
+
+<p>Dual-axis plots have a bad reputation in the data visualization community, and much of that reputation is earned. The problem is that the visual relationship between two lines depends entirely on the scaling factor you choose — and that choice is arbitrary.</p>
+
+<p>Watch what happens when we change the coefficient. The exact same data tells a completely different story.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Misleading example: change the coefficient
+# Tight scaling — lines appear to move together
+coeff_tight &lt;- 500
+offset_tight &lt;- min(econ$unemploy) - coeff_tight * min(econ$psavert)
+
+p_mislead &lt;- ggplot(econ, aes(x = date)) +
+  geom_line(aes(y = unemploy), color = &quot;steelblue&quot;, linewidth = 0.8) +
+  geom_line(aes(y = psavert * coeff_tight + offset_tight),
+            color = &quot;tomato&quot;, linewidth = 0.8) +
+  scale_y_continuous(
+    name = &quot;Unemployed (thousands)&quot;,
+    sec.axis = sec_axis(~ (. - offset_tight) / coeff_tight,
+                        name = &quot;Savings Rate (%)&quot;)
+  ) +
+  labs(title = &quot;Same data, different coefficient — looks like they move together&quot;) +
+  theme_minimal()
+
+print(p_mislead)
+#&gt; The savings-rate line appears flattened, visually &quot;tracking&quot; unemployment</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>By shrinking the coefficient, the savings-rate line looks nearly flat and appears to follow unemployment. A different coefficient could make them look inversely related. The data has not changed — only the visual framing has.</p>
+
+<p><strong>When dual axes are appropriate:</strong></p>
+
+<ul>
+
+<li><strong>Unit conversions</strong> on the same variable (Celsius/Fahrenheit, km/miles, kg/lbs). There is no ambiguity because both axes represent the same thing.</li>
+
+<li><strong>Pareto charts</strong> combining counts with cumulative percentages. The two axes have a known mathematical relationship.</li>
+
+</ul>
+
+<p><strong>When dual axes mislead:</strong></p>
+
+<ul>
+
+<li>Two unrelated variables (GDP and ice cream sales). The visual correlation is an artifact of scaling.</li>
+
+<li>Variables with different causal structures. Even if correlated, overlaying them implies a relationship that may not exist.</li>
+
+</ul>
+
+<p><strong>Better alternatives:</strong> Use <code>facet_wrap()</code> to give each variable its own panel, or use the <code>patchwork</code> package to stack separate plots.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Changing the scaling factor can make the same data look correlated, uncorrelated, or inversely related.</strong> If the two variables are not unit conversions of each other, consider facets instead.</div></div>
+
+<p><strong>Try it:</strong> Create a faceted version of the unemployment/savings plot using <code>tidyr::pivot_longer()</code> and <code>facet_wrap()</code>. This avoids the dual-axis problem entirely.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: faceted alternative
+econ_long &lt;- data.frame(
+  date = rep(econ$date, 2),
+  variable = rep(c(&quot;Unemployed (thousands)&quot;, &quot;Savings Rate (%)&quot;),
+                 each = nrow(econ)),
+  value = c(econ$unemploy, econ$psavert)
+)
+
+ex_facet &lt;- ggplot(econ_long, aes(x = date, y = value)) +
+  geom_line(color = &quot;steelblue&quot;, linewidth = 0.7) +
+  facet_wrap(~ variable, scales = &quot;free_y&quot;, ncol = 1) +
+  # your code here — add theme_minimal() and a title
+  theme_minimal()
+
+print(ex_facet)
+#&gt; Expected: two panels stacked vertically, each with its own y-axis</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">econ_long &lt;- data.frame(
+  date = rep(econ$date, 2),
+  variable = rep(c(&quot;Unemployed (thousands)&quot;, &quot;Savings Rate (%)&quot;),
+                 each = nrow(econ)),
+  value = c(econ$unemploy, econ$psavert)
+)
+
+ex_facet &lt;- ggplot(econ_long, aes(x = date, y = value)) +
+  geom_line(color = &quot;steelblue&quot;, linewidth = 0.7) +
+  facet_wrap(~ variable, scales = &quot;free_y&quot;, ncol = 1) +
+  labs(title = &quot;Faceted Alternative to Dual Axes&quot;, x = NULL) +
+  theme_minimal()
+
+print(ex_facet)
+#&gt; Two stacked panels: unemployment on top, savings rate on bottom</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>facet_wrap(scales = &quot;free_y&quot;)</code> gives each variable its own y-axis without any arbitrary scaling.</p>
+
+</details>
+
+<h2>What are dup_axis() and secondary x-axes?</h2>
+
+<p>Beyond <code>sec_axis()</code>, ggplot2 provides <code>dup_axis()</code> — a shorthand that mirrors the primary axis on the opposite side without any transformation.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># dup_axis: mirror the y-axis on the right
+p_dup &lt;- ggplot(temp_data, aes(x = day, y = temp_c)) +
+  geom_line(linewidth = 1, color = &quot;steelblue&quot;) +
+  scale_y_continuous(
+    name = &quot;Temperature (°C)&quot;,
+    sec.axis = dup_axis(name = &quot;Temperature (°C)&quot;)
+  ) +
+  theme_minimal()
+
+print(p_dup)
+#&gt; Line plot with identical y-axes on both left and right sides</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This is useful for wide plots or presentations where the audience sits far from the screen. Having tick marks on both sides lets readers reference the nearest axis.</p>
+
+<p>You can also add a secondary x-axis. The syntax is identical, but inside <code>scale_x_continuous()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Secondary x-axis: show row index on bottom, scaled value on top
+p_secx &lt;- ggplot(temp_data, aes(x = day, y = temp_c)) +
+  geom_line(linewidth = 1, color = &quot;steelblue&quot;) +
+  scale_x_continuous(
+    name = &quot;Day Number&quot;,
+    sec.axis = sec_axis(~ . + 10, name = &quot;Day of Month (offset by 10)&quot;)
+  ) +
+  theme_minimal()
+
+print(p_secx)
+#&gt; Line plot with &quot;Day Number&quot; on the bottom x-axis and offset labels on top</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The top x-axis shows each day number plus 10. In practice, secondary x-axes are less common but handy for showing a date range alongside an index, or experiment day alongside a calendar date.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use dup_axis() when you want the same scale on both sides.</strong> It saves the audience from tracking their eyes across a wide chart to read the axis.</div></div>
+
+<p><strong>Try it:</strong> Add a top x-axis that mirrors the bottom x-axis using <code>dup_axis()</code> inside <code>scale_x_continuous()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: mirrored top x-axis
+ex_dup_x &lt;- ggplot(temp_data, aes(x = day, y = temp_c)) +
+  geom_line(linewidth = 1, color = &quot;steelblue&quot;) +
+  scale_x_continuous(
+    name = &quot;Day&quot;,
+    sec.axis = dup_axis(name = &quot;Day&quot;)
+  )
+# your code here — add theme_minimal() and print
+
+print(ex_dup_x)
+#&gt; Expected: line plot with day labels on both bottom and top x-axes</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_dup_x &lt;- ggplot(temp_data, aes(x = day, y = temp_c)) +
+  geom_line(linewidth = 1, color = &quot;steelblue&quot;) +
+  scale_x_continuous(
+    name = &quot;Day&quot;,
+    sec.axis = dup_axis(name = &quot;Day&quot;)
+  ) +
+  theme_minimal()
+
+print(ex_dup_x)
+#&gt; Line plot with mirrored x-axes on bottom and top</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>dup_axis()</code> inside <code>scale_x_continuous()</code> mirrors the bottom axis to the top, using the same breaks and labels.</p>
+
+</details>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Plotting the second variable without rescaling it</h4>
+
+<p>This is the most common error. You add a second <code>geom_line()</code> with the raw secondary variable, but both lines share the primary axis scale. One variable dominates the plot or is invisible.</p>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># psavert ranges 2-8, unemploy ranges 6000-15000
+# psavert line is invisible at the bottom of the plot
+p_wrong1 &lt;- ggplot(econ, aes(x = date)) +
+  geom_line(aes(y = unemploy), color = &quot;steelblue&quot;) +
+  geom_line(aes(y = psavert), color = &quot;tomato&quot;) +
+  scale_y_continuous(
+    sec.axis = sec_axis(~ . , name = &quot;Savings Rate (%)&quot;)
+  ) +
+  theme_minimal()
+
+print(p_wrong1)
+#&gt; The red line (psavert) is squashed flat at y = 0</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>psavert</code> values (2-8) are plotted on the same scale as <code>unemploy</code> (6000-15000). The red line hugs zero.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Rescale psavert into the unemploy range
+p_fix1 &lt;- ggplot(econ, aes(x = date)) +
+  geom_line(aes(y = unemploy), color = &quot;steelblue&quot;) +
+  geom_line(aes(y = psavert * coeff + offset), color = &quot;tomato&quot;) +
+  scale_y_continuous(
+    name = &quot;Unemployed (thousands)&quot;,
+    sec.axis = sec_axis(~ (. - offset) / coeff, name = &quot;Savings Rate (%)&quot;)
+  ) +
+  theme_minimal()
+
+print(p_fix1)
+#&gt; Both lines use the full vertical space of the plot</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Using a non-monotonic transformation</h4>
+
+<p><code>sec_axis()</code> requires a strictly monotonic function. A parabola (<code>~ .^2</code>) or sine wave is not monotonic across its full range and will produce incorrect or erroring output.</p>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># This may produce warnings or incorrect axis labels
+# sec_axis(~ sin(.), name = &quot;Sine&quot;) — non-monotonic!</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>sin()</code> is periodic — the same output maps to multiple inputs. ggplot2 cannot invert the transformation to produce correct labels.</p>
+
+<p>✅ <strong>Correct:</strong> Stick to linear transformations (<code>~ . * a + b</code>) or strictly monotonic functions like <code>log()</code>, <code>sqrt()</code>, or <code>exp()</code>.</p>
+
+<h4>Mistake 3: Mismatch between data scaling and axis transformation</h4>
+
+<p>The formula inside <code>sec_axis()</code> must be the exact inverse of the transformation applied to the data. If you scale the data by <code>* 1000</code> but set the axis to <code>~ . / 500</code>, the right-axis labels will be wrong.</p>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Data scaled by coeff + offset, but axis uses different values
+p_mismatch &lt;- ggplot(econ, aes(x = date)) +
+  geom_line(aes(y = psavert * 1000 + 5000), color = &quot;tomato&quot;) +
+  scale_y_continuous(
+    sec.axis = sec_axis(~ (. - 3000) / 800, name = &quot;Savings Rate (%)&quot;)
+  ) +
+  theme_minimal()
+
+print(p_mismatch)
+#&gt; Right axis labels do NOT match the actual psavert values</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> The data uses <code>* 1000 + 5000</code> but the axis inverse uses <code>- 3000 / 800</code>. The numbers on the right axis are meaningless.</p>
+
+<p>✅ <strong>Correct:</strong> Always use the exact inverse. If data = <code>y * a + b</code>, then axis = <code>~ (. - b) / a</code>.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Temperature conversion with airquality</h4>
+
+<p>Plot the daily temperature from R's <code>airquality</code> dataset (May through September) with Fahrenheit on the left axis and Celsius on the right axis. Colour-code both axes. Add a title.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: airquality temperature with F and C axes
+# Hint: Celsius = (Fahrenheit - 32) / 1.8
+# Use sec_axis() and theme() for axis colours
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">aq &lt;- airquality
+aq$day_index &lt;- seq_len(nrow(aq))
+
+ex1_p &lt;- ggplot(aq, aes(x = day_index, y = Temp)) +
+  geom_line(color = &quot;#E74C3C&quot;, linewidth = 0.7) +
+  scale_y_continuous(
+    name = &quot;Temperature (°F)&quot;,
+    sec.axis = sec_axis(~ (. - 32) / 1.8, name = &quot;Temperature (°C)&quot;)
+  ) +
+  labs(x = &quot;Day (May-Sep)&quot;, title = &quot;NYC Daily Temperature — Dual Unit Axes&quot;) +
+  theme_minimal() +
+  theme(
+    axis.title.y.left  = element_text(color = &quot;#E74C3C&quot;),
+    axis.text.y.left   = element_text(color = &quot;#E74C3C&quot;),
+    axis.title.y.right = element_text(color = &quot;#2E86C1&quot;),
+    axis.text.y.right  = element_text(color = &quot;#2E86C1&quot;)
+  )
+
+print(ex1_p)
+#&gt; Line chart: red left axis (F), blue right axis (C)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Since <code>airquality$Temp</code> is already in Fahrenheit, the <code>sec_axis()</code> transformation converts to Celsius using the standard formula.</p>
+
+</details>
+
+<h4>Exercise 2: Pareto chart from mtcars cylinders</h4>
+
+<p>Create a Pareto chart showing the count of cars by cylinder number (bar chart, left axis) and cumulative percentage (line, right axis). Sort bars from most to least frequent.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: Pareto chart
+# Hint: compute cumulative percentage, scale it into the count range
+# Use geom_col() for bars and geom_line() + geom_point() for cumulative %
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+cyl_data &lt;- mtcars |&gt;
+  count(cyl, name = &quot;n&quot;) |&gt;
+  arrange(desc(n)) |&gt;
+  mutate(
+    cyl = factor(cyl, levels = cyl),
+    cum_pct = cumsum(n) / sum(n) * 100
+  )
+
+# Scaling: map 0-100% onto 0-max(n)
+ex2_max &lt;- max(cyl_data$n)
+
+ex2_p &lt;- ggplot(cyl_data, aes(x = cyl)) +
+  geom_col(aes(y = n), fill = &quot;steelblue&quot;, width = 0.6) +
+  geom_line(aes(y = cum_pct / 100 * ex2_max, group = 1),
+            color = &quot;tomato&quot;, linewidth = 1) +
+  geom_point(aes(y = cum_pct / 100 * ex2_max),
+             color = &quot;tomato&quot;, size = 3) +
+  scale_y_continuous(
+    name = &quot;Count&quot;,
+    sec.axis = sec_axis(~ . / ex2_max * 100, name = &quot;Cumulative %&quot;)
+  ) +
+  labs(x = &quot;Cylinders&quot;, title = &quot;Pareto Chart: Cars by Cylinder Count&quot;) +
+  theme_minimal() +
+  theme(
+    axis.title.y.left  = element_text(color = &quot;steelblue&quot;),
+    axis.title.y.right = element_text(color = &quot;tomato&quot;)
+  )
+
+print(ex2_p)
+#&gt; Bar chart (blue, left axis) + cumulative line (red, right axis)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The cumulative percentage is rescaled into the count range (<code>cum_pct / 100 * max_count</code>). The <code>sec_axis()</code> reverses this (<code>~ . / max_count * 100</code>) so the right axis shows 0-100%.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Here is a complete, polished dual-axis plot that combines everything from this tutorial: computed coefficients, colour-coded axes, clear labels, and a professional theme.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Complete example: US unemployment (left) vs savings rate (right)
+# Using economics dataset, post-2000
+
+econ_full &lt;- economics[economics$date &gt;= as.Date(&quot;2000-01-01&quot;), ]
+
+# Compute scaling
+full_coeff &lt;- (max(econ_full$unemploy) - min(econ_full$unemploy)) /
+              (max(econ_full$psavert) - min(econ_full$psavert))
+full_offset &lt;- min(econ_full$unemploy) - full_coeff * min(econ_full$psavert)
+
+p_final &lt;- ggplot(econ_full, aes(x = date)) +
+  geom_line(aes(y = unemploy), color = &quot;#2C3E50&quot;, linewidth = 0.9) +
+  geom_line(aes(y = psavert * full_coeff + full_offset),
+            color = &quot;#E67E22&quot;, linewidth = 0.9) +
+  scale_y_continuous(
+    name = &quot;Unemployed (thousands)&quot;,
+    labels = scales::comma,
+    sec.axis = sec_axis(
+      ~ (. - full_offset) / full_coeff,
+      name = &quot;Personal Savings Rate (%)&quot;
+    )
+  ) +
+  scale_x_date(date_labels = &quot;%Y&quot;, date_breaks = &quot;2 years&quot;) +
+  labs(
+    title = &quot;US Unemployment vs Personal Savings Rate (2000-2015)&quot;,
+    x = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.title.y.left  = element_text(color = &quot;#2C3E50&quot;, face = &quot;bold&quot;),
+    axis.text.y.left   = element_text(color = &quot;#2C3E50&quot;),
+    axis.title.y.right = element_text(color = &quot;#E67E22&quot;, face = &quot;bold&quot;),
+    axis.text.y.right  = element_text(color = &quot;#E67E22&quot;),
+    plot.title = element_text(face = &quot;bold&quot;, size = 14)
+  )
+
+print(p_final)
+#&gt; Polished dual-axis chart: dark blue unemployment (left), orange savings (right)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This plot uses <code>scales::comma</code> for readable left-axis labels, date breaks for a clean x-axis, and bold colour-coded titles. A reader can immediately tell which line belongs to which axis.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Purpose</th>
+<th>Best use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sec_axis(~ formula)</code></td>
+<td>Transform primary axis to create a secondary axis</td>
+<td>Unit conversions (C/F, km/mi), Pareto charts</td>
+</tr>
+<tr>
+<td><code>dup_axis()</code></td>
+<td>Mirror primary axis on the opposite side</td>
+<td>Wide plots, presentations</td>
+</tr>
+<tr>
+<td>Coefficient formula</td>
+<td><code>a = range(y1) / range(y2)</code>, <code>b = min(y1) - a * min(y2)</code></td>
+<td>Aligning two variables with different scales</td>
+</tr>
+<tr>
+<td>Axis styling</td>
+<td><code>theme(axis.title.y.right = element_text(...))</code></td>
+<td>Colour-coding axes to match lines</td>
+</tr>
+<tr>
+<td>Avoid dual axes</td>
+<td>Use <code>facet_wrap(scales = &quot;free_y&quot;)</code> instead</td>
+<td>Unrelated variables on different scales</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Key takeaways:</strong></p>
+
+<ul>
+
+<li><code>sec_axis()</code> transforms the primary axis — it does not create an independent second axis</li>
+
+<li>The transformation must be strictly monotonic</li>
+
+<li>Always compute the coefficient from your data ranges, never guess</li>
+
+<li>Colour-code axes to match their lines — this is not optional</li>
+
+<li>Dual axes are best for unit conversions; for unrelated variables, prefer facets</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Can sec_axis() create a truly independent second y-axis?</strong></p>
+
+<p>No. ggplot2's design philosophy is that one axis, one scale, one mapping. The secondary axis must be a mathematical function of the primary axis. If you need two completely independent y-axes, use <code>facet_wrap(scales = &quot;free_y&quot;)</code> or the <code>patchwork</code> package to combine two separate plots.</p>
+
+<p><strong>Does sec_axis() work with date or datetime axes?</strong></p>
+
+<p>It does, but with restrictions. Datetime axis transformations are limited to addition and subtraction (e.g., shifting time zones with <code>~ . + 3600</code>). Nonlinear transformations like <code>log()</code> or multiplication will produce errors because they violate the POSIX structure.</p>
+
+<p><strong>How do I add a secondary axis to a bar chart?</strong></p>
+
+<p>The same way as with lines. Use <code>geom_col()</code> for the primary variable and overlay a <code>geom_line()</code> or <code>geom_point()</code> for the secondary variable (rescaled). The <code>sec_axis()</code> call stays inside <code>scale_y_continuous()</code>.</p>
+
+<p><strong>Can I have both a secondary x-axis and a secondary y-axis on the same plot?</strong></p>
+
+<p>Yes. Use <code>sec.axis</code> inside both <code>scale_x_continuous()</code> and <code>scale_y_continuous()</code>. Each axis gets its own transformation formula.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 documentation — sec_axis() reference. <a href="https://ggplot2.tidyverse.org/reference/sec_axis.html">Link</a></li>
+
+<li>R Graph Gallery — Dual Y axis with R and ggplot2. <a href="https://r-graph-gallery.com/line-chart-dual-Y-axis-ggplot2.html">Link</a></li>
+
+<li>Wickham, H. — <em>ggplot2: Elegant Graphics for Data Analysis</em>, 3rd Edition. Springer (2024). Chapter 10: Scales. <a href="https://ggplot2-book.org/scales-position">Link</a></li>
+
+<li>Healy, K. — <em>Data Visualization: A Practical Introduction</em>. Princeton University Press (2018). Section on dual axes. <a href="https://socviz.co/">Link</a></li>
+
+<li>Few, S. — "Dual-Scaled Axes in Graphs: Are They Ever the Best Solution?" Visual Business Intelligence Newsletter (2008). <a href="https://www.perceptualedge.com/articles/visual_business_intelligence/dual-scaled_axes.pdf">Link</a></li>
+
+<li>ggplot2 source code — axis-secondary.R. <a href="https://github.com/tidyverse/ggplot2/blob/main/R/axis-secondary.R">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="ggplot2-Scales.html">ggplot2 Scales</a></strong> — The full guide to controlling axes, colours, sizes, and all scale functions in ggplot2.</li>
+
+<li><strong><a href="ggplot2-Themes.html">ggplot2 Themes</a></strong> — Customise fonts, grid lines, backgrounds, and build a reusable house style.</li>
+
+</ul>

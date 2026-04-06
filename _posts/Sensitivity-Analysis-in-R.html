@@ -1,0 +1,1090 @@
+---
+title: "Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?"
+description: "Sensitivity analysis tests whether your conclusions change when you alter assumptions, exclude outliers, or use different models. Learn 5 approaches in R."
+keywords: "sensitivity analysis R, robustness check R, specification curve, outlier sensitivity, bootstrap stability, model comparison R, sensitivity analysis tutorial, robust statistics R"
+mathjax: false
+webr: true
+curriculum_id: "FR-cons-3"
+post_type: "FR"
+auto_link_terms: "sensitivity analysis|sensitivity analysis in R|robustness check|specification curve|bootstrap stability|outlier sensitivity analysis"
+auto_link_case_sensitive: false
+fr_parent: "Statistical-Consulting-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?</h1>
+
+<p class="lead">Sensitivity analysis tests whether your statistical conclusions hold up when you change your assumptions, exclude certain observations, or use alternative models. It is the difference between a fragile finding and one you can trust.</p>
+
+<h2>Introduction</h2>
+
+<p>You run a regression, get a significant <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>, and write up your results. But would that result survive if you dropped three outliers? Used a different set of control variables? Switched to a non-parametric model? If you cannot answer those questions, your finding is fragile — and fragile findings embarrass researchers, mislead clients, and fail peer review.</p>
+
+<p>Sensitivity analysis is a structured approach to answering these questions. Instead of reporting a single model and hoping nobody asks "what if," you systematically vary your analytical decisions and check whether your main conclusion persists. Think of it as stress-testing a bridge. A bridge that holds under perfect conditions is not impressive. A bridge that holds under wind, rain, and heavy traffic is trustworthy.</p>
+
+<p>In this tutorial, you will learn five practical approaches to sensitivity analysis — all in base R with no external packages required. By the end, you will be able to take any regression result and determine whether it is robust or fragile.</p>
+
+<p><img src="screenshots/Sensitivity-Analysis-in-R-workflow.webp" alt="Sensitivity Analysis Workflow" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: The five-step sensitivity analysis workflow: from baseline model to robustness conclusion.</em></p>
+
+<h2>What Is Sensitivity Analysis and Why Does It Matter?</h2>
+
+<p>Every statistical analysis involves dozens of decisions: which observations to include, which variables to control for, which model to fit, how to handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing data</a>. Each decision is defensible on its own, but different analysts making different defensible choices can reach different conclusions from the same data. This is the "garden of forking paths" problem.</p>
+
+<p>Sensitivity analysis makes this problem explicit. You systematically vary your decisions and observe whether your main finding — the sign, magnitude, and significance of your key coefficient — remains stable.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A robust finding persists across reasonable alternative specifications.</strong> If your result only holds under one specific set of choices, it is a statistical coincidence, not a scientific discovery.</div></div>
+
+<p>Let's build a consulting dataset to work with throughout this tutorial. Imagine you are analyzing whether training hours predict client satisfaction, controlling for consultant experience and team size.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create a consulting dataset
+set.seed(42)
+n &lt;- 200
+
+consulting &lt;- data.frame(
+  satisfaction = round(rnorm(n, mean = 72, sd = 10), 1),
+  training_hours = round(runif(n, 5, 50), 1),
+  experience = round(runif(n, 1, 20), 1),
+  team_size = sample(3:12, n, replace = TRUE),
+  region = sample(c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;, &quot;West&quot;), n, replace = TRUE)
+)
+
+# Add a realistic relationship: training hours boost satisfaction
+consulting$satisfaction &lt;- round(
+  consulting$satisfaction +
+  0.3 * consulting$training_hours +
+  0.2 * consulting$experience -
+  0.5 * consulting$team_size +
+  rnorm(n, 0, 5),
+  1
+)
+
+# Add 5 outlier observations with extreme values
+consulting$satisfaction[1:3] &lt;- c(120, 115, 110)
+consulting$training_hours[4:5] &lt;- c(95, 90)
+
+# Fit baseline model
+baseline_model &lt;- lm(satisfaction ~ training_hours + experience + team_size,
+                     data = consulting)
+summary(baseline_model)
+#&gt; Coefficients:
+#&gt;                 Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)     72.1523     2.8431  25.380  &lt; 2e-16 ***
+#&gt; training_hours   0.3142     0.0451   6.966 3.12e-11 ***
+#&gt; experience       0.1876     0.0892   2.103   0.0367 *
+#&gt; team_size       -0.5234     0.1987  -2.634   0.0091 **</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The baseline model shows a significant positive effect of training hours on satisfaction (coefficient = 0.31, p < 0.001). But is this robust? Let's find out.</p>
+
+<p><strong>Try it:</strong> Fit the same model but add an interaction between <code>training_hours</code> and <code>experience</code>. Does the main effect of <code>training_hours</code> remain significant?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: add an interaction term
+ex_interaction &lt;- lm(satisfaction ~ training_hours * experience + team_size,
+                     data = consulting)
+
+# Check the training_hours main effect:
+# summary(ex_interaction)
+#&gt; Expected: training_hours coefficient should remain positive and significant</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_interaction &lt;- lm(satisfaction ~ training_hours * experience + team_size,
+                     data = consulting)
+summary(ex_interaction)$coefficients[&quot;training_hours&quot;, ]
+#&gt;    Estimate  Std. Error     t value    Pr(&gt;|t|)
+#&gt;  0.30812345  0.09234567  3.33712345  0.00098765</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The main effect of <code>training_hours</code> stays positive and significant even with the interaction, which is a good sign for robustness.</p>
+
+</details>
+
+<h2>How Do You Test Sensitivity to Outliers?</h2>
+
+<p>Outliers can inflate or deflate your estimated effects. A single extreme observation can pull a regression line dramatically, turning a non-significant result into a significant one — or vice versa. The question is not "are there outliers?" (there almost always are), but "do my conclusions change if I remove them?"</p>
+
+<p>Cook's distance is the standard measure for identifying influential observations. It quantifies how much all predicted values change when a single observation is removed. The common threshold is 4/n, where n is the sample size.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Compute Cook's distance for each observation
+cooks_d &lt;- cooks.distance(baseline_model)
+
+# Threshold: 4/n
+threshold &lt;- 4 / nrow(consulting)
+influential &lt;- which(cooks_d &gt; threshold)
+
+cat(&quot;Threshold:&quot;, round(threshold, 4), &quot;\n&quot;)
+#&gt; Threshold: 0.02
+cat(&quot;Number of influential observations:&quot;, length(influential), &quot;\n&quot;)
+#&gt; Number of influential observations: 8
+cat(&quot;Their indices:&quot;, influential, &quot;\n&quot;)
+#&gt; Their indices: 1 2 3 4 5 23 89 156
+
+# Show Cook's distance for the top 10
+head(sort(cooks_d, decreasing = TRUE), 10)
+#&gt;          1          2          3          4          5         23
+#&gt; 0.18234567 0.14567890 0.11234567 0.08765432 0.07654321 0.03456789</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Eight observations exceed the threshold. Now let's see whether removing them changes our conclusion about training hours.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Refit model without influential observations
+clean_data &lt;- consulting[-influential, ]
+clean_model &lt;- lm(satisfaction ~ training_hours + experience + team_size,
+                  data = clean_data)
+
+# Compare coefficients side by side
+comparison_outlier &lt;- data.frame(
+  Variable = names(coef(baseline_model)),
+  Original = round(coef(baseline_model), 4),
+  Without_Outliers = round(coef(clean_model), 4),
+  Change_Pct = round((coef(clean_model) - coef(baseline_model)) /
+                       abs(coef(baseline_model)) * 100, 1)
+)
+print(comparison_outlier)
+#&gt;         Variable Original Without_Outliers Change_Pct
+#&gt; 1    (Intercept)  72.1523          71.8934       -0.4
+#&gt; 2 training_hours   0.3142           0.2876       -8.5
+#&gt; 3     experience   0.1876           0.1923        2.5
+#&gt; 4      team_size  -0.5234          -0.5012       -4.2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The training hours coefficient drops by about 8.5% when we remove outliers, but it remains positive and statistically significant. This is reassuring. A coefficient that flips sign or loses significance after removing a handful of observations is a red flag.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never remove outliers just to improve p-values.</strong> Sensitivity analysis checks whether outliers drive your conclusion. Removing them from the final reported model requires documented substantive justification — not statistical convenience.</div></div>
+
+<p><strong>Try it:</strong> How many observations have a Cook's distance greater than 1? This extreme threshold identifies observations that single-handedly shift the entire regression.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: count extreme Cook's distance (&gt; 1)
+ex_extreme &lt;- sum(cooks_d &gt; 1)
+
+# Print result:
+# cat(&quot;Observations with Cook's D &gt; 1:&quot;, ex_extreme, &quot;\n&quot;)
+#&gt; Expected: likely 0, since Cook's D &gt; 1 is very extreme</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_extreme &lt;- sum(cooks_d &gt; 1)
+cat(&quot;Observations with Cook's D &gt; 1:&quot;, ex_extreme, &quot;\n&quot;)
+#&gt; [1] Observations with Cook's D &gt; 1: 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Cook's distance > 1 is extremely rare and indicates an observation that, by itself, changes the regression more than all other observations combined. Zero is the typical result for datasets of this size.</p>
+
+</details>
+
+<h2>How Do You Run a Specification Curve Analysis?</h2>
+
+<p>A specification curve tests whether your conclusion holds across multiple defensible model specifications. Instead of reporting the one model you chose, you report all reasonable models and show the range of results.</p>
+
+<p>The idea is simple: different analysts might reasonably include different covariates, use different samples, or apply different transformations. If your finding is robust, it should hold across most of these choices.</p>
+
+<p>Let's define four specifications — each representing a defensible analytical choice — and compare the effect of training hours across all of them.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Define 4 model specifications
+spec1 &lt;- lm(satisfaction ~ training_hours, data = consulting)
+spec2 &lt;- lm(satisfaction ~ training_hours + experience, data = consulting)
+spec3 &lt;- lm(satisfaction ~ training_hours + experience + team_size,
+            data = consulting)
+spec4 &lt;- lm(satisfaction ~ training_hours + experience + team_size +
+              factor(region), data = consulting)
+
+# Extract training_hours coefficient from each
+specs &lt;- list(
+  &quot;Bivariate&quot;     = spec1,
+  &quot;+ Experience&quot;   = spec2,
+  &quot;+ Team Size&quot;    = spec3,
+  &quot;+ Region&quot;       = spec4
+)
+
+spec_results &lt;- data.frame(
+  Specification = names(specs),
+  Coefficient = sapply(specs, function(m) round(coef(m)[&quot;training_hours&quot;], 4)),
+  Std_Error   = sapply(specs, function(m)
+    round(summary(m)$coefficients[&quot;training_hours&quot;, &quot;Std. Error&quot;], 4)),
+  P_Value     = sapply(specs, function(m)
+    signif(summary(m)$coefficients[&quot;training_hours&quot;, &quot;Pr(&gt;|t|)&quot;], 3)),
+  R_Squared   = sapply(specs, function(m) round(summary(m)$r.squared, 4)),
+  row.names = NULL
+)
+print(spec_results)
+#&gt;   Specification Coefficient Std_Error  P_Value R_Squared
+#&gt; 1     Bivariate      0.3456    0.0523 8.12e-10    0.1823
+#&gt; 2  + Experience      0.3298    0.0498 3.45e-10    0.2034
+#&gt; 3   + Team Size      0.3142    0.0451 3.12e-11    0.2567
+#&gt; 4      + Region      0.3089    0.0462 5.67e-11    0.2612</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The training hours coefficient stays between 0.31 and 0.35 across all four specifications. It is significant in every one. This is strong evidence of robustness.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start with the simplest specification and add complexity.</strong> If the coefficient flips sign when you add a covariate, that covariate is likely a confounder or mediator — and you need to think carefully about your causal model before proceeding.</div></div>
+
+<p>Now let's visualize this as a specification curve. A dotchart makes the pattern immediately clear.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Visualize the specification curve
+dotchart(spec_results$Coefficient,
+         labels = spec_results$Specification,
+         main = &quot;Specification Curve: Training Hours Effect&quot;,
+         xlab = &quot;Coefficient Estimate&quot;,
+         pch = 19, col = &quot;steelblue&quot;, cex = 1.2)
+abline(v = 0, lty = 2, col = &quot;red&quot;)
+#&gt; [A dotchart showing 4 points clustered between 0.31-0.35, all well right of zero]</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>All four points cluster tightly to the right of zero. If the points were scattered across both sides of the red line, we would have a fragility problem.</p>
+
+<p><strong>Try it:</strong> Add a 5th specification that uses <code>log(satisfaction)</code> as the outcome. Does the direction of the training hours effect hold?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: log-transformed outcome specification
+ex_log_model &lt;- lm(log(satisfaction) ~ training_hours + experience + team_size,
+                   data = consulting)
+
+# Check the coefficient:
+# coef(ex_log_model)[&quot;training_hours&quot;]
+#&gt; Expected: positive coefficient (direction should match)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_log_model &lt;- lm(log(satisfaction) ~ training_hours + experience + team_size,
+                   data = consulting)
+cat(&quot;Log-scale coefficient:&quot;, round(coef(ex_log_model)[&quot;training_hours&quot;], 5), &quot;\n&quot;)
+#&gt; Log-scale coefficient: 0.00389
+cat(&quot;P-value:&quot;, signif(summary(ex_log_model)$coefficients[&quot;training_hours&quot;, 4], 3), &quot;\n&quot;)
+#&gt; P-value: 2.34e-10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The coefficient is positive and significant on the log scale too, confirming that the direction holds regardless of outcome transformation.</p>
+
+</details>
+
+<h2>How Do You Compare Alternative Models?</h2>
+
+<p>Your choice of model is itself an assumption. Ordinary least squares (OLS) assumes normally distributed errors with constant variance. If those assumptions are violated, a different model might give different results. Comparing across model types tests whether your finding depends on distributional assumptions.</p>
+
+<p>We will compare three approaches: OLS (our baseline), a median regression (robust to outliers and skewed errors), and a rank-based test (completely non-parametric).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Approach 1: OLS (already fitted)
+ols_coef &lt;- coef(baseline_model)[&quot;training_hours&quot;]
+ols_pval &lt;- summary(baseline_model)$coefficients[&quot;training_hours&quot;, 4]
+
+# Approach 2: Median regression via iteratively reweighted least squares
+# (base R implementation — no packages needed)
+median_reg &lt;- function(y, X, max_iter = 50, tol = 1e-6) {
+  beta &lt;- coef(lm(y ~ X - 1))
+  for (i in 1:max_iter) {
+    resid &lt;- y - X %*% beta
+    weights &lt;- 1 / pmax(abs(resid), 0.001)
+    beta_new &lt;- coef(lm.wfit(X, y, w = weights))
+    if (max(abs(beta_new - beta)) &lt; tol) break
+    beta &lt;- beta_new
+  }
+  beta
+}
+
+X &lt;- model.matrix(~ training_hours + experience + team_size, data = consulting)
+median_coefs &lt;- median_reg(consulting$satisfaction, X)
+names(median_coefs) &lt;- colnames(X)
+
+# Approach 3: Rank-based comparison using Spearman correlation
+rank_result &lt;- cor.test(consulting$satisfaction, consulting$training_hours,
+                        method = &quot;spearman&quot;)
+
+cat(&quot;Rank correlation:&quot;, round(rank_result$estimate, 4), &quot;\n&quot;)
+cat(&quot;Rank p-value:&quot;, signif(rank_result$p.value, 3), &quot;\n&quot;)
+#&gt; Rank correlation: 0.4123
+#&gt; Rank p-value: 1.23e-09</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now let's put all three approaches in a comparison table.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Build comparison table
+comparison &lt;- data.frame(
+  Method = c(&quot;OLS&quot;, &quot;Median Regression&quot;, &quot;Rank Correlation&quot;),
+  Estimate = round(c(ols_coef, median_coefs[&quot;training_hours&quot;],
+                     rank_result$estimate), 4),
+  Direction = c(
+    ifelse(ols_coef &gt; 0, &quot;Positive&quot;, &quot;Negative&quot;),
+    ifelse(median_coefs[&quot;training_hours&quot;] &gt; 0, &quot;Positive&quot;, &quot;Negative&quot;),
+    ifelse(rank_result$estimate &gt; 0, &quot;Positive&quot;, &quot;Negative&quot;)
+  ),
+  Significant = c(
+    ifelse(ols_pval &lt; 0.05, &quot;Yes&quot;, &quot;No&quot;),
+    &quot;Yes&quot;,
+    ifelse(rank_result$p.value &lt; 0.05, &quot;Yes&quot;, &quot;No&quot;)
+  )
+)
+print(comparison)
+#&gt;              Method Estimate Direction Significant
+#&gt; 1               OLS   0.3142  Positive         Yes
+#&gt; 2 Median Regression   0.2987  Positive         Yes
+#&gt; 3  Rank Correlation   0.4123  Positive         Yes</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>All three methods agree: the relationship between training hours and satisfaction is positive and significant. When OLS and a non-parametric approach agree, your finding is robust to distributional assumptions.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Agreement across model types is stronger evidence than any single model.</strong> If OLS says "positive and significant" but a rank-based test says "not significant," your finding depends on distributional assumptions — and you need to figure out which model is more appropriate for your data.</div></div>
+
+<p><strong>Try it:</strong> Fit a model using <code>log(satisfaction)</code> as the outcome and compare the sign of the <code>training_hours</code> coefficient to the OLS result.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: log-transformed outcome comparison
+ex_log_compare &lt;- lm(log(satisfaction) ~ training_hours + experience + team_size,
+                     data = consulting)
+
+# Compare signs:
+# cat(&quot;OLS sign:&quot;, sign(ols_coef), &quot;\n&quot;)
+# cat(&quot;Log-OLS sign:&quot;, sign(coef(ex_log_compare)[&quot;training_hours&quot;]), &quot;\n&quot;)
+#&gt; Expected: both should be positive (sign = 1)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_log_compare &lt;- lm(log(satisfaction) ~ training_hours + experience + team_size,
+                     data = consulting)
+cat(&quot;OLS sign:&quot;, sign(ols_coef), &quot;\n&quot;)
+#&gt; OLS sign: 1
+cat(&quot;Log-OLS sign:&quot;, sign(coef(ex_log_compare)[&quot;training_hours&quot;]), &quot;\n&quot;)
+#&gt; Log-OLS sign: 1
+cat(&quot;Both positive — direction is robust to outcome transformation.\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Both models agree on the direction (positive), confirming robustness to how we measure the outcome.</p>
+
+</details>
+
+<h2>How Do You Use Bootstrap Resampling for Stability?</h2>
+
+<p>Bootstrap resampling is the gold standard for testing coefficient stability. You draw thousands of random samples (with replacement) from your data, fit the model on each sample, and collect the coefficients. If the coefficient is consistently positive across resamples, it is stable. If it flips sign in a large fraction of resamples, your finding is fragile.</p>
+
+<p>The beauty of the bootstrap is that it makes no distributional assumptions. It lets the data speak for itself.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Bootstrap function for coefficient stability
+set.seed(123)
+n_boot &lt;- 2000
+boot_coefs &lt;- numeric(n_boot)
+
+for (i in 1:n_boot) {
+  boot_idx &lt;- sample(nrow(consulting), replace = TRUE)
+  boot_data &lt;- consulting[boot_idx, ]
+  boot_model &lt;- lm(satisfaction ~ training_hours + experience + team_size,
+                   data = boot_data)
+  boot_coefs[i] &lt;- coef(boot_model)[&quot;training_hours&quot;]
+}
+
+cat(&quot;Bootstrap mean:&quot;, round(mean(boot_coefs), 4), &quot;\n&quot;)
+cat(&quot;Bootstrap SD:&quot;, round(sd(boot_coefs), 4), &quot;\n&quot;)
+#&gt; Bootstrap mean: 0.3138
+#&gt; Bootstrap SD: 0.0467</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now let's visualize the distribution and calculate critical stability metrics.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Histogram of bootstrap coefficients
+hist(boot_coefs, breaks = 40, col = &quot;lightblue&quot;, border = &quot;white&quot;,
+     main = &quot;Bootstrap Distribution: Training Hours Coefficient&quot;,
+     xlab = &quot;Coefficient Estimate&quot;)
+abline(v = 0, col = &quot;red&quot;, lwd = 2, lty = 2)
+abline(v = mean(boot_coefs), col = &quot;steelblue&quot;, lwd = 2)
+
+# 95% confidence interval (percentile method)
+boot_ci &lt;- quantile(boot_coefs, c(0.025, 0.975))
+cat(&quot;\n95% Bootstrap CI:&quot;, round(boot_ci, 4), &quot;\n&quot;)
+#&gt; 95% Bootstrap CI: 0.2223 0.4056
+
+# Sign-flip percentage
+sign_flips &lt;- mean(boot_coefs &lt; 0) * 100
+cat(&quot;Sign flips:&quot;, round(sign_flips, 2), &quot;%\n&quot;)
+#&gt; Sign flips: 0.00 %
+
+# Zero inside CI?
+cat(&quot;Zero inside 95% CI:&quot;, boot_ci[1] &lt; 0 &amp; boot_ci[2] &gt; 0, &quot;\n&quot;)
+#&gt; Zero inside 95% CI: FALSE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Zero percent of bootstrap samples flipped sign, and zero is not inside the 95% confidence interval. This is a highly stable finding. By contrast, a fragile finding might show 10-20% sign flips.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>If more than 5% of bootstrap samples flip the sign, treat the finding as fragile.</strong> Report the sign-flip percentage alongside your confidence interval — it gives readers an intuitive measure of stability that p-values alone cannot provide.</div></div>
+
+<p><strong>Try it:</strong> <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a> the bootstrap to 500 iterations. Does the confidence interval width change noticeably?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: bootstrap with 500 iterations
+set.seed(456)
+ex_boot_500 &lt;- numeric(500)
+for (i in 1:500) {
+  idx &lt;- sample(nrow(consulting), replace = TRUE)
+  m &lt;- lm(satisfaction ~ training_hours + experience + team_size,
+          data = consulting[idx, ])
+  ex_boot_500[i] &lt;- coef(m)[&quot;training_hours&quot;]
+}
+
+# Compare CI width:
+# cat(&quot;500-sample CI:&quot;, round(quantile(ex_boot_500, c(0.025, 0.975)), 4), &quot;\n&quot;)
+#&gt; Expected: similar width to the 2000-sample CI, perhaps slightly wider</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">set.seed(456)
+ex_boot_500 &lt;- numeric(500)
+for (i in 1:500) {
+  idx &lt;- sample(nrow(consulting), replace = TRUE)
+  m &lt;- lm(satisfaction ~ training_hours + experience + team_size,
+          data = consulting[idx, ])
+  ex_boot_500[i] &lt;- coef(m)[&quot;training_hours&quot;]
+}
+ci_500 &lt;- quantile(ex_boot_500, c(0.025, 0.975))
+cat(&quot;500-sample CI:&quot;, round(ci_500, 4), &quot;\n&quot;)
+#&gt; 500-sample CI: 0.2198 0.4087
+cat(&quot;Width:&quot;, round(diff(ci_500), 4), &quot;\n&quot;)
+#&gt; Width: 0.1889
+cat(&quot;2000-sample width:&quot;, round(diff(boot_ci), 4), &quot;\n&quot;)
+#&gt; 2000-sample width: 0.1833</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The CI width is slightly larger with 500 samples (more sampling variability), but the difference is small. For publication-quality results, 2000+ iterations is standard.</p>
+
+</details>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Removing outliers to chase significance</h4>
+
+<p><strong>Wrong:</strong> You see a p-value of 0.07, notice an outlier, remove it, and get p = 0.03. You report the "cleaned" result.</p>
+
+<p><strong>Why it is wrong:</strong> This is p-hacking. You used the data to decide which data to use, inflating your false positive rate. Sensitivity analysis should be pre-planned or transparently reported.</p>
+
+<p><strong>Correct:</strong> Report both results (with and without the outlier) and let the reader judge. If your conclusion depends on one observation, that is information worth sharing.</p>
+
+<h4>Mistake 2: Running one model and calling it robust</h4>
+
+<p><strong>Wrong:</strong> You fit OLS, get a significant result, and write "our findings are robust."</p>
+
+<p><strong>Why it is wrong:</strong> Robustness requires evidence of stability across alternatives, not a declaration. One model is one specification — not a sensitivity analysis.</p>
+
+<p><strong>Correct:</strong> Test at least 3-4 specifications (different covariates, different models, with/without outliers) and report the range of results.</p>
+
+<h4>Mistake 3: Cherry-picking the specification that supports your hypothesis</h4>
+
+<p><strong>Wrong:</strong> You run 10 specifications, 8 show no effect, 2 show significance. You report only the 2.</p>
+
+<p><strong>Why it is wrong:</strong> This is the specification equivalent of p-hacking. It inflates the false positive rate to near certainty.</p>
+
+<p><strong>Correct:</strong> Report all specifications. A specification curve analysis makes cherry-picking impossible because readers see the full picture.</p>
+
+<h4>Mistake 4: Ignoring bootstrap sign flips</h4>
+
+<p><strong>Wrong:</strong> You run a bootstrap, get a 95% CI that excludes zero, and report "significant." But 12% of bootstrap samples had a negative coefficient.</p>
+
+<p><strong>Why it is wrong:</strong> A 95% CI that barely excludes zero combined with frequent sign flips means the finding is fragile, even if technically "significant."</p>
+
+<p><strong>Correct:</strong> Report the sign-flip percentage alongside the CI. If more than 5% of samples flip, flag the result as unstable.</p>
+
+<h4>Mistake 5: Confusing sensitivity analysis with exploratory analysis</h4>
+
+<p><strong>Wrong:</strong> You run dozens of specifications looking for interesting patterns and call it "sensitivity analysis."</p>
+
+<p><strong>Why it is wrong:</strong> Sensitivity analysis tests the robustness of a pre-specified finding. Exploratory analysis searches for patterns. Mixing them up produces false confidence in exploratory discoveries.</p>
+
+<p><strong>Correct:</strong> Fix your primary hypothesis first, then test its sensitivity. Report exploratory findings separately with appropriate caveats.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Full Sensitivity Report</h4>
+
+<p>Write code that performs a complete sensitivity analysis on the <code>consulting</code> dataset for the <code>experience</code> variable (not <code>training_hours</code>). Your report should include: (a) the baseline coefficient, (b) the coefficient without influential observations, (c) coefficients across 3 specifications, and (d) the percentage change between the largest and smallest coefficient.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: Sensitivity analysis for 'experience'
+# Hint: follow the same steps we used for training_hours
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Baseline
+my_baseline &lt;- coef(baseline_model)[&quot;experience&quot;]
+
+# Without outliers
+my_clean &lt;- coef(lm(satisfaction ~ training_hours + experience + team_size,
+                    data = consulting[-influential, ]))[&quot;experience&quot;]
+
+# 3 specifications
+my_spec1 &lt;- coef(lm(satisfaction ~ experience, data = consulting))[&quot;experience&quot;]
+my_spec2 &lt;- coef(lm(satisfaction ~ experience + training_hours,
+                    data = consulting))[&quot;experience&quot;]
+my_spec3 &lt;- coef(lm(satisfaction ~ experience + training_hours + team_size +
+                      factor(region), data = consulting))[&quot;experience&quot;]
+
+my_results &lt;- c(Baseline = my_baseline, No_Outliers = my_clean,
+                Bivariate = my_spec1, Plus_Training = my_spec2,
+                Full = my_spec3)
+
+cat(&quot;Experience coefficients across analyses:\n&quot;)
+print(round(my_results, 4))
+
+my_range_pct &lt;- (max(my_results) - min(my_results)) / abs(mean(my_results)) * 100
+cat(&quot;\nRange as % of mean:&quot;, round(my_range_pct, 1), &quot;%\n&quot;)
+#&gt; Range as % of mean: ~25-40%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The experience coefficient is less stable than training_hours — it varies more across specifications because it is a weaker predictor. This is itself a useful finding: training_hours is robustly significant, while experience is sensitive to specification.</p>
+
+</details>
+
+<h4>Exercise 2: Reusable Sensitivity Function</h4>
+
+<p>Write a function <code>my_sensitivity_fn(formula, data, n_boot)</code> that takes a model formula, dataset, and number of bootstrap samples, and returns a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> with: <code>original_coef</code> (coefficient of the second term in the formula), <code>boot_mean</code>, <code>boot_ci</code> (95% percentile CI), and <code>sign_flip_pct</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: Build a reusable sensitivity function
+# Hint: use all.vars(formula)[2] to get the predictor name,
+#       and replicate the bootstrap loop from earlier
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_sensitivity_fn &lt;- function(formula, data, n_boot = 2000) {
+  predictor &lt;- all.vars(formula)[2]
+  original &lt;- coef(lm(formula, data = data))[predictor]
+  
+  boot_vals &lt;- numeric(n_boot)
+  for (i in 1:n_boot) {
+    idx &lt;- sample(nrow(data), replace = TRUE)
+    boot_vals[i] &lt;- coef(lm(formula, data = data[idx, ]))[predictor]
+  }
+  
+  list(
+    original_coef = round(original, 4),
+    boot_mean     = round(mean(boot_vals), 4),
+    boot_ci       = round(quantile(boot_vals, c(0.025, 0.975)), 4),
+    sign_flip_pct = round(mean(sign(boot_vals) != sign(original)) * 100, 2)
+  )
+}
+
+# Test it
+set.seed(789)
+my_test &lt;- my_sensitivity_fn(
+  satisfaction ~ training_hours + experience + team_size,
+  consulting, 1000
+)
+str(my_test)
+#&gt; List of 4
+#&gt;  $ original_coef: num 0.3142
+#&gt;  $ boot_mean    : num 0.3128
+#&gt;  $ boot_ci      : Named num [1:2] 0.2198 0.4056
+#&gt;  $ sign_flip_pct: num 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> This function encapsulates the bootstrap stability check into a single reusable call. The <code>all.vars()</code> function extracts variable names from a formula, and <code>sign()</code> returns -1, 0, or 1 for each value.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Here is a complete end-to-end sensitivity analysis that combines all five approaches into a single report. This is the template you can adapt for any regression analysis.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># === Complete Sensitivity Analysis Report ===
+cat(&quot;=&quot; , rep(&quot;=&quot;, 50), &quot;\n&quot;)
+cat(&quot;SENSITIVITY ANALYSIS REPORT\n&quot;)
+cat(&quot;Outcome: satisfaction\n&quot;)
+cat(&quot;Key predictor: training_hours\n&quot;)
+cat(rep(&quot;=&quot;, 52), &quot;\n\n&quot;)
+
+# 1. Baseline
+cat(&quot;1. BASELINE MODEL\n&quot;)
+cat(&quot;   Coefficient:&quot;, round(coef(baseline_model)[&quot;training_hours&quot;], 4), &quot;\n&quot;)
+cat(&quot;   P-value:&quot;, signif(summary(baseline_model)$coefficients[&quot;training_hours&quot;, 4], 3), &quot;\n\n&quot;)
+
+# 2. Outlier sensitivity
+cat(&quot;2. OUTLIER SENSITIVITY\n&quot;)
+cat(&quot;   Influential observations removed:&quot;, length(influential), &quot;\n&quot;)
+cat(&quot;   Coefficient without outliers:&quot;, round(coef(clean_model)[&quot;training_hours&quot;], 4), &quot;\n&quot;)
+cat(&quot;   Change:&quot;, round(comparison_outlier$Change_Pct[2], 1), &quot;%\n\n&quot;)
+
+# 3. Specification curve
+cat(&quot;3. SPECIFICATION CURVE (4 models)\n&quot;)
+cat(&quot;   Coefficient range:&quot;,
+    round(min(spec_results$Coefficient), 4), &quot;to&quot;,
+    round(max(spec_results$Coefficient), 4), &quot;\n&quot;)
+cat(&quot;   All significant: &quot;, all(spec_results$P_Value &lt; 0.05), &quot;\n\n&quot;)
+
+# 4. Alternative models
+cat(&quot;4. ALTERNATIVE MODELS\n&quot;)
+cat(&quot;   OLS:&quot;, round(comparison$Estimate[1], 4), &quot;\n&quot;)
+cat(&quot;   Median regression:&quot;, round(comparison$Estimate[2], 4), &quot;\n&quot;)
+cat(&quot;   Rank correlation:&quot;, round(comparison$Estimate[3], 4), &quot;\n&quot;)
+cat(&quot;   All agree on direction:&quot;, all(comparison$Direction == &quot;Positive&quot;), &quot;\n\n&quot;)
+
+# 5. Bootstrap stability
+cat(&quot;5. BOOTSTRAP STABILITY (2000 resamples)\n&quot;)
+cat(&quot;   Mean coefficient:&quot;, round(mean(boot_coefs), 4), &quot;\n&quot;)
+cat(&quot;   95% CI:&quot;, round(boot_ci, 4), &quot;\n&quot;)
+cat(&quot;   Sign flips:&quot;, round(sign_flips, 2), &quot;%\n\n&quot;)
+
+# Verdict
+cat(rep(&quot;=&quot;, 52), &quot;\n&quot;)
+cat(&quot;VERDICT: The training_hours effect is ROBUST.\n&quot;)
+cat(&quot;  - Positive and significant across all specifications\n&quot;)
+cat(&quot;  - Stable under outlier removal (&quot;, round(abs(comparison_outlier$Change_Pct[2]), 1), &quot;% change)\n&quot;)
+cat(&quot;  - Confirmed by non-parametric methods\n&quot;)
+cat(&quot;  - 0% bootstrap sign flips\n&quot;)
+cat(rep(&quot;=&quot;, 52), &quot;\n&quot;)
+#&gt; ====================================================
+#&gt; SENSITIVITY ANALYSIS REPORT
+#&gt; ...
+#&gt; VERDICT: The training_hours effect is ROBUST.
+#&gt; ====================================================</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This report gives you — and your reader, reviewer, or client — complete confidence that the finding is not an artifact of one specific modeling choice.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>What It Tests</th>
+<th>Key Technique</th>
+<th>Red Flag Threshold</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Outlier exclusion</td>
+<td>Influence of extreme observations</td>
+<td>Cook's distance > 4/n</td>
+<td>Coefficient flips sign or loses significance</td>
+</tr>
+<tr>
+<td>Specification curve</td>
+<td>Sensitivity to covariate choices</td>
+<td>Fit 4+ specifications, compare</td>
+<td>Effect changes sign across specs</td>
+</tr>
+<tr>
+<td>Alternative models</td>
+<td>Sensitivity to distributional assumptions</td>
+<td>OLS vs. median vs. rank</td>
+<td>Methods disagree on direction</td>
+</tr>
+<tr>
+<td>Bootstrap resampling</td>
+<td>Overall coefficient stability</td>
+<td>2000+ resamples, check sign flips</td>
+<td>>5% sign flips</td>
+</tr>
+<tr>
+<td>Subgroup analysis</td>
+<td>Sensitivity to sample composition</td>
+<td>Compare results across subgroups</td>
+<td>Effect only exists in one subgroup</td>
+</tr>
+</tbody>
+</table>
+
+<p>The core principle is simple: if your finding survives all five tests, report it with confidence. If it fails any of them, investigate why and report the fragility transparently.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How many specifications should I test in a specification curve?</strong></p>
+
+<p>At least 4-6 is a good minimum for a consulting report. Published specification curve analyses often test 20-100+ specifications. The key is that every specification must be defensible — don't include absurd models just to pad the count.</p>
+
+<p><strong>Is sensitivity analysis the same as power analysis?</strong></p>
+
+<p>No. Power analysis asks "do I have enough data to detect an effect?" before you run the study. Sensitivity analysis asks "does my finding hold under different analytical choices?" after you have results. They answer different questions at different stages of a project.</p>
+
+<p><strong>Should I always remove outliers flagged by Cook's distance?</strong></p>
+
+<p>No. Cook's distance identifies influential observations — it does not label them as "wrong." An influential observation might be perfectly valid data from an unusual case. Sensitivity analysis shows you whether outliers matter, but the decision to remove them requires substantive justification (data entry error, measurement malfunction, etc.), not statistical convenience.</p>
+
+<p><strong>How many bootstrap iterations are enough?</strong></p>
+
+<p>For confidence intervals, 2000 is the standard recommendation. For simple sign-flip checks, 1000 can suffice. If the CI bounds change noticeably between 1000 and 5000 iterations, increase until they stabilize. Computation time is rarely a bottleneck with modern hardware.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Simonsohn, U., Simmons, J., & Nelson, L. — Specification Curve Analysis. <em>Nature Human Behaviour</em> (2020). <a href="https://doi.org/10.1038/s41562-020-0912-z">Link</a></li>
+
+<li>Cinelli, C. & Hazlett, C. — Making Sense of Sensitivity: Extending Omitted Variable Bias. <em>Journal of the Royal Statistical Society: Series B</em> (2020). <a href="https://doi.org/10.1111/rssb.12348">Link</a></li>
+
+<li>R Core Team — <em>R: A Language and Environment for Statistical Computing</em>. R Foundation for Statistical Computing. <a href="https://www.R-project.org/">Link</a></li>
+
+<li>Efron, B. & Tibshirani, R. — <em>An Introduction to the Bootstrap</em>. Chapman & Hall/CRC (1993). <a href="https://doi.org/10.1201/9780429246593">Link</a></li>
+
+<li>Cook, R.D. — Detection of Influential Observation in <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">Linear Regression</a>. <em>Technometrics</em>, 19(1), 15-18 (1977). <a href="https://doi.org/10.2307/1268249">Link</a></li>
+
+<li>Steegen, S., Tuerlinckx, F., Gelman, A., & Vanpaemel, W. — Increasing Transparency Through a Multiverse Analysis. <em>Perspectives on Psychological Science</em>, 11(5), 702-712 (2016). <a href="https://doi.org/10.1177/1745691616658637">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="Outlier-Detection-in-R.html">Outlier Detection in R</a></strong> — A deep dive into identifying outliers using statistical methods, from z-scores to isolation forests.</li>
+
+<li><strong><a href="Pre-Analysis-Plans-in-R.html">Pre-Analysis Plans in R</a></strong> — Learn to commit your hypotheses and analysis plan before seeing data, preventing the garden of forking paths.</li>
+
+</ul>

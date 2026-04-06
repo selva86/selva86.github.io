@@ -1,0 +1,1231 @@
+---
+title: "ggplot2's Grammar of Graphics: The Mental Model That Makes Everything Click"
+description: "ggplot2 is built on Wilkinson's Grammar of Graphics -- data, aesthetics, geometries, scales, facets, and themes as separable layers. Master this model."
+keywords: "grammar of graphics, ggplot2, layered grammar, ggplot2 layers, aesthetics ggplot2, geom ggplot2, ggplot2 scales, ggplot2 facets, ggplot2 themes, data visualization R"
+mathjax: false
+webr: true
+curriculum_id: "1.3.1"
+post_type: "C"
+auto_link_terms: "grammar of graphics|layered grammar|ggplot2 layers|ggplot2 grammar|ggplot2 aesthetics|aes()|geom_point()|geom_bar()|facet_wrap()"
+auto_link_case_sensitive: true
+sidebar_section: "Visualization"
+sidebar_title: "Grammar of Graphics"
+sidebar_order: "6"
+---
+<!-- md2html:generated -->
+
+<h1>ggplot2's Grammar of Graphics: The Mental Model That Makes Everything Click</h1>
+
+<p class="lead">ggplot2's grammar of graphics decomposes every chart into seven independent layers: data, aesthetics, geometries, statistics, scales, coordinates, and themes. You build plots by assembling parts, not memorizing function calls.</p>
+
+<h2>Introduction</h2>
+
+<p>Most people learn ggplot2 by copying recipes. You find a bar chart example, swap in your data, and tweak until it looks right. That works until you need a chart that isn't in any tutorial. Then you're stuck Googling and guessing.</p>
+
+<p>The grammar of graphics is the mental model that eliminates the guesswork. In 1999, statistician Leland Wilkinson proposed that every statistical graphic can be described by a small set of independent components -- data, transformations, scales, coordinates, and marks. Hadley Wickham adapted this idea into ggplot2's "layered grammar" in 2010, turning it into a practical R package [1].</p>
+
+<p>Once you see ggplot2 as a <em>sentence</em> made of grammatical parts, you stop guessing which function to call. Instead, you <em><a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a></em> plots by deciding what each layer should be. The <code>+</code> operator literally stacks these layers on top of each other.</p>
+
+<p>In this tutorial, you will learn the seven layers, how they combine, and when to modify each one. All code runs directly in your browser -- no installation needed. ggplot2 is loaded from the tidyverse, so a single <code>library()</code> call is all you need.</p>
+
+<p><img src="screenshots/ggplot2-Grammar-of-Graphics-layer-model.webp" alt="The seven layers of ggplot2's grammar" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: The seven layers of ggplot2's grammar, from raw data to finished plot.</em></p>
+
+<h2>What Are the Seven Layers of the Grammar?</h2>
+
+<p>Every ggplot2 plot uses seven layers. Most of the time, ggplot2 fills in sensible defaults so you only specify two or three explicitly. But all seven are always present under the hood.</p>
+
+<p>Here is what each layer controls:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Layer</th>
+<th>ggplot2 function</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data</td>
+<td><code>ggplot(data)</code></td>
+<td>The dataset to visualize</td>
+</tr>
+<tr>
+<td>Aesthetics</td>
+<td><code>aes()</code></td>
+<td>How data columns map to visual properties</td>
+</tr>
+<tr>
+<td>Geometries</td>
+<td><code>geom_*()</code></td>
+<td>The visual marks (points, bars, lines)</td>
+</tr>
+<tr>
+<td>Statistics</td>
+<td><code>stat_*()</code></td>
+<td>Data transformations before plotting</td>
+</tr>
+<tr>
+<td>Scales</td>
+<td><code>scale_*()</code></td>
+<td>How data values translate to visual ranges</td>
+</tr>
+<tr>
+<td>Coordinates</td>
+<td><code>coord_*()</code></td>
+<td>The axis system (Cartesian, polar, flipped)</td>
+</tr>
+<tr>
+<td>Facets + Themes</td>
+<td><code>facet_*()</code>, <code>theme()</code></td>
+<td>Panel layout and non-data styling</td>
+</tr>
+</tbody>
+</table>
+
+<p>Let's see all seven layers in a single explicit call. Normally you would let ggplot2 handle the defaults, but writing them out reveals what is happening behind the scenes.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load ggplot2
+library(ggplot2)
+
+# All 7 layers made explicit
+ggplot(data = mtcars,                          # 1. Data
+       mapping = aes(x = wt, y = mpg)) +       # 2. Aesthetics
+  geom_point() +                                # 3. Geometry
+  stat_identity() +                             # 4. Statistic (identity = no transform)
+  scale_x_continuous() +                        # 5. Scale (default continuous)
+  scale_y_continuous() +
+  coord_cartesian() +                           # 6. Coordinates (default Cartesian)
+  facet_null() +                                # 7a. Facets (none)
+  theme_grey()                                  # 7b. Theme (default grey)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Most of those layers are defaults you never need to type. The minimal version of this plot is just <code>ggplot(mtcars, aes(wt, mpg)) + geom_point()</code>. But knowing all seven exist means you know exactly where to intervene when a plot needs adjustment.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every ggplot2 call uses all 7 layers -- you just override the ones you care about.</strong> The defaults handle the rest. This is why a 2-line ggplot call produces a complete, polished chart.</div></div>
+
+<p><strong>Try it:</strong> Take the basic scatterplot above and add a <code>labs()</code> call to set the x-axis label to "Weight (1000 lbs)" and the y-axis label to "Miles per Gallon".</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: add axis labels with labs()
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point()
+  # your code here: add + labs(x = ..., y = ...)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  labs(x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per Gallon&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>labs()</code> sets titles and axis labels. It is part of the theme/annotation layer and overrides the default column-name labels.</p>
+
+</details>
+
+<h2>How Do Aesthetics Connect Data to Visuals?</h2>
+
+<p>Aesthetics are the bridge between your data and what you see on screen. The <code>aes()</code> function maps columns in your data to visual properties like position, colour, size, and shape.</p>
+
+<p>The most common aesthetics are <code>x</code> and <code>y</code> (position), but colour, fill, size, shape, alpha (transparency), and linetype all work the same way. You name the visual property and point it at a column.</p>
+
+<p>Let's start with a basic positional mapping using the <code>mpg</code> dataset (fuel economy for 234 cars).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Basic aes: map displ to x, hwy to y
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point()
+#&gt; A scatterplot appears: engine size vs highway mpg</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Each point represents one car. The x-position encodes engine displacement and the y-position encodes highway fuel economy. Larger engines tend to get worse mileage -- you can see the downward trend immediately.</p>
+
+<p>Now let's map additional columns to colour and size. This encodes more information without adding more axes.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Map class to colour, cyl to size
+ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
+  geom_point(alpha = 0.7)
+#&gt; Points are now coloured by vehicle class and sized by cylinder count</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>SUVs and pickups cluster at high displacement and low mileage. Compact cars cluster at the opposite corner. The colour and size aesthetics made these patterns visible without any extra code.</p>
+
+<p><img src="screenshots/ggplot2-Grammar-of-Graphics-aes-mapping.webp" alt="Aesthetics map data variables to visual properties" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Aesthetics map data variables to visual properties like position, colour, and size.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Put aes() inside <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot()</a> for global mappings and inside geom_*() for layer-specific ones.</strong> Global aesthetics apply to every layer. Layer-specific aesthetics apply only to that geom.</div></div>
+
+<p><strong>Try it:</strong> Add <code>shape = drv</code> to the aesthetics of the scatterplot above to encode the drivetrain (front, rear, 4wd) as point shapes.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: map drv to shape
+ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point(alpha = 0.7)
+  # your code here: add shape = drv inside aes()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
+  geom_point(alpha = 0.7)
+#&gt; Points now vary by both colour (class) and shape (drivetrain)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Adding <code>shape = drv</code> inside <code>aes()</code> maps the <code>drv</code> column to point shapes. ggplot2 automatically creates a legend for each mapped aesthetic.</p>
+
+</details>
+
+<h2>How Do Geometries Turn Mapped Data into Shapes?</h2>
+
+<p>Geometries (geoms) are the visual marks ggplot2 draws. The same data and aesthetics can look completely different depending on which geom you choose.</p>
+
+<p>Think of it this way: aesthetics say <em>what</em> data to show. Geoms say <em>how</em> to show it. Points, lines, bars, boxplots, and histograms are all different geoms applied to the same grammar.</p>
+
+<p>Let's see the same data rendered with three different geoms.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Same data, three different geoms
+# 1. Scatter plot
+p1 &lt;- ggplot(mpg, aes(x = class, y = hwy)) +
+  geom_point() +
+  labs(title = &quot;geom_point()&quot;)
+
+# 2. Box plot
+p2 &lt;- ggplot(mpg, aes(x = class, y = hwy)) +
+  geom_boxplot() +
+  labs(title = &quot;geom_boxplot()&quot;)
+
+# 3. Violin plot
+p3 &lt;- ggplot(mpg, aes(x = class, y = hwy)) +
+  geom_violin() +
+  labs(title = &quot;geom_violin()&quot;)
+
+p1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The scatter plot shows every individual point. It reveals the raw distribution but can suffer from overplotting when points overlap.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Show the boxplot version
+p2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The boxplot summarizes each group with a median, quartiles, and whiskers. It is more compact but hides individual observations.</p>
+
+<p>One of ggplot2's most powerful features is <em>layering</em> multiple geoms. You are not limited to one geometry per plot.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Layer two geoms: points + smooth trend line
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = &quot;loess&quot;, se = TRUE) +
+  labs(title = &quot;Points + Smooth Trend&quot;)
+#&gt; Points show raw data, blue curve shows the local trend</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The smooth line reveals the overall relationship while the individual points preserve the raw variation. This layering pattern -- raw data plus summary -- is one of the most common in data visualization.</p>
+
+<p><img src="screenshots/ggplot2-Grammar-of-Graphics-geom-decision.webp" alt="Choosing the right geom based on your data types" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Choosing the right geom based on your data types.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Using <a class="auto-link" href="ggplot2-Getting-Started.html" title="ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes — Zero Experience Needed">geom_bar()</a> when you need geom_col() is the most common ggplot2 beginner error.</strong> <code>geom_bar()</code> counts rows automatically (stat = "count"). If your data already has y-values, use <code>geom_col()</code> (stat = "identity") instead.</div></div>
+
+<p><strong>Try it:</strong> Replace <code>geom_point()</code> with <code>geom_jitter(width = 0.2)</code> in the class vs hwy plot to spread overlapping points.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: use geom_jitter instead of geom_point
+ggplot(mpg, aes(x = class, y = hwy)) +
+  geom_point()
+  # your code here: replace geom_point() with geom_jitter(width = 0.2)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, y = hwy)) +
+  geom_jitter(width = 0.2) +
+  labs(title = &quot;Jittered Points&quot;)
+#&gt; Points are randomly spread horizontally to reduce overlap</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_jitter()</code> adds small random noise to point positions. The <code>width</code> argument controls how much horizontal spread is applied. This solves the overplotting problem while keeping individual data points visible.</p>
+
+</details>
+
+<h2>What Do Scales, Coordinates, and Facets Control?</h2>
+
+<p>Scales control <em>how</em> data values translate to visual ranges. Coordinates define the axis system. Facets split your data into panels. These three layers refine and rearrange what the aesthetics and geoms have already set up.</p>
+
+<p>Let's start with scales. Every aesthetic has a default scale, but you can override it to change colours, axis limits, or transformations.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Custom scales: colour palette + log-transformed y-axis
+ggplot(diamonds, aes(x = carat, y = price, colour = cut)) +
+  geom_point(alpha = 0.3, size = 0.5) +
+  scale_colour_brewer(palette = &quot;Set2&quot;) +
+  scale_y_log10() +
+  labs(title = &quot;Diamond Price vs Carat (log scale)&quot;,
+       y = &quot;Price (log10 scale)&quot;)
+#&gt; Colour uses the Set2 palette, y-axis is log-transformed</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The log scale reveals patterns in the lower price range that a linear scale would squash. The <code>Set2</code> colour palette improves readability over the default.</p>
+
+<p>Facets are one of the grammar's most powerful ideas. Instead of cramming everything into one plot, you split the data into a grid of smaller panels.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Facet: one panel per cylinder count
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, se = FALSE) +
+  facet_wrap(~cyl) +
+  labs(title = &quot;Highway MPG by Engine Size, Faceted by Cylinders&quot;)
+#&gt; Four panels appear: 4-cyl, 5-cyl, 6-cyl, 8-cyl</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Each panel shows cars with the same cylinder count. The trend lines within each panel tell a different story from the overall trend. Four-cylinder cars show a steep decline in mileage as displacement grows, while eight-cylinder cars cluster tightly.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>coord_flip() swaps the x and y axes.</strong> This is especially useful for horizontal bar charts where long category names need room to breathe.</div></div>
+
+<p><strong>Try it:</strong> Change <code>facet_wrap(~cyl)</code> to <code>facet_grid(drv ~ cyl)</code> to create a 2D panel grid with drivetrain on rows and cylinders on columns.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: create a 2D facet grid
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point() +
+  facet_wrap(~cyl)
+  # your code here: replace facet_wrap(~cyl) with facet_grid(drv ~ cyl)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point() +
+  facet_grid(drv ~ cyl) +
+  labs(title = &quot;Facet Grid: Drivetrain x Cylinders&quot;)
+#&gt; A grid of panels: rows = drv (4, f, r), columns = cyl (4, 5, 6, 8)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>facet_grid(rows ~ cols)</code> creates a matrix of panels. Some cells may be empty if no cars match that combination (e.g., rear-wheel-drive with 4 cylinders). Empty panels are informative -- they show which combinations don't exist.</p>
+
+</details>
+
+<h2>How Do Themes and Labels Polish a Plot?</h2>
+
+<p>Themes control every non-data visual element: background colour, gridlines, font sizes, legend placement, and axis tick formatting. They are the final layer that turns a functional chart into a presentation-ready graphic.</p>
+
+<p>ggplot2 ships with several built-in themes. Let's compare two common ones.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Compare theme_grey (default) vs theme_minimal
+p_base &lt;- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point() +
+  labs(title = &quot;Default theme: theme_grey()&quot;)
+
+p_base</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The default grey theme has a grey background with white gridlines. It works well for exploratory analysis.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Switch to theme_minimal
+ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = &quot;Clean look: theme_minimal()&quot;)
+#&gt; White background, minimal gridlines</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>theme_minimal()</code> strips away the grey background and heavy gridlines, producing a cleaner look suitable for reports and presentations.</p>
+
+<p>For fine-grained control, use <code>theme()</code> to override individual elements. Every part of the plot -- from the title font to the legend background -- is a theme element you can modify.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Custom theme adjustments
+ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point() +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = &quot;bold&quot;),
+    axis.text = element_text(size = 11),
+    legend.position = &quot;bottom&quot;,
+    panel.grid.minor = element_blank()
+  ) +
+  labs(title = &quot;Customized Theme&quot;,
+       x = &quot;Engine Displacement (L)&quot;,
+       y = &quot;Highway MPG&quot;)
+#&gt; Larger title, no minor gridlines, legend moved to bottom</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The title is now bold and 16pt. Minor gridlines are removed to reduce clutter. The legend sits at the bottom, freeing up horizontal space for the plot area.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start with a built-in theme, then override specific elements with theme().</strong> Writing a full custom theme from scratch is tedious. Pick the closest built-in theme and tweak the parts you care about.</div></div>
+
+<p><strong>Try it:</strong> Change the legend position to "top" and set the plot background to light blue using <code>theme(panel.background = element_rect(fill = &quot;lightblue&quot;))</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: move legend to top, set background colour
+ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point() +
+  theme_minimal()
+  # your code here: add + theme(...) with legend.position and panel.background</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point() +
+  theme_minimal() +
+  theme(
+    legend.position = &quot;top&quot;,
+    panel.background = element_rect(fill = &quot;lightblue&quot;)
+  )
+#&gt; Legend at top, light blue plot background</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>element_rect(fill = &quot;lightblue&quot;)</code> sets the panel background. Every visual element in <code>theme()</code> accepts an <code>element_*()</code> function: <code>element_text()</code> for text, <code>element_rect()</code> for rectangles, <code>element_line()</code> for lines, and <code>element_blank()</code> to remove an element entirely.</p>
+
+</details>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Forgetting the + between layers</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># This causes an error
+ggplot(mtcars, aes(x = wt, y = mpg))
+  geom_point()
+#&gt; Error: Cannot add ggproto objects together.
+#&gt; Did you forget to add this object to a ggplot object?</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Without <code>+</code>, R evaluates <code>ggplot(...)</code> as a complete expression and then tries to run <code>geom_point()</code> on its own. The geom has no plot to attach to.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: connect with +
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Placing aes() arguments outside the function</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: colour is set to a fixed value, not mapped to data
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(colour = &quot;blue&quot;)
+#&gt; All points are blue -- not mapped to a variable</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Putting <code>colour = &quot;blue&quot;</code> outside <code>aes()</code> sets a fixed colour for all points. To map colour to a data column, it must be inside <code>aes()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: map colour to a data column inside aes()
+ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
+  geom_point()
+#&gt; Points are coloured by cylinder count</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Using geom_bar() when you already have y-values</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: geom_bar() tries to count rows
+ex_data &lt;- data.frame(
+  fruit = c(&quot;Apple&quot;, &quot;Banana&quot;, &quot;Cherry&quot;),
+  sales = c(30, 45, 20)
+)
+
+# geom_bar() with a y aesthetic gives an error
+# ggplot(ex_data, aes(x = fruit, y = sales)) + geom_bar()
+#&gt; Error: stat_count() must not be used with a y aesthetic</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>geom_bar()</code> uses <code>stat = &quot;count&quot;</code> by default. It counts how many rows belong to each x category. If you already have the y-values computed, use <code>geom_col()</code> instead.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: use geom_col() for pre-computed values
+ggplot(ex_data, aes(x = fruit, y = sales)) +
+  geom_col(fill = &quot;steelblue&quot;) +
+  labs(title = &quot;Fruit Sales&quot;)
+#&gt;   Apple  Banana  Cherry
+#&gt;    30      45      20</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Mapping a continuous variable to shape</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: shape cannot represent continuous values
+# ggplot(mtcars, aes(x = wt, y = mpg, shape = hp)) +
+#   geom_point()
+#&gt; Error: A continuous variable cannot be mapped to shape</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Shape is a discrete aesthetic. You cannot use it with a continuous variable like <code>hp</code>. Use <code>size</code> or <code>colour</code> for continuous mappings instead.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: use size for continuous, shape for discrete
+ggplot(mtcars, aes(x = wt, y = mpg, size = hp, shape = factor(cyl))) +
+  geom_point(alpha = 0.7)
+#&gt; Size encodes horsepower (continuous), shape encodes cylinders (discrete)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Build a faceted scatter plot with a custom theme</h4>
+
+<p>Create a scatter plot of the <code>mpg</code> dataset with <code>displ</code> on x, <code>hwy</code> on y, coloured by <code>class</code>, faceted by <code>drv</code>, using <code>theme_minimal()</code>. Add a descriptive title and axis labels.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: faceted scatterplot
+# Hint: combine aes(), geom_point(), facet_wrap(), theme_minimal(), and labs()
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_plot1 &lt;- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~drv) +
+  theme_minimal() +
+  labs(
+    title = &quot;Highway MPG by Engine Size and Drivetrain&quot;,
+    x = &quot;Engine Displacement (L)&quot;,
+    y = &quot;Highway MPG&quot;,
+    colour = &quot;Vehicle Class&quot;
+  )
+my_plot1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The facets split the data by drivetrain type (4wd, front, rear). Each panel has the same axes, making it easy to compare patterns across groups. The colour aesthetic adds a third dimension without extra panels.</p>
+
+</details>
+
+<h4>Exercise 2: Layer points, smooth line, and text annotations</h4>
+
+<p>Using the <code>mtcars</code> dataset, create a scatter plot of <code>wt</code> vs <code>mpg</code>. Add a <code>geom_smooth()</code> trend line. Then use <code>geom_text()</code> to label any car with <code>mpg &gt; 30</code> (Hint: create a filtered dataset for the text layer).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: points + smooth + text annotations
+# Hint: geom_text() accepts a 'data' argument for a subset
+# Hint: use label = rownames(mtcars) inside aes() for car names
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_labels &lt;- mtcars
+my_labels$car_name &lt;- rownames(mtcars)
+my_efficient &lt;- my_labels[my_labels$mpg &gt; 30, ]
+
+my_plot2 &lt;- ggplot(my_labels, aes(x = wt, y = mpg)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = &quot;loess&quot;, se = TRUE, colour = &quot;steelblue&quot;) +
+  geom_text(
+    data = my_efficient,
+    aes(label = car_name),
+    nudge_y = 1,
+    size = 3
+  ) +
+  theme_minimal() +
+  labs(
+    title = &quot;Fuel Efficiency vs Weight with Annotations&quot;,
+    x = &quot;Weight (1000 lbs)&quot;,
+    y = &quot;Miles per Gallon&quot;
+  )
+my_plot2
+#&gt; Scatter plot with trend line; 4 efficient cars labelled above their points</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>data</code> argument in <code>geom_text()</code> overrides the global dataset. Only the filtered rows get text labels. The <code>nudge_y</code> argument pushes labels above the points so they don't overlap. This demonstrates the grammar in action: three geoms, each with different purposes, layered on one coordinate system.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Let's build a complete, polished visualization from scratch using the grammar of graphics. We will use the <code>mpg</code> dataset to show the relationship between engine size, fuel economy, and vehicle class.</p>
+
+<p>The plan: map <code>displ</code> to x, <code>hwy</code> to y, and colour by class. Then add points, a smooth trend, facet by cylinders, and apply a clean theme with labels.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Complete example: grammar of graphics in action
+final_plot &lt;- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  # Geometry: points + trend line
+  geom_point(alpha = 0.6, size = 2) +
+  geom_smooth(method = &quot;loess&quot;, se = FALSE, linewidth = 0.8) +
+  # Scales: refined colour palette
+  scale_colour_brewer(palette = &quot;Dark2&quot;) +
+  # Facets: one panel per cylinder count
+  facet_wrap(~cyl, labeller = labeller(cyl = c(
+    &quot;4&quot; = &quot;4 Cylinders&quot;, &quot;5&quot; = &quot;5 Cylinders&quot;,
+    &quot;6&quot; = &quot;6 Cylinders&quot;, &quot;8&quot; = &quot;8 Cylinders&quot;
+  ))) +
+  # Theme: clean and readable
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15, face = &quot;bold&quot;),
+    strip.text = element_text(size = 11, face = &quot;bold&quot;),
+    legend.position = &quot;bottom&quot;,
+    panel.grid.minor = element_blank()
+  ) +
+  # Labels
+  labs(
+    title = &quot;Fuel Economy by Engine Size and Vehicle Class&quot;,
+    subtitle = &quot;Faceted by cylinder count, coloured by class&quot;,
+    x = &quot;Engine Displacement (L)&quot;,
+    y = &quot;Highway MPG&quot;,
+    colour = &quot;Vehicle Class&quot;
+  )
+
+final_plot
+#&gt; A 4-panel plot with coloured points, trend lines, custom labels, and a clean theme</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This 20-line plot demonstrates every layer of the grammar:</p>
+
+<ol>
+
+<li><strong>Data</strong> -- <code>mpg</code> dataset passed to <code>ggplot()</code></li>
+
+<li><strong>Aesthetics</strong> -- <code>displ</code> to x, <code>hwy</code> to y, <code>class</code> to colour</li>
+
+<li><strong>Geometries</strong> -- <code>geom_point()</code> for raw data, <code>geom_smooth()</code> for trends</li>
+
+<li><strong>Statistics</strong> -- the loess smoother transforms data into a trend line</li>
+
+<li><strong>Scales</strong> -- <code>scale_colour_brewer()</code> maps class names to the Dark2 palette</li>
+
+<li><strong>Coordinates</strong> -- default Cartesian (no override needed)</li>
+
+<li><strong>Facets + Theme</strong> -- <code>facet_wrap()</code> creates panels, <code>theme_minimal()</code> plus custom overrides clean up the styling</li>
+
+</ol>
+
+<p>Every decision maps to a specific layer. That is the grammar at work.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Layer</th>
+<th>Function</th>
+<th>What to change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data</td>
+<td><code>ggplot(data)</code></td>
+<td>Switch the dataset</td>
+</tr>
+<tr>
+<td>Aesthetics</td>
+<td><code>aes(x, y, colour, ...)</code></td>
+<td>Map different columns to visuals</td>
+</tr>
+<tr>
+<td>Geometries</td>
+<td><code>geom_point()</code>, <code>geom_bar()</code>, etc.</td>
+<td>Change the visual mark type</td>
+</tr>
+<tr>
+<td>Statistics</td>
+<td><code>stat_smooth()</code>, <code>stat_count()</code></td>
+<td>Add computed summaries</td>
+</tr>
+<tr>
+<td>Scales</td>
+<td><code>scale_colour_*()</code>, <code>scale_y_log10()</code></td>
+<td>Adjust colour palettes, axis transforms</td>
+</tr>
+<tr>
+<td>Coordinates</td>
+<td><code>coord_flip()</code>, <code>coord_polar()</code></td>
+<td>Swap axes or go polar</td>
+</tr>
+<tr>
+<td>Facets</td>
+<td><code>facet_wrap()</code>, <code>facet_grid()</code></td>
+<td>Split into panels</td>
+</tr>
+<tr>
+<td>Themes</td>
+<td><code>theme_minimal()</code>, <code>theme()</code></td>
+<td>Control fonts, backgrounds, gridlines</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>Every ggplot2 plot uses all seven layers, with sensible defaults filling in what you omit</li>
+
+<li><code>aes()</code> maps data to visuals. Geoms turn those mappings into shapes on screen</li>
+
+<li>Layering multiple geoms (e.g., points + smooth) is a core ggplot2 pattern</li>
+
+<li>Facets create small multiples that reveal subgroup patterns</li>
+
+<li>Start with a built-in theme and override specific elements with <code>theme()</code></li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between aes() inside ggplot() vs inside geom_*()?</strong></p>
+
+<p>Aesthetics defined in <code>ggplot(aes(...))</code> apply globally to every layer. Aesthetics defined in <code>geom_point(aes(...))</code> apply only to that specific geom. Use global aesthetics when all layers share the same mapping. Use layer-specific aesthetics when one geom needs a different mapping -- for example, a text layer that maps a label column.</p>
+
+<p><strong>Why does ggplot2 use + instead of the pipe |> to add layers?</strong></p>
+
+<p>ggplot2 was created in 2007, years before R had a <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">pipe operator</a>. The <code>+</code> operator works because <code>ggplot()</code> returns a ggplot object, and <code>+</code> is overloaded to add layers to that object. Changing to <code>|&gt;</code> would break millions of existing scripts, so <code>+</code> remains the standard.</p>
+
+<p><strong>Can I mix base R graphics with ggplot2?</strong></p>
+
+<p>No. Base R graphics (like <code>plot()</code>, <code>hist()</code>, <code>lines()</code>) and ggplot2 use completely different rendering systems. They cannot share the same plotting device in a meaningful way. Pick one system per plot.</p>
+
+<p><strong>How many geom layers can I stack on one plot?</strong></p>
+
+<p>There is no hard limit. In practice, 2-4 geom layers work well. Beyond that, the plot becomes cluttered. If you need more, consider faceting instead of layering.</p>
+
+<p><strong>When should I use stat_<em>() instead of geom_</em>()?</strong></p>
+
+<p>Every geom has a default stat, and every stat has a default geom. Use <code>stat_*()</code> when you want a statistical transformation that isn't the default for any common geom. For example, <code>stat_ecdf()</code> computes the empirical cumulative distribution function. For most use cases, specifying the geom and letting its default stat do the work is simpler.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H. -- "A Layered Grammar of Graphics." <em>Journal of Computational and Graphical Statistics</em>, 19(1), 3-28 (2010). <a href="https://vita.had.co.nz/papers/layered-grammar.html">Link</a></li>
+
+<li>Wilkinson, L. -- <em>The Grammar of Graphics</em>, 2nd ed. Springer (2005).</li>
+
+<li>Wickham, H. -- <em>ggplot2: Elegant Graphics for Data Analysis</em>, 3rd ed. <a href="https://ggplot2-book.org/">Link</a></li>
+
+<li>ggplot2 official documentation. <a href="https://ggplot2.tidyverse.org/">Link</a></li>
+
+<li>Wickham, H. & Grolemund, G. -- <em>R for Data Science</em>, 2nd ed. Chapter 2: Data Visualization. <a href="https://r4ds.hadley.nz/data-visualize">Link</a></li>
+
+<li>RStudio -- ggplot2 Cheat Sheet. <a href="https://rstudio.github.io/cheatsheets/data-visualization.pdf">Link</a></li>
+
+<li>Wilke, C. -- <em>Fundamentals of Data Visualization</em>. <a href="https://clauswilke.com/dataviz/">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="ggplot2-Tutorial-With-R.html">ggplot2 Tutorial</a></strong> -- A hands-on walkthrough building common chart types with ggplot2</li>
+
+<li><strong><a href="Complete-Ggplot2-Tutorial-Part1-With-R-Code.html">ggplot2 Tutorial Part 1: Introduction</a></strong> -- Deeper ggplot2 examples covering scatterplots, bar charts, and histograms</li>
+
+<li><strong><a href="Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html">ggplot2 Tutorial Part 2: Themes</a></strong> -- Advanced theme customization and styling</li>
+
+</ul>
