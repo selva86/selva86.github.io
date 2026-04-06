@@ -1,0 +1,965 @@
+---
+title: "dbplyr in R: Write dplyr Code That Runs on Any SQL Database"
+description: "dbplyr translates your dplyr pipelines into SQL so you can query databases without writing SQL. Learn tbl(), show_query(), collect(), and lazy evaluation with RSQLite examples."
+keywords: "dbplyr, dbplyr R, dplyr SQL database, dbplyr tutorial, show_query, tbl database, lazy SQL query R, dbplyr RSQLite"
+mathjax: false
+webr: true
+curriculum_id: "FR-data-2"
+post_type: "FR"
+auto_link_terms: "dbplyr|dbplyr in R|tbl()|show_query()|lazy query|database backend for dplyr"
+auto_link_case_sensitive: true
+fr_parent: "DBI-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>dbplyr in R: Write dplyr Code That Runs on Any SQL Database</h1>
+
+<p class="lead">dbplyr is a dplyr backend that translates your <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">filter()</a>, <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">mutate()</a>, and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): Aggregate Data by Group (10 Examples)">summarise</a>() calls into SQL and runs them on a database — so you query millions of rows without loading them into R or writing a single line of SQL.</p>
+
+<h2>Introduction</h2>
+
+<p>You already know dplyr for in-memory data frames. You know DBI for connecting to databases. dbplyr is the bridge between the two: it lets you point dplyr at a database table and write the same verbs you already use. Behind the scenes, dbplyr translates your R code into SQL, sends it to the database, and brings back only the results.</p>
+
+<p>The key idea is <strong>laziness</strong>. When you call <code>filter()</code> or <code>summarise()</code> on a database table through dbplyr, nothing happens immediately. dbplyr builds up a SQL query. Only when you call <code>collect()</code> does the query actually run and the results enter R memory. This means you can chain ten dplyr verbs together, and the database executes them as a single optimised SQL statement.</p>
+
+<p>All code in this tutorial uses RSQLite, an <a class="auto-link" href="DuckDB-in-R.html" title="DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds">in-process database</a> that runs directly in your browser. Click Run to execute each block.</p>
+
+<h2>How does dbplyr connect dplyr to a database?</h2>
+
+<p>The entry point is <code>tbl()</code>. You give it a DBI connection and a table name, and it returns a <strong>lazy table reference</strong> — an object that looks like a data frame but lives on the database.</p>
+
+<p>Let's set up an in-memory SQLite database, copy <code>mtcars</code> into it, and create a lazy reference.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Set up: connect, copy data, create lazy reference
+library(DBI)
+library(RSQLite)
+library(dplyr)
+library(dbplyr)
+
+con &lt;- dbConnect(SQLite(), &quot;:memory:&quot;)
+copy_to(con, mtcars, name = &quot;mtcars&quot;, overwrite = TRUE)
+copy_to(con, iris, name = &quot;iris&quot;, overwrite = TRUE)
+
+# tbl() creates a lazy reference — no data pulled yet
+mtcars_db &lt;- tbl(con, &quot;mtcars&quot;)
+print(mtcars_db)
+#&gt; # Source:   table&lt;mtcars&gt; [?? x 11]
+#&gt; # Database: sqlite 3.x.x [:memory:]
+#&gt;      mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt;  1  21       6  160    110  3.9   2.62  16.5     0     1     4     4
+#&gt;  2  21       6  160    110  3.9   2.88  17.0     0     1     4     4
+#&gt;  3  22.8     4  108     93  3.85  2.32  18.6     1     1     4     1
+#&gt; # ... with more rows</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Notice the header says <code>Source: table&lt;mtcars&gt;</code> and <code>Database: sqlite</code>. This is not an <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">R data frame</a> — it is a promise to query the database when you need the data. The <code>[?? x 11]</code> means dbplyr does not even know how many rows the table has, because it has not counted them yet.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">**<code>tbl()</code> never loads data into R.** It creates a lightweight reference. Even printing it only fetches the first few rows for display. The full table stays on the database until you call <code>collect()</code>.</div></div>
+
+<p><strong>Try it:</strong> Create a lazy reference to the <code>iris</code> table (already copied above) and print it. How many columns does it show?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: create a tbl() reference to iris
+ex_iris_db &lt;- tbl(con, # your code here
+)
+
+# Test:
+print(ex_iris_db)
+#&gt; Expected: Source: table&lt;iris&gt;, 5 columns</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_iris_db &lt;- tbl(con, &quot;iris&quot;)
+print(ex_iris_db)
+#&gt; # Source:   table&lt;iris&gt; [?? x 5]
+#&gt; # Database: sqlite 3.x.x [:memory:]
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt;          &lt;dbl&gt;       &lt;dbl&gt;       &lt;dbl&gt;       &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1          5.1         3.5         1.4         0.2 setosa
+#&gt; 2          4.9         3           1.4         0.2 setosa
+#&gt; 3          4.7         3.2         1.3         0.2 setosa
+#&gt; # ... with more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tbl(con, &quot;iris&quot;)</code> creates the same kind of lazy reference. The 5 columns match the iris dataset: 4 numeric measurements and Species.</p>
+
+</details>
+
+<h2>How does dbplyr translate dplyr verbs into SQL?</h2>
+
+<p>The magic of dbplyr is that your dplyr code becomes SQL. You can see the generated SQL at any time with <code>show_query()</code>. This is invaluable for debugging and for learning SQL by seeing what your dplyr code compiles to.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># filter + select — then see the SQL
+query1 &lt;- mtcars_db |&gt;
+  filter(mpg &gt; 25) |&gt;
+  select(mpg, cyl, hp, wt)
+
+show_query(query1)
+#&gt; &lt;SQL&gt;
+#&gt; SELECT `mpg`, `cyl`, `hp`, `wt`
+#&gt; FROM `mtcars`
+#&gt; WHERE (`mpg` &gt; 25.0)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>dbplyr translated <code>filter(mpg &gt; 25)</code> into <code>WHERE (mpg &gt; 25.0)</code> and <code>select(mpg, cyl, hp, wt)</code> into the <code>SELECT</code> clause. The pipeline has not executed — <code>query1</code> is still a lazy reference.</p>
+
+<p>Now try a grouped aggregation:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># group_by + summarise — see the SQL
+query2 &lt;- mtcars_db |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    mean_mpg = mean(mpg, na.rm = TRUE),
+    count    = n()
+  )
+
+show_query(query2)
+#&gt; &lt;SQL&gt;
+#&gt; SELECT `cyl`, AVG(`mpg`) AS `mean_mpg`, COUNT(*) AS `count`
+#&gt; FROM `mtcars`
+#&gt; GROUP BY `cyl`</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>group_by(cyl)</code> became <code>GROUP BY cyl</code>, <code>mean(mpg)</code> became <code>AVG(mpg)</code>, and <code>n()</code> became <code>COUNT(*)</code>. dbplyr knows how to map R aggregation functions to their SQL equivalents.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">**Use <code>show_query()</code> to learn SQL.** If you are new to SQL, write your analysis in dplyr and call <code>show_query()</code> to see what the equivalent SQL looks like. It is one of the fastest ways to pick up SQL syntax.</div></div>
+
+<p><strong>Try it:</strong> Write a pipeline on <code>mtcars_db</code> that filters to <code>am == 1</code> (manual transmission), groups by <code>gear</code>, and counts rows. Call <code>show_query()</code> on it.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: write a pipeline and see its SQL
+ex_query &lt;- mtcars_db |&gt;
+  # your code here
+
+show_query(ex_query)
+#&gt; Expected: SELECT gear, COUNT(*) ... WHERE am = 1.0 GROUP BY gear</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_query &lt;- mtcars_db |&gt;
+  filter(am == 1) |&gt;
+  group_by(gear) |&gt;
+  summarise(n = n())
+
+show_query(ex_query)
+#&gt; &lt;SQL&gt;
+#&gt; SELECT `gear`, COUNT(*) AS `n`
+#&gt; FROM `mtcars`
+#&gt; WHERE (`am` = 1.0)
+#&gt; GROUP BY `gear`</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> dbplyr maps <code>filter(am == 1)</code> to <code>WHERE</code>, <code>group_by(gear)</code> to <code>GROUP BY</code>, and <code>n()</code> to <code>COUNT(*)</code>.</p>
+
+</details>
+
+<h2>When does dbplyr actually execute the query?</h2>
+
+<p>dbplyr is lazy by design. Nothing runs until you force it. There are three ways to force execution:</p>
+
+<ol>
+
+<li>**<code>collect()</code>** — pulls all results into an R data frame</li>
+
+<li><strong>Printing</strong> — fetches the first few rows for display</li>
+
+<li>**<code>compute()</code>** — executes the query but stores the result as a temporary table on the database (not in R)</li>
+
+</ol>
+
+<p>The most common pattern is: build a lazy pipeline, verify with <code>show_query()</code>, then <code>collect()</code> the final result.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Lazy: nothing executes yet
+lazy_result &lt;- mtcars_db |&gt;
+  filter(hp &gt; 150) |&gt;
+  select(mpg, hp, wt) |&gt;
+  arrange(desc(hp))
+
+# Force execution: collect() pulls data into R
+result &lt;- collect(lazy_result)
+print(result)
+#&gt; # A tibble: 11 x 3
+#&gt;      mpg    hp    wt
+#&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt;  1  15.8   264  3.17
+#&gt;  2  14.3   245  3.57
+#&gt;  3  13.3   245  3.84
+#&gt;  4  15     335  3.57
+#&gt;  5  14.7   230  5.34
+#&gt; # ... with 6 more rows</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>After <code>collect()</code>, <code>result</code> is a normal tibble in R memory. You can plot it, pass it to model functions, or save it to a file. The database connection is no longer needed for this data.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">**Calling <code>collect()</code> on a huge table pulls everything into RAM.** Always filter and aggregate on the database first, then collect the small result. A pattern like <code>tbl(con, &quot;big_table&quot;) |&gt; collect() |&gt; filter(...)</code> defeats the entire purpose of dbplyr.</div></div>
+
+<p><strong>Try it:</strong> Build a lazy pipeline on <code>mtcars_db</code> that selects only <code>mpg</code> and <code>cyl</code>, filters to <code>cyl == 4</code>, and collects the result. How many rows come back?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: build lazy + collect
+ex_collected &lt;- mtcars_db |&gt;
+  # your code here
+
+# Test:
+nrow(ex_collected)
+#&gt; Expected: 11 (there are 11 four-cylinder cars in mtcars)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_collected &lt;- mtcars_db |&gt;
+  select(mpg, cyl) |&gt;
+  filter(cyl == 4) |&gt;
+  collect()
+nrow(ex_collected)
+#&gt; [1] 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>select()</code> and <code>filter()</code> run on the database. <code>collect()</code> pulls only the 11 matching rows into R. The order of <code>select()</code> and <code>filter()</code> does not matter — dbplyr optimises the SQL either way.</p>
+
+</details>
+
+<h2>Which dplyr verbs does dbplyr support?</h2>
+
+<p>dbplyr translates most core dplyr verbs: <code>filter()</code>, <code>select()</code>, <code>mutate()</code>, <code>summarise()</code>, <code>group_by()</code>, <code>arrange()</code>, <code>rename()</code>, <code>distinct()</code>, <code>slice_head()</code>, <code>slice_min()</code>, <code>slice_max()</code>, and all join types (<code>inner_join()</code>, <code>left_join()</code>, <code>right_join()</code>, <code>full_join()</code>, <code>semi_join()</code>, <code>anti_join()</code>).</p>
+
+<p>Here is a join across two database tables:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create a second table: cylinder descriptions
+cyl_info &lt;- data.frame(
+  cyl = c(4, 6, 8),
+  engine_type = c(&quot;inline-4&quot;, &quot;V6&quot;, &quot;V8&quot;)
+)
+copy_to(con, cyl_info, name = &quot;cyl_info&quot;, overwrite = TRUE)
+cyl_info_db &lt;- tbl(con, &quot;cyl_info&quot;)
+
+# Join on the database — no data enters R
+joined &lt;- mtcars_db |&gt;
+  inner_join(cyl_info_db, by = &quot;cyl&quot;) |&gt;
+  group_by(engine_type) |&gt;
+  summarise(mean_mpg = mean(mpg, na.rm = TRUE), count = n())
+
+show_query(joined)
+#&gt; &lt;SQL&gt;
+#&gt; SELECT `engine_type`, AVG(`mpg`) AS `mean_mpg`, COUNT(*) AS `count`
+#&gt; FROM `mtcars`
+#&gt; INNER JOIN `cyl_info`
+#&gt;   ON (`mtcars`.`cyl` = `cyl_info`.`cyl`)
+#&gt; GROUP BY `engine_type`
+
+collect(joined)
+#&gt; # A tibble: 3 x 3
+#&gt;   engine_type mean_mpg count
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 V6              19.7     7
+#&gt; 2 V8              15.1    14
+#&gt; 3 inline-4        26.7    11</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The join, grouping, and aggregation all happen on the database in one SQL statement. Only the 3-row summary enters R.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Functions dbplyr cannot translate fall back to R.</strong> If you use a custom R function inside <code>mutate()</code>, dbplyr will error rather than silently give wrong results. Stick to arithmetic, base R math functions, and dplyr helpers. Use <code>show_query()</code> to verify translation before <code>collect()</code>.</div></div>
+
+<p><strong>Try it:</strong> Join <code>mtcars_db</code> with <code>cyl_info_db</code>, then compute the max <code>hp</code> per <code>engine_type</code>. Collect the result.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: join + aggregate
+ex_joined &lt;- mtcars_db |&gt;
+  # your code here
+
+# Test:
+print(collect(ex_joined))
+#&gt; Expected: 3 rows with engine_type and max_hp — V8 should have the highest</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_joined &lt;- mtcars_db |&gt;
+  inner_join(cyl_info_db, by = &quot;cyl&quot;) |&gt;
+  group_by(engine_type) |&gt;
+  summarise(max_hp = max(hp, na.rm = TRUE))
+
+print(collect(ex_joined))
+#&gt; # A tibble: 3 x 2
+#&gt;   engine_type max_hp
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;
+#&gt; 1 V6             175
+#&gt; 2 V8             335
+#&gt; 3 inline-4       113</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>inner_join()</code> + <code>group_by()</code> + <code>summarise(max(...))</code> all translate to a single SQL <code>INNER JOIN ... GROUP BY ... MAX(...)</code> statement.</p>
+
+</details>
+
+<h2>How do you mix dbplyr with raw SQL?</h2>
+
+<p>Sometimes you need SQL that dbplyr cannot generate — window functions, CTEs, or database-specific syntax. You can pass raw SQL through <code>tbl()</code> using the <code>sql()</code> helper.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Pass raw SQL through tbl()
+raw_result &lt;- tbl(con, sql(&quot;
+  SELECT cyl, 
+         AVG(mpg) AS mean_mpg, 
+         AVG(hp) AS mean_hp,
+         COUNT(*) AS n
+  FROM mtcars 
+  GROUP BY cyl 
+  HAVING COUNT(*) &gt; 5
+&quot;))
+
+collect(raw_result)
+#&gt; # A tibble: 3 x 4
+#&gt;     cyl mean_mpg mean_hp     n
+#&gt;   &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt; 1     4     26.7    82.6    11
+#&gt; 2     6     19.7   122.     7
+#&gt; 3     8     15.1   209.    14</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>HAVING</code> clause filters groups after aggregation — something dplyr does not directly support. By wrapping raw SQL in <code>tbl(con, sql(...))</code>, the result is still a lazy dbplyr reference that you can chain more dplyr verbs onto.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>You can chain dplyr verbs after raw SQL.</strong> <code>tbl(con, sql(&quot;SELECT ...&quot;)) |&gt; filter(...) |&gt; collect()</code> works. dbplyr wraps your SQL as a subquery and adds the filter on top. This lets you combine hand-tuned SQL with dplyr convenience.</div></div>
+
+<p><strong>Try it:</strong> Write a raw SQL query inside <code>tbl(con, sql(...))</code> that selects all columns from <code>mtcars</code> where <code>wt &gt; 4</code>. Collect the result.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: raw SQL through tbl()
+ex_raw &lt;- tbl(con, sql(
+  # your SQL here
+))
+
+# Test:
+print(collect(ex_raw))
+#&gt; Expected: rows where wt &gt; 4 (about 4-5 cars)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_raw &lt;- tbl(con, sql(&quot;SELECT * FROM mtcars WHERE wt &gt; 4&quot;))
+print(collect(ex_raw))
+#&gt; # A tibble: 4 x 11
+#&gt;     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  10.4     8  472    205  2.93  5.25  18.0     0     0     3     4
+#&gt; 2  10.4     8  460    215  3     5.42  17.8     0     0     3     4
+#&gt; 3  14.7     8  440    230  3.23  5.34  17.4     0     0     3     4
+#&gt; 4  19.2     8  400    175  3.08  3.85  17.1     0     0     3     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sql()</code> passes the string directly to the database. <code>tbl()</code> wraps it as a lazy reference, and <code>collect()</code> pulls the 4 matching rows into R.</p>
+
+</details>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Collecting the entire table before filtering</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Pulls millions of rows into R, then filters in memory
+big_result &lt;- tbl(con, &quot;big_table&quot;) |&gt; collect() |&gt; filter(year == 2025)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>collect()</code> materialises the entire table into R memory before <code>filter()</code> runs. If the table has 100 million rows, R will crash or crawl.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Filter on the database, collect only matching rows
+big_result &lt;- tbl(con, &quot;big_table&quot;) |&gt; filter(year == 2025) |&gt; collect()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Using R functions that dbplyr cannot translate</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Custom R function — dbplyr cannot send this to SQL
+result &lt;- mtcars_db |&gt; mutate(category = ifelse(mpg &gt; 25, &quot;efficient&quot;, &quot;normal&quot;))
+# Error: Translation of `ifelse()` is not supported for SQLite</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Not all <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> have SQL equivalents. <code>ifelse()</code> translates on some backends but not all. Check with <code>show_query()</code> before collecting.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Use if_else() from dplyr — dbplyr translates it to CASE WHEN
+result &lt;- mtcars_db |&gt; mutate(category = if_else(mpg &gt; 25, &quot;efficient&quot;, &quot;normal&quot;))
+show_query(result)
+#&gt; SELECT *, CASE WHEN (`mpg` &gt; 25.0) THEN 'efficient' ELSE 'normal' END AS `category`
+#&gt; FROM `mtcars`</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Forgetting to disconnect</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Script ends without closing the connection
+# Database locks may persist, file handles leak</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Open connections consume resources and may lock database files. SQLite in particular keeps file locks until disconnection.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Always disconnect when done
+dbDisconnect(con)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: End-to-end dbplyr pipeline</h4>
+
+<p>Connect to a new in-memory SQLite database, copy the <code>airquality</code> dataset into it, create a lazy reference, filter to rows where <code>Month == 7</code>, group by <code>Day</code>, compute <code>mean_temp = mean(Temp)</code>, show the generated SQL, and collect the result.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: full dbplyr pipeline with airquality
+# Hint: dbConnect, copy_to, tbl, filter, group_by, summarise, show_query, collect
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_con &lt;- dbConnect(SQLite(), &quot;:memory:&quot;)
+copy_to(my_con, airquality, name = &quot;airquality&quot;, overwrite = TRUE)
+my_aq &lt;- tbl(my_con, &quot;airquality&quot;)
+
+my_result &lt;- my_aq |&gt;
+  filter(Month == 7) |&gt;
+  group_by(Day) |&gt;
+  summarise(mean_temp = mean(Temp, na.rm = TRUE))
+
+show_query(my_result)
+#&gt; &lt;SQL&gt;
+#&gt; SELECT `Day`, AVG(`Temp`) AS `mean_temp`
+#&gt; FROM `airquality`
+#&gt; WHERE (`Month` = 7.0)
+#&gt; GROUP BY `Day`
+
+print(collect(my_result))
+#&gt; # A tibble: 31 x 2
+#&gt;      Day mean_temp
+#&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt;  1     1        84
+#&gt;  2     2        85
+#&gt;  3     3        81
+#&gt; # ... with 28 more rows
+
+dbDisconnect(my_con)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The pipeline stays lazy until <code>collect()</code>. The database filters to July, groups by day, and computes the average temperature — all in one SQL statement.</p>
+
+</details>
+
+<h4>Exercise 2: Join and compare SQL</h4>
+
+<p>Using the original <code>con</code> connection (reconnect if needed), create a table <code>am_labels</code> with columns <code>am</code> (0, 1) and <code>trans_type</code> ("automatic", "manual"). Join it with <code>mtcars</code> on the database, compute mean <code>mpg</code> per <code>trans_type</code>, show the SQL, and collect. Compare the generated SQL to what you would write by hand.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: join + aggregate + compare SQL
+# Hint: copy_to for the labels table, inner_join, group_by, summarise, show_query
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">con2 &lt;- dbConnect(SQLite(), &quot;:memory:&quot;)
+copy_to(con2, mtcars, name = &quot;mtcars&quot;, overwrite = TRUE)
+
+my_labels &lt;- data.frame(am = c(0, 1), trans_type = c(&quot;automatic&quot;, &quot;manual&quot;))
+copy_to(con2, my_labels, name = &quot;am_labels&quot;, overwrite = TRUE)
+
+my_joined &lt;- tbl(con2, &quot;mtcars&quot;) |&gt;
+  inner_join(tbl(con2, &quot;am_labels&quot;), by = &quot;am&quot;) |&gt;
+  group_by(trans_type) |&gt;
+  summarise(mean_mpg = mean(mpg, na.rm = TRUE), count = n())
+
+show_query(my_joined)
+#&gt; &lt;SQL&gt;
+#&gt; SELECT `trans_type`, AVG(`mpg`) AS `mean_mpg`, COUNT(*) AS `count`
+#&gt; FROM `mtcars`
+#&gt; INNER JOIN `am_labels`
+#&gt;   ON (`mtcars`.`am` = `am_labels`.`am`)
+#&gt; GROUP BY `trans_type`
+
+print(collect(my_joined))
+#&gt; # A tibble: 2 x 3
+#&gt;   trans_type mean_mpg count
+#&gt;   &lt;chr&gt;         &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 automatic      17.1    19
+#&gt; 2 manual         24.4    13
+
+dbDisconnect(con2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The join, grouping, and aggregation all compile to a single SQL query. Manual-transmission cars average 7 mpg more than automatics.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>How it works</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tbl(con, &quot;table&quot;)</code></td>
+<td>Creates a lazy reference — no data loaded</td>
+</tr>
+<tr>
+<td><code>show_query()</code></td>
+<td>Reveals the SQL that dbplyr generated</td>
+</tr>
+<tr>
+<td><code>collect()</code></td>
+<td>Executes the query and pulls results into R</td>
+</tr>
+<tr>
+<td><code>compute()</code></td>
+<td>Executes the query and stores results as a temp table on the database</td>
+</tr>
+<tr>
+<td>Joins</td>
+<td><code>inner_join()</code>, <code>left_join()</code>, etc. translate to SQL JOINs</td>
+</tr>
+<tr>
+<td>Raw SQL</td>
+<td><code>tbl(con, sql(&quot;SELECT ...&quot;))</code> passes SQL directly</td>
+</tr>
+<tr>
+<td>Fallback</td>
+<td>Functions dbplyr cannot translate raise an error</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Key rule:</strong> filter and aggregate on the database, collect only the small result.</p>
+
+<h2>FAQ</h2>
+
+<h4>Does dbplyr work with PostgreSQL, MySQL, and other databases?</h4>
+
+<p>Yes. dbplyr works with any database that has a DBI-compatible driver. The SQL it generates adapts to the backend — SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and others each get dialect-appropriate SQL. Install the relevant driver package (RPostgres, RMySQL, odbc) and <code>tbl()</code> works the same way.</p>
+
+<h4>How do I know which functions dbplyr can translate?</h4>
+
+<p>Call <code>show_query()</code> on your pipeline before <code>collect()</code>. If dbplyr cannot translate a function, it raises an error immediately — it will not silently give wrong results. The dbplyr documentation lists all supported translations at <code>dbplyr.tidyverse.org/articles/translation-function.html</code>.</p>
+
+<h4>Should I use dbplyr or write SQL directly?</h4>
+
+<p>Use dbplyr when your analysis fits naturally into dplyr verbs — filter, group, summarise, join. Switch to raw SQL (via <code>tbl(con, sql(...))</code>) for window functions, CTEs, recursive queries, or database-specific syntax. You can mix both in the same script.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>dbplyr documentation — official tidyverse site. <a href="https://dbplyr.tidyverse.org/">dbplyr.tidyverse.org</a></li>
+
+<li>dbplyr function translation reference. <a href="https://dbplyr.tidyverse.org/articles/translation-function.html">dbplyr.tidyverse.org/articles/translation-function.html</a></li>
+
+<li>Wickham, H. — <em>R for Data Science</em>, 2nd ed., Ch 21 Databases. <a href="https://r4ds.hadley.nz/databases.html">r4ds.hadley.nz/databases.html</a></li>
+
+<li>DBI package documentation. <a href="https://dbi.r-dbi.org/">dbi.r-dbi.org</a></li>
+
+<li>RSQLite package. <a href="https://rsqlite.r-dbi.org/">rsqlite.r-dbi.org</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="DBI-in-R.html">Connect R to Any Database: DBI</a></strong> — The parent tutorial covering dbConnect(), <a class="auto-link" href="DBI-in-R.html" title="Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL">dbGetQuery()</a>, parameterised queries, and the DBI interface that dbplyr builds on.</li>
+
+<li><strong><a href="DuckDB-in-R.html">DuckDB in R</a></strong> — An alternative analytical engine that also speaks dplyr (via <a class="auto-link" href="DuckDB-duckplyr-in-R.html" title="DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop">duckplyr</a>) and excels at querying <a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">Parquet</a> and CSV files directly.</li>
+
+</ul>
