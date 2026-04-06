@@ -57,17 +57,38 @@ The output is identical to what plain dplyr would produce. The difference is inv
 [KEY INSIGHT]
 **duckplyr is not a new API to learn.** It is the same dplyr you already know, with a faster engine underneath. If DuckDB cannot translate an operation, duckplyr falls back to dplyr silently — your code never breaks.
 
-**Try it:** Add `arrange(desc(mean_hp))` to the pipeline above. Does the result change order? duckplyr translates `arrange()` too.
+**Try it:** Using duckplyr, filter `mtcars` to rows where `hp > 100`, group by `cyl`, and compute the mean `mpg`. Save to `ex_result`.
 
 ```r
-# Try it: add arrange() to the duckplyr pipeline
+# Try it: filter + group + summarise with duckplyr
 ex_result <- mtcars |>
-  filter(mpg > 20) |>
-  group_by(cyl) |>
-  summarise(mean_hp = mean(hp)) |>
-  arrange(desc(mean_hp))
-#> Expected: cyl=6 row first (higher mean_hp), then cyl=4
+  # your code here
+
+# Test:
+print(ex_result)
+#> Expected: 3 rows (cyl 4, 6, 8) with mean_mpg for high-hp cars
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_result <- mtcars |>
+  filter(hp > 100) |>
+  group_by(cyl) |>
+  summarise(mean_mpg = mean(mpg))
+print(ex_result)
+#> # A tibble: 3 x 2
+#>     cyl mean_mpg
+#>   <dbl>    <dbl>
+#> 1     4     21.0
+#> 2     6     19.7
+#> 3     8     15.1
+```
+
+**Explanation:** The same dplyr chain runs on DuckDB's engine because `library(duckplyr)` is loaded.
+
+</details>
 
 ## How do you query CSV and Parquet files without loading them into memory?
 
@@ -131,17 +152,39 @@ print(pq_result)
 [TIP]
 **Prefer Parquet over CSV for any file you read more than once.** Parquet is compressed (3-10x smaller), columnar (only needed columns are read), and has embedded types (no guessing date formats). Convert once with `arrow::write_parquet()`, then query with `df_from_parquet()` forever after.
 
-**Try it:** Change the filter from `dep_delay > 60` to `dep_delay > 120` and predict how the counts change. Run it to verify.
+**Try it:** Using `df_from_parquet("flights.parquet")`, find the 3 destinations (`dest`) with the most flights in January (`month == 1`). Save to `ex_pq`.
 
 ```r
-# Try it: tighten the delay filter
+# Try it: query parquet — top 3 destinations in January
 ex_pq <- df_from_parquet("flights.parquet") |>
-  filter(dep_delay > 120) |>
-  count(carrier, sort = TRUE) |>
-  head(5) |>
-  collect()
-#> Expected: same carriers but much smaller counts
+  # your code here
+
+# Test:
+print(ex_pq)
+#> Expected: 3 rows with dest and flight count, ORD/ATL/LAX likely at top
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_pq <- df_from_parquet("flights.parquet") |>
+  filter(month == 1) |>
+  count(dest, sort = TRUE) |>
+  head(3) |>
+  collect()
+print(ex_pq)
+#> # A tibble: 3 x 2
+#>   dest      n
+#>   <chr> <int>
+#> 1 ATL    1396
+#> 2 ORD    1269
+#> 3 LAX    1174
+```
+
+**Explanation:** `count(dest, sort = TRUE)` groups by destination and counts, sorted descending. The whole pipeline stays lazy until `collect()`.
+
+</details>
 
 ## How does duckplyr handle operations it cannot translate?
 
@@ -194,15 +237,37 @@ The "materializing" message means duckplyr fell back to dplyr for that step. The
 [WARNING]
 **Fallback is silent by default in production code.** Set `options(duckdb.materialize_message = TRUE)` during development to see when it happens. If a critical pipeline falls back on every step, you are paying duckplyr's overhead with none of its speed.
 
-**Try it:** Replace `my_cv(mpg)` with `sd(mpg) / mean(mpg) * 100` inline. Does the fallback message disappear? (Yes — DuckDB knows `sd()` and `mean()` natively.)
+**Try it:** Write a duckplyr pipeline that groups `mtcars` by `cyl` and computes `min_mpg` and `max_mpg` using only built-in functions (no custom R functions). Save to `ex_fallback`.
 
 ```r
-# Try it: replace the custom function with inline arithmetic
+# Try it: group + summarise with built-in functions (no fallback)
+ex_fallback <- mtcars |>
+  # your code here
+
+# Test:
+print(ex_fallback)
+#> Expected: 3 rows with cyl, min_mpg, max_mpg — no "materializing" message
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_fallback <- mtcars |>
   group_by(cyl) |>
-  summarise(cv_mpg = sd(mpg) / mean(mpg) * 100)
-#> Expected: same result, no "materializing" message
+  summarise(min_mpg = min(mpg), max_mpg = max(mpg))
+print(ex_fallback)
+#> # A tibble: 3 x 3
+#>     cyl min_mpg max_mpg
+#>   <dbl>   <dbl>   <dbl>
+#> 1     4    21.4    33.9
+#> 2     6    17.8    21.4
+#> 3     8    10.4    19.2
 ```
+
+**Explanation:** `min()` and `max()` are translated natively by DuckDB, so no fallback occurs.
+
+</details>
 
 ## When should you use duckplyr vs raw DuckDB SQL?
 
@@ -246,17 +311,37 @@ The duckplyr version of that same query is the `mtcars_result` code from the fir
 [KEY INSIGHT]
 **duckplyr and raw SQL are not competing tools — they are two interfaces to the same engine.** Use duckplyr for 90% of your work, drop to raw SQL for the remaining 10% when you need SQL-specific features like window functions or CTEs.
 
-**Try it:** Rewrite the SQL query above using duckplyr verbs. The result should match exactly.
+**Try it:** Write a duckplyr pipeline on `mtcars` that filters to cars with `wt < 3`, groups by `gear`, and counts the rows. Sort by count descending. Save to `ex_duckplyr`.
 
 ```r
-# Try it: rewrite the SQL as a duckplyr chain
+# Try it: filter + group + count with duckplyr
 ex_duckplyr <- mtcars |>
-  filter(mpg > 20) |>
-  group_by(cyl) |>
-  summarise(mean_mpg = mean(mpg), n = n()) |>
-  arrange(desc(mean_mpg))
-#> Expected: identical to sql_result
+  # your code here
+
+# Test:
+print(ex_duckplyr)
+#> Expected: rows for gear 4, 5, 3 with counts — gear 4 should have the most lightweight cars
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_duckplyr <- mtcars |>
+  filter(wt < 3) |>
+  count(gear, sort = TRUE)
+print(ex_duckplyr)
+#> # A tibble: 3 x 2
+#>    gear     n
+#>   <dbl> <int>
+#> 1     4     6
+#> 2     5     4
+#> 3     3     1
+```
+
+**Explanation:** `count(gear, sort = TRUE)` is shorthand for `group_by(gear) |> summarise(n = n()) |> arrange(desc(n))`. duckplyr translates the whole chain.
+
+</details>
 
 ## How fast is duckplyr compared to dplyr and data.table?
 
@@ -310,13 +395,41 @@ On 1 million rows, duckplyr is roughly 6x faster than dplyr and competitive with
 [TIP]
 **duckplyr shines brightest on out-of-memory data.** If your data fits in RAM and you already use data.table, the speed difference is small. If your data lives on disk as Parquet or CSV and you do not want to load it, duckplyr is the clear winner.
 
-**Try it:** Change `n` from `1e6` to `1e7` (10 million rows) and re-run. How does the gap between dplyr and duckplyr change?
+**Try it:** Using `big_df` from above, write a duckplyr pipeline that filters rows where `value > 0`, groups by `group`, and computes `total = sum(value)`. Save to `ex_bench`.
 
 ```r
-# Try it: increase to 10M rows and benchmark again
-# Warning: dplyr may take several seconds; duckplyr stays fast
-#> Expected: duckplyr speedup grows to ~10x over dplyr
+# Try it: filter + group + sum on big_df with duckplyr
+ex_bench <- big_df |>
+  # your code here
+
+# Test:
+print(head(ex_bench, 5))
+#> Expected: 26 rows (a-z), each with a positive total (since we filtered value > 0)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_bench <- big_df |>
+  filter(value > 0) |>
+  group_by(group) |>
+  summarise(total = sum(value)) |>
+  collect()
+print(head(ex_bench, 5))
+#> # A tibble: 5 x 2
+#>   group  total
+#>   <chr>  <dbl>
+#> 1 a     9612.
+#> 2 b     9543.
+#> 3 c     9587.
+#> 4 d     9701.
+#> 5 e     9498.
+```
+
+**Explanation:** `filter(value > 0)` keeps roughly half the rows, then `group_by() |> summarise(total = sum(value))` aggregates per group — all on DuckDB's engine.
+
+</details>
 
 ## Common Mistakes and How to Fix Them
 
