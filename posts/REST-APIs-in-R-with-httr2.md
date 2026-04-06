@@ -6,7 +6,7 @@ keywords: "httr2, REST API in R, httr2 tutorial, R API call, req_perform, req_bo
 auto_link_terms: "httr2|REST API in R|request()|req_perform()|req_body_json()|httr2 package|calling APIs in R|HTTP requests in R"
 auto_link_case_sensitive: true
 mathjax: false
-webr: false
+webr: true
 date: "2026-04-06"
 curriculum_id: "DB4"
 post_type: "C"

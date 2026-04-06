@@ -6,7 +6,7 @@ keywords: "duckplyr, duckplyr R, DuckDB dplyr, duckplyr tutorial, query parquet 
 auto_link_terms: "duckplyr|duckplyr in R|DuckDB dplyr|duckplyr package|df_from_parquet|df_from_csv"
 auto_link_case_sensitive: true
 mathjax: false
-webr: false
+webr: true
 date: "2026-04-06"
 curriculum_id: "MOD4"
 post_type: "FR"

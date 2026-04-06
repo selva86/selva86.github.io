@@ -6,7 +6,7 @@ keywords: "web scraping in R, rvest, read_html, html_elements, html_table, html_
 auto_link_terms: "web scraping in R|rvest|read_html()|html_elements()|html_table()|html_text()|web scraping|rvest package"
 auto_link_case_sensitive: true
 mathjax: false
-webr: false
+webr: true
 date: "2026-04-06"
 curriculum_id: "DB3"
 post_type: "C"
