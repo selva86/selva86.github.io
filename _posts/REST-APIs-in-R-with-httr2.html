@@ -1,0 +1,1351 @@
+---
+title: "REST APIs in R with httr2: GET, POST, OAuth, and Paginated Results"
+description: "httr2 is the modern R package for HTTP. Learn request(), req_perform(), Bearer auth, JSON parsing, rate limiting with req_throttle(), and pagination."
+keywords: "httr2, REST API in R, httr2 tutorial, R API call, req_perform, req_body_json, httr2 authentication, httr2 pagination, req_throttle, R HTTP requests"
+mathjax: false
+webr: false
+curriculum_id: "DB4"
+post_type: "C"
+auto_link_terms: "httr2|REST API in R|request()|req_perform()|req_body_json()|httr2 package|calling APIs in R|HTTP requests in R"
+auto_link_case_sensitive: true
+sidebar_section: "Data Wrangling"
+sidebar_title: "REST APIs (httr2)"
+sidebar_order: "16"
+---
+<!-- md2html:generated -->
+
+<nav class="breadcrumb-nav">Home > Data Wrangling > Databases & Web > REST APIs in R with httr2</nav>
+
+<h1>REST APIs in R with httr2: GET, POST, OAuth, and Paginated Results</h1>
+
+<p class="lead">httr2 is the modern R package for calling REST APIs — it lets you build HTTP requests with a pipe chain, handle authentication, parse JSON responses, and paginate through results automatically.</p>
+
+<h2>Introduction</h2>
+
+<p>Most interesting data does not come in a CSV file. It lives behind an API. Whether you need live weather forecasts, financial quotes, social media metrics, or government statistics, you will call a REST API to get it. R makes this straightforward with the httr2 package.</p>
+
+<p>httr2 is the successor to the original httr package, redesigned from scratch by Hadley Wickham. Instead of separate <code>GET()</code> and <code>POST()</code> functions, httr2 uses a single <code>request()</code> object that you build up with pipe-friendly <code>req_*()</code> functions. This design makes complex requests — with authentication, rate limiting, and pagination — just as easy to write as simple ones.</p>
+
+<p>In this tutorial, you will learn how to make GET and POST requests, parse JSON responses, authenticate with API keys, Bearer tokens, and OAuth 2.0, handle errors and retries, apply rate limiting, and paginate through multi-page results. By the end, you will have a complete toolkit for pulling data from any REST API into R.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>httr2 requires internet access and cannot run in the browser.</strong> The code blocks in this tutorial show expected output as inline comments. To run the code yourself, install httr2 in RStudio with <code>install.packages(&quot;httr2&quot;)</code> and execute locally.</div></div>
+
+<h2>What is a REST API and how does R talk to one?</h2>
+
+<p>A REST API is a web service that accepts HTTP requests and returns structured data — usually JSON. REST stands for Representational State Transfer, but the name matters less than the mechanics. You send a request with a verb (GET, POST, PUT, DELETE), a URL, optional headers, and an optional body. The server processes it and returns a response with a status code, headers, and a body.</p>
+
+<p>Think of it like ordering at a restaurant. You (the client) tell the waiter (HTTP) what you want (the request). The kitchen (the server) prepares it and sends back your meal (the response). The menu (the API documentation) tells you what you can order and how to ask for it.</p>
+
+<p><img src="screenshots/REST-APIs-in-R-with-httr2-request-response.webp" alt="The HTTP request-response cycle: R sends a request through httr2, the API server returns a JSON response" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: The HTTP request-response cycle: R sends a request through httr2, the API server returns a JSON response.</em></p>
+
+<p>The four most common HTTP verbs map to familiar database operations. GET retrieves data (like a SELECT query). POST creates new data (like an INSERT). PUT updates existing data (like an UPDATE). DELETE removes data. Most data-fetching work in R uses GET requests, but you will also use POST when sending data to an API.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>REST is stateless — every request must carry all the information the server needs.</strong> The server does not remember your previous requests. If an endpoint requires authentication, you must include your credentials in every single request, not just the first one.</div></div>
+
+<h2>How do you install httr2 and make your first GET request?</h2>
+
+<p>Getting started with httr2 takes three steps: install the package, create a request object, and perform it. The <code>request()</code> function takes a URL and returns a request object. The <code>req_perform()</code> function sends it. The <code>resp_body_json()</code> function parses the JSON response into an R list.</p>
+
+<p>Let's start with a simple GET request to httpbin.org, a free testing service that echoes back whatever you send it.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Install and load httr2
+install.packages(&quot;httr2&quot;)
+library(httr2)
+
+# Create and perform a GET request
+resp &lt;- request(&quot;https://httpbin.org/get&quot;) |&gt;
+  req_perform()
+
+# Check the status code
+resp_status(resp)
+#&gt; [1] 200
+
+# Parse the JSON body
+resp_body_json(resp)
+#&gt; $args
+#&gt; named list()
+#&gt;
+#&gt; $headers
+#&gt; $headers$Accept
+#&gt; [1] &quot;*/*&quot;
+#&gt;
+#&gt; $headers$Host
+#&gt; [1] &quot;httpbin.org&quot;
+#&gt;
+#&gt; $url
+#&gt; [1] &quot;https://httpbin.org/get&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>A status code of 200 means success. The response body shows the request headers and URL that the server received. This confirms httr2 is working.</p>
+
+<p><img src="screenshots/REST-APIs-in-R-with-httr2-pipe-chain.webp" alt="The httr2 pipe chain: request() starts the chain, req_*() functions modify it, req_perform() sends it, and resp_*() functions extract data" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: The httr2 pipe chain: request() starts the chain, req_</em>() functions modify it, req_perform() sends it, and resp_<em>() functions extract data.</em></p>
+
+<p>Now let's call a real API. The Dog CEO API returns a random dog image URL with no authentication required.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Get a random dog image
+dog_resp &lt;- request(&quot;https://dog.ceo/api/breeds/image/random&quot;) |&gt;
+  req_perform()
+
+dog_data &lt;- resp_body_json(dog_resp)
+dog_data$message
+#&gt; [1] &quot;https://images.dog.ceo/breeds/retriever-golden/n02099601_1234.jpg&quot;
+
+dog_data$status
+#&gt; [1] &quot;success&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The response is a list with two elements: <code>message</code> (the image URL) and <code>status</code>. This is the typical pattern — call <code>resp_body_json()</code> to get a list, then extract the fields you need.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use req_dry_run() to inspect what httr2 will send without actually sending it.</strong> This is invaluable for debugging. Just replace <code>req_perform()</code> with <code>req_dry_run()</code> in your pipe chain to see the exact HTTP request that would be sent.</div></div>
+
+<h2>How do you add query parameters and custom headers?</h2>
+
+<p>Many APIs require query parameters — the <code>?key=value</code> pairs at the end of a URL. Instead of manually constructing URLs, use <code>req_url_query()</code> to add them cleanly. For custom headers, use <code>req_headers()</code>.</p>
+
+<p>Let's fetch weather data from the Open-Meteo API, which provides free weather forecasts without authentication. It requires latitude, longitude, and the variables you want as query parameters.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Fetch current temperature for London
+weather_resp &lt;- request(&quot;https://api.open-meteo.com/v1/forecast&quot;) |&gt;
+  req_url_query(
+    latitude = 51.5074,
+    longitude = -0.1278,
+    current = &quot;temperature_2m,wind_speed_10m&quot;,
+    timezone = &quot;Europe/London&quot;
+  ) |&gt;
+  req_perform()
+
+weather_data &lt;- resp_body_json(weather_resp)
+weather_data$current$temperature_2m
+#&gt; [1] 14.2
+
+weather_data$current$wind_speed_10m
+#&gt; [1] 8.5</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>req_url_query()</code> function builds the URL <code>https://api.open-meteo.com/v1/forecast?latitude=51.5074&amp;longitude=-0.1278&amp;current=temperature_2m,wind_speed_10m&amp;timezone=Europe/London</code> for you. This is cleaner and less error-prone than concatenating strings.</p>
+
+<p>Custom headers tell the server about your client. The most important ones are <code>Accept</code> (what format you want back) and <code>User-Agent</code> (who you are).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Add custom headers to a request
+header_resp &lt;- request(&quot;https://httpbin.org/headers&quot;) |&gt;
+  req_headers(
+    Accept = &quot;application/json&quot;,
+    `User-Agent` = &quot;my-r-script/1.0 (contact@example.com)&quot;
+  ) |&gt;
+  req_perform()
+
+resp_body_json(header_resp)$headers$`User-Agent`
+#&gt; [1] &quot;my-r-script/1.0 (contact@example.com)&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The backticks around <code>User-Agent</code> are needed because the header name contains a hyphen. R treats it as an expression otherwise.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Always set a descriptive User-Agent so API owners can identify your script.</strong> Include a contact email or project URL. If your script accidentally sends too many requests, the API owner can reach you instead of simply blocking your IP.</div></div>
+
+<h2>How do you send data with POST, PUT, and DELETE?</h2>
+
+<p>GET requests retrieve data. POST requests send data to the server — for creating records, submitting forms, or triggering actions. httr2 provides three body-encoding functions: <code>req_body_json()</code> for JSON, <code>req_body_form()</code> for form data, and <code>req_body_multipart()</code> for file uploads.</p>
+
+<p>Let's POST a JSON payload to httpbin.org, which echoes it back so you can verify what was sent.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># POST JSON data
+post_resp &lt;- request(&quot;https://httpbin.org/post&quot;) |&gt;
+  req_body_json(list(
+    name = &quot;Alice&quot;,
+    language = &quot;R&quot;,
+    packages = list(&quot;httr2&quot;, &quot;dplyr&quot;, &quot;ggplot2&quot;)
+  )) |&gt;
+  req_perform()
+
+post_data &lt;- resp_body_json(post_resp)
+post_data$json$name
+#&gt; [1] &quot;Alice&quot;
+
+post_data$json$packages
+#&gt; [[1]]
+#&gt; [1] &quot;httr2&quot;
+#&gt; [[2]]
+#&gt; [1] &quot;dplyr&quot;
+#&gt; [[3]]
+#&gt; [1] &quot;ggplot2&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Notice that you did not need to call <code>req_method(&quot;POST&quot;)</code>. When you add a body with <code>req_body_json()</code>, httr2 automatically switches the method to POST. The R list is serialized to JSON — <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">nested lists</a> become JSON arrays, named lists become JSON objects.</p>
+
+<p>For APIs that expect form-encoded data (like HTML forms), use <code>req_body_form()</code> instead.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># POST form-encoded data
+form_resp &lt;- request(&quot;https://httpbin.org/post&quot;) |&gt;
+  req_body_form(
+    username = &quot;alice&quot;,
+    password = &quot;secret123&quot;
+  ) |&gt;
+  req_perform()
+
+resp_body_json(form_resp)$form$username
+#&gt; [1] &quot;alice&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The difference is the Content-Type header. <code>req_body_json()</code> sends <code>application/json</code>, while <code>req_body_form()</code> sends <code>application/x-www-form-urlencoded</code>. The API documentation tells you which one to use.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>httr2 automatically sets the Content-Type header when you use req_body_json() or req_body_form().</strong> You never need to set it manually. If you use <code>req_body_raw()</code> for binary data, then you must specify the content type yourself.</div></div>
+
+<p>For PUT and DELETE requests, add <code>req_method()</code> to your pipe chain.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># PUT request (update a resource)
+put_resp &lt;- request(&quot;https://httpbin.org/put&quot;) |&gt;
+  req_body_json(list(name = &quot;Alice&quot;, language = &quot;Python&quot;)) |&gt;
+  req_method(&quot;PUT&quot;) |&gt;
+  req_perform()
+
+resp_status(put_resp)
+#&gt; [1] 200</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How do you authenticate API requests?</h2>
+
+<p>Most production APIs require authentication. The three most common methods are API keys, Bearer tokens, and OAuth 2.0. Each serves a different use case, and httr2 has built-in support for all three.</p>
+
+<p><img src="screenshots/REST-APIs-in-R-with-httr2-auth-methods.webp" alt="Choosing an authentication method: no auth, API key, Bearer token, or OAuth 2.0" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Choosing an authentication method: no auth, API key, Bearer token, or OAuth 2.0.</em></p>
+
+<p><strong>API keys</strong> are the simplest. The API gives you a string, and you include it in every request — either as a query parameter or a header. Here is the query parameter approach.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># API key as a query parameter
+# Store your key in .Renviron: WEATHER_API_KEY=your_key_here
+api_key &lt;- Sys.getenv(&quot;WEATHER_API_KEY&quot;)
+
+key_resp &lt;- request(&quot;https://api.example.com/data&quot;) |&gt;
+  req_url_query(api_key = api_key) |&gt;
+  req_perform()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Bearer tokens</strong> are used by APIs that issue short-lived access tokens. You include the token in the Authorization header. httr2 provides a convenience function for this.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Bearer token authentication
+token &lt;- Sys.getenv(&quot;MY_API_TOKEN&quot;)
+
+auth_resp &lt;- request(&quot;https://api.example.com/protected&quot;) |&gt;
+  req_auth_bearer_token(token) |&gt;
+  req_perform()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>req_auth_bearer_token()</code> function adds the header <code>Authorization: Bearer &lt;token&gt;</code> to your request. This is equivalent to calling <code>req_headers(Authorization = paste(&quot;Bearer&quot;, token))</code>, but cleaner and less error-prone.</p>
+
+<p><strong>OAuth 2.0</strong> is the most complex authentication flow. It involves registering your app, redirecting the user to a login page, receiving an authorization code, and exchanging it for an access token. httr2 handles the entire flow.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># OAuth 2.0 authorization code flow
+client &lt;- oauth_client(
+  id = Sys.getenv(&quot;OAUTH_CLIENT_ID&quot;),
+  secret = Sys.getenv(&quot;OAUTH_CLIENT_SECRET&quot;),
+  token_url = &quot;https://api.example.com/oauth/token&quot;,
+  name = &quot;my-r-app&quot;
+)
+
+oauth_req &lt;- request(&quot;https://api.example.com/user&quot;) |&gt;
+  req_oauth_auth_code(
+    client = client,
+    auth_url = &quot;https://api.example.com/oauth/authorize&quot;
+  ) |&gt;
+  req_perform()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>When you run this, httr2 opens your browser for login, receives the callback, exchanges the code for a token, caches it, and attaches it to the request. On subsequent runs, it reuses the cached token until it expires.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never hard-code API keys or tokens in your script.</strong> Store them in a <code>.Renviron</code> file (one <code>KEY=value</code> per line) and read them with <code>Sys.getenv(&quot;KEY&quot;)</code>. This keeps credentials out of version control. Run <code>usethis::edit_r_environ()</code> to open the file.</div></div>
+
+<h2>How do you handle errors, retries, and rate limits?</h2>
+
+<p>APIs fail. Servers go down, rate limits get hit, and networks drop. httr2 provides three layers of resilience: automatic error detection, configurable retries, and request throttling.</p>
+
+<p>By default, httr2 converts any 4xx or 5xx HTTP status code into an R error. This means a failed request stops your script immediately instead of silently returning bad data. You can customize the error message to include details from the API's response body.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Custom error handling
+err_resp &lt;- request(&quot;https://httpbin.org/status/404&quot;) |&gt;
+  req_error(body = function(resp) {
+    paste(&quot;API returned:&quot;, resp_status(resp), resp_status_desc(resp))
+  }) |&gt;
+  req_perform()
+#&gt; Error in `req_perform()`:
+#&gt; ! HTTP 404 Not Found
+#&gt; * API returned: 404 Not Found</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>body</code> argument to <code>req_error()</code> is a function that receives the response and returns a string. This string is appended to the error message, making it much easier to diagnose failures.</p>
+
+<p>For transient errors (server overload, network timeouts), add <code>req_retry()</code> to automatically retry failed requests with exponential backoff.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Automatic retries with backoff
+retry_resp &lt;- request(&quot;https://httpbin.org/status/503&quot;) |&gt;
+  req_retry(
+    max_tries = 3,
+    backoff = ~ 2  # wait 1s, 2s, 4s between retries
+  ) |&gt;
+  req_perform()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>httr2 will attempt the request up to 3 times, waiting 1 second before the first retry, 2 seconds before the second, and so on. It only retries on 429 (Too Many Requests) and 503 (Service Unavailable) status codes by default.</p>
+
+<p>To prevent hitting rate limits in the first place, use <code>req_throttle()</code>. This limits how many requests httr2 sends per second.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Rate limiting: max 1 request per second
+throttled_resp &lt;- request(&quot;https://httpbin.org/get&quot;) |&gt;
+  req_throttle(rate = 1) |&gt;  # 1 request per second
+  req_perform()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The rate applies across all requests to the same host, even if you create separate request objects. This is global rate limiting — httr2 tracks it automatically.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Combine req_throttle() and req_retry() in every production script.</strong> Throttle prevents you from hitting the rate limit. Retry recovers when transient errors happen anyway. Together, they make your API calls robust without extra code.</div></div>
+
+<h2>How do you paginate through multi-page API results?</h2>
+
+<p>Many APIs return data in pages. A search might match 10,000 records, but the API returns 100 at a time. You need to loop through all pages to get the complete dataset. httr2 offers two approaches: a manual loop and the automatic <code>req_perform_iterative()</code> function.</p>
+
+<p>Here is the manual approach using an offset-based API. This works with any API that accepts <code>page</code> or <code>offset</code> parameters.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Manual pagination loop
+library(httr2)
+
+all_data &lt;- list()
+page &lt;- 1
+has_more &lt;- TRUE
+
+while (has_more) {
+  resp &lt;- request(&quot;https://pokeapi.co/api/v2/pokemon&quot;) |&gt;
+    req_url_query(limit = 20, offset = (page - 1) * 20) |&gt;
+    req_throttle(rate = 2) |&gt;
+    req_perform()
+
+  body &lt;- resp_body_json(resp)
+  all_data &lt;- c(all_data, body$results)
+
+  has_more &lt;- !is.null(body$`next`)
+  page &lt;- page + 1
+
+  if (page &gt; 5) break  # safety limit for this example
+}
+
+length(all_data)
+#&gt; [1] 100
+
+all_data[[1]]$name
+#&gt; [1] &quot;bulbasaur&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This loop fetches 20 Pokemon per page, appending results to a list. It stops when the API's <code>next</code> field is NULL (no more pages) or after 5 pages as a safety limit.</p>
+
+<p>For APIs that follow standard pagination patterns, <code>req_perform_iterative()</code> automates the loop. You provide a callback that tells httr2 how to build the next request from the current response.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Automatic pagination with req_perform_iterative()
+resps &lt;- request(&quot;https://pokeapi.co/api/v2/pokemon&quot;) |&gt;
+  req_url_query(limit = 20) |&gt;
+  req_throttle(rate = 2) |&gt;
+  req_perform_iterative(
+    next_req = iterate_with_offset(
+      param_name = &quot;offset&quot;,
+      start = 0,
+      offset = 20,
+      resp_pages = function(resp) ceiling(resp_body_json(resp)$count / 20)
+    ),
+    max_reqs = 5
+  )
+
+length(resps)
+#&gt; [1] 5
+
+# Combine all responses into one list
+combined &lt;- resps |&gt;
+  resps_data(function(resp) resp_body_json(resp)$results)
+
+length(combined)
+#&gt; [1] 100
+
+combined[[1]]$name
+#&gt; [1] &quot;bulbasaur&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>iterate_with_offset()</code> helper increments the offset parameter by 20 each time. The <code>resp_pages</code> callback tells httr2 the total number of pages so it knows when to stop. The <code>max_reqs</code> parameter adds a safety cap.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>req_perform_iterative() returns a list of responses, not a single combined dataset.</strong> Use <code>resps_data()</code> with an extraction function to combine them. This keeps the raw responses available for debugging if any page fails.</div></div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Forgetting to call req_perform()</h4>
+
+<p>The <code>request()</code> function and all <code>req_*()</code> functions return a request object — they do not send anything. The request sits idle until you call <code>req_perform()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: this creates a request object but never sends it
+resp &lt;- request(&quot;https://httpbin.org/get&quot;) |&gt;
+  req_headers(Accept = &quot;application/json&quot;)
+
+class(resp)
+#&gt; [1] &quot;httr2_request&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> The variable <code>resp</code> contains a request, not a response. Calling <code>resp_body_json(resp)</code> on it will throw an error because it is not a response object.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: add req_perform() to send the request
+resp &lt;- request(&quot;https://httpbin.org/get&quot;) |&gt;
+  req_headers(Accept = &quot;application/json&quot;) |&gt;
+  req_perform()
+
+resp_status(resp)
+#&gt; [1] 200</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Manually parsing JSON instead of using resp_body_json()</h4>
+
+<p>Some programmers extract the body as text and then call <code>jsonlite::fromJSON()</code>. This works but skips httr2's built-in parsing and error checking.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Inefficient: manual JSON parsing
+raw_text &lt;- resp_body_string(resp)
+data &lt;- jsonlite::fromJSON(raw_text)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>resp_body_json()</code> handles character encoding, checks the Content-Type header, and integrates with httr2's error system. Manual parsing bypasses all of this.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: use resp_body_json() directly
+data &lt;- resp_body_json(resp)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Hard-coding API keys in your script</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: key visible in source code
+resp &lt;- request(&quot;https://api.example.com/data&quot;) |&gt;
+  req_url_query(api_key = &quot;sk-abc123secret&quot;) |&gt;
+  req_perform()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> If you commit this file to Git, your key is exposed to anyone with repository access. Automated scanners on GitHub detect leaked keys within minutes.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: read from environment variable
+resp &lt;- request(&quot;https://api.example.com/data&quot;) |&gt;
+  req_url_query(api_key = Sys.getenv(&quot;MY_API_KEY&quot;)) |&gt;
+  req_perform()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Not throttling requests in a loop</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: hammering the API as fast as possible
+for (i in 1:1000) {
+  resp &lt;- request(paste0(&quot;https://api.example.com/item/&quot;, i)) |&gt;
+    req_perform()
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Most APIs enforce rate limits (e.g., 60 requests per minute). Exceeding them results in 429 errors and potential IP bans.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: throttle requests
+for (i in 1:1000) {
+  resp &lt;- request(paste0(&quot;https://api.example.com/item/&quot;, i)) |&gt;
+    req_throttle(rate = 1) |&gt;
+    req_perform()
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 5: Assuming every response contains valid data</h4>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: parsing without checking status
+resp &lt;- request(&quot;https://api.example.com/data&quot;) |&gt;
+  req_error(is_error = ~ FALSE) |&gt;  # suppress auto-errors
+  req_perform()
+
+data &lt;- resp_body_json(resp)  # might parse an error message as &quot;data&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> If you suppress automatic error checking with <code>req_error(is_error = ~ FALSE)</code>, a 404 or 500 response still returns a body — but it contains an error message, not your data. Your downstream code processes garbage.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: check status before parsing
+resp &lt;- request(&quot;https://api.example.com/data&quot;) |&gt;
+  req_perform()  # auto-throws on 4xx/5xx
+
+data &lt;- resp_body_json(resp)  # only reached if status is 2xx</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Fetch a random dog image</h4>
+
+<p>Use httr2 to call the Dog CEO API at <code>https://dog.ceo/api/breeds/image/random</code> and extract just the image URL from the response. Print it to the console.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: fetch a random dog image URL
+# Hint: use request() |&gt; req_perform() |&gt; resp_body_json()
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(httr2)
+
+my_resp &lt;- request(&quot;https://dog.ceo/api/breeds/image/random&quot;) |&gt;
+  req_perform()
+
+my_data &lt;- resp_body_json(my_resp)
+cat(&quot;Dog image URL:&quot;, my_data$message, &quot;\n&quot;)
+#&gt; Dog image URL: https://images.dog.ceo/breeds/hound-afghan/n02088094_1003.jpg</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>request()</code> creates the request, <code>req_perform()</code> sends it, and <code>resp_body_json()</code> parses the JSON. The image URL is in the <code>message</code> field.</p>
+
+</details>
+
+<h4>Exercise 2: Compare temperatures in two cities</h4>
+
+<p>Use the Open-Meteo API (<code>https://api.open-meteo.com/v1/forecast</code>) to fetch the current temperature for Paris (lat 48.8566, lon 2.3522) and Tokyo (lat 35.6762, lon 139.6503). Print both temperatures and which city is warmer.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: compare temperatures in two cities
+# Hint: make two separate requests with req_url_query(latitude, longitude, current = &quot;temperature_2m&quot;)
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(httr2)
+
+get_temp &lt;- function(lat, lon, city) {
+  my_resp &lt;- request(&quot;https://api.open-meteo.com/v1/forecast&quot;) |&gt;
+    req_url_query(
+      latitude = lat,
+      longitude = lon,
+      current = &quot;temperature_2m&quot;
+    ) |&gt;
+    req_perform()
+
+  temp &lt;- resp_body_json(my_resp)$current$temperature_2m
+  cat(city, &quot;:&quot;, temp, &quot;C\n&quot;)
+  temp
+}
+
+paris_temp &lt;- get_temp(48.8566, 2.3522, &quot;Paris&quot;)
+tokyo_temp &lt;- get_temp(35.6762, 139.6503, &quot;Tokyo&quot;)
+
+warmer &lt;- if (paris_temp &gt; tokyo_temp) &quot;Paris&quot; else &quot;Tokyo&quot;
+cat(&quot;Warmer city:&quot;, warmer, &quot;\n&quot;)
+#&gt; Paris : 16.3 C
+#&gt; Tokyo : 22.1 C
+#&gt; Warmer city: Tokyo</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> A helper function avoids repeating the same request pattern. Each call builds a request with latitude and longitude query parameters, performs it, and extracts the temperature.</p>
+
+</details>
+
+<h4>Exercise 3: POST JSON and verify the echo</h4>
+
+<p>Send a POST request to <code>https://httpbin.org/post</code> with a JSON body containing your name and a list of three favourite R packages. Parse the response and verify that the echoed JSON matches what you sent.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: POST JSON data and verify the echo
+# Hint: use req_body_json(list(...)) and check resp_body_json()$json
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(httr2)
+
+my_payload &lt;- list(
+  name = &quot;Student&quot;,
+  packages = list(&quot;ggplot2&quot;, &quot;dplyr&quot;, &quot;httr2&quot;)
+)
+
+my_resp &lt;- request(&quot;https://httpbin.org/post&quot;) |&gt;
+  req_body_json(my_payload) |&gt;
+  req_perform()
+
+my_echo &lt;- resp_body_json(my_resp)$json
+cat(&quot;Name echoed:&quot;, my_echo$name, &quot;\n&quot;)
+cat(&quot;Packages echoed:&quot;, paste(my_echo$packages, collapse = &quot;, &quot;), &quot;\n&quot;)
+cat(&quot;Match:&quot;, identical(my_echo$name, &quot;Student&quot;), &quot;\n&quot;)
+#&gt; Name echoed: Student
+#&gt; Packages echoed: ggplot2, dplyr, httr2
+#&gt; Match: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> httpbin.org echoes back the JSON body in the <code>json</code> field of its response. The <code>identical()</code> check confirms the round-trip worked.</p>
+
+</details>
+
+<h4>Exercise 4: Paginate through the PokeAPI</h4>
+
+<p>Fetch the first 60 Pokemon names from <code>https://pokeapi.co/api/v2/pokemon</code> using a manual pagination loop with <code>limit=20</code> per page. Store all names in a character vector and print the first 10.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: paginate through 3 pages of the PokeAPI
+# Hint: use a while loop, increment offset by 20 each time, collect $results
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(httr2)
+
+my_names &lt;- character(0)
+my_offset &lt;- 0
+
+while (my_offset &lt; 60) {
+  my_resp &lt;- request(&quot;https://pokeapi.co/api/v2/pokemon&quot;) |&gt;
+    req_url_query(limit = 20, offset = my_offset) |&gt;
+    req_throttle(rate = 2) |&gt;
+    req_perform()
+
+  my_results &lt;- resp_body_json(my_resp)$results
+  my_names &lt;- c(my_names, vapply(my_results, \(x) x$name, character(1)))
+  my_offset &lt;- my_offset + 20
+}
+
+cat(&quot;Total Pokemon:&quot;, length(my_names), &quot;\n&quot;)
+head(my_names, 10)
+#&gt; Total Pokemon: 60
+#&gt;  [1] &quot;bulbasaur&quot;  &quot;ivysaur&quot;    &quot;venusaur&quot;   &quot;charmander&quot; &quot;charmeleon&quot;
+#&gt;  [6] &quot;charizard&quot;  &quot;squirtle&quot;   &quot;wartortle&quot;  &quot;blastoise&quot;  &quot;caterpie&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The loop increments <code>my_offset</code> by 20 each iteration, fetching the next page. <code>vapply()</code> extracts the <code>name</code> field from each result element. The <code>req_throttle(rate = 2)</code> ensures polite API usage.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Let's build a complete workflow: fetch current weather for five major cities, parse the responses, and assemble a clean summary table.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(httr2)
+library(dplyr)
+library(purrr)
+
+# Define cities with coordinates
+cities &lt;- tibble(
+  city = c(&quot;London&quot;, &quot;New York&quot;, &quot;Tokyo&quot;, &quot;Sydney&quot;, &quot;Nairobi&quot;),
+  lat = c(51.5074, 40.7128, 35.6762, -33.8688, -1.2921),
+  lon = c(-0.1278, -74.0060, 139.6503, 151.2093, 36.8219)
+)
+
+# Fetch weather for each city
+get_weather &lt;- function(lat, lon) {
+  resp &lt;- request(&quot;https://api.open-meteo.com/v1/forecast&quot;) |&gt;
+    req_url_query(
+      latitude = lat,
+      longitude = lon,
+      current = &quot;temperature_2m,wind_speed_10m,relative_humidity_2m&quot;
+    ) |&gt;
+    req_throttle(rate = 2) |&gt;
+    req_retry(max_tries = 3) |&gt;
+    req_perform()
+
+  resp_body_json(resp)$current
+}
+
+# Map over cities and extract weather data
+results &lt;- pmap(cities, function(city, lat, lon) {
+  w &lt;- get_weather(lat, lon)
+  tibble(
+    city = city,
+    temp_c = w$temperature_2m,
+    wind_kmh = w$wind_speed_10m,
+    humidity = w$relative_humidity_2m
+  )
+})
+
+# Combine into one data frame
+weather_df &lt;- bind_rows(results)
+weather_df &lt;- weather_df |&gt;
+  arrange(desc(temp_c))
+
+print(weather_df)
+#&gt; # A tibble: 5 x 4
+#&gt;   city     temp_c wind_kmh humidity
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 Nairobi    26.1      8.2       52
+#&gt; 2 Sydney     21.3     12.4       65
+#&gt; 3 Tokyo      18.7      6.1       71
+#&gt; 4 London     14.2      8.5       78
+#&gt; 5 New York   12.8     15.3       68</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This example demonstrates the full httr2 workflow in a realistic scenario. The <code>get_weather()</code> function builds a request with query parameters, applies throttling and retry logic, performs the request, and extracts the data. The <code>pmap()</code> call applies it to each city row. The result is a clean tibble sorted by temperature.</p>
+
+<p>Notice how <code>req_throttle(rate = 2)</code> and <code>req_retry(max_tries = 3)</code> are baked into the helper function. Every request is automatically polite and resilient. This is the production pattern you should use for any API integration.</p>
+
+<h2>Summary</h2>
+
+<p>Here are the most important httr2 functions and when to use them.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Purpose</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>request()</code></td>
+<td>Create a request object from a URL</td>
+<td><code>request(&quot;https://api.example.com&quot;)</code></td>
+</tr>
+<tr>
+<td><code>req_url_query()</code></td>
+<td>Add query parameters (?key=value)</td>
+<td><code>req_url_query(limit = 10)</code></td>
+</tr>
+<tr>
+<td><code>req_headers()</code></td>
+<td>Set custom HTTP headers</td>
+<td><code>req_headers(Accept = &quot;application/json&quot;)</code></td>
+</tr>
+<tr>
+<td><code>req_body_json()</code></td>
+<td>Add a JSON body (auto-switches to POST)</td>
+<td><code>req_body_json(list(name = &quot;Alice&quot;))</code></td>
+</tr>
+<tr>
+<td><code>req_auth_bearer_token()</code></td>
+<td>Add Bearer token authentication</td>
+<td><code>req_auth_bearer_token(token)</code></td>
+</tr>
+<tr>
+<td><code>req_throttle()</code></td>
+<td>Limit request rate per host</td>
+<td><code>req_throttle(rate = 1)</code></td>
+</tr>
+<tr>
+<td><code>req_retry()</code></td>
+<td>Auto-retry on transient failures</td>
+<td><code>req_retry(max_tries = 3)</code></td>
+</tr>
+<tr>
+<td><code>req_perform()</code></td>
+<td>Send the request and get a response</td>
+<td><code>req_perform()</code></td>
+</tr>
+<tr>
+<td><code>resp_body_json()</code></td>
+<td>Parse response body as JSON</td>
+<td><code>resp_body_json(resp)</code></td>
+</tr>
+<tr>
+<td><code>resp_status()</code></td>
+<td>Get the HTTP status code</td>
+<td><code>resp_status(resp)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The typical workflow is: <code>request(url)</code> then pipe through <code>req_*()</code> modifiers, then <code>req_perform()</code>, then <code>resp_*()</code> extractors. Every modifier returns the request object, so the entire chain is one readable pipe.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between httr and httr2?</strong></p>
+
+<p>httr2 is a ground-up rewrite of httr by the same author (Hadley Wickham). The biggest change is the API design: httr has separate <code>GET()</code>, <code>POST()</code>, <code>PUT()</code> functions, while httr2 uses a single <code>request()</code> object modified by <code>req_*()</code> pipes. httr2 also adds built-in rate limiting, retries, OAuth improvements, and secret management that httr lacks. New projects should use httr2.</p>
+
+<p><strong>Can I use httr2 to download files?</strong></p>
+
+<p>Yes. Use <code>req_perform()</code> with the <code>path</code> argument to save the response body directly to a file: <code>req_perform(path = &quot;output.csv&quot;)</code>. This streams the file to disk without loading it into memory, which is important for large files.</p>
+
+<p><strong>How do I debug a failing API request?</strong></p>
+
+<p>Three tools help. First, <code>req_dry_run()</code> shows the exact request without sending it. Second, <code>last_response()</code> retrieves the most recent response after an error. Third, <code>resp_body_string()</code> shows the raw response body as text, which often contains an error message from the API.</p>
+
+<p><strong>Does httr2 support async or parallel requests?</strong></p>
+
+<p>httr2 provides <code>req_perform_parallel()</code> for sending multiple requests concurrently. Pass a list of request objects and it returns a list of responses. This is faster than sequential requests when you need data from many endpoints.</p>
+
+<p><strong>How do I handle APIs that return XML instead of JSON?</strong></p>
+
+<p>httr2 does not have a built-in XML parser, but you can extract the body as text with <code>resp_body_string()</code> and parse it with the xml2 package: <code>xml2::read_xml(resp_body_string(resp))</code>. Most modern APIs return JSON, so this is uncommon.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H. — httr2: Perform HTTP Requests and Process the Responses. Official documentation. <a href="https://httr2.r-lib.org/">Link</a></li>
+
+<li>Wickham, H. — "Wrapping APIs" vignette for httr2. <a href="https://httr2.r-lib.org/articles/wrapping-apis.html">Link</a></li>
+
+<li>Wickham, H. — httr2 introduction vignette. <a href="https://httr2.r-lib.org/articles/httr2.html">Link</a></li>
+
+<li>httr2 CRAN page — Package reference manual (v1.1.0). <a href="https://cran.r-project.org/web/packages/httr2/index.html">Link</a></li>
+
+<li>Chamberlin, S. & Salmon, M. — <em>HTTP Testing in R</em>, Chapter 2: HTTP in R 101. rOpenSci. <a href="https://books.ropensci.org/http-testing/http-in-r-101.html">Link</a></li>
+
+<li>Rapp, A. — "The Ultimate Guide to Get Data Through APIs With httr2 and R." <a href="https://albert-rapp.de/posts/web_dev/07_httr2_ultimate_guide/07_httr2">Link</a></li>
+
+<li>Mozilla Developer Network — HTTP request methods. <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods">Link</a></li>
+
+<li>R Core Team — Sys.getenv() documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/Sys.getenv.html">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<p>Now that you can pull data from APIs, explore these related tutorials:</p>
+
+<ul>
+
+<li><strong><a href="Web-Scraping-in-R-with-rvest.html">Web Scraping in R with rvest</a></strong> — When a website has no API, scrape the HTML directly to extract tables and text.</li>
+
+<li><strong><a href="DBI-in-R.html">DBI in R: Connect to Any Database</a></strong> — Connect R to SQL databases like SQLite, PostgreSQL, and MySQL with a unified interface.</li>
+
+<li><strong><a href="Importing-Data-in-R.html">Importing Data in R</a></strong> — Read CSV, Excel, JSON, and other file formats into <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">R data frames</a>.</li>
+
+</ul>
