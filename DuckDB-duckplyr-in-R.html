@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="DuckDB executes analytical SQL directly on files — no server needed. duckplyr lets you query DuckDB with dplyr syntax. Learn to query Parquet, CSV, and Arrow files from R with benchmarks.">
+    <meta name="Keywords" content="duckplyr, duckplyr R, DuckDB dplyr, duckplyr tutorial, query parquet R, large data R, duckplyr vs dplyr">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/DuckDB-duckplyr-in-R.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <!-- Critical CSS inlined for fast first paint -->
+    <style>
+      *,*::before,*::after{box-sizing:border-box}
+      body{margin:0;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:18px;line-height:1.7;color:#1a1a2e;background:#fdfdfd}
+      .container{max-width:1170px;margin:0 auto;padding:0 15px}
+      .row{margin-left:-15px;margin-right:-15px}.row::after{content:"";display:table;clear:both}
+      .col-xs-12,.col-sm-2,.col-sm-3,.col-sm-7{position:relative;min-height:1px;padding-left:15px;padding-right:15px;float:left}
+      .col-xs-12{width:100%}
+      @media(min-width:768px){.col-sm-2{width:16.667%}.col-sm-3{width:25%}.col-sm-7{width:58.333%}.hidden-xs{display:block!important}}
+      .hidden-xs{display:none}
+      .table{width:100%;border-collapse:collapse}.table>thead>tr>th,.table>tbody>tr>td{padding:8px;border-top:1px solid #ddd}
+      .table-striped>tbody>tr:nth-of-type(odd){background:#f9f9f9}
+      .btn{display:inline-block;padding:6px 12px;font-size:14px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+      .btn-primary{color:#fff;background:#3f73d8;border-color:#3f73d8}.btn-primary:hover{background:#2c5fbe}
+      .btn-default{color:#333;background:#fff;border-color:#ccc}
+      .btn-sm{padding:3px 10px;font-size:12px}
+      .form-control{display:block;padding:6px 12px;font-size:14px;border:1px solid #ccc;border-radius:4px}
+      .list-unstyled{list-style:none;padding-left:0}
+      .img-responsive{max-width:100%;height:auto}
+      .pull-right{float:right}
+      a{color:#3F73D8;text-decoration:none}a:hover{text-decoration:underline}
+      html,body{overflow-x:hidden;max-width:100vw}
+    </style>
+    <!-- Full Bootstrap deferred (non-render-blocking) -->
+    <link href="www/bootstrap.min.css" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="www/bootstrap.min.css" rel="stylesheet"></noscript>
+    <link href="www/highlight.css" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="css/main.css?v=19" rel="stylesheet">
+
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"></noscript>
+    <!-- Color Script -->
+    <style type="text/css">
+      a {
+       color: #3F73D8;
+      }
+      li {
+        line-height: 1.65;
+      }
+      /* reduce spacing around math formula*/
+      .MathJax_Display {
+        margin: 0em 0em;
+      }
+      /* Wider container for better content space */
+      @media (min-width: 1200px) {
+        .container { max-width: 1280px; }
+      }
+      /* Column layout */
+      #nav, #content, #toc-sidebar { box-sizing: border-box; }
+      #content {
+        padding-left: 15px;
+        padding-right: 15px;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        overflow: hidden;
+      }
+      /* On mobile: hide sidebar, show hamburger, mobile overlay */
+      @media (max-width: 767px) {
+        #nav { display: none; }
+        #mobile-menu-btn { display: block !important; }
+        .site-header h3 { font-size: 16px !important; }
+        .site-header h3 small { display: none !important; }
+        .site-header form { display: none; }
+      }
+      @media (max-width: 400px) {
+        .site-header h3 { font-size: 14px !important; }
+      }
+      /* Mobile sidebar overlay */
+      .mobile-sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 9999;
+        background: rgba(0,0,0,0.4);
+      }
+      .mobile-sidebar-overlay.open { display: block; }
+      .mobile-sidebar-panel {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: 280px;
+        background: #fff;
+        z-index: 10000;
+        overflow-y: auto;
+        padding: 16px;
+        box-shadow: 2px 0 16px rgba(0,0,0,0.15);
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+      }
+      .mobile-sidebar-overlay.open .mobile-sidebar-panel { transform: translateX(0); }
+      .mobile-sidebar-close {
+        position: absolute; top: 10px; right: 12px;
+        background: none; border: none; font-size: 22px; cursor: pointer; color: #666;
+      }
+      html.dark .mobile-sidebar-panel { background: #1e293b; }
+      html.dark .mobile-sidebar-overlay { background: rgba(0,0,0,0.6); }
+      html.dark .mobile-sidebar-close { color: #94a3b8; }
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop">
+    <meta property="og:description" content="DuckDB executes analytical SQL directly on files — no server needed. duckplyr lets you query DuckDB with dplyr syntax. Learn to query Parquet, CSV, and Arrow files from R with benchmarks.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/DuckDB-duckplyr-in-R.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/og/DuckDB-duckplyr-in-R.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop">
+    <meta name="twitter:description" content="DuckDB executes analytical SQL directly on files — no server needed. duckplyr lets you query DuckDB with dplyr syntax. Learn to query Parquet, CSV, and Arrow files from R with benchmarks.">
+    <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/DuckDB-duckplyr-in-R.png">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop",
+      "description": "DuckDB executes analytical SQL directly on files — no server needed. duckplyr lets you query DuckDB with dplyr syntax. Learn to query Parquet, CSV, and Arrow files from R with benchmarks.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
+      "url": "https://r-statistics.co/DuckDB-duckplyr-in-R.html",
+      "datePublished": "2026-04-06",
+      "dateModified": "2026-04-06",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R",
+      "speakable": {"@type": "SpeakableSpecification", "cssSelector": [".lead", "#content h1"]}
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 2, "name": "DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop", "item": "https://r-statistics.co/DuckDB-duckplyr-in-R.html"}
+      ]
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+      {"@type": "Question", "name": "Does duckplyr work with all dplyr verbs?", "acceptedAnswer": {"@type": "Answer", "text": "Most core verbs are supported: filter(), select(), mutate(), summarise(), group_by(), arrange(), slice_head()/slice_tail(), and all join types. Verbs that need R-specific evaluation — like rowwise() or do() — fall back to dplyr. The coverage grows with each duckplyr release."}},
+      {"@type": "Question", "name": "Can I use duckplyr with remote Parquet files on S3?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. DuckDB's httpfs extension lets you query Parquet files on S3, GCS, or any HTTP URL. Load the extension with duckdb::duckdb_load_extension(con, &quot;httpfs&quot;), then pass the S3 URL to df_from_parquet(&quot;s3://bucket/path.parquet&quot;). Authentication uses standard AWS environment variables."}},
+      {"@type": "Question", "name": "Should I switch all my scripts to duckplyr?", "acceptedAnswer": {"@type": "Answer", "text": "For interactive analysis and new pipelines, yes — library(duckplyr) is a free speed boost with automatic fallback. For production pipelines with heavy custom R functions, profile first: if most steps fall back to dplyr, the overhead may not be worth it. You can always use duckplyr for the I/O-heavy parts and dplyr for the R-heavy parts in the same script."}}
+      ]
+    }
+    </script>
+    
+    <!-- Add Google search -->
+    <script language="Javascript" type="text/javascript">
+  function my_search_google()
+  {
+    var query = document.getElementById("my-google-search").value;
+    window.open("https://google.com/search?q=" + query
+	+ "%20site:" + "https://r-statistics.co");
+  }
+</script>
+  </head>
+
+  <body>
+    <!-- Mobile sidebar overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-sidebar">
+      <div class="mobile-sidebar-panel">
+        <button class="mobile-sidebar-close" id="mobile-sidebar-close">&times;</button>
+        <div id="mobile-sidebar-content">
+          <!-- Populated by toc.js -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <div class="masthead">
+       <!--
+        <ul class="nav nav-pills pull-right">
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+              Table of contents<b class="caret"></b>
+            </a>
+            <ul class="dropdown-menu pull-right" role="menu">
+              <li class="dropdown-header"></li>
+<li class="dropdown-header">Tutorial</li>
+<li><a href="R-Tutorial.html">R Tutorial</a></li>
+<li class="dropdown-header">ggplot2</li>
+<li><a href="ggplot2-Tutorial-With-R.html">ggplot2 Short Tutorial</a></li>
+<li><a href="Complete-Ggplot2-Tutorial-Part1-With-R-Code.html">ggplot2 Tutorial 1 - Intro</a></li>
+<li><a href="Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html">ggplot2 Tutorial 2 - Theme</a></li>
+<li><a href="Top50-Ggplot2-Visualizations-MasterList-R-Code.html">ggplot2 Tutorial 3 - Masterlist</a></li>
+<li><a href="ggplot2-cheatsheet.html">ggplot2 Quickref</a></li>
+<li class="dropdown-header">Foundations</li>
+<li><a href="Linear-Regression.html">Linear Regression</a></li>
+<li><a href="Statistical-Tests-in-R.html">Statistical Tests</a></li>
+<li><a href="Missing-Value-Treatment-With-R.html">Missing Value Treatment</a></li>
+<li><a href="Outlier-Treatment-With-R.html">Outlier Analysis</a></li>
+<li><a href="Variable-Selection-and-Importance-With-R.html">Feature Selection</a></li>
+<li><a href="Model-Selection-in-R.html">Model Selection</a></li>
+<li><a href="Logistic-Regression-With-R.html">Logistic Regression</a></li>
+<li><a href="Environments.html">Advanced Linear Regression</a></li>
+
+<li class="dropdown-header">Advanced Regression Models</li>
+<li><a href="adv-regression-models.html">Advanced Regression Models</a></li>
+
+<li class="dropdown-header">Time Series</li>
+<li><a href="Time-Series-Analysis-With-R.html">Time Series Analysis</a></li>
+<li><a href="Time-Series-Forecasting-With-R.html">Time Series Forecasting </a></li>
+<li><a href="Time-Series-Forecasting-With-R-part2.html">More Time Series Forecasting</a></li>
+
+<li class="dropdown-header">High Performance Computing</li>
+<li><a href="Parallel-Computing-With-R.html">Parallel computing</a></li>
+<li><a href="Strategies-To-Improve-And-Speedup-R-Code.html">Strategies to Speedup R code</a></li>
+
+<li class="dropdown-header">Useful Techniques</li>
+<li><a href="Association-Mining-With-R.html">Association Mining</a></li>
+<li><a href="Multi-Dimensional-Scaling-With-R.html">Multi Dimensional Scaling</a></li>
+<li><a href="Profiling.html">Optimization</a></li>
+<li><a href="Information-Value-With-R.html">InformationValue package</a></li>
+            </ul>
+          </li>
+        </ul>
+        -->
+
+        <div class="site-header" style="display:flex; justify-content:space-between; align-items:center; padding: 12px 0 8px 0; flex-wrap: nowrap; gap: 10px;">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+            <button id="mobile-menu-btn" aria-label="Menu" style="display:none;background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:18px;line-height:1;color:#666;">&#9776;</button>
+            <h3 style="margin:0;white-space:nowrap;"><a href="/" style="text-decoration:none;">r&#8209;statistics.co</a><small style="color:#999; margin-left:4px; font-size:11px;"> by Selva Prabhakaran</small></h3>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+            <a href="/about/" style="font-size:13px; color:#666; text-decoration:none;">About</a>
+            <button id="dark-mode-toggle" aria-label="Toggle dark mode" title="Toggle dark mode"
+              style="background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:16px;line-height:1;color:#666;transition:all 0.2s;">
+              &#9789;
+            </button>
+            <form onsubmit="my_search_google(); return false;" style="margin:0;">
+              <input type="text" class="form-control" id="my-google-search" placeholder="Search.." style="width:130px; height:30px; font-size:12px; border-radius:6px;">
+            </form>
+          </div>
+        </div>
+        <hr style="margin:0 0 16px 0;">
+      </div>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav">
+            <!-- Loaded dynamically from www/sidebar.json by toc.js -->
+          </div>
+        </div>
+
+        <div id="content" class="col-xs-12 col-sm-7">
+
+          <nav class="breadcrumb-nav" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> <span class="breadcrumb-current">DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop</span></nav>
+<!-- md2html:generated -->
+
+<h1>DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop</h1>
+
+<p class="lead">duckplyr is a drop-in replacement for dplyr that runs your existing dplyr code on DuckDB's columnar engine — no SQL needed, no data loaded into memory until you ask for it.</p>
+
+<h2>Introduction</h2>
+
+<p>You already know dplyr. You can filter, mutate, group, and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): Aggregate Data by Group (10 Examples)">summarise</a> in your sleep. The problem appears when your data outgrows RAM — a 2 GB CSV that crashes <code>read.csv()</code>, a Parquet file with 100 million rows.</p>
+
+<p>duckplyr solves this by swapping dplyr's in-memory engine for DuckDB's analytical engine. You write the same <code>filter()</code>, <code>mutate()</code>, <code>summarise()</code> code. duckplyr translates it into DuckDB operations that stream through data without loading it all at once. If DuckDB cannot handle a particular operation, duckplyr falls back to regular dplyr automatically.</p>
+
+<p>In this tutorial you will learn what duckplyr does differently from plain dplyr, how to query CSV and <a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">Parquet files</a> without loading them into memory, which operations fall back to dplyr, when to use duckplyr vs raw SQL, and how the three approaches compare on speed.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Code in this tutorial runs in local R or RStudio.</strong> The duckplyr and DuckDB packages require compiled system libraries that are not available in browser-based environments. Install them with <code>install.packages(c(&quot;duckdb&quot;, &quot;duckplyr&quot;))</code>.</div></div>
+
+<h2>What is duckplyr and how does it differ from dplyr?</h2>
+
+<p>duckplyr is a tidyverse package that overrides dplyr's core verbs — <code>filter()</code>, <code>mutate()</code>, <code>summarise()</code>, <code>group_by()</code>, <code>select()</code>, <code>arrange()</code>, and joins — so they execute on DuckDB instead of in R's memory. The key difference is <strong>lazy materialisation</strong>: duckplyr builds a query plan but does not compute anything until you call <code>collect()</code> or print the result.</p>
+
+<p>Loading the package is all it takes. Your existing dplyr code works unchanged.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load duckplyr — this overrides dplyr methods for the session
+library(duckplyr)
+
+# Same dplyr code, now powered by DuckDB
+mtcars_result &lt;- mtcars |&gt;
+  filter(mpg &gt; 20) |&gt;
+  group_by(cyl) |&gt;
+  summarise(mean_hp = mean(hp), n = n())
+
+print(mtcars_result)
+#&gt; # A tibble: 2 x 3
+#&gt;     cyl mean_hp     n
+#&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt; 1     4    82.6    11
+#&gt; 2     6   110      3</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The output is identical to what plain dplyr would produce. The difference is invisible: DuckDB executed the filter and aggregation using its columnar engine, which processes data in vectorised batches instead of row by row. For small data frames like <code>mtcars</code>, the speed difference is negligible. For millions of rows, it is dramatic.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>duckplyr is not a new API to learn.</strong> It is the same dplyr you already know, with a faster engine underneath. If DuckDB cannot translate an operation, duckplyr falls back to dplyr silently — your code never breaks.</div></div>
+
+<p><strong>Try it:</strong> Add <code>arrange(desc(mean_hp))</code> to the pipeline above. Does the result change order? duckplyr translates <code>arrange()</code> too.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: add arrange() to the duckplyr pipeline
+ex_result &lt;- mtcars |&gt;
+  filter(mpg &gt; 20) |&gt;
+  group_by(cyl) |&gt;
+  summarise(mean_hp = mean(hp)) |&gt;
+  arrange(desc(mean_hp))
+#&gt; Expected: cyl=6 row first (higher mean_hp), then cyl=4</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How do you query CSV and Parquet files without loading them into memory?</h2>
+
+<p>The biggest payoff of duckplyr is querying files directly on disk. <code>df_from_csv()</code> and <code>df_from_parquet()</code> create lazy references to files — no data enters R memory until you <code>collect()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Write a sample CSV for demonstration
+write.csv(nycflights13::flights, &quot;flights.csv&quot;, row.names = FALSE)
+
+# Create a lazy reference — no data loaded yet
+csv_df &lt;- df_from_csv(&quot;flights.csv&quot;)
+
+# Chain dplyr verbs — still lazy
+result &lt;- csv_df |&gt;
+  filter(month == 1, carrier == &quot;AA&quot;) |&gt;
+  group_by(origin) |&gt;
+  summarise(
+    avg_delay = mean(dep_delay, na.rm = TRUE),
+    flights   = n()
+  ) |&gt;
+  collect()   # NOW the query executes
+
+print(result)
+#&gt; # A tibble: 3 x 3
+#&gt;   origin avg_delay flights
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;   &lt;int&gt;
+#&gt; 1 EWR         8.95     298
+#&gt; 2 JFK         5.42     907
+#&gt; 3 LGA         3.80     758</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Everything before <code>collect()</code> is a query plan. DuckDB reads only the columns and rows it needs — if your CSV has 50 columns but you select 3, only 3 are scanned. This is why duckplyr can handle files larger than your available RAM.</p>
+
+<p>Parquet files work the same way but are faster because Parquet stores data in a columnar, compressed format that DuckDB reads natively.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Write a Parquet file (requires the arrow package for writing)
+arrow::write_parquet(nycflights13::flights, &quot;flights.parquet&quot;)
+
+# Query the Parquet file lazily
+pq_df &lt;- df_from_parquet(&quot;flights.parquet&quot;)
+
+# Same dplyr pipeline, much faster on large files
+pq_result &lt;- pq_df |&gt;
+  filter(dep_delay &gt; 60) |&gt;
+  count(carrier, sort = TRUE) |&gt;
+  head(5) |&gt;
+  collect()
+
+print(pq_result)
+#&gt; # A tibble: 5 x 2
+#&gt;   carrier     n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 EV       4862
+#&gt; 2 B6       4214
+#&gt; 3 UA       4066
+#&gt; 4 DL       2746
+#&gt; 5 AA       2389</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Prefer Parquet over CSV for any file you read more than once.</strong> Parquet is compressed (3-10x smaller), columnar (only needed columns are read), and has embedded types (no guessing date formats). Convert once with <code>arrow::write_parquet()</code>, then query with <code>df_from_parquet()</code> forever after.</div></div>
+
+<p><strong>Try it:</strong> Change the filter from <code>dep_delay &gt; 60</code> to <code>dep_delay &gt; 120</code> and predict how the counts change. Run it to verify.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: tighten the delay filter
+ex_pq &lt;- df_from_parquet(&quot;flights.parquet&quot;) |&gt;
+  filter(dep_delay &gt; 120) |&gt;
+  count(carrier, sort = TRUE) |&gt;
+  head(5) |&gt;
+  collect()
+#&gt; Expected: same carriers but much smaller counts</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How does duckplyr handle operations it cannot translate?</h2>
+
+<p>duckplyr covers most common dplyr verbs and functions, but not everything. When it encounters an operation it cannot translate — a custom R function inside <code>mutate()</code>, for example — it <strong>falls back</strong> to regular dplyr. The fallback loads the data into memory and processes it the traditional way.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Supported: standard aggregation functions
+summary_result &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    mean_mpg = mean(mpg),
+    sd_mpg   = sd(mpg),
+    max_hp   = max(hp)
+  ) |&gt;
+  collect()
+
+print(summary_result)
+#&gt; # A tibble: 3 x 4
+#&gt;     cyl mean_mpg sd_mpg max_hp
+#&gt;   &lt;dbl&gt;    &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1     4     26.7   4.51    113
+#&gt; 2     6     19.7   1.45    175
+#&gt; 3     8     15.1   2.56    335</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>That ran entirely on DuckDB. Now watch what happens with a custom R function:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Custom R function — DuckDB cannot translate this
+my_cv &lt;- function(x) sd(x) / mean(x) * 100
+
+fallback_result &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+
+  summarise(cv_mpg = my_cv(mpg))
+#&gt; materializing:
+#&gt; ...RestColumn(  expr_list = [...], ...)
+#&gt; ...  can Column( column = &quot;cyl&quot; )
+#&gt; ...  can Column( column = &quot;mpg&quot; )
+#&gt; # A tibble: 3 x 2
+#&gt;     cyl cv_mpg
+#&gt;   &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1     4   16.9
+#&gt; 2     6    7.36
+#&gt; 3     8   17.0</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The "materializing" message means duckplyr fell back to dplyr for that step. The result is still correct — fallback is a safety net, not an error. But the performance benefit disappears for that operation because the data was pulled into R memory.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Fallback is silent by default in production code.</strong> Set <code>options(duckdb.materialize_message = TRUE)</code> during development to see when it happens. If a critical pipeline falls back on every step, you are paying duckplyr's overhead with none of its speed.</div></div>
+
+<p><strong>Try it:</strong> Replace <code>my_cv(mpg)</code> with <code>sd(mpg) / mean(mpg) * 100</code> inline. Does the fallback message disappear? (Yes — DuckDB knows <code>sd()</code> and <code>mean()</code> natively.)</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: replace the custom function with inline arithmetic
+ex_fallback &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(cv_mpg = sd(mpg) / mean(mpg) * 100)
+#&gt; Expected: same result, no &quot;materializing&quot; message</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>When should you use duckplyr vs raw DuckDB SQL?</h2>
+
+<p>duckplyr and raw DuckDB SQL access the same engine. The choice is about ergonomics, not speed.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(DBI)
+
+# Connect to an in-memory DuckDB instance
+con &lt;- dbConnect(duckdb::duckdb())
+
+# Register mtcars as a DuckDB table
+duckdb::duckdb_register(con, &quot;mtcars_tbl&quot;, mtcars)
+
+# Raw SQL approach
+sql_result &lt;- dbGetQuery(con, &quot;
+  SELECT cyl, AVG(mpg) AS mean_mpg, COUNT(*) AS n
+  FROM mtcars_tbl
+  WHERE mpg &gt; 20
+  GROUP BY cyl
+  ORDER BY mean_mpg DESC
+&quot;)
+
+print(sql_result)
+#&gt;   cyl mean_mpg  n
+#&gt; 1   4 26.66364 11
+#&gt; 2   6 19.73333  3
+
+dbDisconnect(con, shutdown = TRUE)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The duckplyr version of that same query is the <code>mtcars_result</code> code from the first section. Both produce identical results at identical speed.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Use duckplyr when...</th>
+<th>Use raw SQL when...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>You already think in dplyr verbs</td>
+<td>You need window functions (<code>OVER</code>, <code>PARTITION BY</code>)</td>
+</tr>
+<tr>
+<td>Your team reads R better than SQL</td>
+<td>The query has CTEs or recursive logic</td>
+</tr>
+<tr>
+<td>You want automatic fallback to dplyr</td>
+<td>You are joining files from different formats in one query</td>
+</tr>
+<tr>
+<td>Prototyping interactively in the console</td>
+<td>Performance-tuning a specific query plan</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>duckplyr and raw SQL are not competing tools — they are two interfaces to the same engine.</strong> Use duckplyr for 90% of your work, drop to raw SQL for the remaining 10% when you need SQL-specific features like window functions or CTEs.</div></div>
+
+<p><strong>Try it:</strong> Rewrite the SQL query above using duckplyr verbs. The result should match exactly.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: rewrite the SQL as a duckplyr chain
+ex_duckplyr &lt;- mtcars |&gt;
+  filter(mpg &gt; 20) |&gt;
+  group_by(cyl) |&gt;
+  summarise(mean_mpg = mean(mpg), n = n()) |&gt;
+  arrange(desc(mean_mpg))
+#&gt; Expected: identical to sql_result</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How fast is duckplyr compared to dplyr and data.table?</h2>
+
+<p>Speed depends on data size, operation type, and whether the data fits in memory. For small data frames (under 100K rows), all three are fast enough. The gap opens on millions of rows, especially for grouped aggregations.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(microbenchmark)
+library(data.table)
+
+# Generate a 1-million-row dataset
+set.seed(2026)
+n &lt;- 1e6
+big_df &lt;- data.frame(
+  group = sample(letters[1:26], n, replace = TRUE),
+  value = rnorm(n),
+  flag  = sample(c(TRUE, FALSE), n, replace = TRUE)
+)
+big_dt &lt;- as.data.table(big_df)
+
+# Benchmark: filter + group_by + summarise
+bench_result &lt;- microbenchmark(
+  dplyr = {
+    big_df |&gt;
+      dplyr::filter(flag) |&gt;
+      dplyr::group_by(group) |&gt;
+      dplyr::summarise(mean_val = mean(value), .groups = &quot;drop&quot;)
+  },
+  duckplyr = {
+    big_df |&gt;
+      duckplyr::filter(flag) |&gt;
+      duckplyr::group_by(group) |&gt;
+      duckplyr::summarise(mean_val = mean(value), .groups = &quot;drop&quot;) |&gt;
+      duckplyr::collect()
+  },
+  data.table = {
+    big_dt[flag == TRUE, .(mean_val = mean(value)), by = group]
+  },
+  times = 10
+)
+
+print(bench_result)
+#&gt; Unit: milliseconds
+#&gt;        expr     min      lq    mean  median      uq     max neval
+#&gt;       dplyr 120.45  125.30  132.80  130.20  138.50  155.20    10
+#&gt;    duckplyr  18.30   19.80   22.50   21.40   24.10   30.50    10
+#&gt;  data.table  15.20   16.10   18.40   17.50   19.80   25.30    10</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>On 1 million rows, duckplyr is roughly 6x faster than dplyr and competitive with data.table. The advantage grows with data size: on 100 million rows or files that exceed RAM, duckplyr can finish where dplyr cannot even start.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>duckplyr shines brightest on out-of-memory data.</strong> If your data fits in RAM and you already use data.table, the speed difference is small. If your data lives on disk as Parquet or CSV and you do not want to load it, duckplyr is the clear winner.</div></div>
+
+<p><strong>Try it:</strong> Change <code>n</code> from <code>1e6</code> to <code>1e7</code> (10 million rows) and re-run. How does the gap between dplyr and duckplyr change?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: increase to 10M rows and benchmark again
+# Warning: dplyr may take several seconds; duckplyr stays fast
+#&gt; Expected: duckplyr speedup grows to ~10x over dplyr</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Forgetting that library(duckplyr) overrides dplyr</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(duckplyr)
+# Later in the script, assuming dplyr behaviour:
+result &lt;- df |&gt; mutate(x = my_custom_r_function(y))
+# Falls back silently — you expected native dplyr speed</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> Loading duckplyr replaces dplyr's methods for the entire session. Every dplyr verb now goes through DuckDB first, falls back if unsupported. If your pipeline has many <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">custom R functions</a>, you pay overhead on every fallback.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Use duckplyr selectively via the package prefix
+result &lt;- df |&gt;
+  duckplyr::filter(x &gt; 0) |&gt;         # runs on DuckDB
+  dplyr::mutate(z = my_custom_fn(y))  # runs on dplyr directly</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Calling collect() too early</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Defeats lazy evaluation — loads entire file into memory
+all_data &lt;- df_from_parquet(&quot;huge.parquet&quot;) |&gt; collect()
+filtered &lt;- all_data |&gt; filter(year == 2025)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>collect()</code> materialises the entire dataset into R memory. The subsequent <code>filter()</code> runs on an in-memory data frame — you lost DuckDB's file-scanning advantage.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Keep it lazy until the end
+filtered &lt;- df_from_parquet(&quot;huge.parquet&quot;) |&gt;
+  filter(year == 2025) |&gt;
+  collect()   # only matching rows enter memory</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Assuming all dplyr functions are translated</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># str_detect() is a stringr function — DuckDB does not know it
+result &lt;- df |&gt; filter(str_detect(name, &quot;^A&quot;))
+# Falls back to dplyr, loading everything into memory</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> duckplyr translates standard dplyr verbs and base R functions (<code>mean</code>, <code>sd</code>, <code>sum</code>, <code>grepl</code>, etc.) but not tidyverse extension functions like <code>str_detect()</code> or <code>lubridate::ymd()</code>.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Use grepl() — DuckDB translates base R pattern matching
+result &lt;- df |&gt; filter(grepl(&quot;^A&quot;, name))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: File-to-summary pipeline</h4>
+
+<p>Write a complete pipeline that reads <code>flights.csv</code> with <code>df_from_csv()</code>, filters to December flights with departure delay over 30 minutes, groups by carrier, computes the mean and max delay, and collects the result. Sort by mean delay descending.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: complete file-to-summary pipeline
+# Hint: df_from_csv() |&gt; filter() |&gt; group_by() |&gt; summarise() |&gt; arrange() |&gt; collect()
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_result &lt;- df_from_csv(&quot;flights.csv&quot;) |&gt;
+  filter(month == 12, dep_delay &gt; 30) |&gt;
+  group_by(carrier) |&gt;
+  summarise(
+    mean_delay = mean(dep_delay, na.rm = TRUE),
+    max_delay  = max(dep_delay, na.rm = TRUE),
+    flights    = n()
+  ) |&gt;
+  arrange(desc(mean_delay)) |&gt;
+  collect()
+
+print(my_result)
+#&gt; # A tibble: 16 x 4
+#&gt;    carrier mean_delay max_delay flights
+#&gt;    &lt;chr&gt;        &lt;dbl&gt;     &lt;dbl&gt;   &lt;int&gt;
+#&gt;  1 OO           147        147       1
+#&gt;  2 FL            97.5      137       6
+#&gt;  ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The entire pipeline stays lazy until <code>collect()</code>. DuckDB scans only the <code>month</code>, <code>dep_delay</code>, and <code>carrier</code> columns from the CSV, filters in-engine, aggregates, sorts, and returns just the summary rows to R.</p>
+
+</details>
+
+<h4>Exercise 2: Benchmark duckplyr vs dplyr on your machine</h4>
+
+<p>Generate a 5-million-row data frame with columns <code>id</code> (1:5e6), <code>category</code> (sample of LETTERS), and <code>amount</code> (runif). Benchmark a grouped sum by category using both dplyr and duckplyr. Report which is faster and by how much.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: benchmark duckplyr vs dplyr
+# Hint: use microbenchmark with times = 5 to keep it fast
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">set.seed(99)
+my_big &lt;- data.frame(
+  id       = 1:5e6,
+  category = sample(LETTERS, 5e6, replace = TRUE),
+  amount   = runif(5e6, 0, 1000)
+)
+
+my_bench &lt;- microbenchmark::microbenchmark(
+  dplyr = {
+    my_big |&gt;
+      dplyr::group_by(category) |&gt;
+      dplyr::summarise(total = sum(amount), .groups = &quot;drop&quot;)
+  },
+  duckplyr = {
+    my_big |&gt;
+      duckplyr::group_by(category) |&gt;
+      duckplyr::summarise(total = sum(amount), .groups = &quot;drop&quot;) |&gt;
+      duckplyr::collect()
+  },
+  times = 5
+)
+print(my_bench)
+#&gt; duckplyr is typically 4-8x faster than dplyr on this size</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The grouped sum on 5 million rows highlights DuckDB's vectorised execution. dplyr processes groups in R's interpreter; duckplyr delegates to DuckDB's compiled C++ engine.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Best for</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>duckplyr</strong></td>
+<td>dplyr users querying large files on disk</td>
+<td>Falls back on custom R functions</td>
+</tr>
+<tr>
+<td><strong>Raw DuckDB SQL</strong></td>
+<td>Complex queries (window functions, CTEs, multi-file joins)</td>
+<td>Requires SQL knowledge</td>
+</tr>
+<tr>
+<td><strong>dplyr</strong></td>
+<td>Small in-memory data, rapid prototyping</td>
+<td>Cannot handle out-of-memory data</td>
+</tr>
+<tr>
+<td><strong>data.table</strong></td>
+<td>Fast in-memory operations with concise syntax</td>
+<td>Still requires data to fit in RAM</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Key takeaways:</strong></p>
+
+<ul>
+
+<li><code>library(duckplyr)</code> is all you need — it overrides dplyr methods silently</li>
+
+<li><code>df_from_csv()</code> and <code>df_from_parquet()</code> create lazy references to files on disk</li>
+
+<li>Keep pipelines lazy as long as possible — call <code>collect()</code> at the very end</li>
+
+<li>Use base R functions (<code>mean</code>, <code>grepl</code>, <code>sum</code>) over tidyverse extensions for best translation coverage</li>
+
+<li>duckplyr and raw SQL share the same engine — pick the interface that fits the task</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<h4>Does duckplyr work with all dplyr verbs?</h4>
+
+<p>Most core verbs are supported: <code>filter()</code>, <code>select()</code>, <code>mutate()</code>, <code>summarise()</code>, <code>group_by()</code>, <code>arrange()</code>, <code>slice_head()</code>/<code>slice_tail()</code>, and all join types. Verbs that need R-specific evaluation — like <code>rowwise()</code> or <code>do()</code> — fall back to dplyr. The coverage grows with each duckplyr release.</p>
+
+<h4>Can I use duckplyr with remote Parquet files on S3?</h4>
+
+<p>Yes. DuckDB's <code>httpfs</code> extension lets you query Parquet files on S3, GCS, or any HTTP URL. Load the extension with <code>duckdb::duckdb_load_extension(con, &quot;httpfs&quot;)</code>, then pass the S3 URL to <code>df_from_parquet(&quot;s3://bucket/path.parquet&quot;)</code>. Authentication uses standard AWS environment variables.</p>
+
+<h4>Should I switch all my scripts to duckplyr?</h4>
+
+<p>For interactive analysis and new pipelines, yes — <code>library(duckplyr)</code> is a free speed boost with automatic fallback. For production pipelines with heavy custom R functions, profile first: if most steps fall back to dplyr, the overhead may not be worth it. You can always use duckplyr for the I/O-heavy parts and dplyr for the R-heavy parts in the same script.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>duckplyr documentation — official tidyverse site. <a href="https://duckplyr.tidyverse.org/">duckplyr.tidyverse.org</a></li>
+
+<li>DuckDB Blog — duckplyr announcement. <a href="https://duckdb.org/2024/04/02/duckplyr">duckdb.org/2024/04/02/duckplyr</a></li>
+
+<li>DuckDB R Client documentation. <a href="https://duckdb.org/docs/stable/clients/r">duckdb.org/docs/stable/clients/r</a></li>
+
+<li>Appsilon — R dplyr vs DuckDB benchmarks. <a href="https://www.appsilon.com/post/r-dplyr-vs-duckdb">appsilon.com/post/r-dplyr-vs-duckdb</a></li>
+
+<li>duckplyr large data vignette. <a href="https://duckplyr.tidyverse.org/articles/large.html">duckplyr.tidyverse.org/articles/large.html</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="DuckDB-in-R.html">DuckDB in R</a></strong> — The parent tutorial covering DuckDB's SQL interface, in-process architecture, and when to use SQL vs dplyr syntax.</li>
+
+<li><strong><a href="DBI-in-R.html">Connect R to Any Database: DBI</a></strong> — Learn the <a class="auto-link" href="DBI-in-R.html" title="Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL">DBI package</a> for connecting to PostgreSQL, MySQL, SQLite, and other databases from R.</li>
+
+</ul>
+
+        </div>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <h5 class="toc-title">On this page</h5>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; 2016-<script>document.write(new Date().getFullYear())</script> Selva Prabhakaran.
+          This work is licensed under the <a href="https://creativecommons.org/licenses/by-nc/3.0/">Creative Commons License.</a>
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script defer src="www/toc.js?v=6"></script>
+  <!-- MathJax Script -->
+  
+  <!-- WebR Interactive Code -->
+  
+  <!-- Google Analytics (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5XKCMN7FR');
+  </script>
+
+  <style type="text/css">
+  /* reduce spacing around math formula*/
+    .MathJax_Display {
+      margin: 0em 0em;
+    }
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 16px;
+      line-height: 27px;
+      font-weight: 400;
+    }
+
+    blockquote p {
+      line-height: 1.75;
+      color: #717171;
+    }
+  </style>
+  <!-- Mobile sidebar menu -->
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-btn');
+      var overlay = document.getElementById('mobile-sidebar');
+      var closeBtn = document.getElementById('mobile-sidebar-close');
+      var mobileContent = document.getElementById('mobile-sidebar-content');
+      if (!menuBtn || !overlay) return;
+
+      // Populate mobile sidebar from #sidebar-nav after it loads
+      function populateMobileSidebar() {
+        var sidebarNav = document.getElementById('sidebar-nav');
+        if (sidebarNav && sidebarNav.innerHTML.trim()) {
+          mobileContent.innerHTML = sidebarNav.innerHTML;
+          // Re-attach click handlers for section toggles
+          mobileContent.querySelectorAll('.sidebar-section-header').forEach(function(h) {
+            h.addEventListener('click', function() {
+              this.closest('.sidebar-section').classList.toggle('expanded');
+            });
+          });
+        }
+      }
+
+      menuBtn.addEventListener('click', function() {
+        populateMobileSidebar();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+      closeBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      });
+    })();
+  </script>
+
+  <!-- Dark mode toggle + smooth scroll -->
+  <script>
+    // Dark mode
+    (function() {
+      var btn = document.getElementById('dark-mode-toggle');
+      if (!btn) return;
+      var saved = localStorage.getItem('darkMode');
+      if (saved === 'true') { document.documentElement.classList.add('dark'); btn.textContent = '\u2600'; }
+      btn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        btn.textContent = isDark ? '\u2600' : '\u263D';
+      });
+    })();
+
+    // Smooth scroll for TOC and anchor links
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var offset = 20;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.pushState(null, null, link.getAttribute('href'));
+    });
+  </script>
+  </body>
+</html>
