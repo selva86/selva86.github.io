@@ -1,0 +1,1250 @@
+---
+title: "Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL"
+description: "DBI gives R a consistent interface to any SQL database. Learn dbConnect(), dbGetQuery(), dbWriteTable(), parameterised queries, and dplyr syntax via dbplyr."
+keywords: "DBI in R, dbConnect R, R database connection, RSQLite tutorial, dbGetQuery R, dbWriteTable R, parameterised queries R, dbplyr tutorial, R SQL database, R PostgreSQL MySQL SQLite"
+mathjax: false
+webr: true
+curriculum_id: "DB1"
+post_type: "C"
+auto_link_terms: "DBI in R|DBI package|dbConnect()|dbGetQuery()|dbWriteTable()|RSQLite|database connection in R|R database interface"
+auto_link_case_sensitive: true
+sidebar_section: "Data Wrangling"
+sidebar_title: "DBI & Databases"
+sidebar_order: "13"
+---
+<!-- md2html:generated -->
+
+<nav class="breadcrumb-nav">Home > Data Wrangling > Connecting R to Databases > Connect R to Any Database</nav>
+
+<h1>Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL</h1>
+
+<p class="lead">DBI is R's universal database interface — it lets you connect to SQLite, PostgreSQL, MySQL, and dozens of other databases using the same set of functions: dbConnect(), dbGetQuery(), dbWriteTable(), and dbDisconnect().</p>
+
+<h2>Introduction</h2>
+
+<p>Every real-world data project eventually outgrows CSV files. Databases store millions of rows that you can query selectively, without loading everything into memory at once. If you work with data in R, knowing how to talk to a database is a fundamental skill.</p>
+
+<p>DBI (Database Interface) is the R package that provides a consistent API for talking to any SQL database. You write the same R code regardless of whether the database is SQLite, PostgreSQL, MySQL, or one of dozens of others. Driver packages like RSQLite, RPostgres, and RMySQL handle the database-specific details behind the scenes.</p>
+
+<p>In this tutorial, you will learn how to connect to a database, run SQL queries, write <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">R data frames</a> to tables, prevent SQL injection with parameterised queries, and use familiar dplyr syntax on database tables via the dbplyr package. All interactive code blocks use RSQLite with in-memory databases, so you can run every example directly in your browser.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>RPostgres and RMySQL require a local <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a>.</strong> The interactive code blocks in this tutorial use RSQLite, which runs entirely in the browser. To connect to PostgreSQL or MySQL, install those packages locally in RStudio and follow the connection patterns shown in prose.</div></div>
+
+<p><img src="screenshots/DBI-in-R-architecture.webp" alt="DBI sits between your R code and database-specific drivers" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: DBI sits between your R code and database-specific drivers.</em></p>
+
+<h2>How does DBI connect R to a database?</h2>
+
+<p>DBI is an abstraction layer. You call <code>dbConnect()</code> with a driver object, and DBI handles communication with the database. The driver translates your requests into the protocol that specific database understands.</p>
+
+<p>Let's create an in-memory SQLite database. This is the simplest way to get started because SQLite requires no server, no username, and no password.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load DBI and RSQLite
+library(DBI)
+library(RSQLite)
+
+# Create an in-memory SQLite database
+con &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+con
+#&gt; &lt;SQLiteConnection&gt;
+#&gt;   Path: :memory:
+#&gt;   Extensions: TRUE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>con</code> object is your connection handle. Every DBI function takes this handle as its first argument. The string <code>&quot;:memory:&quot;</code> tells SQLite to create a temporary database in RAM rather than on disk.</p>
+
+<p>Let's verify the connection works by listing the tables. A fresh database has none.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># List all tables in the database
+dbListTables(con)
+#&gt; character(0)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The empty result confirms the connection is active and the database is empty. You will fill it with data in the next section.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>DBI separates the "what" from the "how".</strong> Your R code calls the same functions — dbConnect(), dbGetQuery(), dbWriteTable() — regardless of the database. Only the driver argument changes. Learn the DBI API once, and you can work with any SQL database.</div></div>
+
+<p>For PostgreSQL, the connection call looks like this (runs in local RStudio only):</p>
+
+<pre><code># PostgreSQL (local R only — not interactive here)
+# con &lt;- dbConnect(RPostgres::Postgres(),
+#   dbname = &quot;mydb&quot;, host = &quot;localhost&quot;,
+#   user = &quot;myuser&quot;, password = &quot;mypass&quot;)</code></pre>
+
+<p>For MySQL, the pattern is identical:</p>
+
+<pre><code># MySQL (local R only — not interactive here)
+# con &lt;- dbConnect(RMySQL::MySQL(),
+#   dbname = &quot;mydb&quot;, host = &quot;localhost&quot;,
+#   user = &quot;myuser&quot;, password = &quot;mypass&quot;)</code></pre>
+
+<h2>How do you query data with dbGetQuery()?</h2>
+
+<p><code>dbGetQuery()</code> sends a SQL statement to the database and returns the result as an R data frame. It combines two steps — sending the query and fetching the result — into one convenient function.</p>
+
+<p>First, let's load some data into our database so we have something to query. Then we will run a SELECT statement.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Write the mtcars dataset to the database as a table
+dbWriteTable(con, &quot;mtcars&quot;, mtcars)
+
+# Query all rows where mpg &gt; 30
+dbGetQuery(con, &quot;SELECT * FROM mtcars WHERE mpg &gt; 30&quot;)
+#&gt;    mpg cyl disp  hp drat    wt  qsec vs am gear carb
+#&gt; 1 32.4   4 78.7  66 4.08 2.200 19.47  1  1    4    1
+#&gt; 2 30.4   4 75.7  52 4.93 1.615 18.52  1  1    4    2
+#&gt; 3 33.9   4 71.1  65 4.22 1.835 19.90  1  1    4    1
+#&gt; 4 30.4   4 95.1 113 3.77 1.513 16.90  1  1    5    2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The query returned only the 4 rows where <code>mpg</code> exceeds 30. The data stayed in the database until the query filtered it — R only received the matching rows.</p>
+
+<p>Now let's write a more targeted query with ORDER BY to sort the results.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Get the top 5 most fuel-efficient cars
+fast_cars &lt;- dbGetQuery(con, &quot;
+  SELECT rownames AS car, mpg, hp, wt
+  FROM mtcars
+  ORDER BY mpg DESC
+  LIMIT 5
+&quot;)
+fast_cars
+#&gt;              car  mpg  hp    wt
+#&gt; 1  Toyota Corolla 33.9  65 1.835
+#&gt; 2    Fiat 128     32.4  66 2.200
+#&gt; 3  Honda Civic    30.4  52 1.615
+#&gt; 4  Lotus Europa   30.4 113 1.513
+#&gt; 5 Fiat X1-9      27.3  66 1.935</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Notice how the SQL does the sorting and limiting. Only 5 rows travel from the database to R. With large databases, this is far more efficient than loading everything and filtering in R.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use dbGetQuery() for SELECT statements that return data.</strong> For INSERT, UPDATE, or DELETE statements that modify data but return no rows, use <code>dbExecute()</code> instead. It returns the number of affected rows.</div></div>
+
+<p><img src="screenshots/DBI-in-R-query-workflow.webp" alt="The core DBI workflow: connect, query or write, then disconnect" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: The core DBI workflow: connect, query or write, then disconnect.</em></p>
+
+<h2>How do you write data to a database with dbWriteTable()?</h2>
+
+<p><code>dbWriteTable()</code> creates a new database table from an R data frame. It handles column types automatically, mapping R types to SQL types.</p>
+
+<p>Let's write the <code>iris</code> dataset to our database and verify the result.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Write iris to the database
+dbWriteTable(con, &quot;iris&quot;, iris)
+
+# Verify: list all tables
+dbListTables(con)
+#&gt; [1] &quot;iris&quot;   &quot;mtcars&quot;
+
+# Check column names in the iris table
+dbListFields(con, &quot;iris&quot;)
+#&gt; [1] &quot;Sepal.Length&quot; &quot;Sepal.Width&quot;  &quot;Petal.Length&quot; &quot;Petal.Width&quot;  &quot;Species&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The database now has two tables: mtcars (from earlier) and iris. The column names match the R data frame exactly.</p>
+
+<p>You can also append rows to an existing table. Let's add some extra observations to the iris table.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create extra rows to append
+extra_rows &lt;- data.frame(
+  Sepal.Length = c(5.0, 6.1),
+  Sepal.Width = c(3.5, 2.8),
+  Petal.Length = c(1.4, 4.7),
+  Petal.Width = c(0.2, 1.2),
+  Species = c(&quot;setosa&quot;, &quot;versicolor&quot;)
+)
+
+# Append to existing table
+dbWriteTable(con, &quot;iris&quot;, extra_rows, append = TRUE)
+
+# Verify: count total rows
+dbGetQuery(con, &quot;SELECT COUNT(*) AS n FROM iris&quot;)
+#&gt;     n
+#&gt; 1 152</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The original iris dataset has 150 rows. After appending 2 more, the count is 152. The <code>append = TRUE</code> argument tells DBI to add rows rather than replace the table.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>dbWriteTable() with overwrite=TRUE silently deletes the existing table.</strong> If you accidentally set <code>overwrite = TRUE</code>, all existing data in that table is gone with no confirmation prompt. Always check with <code>dbExistsTable(con, &quot;tablename&quot;)</code> before writing.</div></div>
+
+<h2>Why should you use parameterised queries instead of paste()?</h2>
+
+<p>When you build SQL by pasting user input directly into a query string, you create a SQL injection vulnerability. An attacker (or a careless typo) can insert malicious SQL that drops tables or leaks data.</p>
+
+<p>Here is a dangerous example. Imagine a Shiny app where users type a species name.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># DANGEROUS: Never do this in production
+user_input &lt;- &quot;setosa&quot;
+unsafe_query &lt;- paste0(&quot;SELECT * FROM iris WHERE Species = '&quot;, user_input, &quot;'&quot;)
+unsafe_query
+#&gt; [1] &quot;SELECT * FROM iris WHERE Species = 'setosa'&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This looks harmless with "setosa", but an attacker could type <code>setosa&#x27;; DROP TABLE iris; --</code> and destroy your data. The paste() approach blindly trusts the input.</p>
+
+<p>The safe approach uses parameterised queries. DBI escapes the input for you.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># SAFE: Use parameterised queries
+safe_result &lt;- dbGetQuery(con,
+  &quot;SELECT * FROM iris WHERE Species = ? LIMIT 3&quot;,
+  params = list(&quot;setosa&quot;)
+)
+safe_result
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1         5.1         3.5         1.4         0.2  setosa
+#&gt; 2         4.9         3.0         1.4         0.2  setosa
+#&gt; 3         4.7         3.2         1.3         0.2  setosa</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>?</code> placeholder tells DBI "a value goes here." The <code>params</code> argument provides the actual value. DBI escapes special characters automatically, so SQL injection is impossible.</p>
+
+<p><img src="screenshots/DBI-in-R-parameterised-vs-paste.webp" alt="Parameterised queries prevent SQL injection; paste() does not" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Parameterised queries prevent SQL injection; paste() does not.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never use paste() or sprintf() to build SQL with user input.</strong> Always use the <code>params</code> argument in dbGetQuery() or dbExecute(). This is especially critical in Shiny apps and APIs where input comes from untrusted users.</div></div>
+
+<h2>How do you use dplyr syntax on a database with dbplyr?</h2>
+
+<p>If you already know dplyr, you can query databases without writing SQL at all. The dbplyr package translates dplyr verbs — <code>filter()</code>, <code>select()</code>, <code>group_by()</code>, <code>summarise()</code> — into SQL behind the scenes.</p>
+
+<p>First, create a reference to a database table using <code>tbl()</code>. This does not load any data into R.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load dplyr and dbplyr
+library(dplyr)
+library(dbplyr)
+
+# Create a lazy reference to the mtcars table
+mtcars_db &lt;- tbl(con, &quot;mtcars&quot;)
+mtcars_db
+#&gt; # Source:   table&lt;mtcars&gt; [?? x 11]
+#&gt; # Database: sqlite 3.46.1 [:memory:]
+#&gt;     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  21       6  160    110  3.9   2.62  16.5     0     1     4     4
+#&gt; 2  21       6  160    110  3.9   2.88  17.0     0     1     4     4
+#&gt; 3  22.8     4  108     93  3.85  2.32  18.6     1     1     4     1
+#&gt; # i 29 more rows</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>[?? x 11]</code> tells you dbplyr does not know the row count yet. It has not fetched the data. Now let's build a query using familiar dplyr verbs.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Build a query with dplyr verbs
+summary_query &lt;- mtcars_db |&gt;
+  filter(hp &gt; 100) |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    avg_mpg = mean(mpg, na.rm = TRUE),
+    count = n()
+  )
+
+# See the generated SQL
+show_query(summary_query)
+#&gt; &lt;SQL&gt;
+#&gt; SELECT `cyl`, AVG(`mpg`) AS `avg_mpg`, COUNT(*) AS `count`
+#&gt; FROM `mtcars`
+#&gt; WHERE (`hp` &gt; 100.0)
+#&gt; GROUP BY `cyl`</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Look at the output: dbplyr translated your dplyr pipeline into valid SQL. The data is still in the database. No rows have been transferred to R yet.</p>
+
+<p>When you are ready for the results, call <code>collect()</code> to execute the query and bring the data into R.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Execute the query and bring results into R
+local_result &lt;- collect(summary_query)
+local_result
+#&gt; # A tibble: 3 x 3
+#&gt;     cyl avg_mpg count
+#&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt; 1     4    26       2
+#&gt; 2     6    19.7     4
+#&gt; 3     8    15.1    14</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now you have a regular tibble in R. The database did the filtering, grouping, and averaging. R only received 3 rows.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>dbplyr keeps data in the database until you call collect().</strong> This means you can chain filter(), <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">mutate()</a>, group_by(), and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): Aggregate Data by Group (10 Examples)">summarise</a>() on a table with millions of rows. Only the final result travels to R, saving memory and time.</div></div>
+
+<h2>How do you manage connections and clean up properly?</h2>
+
+<p>Every <code>dbConnect()</code> call opens a connection that consumes resources. Forgetting to close it can lock database files (SQLite) or exhaust connection pools (PostgreSQL, MySQL).</p>
+
+<p>Always call <code>dbDisconnect()</code> when you are done. The best practice is to use <code>on.exit()</code> inside a function, which guarantees cleanup even if your code throws an error.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Best practice: wrap in a function with on.exit()
+query_database &lt;- function(sql) {
+  con2 &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+  on.exit(dbDisconnect(con2))
+
+  dbWriteTable(con2, &quot;test&quot;, data.frame(x = 1:5, y = letters[1:5]))
+  dbGetQuery(con2, sql)
+}
+
+# Connection opens, runs query, closes automatically
+result &lt;- query_database(&quot;SELECT * FROM test WHERE x &gt; 3&quot;)
+result
+#&gt;   x y
+#&gt; 1 4 d
+#&gt; 2 5 e</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>on.exit(dbDisconnect(con2))</code> line runs when the function exits — whether it returns normally or throws an error. This prevents connection leaks.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always place on.exit(dbDisconnect(con)) right after dbConnect().</strong> This is the most reliable cleanup pattern. For scripts (not functions), wrap your database work in a <a class="auto-link" href="R-Conditions-System.html" title="R Conditions System: message(), warning(), stop() & Custom Conditions">tryCatch</a>() block with a finally clause that disconnects.</div></div>
+
+<p>Let's disconnect our main connection too. We are done with it.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Clean up the main connection
+dbDisconnect(con)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Forgetting to disconnect</h4>
+
+<p>Leaving connections open causes SQLite file locks and PostgreSQL "too many connections" errors.</p>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">con &lt;- dbConnect(RSQLite::SQLite(), &quot;mydata.db&quot;)
+result &lt;- dbGetQuery(con, &quot;SELECT * FROM sales&quot;)
+# ... script ends without dbDisconnect()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> The connection stays open. If you run this script repeatedly, you accumulate stale connections. SQLite may refuse to let other processes access the file.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">con &lt;- dbConnect(RSQLite::SQLite(), &quot;mydata.db&quot;)
+on.exit(dbDisconnect(con))
+result &lt;- dbGetQuery(con, &quot;SELECT * FROM sales&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Pasting user input into SQL</h4>
+
+<p>This creates SQL injection vulnerabilities that can destroy data.</p>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">name &lt;- &quot;Robert'; DROP TABLE students;--&quot;
+dbGetQuery(con, paste0(&quot;SELECT * FROM students WHERE name = '&quot;, name, &quot;'&quot;))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> The pasted string becomes valid SQL that drops your table.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">dbGetQuery(con, &quot;SELECT * FROM students WHERE name = ?&quot;, params = list(name))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Using overwrite=TRUE without checking</h4>
+
+<p>Silent data loss when you overwrite a table you meant to append to.</p>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">dbWriteTable(con, &quot;sales&quot;, new_data, overwrite = TRUE)
+# All previous sales data is gone</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> The overwrite argument deletes the entire table before writing. If you intended to add rows, you just lost all historical data.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">dbWriteTable(con, &quot;sales&quot;, new_data, append = TRUE)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Calling collect() too early on a large table</h4>
+
+<p>Loading millions of rows into R defeats the purpose of using a database.</p>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Downloads ALL rows before filtering
+all_data &lt;- collect(tbl(con, &quot;big_table&quot;))
+result &lt;- all_data |&gt; filter(year == 2025)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it is wrong:</strong> <code>collect()</code> transfers every row to R. If the table has 50 million rows, R tries to allocate memory for all of them.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Filter in the database, collect only matching rows
+result &lt;- tbl(con, &quot;big_table&quot;) |&gt;
+  filter(year == 2025) |&gt;
+  collect()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Connect and query</h4>
+
+<p>Create an in-memory SQLite database, write the <code>airquality</code> dataset to it, and query all rows where Temp is greater than 90.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: Connect, write, and query
+# Hint: use dbConnect(), dbWriteTable(), dbGetQuery()
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_con &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+dbWriteTable(my_con, &quot;airquality&quot;, airquality)
+my_hot_days &lt;- dbGetQuery(my_con, &quot;SELECT * FROM airquality WHERE Temp &gt; 90&quot;)
+my_hot_days
+#&gt;   Ozone Solar.R Wind Temp Month Day
+#&gt; 1    89     229 10.3   90     8   8
+#&gt; 2    97     267  6.3   92     7   8
+#&gt; 3   168     238  3.4   81     8  25
+#&gt; ...
+dbDisconnect(my_con)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>dbConnect()</code> opens the connection, <code>dbWriteTable()</code> loads the data, and <code>dbGetQuery()</code> filters server-side. Always disconnect when done.</p>
+
+</details>
+
+<h4>Exercise 2: Explore table structure</h4>
+
+<p>Using a connection to an in-memory database with <code>mtcars</code> loaded, find out how many tables exist and list the column names of each table.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: Explore tables and fields
+# Hint: use dbListTables() and dbListFields()
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_con2 &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+dbWriteTable(my_con2, &quot;mtcars&quot;, mtcars)
+dbWriteTable(my_con2, &quot;iris&quot;, iris)
+
+my_tables &lt;- dbListTables(my_con2)
+my_tables
+#&gt; [1] &quot;iris&quot;   &quot;mtcars&quot;
+
+for (tbl_name in my_tables) {
+  cat(tbl_name, &quot;:&quot;, paste(dbListFields(my_con2, tbl_name), collapse = &quot;, &quot;), &quot;\n&quot;)
+}
+#&gt; iris : Sepal.Length, Sepal.Width, Petal.Length, Petal.Width, Species
+#&gt; mtcars : mpg, cyl, disp, hp, drat, wt, qsec, vs, am, gear, carb
+dbDisconnect(my_con2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>dbListTables()</code> returns all table names. <code>dbListFields()</code> returns column names for a specific table. Together they let you explore an unfamiliar database.</p>
+
+</details>
+
+<h4>Exercise 3: Round-trip write and read</h4>
+
+<p>Create a custom data frame with 3 columns (name, score, passed), write it to a database, read it back, and verify the result matches the original.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: Write and read back a data frame
+# Hint: use dbWriteTable() then dbReadTable()
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_con3 &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+my_students &lt;- data.frame(
+  name = c(&quot;Alice&quot;, &quot;Bob&quot;, &quot;Carol&quot;),
+  score = c(92, 78, 88),
+  passed = c(TRUE, TRUE, TRUE)
+)
+dbWriteTable(my_con3, &quot;students&quot;, my_students)
+my_readback &lt;- dbReadTable(my_con3, &quot;students&quot;)
+my_readback
+#&gt;    name score passed
+#&gt; 1 Alice    92      1
+#&gt; 2   Bob    78      1
+#&gt; 3 Carol    88      1
+identical(my_students$name, my_readback$name)
+#&gt; [1] TRUE
+dbDisconnect(my_con3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> <code>dbReadTable()</code> reads the full table back. Notice that SQLite stores TRUE/FALSE as 1/0 integers, so the <code>passed</code> column changes type on the round-trip.</p>
+
+</details>
+
+<h4>Exercise 4: Parameterised query</h4>
+
+<p>Using the airquality table, write a parameterised query that takes a month number as input and returns all rows for that month.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 4: Parameterised query by month
+# Hint: use ? placeholder and params = list()
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_con4 &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+dbWriteTable(my_con4, &quot;airquality&quot;, airquality)
+my_month &lt;- 7
+my_july &lt;- dbGetQuery(my_con4,
+  &quot;SELECT * FROM airquality WHERE Month = ?&quot;,
+  params = list(my_month)
+)
+nrow(my_july)
+#&gt; [1] 31
+head(my_july, 3)
+#&gt;   Ozone Solar.R Wind Temp Month Day
+#&gt; 1   135     269  4.1   84     7   1
+#&gt; 2    49     248  9.2   85     7   2
+#&gt; 3    32     236  9.2   81     7   3
+dbDisconnect(my_con4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>?</code> placeholder is replaced by the value in <code>params</code>. DBI escapes the input, preventing SQL injection even if <code>my_month</code> came from user input.</p>
+
+</details>
+
+<h4>Exercise 5: dbplyr grouped summary</h4>
+
+<p>Using dbplyr, compute the average Temp and total Ozone for each Month in the airquality table. Do not call <code>collect()</code> until the very end.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 5: dbplyr grouped summary
+# Hint: use tbl(), group_by(), summarise(), then collect()
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_con5 &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+dbWriteTable(my_con5, &quot;airquality&quot;, airquality)
+
+my_summary &lt;- tbl(my_con5, &quot;airquality&quot;) |&gt;
+  group_by(Month) |&gt;
+  summarise(
+    avg_temp = mean(Temp, na.rm = TRUE),
+    total_ozone = sum(Ozone, na.rm = TRUE)
+  ) |&gt;
+  collect()
+
+my_summary
+#&gt; # A tibble: 5 x 3
+#&gt;   Month avg_temp total_ozone
+#&gt;   &lt;int&gt;    &lt;dbl&gt;       &lt;int&gt;
+#&gt; 1     5     65.5         614
+#&gt; 2     6     79.1         265
+#&gt; 3     7     83.9         1537
+#&gt; 4     8     84.0         1559
+#&gt; 5     9     76.9         912
+dbDisconnect(my_con5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>tbl()</code> reference and dplyr verbs stay lazy. Only <code>collect()</code> triggers the SQL execution. The database computed the averages and sums, and R received just 5 rows.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Here is a complete end-to-end workflow. You will connect to a database, load data, run a parameterised query, build a dbplyr summary, and clean up.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># === Complete DBI Example ===
+
+# 1. Connect
+con_demo &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+
+# 2. Load data
+dbWriteTable(con_demo, &quot;cars&quot;, mtcars)
+dbWriteTable(con_demo, &quot;flowers&quot;, iris)
+
+cat(&quot;Tables:&quot;, paste(dbListTables(con_demo), collapse = &quot;, &quot;), &quot;\n&quot;)
+#&gt; Tables: cars, flowers
+
+# 3. Parameterised query
+target_cyl &lt;- 6
+six_cyl &lt;- dbGetQuery(con_demo,
+  &quot;SELECT rownames AS car, mpg, hp FROM cars WHERE cyl = ?&quot;,
+  params = list(target_cyl)
+)
+cat(&quot;6-cylinder cars:&quot;, nrow(six_cyl), &quot;\n&quot;)
+#&gt; 6-cylinder cars: 7
+
+# 4. dbplyr summary
+flower_summary &lt;- tbl(con_demo, &quot;flowers&quot;) |&gt;
+  group_by(Species) |&gt;
+  summarise(
+    avg_petal_length = mean(Petal.Length, na.rm = TRUE),
+    count = n()
+  ) |&gt;
+  collect()
+
+print(flower_summary)
+#&gt; # A tibble: 3 x 3
+#&gt;   Species    avg_petal_length count
+#&gt;   &lt;chr&gt;                 &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 setosa                 1.46    50
+#&gt; 2 versicolor             4.26    50
+#&gt; 3 virginica              5.55    50
+
+# 5. Clean up
+dbDisconnect(con_demo)
+cat(&quot;Connection closed.\n&quot;)
+#&gt; Connection closed.</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This workflow shows the full DBI cycle: connect, write, query with parameters, analyze with dbplyr, and disconnect. Every function you need for daily database work in R is here.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Purpose</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbConnect()</code></td>
+<td>Open a database connection</td>
+<td>Connection object</td>
+</tr>
+<tr>
+<td><code>dbDisconnect()</code></td>
+<td>Close a connection</td>
+<td>TRUE (invisible)</td>
+</tr>
+<tr>
+<td><code>dbListTables()</code></td>
+<td>List all tables in the database</td>
+<td>Character vector</td>
+</tr>
+<tr>
+<td><code>dbListFields()</code></td>
+<td>List column names of a table</td>
+<td>Character vector</td>
+</tr>
+<tr>
+<td><code>dbGetQuery()</code></td>
+<td>Run a SELECT query</td>
+<td>Data frame</td>
+</tr>
+<tr>
+<td><code>dbExecute()</code></td>
+<td>Run INSERT/UPDATE/DELETE</td>
+<td>Rows affected (integer)</td>
+</tr>
+<tr>
+<td><code>dbWriteTable()</code></td>
+<td>Write a data frame to a table</td>
+<td>TRUE (invisible)</td>
+</tr>
+<tr>
+<td><code>dbReadTable()</code></td>
+<td>Read an entire table</td>
+<td>Data frame</td>
+</tr>
+<tr>
+<td><code>dbExistsTable()</code></td>
+<td>Check if a table exists</td>
+<td>TRUE/FALSE</td>
+</tr>
+<tr>
+<td><code>tbl()</code></td>
+<td>Create a lazy dbplyr reference</td>
+<td>tbl_dbi object</td>
+</tr>
+<tr>
+<td><code>collect()</code></td>
+<td>Execute dbplyr query, return tibble</td>
+<td>Tibble</td>
+</tr>
+<tr>
+<td><code>show_query()</code></td>
+<td>Show the SQL dbplyr generates</td>
+<td>SQL string</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>DBI provides one API for all SQL databases. Only the driver changes.</li>
+
+<li>Use <code>dbGetQuery()</code> for data retrieval and <code>dbExecute()</code> for data modification.</li>
+
+<li>Always use parameterised queries (<code>params = list(...)</code>) to prevent SQL injection.</li>
+
+<li>dbplyr lets you use dplyr syntax on database tables. Data stays in the database until <code>collect()</code>.</li>
+
+<li>Always disconnect with <code>dbDisconnect()</code>. Use <code>on.exit()</code> for automatic cleanup.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between dbGetQuery() and dbSendQuery()?</strong></p>
+
+<p><code>dbGetQuery()</code> sends a query and fetches all results in one step. <code>dbSendQuery()</code> only sends the query and returns a result set object. You then call <code>dbFetch()</code> to retrieve rows in chunks. Use <code>dbGetQuery()</code> for most tasks. Use <code>dbSendQuery()</code> + <code>dbFetch()</code> when results are too large to load at once.</p>
+
+<p><strong>Can I use DBI with Microsoft SQL Server?</strong></p>
+
+<p>Yes. Install the <code>odbc</code> package and use <code>dbConnect(odbc::odbc(), ...)</code> with an ODBC driver for SQL Server. The DBI functions work identically. You can also use the <code>RSQLServer</code> package for a native connection.</p>
+
+<p><strong>Does dbplyr support all dplyr verbs?</strong></p>
+
+<p>dbplyr supports most dplyr verbs including <code>filter()</code>, <code>select()</code>, <code>mutate()</code>, <code>group_by()</code>, <code>summarise()</code>, <code>arrange()</code>, <code>left_join()</code>, and <code>distinct()</code>. It focuses on SELECT statements. Verbs that modify data (like <code>rows_insert()</code>) have limited database support. Check <code>show_query()</code> to verify the SQL looks correct.</p>
+
+<p><strong>How do I store database credentials safely?</strong></p>
+
+<p>Never hard-code passwords in your scripts. Use environment variables: store credentials in an <code>.Renviron</code> file (<code>DB_PASSWORD=secret</code>) and access them with <code>Sys.getenv(&quot;DB_PASSWORD&quot;)</code>. For enterprise settings, use the <code>keyring</code> package or RStudio's connection pane, which stores credentials securely.</p>
+
+<p><strong>What is the difference between RSQLite and DBI?</strong></p>
+
+<p>DBI is the interface specification — it defines the functions. RSQLite is a driver that implements those functions for SQLite databases. You always load both: DBI provides <code>dbConnect()</code>, <code>dbGetQuery()</code>, etc., and RSQLite provides the <code>SQLite()</code> driver that knows how to talk to SQLite files. The same relationship applies to RPostgres (for PostgreSQL) and RMySQL (for MySQL).</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Consortium — <em>DBI: R Database Interface</em>, official package documentation. <a href="https://dbi.r-dbi.org/">Link</a></li>
+
+<li>RSQLite CRAN vignette — getting started with SQLite in R. <a href="https://cran.r-project.org/web/packages/RSQLite/vignettes/RSQLite.html">Link</a></li>
+
+<li>CRAN — <em>Advanced DBI Usage</em>, parameterised queries and transactions. <a href="https://cran.r-project.org/web/packages/DBI/vignettes/DBI-advanced.html">Link</a></li>
+
+<li>Wickham, H. & Grolemund, G. — <em>R for Data Science</em>, 2nd Ed. Chapter 22: Databases. <a href="https://r4ds.hadley.nz/databases.html">Link</a></li>
+
+<li>dbplyr tidyverse documentation — Introduction to dbplyr. <a href="https://dbplyr.tidyverse.org/articles/dbplyr.html">Link</a></li>
+
+<li>RPostgres — PostgreSQL driver for R. <a href="https://rpostgres.r-dbi.org/">Link</a></li>
+
+<li>OWASP — SQL Injection Prevention Cheat Sheet. <a href="https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="R-Joins.html">R Joins</a></strong> — Learn how inner_join(), left_join(), and other join types work in dplyr to <a class="auto-link" href="R-Joins.html" title="R Joins Explained: inner_join, left_join, full_join — With Visual Diagrams">combine data</a> from multiple tables.</li>
+
+<li><strong><a href="Importing-Data-in-R.html">Importing Data in R</a></strong> — Read CSV, Excel, JSON, and other file formats into R data frames.</li>
+
+<li><strong><a href="dplyr-filter-select.html">dplyr filter & select</a></strong> — Master the two most-used dplyr verbs for subsetting <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a>.</li>
+
+</ul>

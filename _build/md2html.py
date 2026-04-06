@@ -272,7 +272,7 @@ def convert(md_text):
 
     # Build frontmatter for _posts
     fm_out = ['---']
-    for key in ['title', 'description', 'keywords', 'mathjax', 'webr', 'curriculum_id', 'post_type', 'auto_link_terms', 'auto_link_case_sensitive', 'fr_parent']:
+    for key in ['title', 'description', 'keywords', 'mathjax', 'webr', 'curriculum_id', 'post_type', 'auto_link_terms', 'auto_link_case_sensitive', 'sidebar_section', 'sidebar_title', 'sidebar_order', 'fr_parent']:
         if key in fm:
             val = fm[key]
             if isinstance(val, bool):
