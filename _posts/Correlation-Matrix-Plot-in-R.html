@@ -1,0 +1,591 @@
+---
+title: "Correlation Matrix Plot in R: corrplot, ggcorrplot, and ggplot2"
+description: "Visualize correlation matrices in R with corrplot, ggcorrplot, and ggplot2. Learn color scales, reordering, significance masking, and how to build a polished correlation heatmap from scratch."
+keywords: "correlation matrix plot R, corrplot R, ggcorrplot R, correlation heatmap R, R correlation plot, ggplot2 correlation matrix"
+mathjax: false
+webr: true
+curriculum_id: "FR-char-13"
+post_type: "FR"
+auto_link_terms: "correlation matrix plot in R|corrplot R|ggcorrplot|correlation heatmap R"
+auto_link_case_sensitive: false
+fr_parent: "ggplot2-Scatter-Plots.html"
+---
+<!-- md2html:generated -->
+
+<h1>Correlation Matrix Plot in R: corrplot, ggcorrplot, and ggplot2</h1>
+
+<p class="lead">A correlation matrix plot shows pairwise Pearson (or Spearman) correlations between all numeric variables in a dataset — typically as a color grid where warm colors mean strong positive correlation and cool colors mean negative correlation.</p>
+
+<h2>Introduction</h2>
+
+<p>When you have a dataset with 5-20 numeric variables, running <code>cor()</code> returns a matrix of numbers that's hard to parse at a glance. A correlation matrix plot turns that matrix into a color grid where patterns jump out immediately: clusters of highly correlated variables, variables that are negatively related, and variables that are independent.</p>
+
+<p>There are three common approaches in R:</p>
+
+<ol>
+
+<li><strong>ggplot2 + geom_tile()</strong> — full manual control, no extra packages</li>
+
+<li><strong>ggcorrplot</strong> — wraps ggplot2 with sensible correlation-plot defaults (reordering, significance masking, upper/lower triangle)</li>
+
+<li><strong>corrplot</strong> — base-R graphics, extremely feature-rich for publication</li>
+
+</ol>
+
+<p>This post covers all three, starting with the ggplot2 approach to understand the mechanics, then showing how ggcorrplot streamlines the workflow.</p>
+
+<h2>How do you compute and reshape a correlation matrix for plotting?</h2>
+
+<p>Start with <code>cor()</code> to get the correlation matrix, then reshape it to long format for ggplot2.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# Use numeric columns from mtcars
+num_vars &lt;- c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;disp&quot;, &quot;hp&quot;, &quot;drat&quot;, &quot;wt&quot;, &quot;qsec&quot;)
+cor_mat  &lt;- cor(mtcars[, num_vars], use = &quot;complete.obs&quot;)
+
+# Reshape to long format: one row per (var1, var2, correlation) triplet
+cor_long &lt;- as.data.frame(as.table(cor_mat))
+names(cor_long) &lt;- c(&quot;Var1&quot;, &quot;Var2&quot;, &quot;Correlation&quot;)
+
+head(cor_long, 6)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>as.table(cor_mat)</code> converts the matrix to a table, and <code>as.data.frame()</code> flattens it to long format. Every pair of variables gets its own row, including the diagonal (self-correlation = 1) and both upper and lower triangle.</p>
+
+<p><strong>Try it:</strong> After running this, type <code>nrow(cor_long)</code> — it should equal <code>n_vars² = 7² = 49</code> rows (all pairs including self-pairs and duplicates from both triangles).</p>
+
+<h2>How do you build a basic correlation heatmap with ggplot2?</h2>
+
+<p>Once you have long-format data, <code>geom_tile()</code> creates the color grid and <code>scale_fill_gradient2()</code> applies the diverging color scale.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Basic correlation heatmap with ggplot2
+p_basic &lt;- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = &quot;white&quot;, linewidth = 0.5) +
+  scale_fill_gradient2(
+    low      = &quot;#4393c3&quot;,   # blue = negative
+    mid      = &quot;white&quot;,
+    high     = &quot;#d6604d&quot;,   # red = positive
+    midpoint = 0,
+    limits   = c(-1, 1),
+    name     = &quot;Correlation&quot;
+  ) +
+  labs(title = &quot;mtcars Correlation Matrix&quot;, x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid  = element_blank()
+  )
+
+p_basic</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>scale_fill_gradient2()</code> with <code>midpoint = 0</code> and <code>limits = c(-1, 1)</code> anchors white to zero — strong positive correlations go red, strong negative go blue. The neutral variables appear white.</p>
+
+<p><strong>Try it:</strong> Change <code>low = &quot;#4393c3&quot;</code> and <code>high = &quot;#d6604d&quot;</code> to <code>low = &quot;#2166ac&quot;</code> and <code>high = &quot;#b2182b&quot;</code> for deeper, more saturated colors. Then try <code>scale_fill_viridis_c(limits = c(-1, 1), option = &quot;RdYlBu&quot;, direction = -1)</code>.</p>
+
+<h2>How do you use ggcorrplot for a smarter correlation plot?</h2>
+
+<p><code>ggcorrplot</code> automates the tricky parts: hierarchical reordering of variables (grouping correlated variables together), masking the redundant triangle, and p-value significance filtering.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(ggcorrplot)
+
+# ggcorrplot: reorder by hierarchical clustering, show upper triangle
+p_ggcorr &lt;- ggcorrplot(
+  cor_mat,
+  method   = &quot;square&quot;,       # or &quot;circle&quot; for circle-sized plot
+  type     = &quot;upper&quot;,        # show upper triangle only
+  hc.order = TRUE,           # reorder by hierarchical clustering
+  lab      = TRUE,           # show correlation values
+  lab_size = 3,
+  colors   = c(&quot;#4393c3&quot;, &quot;white&quot;, &quot;#d6604d&quot;),
+  outline.color = &quot;white&quot;,
+  ggtheme  = theme_minimal()
+) +
+  labs(title = &quot;mtcars Correlation Matrix (Clustered)&quot;)
+
+p_ggcorr</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>hc.order = TRUE</code> clusters variables so highly correlated ones sit near each other — making patterns (like the <code>cyl</code>, <code>disp</code>, <code>hp</code>, <code>wt</code> cluster) visually obvious. <code>type = &quot;upper&quot;</code> shows only the upper triangle, eliminating the redundant mirror image.</p>
+
+<p><strong>Try it:</strong> Change <code>method = &quot;square&quot;</code> to <code>method = &quot;circle&quot;</code> — circles sized by correlation magnitude instead of solid colored squares. Which communicates the strength of weak correlations more clearly?</p>
+
+<h2>How do you show only the upper or lower triangle?</h2>
+
+<p>Showing both triangles is redundant (the matrix is symmetric). Use <code>type = &quot;upper&quot;</code> in ggcorrplot, or manually filter in the ggplot2 approach.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Upper triangle only in ggcorrplot
+p_upper &lt;- ggcorrplot(
+  cor_mat,
+  type     = &quot;upper&quot;,
+  hc.order = TRUE,
+  lab      = TRUE,
+  lab_size = 3.5,
+  colors   = c(&quot;#4393c3&quot;, &quot;white&quot;, &quot;#d6604d&quot;),
+  outline.color = &quot;grey80&quot;,
+  tl.cex   = 11,     # axis label font size
+  tl.srt   = 45,     # axis label rotation
+  ggtheme  = theme_minimal(base_size = 12)
+) +
+  labs(
+    title    = &quot;Pairwise Correlations — mtcars&quot;,
+    subtitle = &quot;Upper triangle | Clustered by similarity&quot;
+  ) +
+  theme(
+    plot.title    = element_text(face = &quot;bold&quot;),
+    plot.subtitle = element_text(color = &quot;grey50&quot;, size = 10)
+  )
+
+p_upper</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Try it:</strong> Add <code>p.mat = cor_pmat(cor_mat)</code> and <code>sig.level = 0.05</code> inside <code>ggcorrplot()</code> — this masks correlations that are not statistically significant (p > 0.05) with an X mark, so readers know which correlations are reliable.</p>
+
+<h2>How do you add correlation value labels to tiles?</h2>
+
+<p>Labels inside tiles let readers see exact values without needing to reference a color scale. The key is switching text color for dark tiles so labels remain readable.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Add correlation labels, switching color for contrast
+cor_long$abs_cor &lt;- abs(cor_long$Correlation)
+
+p_labels &lt;- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = &quot;white&quot;, linewidth = 0.5) +
+  geom_text(
+    aes(
+      label = round(Correlation, 2),
+      color = abs_cor &gt; 0.5   # white text on strong-colored tiles
+    ),
+    size = 3
+  ) +
+  scale_fill_gradient2(
+    low = &quot;#4393c3&quot;, mid = &quot;white&quot;, high = &quot;#d6604d&quot;,
+    midpoint = 0, limits = c(-1, 1), name = &quot;r&quot;
+  ) +
+  scale_color_manual(
+    values = c(&quot;FALSE&quot; = &quot;grey30&quot;, &quot;TRUE&quot; = &quot;white&quot;),
+    guide  = &quot;none&quot;
+  ) +
+  labs(title = &quot;Correlation Matrix with Labels&quot;, x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid  = element_blank()
+  )
+
+p_labels</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>color = abs_cor &gt; 0.5</code> switches between white text (for dark tiles with strong correlations) and grey text (for pale tiles near zero). This is the same technique used in the Heatmap-in-R post.</p>
+
+<p><strong>Try it:</strong> Change the threshold from <code>0.5</code> to <code>0.3</code> — more tiles get white text. Find the threshold that gives the best contrast for your color palette.</p>
+
+<h2>Complete Example: Publication-Ready Correlation Plot</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Polished upper-triangle correlation plot with significance
+cor_p &lt;- cor_pmat(mtcars[, num_vars])   # p-value matrix from ggcorrplot
+
+p_final &lt;- ggcorrplot(
+  cor_mat,
+  type          = &quot;upper&quot;,
+  hc.order      = TRUE,
+  method        = &quot;square&quot;,
+  lab           = TRUE,
+  lab_size      = 3.2,
+  p.mat         = cor_p,
+  sig.level     = 0.05,         # mask non-significant correlations
+  insig         = &quot;blank&quot;,      # show blank for non-significant
+  colors        = c(&quot;#2166ac&quot;, &quot;white&quot;, &quot;#b2182b&quot;),
+  outline.color = &quot;white&quot;,
+  tl.cex        = 11,
+  tl.srt        = 45,
+  ggtheme       = theme_minimal(base_size = 12)
+) +
+  labs(
+    title    = &quot;Correlation Matrix — mtcars Variables&quot;,
+    subtitle = &quot;Only statistically significant correlations shown (p &lt; 0.05, FDR not applied)&quot;,
+    caption  = &quot;Clustered by hierarchical grouping | Upper triangle only&quot;
+  ) +
+  theme(
+    plot.title    = element_text(face = &quot;bold&quot;, size = 14),
+    plot.subtitle = element_text(color = &quot;grey50&quot;, size = 10),
+    plot.caption  = element_text(color = &quot;grey60&quot;, size = 9),
+    legend.position = &quot;right&quot;
+  )
+
+p_final</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Not using a diverging color scale</h4>
+
+<p>❌ A sequential scale (e.g., <code>scale_fill_viridis_c()</code>) has no clear midpoint at zero, making it hard to tell positive from negative correlations.</p>
+
+<p>✅ Always use a diverging scale anchored at 0:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">scale_fill_gradient2(low = &quot;#4393c3&quot;, mid = &quot;white&quot;, high = &quot;#d6604d&quot;, midpoint = 0)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Including non-numeric columns in cor()</h4>
+
+<p><code>cor()</code> fails if any column is non-numeric. Always subset to numeric columns first.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct: subset to numeric only
+num_df &lt;- mtcars[, sapply(mtcars, is.numeric)]
+cor_mat &lt;- cor(num_df)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Not setting limits = c(-1, 1) in the color scale</h4>
+
+<p>Without explicit limits, the scale anchors to the min and max of your data — not to -1 and 1. A maximum correlation of 0.95 would push the color scale, making 0.7 look "light" when it's actually strong.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">scale_fill_gradient2(..., limits = c(-1, 1))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Showing both triangles</h4>
+
+<p>The correlation matrix is symmetric (r(A,B) = r(B,A)). Showing both triangles doubles every value and wastes space. Use <code>type = &quot;upper&quot;</code> in ggcorrplot or filter <code>cor_long</code> to <code>Var1 &lt; Var2</code>.</p>
+
+<h4>Mistake 5: Ignoring the diagonal</h4>
+
+<p>The diagonal is always 1.0 (self-correlation) and adds no information. Remove it: <code>cor_long &lt;- cor_long[cor_long$Var1 != cor_long$Var2, ]</code>.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: iris correlation heatmap</h4>
+
+<p>Using the <code>iris</code> dataset (numeric columns only: <code>Sepal.Length</code>, <code>Sepal.Width</code>, <code>Petal.Length</code>, <code>Petal.Width</code>), compute the correlation matrix and create a full <a class="auto-link" href="Heatmap-in-R.html" title="Heatmap in R: Build and Customize with ggplot2 geom_tile()">ggplot2 heatmap</a> with correlation labels. Use a blue-white-red diverging palette.</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+iris_num  &lt;- iris[, 1:4]
+cor_iris  &lt;- cor(iris_num)
+cor_long  &lt;- as.data.frame(as.table(cor_iris))
+names(cor_long) &lt;- c(&quot;Var1&quot;, &quot;Var2&quot;, &quot;Correlation&quot;)
+cor_long$abs_r &lt;- abs(cor_long$Correlation)
+
+ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = &quot;white&quot;, linewidth = 0.6) +
+  geom_text(aes(label = round(Correlation, 2),
+                color = abs_r &gt; 0.5),
+            size = 3.5) +
+  scale_fill_gradient2(
+    low = &quot;#4393c3&quot;, mid = &quot;white&quot;, high = &quot;#d6604d&quot;,
+    midpoint = 0, limits = c(-1, 1), name = &quot;r&quot;
+  ) +
+  scale_color_manual(values = c(&quot;FALSE&quot; = &quot;grey30&quot;, &quot;TRUE&quot; = &quot;white&quot;),
+                     guide = &quot;none&quot;) +
+  labs(title = &quot;iris Correlation Matrix&quot;, x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h4>Exercise 2: ggcorrplot with significance masking</h4>
+
+<p>Using <code>mtcars</code> (all numeric columns), create a ggcorrplot showing only the upper triangle, clustered by hierarchical ordering. Mask non-significant correlations (p > 0.05) with blank tiles.</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggcorrplot)
+
+num_df  &lt;- mtcars[, sapply(mtcars, is.numeric)]
+cor_mat &lt;- cor(num_df)
+p_mat   &lt;- cor_pmat(num_df)
+
+ggcorrplot(
+  cor_mat,
+  type      = &quot;upper&quot;,
+  hc.order  = TRUE,
+  method    = &quot;square&quot;,
+  lab       = TRUE,
+  lab_size  = 3,
+  p.mat     = p_mat,
+  sig.level = 0.05,
+  insig     = &quot;blank&quot;,
+  colors    = c(&quot;#2166ac&quot;, &quot;white&quot;, &quot;#b2182b&quot;),
+  outline.color = &quot;white&quot;,
+  ggtheme   = theme_minimal()
+) +
+  labs(title = &quot;mtcars Correlations (p &lt; 0.05 only)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Package</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_tile()</code></td>
+<td>ggplot2</td>
+<td>Full manual control, custom layouts</td>
+</tr>
+<tr>
+<td><code>ggcorrplot()</code></td>
+<td>ggcorrplot</td>
+<td>Quick, clustered, significance-aware</td>
+</tr>
+<tr>
+<td><code>corrplot()</code></td>
+<td>corrplot</td>
+<td>Base-R, many visual styles (circle, ellipse, pie)</td>
+</tr>
+</tbody>
+</table>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Key function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cor(df)</code></td>
+<td>Compute Pearson correlation matrix</td>
+</tr>
+<tr>
+<td><code>cor(df, method = &quot;spearman&quot;)</code></td>
+<td>Spearman (rank-based) correlations</td>
+</tr>
+<tr>
+<td><code>as.data.frame(as.table(cor_mat))</code></td>
+<td>Reshape matrix to long format</td>
+</tr>
+<tr>
+<td><code>scale_fill_gradient2(midpoint = 0)</code></td>
+<td>Diverging color scale anchored at zero</td>
+</tr>
+<tr>
+<td><code>cor_pmat(df)</code></td>
+<td>Compute p-value matrix (from ggcorrplot)</td>
+</tr>
+<tr>
+<td><code>ggcorrplot(..., hc.order = TRUE)</code></td>
+<td>Reorder by hierarchical <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a></td>
+</tr>
+</tbody>
+</table>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between Pearson and Spearman correlation in these plots?</strong> Pearson measures linear association; Spearman measures monotonic (rank-based) association and is robust to outliers. Use <code>cor(df, method = &quot;spearman&quot;)</code> to switch. For ordinal data or skewed distributions, Spearman is usually preferred.</p>
+
+<p><strong>How do I reorder variables manually instead of by clustering?</strong> Before plotting, reorder <code>Var1</code> and <code>Var2</code> factors: <code>cor_long$Var1 &lt;- factor(cor_long$Var1, levels = c(&quot;var_a&quot;, &quot;var_b&quot;, ...))</code>. The plot will respect the factor level order.</p>
+
+<p><strong>Why does my ggcorrplot show "X" marks on some tiles?</strong> You've passed <code>p.mat</code> with <code>insig = &quot;pch&quot;</code> — X marks indicate non-significant correlations (p > sig.level). Switch to <code>insig = &quot;blank&quot;</code> to show blanks, or <code>insig = &quot;n&quot;</code> to show nothing and display all correlations.</p>
+
+<p><strong>Can I add a scatter plot matrix alongside the correlation heatmap?</strong> Yes — the <code>GGally::ggpairs()</code> function creates a scatterplot matrix with correlations in the upper triangle, distributions on the diagonal, and scatter plots in the lower triangle. It combines visual exploration with correlation values.</p>
+
+<p><strong>How do I handle missing data in cor()?</strong> <code>cor()</code> returns NA for any pair that has NAs. Use <code>use = &quot;complete.obs&quot;</code> (listwise deletion) or <code>use = &quot;pairwise.complete.obs&quot;</code> (pairwise deletion) to handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>.</p>
+
+<h2>References</h2>
+
+<ul>
+
+<li>ggcorrplot documentation: sthda.com/english/wiki/ggcorrplot</li>
+
+<li>corrplot CRAN vignette: cran.r-project.org/web/packages/corrplot</li>
+
+<li>Wickham H. (2016). <em>ggplot2: Elegant Graphics for Data Analysis</em>. Springer.</li>
+
+<li>Wilke C. (2019). <em>Fundamentals of Data Visualization</em> — Chapter 12: Visualizing associations</li>
+
+</ul>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong>Heatmap in R</strong> — the general case: any matrix as a color grid with geom_tile()</li>
+
+<li><strong><a class="auto-link" href="ggplot2-Scatter-Plots.html" title="ggplot2 Scatter Plots: Map Color, Size, Shape and Add Trend Lines">ggplot2 Scatter Plots</a></strong> — explore bivariate relationships between individual variable pairs</li>
+
+<li><strong>R <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">Statistical Tests</a></strong> — back up what the correlation plot shows with formal hypothesis tests</li>
+
+</ul>
