@@ -1,0 +1,637 @@
+---
+title: "Error Bars in R with ggplot2: SD, SE, and Confidence Intervals"
+description: "Add error bars to ggplot2 plots in R using geom_errorbar(), geom_pointrange(), and geom_linerange(). Learn when to use SD vs SE vs 95% CI and how to compute them with dplyr."
+keywords: "error bars R, geom_errorbar ggplot2, ggplot2 error bars, confidence interval R ggplot2, standard error R plot, geom_pointrange R"
+mathjax: false
+webr: true
+curriculum_id: "FR-char-7"
+post_type: "FR"
+auto_link_terms: "error bars in R|geom_errorbar()|geom_pointrange()|confidence interval plot R"
+auto_link_case_sensitive: false
+fr_parent: "ggplot2-Scatter-Plots.html"
+---
+<!-- md2html:generated -->
+
+<h1>Error Bars in R with ggplot2: SD, SE, and Confidence Intervals</h1>
+
+<p class="lead"><a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">Error bars</a> in ggplot2 are added with <code>geom_errorbar()</code>, which takes <code>ymin</code> and <code>ymax</code> — typically computed as mean ± SD, mean ± SE, or a 95% confidence interval from your summary data.</p>
+
+<h2>Introduction</h2>
+
+<p>A mean without context is often misleading. If you say "Group A averages 42" and "Group B averages 45," the critical question is: how much variability is there within each group? Are those means reliably different, or could they easily swap on the next sample?</p>
+
+<p>Error bars answer that question visually. But there are three common choices — standard deviation (SD), standard error (SE), and 95% confidence intervals (CI) — and picking the wrong one changes what your chart communicates:</p>
+
+<ul>
+
+<li><strong>SD</strong> shows the spread of <em>individual observations</em>. Wide SD = high natural variability in the data.</li>
+
+<li><strong>SE</strong> shows the precision of the <em>mean estimate</em>. Smaller SE = more confident the mean is a good estimate.</li>
+
+<li><strong>95% CI</strong> shows the range you're 95% confident contains the <em>true population mean</em>. Narrowest of the three.</li>
+
+</ul>
+
+<p>This post shows you how to compute each, add them to ggplot2 charts, and which situations call for which.</p>
+
+<h2>How do you compute summary statistics for error bars?</h2>
+
+<p>Before adding error bars, you need a summary data frame with columns for the mean, and the upper/lower bounds of your error interval. <code>dplyr</code> makes this straightforward.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+# Compute mean, SD, SE, 95% CI per species using iris
+summary_df &lt;- iris |&gt;
+  group_by(Species) |&gt;
+  summarise(
+    n    = n(),
+    mean = mean(Sepal.Length),
+    sd   = sd(Sepal.Length),
+    se   = sd / sqrt(n),
+    ci95 = qt(0.975, df = n - 1) * se   # t-distribution for small samples
+  ) |&gt;
+  mutate(
+    sd_lo  = mean - sd,   sd_hi  = mean + sd,
+    se_lo  = mean - se,   se_hi  = mean + se,
+    ci_lo  = mean - ci95, ci_hi  = mean + ci95
+  )
+
+summary_df</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>qt(0.975, df = n - 1)</code> uses the t-distribution critical value (not 1.96) because <code>n = 50</code> per group — for small samples, the t-distribution gives wider, more honest intervals than the normal approximation.</p>
+
+<p><strong>Try it:</strong> Change <code>qt(0.975, df = n - 1)</code> to <code>1.96</code> (the z-score for 95% CI). For n=50, the difference is small. Now try <code>n = 5</code> observations — you'll see the t-distribution gives notably wider intervals.</p>
+
+<h2>How do you add error bars to a point plot?</h2>
+
+<p><code>geom_errorbar()</code> draws vertical lines at <code>ymin</code> and <code>ymax</code>. Add it on top of <code>geom_point()</code> to show mean + uncertainty.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Error bars showing ±SE
+p_errbar &lt;- ggplot(summary_df, aes(x = Species, y = mean, color = Species)) +
+  geom_errorbar(
+    aes(ymin = se_lo, ymax = se_hi),
+    width    = 0.2,    # width of the horizontal caps
+    linewidth = 0.8
+  ) +
+  geom_point(size = 4) +
+  scale_color_manual(values = c(&quot;#E69F00&quot;, &quot;#56B4E9&quot;, &quot;#009E73&quot;)) +
+  labs(
+    title   = &quot;Sepal Length by Species (mean ± SE)&quot;,
+    x       = NULL,
+    y       = &quot;Sepal Length (cm)&quot;,
+    caption = &quot;Error bars show ± 1 standard error&quot;
+  ) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)
+
+p_errbar</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>width</code> argument controls the horizontal caps at the top and bottom of each error bar. Set <code>width = 0</code> to remove caps entirely (whiskers only).</p>
+
+<p><strong>Try it:</strong> Replace <code>ymin = se_lo, ymax = se_hi</code> with <code>ymin = ci_lo, ymax = ci_hi</code> to show 95% CI instead of SE. Notice how the intervals widen. Then try <code>ymin = sd_lo, ymax = sd_hi</code> for SD — they're much wider because SD describes individual spread, not mean precision.</p>
+
+<h2>What is geom_pointrange() and when should you use it?</h2>
+
+<p><code>geom_pointrange()</code> combines the dot and the interval into a single geom — cleaner code and a cleaner look, since it ensures the dot and bar are perfectly aligned.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># geom_pointrange: dot + interval in one geom
+p_pointrange &lt;- ggplot(summary_df, aes(x = Species, y = mean, color = Species)) +
+  geom_pointrange(
+    aes(ymin = ci_lo, ymax = ci_hi),
+    linewidth = 0.8,
+    fatten    = 4    # controls dot size relative to line width
+  ) +
+  scale_color_manual(values = c(&quot;#E69F00&quot;, &quot;#56B4E9&quot;, &quot;#009E73&quot;)) +
+  labs(
+    title   = &quot;Sepal Length by Species (mean ± 95% CI)&quot;,
+    x       = NULL,
+    y       = &quot;Sepal Length (cm)&quot;,
+    caption = &quot;Error bars show 95% confidence intervals&quot;
+  ) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)
+
+p_pointrange</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>fatten</code> controls the ratio of dot size to line width. <code>fatten = 4</code> (default) makes the dot 4× the line width. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a> it for a smaller dot, increase for a more prominent point.</p>
+
+<p>Related geoms for comparison:</p>
+
+<ul>
+
+<li><code>geom_linerange()</code> — line only, no dot</li>
+
+<li><code>geom_crossbar()</code> — box with a middle line (like a boxplot whisker)</li>
+
+<li><code>geom_errorbarh()</code> — horizontal error bars (for when the x-axis is continuous)</li>
+
+</ul>
+
+<p><strong>Try it:</strong> Replace <code>geom_pointrange()</code> with <code>geom_linerange(aes(ymin = ci_lo, ymax = ci_hi))</code> — the dot disappears. Then try <code>geom_crossbar(aes(ymin = ci_lo, ymax = ci_hi), width = 0.3)</code> — you get a box instead.</p>
+
+<h2>How do you add error bars to a bar chart?</h2>
+
+<p>Bar charts with error bars are common in scientific papers. The key: add <code>geom_errorbar()</code> <em>after</em> <code>geom_col()</code> so it renders on top.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Bar chart with error bars
+p_bar &lt;- ggplot(summary_df, aes(x = Species, y = mean, fill = Species)) +
+  geom_col(width = 0.6, alpha = 0.85) +
+  geom_errorbar(
+    aes(ymin = se_lo, ymax = se_hi),
+    width    = 0.2,
+    linewidth = 0.7,
+    color    = &quot;grey30&quot;
+  ) +
+  scale_fill_manual(values = c(&quot;#E69F00&quot;, &quot;#56B4E9&quot;, &quot;#009E73&quot;)) +
+  labs(
+    title   = &quot;Sepal Length by Species&quot;,
+    x       = NULL,
+    y       = &quot;Sepal Length (cm)&quot;,
+    caption = &quot;Error bars show ± 1 SE&quot;
+  ) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)
+
+p_bar</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Note: many visualization experts argue against bar charts with error bars, because the bar fills from zero — implying the total area matters — while error bars relate only to the mean at the top. A point range or dot plot is more honest. But bar + error bar is so common in scientific literature that knowing how to make it is essential.</p>
+
+<p><strong>Try it:</strong> Change the error bars to show SD instead of SE: <code>ymin = sd_lo, ymax = sd_hi</code>. How does the perception of group differences change?</p>
+
+<h2>How do you make horizontal error bars?</h2>
+
+<p>When your continuous variable is on the x-axis (e.g., effect sizes, regression coefficients), use <code>geom_errorbarh()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Horizontal error bars: regression-style coefficient plot
+coef_df &lt;- data.frame(
+  variable  = c(&quot;Petal.Length&quot;, &quot;Petal.Width&quot;, &quot;Sepal.Width&quot;, &quot;Intercept&quot;),
+  estimate  = c(0.83, -0.32, 0.45, 1.86),
+  ci_lo     = c(0.71, -0.52, 0.28, 1.05),
+  ci_hi     = c(0.95, -0.12, 0.62, 2.67)
+)
+coef_df$variable &lt;- reorder(coef_df$variable, coef_df$estimate)
+coef_df$sig &lt;- !(coef_df$ci_lo &lt; 0 &amp; coef_df$ci_hi &gt; 0)  # CI excludes 0?
+
+p_horiz &lt;- ggplot(coef_df, aes(x = estimate, y = variable, color = sig)) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, color = &quot;grey50&quot;) +
+  geom_errorbarh(
+    aes(xmin = ci_lo, xmax = ci_hi),
+    height    = 0.2,
+    linewidth = 0.8
+  ) +
+  geom_point(size = 4) +
+  scale_color_manual(
+    values = c(&quot;TRUE&quot; = &quot;#1565C0&quot;, &quot;FALSE&quot; = &quot;grey60&quot;),
+    labels = c(&quot;TRUE&quot; = &quot;p &lt; 0.05&quot;, &quot;FALSE&quot; = &quot;n.s.&quot;),
+    name   = &quot;Significance&quot;
+  ) +
+  labs(
+    title   = &quot;Regression Coefficients with 95% CI&quot;,
+    x       = &quot;Coefficient Estimate&quot;,
+    y       = NULL,
+    caption = &quot;Blue = CI excludes zero (statistically significant)&quot;
+  ) +
+  theme_minimal()
+
+p_horiz</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>This "forest plot" style is standard for coefficient plots, meta-analyses, and effect size summaries. The vertical dashed line at x=0 is the null hypothesis reference — coefficients whose CI crosses zero are not statistically significant at α=0.05.</p>
+
+<p><strong>Try it:</strong> Change <code>color = sig</code> to <code>color = estimate &gt; 0</code> to color by direction (positive/negative) instead of significance. How does this change the message?</p>
+
+<h2>Complete Example: Multi-group Error Bar Plot</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Multi-group: error bars with grouped points + dodge
+multi_df &lt;- iris |&gt;
+  group_by(Species) |&gt;
+  summarise(
+    n    = n(),
+    sl_mean = mean(Sepal.Length), sl_se = sd(Sepal.Length) / sqrt(n()),
+    pl_mean = mean(Petal.Length), pl_se = sd(Petal.Length) / sqrt(n())
+  ) |&gt;
+  tidyr::pivot_longer(
+    cols = c(sl_mean, pl_mean, sl_se, pl_se),
+    names_to = c(&quot;measure&quot;, &quot;.value&quot;),
+    names_pattern = &quot;(.+)_(mean|se)&quot;
+  )
+
+p_final &lt;- ggplot(multi_df, aes(x = Species, y = mean, color = measure,
+                                 group = measure)) +
+  geom_errorbar(
+    aes(ymin = mean - se, ymax = mean + se),
+    width    = 0.15,
+    linewidth = 0.7,
+    position = position_dodge(0.4)
+  ) +
+  geom_point(
+    size = 4,
+    position = position_dodge(0.4)
+  ) +
+  scale_color_manual(
+    values = c(&quot;sl&quot; = &quot;#1565C0&quot;, &quot;pl&quot; = &quot;#C62828&quot;),
+    labels = c(&quot;sl&quot; = &quot;Sepal Length&quot;, &quot;pl&quot; = &quot;Petal Length&quot;)
+  ) +
+  labs(
+    title   = &quot;Sepal vs Petal Length by Species (mean ± SE)&quot;,
+    x       = NULL, y = &quot;Length (cm)&quot;, color = NULL,
+    caption = &quot;Error bars show ± 1 standard error&quot;
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title    = element_text(face = &quot;bold&quot;),
+    legend.position = &quot;top&quot;
+  )
+
+p_final</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Not labeling which error measure you used</h4>
+
+<p>❌ Adding error bars without saying whether they're SD, SE, or CI.</p>
+
+<p>✅ Always add a caption or subtitle specifying the error measure:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">labs(caption = &quot;Error bars show 95% confidence intervals&quot;)
+# or
+labs(caption = &quot;Error bars show ± 1 standard error&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Using SD when you mean to show precision</h4>
+
+<p>SD and SE answer different questions. If you're making a claim about how precisely you've estimated the mean, use SE or CI. If you're describing natural variability in the population, use SD.</p>
+
+<h4>Mistake 3: Confusing <code>width</code> and <code>linewidth</code></h4>
+
+<ul>
+
+<li><code>width</code> — horizontal extent of the caps (set to 0 for no caps)</li>
+
+<li><code>linewidth</code> — thickness of the vertical line</li>
+
+</ul>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Both matter
+geom_errorbar(aes(ymin = lo, ymax = hi), width = 0.2, linewidth = 0.8)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Forgetting position_dodge() for grouped plots</h4>
+
+<p>When you have multiple groups per x-axis position, error bars stack on top of each other without <code>position_dodge()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: bars overlap
+geom_errorbar(aes(ymin = lo, ymax = hi))
+
+# Correct: dodge bars apart
+geom_errorbar(aes(ymin = lo, ymax = hi), position = position_dodge(0.4))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 5: Computing SE or CI on already-summarized data</h4>
+
+<p>If you pass a summary table to ggplot, <code>stat_summary()</code> won't recompute SE/CI for you. Compute them explicitly in your <code>summarise()</code> step first.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Point plot with CI</h4>
+
+<p>Using <code>ToothGrowth</code>, compute mean tooth length (<code>len</code>) by supplement (<code>supp</code>) and dose (<code>dose</code>). Create a point + error bar plot showing 95% CI. Use <code>position_dodge()</code> to separate the two supplement groups.</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+tg_summary &lt;- ToothGrowth |&gt;
+  group_by(supp, dose) |&gt;
+  summarise(
+    n    = n(),
+    mean = mean(len),
+    se   = sd(len) / sqrt(n),
+    ci95 = qt(0.975, df = n - 1) * se,
+    .groups = &quot;drop&quot;
+  )
+
+ggplot(tg_summary, aes(x = factor(dose), y = mean, color = supp, group = supp)) +
+  geom_errorbar(
+    aes(ymin = mean - ci95, ymax = mean + ci95),
+    width = 0.2, linewidth = 0.8,
+    position = position_dodge(0.3)
+  ) +
+  geom_point(size = 4, position = position_dodge(0.3)) +
+  geom_line(position = position_dodge(0.3), linewidth = 0.5, linetype = &quot;dashed&quot;) +
+  scale_color_manual(values = c(&quot;OJ&quot; = &quot;#FF9800&quot;, &quot;VC&quot; = &quot;#2196F3&quot;)) +
+  labs(
+    title   = &quot;Tooth Growth by Supplement and Dose&quot;,
+    x       = &quot;Dose (mg/day)&quot;, y = &quot;Tooth Length&quot;,
+    color   = &quot;Supplement&quot;,
+    caption = &quot;Error bars show 95% CI&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h4>Exercise 2: Bar chart with error bars</h4>
+
+<p>Using the same <code>tg_summary</code> from Exercise 1, create a bar chart with error bars for each supplement-dose combination. Use <code>facet_wrap(~ supp)</code> to separate supplements into panels.</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(tg_summary, aes(x = factor(dose), y = mean, fill = factor(dose))) +
+  geom_col(width = 0.6, alpha = 0.85) +
+  geom_errorbar(
+    aes(ymin = mean - ci95, ymax = mean + ci95),
+    width = 0.2, linewidth = 0.7, color = &quot;grey30&quot;
+  ) +
+  facet_wrap(~ supp, labeller = labeller(supp = c(OJ = &quot;Orange Juice&quot;, VC = &quot;Vitamin C&quot;))) +
+  scale_fill_brewer(palette = &quot;Blues&quot;) +
+  labs(
+    title   = &quot;Tooth Growth by Supplement and Dose&quot;,
+    x       = &quot;Dose (mg/day)&quot;, y = &quot;Mean Tooth Length&quot;,
+    caption = &quot;Error bars show 95% CI&quot;,
+    fill    = &quot;Dose&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Geom</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_errorbar()</code></td>
+<td>Vertical error bars (with caps) on any plot</td>
+</tr>
+<tr>
+<td><code>geom_pointrange()</code></td>
+<td>Dot + interval in one geom</td>
+</tr>
+<tr>
+<td><code>geom_linerange()</code></td>
+<td>Interval line only, no dot</td>
+</tr>
+<tr>
+<td><code>geom_crossbar()</code></td>
+<td>Box-style interval with median line</td>
+</tr>
+<tr>
+<td><code>geom_errorbarh()</code></td>
+<td>Horizontal error bars (for x-axis intervals)</td>
+</tr>
+</tbody>
+</table>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Error measure</th>
+<th>Formula</th>
+<th>Shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SD</td>
+<td><code>sd(x)</code></td>
+<td>Spread of individual observations</td>
+</tr>
+<tr>
+<td>SE</td>
+<td><code>sd(x) / sqrt(n)</code></td>
+<td>Precision of the mean estimate</td>
+</tr>
+<tr>
+<td>95% CI</td>
+<td><code>qt(0.975, df=n-1) * se</code></td>
+<td>Range likely containing the true mean</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Always label your error bars</strong> — unlabeled error bars are ambiguous and a common criticism in peer review.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Should I use SD or SE for error bars?</strong> Use <strong>SD</strong> to describe natural variability in your data (e.g., showing how spread out individual measurements are). Use <strong>SE</strong> or <strong>95% CI</strong> to show how precisely you've estimated the mean — these are for inferential claims.</p>
+
+<p><strong>Why does 95% CI use qt() instead of 1.96?</strong> <code>1.96</code> is the z-score for a 95% CI under the <em>normal</em> distribution (infinite sample size). For finite samples, the t-distribution with <code>df = n - 1</code> is more accurate. With n ≥ 30, the difference is negligible; for smaller samples, the t-distribution gives appropriately wider intervals.</p>
+
+<p><strong>How do I add error bars to a ggplot2 line chart?</strong> Add <code>geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.2)</code> for shaded confidence bands, or <code>geom_errorbar()</code> at each time point. Ribbons look cleaner for dense <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>.</p>
+
+<p><strong>Can I draw error bars horizontally?</strong> Yes — <code>geom_errorbarh(aes(xmin = lo, xmax = hi))</code> draws horizontal bars. Use when the continuous variable is on the x-axis (regression coefficients, effect sizes).</p>
+
+<p><strong>What is width vs. linewidth in geom_errorbar()?</strong> <code>width</code> sets the horizontal extent of the end caps. <code>linewidth</code> sets the thickness of the vertical line. Set <code>width = 0</code> to remove caps entirely.</p>
+
+<h2>References</h2>
+
+<ul>
+
+<li>Wickham H. (2016). <em>ggplot2: Elegant Graphics for Data Analysis</em>. Springer.</li>
+
+<li>STHDA — ggplot2 error bars: sthda.com/english/wiki/ggplot2-error-bars</li>
+
+<li>Cumming G. et al. (2007). Error bars in experimental biology. <em>Journal of Cell Biology</em>.</li>
+
+<li>Wilke C. (2019). <em>Fundamentals of Data Visualization</em> — Chapter 16: Visualizing uncertainty</li>
+
+</ul>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a class="auto-link" href="ggplot2-Scatter-Plots.html" title="ggplot2 Scatter Plots: Map Color, Size, Shape and Add Trend Lines">ggplot2 Scatter Plots</a></strong> — the foundation for point-based visualizations</li>
+
+<li><strong>geom_smooth() in ggplot2</strong> — add regression lines and confidence ribbons</li>
+
+<li><strong>R Correlation Matrix Plot</strong> — visualize pairwise correlations with uncertainty</li>
+
+</ul>
