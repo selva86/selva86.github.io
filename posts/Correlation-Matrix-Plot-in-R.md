@@ -9,8 +9,10 @@ mathjax: false
 webr: true
 date: 2026-04-07
 curriculum_id: FR-char-13
-post_type: FR
+post_type: "C"
 fr_parent: ggplot2-Scatter-Plots.html
+sidebar_section: "Visualization"
+sidebar_title: "Correlation Matrix"
 ---
 
 # Correlation Matrix Plot in R: corrplot, ggcorrplot, and ggplot2

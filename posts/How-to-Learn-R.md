@@ -7,10 +7,12 @@ mathjax: false
 webr: false
 date: "2026-03-29"
 curriculum_id: "CAR2"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "how to learn R|learn R programming|R learning roadmap"
 auto_link_case_sensitive: false
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+sidebar_section: "Learn R"
+sidebar_title: "How to Learn R"
 ---
 
 # How to Learn R Programming: A 12-Month Structured Roadmap from Zero

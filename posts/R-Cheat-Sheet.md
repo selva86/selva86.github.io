@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-03-29"
 curriculum_id: "CHT1"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "R cheat sheet|R quick reference|R functions reference"
 auto_link_case_sensitive: false
 fr_parent: "Getting-Help-in-R.html"
+sidebar_section: "Learn R"
+sidebar_title: "R Cheat Sheet"
 ---
 
 # R Cheat Sheet: The Ultimate Quick Reference — 200 Functions

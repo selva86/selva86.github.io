@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-04-06"
 curriculum_id: "FR-clea-1"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "janitor package|janitor|clean_names()|tabyl()|remove_empty()|get_dupes()|row_to_names()"
 auto_link_case_sensitive: true
 fr_parent: "Data-Quality-Checking-in-R.html"
+sidebar_section: "Data Wrangling"
+sidebar_title: "janitor Package"
 ---
 
 # janitor Package in R: Clean Messy Data with 5 Lines of Code

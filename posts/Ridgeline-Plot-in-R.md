@@ -9,8 +9,10 @@ mathjax: false
 webr: true
 date: "2026-04-06"
 curriculum_id: "FR-char-2"
-post_type: "FR"
+post_type: "C"
 fr_parent: "ggplot2-Distribution-Charts.html"
+sidebar_section: "Visualization"
+sidebar_title: "Ridgeline Plot"
 ---
 
 # Ridgeline Plot in R: Compare Many Distributions with ggridges

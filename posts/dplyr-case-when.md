@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-03-30"
 curriculum_id: "FR-dply-2"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "case_when|case_when()|conditional mutate|ifelse vs case_when"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-mutate-rename.html"
+sidebar_section: "Data Wrangling"
+sidebar_title: "dplyr case_when()"
 ---
 
 # dplyr case_when(): Replace Nested if_else with Clean Conditional Logic

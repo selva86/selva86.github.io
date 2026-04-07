@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-03-30"
 curriculum_id: "FR-dply-1"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "dplyr across|across()|across mutate|across summarise"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-filter-select.html"
+sidebar_section: "Data Wrangling"
+sidebar_title: "dplyr across()"
 ---
 
 # dplyr across(): Apply the Same Function to Multiple Columns at Once

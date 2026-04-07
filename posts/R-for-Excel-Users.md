@@ -9,8 +9,10 @@ mathjax: false
 webr: true
 date: "2026-04-06"
 curriculum_id: "FR-clea-2"
-post_type: "FR"
+post_type: "C"
 fr_parent: "Data-Quality-Checking-in-R.html"
+sidebar_section: "Learn R"
+sidebar_title: "R for Excel Users"
 ---
 
 

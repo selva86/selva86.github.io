@@ -9,8 +9,10 @@ mathjax: false
 webr: true
 date: 2026-04-07
 curriculum_id: FR-char-7
-post_type: FR
+post_type: "C"
 fr_parent: ggplot2-Scatter-Plots.html
+sidebar_section: "Visualization"
+sidebar_title: "Error Bars"
 ---
 
 # Error Bars in R with ggplot2: SD, SE, and Confidence Intervals

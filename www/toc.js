@@ -33,6 +33,7 @@ if (toc) {
 
         var hasActive = false;
         for (var j = 0; j < section.items.length; j++) {
+          if (section.items[j].divider) continue;
           if (section.items[j].href === currentPage) { hasActive = true; break; }
         }
 
@@ -44,6 +45,10 @@ if (toc) {
 
         for (var k = 0; k < section.items.length; k++) {
           var item = section.items[k];
+          if (item.divider) {
+            html += '<li class="sidebar-divider">' + item.text + '</li>';
+            continue;
+          }
           var isActive = (item.href === currentPage);
           html += '<li><a href="' + item.href + '"' + (isActive ? ' class="active"' : '') + '>' + item.text + '</a></li>';
         }

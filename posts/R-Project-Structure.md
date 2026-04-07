@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-03-29"
 curriculum_id: "FR-fund-7"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "R project|RStudio project|R working directory|setwd() alternative"
 auto_link_case_sensitive: false
 fr_parent: "Install-R-and-RStudio-2026.html"
+sidebar_section: "Learn R"
+sidebar_title: "R Project Structure"
 ---
 
 # R Project Structure: The Setup That Eliminates setwd() Forever

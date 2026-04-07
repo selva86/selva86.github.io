@@ -83,6 +83,8 @@ def load_sidebar_map():
     for section in sections:
         title = section.get('title', '')
         for item in section.get('items', []):
+            if item.get('divider'):
+                continue
             mapping[item['href']] = title
     return mapping
 

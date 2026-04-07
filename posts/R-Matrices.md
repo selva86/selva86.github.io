@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-04-05"
 curriculum_id: "FR-fund-2"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "R matrices|matrix in R|matrix multiplication|matrix() function"
 auto_link_case_sensitive: false
 fr_parent: "R-Data-Frames.html"
+sidebar_section: "Learn R"
+sidebar_title: "R Matrices"
 ---
 
 

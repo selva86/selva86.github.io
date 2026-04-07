@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-04-06"
 curriculum_id: "FR-ggpl-1"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "ggplot2 legend|ggplot2 legends|legend position ggplot2|remove legend ggplot2|guide_legend()|legend.position"
 auto_link_case_sensitive: false
 fr_parent: "ggplot2-Themes-in-R.html"
+sidebar_section: "Visualization"
+sidebar_title: "ggplot2 Legends"
 ---
 
 # ggplot2 Legends in R: Position, Remove, Rename & Customize Completely

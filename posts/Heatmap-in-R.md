@@ -9,8 +9,10 @@ mathjax: false
 webr: true
 date: "2026-04-06"
 curriculum_id: "FR-char-3"
-post_type: "FR"
+post_type: "C"
 fr_parent: "ggplot2-Scatter-Plots.html"
+sidebar_section: "Visualization"
+sidebar_title: "Heatmap in R"
 ---
 
 # Heatmap in R: Build and Customize with ggplot2 geom_tile()

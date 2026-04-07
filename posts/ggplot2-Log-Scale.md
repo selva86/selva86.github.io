@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-04-06"
 curriculum_id: "FR-ggpl-3"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "ggplot2 log scale|log scale in ggplot2|scale_x_log10()|scale_y_log10()|coord_trans()|log axis|log transformation ggplot"
 auto_link_case_sensitive: false
 fr_parent: "ggplot2-Scales.html"
+sidebar_section: "Visualization"
+sidebar_title: "Log Scale"
 ---
 
 # ggplot2 Log Scale in R: When & How to Transform Axes (with Examples)

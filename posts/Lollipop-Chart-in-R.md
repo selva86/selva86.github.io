@@ -9,8 +9,10 @@ mathjax: false
 webr: true
 date: 2026-04-07
 curriculum_id: FR-char-6
-post_type: FR
+post_type: "C"
 fr_parent: ggplot2-Bar-Charts.html
+sidebar_section: "Visualization"
+sidebar_title: "Lollipop Chart"
 ---
 
 # Lollipop Chart in R: A Cleaner Alternative to Bar Charts

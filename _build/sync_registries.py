@@ -53,6 +53,8 @@ def sync_sidebar(posts, dry_run=False):
     section_map = {}
     for section in sidebar:
         for item in section.get('items', []):
+            if item.get('divider'):
+                continue
             existing.add(item['href'])
         section_map[section['title']] = section
 
@@ -115,8 +117,8 @@ def sync_sidebar(posts, dry_run=False):
                 except ValueError:
                     pass
         # Sort items: ordered items first (by order), then unordered items (preserve position)
-        ordered = [i for i in section['items'] if i['href'] in order_map]
-        unordered = [i for i in section['items'] if i['href'] not in order_map]
+        ordered = [i for i in section['items'] if not i.get('divider') and i['href'] in order_map]
+        unordered = [i for i in section['items'] if i.get('divider') or i['href'] not in order_map]
         ordered.sort(key=lambda i: order_map.get(i['href'], 999))
         section['items'] = ordered + unordered
 

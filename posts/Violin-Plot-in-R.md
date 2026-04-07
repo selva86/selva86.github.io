@@ -9,8 +9,10 @@ mathjax: false
 webr: true
 date: "2026-04-06"
 curriculum_id: "FR-char-1"
-post_type: "FR"
+post_type: "C"
 fr_parent: "ggplot2-Distribution-Charts.html"
+sidebar_section: "Visualization"
+sidebar_title: "Violin Plot"
 ---
 
 # Violin Plot in R: Draw, Customize, and Combine with Boxplots

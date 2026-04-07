@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-04-06"
 curriculum_id: "FR-stri-1"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "R regular expressions|R regex|regex in R|regular expressions in R|pattern matching in R"
 auto_link_case_sensitive: false
 fr_parent: "stringr-in-R.html"
+sidebar_section: "Data Wrangling"
+sidebar_title: "Regex Patterns"
 ---
 
 

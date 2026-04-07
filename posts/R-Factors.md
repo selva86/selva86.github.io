@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-03-29"
 curriculum_id: "FR-fund-6"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "R factors|factor() in R|R categorical data|R levels"
 auto_link_case_sensitive: false
 fr_parent: "R-Data-Types.html"
+sidebar_section: "Learn R"
+sidebar_title: "R Factors"
 ---
 
 # R Factors: The Data Type That Trips Up Almost Every R Beginner

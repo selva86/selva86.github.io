@@ -9,8 +9,10 @@ mathjax: false
 webr: true
 date: "2026-04-06"
 curriculum_id: "FR-tidy-1"
-post_type: "FR"
+post_type: "C"
 fr_parent: "pivot_longer-pivot_wider-Reshape-Data-in-R.html"
+sidebar_section: "Data Wrangling"
+sidebar_title: "separate() & unite()"
 ---
 
 

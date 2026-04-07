@@ -7,10 +7,12 @@ mathjax: false
 webr: true
 date: "2026-03-29"
 curriculum_id: "FR-fund-4"
-post_type: "FR"
+post_type: "C"
 auto_link_terms: "R type coercion|R implicit conversion|as.numeric()|as.character()"
 auto_link_case_sensitive: false
 fr_parent: "R-Data-Types.html"
+sidebar_section: "Learn R"
+sidebar_title: "R Type Coercion"
 ---
 
 # R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters
