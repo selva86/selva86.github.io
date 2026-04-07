@@ -1,0 +1,929 @@
+---
+title: "ggplot2 Bar Charts: geom_bar(), geom_col(), Stacked, Dodged and Ordered"
+description: "Master ggplot2 bar charts with geom_bar() and geom_col(). Learn to create stacked, dodged, and ordered bars, flip coordinates, and add labels with complete code examples."
+keywords: "ggplot2 bar chart, geom_bar R, geom_col ggplot2, ggplot2 stacked bar, ggplot2 grouped bar, fct_reorder bar chart, ggplot2 horizontal bar, bar chart R"
+mathjax: false
+webr: true
+curriculum_id: "1.3.7"
+post_type: "C"
+auto_link_terms: "ggplot2 bar charts|geom_bar()|geom_col()|bar chart in R|stacked bar chart ggplot2|fct_reorder ggplot2"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Bar Charts"
+sidebar_order: "16"
+---
+<!-- md2html:generated -->
+
+<h1>ggplot2 Bar Charts: geom_bar(), geom_col(), Stacked, Dodged and Ordered</h1>
+
+<p class="lead">Bar charts compare values across categories. In ggplot2, <code>geom_bar()</code> counts rows automatically while <code>geom_col()</code> uses a pre-computed height value — choosing the right one depends entirely on what your data looks like when it arrives.</p>
+
+<h2>Introduction</h2>
+
+<p>Bar charts are deceptively simple to create but full of small traps. The most common confusion is which function to use — <code>geom_bar()</code> or <code>geom_col()</code> — and why using the wrong one produces a chart that either errors or lies about your data. The second most common trap is leaving bars in alphabetical order when the reader needs them sorted by size to extract meaning instantly.</p>
+
+<p>In this tutorial, you will learn how to:</p>
+
+<ul>
+
+<li>Choose between <code>geom_bar()</code> and <code>geom_col()</code> based on your data shape</li>
+
+<li>Create stacked, dodged, and percent-stacked bar charts</li>
+
+<li>Sort bars by value using <code>fct_reorder()</code></li>
+
+<li>Add data labels directly on or above bars</li>
+
+<li>Flip to horizontal bars for long category names</li>
+
+</ul>
+
+<p>All code blocks share a single WebR session — variables from earlier blocks carry forward.</p>
+
+<h2>What is the difference between geom_bar() and geom_col()?</h2>
+
+<p>This is the question that trips up nearly every ggplot2 beginner. Both functions draw bar charts, but they expect different input data.</p>
+
+<p><img src="screenshots/ggplot2-Bar-Charts-geom-decision.webp" alt="Decision guide: geom_bar() for raw data, geom_col() for pre-computed values." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Decision guide: <a class="auto-link" href="ggplot2-Getting-Started.html" title="ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes — Zero Experience Needed">geom_bar()</a> for raw data, geom_col() for pre-computed values.</em></p>
+
+<p>**<code>geom_bar()</code>** takes raw, unaggregated data and counts how many rows fall into each category. You only supply <code>x</code> — no <code>y</code> needed. It runs <code>stat_count()</code> internally.</p>
+
+<p>**<code>geom_col()</code>** takes data where you've already computed the heights (counts, averages, totals). You supply both <code>x</code> and <code>y</code>. It uses <code>stat_identity()</code> — it leaves the data as-is.</p>
+
+<p>Let's set up data for both scenarios:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(forcats)
+
+# Scenario 1: raw data (one row per car)
+# mpg dataset - 234 rows, each row = one car model
+head(mpg[, c(&quot;class&quot;, &quot;manufacturer&quot;, &quot;hwy&quot;)])
+
+# Scenario 2: pre-computed averages
+mpg_avg &lt;- aggregate(hwy ~ class, data = mpg, FUN = mean)
+mpg_avg$hwy &lt;- round(mpg_avg$hwy, 1)
+mpg_avg</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now use <code>geom_bar()</code> on the raw data — it counts how many cars fall in each class:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># geom_bar: count rows per class automatically
+p_bar &lt;- ggplot(mpg, aes(x = class)) +
+  geom_bar(fill = &quot;steelblue&quot;) +
+  labs(
+    title = &quot;Number of Car Models by Class (geom_bar)&quot;,
+    x     = &quot;Vehicle Class&quot;,
+    y     = &quot;Count&quot;
+  )
+
+p_bar</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now use <code>geom_col()</code> on the pre-computed averages — the bar height is the actual <code>hwy</code> value:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># geom_col: use pre-computed average highway mpg per class
+p_col &lt;- ggplot(mpg_avg, aes(x = class, y = hwy)) +
+  geom_col(fill = &quot;tomato&quot;) +
+  labs(
+    title = &quot;Average Highway MPG by Class (geom_col)&quot;,
+    x     = &quot;Vehicle Class&quot;,
+    y     = &quot;Avg Highway MPG&quot;
+  )
+
+p_col</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<blockquote><p><strong>KEY INSIGHT:</strong> You can also use <code>geom_bar(stat = &quot;identity&quot;)</code> as a substitute for <code>geom_col()</code>. They are equivalent. In modern ggplot2, <code>geom_col()</code> is the cleaner choice — it signals your intent clearly without the <code>stat = &quot;identity&quot;</code> override. But you will see both in the wild, so recognize them as the same thing.</p></blockquote>
+
+<p><strong>Try it:</strong> Try adding a <code>y</code> aesthetic to <code>geom_bar()</code> without <code>stat = &quot;identity&quot;</code>. What error does ggplot2 produce?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># This will produce an error — can you read what it says?
+ex_error &lt;- tryCatch(
+  ggplot(mpg, aes(x = class, y = hwy)) + geom_bar(),
+  error = function(e) message(&quot;Error: &quot;, e$message)
+)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How do you create stacked and dodged bar charts?</h2>
+
+<p>When your data has a second categorical variable (like drive type within each vehicle class), the <code>position</code> argument controls how bars within each x-category are arranged.</p>
+
+<p><img src="screenshots/ggplot2-Bar-Charts-position-guide.webp" alt="Position options for grouped bars: dodge, stack, and fill." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Position options for grouped bars: dodge, stack, and fill.</em></p>
+
+<p><strong>Stacked bars</strong> (default) place sub-categories on top of each other, showing totals and composition simultaneously:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Stacked bar: fill = drv adds drive type as a second categorical dimension
+p_stack &lt;- ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;stack&quot;) +
+  scale_fill_brewer(
+    palette = &quot;Set2&quot;,
+    labels  = c(&quot;4&quot; = &quot;4WD&quot;, &quot;f&quot; = &quot;Front&quot;, &quot;r&quot; = &quot;Rear&quot;)
+  ) +
+  labs(
+    title = &quot;Car Count by Class and Drive Type (Stacked)&quot;,
+    x     = &quot;Vehicle Class&quot;,
+    y     = &quot;Count&quot;,
+    fill  = &quot;Drive Type&quot;
+  )
+
+p_stack</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Dodged bars</strong> place sub-categories side-by-side, making it easier to compare values within each group:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Dodged bar: sub-categories placed side by side
+p_dodge &lt;- ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = position_dodge(preserve = &quot;single&quot;)) +
+  scale_fill_brewer(
+    palette = &quot;Set2&quot;,
+    labels  = c(&quot;4&quot; = &quot;4WD&quot;, &quot;f&quot; = &quot;Front&quot;, &quot;r&quot; = &quot;Rear&quot;)
+  ) +
+  labs(
+    title = &quot;Car Count by Class and Drive Type (Dodged)&quot;,
+    x     = &quot;Vehicle Class&quot;,
+    y     = &quot;Count&quot;,
+    fill  = &quot;Drive Type&quot;
+  )
+
+p_dodge</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>preserve = &quot;single&quot;</code> keeps all bars the same width even when some groups have fewer sub-categories. Without it, bars in sparse groups stretch wider to fill space.</p>
+
+<p><strong>Percent-stacked bars</strong> normalize each stack to 100%, letting you compare proportions across groups regardless of total count:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">p_fill &lt;- ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;fill&quot;) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_brewer(
+    palette = &quot;Set2&quot;,
+    labels  = c(&quot;4&quot; = &quot;4WD&quot;, &quot;f&quot; = &quot;Front&quot;, &quot;r&quot; = &quot;Rear&quot;)
+  ) +
+  labs(
+    title = &quot;Drive Type Mix by Vehicle Class (Percent Stacked)&quot;,
+    x     = &quot;Vehicle Class&quot;,
+    y     = &quot;Proportion&quot;,
+    fill  = &quot;Drive Type&quot;
+  )
+
+p_fill</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<blockquote><p><strong>TIP:</strong> Use <strong>stacked</strong> when the total height matters (e.g., total sales volume by region). Use <strong>dodged</strong> when you need to compare sub-group values directly (e.g., sales per quarter by product). Use <strong>percent-stacked</strong> when the mix/proportion matters more than the absolute count (e.g., market share over time).</p></blockquote>
+
+<p><strong>Try it:</strong> Change <code>position = &quot;fill&quot;</code> to <code>position = &quot;stack&quot;</code> in <code>p_fill</code>. How does the chart interpretation change?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Switch from fill (%) to stack (counts)
+ex_stack_switch &lt;- ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;stack&quot;) +
+  scale_fill_brewer(palette = &quot;Set2&quot;)
+
+ex_stack_switch</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How do you reorder bars by value?</h2>
+
+<p>Bars in alphabetical order are almost never the right choice. A reader's eye moves from left to right — sorting by descending value puts the most important category first and makes comparisons effortless. The <code>fct_reorder()</code> function from the <code>forcats</code> package handles this.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Sort vehicle classes by average highway mpg (ascending for coord_flip)
+mpg_avg$class_ordered &lt;- fct_reorder(mpg_avg$class, mpg_avg$hwy)
+
+p_ordered &lt;- ggplot(mpg_avg, aes(x = class_ordered, y = hwy)) +
+  geom_col(fill = &quot;steelblue&quot;) +
+  labs(
+    title = &quot;Average Highway MPG by Vehicle Class (sorted)&quot;,
+    x     = &quot;Vehicle Class&quot;,
+    y     = &quot;Avg Highway MPG&quot;
+  )
+
+p_ordered</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>fct_reorder(factor, numeric)</code> reorders the levels of <code>class</code> by the values in <code>hwy</code>. Since bar charts read left-to-right by default, the leftmost bar is the smallest and the rightmost is the largest. When you flip to horizontal (next section), this naturally becomes top-to-bottom descending.</p>
+
+<blockquote><p><strong>TIP:</strong> For frequency-sorted bars from raw data (using <code>geom_bar()</code>), use <code>fct_infreq()</code> instead: <code>aes(x = fct_infreq(class))</code>. It reorders the factor by count automatically — no pre-aggregation needed.</p></blockquote>
+
+<p><strong>Try it:</strong> Change <code>fct_reorder(mpg_avg$class, mpg_avg$hwy)</code> to <code>fct_reorder(mpg_avg$class, -mpg_avg$hwy)</code> (note the minus sign). How does the bar order change?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Sort descending instead of ascending
+ex_desc &lt;- ggplot(mpg_avg,
+    aes(x = fct_reorder(class, -hwy), y = hwy)) +
+  geom_col(fill = &quot;steelblue&quot;) +
+  labs(x = &quot;Vehicle Class&quot;, y = &quot;Avg Highway MPG&quot;)
+
+ex_desc</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How do you add labels to bar charts?</h2>
+
+<p>Labels on bars let readers read exact values without estimating from the axis. The positioning depends on whether you want labels inside, above, or at the end of each bar.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Add value labels above bars (vjust controls vertical position)
+p_label &lt;- ggplot(mpg_avg, aes(x = fct_reorder(class, hwy), y = hwy)) +
+  geom_col(fill = &quot;steelblue&quot;, width = 0.7) +
+  geom_text(
+    aes(label = hwy),
+    vjust  = -0.4,   # above the bar
+    size   = 3.5,
+    color  = &quot;grey20&quot;
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(
+    title = &quot;Avg Highway MPG by Vehicle Class&quot;,
+    x     = &quot;Vehicle Class&quot;,
+    y     = &quot;Avg Highway MPG&quot;
+  )
+
+p_label</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>expand = expansion(mult = c(0, 0.12))</code> adds 12% headroom above the tallest bar so the top labels don't get clipped. Without this, labels above the highest bar disappear.</p>
+
+<p>For labels <em>inside</em> the bar (useful for long bars with enough room), change <code>vjust</code> and color:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Labels inside the bars (good when bars are tall enough)
+p_label_in &lt;- ggplot(mpg_avg, aes(x = fct_reorder(class, hwy), y = hwy)) +
+  geom_col(fill = &quot;steelblue&quot;, width = 0.7) +
+  geom_text(
+    aes(label = hwy),
+    vjust  = 1.6,    # inside the bar, near top
+    size   = 3.5,
+    color  = &quot;white&quot;,
+    fontface = &quot;bold&quot;
+  ) +
+  labs(x = &quot;Vehicle Class&quot;, y = &quot;Avg Highway MPG&quot;)
+
+p_label_in</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<blockquote><p><strong>WARNING:</strong> Inside labels fail for short bars — the text overflows the bar boundary and becomes unreadable. Check your data range before committing to inside placement. A safe rule: use inside labels only when all bars are at least 30% of the max bar height.</p></blockquote>
+
+<p><strong>Try it:</strong> Change <code>vjust = -0.4</code> to <code>vjust = 2</code> in <code>p_label</code>. Does the label move inside the bar? Does it still look readable?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try moving labels inside with vjust = 2
+ex_label_pos &lt;- ggplot(mpg_avg, aes(x = fct_reorder(class, hwy), y = hwy)) +
+  geom_col(fill = &quot;steelblue&quot;) +
+  geom_text(aes(label = hwy), vjust = 2, color = &quot;white&quot;, size = 3.5)
+
+ex_label_pos</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>How do you make a horizontal bar chart?</h2>
+
+<p>Horizontal bars are easier to read when category names are long. <code>coord_flip()</code> rotates the entire chart 90 degrees — x becomes y and vice versa. Apply it to any of the charts built so far:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Flip p_ordered to horizontal - long names are now easy to read
+p_horiz &lt;- p_ordered +
+  coord_flip() +
+  labs(
+    title = &quot;Average Highway MPG by Class (horizontal)&quot;,
+    x     = NULL,    # remove redundant y-axis label after flip
+    y     = &quot;Avg Highway MPG&quot;
+  )
+
+p_horiz</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Because <code>p_ordered</code> was already sorted ascending by <code>fct_reorder()</code>, after flipping, the chart reads top-to-bottom from highest to lowest — the most natural reading direction for a ranked list.</p>
+
+<blockquote><p><strong>KEY INSIGHT:</strong> In newer ggplot2 (3.3+), you can also achieve horizontal bars by swapping x and y in <code>aes()</code> directly — <code>aes(y = class, x = hwy)</code> — without <code>coord_flip()</code>. The advantage is that axis labels stay in their natural orientation without flipping. The disadvantage is that <code>fct_reorder()</code> with ascending order now produces top-to-bottom descending without needing to flip, which can be confusing. Both approaches work — <code>coord_flip()</code> is slightly more intuitive for beginners.</p></blockquote>
+
+<p><strong>Try it:</strong> Apply <code>coord_flip()</code> to <code>p_fill</code> (the percent-stacked chart). Does the horizontal layout make the proportion comparison easier?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Flip the percent-stacked chart
+ex_horiz_fill &lt;- p_fill + coord_flip()
+ex_horiz_fill</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Using geom_bar() with pre-computed data and a y aesthetic</h4>
+
+<p>❌ This produces an error because <code>geom_bar()</code> tries to count rows and conflicts with the supplied y variable:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: geom_bar can't handle a y aesthetic by default
+ggplot(mpg_avg, aes(x = class, y = hwy)) + geom_bar()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>✅ Use <code>geom_col()</code> for pre-computed values:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(mpg_avg, aes(x = class, y = hwy)) + geom_col()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Leaving bars in alphabetical order</h4>
+
+<p>❌ Alphabetical order rarely communicates a meaningful ranking. Readers can't immediately spot the highest or lowest value.</p>
+
+<p>✅ Sort by value with <code>fct_reorder()</code>: <code>aes(x = fct_reorder(class, hwy))</code> or use <code>fct_infreq()</code> for <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">count data</a>.</p>
+
+<h4>Mistake 3: Using color= instead of fill= for bar color</h4>
+
+<p>❌ <code>geom_bar(color = &quot;steelblue&quot;)</code> colors only the outline of the bars, not the interior:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: outlines only
+ggplot(mpg, aes(x = class)) + geom_bar(color = &quot;steelblue&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>✅ Use <code>fill</code> to color the bar interior:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class)) + geom_bar(fill = &quot;steelblue&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Labels getting clipped at the top</h4>
+
+<p>❌ Adding <code>geom_text(vjust = -0.4)</code> without expanding the y-axis clips labels above the tallest bar.</p>
+
+<p>✅ Add <code>scale_y_continuous(expand = expansion(mult = c(0, 0.12)))</code> to add headroom above the highest bar.</p>
+
+<h4>Mistake 5: Dodged bars with unequal widths</h4>
+
+<p>❌ <code>position = &quot;dodge&quot;</code> by default makes narrow bars for sparse groups — categories with fewer sub-groups get wider bars.</p>
+
+<p>✅ Use <code>position = position_dodge(preserve = &quot;single&quot;)</code> to maintain consistent bar widths across all groups.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Diamond cut bar chart</h4>
+
+<p>Using the <code>diamonds</code> dataset, create two bar charts side-by-side (use <code>gridExtra::grid.arrange()</code> or <code>patchwork</code>):</p>
+
+<ol>
+
+<li>A bar chart of <code>cut</code> frequency using <code>geom_bar()</code> — bars sorted from highest to lowest count</li>
+
+<li>A bar chart of average <code>price</code> per <code>cut</code> using <code>geom_col()</code> — bars sorted by price</li>
+
+</ol>
+
+<p>Are the highest-frequency cuts also the most expensive?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Starter code
+# library(patchwork) or library(gridExtra)
+
+# Chart 1: Frequency by cut
+# ggplot(diamonds, aes(x = fct_infreq(cut))) + geom_bar(fill = &quot;steelblue&quot;)
+
+# Chart 2: Average price by cut
+# diamonds_avg &lt;- aggregate(price ~ cut, diamonds, mean)
+# ggplot(diamonds_avg, aes(x = fct_reorder(cut, price, .desc = TRUE), y = price)) +
+#   geom_col(fill = &quot;tomato&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Exercise 2: Stacked vs percent-stacked comparison</h4>
+
+<p>Using the <code>mpg</code> dataset, create a stacked and a percent-stacked bar chart of <code>class</code> vs <code>drv</code> (drive type). Then answer: which vehicle classes are most dominated by front-wheel drive? Does the absolute count chart or the proportion chart make this clearer?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Starter: stacked counts
+# p1 &lt;- ggplot(mpg, aes(x = class, fill = drv)) +
+#   geom_bar(position = &quot;stack&quot;)
+
+# Starter: percent stacked
+# p2 &lt;- ggplot(mpg, aes(x = class, fill = drv)) +
+#   geom_bar(position = &quot;fill&quot;) +
+#   scale_y_continuous(labels = scales::percent)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Complete Example</h2>
+
+<p>This final chart combines everything: pre-computed averages, sorted bars, data labels, a clean theme, and colorblind-friendly colors — ready for a report or presentation.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Pre-compute mean highway mpg per manufacturer (top 10 by mpg)
+mfr_avg &lt;- aggregate(hwy ~ manufacturer, data = mpg, FUN = mean)
+mfr_avg$hwy &lt;- round(mfr_avg$hwy, 1)
+mfr_top10 &lt;- head(mfr_avg[order(-mfr_avg$hwy), ], 10)
+
+p_final &lt;- ggplot(
+    mfr_top10,
+    aes(x = fct_reorder(manufacturer, hwy), y = hwy)
+  ) +
+  geom_col(fill = &quot;#2166ac&quot;, width = 0.75) +
+  geom_text(
+    aes(label = hwy),
+    hjust  = -0.2,
+    size   = 3.5,
+    color  = &quot;grey20&quot;
+  ) +
+  coord_flip() +
+  scale_x_discrete(labels = tools::toTitleCase) +
+  scale_y_continuous(
+    limits = c(0, 35),
+    expand = expansion(mult = c(0, 0))
+  ) +
+  labs(
+    title    = &quot;Top 10 Manufacturers by Avg Highway MPG&quot;,
+    subtitle = &quot;Based on EPA fuel economy data (mpg dataset)&quot;,
+    x        = NULL,
+    y        = &quot;Average Highway MPG&quot;,
+    caption  = &quot;Source: ggplot2::mpg&quot;
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    axis.text.y        = element_text(face = &quot;bold&quot;)
+  )
+
+p_final</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>element_blank()</code> removes the horizontal grid lines — they're redundant when exact values appear as labels. The bold manufacturer names draw attention to the categories, not the bars themselves.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Count rows per category</td>
+<td><code>geom_bar()</code></td>
+</tr>
+<tr>
+<td>Use pre-computed heights</td>
+<td><code>geom_col()</code></td>
+</tr>
+<tr>
+<td>Stack sub-categories</td>
+<td><code>geom_bar(position = &quot;stack&quot;)</code></td>
+</tr>
+<tr>
+<td>Side-by-side sub-categories</td>
+<td><code>geom_bar(position = position_dodge(preserve = &quot;single&quot;))</code></td>
+</tr>
+<tr>
+<td>Proportion (percent) stacked</td>
+<td><code>geom_bar(position = &quot;fill&quot;)</code></td>
+</tr>
+<tr>
+<td>Sort by value</td>
+<td><code>aes(x = fct_reorder(var, value))</code></td>
+</tr>
+<tr>
+<td>Sort by frequency</td>
+<td><code>aes(x = fct_infreq(var))</code></td>
+</tr>
+<tr>
+<td>Labels above bars</td>
+<td><code>geom_text(aes(label = val), vjust = -0.4)</code></td>
+</tr>
+<tr>
+<td>Labels inside bars</td>
+<td><code>geom_text(aes(label = val), vjust = 1.6, color = &quot;white&quot;)</code></td>
+</tr>
+<tr>
+<td>Horizontal bars</td>
+<td><code>+ coord_flip()</code></td>
+</tr>
+<tr>
+<td>Fill vs outline color</td>
+<td><code>fill = &quot;color&quot;</code> (interior) vs <code>color = &quot;color&quot;</code> (border)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key rules:</p>
+
+<ul>
+
+<li>Use <code>geom_bar()</code> for raw data (counts automatically), <code>geom_col()</code> for pre-aggregated data</li>
+
+<li>Sort by value with <code>fct_reorder()</code> — alphabetical order is almost never informative</li>
+
+<li>Add headroom for above-bar labels: <code>scale_y_continuous(expand = expansion(mult = c(0, 0.12)))</code></li>
+
+<li>Use <code>fill</code> (not <code>color</code>) to change bar fill color</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Can I use geom_bar() with stat = "identity" instead of geom_col()?</strong></p>
+
+<p>Yes, they are equivalent. <code>geom_bar(stat = &quot;identity&quot;)</code> and <code>geom_col()</code> produce identical output. <code>geom_col()</code> was added to ggplot2 to make the intent clearer — use it when you have pre-computed values.</p>
+
+<p><strong>How do I change bar width?</strong></p>
+
+<p>Use the <code>width</code> argument: <code>geom_col(width = 0.5)</code>. The default is 0.9 (90% of the space between x positions). Lower values create narrower bars with more white space between them.</p>
+
+<p><strong>How do I sort a stacked bar chart by one sub-group's size?</strong></p>
+
+<p>This requires reordering the factor before plotting. Compute the values for the sub-group you want to sort by, then use <code>fct_reorder()</code> on that subset's values. Alternatively, use <code>fct_reorder2()</code> for sorting by a two-variable function.</p>
+
+<p><strong>How do I add a reference line to a bar chart?</strong></p>
+
+<p>Use <code>geom_hline(yintercept = value)</code> for horizontal reference lines (or <code>geom_vline()</code> after <code>coord_flip()</code>). For example: <code>+ geom_hline(yintercept = mean(mpg_avg$hwy), linetype = &quot;dashed&quot;, color = &quot;grey50&quot;)</code>.</p>
+
+<p><strong>Why do my bars have gaps at the x-axis baseline?</strong></p>
+
+<p>By default, ggplot2 adds padding below the x-axis. To remove it: <code>scale_y_continuous(expand = expansion(mult = c(0, 0.05)))</code> — the first value (0) removes padding at the bottom, the second (0.05) adds 5% headroom at the top.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H. (2016). <em>ggplot2: Elegant Graphics for Data Analysis</em>. Springer. https://ggplot2-book.org/</li>
+
+<li>ggplot2 reference — <code>geom_bar()</code> and <code>geom_col()</code>. https://ggplot2.tidyverse.org/reference/geom_bar.html</li>
+
+<li>forcats reference — <code>fct_reorder()</code>. https://forcats.tidyverse.org/reference/fct_reorder.html</li>
+
+<li>Wilke, C. O. (2019). <em>Fundamentals of Data Visualization</em>, Chapter 6: Visualizing Amounts. https://clauswilke.com/dataviz/</li>
+
+<li>R Graph Gallery — Bar Charts. https://r-graph-gallery.com/barplot.html</li>
+
+<li>Healy, K. (2018). <em>Data Visualization: A Practical Introduction</em>, Chapter 4. https://socviz.co/</li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a class="auto-link" href="ggplot2-Scatter-Plots.html" title="ggplot2 Scatter Plots: Map Color, Size, Shape and Add Trend Lines">ggplot2 Scatter Plots</a></strong> — explore relationships between two continuous variables with <code>geom_point()</code>, color mapping, and trend lines.</li>
+
+<li><strong><a class="auto-link" href="ggplot2-Distribution-Charts.html" title="ggplot2 Distribution Charts: Histograms, Density, Boxplots — When to Use Each">ggplot2 Distribution Charts</a></strong> — compare distributions with histograms, boxplots, and violin plots — a natural complement to bar charts when you need more than a single summary value per group.</li>
+
+<li><strong><a class="auto-link" href="ggplot2-Line-Charts.html" title="ggplot2 Line Charts: Connect Points, Group by Variable, and Style Lines">ggplot2 Line Charts</a></strong> — track change over time with <code>geom_line()</code>, grouped by category and styled with linetypes.</li>
+
+</ul>
