@@ -1,0 +1,957 @@
+---
+title: "ggplot2 Distribution Charts: Histograms, Density, Boxplots — When to Use Each"
+description: "Master ggplot2 distribution charts: histogram, density, boxplot, and violin — with guidance on bin widths, bandwidth tuning, and when each type misleads."
+keywords: "ggplot2 histogram, ggplot2 density plot, ggplot2 boxplot, geom_histogram, geom_density, geom_boxplot, geom_violin, distribution plot R, ggplot2 distribution"
+mathjax: false
+webr: true
+curriculum_id: "1.3.4"
+post_type: "C"
+auto_link_terms: "ggplot2 distribution charts|geom_histogram()|geom_density()|geom_boxplot()|geom_violin()|histogram in R|density plot ggplot2"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Distribution Charts"
+sidebar_order: "13"
+---
+<!-- md2html:generated -->
+
+<h1>ggplot2 Distribution Charts: Histograms, Density, Boxplots — When to Use Each</h1>
+
+<p class="lead">Distribution charts show how your data is spread — where values cluster, thin out, and whether outliers exist. ggplot2 provides four main types: <code>geom_histogram()</code>, <code>geom_density()</code>, <code>geom_boxplot()</code>, and <code>geom_violin()</code>.</p>
+
+<h2>Introduction</h2>
+
+<p>Before you run a single statistical test, you should look at your data's distribution. Is it symmetric or skewed? Does it have one peak or two? Are there outliers pulling the mean away from the median? These questions all have visual answers, and ggplot2 gives you four powerful tools to find them.</p>
+
+<p>The tricky part is picking the right one. Each chart type reveals different aspects of a distribution — and each can mislead you if used carelessly. A histogram hides its shape behind arbitrary bin choices. A boxplot compresses everything into five numbers, missing bimodality entirely. A density plot smooths away sharp features. Understanding the trade-offs is what separates exploratory analysis done well from analysis done fast.</p>
+
+<p>In this tutorial you'll work with a consistent dataset throughout, building each chart type progressively. All four charts share the same WebR session, so variables from earlier blocks are available in later ones. By the end you'll have a practical decision framework, know how to tune the key parameters, and understand exactly when each chart type can mislead you.</p>
+
+<p><img src="screenshots/ggplot2-Distribution-Charts-chart-decision.webp" alt="Decision guide: which distribution chart fits your situation" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Decision guide — which distribution chart fits your situation.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This post covers single-variable distribution charts.</strong> For comparing distributions across many groups simultaneously, see ridgeline plots (<code>ggridges</code>) in the Further Reading section. For scatter plots that reveal bivariate distributions, see the ggplot2 Scatter Plots tutorial.</div></div>
+
+<h2>What Does <code>geom_histogram()</code> Show — and How Do You Choose <code>binwidth</code>?</h2>
+
+<p>A histogram splits your variable into equal-width bins and counts how many observations fall into each. The height of each bar shows frequency (or density if you set <code>y = after_stat(density)</code>). It's the most direct way to see shape: unimodal vs bimodal, symmetric vs skewed, light vs heavy tails.</p>
+
+<p>The catch is that the shape you see depends entirely on <code>binwidth</code>. Too wide and you lose structure; too narrow and noise dominates. There's no universally correct answer — you need to try a few values.</p>
+
+<p>Let's start by loading ggplot2 and creating a focused subset of the built-in <code>diamonds</code> dataset. We'll use price for most examples, and cut for grouping.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load ggplot2 and prepare data
+library(ggplot2)
+
+# Use a random 2000-row sample for speed
+set.seed(101)
+diamonds_sm &lt;- diamonds[sample(nrow(diamonds), 2000), ]
+cat(&quot;Rows:&quot;, nrow(diamonds_sm), &quot;| Price range:&quot;, min(diamonds_sm$price), &quot;to&quot;, max(diamonds_sm$price), &quot;\n&quot;)
+#&gt; Rows: 2000 | Price range: 340 to 18795</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now let's build a histogram and experiment with <code>binwidth</code>. Pay attention to how the story changes.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Histogram with three different binwidths to show the effect
+p_hist_narrow &lt;- ggplot(diamonds_sm, aes(x = price)) +
+  geom_histogram(binwidth = 200, fill = &quot;#4B6FA5&quot;, colour = &quot;white&quot;) +
+  labs(title = &quot;binwidth = 200 (too narrow?)&quot;, x = &quot;Price (USD)&quot;, y = &quot;Count&quot;)
+
+p_hist_wide &lt;- ggplot(diamonds_sm, aes(x = price)) +
+  geom_histogram(binwidth = 1000, fill = &quot;#4B6FA5&quot;, colour = &quot;white&quot;) +
+  labs(title = &quot;binwidth = 1000 (just right?)&quot;, x = &quot;Price (USD)&quot;, y = &quot;Count&quot;)
+
+# Print the wider binwidth version
+print(p_hist_wide)
+#&gt; [Plot: right-skewed distribution peaking around $1000-2000, long tail to $18000]</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The right-skewed distribution is clear: most diamonds are priced under $3,000, with a long tail of expensive stones. The spike near $5,000 is a real feature — it shows up with binwidth = 200 too. With binwidth = 5,000 it disappears into noise.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">**Start with <code>bins = 30</code> (ggplot2's default) and adjust.** If the histogram looks jagged, double the binwidth. If it looks like a single blob, halve it. The goal is to reveal structure without manufacturing noise.</div></div>
+
+<p><strong>Try it:</strong> Change <code>binwidth</code> to <code>500</code> and then <code>2000</code> in the histogram above. At which value does the spike around $5,000 first disappear?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: experiment with binwidth
+ex_hist &lt;- ggplot(diamonds_sm, aes(x = price)) +
+  geom_histogram(binwidth = 500, fill = &quot;#E07B54&quot;, colour = &quot;white&quot;) +  # change me
+  labs(x = &quot;Price (USD)&quot;, y = &quot;Count&quot;)
+# your code here: print(ex_hist)
+#&gt; Expected: visible spike around 4000-5000 with binwidth=500, gone with binwidth=2000</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># binwidth = 500: spike visible
+ggplot(diamonds_sm, aes(x = price)) +
+  geom_histogram(binwidth = 500, fill = &quot;#E07B54&quot;, colour = &quot;white&quot;) +
+  labs(title = &quot;binwidth = 500&quot;, x = &quot;Price (USD)&quot;, y = &quot;Count&quot;)
+
+# binwidth = 2000: spike disappears
+ggplot(diamonds_sm, aes(x = price)) +
+  geom_histogram(binwidth = 2000, fill = &quot;#E07B54&quot;, colour = &quot;white&quot;) +
+  labs(title = &quot;binwidth = 2000 — spike gone&quot;, x = &quot;Price (USD)&quot;, y = &quot;Count&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The spike around $5,000 is a real feature of diamond pricing. At binwidth = 500 it's still visible; at binwidth = 2000 the bar spans $4,000–$6,000 and merges it into the surrounding bars.</p>
+
+</details>
+
+<h2>What Does <code>geom_density()</code> Show — and What Does <code>adjust</code> Control?</h2>
+
+<p>A density plot is a smoothed version of a histogram. Instead of counting observations in bins, it estimates the underlying probability density function using a kernel (usually Gaussian). The result is a continuous curve that shows relative likelihood at each value.</p>
+
+<p>The key parameter is <code>adjust</code>, which scales the automatic bandwidth. <code>adjust = 1</code> (default) is the standard Silverman bandwidth. <code>adjust = 0.5</code> gives a tighter fit; <code>adjust = 2</code> gives a smoother curve. Unlike <code>binwidth</code>, there's no "frequency" on the y-axis — values represent density, not count.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Density plot with different adjust values
+p_density &lt;- ggplot(diamonds_sm, aes(x = price)) +
+  geom_density(adjust = 1, fill = &quot;#4B6FA5&quot;, alpha = 0.4, colour = &quot;#4B6FA5&quot;) +
+  geom_density(adjust = 0.5, colour = &quot;#E07B54&quot;, linewidth = 1, fill = NA) +
+  labs(title = &quot;Density: adjust = 1 (filled) vs 0.5 (orange outline)&quot;,
+       x = &quot;Price (USD)&quot;, y = &quot;Density&quot;)
+print(p_density)
+#&gt; [Plot: two curves — smoother filled one and more wiggly orange one, both right-skewed]</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The default curve (adjust = 1) reveals the right skew and the slight shoulder around $5,000. The tighter curve (adjust = 0.5) shows that shoulder more clearly as a distinct bump. If your data is truly multimodal, a lower adjust can reveal the modes that a default density plot smooths away.</p>
+
+<p>Now here's a powerful combination: overlay the density curve on a histogram to get both exact counts and the smoothed shape. The trick is to use <code>y = after_stat(density)</code> on the histogram so both layers share the same y-scale.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Overlay: histogram + density curve
+p_overlay &lt;- ggplot(diamonds_sm, aes(x = price)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 500,
+                 fill = &quot;#4B6FA5&quot;, alpha = 0.5, colour = &quot;white&quot;) +
+  geom_density(adjust = 1, colour = &quot;#E07B54&quot;, linewidth = 1.2) +
+  labs(title = &quot;Histogram + density overlay&quot;,
+       x = &quot;Price (USD)&quot;, y = &quot;Density&quot;)
+print(p_overlay)
+#&gt; [Plot: grey histogram bars with orange density curve overlaid, same y-axis scale]</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The overlay is ideal for reports: it gives readers the raw data feel of a histogram with the smooth shape of a density curve.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Density plots can suggest precision that doesn't exist.</strong> If your dataset has 50 rows, the smooth curve implies far more certainty about the distribution's shape than the data supports. For small samples (n < 200), histograms are more honest; density plots are better suited to larger datasets.</div></div>
+
+<p><strong>Try it:</strong> Change <code>adjust</code> to <code>0.25</code> in <code>geom_density()</code>. How many peaks appear in the price distribution?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: very tight bandwidth — what structure is revealed?
+ex_density &lt;- ggplot(diamonds_sm, aes(x = price)) +
+  geom_density(adjust = 0.25, fill = &quot;#6BAE6E&quot;, alpha = 0.4) +  # your code here: change adjust
+  labs(x = &quot;Price (USD)&quot;, y = &quot;Density&quot;)
+print(ex_density)
+#&gt; Expected: multiple peaks visible — some real, some noise artefacts</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_density &lt;- ggplot(diamonds_sm, aes(x = price)) +
+  geom_density(adjust = 0.25, fill = &quot;#6BAE6E&quot;, alpha = 0.4) +
+  labs(title = &quot;adjust = 0.25 — many peaks&quot;, x = &quot;Price (USD)&quot;, y = &quot;Density&quot;)
+print(ex_density)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> At adjust = 0.25, you see 5–10+ peaks. Most are noise artefacts caused by oversmoothing in reverse (undersmoothing). The main lesson: very low adjust values pick up random variation as if it were structure.</p>
+
+</details>
+
+<h2>How Do Boxplots Summarise a Distribution — and When Do They Mislead?</h2>
+
+<p>A boxplot compresses your entire distribution into five numbers: minimum (or lower whisker), first quartile (Q1), median, third quartile (Q3), and maximum (or upper whisker). Points beyond the whiskers are plotted individually as outliers.</p>
+
+<p><img src="screenshots/ggplot2-Distribution-Charts-chart-anatomy.webp" alt="Anatomy of a boxplot — each element and what it represents" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Anatomy of a boxplot — the five <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): Aggregate Data by Group (10 Examples)">summary statistics</a> and how outliers are identified.</em></p>
+
+<p>Boxplots excel at comparing multiple groups side by side. The box covers the interquartile range (IQR = Q3 − Q1), which contains the middle 50% of your data. The whiskers extend to 1.5× IQR. Any point beyond that is an <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Grouped boxplot: price by cut quality
+p_box &lt;- ggplot(diamonds_sm, aes(x = cut, y = price, fill = cut)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.3, outlier.size = 1) +
+  scale_fill_brewer(palette = &quot;Blues&quot;) +
+  labs(title = &quot;Diamond price by cut quality&quot;,
+       x = &quot;Cut&quot;, y = &quot;Price (USD)&quot;) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)
+print(p_box)
+#&gt; [Plot: 5 boxplots side by side — Fair cut has highest median price, ideal has lower median]</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Notice something counterintuitive: Fair cut diamonds appear to have a <em>higher</em> median price than Ideal cut. This is actually a real phenomenon driven by confounding — Fair cut diamonds tend to be larger (more carats), which drives price up. Boxplots surface this kind of puzzle quickly.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Boxplots hide multimodality completely.</strong> A distribution with two peaks separated by a valley has the same boxplot as a unimodal distribution with the same quartiles. Always supplement boxplots with a histogram or violin plot when you suspect complex shapes.</div></div>
+
+<p><strong>Try it:</strong> Replace <code>cut</code> with <code>color</code> in the boxplot above. Which color grade has the highest median price?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: boxplot by diamond color grade
+ex_box &lt;- ggplot(diamonds_sm, aes(x = color, y = price, fill = color)) +
+  geom_boxplot(alpha = 0.7) +
+  # your code here: add labs() with title and axis labels
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)
+print(ex_box)
+#&gt; Expected: boxplots for colors D through J, J tends to have highest median</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_box &lt;- ggplot(diamonds_sm, aes(x = color, y = price, fill = color)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.3) +
+  scale_fill_brewer(palette = &quot;Purples&quot;) +
+  labs(title = &quot;Diamond price by color grade&quot;, x = &quot;Color&quot;, y = &quot;Price (USD)&quot;) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)
+print(ex_box)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Color J (worst grade) tends to have the highest median price — again driven by carat size. This counterintuitive pattern illustrates why boxplots are great for surfacing anomalies that demand further investigation.</p>
+
+</details>
+
+<h2>When Should You Use <code>geom_violin()</code> Over a Boxplot?</h2>
+
+<p>A violin plot is a boxplot that grew a density plot on each side. Where a boxplot shows you five numbers, a violin shows you the full shape of the distribution. Thick parts of the violin have many observations; thin parts have few. You can embed a boxplot inside a violin to get both the shape detail and the summary statistics.</p>
+
+<p>Violins are ideal when you have at least 100 observations per group and you suspect or want to reveal multimodality. They can be misleading with very small groups because the kernel density estimate implies a smooth shape that the data doesn't actually support.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Violin plot with embedded mini-boxplot
+p_violin &lt;- ggplot(diamonds_sm, aes(x = cut, y = price, fill = cut)) +
+  geom_violin(alpha = 0.6, trim = FALSE) +
+  geom_boxplot(width = 0.1, fill = &quot;white&quot;, outlier.size = 1, alpha = 0.8) +
+  scale_fill_brewer(palette = &quot;Set2&quot;) +
+  labs(title = &quot;Diamond price distribution by cut&quot;,
+       subtitle = &quot;Violin shape + embedded boxplot&quot;,
+       x = &quot;Cut&quot;, y = &quot;Price (USD)&quot;) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)
+print(p_violin)
+#&gt; [Plot: 5 violins, each with embedded white boxplot — reveals bimodal shape in some groups]</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The violin reveals something the boxplot hides: several cut categories have a bimodal distribution — a peak of low-priced small diamonds and a peak of higher-priced larger ones. The boxplot would show the same median and IQR for a bimodal and unimodal distribution. The violin doesn't let that slide.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The violin is better than the boxplot almost every time you have enough data.</strong> The only reason to prefer a boxplot is when you're comparing more than 8-10 groups (violins get cramped) or when your audience is unfamiliar with violin plots (boxplots are more widely understood in non-statistical audiences).</div></div>
+
+<p><strong>Try it:</strong> Add <code>scale_y_log10()</code> to the violin plot above to handle the extreme right skew. Does the bimodal shape become clearer or less clear on a log scale?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Try it: violin plot on log scale
+ex_violin &lt;- ggplot(diamonds_sm, aes(x = cut, y = price, fill = cut)) +
+  geom_violin(alpha = 0.6, trim = FALSE) +
+  geom_boxplot(width = 0.1, fill = &quot;white&quot;, outlier.size = 0.8) +
+  scale_fill_brewer(palette = &quot;Set2&quot;) +
+  # your code here: add scale_y_log10()
+  labs(x = &quot;Cut&quot;, y = &quot;Price (log scale)&quot;) +
+  theme_minimal() + theme(legend.position = &quot;none&quot;)
+print(ex_violin)
+#&gt; Expected: more symmetric violins, bimodal peaks more visible</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_violin &lt;- ggplot(diamonds_sm, aes(x = cut, y = price, fill = cut)) +
+  geom_violin(alpha = 0.6, trim = FALSE) +
+  geom_boxplot(width = 0.1, fill = &quot;white&quot;, outlier.size = 0.8) +
+  scale_fill_brewer(palette = &quot;Set2&quot;) +
+  scale_y_log10(labels = scales::dollar) +
+  labs(title = &quot;Price by cut (log scale)&quot;, x = &quot;Cut&quot;, y = &quot;Price (log USD)&quot;) +
+  theme_minimal() + theme(legend.position = &quot;none&quot;)
+print(ex_violin)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> Log scale compresses the right tail and stretches the left, making the bimodal structure even more visible. For right-skewed price/income data, log scale almost always reveals more structure than the raw scale.</p>
+
+</details>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Forgetting that <code>geom_histogram()</code> default bins may hide structure</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(diamonds_sm, aes(x = price)) + geom_histogram()
+#&gt; `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it's wrong:</strong> The default 30 bins may be too coarse for your data range. The warning is ggplot2's way of telling you to think about this, but many users ignore it.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(diamonds_sm, aes(x = price)) +
+  geom_histogram(binwidth = 500, colour = &quot;white&quot;) +
+  labs(x = &quot;Price (USD)&quot;, y = &quot;Count&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Using density plots on small samples</h4>
+
+<p>❌ <strong>Wrong:</strong> Using <code>geom_density()</code> on a dataset with n = 40, presenting the smooth curve as if it were reliable.</p>
+
+<p><strong>Why it's wrong:</strong> With small samples, the kernel density estimate is highly sensitive to individual data points. The curve implies smooth structure that isn't there.</p>
+
+<p>✅ <strong>Correct:</strong> Use <code>geom_histogram()</code> for n < 200. If you must use density, add a rug plot (<code>geom_rug()</code>) to show where the actual data points are:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(small_df, aes(x = value)) +
+  geom_density(fill = &quot;#4B6FA5&quot;, alpha = 0.4) +
+  geom_rug(alpha = 0.5) +
+  labs(x = &quot;Value&quot;, y = &quot;Density&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Comparing distributions across groups with separate histograms</h4>
+
+<p>❌ <strong>Wrong:</strong> Making four separate <code>geom_histogram()</code> plots, one per group, and eyeballing the comparison.</p>
+
+<p>✅ <strong>Correct:</strong> Use <code>facet_wrap()</code> with free y-scales if counts differ, or use <code>geom_density()</code> with <code>fill = group, alpha = 0.3</code> for overlapping densities:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(diamonds_sm, aes(x = price, fill = cut)) +
+  geom_density(alpha = 0.3) +
+  labs(x = &quot;Price (USD)&quot;, y = &quot;Density&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Using <code>colour</code> instead of <code>fill</code> for filled geoms</h4>
+
+<p>❌ <strong>Wrong:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(diamonds_sm, aes(x = price)) +
+  geom_histogram(colour = &quot;#4B6FA5&quot;)   # This sets border, not fill!</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Why it's wrong:</strong> <code>colour</code> controls the bar border; <code>fill</code> controls the interior. The result is a histogram with coloured outlines but grey fills.</p>
+
+<p>✅ <strong>Correct:</strong></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">ggplot(diamonds_sm, aes(x = price)) +
+  geom_histogram(fill = &quot;#4B6FA5&quot;, colour = &quot;white&quot;, binwidth = 500)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 5: Forgetting <code>theme(legend.position = &quot;none&quot;)</code> on grouped plots</h4>
+
+<p>When <code>fill = cut</code> is set, ggplot2 adds a legend by default. For grouped boxplots and violins where the x-axis already shows the group names, the legend duplicates information.</p>
+
+<p>✅ <strong>Always add</strong> <code>theme(legend.position = &quot;none&quot;)</code> when your x-axis already labels the groups.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Distribution Audit</h4>
+
+<p>You're given the <code>airquality</code> dataset. Create three plots for the <code>Ozone</code> variable: a histogram (binwidth = 10), a density plot (adjust = 0.8), and a boxplot. Arrange them using <code>patchwork</code> or display them individually. Describe in a comment what shape the distribution has.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: Distribution audit of airquality$Ozone
+library(patchwork)
+
+# Remove NAs first
+my_air &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Month&quot;)])
+
+# Create histogram
+my_hist &lt;- ggplot(my_air, aes(x = Ozone)) +
+  geom_histogram(binwidth = 10, fill = &quot;#4B6FA5&quot;, colour = &quot;white&quot;) +
+  labs(title = &quot;Histogram&quot;, x = &quot;Ozone (ppb)&quot;, y = &quot;Count&quot;)
+
+# Create density plot — your code here
+
+# Create boxplot — your code here
+
+# Combine with patchwork: my_hist + my_density + my_box</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(patchwork)
+my_air &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Month&quot;)])
+
+my_hist &lt;- ggplot(my_air, aes(x = Ozone)) +
+  geom_histogram(binwidth = 10, fill = &quot;#4B6FA5&quot;, colour = &quot;white&quot;) +
+  labs(title = &quot;Histogram&quot;, x = &quot;Ozone (ppb)&quot;, y = &quot;Count&quot;)
+
+my_density &lt;- ggplot(my_air, aes(x = Ozone)) +
+  geom_density(adjust = 0.8, fill = &quot;#4B6FA5&quot;, alpha = 0.4) +
+  labs(title = &quot;Density&quot;, x = &quot;Ozone (ppb)&quot;, y = &quot;Density&quot;)
+
+my_box &lt;- ggplot(my_air, aes(y = Ozone)) +
+  geom_boxplot(fill = &quot;#4B6FA5&quot;, alpha = 0.6) +
+  labs(title = &quot;Boxplot&quot;, y = &quot;Ozone (ppb)&quot;) +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+my_hist + my_density + my_box
+# Distribution is right-skewed with a peak around 20-30 ppb and a long tail to 168 ppb</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> All three charts agree: Ozone is right-skewed. The density plot shows a single mode; the boxplot reveals many outliers above the upper whisker. The histogram is the most honest representation given the moderate sample size (n ≈ 111).</p>
+
+</details>
+
+<h4>Exercise 2: Violin vs Boxplot Comparison</h4>
+
+<p>Using <code>airquality</code>, compare the <code>Temp</code> variable across months (convert <code>Month</code> to a factor). Create a side-by-side comparison: a grouped boxplot on the left and a violin + boxplot on the right. Which months have the most symmetric distributions?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: Boxplot vs violin for temperature by month
+my_air2 &lt;- airquality
+my_air2$Month &lt;- factor(my_air2$Month, labels = c(&quot;May&quot;, &quot;Jun&quot;, &quot;Jul&quot;, &quot;Aug&quot;, &quot;Sep&quot;))
+
+# Grouped boxplot
+my_bp &lt;- ggplot(my_air2, aes(x = Month, y = Temp, fill = Month)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = &quot;Boxplot&quot;, x = NULL, y = &quot;Temperature (F)&quot;) +
+  theme_minimal() + theme(legend.position = &quot;none&quot;)
+
+# Violin + boxplot — your code here
+# my_vp &lt;- ggplot(...) + geom_violin(...) + geom_boxplot(width=0.1, ...) + ...
+
+# Combine: my_bp + my_vp</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_air2 &lt;- airquality
+my_air2$Month &lt;- factor(my_air2$Month, labels = c(&quot;May&quot;, &quot;Jun&quot;, &quot;Jul&quot;, &quot;Aug&quot;, &quot;Sep&quot;))
+
+my_bp &lt;- ggplot(my_air2, aes(x = Month, y = Temp, fill = Month)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = &quot;Boxplot&quot;, x = NULL, y = &quot;Temperature (F)&quot;) +
+  scale_fill_brewer(palette = &quot;Oranges&quot;) +
+  theme_minimal() + theme(legend.position = &quot;none&quot;)
+
+my_vp &lt;- ggplot(my_air2, aes(x = Month, y = Temp, fill = Month)) +
+  geom_violin(alpha = 0.6, trim = FALSE) +
+  geom_boxplot(width = 0.1, fill = &quot;white&quot;, outlier.size = 1) +
+  labs(title = &quot;Violin + Boxplot&quot;, x = NULL, y = &quot;Temperature (F)&quot;) +
+  scale_fill_brewer(palette = &quot;Oranges&quot;) +
+  theme_minimal() + theme(legend.position = &quot;none&quot;)
+
+my_bp + my_vp
+# July and August are most symmetric; May is slightly left-skewed</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+<p><strong>Explanation:</strong> The violin plot reveals what the boxplot can't: July has a relatively uniform distribution across its temperature range, while May shows a distinct concentration at lower temperatures. The shapes are invisible in the boxplot alone.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Let's build a complete distribution analysis of the <code>mpg</code> dataset, working through all four chart types in a coherent narrative. We'll look at city fuel efficiency (<code>cty</code>) across vehicle classes.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Complete example: fuel efficiency distribution analysis
+# All four chart types on the same data
+
+# First, check the data
+cat(&quot;Vehicle classes:&quot;, levels(factor(mpg$class)), &quot;\n&quot;)
+cat(&quot;cty range:&quot;, range(mpg$cty), &quot;\n&quot;)
+#&gt; Vehicle classes: 2seater compact midsize minivan pickup subcompact suv
+#&gt; cty range: 9 33
+
+# 1. Histogram: overall shape
+full_hist &lt;- ggplot(mpg, aes(x = cty)) +
+  geom_histogram(binwidth = 2, fill = &quot;#4B6FA5&quot;, colour = &quot;white&quot;) +
+  labs(title = &quot;Overall: right-skewed with two modes&quot;, x = &quot;City MPG&quot;, y = &quot;Count&quot;)
+
+# 2. Density: smooth shape
+full_density &lt;- ggplot(mpg, aes(x = cty)) +
+  geom_density(fill = &quot;#4B6FA5&quot;, alpha = 0.4, adjust = 1) +
+  labs(title = &quot;Density: bimodal structure&quot;, x = &quot;City MPG&quot;, y = &quot;Density&quot;)
+
+# 3. Boxplot: compare vehicle classes
+full_box &lt;- ggplot(mpg, aes(x = reorder(class, cty, median), y = cty, fill = class)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = &quot;By class: compacts top, pickups/SUVs bottom&quot;,
+       x = &quot;Vehicle Class&quot;, y = &quot;City MPG&quot;) +
+  theme_minimal() + theme(legend.position = &quot;none&quot;)
+
+# 4. Violin: full shape by class  
+full_violin &lt;- ggplot(mpg, aes(x = reorder(class, cty, median), y = cty, fill = class)) +
+  geom_violin(alpha = 0.6, trim = FALSE) +
+  geom_boxplot(width = 0.1, fill = &quot;white&quot;, outlier.size = 0.8) +
+  labs(title = &quot;Violin: compact has widest range&quot;,
+       x = &quot;Vehicle Class&quot;, y = &quot;City MPG&quot;) +
+  theme_minimal() + theme(legend.position = &quot;none&quot;)
+
+# Assemble with patchwork
+library(patchwork)
+combined &lt;- (full_hist + full_density) / (full_box + full_violin)
+print(combined)
+#&gt; [4-panel plot showing progression from global to group-level distribution analysis]</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The two-panel progression tells a coherent story: the histogram reveals bimodality (a cluster of fuel-efficient small cars and a cluster of gas-heavy trucks/SUVs). The density confirms it. The grouped boxplot shows which classes drive each cluster. The violin adds shape detail, revealing that compacts have the widest spread of fuel efficiency within their class.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Chart Type</th>
+<th>Best For</th>
+<th>Key Parameter</th>
+<th>Misleads When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_histogram()</code></td>
+<td>Single variable, raw data feel</td>
+<td><code>binwidth</code></td>
+<td>Binwidth chosen poorly</td>
+</tr>
+<tr>
+<td><code>geom_density()</code></td>
+<td>Smooth shape, large samples</td>
+<td><code>adjust</code></td>
+<td>Small samples (n < 200)</td>
+</tr>
+<tr>
+<td><code>geom_boxplot()</code></td>
+<td>Comparing groups, quick summary</td>
+<td><code>width</code>, <code>outlier.*</code></td>
+<td>Data is bimodal</td>
+</tr>
+<tr>
+<td><code>geom_violin()</code></td>
+<td>Comparing groups + shape detail</td>
+<td><code>adjust</code>, <code>trim</code></td>
+<td>Very small groups</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Quick decision guide:</strong></p>
+
+<ul>
+
+<li>One variable, see exact counts → histogram</li>
+
+<li>One variable, see smooth shape (n > 200) → density</li>
+
+<li>Compare 2+ groups, care about median/IQR → boxplot</li>
+
+<li>Compare 2+ groups, care about shape → violin (+ embedded boxplot)</li>
+
+<li>Combine all → overlay histogram + density, or use patchwork</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Which is better — histogram or density plot?</strong></p>
+
+<p>For small samples (n < 200), histogram is more honest — it shows exactly where data points are. For large samples, density plots reveal smooth shape better. Overlay both for the best of both worlds using <code>y = after_stat(density)</code> on the histogram.</p>
+
+<p><strong>How do I put multiple density curves on one plot?</strong></p>
+
+<p>Map a grouping variable to <code>fill</code> or <code>colour</code> and set <code>alpha = 0.3</code> so overlapping areas are visible: <code>geom_density(aes(fill = group), alpha = 0.3)</code>. More than 4-5 groups gets cluttered — consider ridgeline plots instead.</p>
+
+<p>**What does <code>trim = FALSE</code> do in <code>geom_violin()</code>?**</p>
+
+<p>By default (<code>trim = TRUE</code>), violins are cut at the min and max of the data, giving flat ends. <code>trim = FALSE</code> extends the density estimate beyond the data range, giving rounded tails. Use <code>FALSE</code> when you want to emphasise the tail behaviour.</p>
+
+<p><strong>Why does my boxplot have so many outlier dots?</strong></p>
+
+<p>Outliers are points beyond 1.5× IQR from the quartiles. For skewed distributions (like price or income), the upper whisker is very short and almost everything in the tail shows as an outlier. This isn't wrong — it's telling you the distribution is heavy-tailed. Consider a log transform.</p>
+
+<p>**Can I use <code>geom_boxplot()</code> for a single variable (no groups)?**</p>
+
+<p>Yes: <code>ggplot(df, aes(y = variable)) + geom_boxplot()</code>. The x-axis is meaningless so add <code>theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())</code> to clean it up.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H. — <em>ggplot2: Elegant Graphics for Data Analysis</em>, 3rd Edition. Springer (2016). <a href="https://ggplot2-book.org/">Link</a></li>
+
+<li>ggplot2 documentation — <code>geom_histogram()</code>. <a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html">Link</a></li>
+
+<li>ggplot2 documentation — <code>geom_density()</code>. <a href="https://ggplot2.tidyverse.org/reference/geom_density.html">Link</a></li>
+
+<li>ggplot2 documentation — <code>geom_boxplot()</code>. <a href="https://ggplot2.tidyverse.org/reference/geom_boxplot.html">Link</a></li>
+
+<li>ggplot2 documentation — <code>geom_violin()</code>. <a href="https://ggplot2.tidyverse.org/reference/geom_violin.html">Link</a></li>
+
+<li>R Graph Gallery — "Violin and Boxplot" section. <a href="https://r-graph-gallery.com/violin_and_boxplot_ggplot2.html">Link</a></li>
+
+<li>Wilke, C.O. — <em>Fundamentals of Data Visualization</em>. O'Reilly (2019). Chapter 7: Visualizing Distributions. <a href="https://clauswilke.com/dataviz/histograms-density-plots.html">Link</a></li>
+
+</ol>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a href="ggplot2-Scatter-Plots.html">ggplot2 Scatter Plots</a></strong> — Move from single-variable distributions to bivariate relationships with <code>geom_point()</code>.</li>
+
+<li><strong><a href="ggplot2-Violin-Plot.html">ggplot2 Violin Plot</a></strong> — Deep dive into <code>geom_violin()</code>: embedded jitter, quantile lines, and split violins for paired data.</li>
+
+<li><strong><a href="ggplot2-Ridgeline-Plot.html">ggplot2 Ridgeline Plot</a></strong> — Compare distributions across many groups at once with the <code>ggridges</code> package.</li>
+
+</ul>
