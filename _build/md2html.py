@@ -132,6 +132,7 @@ def convert(md_text):
                             html_block.append(f'    </div>')
                             html_block.append(f'    <pre class="webr-output"></pre>')
                             html_block.append(f'  </div>')
+                            html_block.append(f'  <div class="webr-plot-output"></div>')
                             html_block.append(f'</div>')
                         else:
                             html_block.append(f'<pre><code class="language-r">{code}</code></pre>')
@@ -172,6 +173,7 @@ def convert(md_text):
                 out.append(f'    </div>')
                 out.append(f'    <pre class="webr-output"></pre>')
                 out.append(f'  </div>')
+                out.append(f'  <div class="webr-plot-output"></div>')
                 out.append(f'</div>')
             elif lang == 'r':
                 ecode = escape_html(code)
