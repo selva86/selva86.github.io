@@ -16,6 +16,30 @@ if (toc) {
   });
 }
 
+// === Progress tracking (localStorage) ===
+function getVisited() {
+  try { return JSON.parse(localStorage.getItem('rstat_visited') || '{}'); } catch(e) { return {}; }
+}
+function saveVisited(v) {
+  try { localStorage.setItem('rstat_visited', JSON.stringify(v)); } catch(e) {}
+}
+function getCollapsed() {
+  try { return JSON.parse(localStorage.getItem('rstat_subsec_collapsed') || '{}'); } catch(e) { return {}; }
+}
+function saveCollapsed(c) {
+  try { localStorage.setItem('rstat_subsec_collapsed', JSON.stringify(c)); } catch(e) {}
+}
+
+// Mark current page as visited
+(function() {
+  var page = window.location.pathname.split('/').pop() || 'index.html';
+  if (page) {
+    var visited = getVisited();
+    visited[page] = true;
+    saveVisited(visited);
+  }
+})();
+
 // === Dynamic sidebar from sidebar.json ===
 (function() {
   var currentPage = window.location.pathname.split('/').pop() || 'index.html';
@@ -25,6 +49,8 @@ if (toc) {
   fetch('www/sidebar.json?t=' + Date.now())
     .then(function(r) { return r.json(); })
     .then(function(sections) {
+      var visited = getVisited();
+      var collapsed = getCollapsed();
       var html = '<ul class="sidebar-menu list-unstyled">';
 
       for (var i = 0; i < sections.length; i++) {
@@ -43,14 +69,28 @@ if (toc) {
         html += '</div>';
         html += '<ul class="sidebar-section-items list-unstyled">';
 
+        var subIdx = 0;
         for (var k = 0; k < section.items.length; k++) {
           var item = section.items[k];
           if (item.divider) {
-            html += '<li class="sidebar-divider">' + item.text + '</li>';
+            subIdx++;
+            var subKey = 'sec' + i + 'sub' + subIdx;
+            var isCollapsed = collapsed[subKey] === true;
+            html += '<li class="sidebar-divider sidebar-subsection-toggle" data-subkey="' + subKey + '" data-collapsed="' + isCollapsed + '">';
+            html += '<span class="subsec-chevron">' + (isCollapsed ? '&#9654;' : '&#9660;') + '</span> ';
+            html += item.text;
+            html += '</li>';
             continue;
           }
-          var isActive = (item.href === currentPage);
-          html += '<li><a href="' + item.href + '"' + (isActive ? ' class="active"' : '') + '>' + item.text + '</a></li>';
+          var isActive = item.href === currentPage;
+          var isVisited = visited[item.href] === true;
+          var curSubKey = 'sec' + i + 'sub' + subIdx;
+          var isHidden = subIdx > 0 && collapsed[curSubKey] === true;
+          html += '<li' + (isHidden ? ' style="display:none"' : '') + ' data-subkey="' + curSubKey + '">';
+          html += '<a href="' + item.href + '"' + (isActive ? ' class="active"' : '') + '>';
+          html += '<span class="progress-dot' + (isVisited ? ' visited' : '') + '"></span>';
+          html += item.text;
+          html += '</a></li>';
         }
 
         html += '</ul></li>';
@@ -70,10 +110,28 @@ if (toc) {
         if (first) first.classList.add('expanded');
       }
 
-      // Click handlers for section toggle
+      // Section toggle (top-level)
       sidebarEl.querySelectorAll('.sidebar-section-header').forEach(function(header) {
         header.addEventListener('click', function() {
           this.closest('.sidebar-section').classList.toggle('expanded');
+        });
+      });
+
+      // Subsection toggle
+      sidebarEl.querySelectorAll('.sidebar-subsection-toggle').forEach(function(divider) {
+        divider.addEventListener('click', function() {
+          var key = this.getAttribute('data-subkey');
+          var nowCollapsed = this.getAttribute('data-collapsed') !== 'true';
+          this.setAttribute('data-collapsed', nowCollapsed);
+          this.querySelector('.subsec-chevron').innerHTML = nowCollapsed ? '&#9654;' : '&#9660;';
+
+          var c = getCollapsed();
+          c[key] = nowCollapsed;
+          saveCollapsed(c);
+
+          sidebarEl.querySelectorAll('li[data-subkey="' + key + '"]:not(.sidebar-subsection-toggle)').forEach(function(li) {
+            li.style.display = nowCollapsed ? 'none' : '';
+          });
         });
       });
     })
