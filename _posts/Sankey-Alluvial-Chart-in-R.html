@@ -1,0 +1,583 @@
+---
+title: "Sankey and Alluvial Charts in R with ggalluvial"
+description: "Create alluvial and Sankey charts in R with ggalluvial. Learn geom_alluvium(), geom_stratum(), color flows, and when to use Sankey vs alluvial charts for categorical flow data."
+keywords: "sankey chart R, alluvial chart R, ggalluvial R, R sankey diagram ggplot2, alluvial plot ggplot2, geom_alluvium R"
+mathjax: false
+webr: true
+curriculum_id: "FR-char-10"
+post_type: "FR"
+auto_link_terms: "Sankey chart in R|alluvial chart in R|ggalluvial|geom_alluvium()"
+auto_link_case_sensitive: false
+fr_parent: "ggplot2-Line-Charts.html"
+---
+<!-- md2html:generated -->
+
+<h1>Sankey and Alluvial Charts in R with ggalluvial</h1>
+
+<p class="lead">Alluvial and Sankey charts visualize how observations flow between categorical states — like customers moving between subscription tiers, patients through treatment stages, or votes shifting between parties. In R, <code>ggalluvial</code> builds them inside ggplot2 with <code>geom_alluvium()</code> and <code>geom_stratum()</code>.</p>
+
+<h2>Introduction</h2>
+
+<p>A bar chart shows you where things <em>are</em>. A Sankey or alluvial chart shows you where things <em>came from and went to</em>.</p>
+
+<p>The classic use case: a customer journey analysis. At Month 1, you have 1,000 customers split among three tiers (Free, Basic, Pro). By Month 3, how many upgraded? How many churned? A bar chart per month shows counts — but it can't show the <em>movement</em>. An alluvial chart shows the flows, making conversions and churn immediately visible.</p>
+
+<p>The two chart types are closely related:</p>
+
+<ul>
+
+<li><strong>Alluvial chart</strong> — flows between multiple categorical axes (time points or variables). The data is long-format or frequency table.</li>
+
+<li><strong>Sankey diagram</strong> — a generalized flow diagram where node widths and flow widths encode magnitude. Often used for energy/material flow systems.</li>
+
+</ul>
+
+<p>The <code>ggalluvial</code> package handles both inside ggplot2's grammar, giving you full access to themes, scales, and annotations.</p>
+
+<h2>How do you create a basic alluvial chart in R?</h2>
+
+<p><code>ggalluvial</code> uses two main geoms: <code>geom_stratum()</code> draws the stacked rectangles at each axis (the "strata"), and <code>geom_alluvium()</code> draws the flowing ribbons between them.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(ggalluvial)
+
+# Customer subscription journey: Month 1 → Month 2 → Month 3
+# alluvial format: each row is a combination of categories + frequency
+sub_df &lt;- data.frame(
+  month1 = c(&quot;Free&quot;, &quot;Free&quot;, &quot;Free&quot;, &quot;Basic&quot;, &quot;Basic&quot;, &quot;Basic&quot;, &quot;Pro&quot;, &quot;Pro&quot;),
+  month2 = c(&quot;Free&quot;, &quot;Basic&quot;, &quot;Churned&quot;, &quot;Free&quot;, &quot;Basic&quot;, &quot;Pro&quot;, &quot;Basic&quot;, &quot;Pro&quot;),
+  month3 = c(&quot;Free&quot;, &quot;Basic&quot;, &quot;Churned&quot;, &quot;Churned&quot;, &quot;Basic&quot;, &quot;Pro&quot;, &quot;Pro&quot;, &quot;Pro&quot;),
+  freq   = c(320, 180, 100, 50, 200, 120, 30, 170)
+)
+
+# Basic alluvial chart
+p_basic &lt;- ggplot(sub_df,
+  aes(axis1 = month1, axis2 = month2, axis3 = month3, y = freq)) +
+  geom_alluvium(fill = &quot;steelblue&quot;, alpha = 0.6) +
+  geom_stratum(width = 1/3, fill = &quot;white&quot;, color = &quot;grey60&quot;) +
+  geom_label(stat = &quot;stratum&quot;,
+             aes(label = after_stat(stratum)),
+             size = 3.5) +
+  scale_x_discrete(
+    limits = c(&quot;Month 1&quot;, &quot;Month 2&quot;, &quot;Month 3&quot;),
+    expand = c(0.1, 0.1)
+  ) +
+  labs(title = &quot;Customer Subscription Flow&quot;, y = &quot;Customers&quot;) +
+  theme_minimal()
+
+p_basic</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>axis1</code>, <code>axis2</code>, <code>axis3</code> aesthetics define the stages. <code>y = freq</code> sets the flow width proportional to the number of customers. <code>geom_label(stat = &quot;stratum&quot;)</code> adds labels to each stratum automatically using the stratum values.</p>
+
+<p><strong>Try it:</strong> Change <code>geom_label()</code> to <code>geom_text(stat = &quot;stratum&quot;, aes(label = after_stat(stratum)), size = 3)</code> for labels without boxes.</p>
+
+<h2>How do you color flows by origin?</h2>
+
+<p>Coloring each ribbon by its origin stage (where the flow came from) makes it easy to trace cohorts through the chart.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Color flows by their Month 1 origin
+p_color &lt;- ggplot(sub_df,
+  aes(axis1 = month1, axis2 = month2, axis3 = month3,
+      y = freq, fill = month1)) +   # fill by origin
+  geom_alluvium(alpha = 0.75) +
+  geom_stratum(width = 1/3, fill = &quot;white&quot;, color = &quot;grey50&quot;) +
+  geom_label(stat = &quot;stratum&quot;,
+             aes(label = after_stat(stratum)),
+             size = 3.2, fill = &quot;white&quot;) +
+  scale_fill_manual(
+    values = c(&quot;Free&quot; = &quot;#90CAF9&quot;, &quot;Basic&quot; = &quot;#FFB74D&quot;, &quot;Pro&quot; = &quot;#A5D6A7&quot;),
+    name   = &quot;Starting Tier&quot;
+  ) +
+  scale_x_discrete(
+    limits = c(&quot;Month 1&quot;, &quot;Month 2&quot;, &quot;Month 3&quot;),
+    expand = c(0.1, 0.1)
+  ) +
+  labs(
+    title    = &quot;Customer Flow by Starting Tier&quot;,
+    subtitle = &quot;Color = subscription tier at Month 1&quot;,
+    y        = &quot;Number of Customers&quot;
+  ) +
+  theme_minimal()
+
+p_color</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Now you can follow the blue ribbon (Free tier customers) and see how many stayed Free, upgraded to Basic, or churned. The orange and green ribbons trace Basic and Pro customers respectively.</p>
+
+<p><strong>Try it:</strong> Change <code>fill = month1</code> to <code>fill = month3</code> to color by <em>destination</em> instead of origin. This shifts the story from "where did they start?" to "where did they end up?"</p>
+
+<h2>How do you color flows by destination?</h2>
+
+<p>Coloring by the final stage (<code>month3</code>) gives you a retention/conversion view — all customers ending in "Pro" are green, all churned customers are red.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Color by final destination (Month 3 outcome)
+p_dest &lt;- ggplot(sub_df,
+  aes(axis1 = month1, axis2 = month2, axis3 = month3,
+      y = freq, fill = month3)) +
+  geom_alluvium(alpha = 0.75) +
+  geom_stratum(width = 1/3, fill = &quot;white&quot;, color = &quot;grey50&quot;) +
+  geom_label(stat = &quot;stratum&quot;,
+             aes(label = after_stat(stratum)),
+             size = 3.2, fill = &quot;white&quot;) +
+  scale_fill_manual(
+    values = c(
+      &quot;Free&quot;    = &quot;#90CAF9&quot;,
+      &quot;Basic&quot;   = &quot;#FFB74D&quot;,
+      &quot;Pro&quot;     = &quot;#A5D6A7&quot;,
+      &quot;Churned&quot; = &quot;#EF9A9A&quot;
+    ),
+    name = &quot;Month 3 Outcome&quot;
+  ) +
+  scale_x_discrete(
+    limits = c(&quot;Month 1&quot;, &quot;Month 2&quot;, &quot;Month 3&quot;),
+    expand = c(0.1, 0.1)
+  ) +
+  labs(
+    title    = &quot;Customer Flow Colored by Final Outcome&quot;,
+    subtitle = &quot;Color = subscription status at Month 3&quot;,
+    y        = &quot;Number of Customers&quot;
+  ) +
+  theme_minimal()
+
+p_dest</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The red ribbons (Churned) immediately stand out — you can see which starting tiers contributed most to churn.</p>
+
+<p><strong>Try it:</strong> Add <code>geom_flow(alpha = 0.3)</code> between <code>geom_alluvium()</code> and <code>geom_stratum()</code> — this draws short connecting ribbons between adjacent strata instead of full spanning ribbons. It's a subtly different visual style that's cleaner for many stages.</p>
+
+<h2>How do you use wide-format data with ggalluvial?</h2>
+
+<p>If your data is already in wide format (one row per unique combination of variables, with a frequency column), pass it directly using <code>to_lodes_form()</code> to convert, or use the <code>axes</code> argument directly.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wide format: summarized frequency table
+wide_df &lt;- data.frame(
+  Gender     = c(&quot;M&quot;, &quot;M&quot;, &quot;M&quot;, &quot;F&quot;, &quot;F&quot;, &quot;F&quot;),
+  Department = c(&quot;Eng&quot;, &quot;Sales&quot;, &quot;HR&quot;, &quot;Eng&quot;, &quot;Sales&quot;, &quot;HR&quot;),
+  Level      = c(&quot;Senior&quot;, &quot;Junior&quot;, &quot;Senior&quot;, &quot;Senior&quot;, &quot;Senior&quot;, &quot;Junior&quot;),
+  count      = c(45, 30, 15, 25, 40, 20)
+)
+
+p_wide &lt;- ggplot(wide_df,
+  aes(axis1 = Gender, axis2 = Department, axis3 = Level,
+      y = count, fill = Gender)) +
+  geom_alluvium(alpha = 0.7) +
+  geom_stratum(width = 1/3, fill = &quot;white&quot;, color = &quot;grey60&quot;) +
+  geom_label(stat = &quot;stratum&quot;,
+             aes(label = after_stat(stratum)),
+             size = 3) +
+  scale_fill_manual(values = c(&quot;M&quot; = &quot;#2196F3&quot;, &quot;F&quot; = &quot;#E91E63&quot;)) +
+  scale_x_discrete(
+    limits = c(&quot;Gender&quot;, &quot;Department&quot;, &quot;Level&quot;),
+    expand = c(0.1, 0.1)
+  ) +
+  labs(
+    title = &quot;Employee Distribution: Gender → Department → Level&quot;,
+    y     = &quot;Headcount&quot;,
+    fill  = &quot;Gender&quot;
+  ) +
+  theme_minimal()
+
+p_wide</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><strong>Try it:</strong> Swap the axis order — change <code>axis1 = Department, axis2 = Gender, axis3 = Level</code> — to explore how the visual story changes when you reorder the stages.</p>
+
+<h2>Complete Example: Polished Alluvial Chart</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Polished version with custom theme and annotations
+p_final &lt;- ggplot(sub_df,
+  aes(axis1 = month1, axis2 = month2, axis3 = month3,
+      y = freq, fill = month3)) +
+  geom_alluvium(alpha = 0.8, width = 1/4) +
+  geom_stratum(width = 1/4, fill = &quot;grey95&quot;, color = &quot;grey70&quot;) +
+  geom_text(
+    stat  = &quot;stratum&quot;,
+    aes(label = after_stat(stratum)),
+    size  = 3.5, fontface = &quot;bold&quot;, color = &quot;grey30&quot;
+  ) +
+  scale_fill_manual(
+    values = c(
+      &quot;Free&quot;    = &quot;#42A5F5&quot;,
+      &quot;Basic&quot;   = &quot;#FFA726&quot;,
+      &quot;Pro&quot;     = &quot;#66BB6A&quot;,
+      &quot;Churned&quot; = &quot;#EF5350&quot;
+    ),
+    name = &quot;Month 3 Status&quot;
+  ) +
+  scale_x_discrete(
+    limits = c(&quot;Month 1&quot;, &quot;Month 2&quot;, &quot;Month 3&quot;),
+    expand = c(0.15, 0.1)
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title    = &quot;SaaS Customer Journey: 3-Month Subscription Flow&quot;,
+    subtitle = &quot;Width proportional to customer count | Color = Month 3 outcome&quot;,
+    y        = &quot;Number of Customers&quot;,
+    x        = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title    = element_text(face = &quot;bold&quot;, size = 15),
+    plot.subtitle = element_text(color = &quot;grey50&quot;, size = 11),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor   = element_blank(),
+    legend.position    = &quot;right&quot;
+  )
+
+p_final</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Missing y aesthetic</h4>
+
+<p><code>geom_alluvium()</code> requires <code>y</code> for the flow widths. Without it, ggplot2 will error.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: no y aesthetic
+ggplot(df, aes(axis1 = A, axis2 = B)) + geom_alluvium()
+
+# Correct
+ggplot(df, aes(axis1 = A, axis2 = B, y = freq)) + geom_alluvium()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Not expanding the x-axis</h4>
+
+<p>Without <code>expand</code>, stratum labels get clipped at the plot edges.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Add expand to x axis
+scale_x_discrete(limits = c(&quot;Stage1&quot;, &quot;Stage2&quot;), expand = c(0.15, 0.1))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Too many strata with similar sizes</h4>
+
+<p>When many categories have similar proportions, the strata look like equal-width stacks and the flows become indistinguishable. Consider merging small categories or using a different visualization for granular frequency tables.</p>
+
+<h4>Mistake 4: Choosing Sankey for time series data</h4>
+
+<p>Sankey diagrams show static flows between nodes — not trends over time. For change over time, a line chart or bump chart is more appropriate.</p>
+
+<h4>Mistake 5: Incorrect frequency format</h4>
+
+<p>Each row in your data must represent a unique combination of all axis variables, with <code>y</code> as the count for that combination. If rows represent individual observations, aggregate them first with <code>dplyr::count()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Aggregate first if needed
+df_agg &lt;- df |&gt; count(var1, var2, var3, name = &quot;freq&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Hair and eye color flow</h4>
+
+<p>Using R's built-in <code>HairEyeColor</code> dataset, create an alluvial chart showing the flow from <code>Hair</code> color to <code>Eye</code> color, colored by <code>Eye</code> color. (Hint: <code>as.data.frame(HairEyeColor)</code> converts the table.)</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(ggalluvial)
+
+df &lt;- as.data.frame(HairEyeColor)
+
+ggplot(df, aes(axis1 = Hair, axis2 = Eye, y = Freq, fill = Eye)) +
+  geom_alluvium(alpha = 0.75) +
+  geom_stratum(width = 1/3, fill = &quot;white&quot;, color = &quot;grey60&quot;) +
+  geom_label(stat = &quot;stratum&quot;,
+             aes(label = after_stat(stratum)),
+             size = 3.2, fill = &quot;white&quot;) +
+  scale_fill_manual(
+    values = c(Brown = &quot;#795548&quot;, Blue = &quot;#2196F3&quot;,
+               Hazel = &quot;#8D6E63&quot;, Green = &quot;#4CAF50&quot;)
+  ) +
+  scale_x_discrete(limits = c(&quot;Hair&quot;, &quot;Eye&quot;), expand = c(0.12, 0.1)) +
+  labs(title = &quot;Hair to Eye Color Distribution&quot;, y = &quot;Frequency&quot;, fill = &quot;Eye Color&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h4>Exercise 2: Three-way flow with gender</h4>
+
+<p>Extend Exercise 1 to add <code>Sex</code> as a third axis (<code>axis3</code>). Color by <code>Sex</code>. Do hair/eye patterns differ between males and females?</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(ggalluvial)
+
+df &lt;- as.data.frame(HairEyeColor)
+
+ggplot(df, aes(axis1 = Hair, axis2 = Eye, axis3 = Sex,
+               y = Freq, fill = Sex)) +
+  geom_alluvium(alpha = 0.7) +
+  geom_stratum(width = 1/3, fill = &quot;white&quot;, color = &quot;grey60&quot;) +
+  geom_label(stat = &quot;stratum&quot;,
+             aes(label = after_stat(stratum)),
+             size = 3, fill = &quot;white&quot;) +
+  scale_fill_manual(values = c(Male = &quot;#1565C0&quot;, Female = &quot;#C62828&quot;)) +
+  scale_x_discrete(limits = c(&quot;Hair&quot;, &quot;Eye&quot;, &quot;Sex&quot;), expand = c(0.12, 0.1)) +
+  labs(title = &quot;Hair → Eye → Sex Distribution&quot;, y = &quot;Frequency&quot;, fill = &quot;Sex&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Geom</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_alluvium()</code></td>
+<td>Full-width ribbons spanning all axes</td>
+</tr>
+<tr>
+<td><code>geom_flow()</code></td>
+<td>Short ribbons between adjacent axes only</td>
+</tr>
+<tr>
+<td><code>geom_stratum()</code></td>
+<td>Stacked rectangles at each axis</td>
+</tr>
+<tr>
+<td><code>geom_label(stat = &quot;stratum&quot;)</code></td>
+<td>Auto-positioned stratum labels</td>
+</tr>
+<tr>
+<td><code>geom_text(stat = &quot;stratum&quot;)</code></td>
+<td>Labels without boxes</td>
+</tr>
+</tbody>
+</table>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Key aesthetic</th>
+<th>Maps to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>axis1</code>, <code>axis2</code>, <code>axis3</code></td>
+<td>Categorical stages (left to right)</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>Flow width (required, usually a count/frequency)</td>
+</tr>
+<tr>
+<td><code>fill</code></td>
+<td>Color of ribbons (by origin, destination, or another variable)</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Sankey vs alluvial:</strong></p>
+
+<ul>
+
+<li><strong>Alluvial</strong> — multiple ordinal or time-ordered axes; data is a frequency table</li>
+
+<li><strong>Sankey</strong> — arbitrary flow networks (energy, materials, processes); data is a directed edge list</li>
+
+<li>In R, <code>ggalluvial</code> handles alluvial charts; <code>networkD3::sankeyNetwork()</code> handles true Sankey networks</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between geom_alluvium() and geom_flow()?</strong> <code>geom_alluvium()</code> draws ribbons spanning the entire chart from the first to the last axis. <code>geom_flow()</code> draws only the ribbons between adjacent axes. For many stages, <code>geom_flow()</code> is less tangled.</p>
+
+<p><strong>Can I make an interactive Sankey diagram in R?</strong> Yes — the <code>networkD3</code> package creates interactive Sankey diagrams using D3.js. The <code>sankeyNetwork()</code> function takes a node and link data frame.</p>
+
+<p><strong>How do I handle data that's already long format (one row per individual)?</strong> Aggregate first: <code>df |&gt; count(stage1, stage2, stage3, name = &quot;freq&quot;)</code>. Then use <code>freq</code> as the <code>y</code> aesthetic.</p>
+
+<p><strong>Can I control the vertical order of strata?</strong> Yes — factor level order controls stratum order. Use <code>factor(var, levels = c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;))</code> to set the order before plotting.</p>
+
+<p><strong>Why do my labels overlap the stratum boxes?</strong> Increase the <code>expand</code> parameter in <code>scale_x_discrete()</code> to give more horizontal space at the chart edges: <code>expand = c(0.2, 0.15)</code>.</p>
+
+<h2>References</h2>
+
+<ul>
+
+<li>ggalluvial CRAN vignette: cran.r-project.org/web/packages/ggalluvial</li>
+
+<li>R Graph Gallery — Sankey diagram: r-graph-gallery.com/sankey-diagram.html</li>
+
+<li>Rosvall M. & Bergstrom C.T. (2010). Mapping Change in Large Networks. <em>PLoS ONE</em>.</li>
+
+<li>Wilke C. (2019). <em>Fundamentals of Data Visualization</em> — Chapter 12: Visualizing associations</li>
+
+</ul>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a class="auto-link" href="ggplot2-Line-Charts.html" title="ggplot2 Line Charts: Connect Points, Group by Variable, and Style Lines">ggplot2 Line Charts</a></strong> — the go-to for trends over continuous time</li>
+
+<li><strong>R UpSet Plot</strong> — visualize intersections across many sets</li>
+
+<li><strong><a class="auto-link" href="Treemap-in-R.html" title="Treemap in R with treemapify and ggplot2">Treemap in R</a></strong> — show proportions hierarchically in a single compact chart</li>
+
+</ul>
