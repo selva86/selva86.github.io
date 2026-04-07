@@ -1,0 +1,637 @@
+---
+title: "Lollipop Chart in R: A Cleaner Alternative to Bar Charts"
+description: "Create lollipop charts in R with ggplot2 using geom_segment() and geom_point(). Learn ordering, horizontal layout, color encoding, diverging lollipops, and when lollipops beat bar charts."
+keywords: "lollipop chart R, ggplot2 lollipop, geom_segment geom_point R, lollipop plot ggplot2, R ranked chart, cleveland dot plot R"
+mathjax: false
+webr: true
+curriculum_id: "FR-char-6"
+post_type: "FR"
+auto_link_terms: "lollipop chart in R|lollipop plot in R|ggplot2 lollipop chart"
+auto_link_case_sensitive: false
+fr_parent: "ggplot2-Bar-Charts.html"
+---
+<!-- md2html:generated -->
+
+<h1>Lollipop Chart in R: A Cleaner Alternative to Bar Charts</h1>
+
+<p class="lead">A lollipop chart is a bar chart stripped down to its essentials — a thin line (stem) topped with a dot — built in ggplot2 with <code>geom_segment()</code> and <code>geom_point()</code>.</p>
+
+<h2>Introduction</h2>
+
+<p>Bar charts are workhorses. They communicate magnitude clearly. But when you have 15-25 categories, a dense forest of filled bars becomes visually noisy — the bars dominate the ink budget, and the actual values (the tops of the bars) are lost in the clutter.</p>
+
+<p>A lollipop chart solves this. By replacing the filled bar with a thin line and a single dot, you reduce visual noise and make the data points themselves the focal element. The reader's eye goes directly to the dot, not to a wall of colored rectangles.</p>
+
+<p>The tradeoff is that lollipops are slightly less precise than bars for length comparison — humans are better at comparing bar lengths than dot positions along a line. But when you have many categories and want a clean ranked visualization, lollipops are often the better choice.</p>
+
+<h2>How do you create a basic lollipop chart in R?</h2>
+
+<p>A lollipop chart needs two geoms: <code>geom_segment()</code> for the stem (from 0 to the value) and <code>geom_point()</code> for the dot at the top.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# Sample: average temperature by month
+df &lt;- data.frame(
+  month = month.abb,
+  temp  = c(2, 4, 8, 13, 17, 21, 24, 23, 18, 12, 7, 3)
+)
+df$month &lt;- factor(df$month, levels = month.abb)
+
+# Basic lollipop chart
+p_basic &lt;- ggplot(df, aes(x = month, y = temp)) +
+  geom_segment(
+    aes(x = month, xend = month, y = 0, yend = temp),
+    color = &quot;grey60&quot;, linewidth = 0.8
+  ) +
+  geom_point(color = &quot;steelblue&quot;, size = 4) +
+  labs(
+    title = &quot;Average Monthly Temperature&quot;,
+    x = NULL, y = &quot;Temperature (°C)&quot;
+  ) +
+  theme_minimal()
+
+p_basic</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>geom_segment()</code> takes four coordinates: <code>x</code>, <code>xend</code> (same category on both ends), <code>y = 0</code> (baseline), and <code>yend = temp</code> (the value). <code>geom_point()</code> then places a dot at <code>(month, temp)</code>.</p>
+
+<p><strong>Try it:</strong> Change <code>geom_point(color = &quot;steelblue&quot;, size = 4)</code> to <code>geom_point(shape = 21, fill = &quot;steelblue&quot;, color = &quot;white&quot;, size = 5, stroke = 1.5)</code>. Shape 21 is a hollow circle you can fill — the white stroke creates a clean border.</p>
+
+<h2>How do you order a lollipop chart by value?</h2>
+
+<p>When categories have no natural order (months, countries, products), ordering by value turns a random-looking plot into a clear ranking.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Reorder categories by temperature value
+df_ordered &lt;- df
+df_ordered$month &lt;- reorder(df_ordered$month, df_ordered$temp)
+
+p_ordered &lt;- ggplot(df_ordered, aes(x = month, y = temp)) +
+  geom_segment(
+    aes(x = month, xend = month, y = 0, yend = temp),
+    color = &quot;grey60&quot;, linewidth = 0.8
+  ) +
+  geom_point(color = &quot;steelblue&quot;, size = 4) +
+  labs(
+    title = &quot;Monthly Temperature — Ranked Lowest to Highest&quot;,
+    x = NULL, y = &quot;Temperature (°C)&quot;
+  ) +
+  theme_minimal()
+
+p_ordered</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>reorder(month, temp)</code> reorders the factor levels of <code>month</code> by ascending <code>temp</code>. The chart now reads left-to-right from coldest to warmest.</p>
+
+<p><strong>Try it:</strong> Change <code>reorder(df_ordered$month, df_ordered$temp)</code> to <code>reorder(df_ordered$month, -df_ordered$temp)</code> to sort descending (highest first).</p>
+
+<h2>How do you make a horizontal lollipop chart?</h2>
+
+<p>When category names are long — country names, product names, multi-word labels — flip the axes so labels run horizontally and are readable without tilting your head.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Horizontal lollipop: switch x and y, use long category names
+countries &lt;- data.frame(
+  country = c(&quot;Norway&quot;, &quot;Switzerland&quot;, &quot;Ireland&quot;, &quot;Germany&quot;,
+               &quot;Denmark&quot;, &quot;Austria&quot;, &quot;Belgium&quot;, &quot;Luxembourg&quot;,
+               &quot;Sweden&quot;, &quot;Australia&quot;),
+  hdi = c(0.961, 0.962, 0.945, 0.942, 0.948, 0.916, 0.937, 0.930, 0.947, 0.946)
+)
+countries$country &lt;- reorder(countries$country, countries$hdi)
+
+p_horiz &lt;- ggplot(countries, aes(x = country, y = hdi)) +
+  geom_segment(
+    aes(x = country, xend = country, y = 0.9, yend = hdi),
+    color = &quot;grey60&quot;, linewidth = 0.8
+  ) +
+  geom_point(color = &quot;#1565C0&quot;, size = 4) +
+  coord_flip() +                # flip to horizontal
+  labs(
+    title = &quot;Human Development Index — Top Countries&quot;,
+    x = NULL, y = &quot;HDI Score&quot;
+  ) +
+  theme_minimal()
+
+p_horiz</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>coord_flip()</code> swaps x and y axes — country names now run vertically on the left, values extend horizontally. Note that <code>y = 0.9</code> in <code>geom_segment()</code> sets the baseline at 0.9 (not 0), since all HDI values are close to 1. Starting from 0 would make tiny differences invisible.</p>
+
+<p><strong>Try it:</strong> Change the baseline from <code>y = 0.9</code> to <code>y = 0</code> to see how a zero baseline changes the apparent differences between countries.</p>
+
+<h2>How do you color lollipops above and below a threshold?</h2>
+
+<p>Coloring by a condition (above/below average, above/below zero, pass/fail threshold) adds a semantic layer that helps readers immediately see which categories are "good" vs "bad".</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Color by above/below average temperature
+avg_temp &lt;- mean(df$temp)
+
+df$status &lt;- ifelse(df$temp &gt;= avg_temp, &quot;Above average&quot;, &quot;Below average&quot;)
+
+p_color &lt;- ggplot(df, aes(x = month, y = temp, color = status)) +
+  geom_hline(yintercept = avg_temp, linetype = &quot;dashed&quot;,
+             color = &quot;grey50&quot;, linewidth = 0.6) +
+  geom_segment(
+    aes(x = month, xend = month, y = avg_temp, yend = temp),
+    linewidth = 0.8
+  ) +
+  geom_point(size = 4) +
+  scale_color_manual(
+    values = c(&quot;Above average&quot; = &quot;#E53935&quot;, &quot;Below average&quot; = &quot;#1565C0&quot;)
+  ) +
+  annotate(&quot;text&quot;, x = 0.7, y = avg_temp + 0.8,
+           label = paste0(&quot;Avg: &quot;, round(avg_temp, 1), &quot;°C&quot;),
+           size = 3.5, color = &quot;grey40&quot;, hjust = 0) +
+  labs(
+    title  = &quot;Monthly Temperature vs Annual Average&quot;,
+    x = NULL, y = &quot;Temperature (°C)&quot;, color = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = &quot;top&quot;)
+
+p_color</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The stems now start at <code>avg_temp</code> (not 0) and extend to each value. Red dots are above average, blue are below — the diverging stems from the reference line make the pattern immediately visible.</p>
+
+<p><strong>Try it:</strong> Change the reference from <code>avg_temp</code> to <code>15</code> (a round number) and see how choosing a different threshold changes the story.</p>
+
+<h2>How do you create a diverging lollipop chart?</h2>
+
+<p>A diverging lollipop encodes positive values pointing right (or up) and negative values pointing left (or down). It's perfect for showing change, deviation, or gain/loss.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Diverging lollipop: year-over-year change by sector
+div_df &lt;- data.frame(
+  sector = c(&quot;Technology&quot;, &quot;Healthcare&quot;, &quot;Finance&quot;, &quot;Energy&quot;,
+             &quot;Consumer&quot;, &quot;Utilities&quot;, &quot;Materials&quot;, &quot;Industrials&quot;),
+  change = c(18.5, 12.3, -4.1, -9.7, 6.2, -2.8, 3.4, 8.1)
+)
+div_df$sector &lt;- reorder(div_df$sector, div_df$change)
+div_df$direction &lt;- ifelse(div_df$change &gt;= 0, &quot;Positive&quot;, &quot;Negative&quot;)
+
+p_diverg &lt;- ggplot(div_df, aes(x = sector, y = change, color = direction)) +
+  geom_hline(yintercept = 0, color = &quot;grey40&quot;, linewidth = 0.5) +
+  geom_segment(
+    aes(x = sector, xend = sector, y = 0, yend = change),
+    linewidth = 0.9
+  ) +
+  geom_point(size = 4) +
+  geom_text(
+    aes(label = paste0(ifelse(change &gt; 0, &quot;+&quot;, &quot;&quot;), change, &quot;%&quot;)),
+    hjust = ifelse(div_df$change &gt;= 0, -0.3, 1.3),
+    size = 3.2, fontface = &quot;bold&quot;
+  ) +
+  scale_color_manual(values = c(&quot;Positive&quot; = &quot;#2E7D32&quot;, &quot;Negative&quot; = &quot;#C62828&quot;)) +
+  coord_flip() +
+  labs(
+    title    = &quot;Sector Performance — Year-over-Year Change&quot;,
+    subtitle = &quot;Percentage change vs. prior year&quot;,
+    x = NULL, y = &quot;Change (%)&quot;, color = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;,
+        panel.grid.major.y = element_blank())
+
+p_diverg</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>Value labels are placed to the right of positive dots and to the left of negative dots using <code>hjust = ifelse(change &gt;= 0, -0.3, 1.3)</code>. This keeps labels from overlapping the stems.</p>
+
+<p><strong>Try it:</strong> Remove <code>+ theme(legend.position = &quot;none&quot;)</code> to show the legend. Then try removing the <code>geom_text()</code> layer entirely — do you still know which bars are positive vs negative? This is the difference between encoding the sign (stem direction) and annotating the magnitude.</p>
+
+<h2>Complete Example: Polished Lollipop Chart</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Polished lollipop: programming language popularity
+pop_df &lt;- data.frame(
+  language = c(&quot;Python&quot;, &quot;JavaScript&quot;, &quot;TypeScript&quot;, &quot;Java&quot;, &quot;C#&quot;,
+               &quot;C++&quot;, &quot;PHP&quot;, &quot;Shell&quot;, &quot;R&quot;, &quot;Swift&quot;),
+  usage_pct = c(51.1, 62.3, 38.5, 30.6, 27.1, 23.0, 18.2, 19.8, 12.9, 9.5)
+)
+pop_df$language &lt;- reorder(pop_df$language, pop_df$usage_pct)
+
+# Highlight R
+pop_df$highlight &lt;- pop_df$language == &quot;R&quot;
+
+p_final &lt;- ggplot(pop_df, aes(x = language, y = usage_pct)) +
+  geom_segment(
+    aes(x = language, xend = language, y = 0, yend = usage_pct,
+        color = highlight),
+    linewidth = 0.9, show.legend = FALSE
+  ) +
+  geom_point(
+    aes(color = highlight),
+    size = 4.5, show.legend = FALSE
+  ) +
+  geom_text(
+    aes(label = paste0(usage_pct, &quot;%&quot;)),
+    hjust = -0.4, size = 3.2, color = &quot;grey30&quot;
+  ) +
+  scale_color_manual(values = c(&quot;FALSE&quot; = &quot;steelblue&quot;, &quot;TRUE&quot; = &quot;#E53935&quot;)) +
+  coord_flip() +
+  scale_y_continuous(limits = c(0, 75), labels = function(x) paste0(x, &quot;%&quot;)) +
+  labs(
+    title    = &quot;Programming Language Popularity&quot;,
+    subtitle = &quot;% of developers using the language (Stack Overflow 2023)&quot;,
+    x = NULL, y = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title    = element_text(face = &quot;bold&quot;),
+    plot.subtitle = element_text(color = &quot;grey50&quot;, size = 11),
+    panel.grid.major.y = element_blank(),
+    axis.text.y   = element_text(face = ifelse(levels(pop_df$language) == &quot;R&quot;, &quot;bold&quot;, &quot;plain&quot;))
+  )
+
+p_final</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Forgetting to set the baseline to 0 (or the right reference)</h4>
+
+<p>❌ Omitting <code>y = 0</code> in <code>geom_segment()</code> makes stems appear as floating lines.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: y must be the baseline
+geom_segment(aes(x = cat, xend = cat, yend = value))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>✅ Always specify both endpoints:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct
+geom_segment(aes(x = cat, xend = cat, y = 0, yend = value))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 2: Not ordering categories</h4>
+
+<p>❌ Alphabetical or arbitrary category order makes it impossible to see ranking.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: default alphabetical order
+ggplot(df, aes(x = country, y = gdp))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>✅ Reorder by value when categories have no natural order.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Correct
+df$country &lt;- reorder(df$country, df$gdp)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 3: Using lollipops for time series</h4>
+
+<p>Lollipops imply ranked comparison. For temporal data (months, years), a line chart communicates the trend better. Lollipops work for time when you want to emphasize individual period values rather than trend.</p>
+
+<h4>Mistake 4: Tiny dots on thick stems</h4>
+
+<p>When <code>size</code> (dot) is smaller than <code>linewidth</code> (stem), the dot disappears behind the stem. Keep the dot visually dominant.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Wrong: stem too thick relative to dot
+geom_segment(linewidth = 3) + geom_point(size = 2)
+
+# Correct: dot should be visually larger than stem
+geom_segment(linewidth = 0.8) + geom_point(size = 4)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 5: Overlapping x-axis labels</h4>
+
+<p>Long category labels on a vertical lollipop chart get clipped or overlap. Fix: use <code>coord_flip()</code> for horizontal layout, or rotate labels with <code>theme(axis.text.x = element_text(angle = 45, hjust = 1))</code>.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Ranked lollipop</h4>
+
+<p>Create a horizontal lollipop chart using the <code>mtcars</code> dataset, showing average <code>mpg</code> by number of cylinders (<code>cyl</code>). Order by <code>mpg</code> descending (highest mpg on top).</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+cyl_mpg &lt;- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
+cyl_mpg$cyl  &lt;- paste(cyl_mpg$cyl, &quot;cylinders&quot;)
+cyl_mpg$cyl  &lt;- reorder(cyl_mpg$cyl, cyl_mpg$mpg)
+
+ggplot(cyl_mpg, aes(x = cyl, y = mpg)) +
+  geom_segment(aes(x = cyl, xend = cyl, y = 0, yend = mpg),
+               color = &quot;grey60&quot;, linewidth = 0.9) +
+  geom_point(color = &quot;steelblue&quot;, size = 5) +
+  coord_flip() +
+  labs(title = &quot;Average MPG by Cylinder Count&quot;,
+       x = NULL, y = &quot;Miles per Gallon&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h4>Exercise 2: Diverging lollipop for deviations</h4>
+
+<p>Using <code>airquality</code>, compute the average <code>Temp</code> per month, then calculate each month's deviation from the overall mean. Create a diverging lollipop chart (horizontal) with green for above-average months and orange for below-average months.</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+monthly &lt;- aggregate(Temp ~ Month, data = airquality, FUN = mean)
+monthly$dev &lt;- monthly$Temp - mean(monthly$Temp)
+monthly$direction &lt;- ifelse(monthly$dev &gt;= 0, &quot;Above&quot;, &quot;Below&quot;)
+monthly$Month &lt;- factor(month.abb[monthly$Month], levels = month.abb[monthly$Month])
+monthly$Month &lt;- reorder(monthly$Month, monthly$dev)
+
+ggplot(monthly, aes(x = Month, y = dev, color = direction)) +
+  geom_hline(yintercept = 0, color = &quot;grey40&quot;, linewidth = 0.5) +
+  geom_segment(aes(x = Month, xend = Month, y = 0, yend = dev),
+               linewidth = 0.9) +
+  geom_point(size = 4) +
+  scale_color_manual(values = c(&quot;Above&quot; = &quot;#2E7D32&quot;, &quot;Below&quot; = &quot;#E65100&quot;)) +
+  coord_flip() +
+  labs(title = &quot;Monthly Temperature Deviation from Mean&quot;,
+       subtitle = &quot;New York, 1973 (airquality dataset)&quot;,
+       x = NULL, y = &quot;Deviation (°F)&quot;, color = NULL) +
+  theme_minimal() +
+  theme(legend.position = &quot;top&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Basic lollipop</td>
+<td><code>geom_segment(aes(y=0, yend=val)) + geom_point()</code></td>
+</tr>
+<tr>
+<td>Order by value</td>
+<td><code>reorder(category, value)</code></td>
+</tr>
+<tr>
+<td>Horizontal layout</td>
+<td><code>+ coord_flip()</code></td>
+</tr>
+<tr>
+<td>Color by condition</td>
+<td><code>ifelse()</code> variable + <code>scale_color_manual()</code></td>
+</tr>
+<tr>
+<td>Diverging lollipop</td>
+<td>Baseline at 0, stems extend positive/negative</td>
+</tr>
+<tr>
+<td>Value labels</td>
+<td><code>geom_text(aes(label = val), hjust = -0.3)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Lollipop vs bar chart:</strong></p>
+
+<ul>
+
+<li>Use a <strong>lollipop</strong> when you have many categories (15+), when the visual clutter of filled bars is distracting, or when you want to emphasize the value position rather than the bar fill area.</li>
+
+<li>Use a <strong>bar chart</strong> when precise length comparison matters, when you need filled color for grouping, or when your audience is less familiar with lollipop charts.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between a lollipop chart and a Cleveland dot plot?</strong> A Cleveland dot plot shows dots only — no stems. It's used to compare multiple groups per category (two dots per row, one per group). A lollipop has a stem from zero and is used for single-variable ranked comparisons.</p>
+
+<p><strong>Can I add multiple lollipops per category (grouped lollipops)?</strong> Yes — use <code>position_dodge()</code> in both <code>geom_segment()</code> and <code>geom_point()</code>, similar to a grouped bar chart. But more than 2 groups gets cluttered; consider small multiples instead.</p>
+
+<p><strong>How do I add value labels that don't overlap the dots?</strong> Use <code>hjust = -0.3</code> for vertical lollipops (labels to the right of dots) or <code>hjust = 1.3</code> for labels to the left. For horizontal charts, use <code>vjust = -0.5</code> (above) or <code>vjust = 1.5</code> (below).</p>
+
+<p><strong>Is there a dedicated lollipop geom in ggplot2?</strong> No — you <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> it from <code>geom_segment()</code> + <code>geom_point()</code>. The <code>ggalt</code> package has <code>geom_lollipop()</code> as a convenience wrapper, but the base ggplot2 approach gives more flexibility.</p>
+
+<h2>References</h2>
+
+<ul>
+
+<li>Wickham H. (2016). <em>ggplot2: Elegant Graphics for Data Analysis</em>. Springer.</li>
+
+<li>R Graph Gallery — Lollipop chart: r-graph-gallery.com/lollipop-plot.html</li>
+
+<li>Wilke C. (2019). <em>Fundamentals of Data Visualization</em> — Chapter 6: Visualizing amounts</li>
+
+<li>data-to-viz.com — Lollipop chart</li>
+
+</ul>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a class="auto-link" href="ggplot2-Bar-Charts.html" title="ggplot2 Bar Charts: geom_bar(), geom_col(), Stacked, Dodged and Ordered">ggplot2 Bar Charts</a></strong> — the classic alternative for comparing categorical magnitudes</li>
+
+<li><strong><a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">Error Bars</a> in ggplot2</strong> — add uncertainty intervals to your point estimates</li>
+
+<li><strong>R Waffle Chart</strong> — display counts as a grid of unit squares for intuitive proportions</li>
+
+</ul>
