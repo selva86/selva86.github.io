@@ -1,0 +1,560 @@
+---
+title: "geom_smooth in R: Add Trend Lines and Confidence Bands to Plots"
+description: "Master geom_smooth() in ggplot2. Learn LOESS vs. linear vs. polynomial smooths, adjust span, control confidence bands, and add custom smooths with formula and method arguments."
+keywords: "geom_smooth R, ggplot2 trend line, loess R ggplot2, geom_smooth method lm, confidence band ggplot2, R smooth line scatter plot"
+mathjax: false
+webr: true
+curriculum_id: "FR-char-8"
+post_type: "FR"
+auto_link_terms: "geom_smooth()|ggplot2 trend line|loess smooth R|regression line ggplot2"
+auto_link_case_sensitive: false
+fr_parent: "ggplot2-Scatter-Plots.html"
+---
+<!-- md2html:generated -->
+
+<h1>geom_smooth in R: Add Trend Lines and Confidence Bands to Plots</h1>
+
+<p class="lead"><code>geom_smooth()</code> adds a smooth trend line to a ggplot2 scatter plot — either a LOESS curve (default for n &lt; 1,000), a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> line (<code>method = "lm"</code>), or any other statistical model you specify.</p>
+
+<h2>Introduction</h2>
+
+<p>A scatter plot shows individual data points. <code>geom_smooth()</code> reveals the overall pattern by fitting a line or curve through the noise. The result — a trend line with a shaded confidence band — gives readers two things at once: the direction and shape of the relationship, and how certain you are about that shape.</p>
+
+<p>The key decision is <em>which</em> type of smooth to use. <code>geom_smooth()</code> supports several:</p>
+
+<ul>
+
+<li><strong>LOESS</strong> (default for small data) — a flexible local polynomial that finds curves automatically. Great for exploration, hard to interpret as a model.</li>
+
+<li><strong>lm</strong> — straight linear regression line. Simple, interpretable, assumes linearity.</li>
+
+<li><strong>Polynomial</strong> — curved regression using <code>poly()</code>. Captures curvature while staying interpretable.</li>
+
+<li><strong>GAM</strong> — generalized additive model (default for n ≥ 1,000). Flexible like LOESS but with penalized smoothing.</li>
+
+</ul>
+
+<p>This post walks through each option with working code, explains the confidence band, and shows common mistakes that send readers to the wrong conclusions.</p>
+
+<h2>What does geom_smooth() do by default?</h2>
+
+<p>With no arguments, <code>geom_smooth()</code> fits a LOESS curve (locally estimated scatterplot smoothing) for datasets under 1,000 observations.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# Default geom_smooth: LOESS with 95% confidence band
+p_loess &lt;- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(alpha = 0.4, color = &quot;steelblue&quot;) +
+  geom_smooth() +   # defaults: method=&quot;loess&quot;, se=TRUE, level=0.95
+  labs(
+    title = &quot;Engine Displacement vs Highway MPG&quot;,
+    x     = &quot;Engine Displacement (L)&quot;,
+    y     = &quot;Highway MPG&quot;
+  ) +
+  theme_minimal()
+
+p_loess</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The blue line is the LOESS fit — a local polynomial that adapts to the shape of the data. The grey ribbon is the 95% confidence band: you can be 95% confident the true smooth passes through this band at each x-value.</p>
+
+<p><strong>Try it:</strong> Add <code>span = 0.3</code> inside <code>geom_smooth()</code> to make the LOESS more responsive to local fluctuations (wigglier). Then try <code>span = 1.5</code> for a smoother curve. The default <code>span = 0.75</code> is a balance between the two.</p>
+
+<h2>How do you add a linear regression line?</h2>
+
+<p>LOESS is flexible but hard to interpret quantitatively. When you want to say "for every 1 unit increase in x, y changes by...", use <code>method = &quot;lm&quot;</code> for a straight regression line.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Linear regression line
+p_lm &lt;- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(alpha = 0.4, color = &quot;steelblue&quot;) +
+  geom_smooth(
+    method  = &quot;lm&quot;,        # fit a linear model
+    formula = y ~ x,       # y ~ x is the default for lm
+    color   = &quot;#E53935&quot;,
+    fill    = &quot;#EF9A9A&quot;,   # CI band color
+    linewidth = 1
+  ) +
+  labs(
+    title   = &quot;Engine Displacement vs Highway MPG (Linear Fit)&quot;,
+    x       = &quot;Engine Displacement (L)&quot;,
+    y       = &quot;Highway MPG&quot;,
+    caption = &quot;Shaded region = 95% confidence interval&quot;
+  ) +
+  theme_minimal()
+
+p_lm</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>formula = y ~ x</code> argument is optional but good practice — it makes explicit which model you're fitting. For a simple linear regression this is always <code>y ~ x</code>.</p>
+
+<p><strong>Try it:</strong> Add <code>se = FALSE</code> inside <code>geom_smooth()</code> to remove the confidence band. This is useful in presentations where the band distracts from the trend, or when you've communicated uncertainty separately.</p>
+
+<h2>How do you fit a polynomial (curved) regression line?</h2>
+
+<p>When the relationship is clearly curved — like the U-shape in many biological dose-response relationships — a polynomial smooth fits a curve while remaining interpretable as a model.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Polynomial fit: y ~ poly(x, 2) = quadratic curve
+p_poly &lt;- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(alpha = 0.4, color = &quot;steelblue&quot;) +
+  geom_smooth(
+    method  = &quot;lm&quot;,
+    formula = y ~ poly(x, 2),   # quadratic: x + x^2
+    color   = &quot;#7B1FA2&quot;,
+    linewidth = 1
+  ) +
+  labs(
+    title   = &quot;Engine Displacement vs Highway MPG (Quadratic Fit)&quot;,
+    x       = &quot;Engine Displacement (L)&quot;,
+    y       = &quot;Highway MPG&quot;,
+    caption = &quot;Quadratic regression: y ~ poly(x, 2)&quot;
+  ) +
+  theme_minimal()
+
+p_poly</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p><code>poly(x, 2)</code> fits a quadratic term (second-degree polynomial). <code>poly(x, 3)</code> would fit a cubic. Keep the degree as low as possible that captures the real curvature — higher-degree polynomials overfit at the extremes.</p>
+
+<p><strong>Try it:</strong> Compare <code>formula = y ~ poly(x, 2)</code> (quadratic) with <code>formula = y ~ poly(x, 3)</code> (cubic). Does the extra degree buy you anything, or does the curve just wiggle more at the edges?</p>
+
+<h2>How do you control the confidence band?</h2>
+
+<p>The shaded confidence band has several adjustable properties: its presence, width (confidence level), color, and transparency.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Customize the confidence band
+p_ci &lt;- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(alpha = 0.4, color = &quot;steelblue&quot;) +
+  # 99% CI, custom band color and transparency
+  geom_smooth(
+    method    = &quot;lm&quot;,
+    formula   = y ~ x,
+    se        = TRUE,       # show CI band (default TRUE, set FALSE to hide)
+    level     = 0.99,       # 99% confidence instead of 95%
+    color     = &quot;#1565C0&quot;,
+    fill      = &quot;#90CAF9&quot;,
+    alpha     = 0.3,        # band transparency
+    linewidth = 1.2
+  ) +
+  labs(
+    title   = &quot;Linear Fit with 99% Confidence Band&quot;,
+    x       = &quot;Engine Displacement (L)&quot;,
+    y       = &quot;Highway MPG&quot;,
+    caption = &quot;Shaded region = 99% confidence interval&quot;
+  ) +
+  theme_minimal()
+
+p_ci</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The <code>level</code> argument defaults to 0.95. Increasing to 0.99 widens the band — you're claiming higher confidence, which requires a wider interval. Reducing to 0.90 narrows the band.</p>
+
+<p><strong>Try it:</strong> Change <code>level = 0.99</code> to <code>level = 0.50</code> (50% CI). Notice the band becomes very narrow — not because the model is highly certain, but because you're only claiming 50% confidence. This illustrates that the CI width is driven by your chosen confidence level, not just the data.</p>
+
+<h2>How do you draw separate smooth lines per group?</h2>
+
+<p>When <code>color</code> or <code>group</code> is mapped to a variable, <code>geom_smooth()</code> automatically fits a separate smooth for each group.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Per-group smooths — one per drive type
+p_group &lt;- ggplot(mpg, aes(x = displ, y = hwy, color = drv, fill = drv)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x, linewidth = 1.1, alpha = 0.15) +
+  scale_color_manual(
+    values = c(&quot;4&quot; = &quot;#E53935&quot;, &quot;f&quot; = &quot;#1565C0&quot;, &quot;r&quot; = &quot;#2E7D32&quot;),
+    labels = c(&quot;4&quot; = &quot;4WD&quot;, &quot;f&quot; = &quot;Front-wheel&quot;, &quot;r&quot; = &quot;Rear-wheel&quot;)
+  ) +
+  scale_fill_manual(
+    values = c(&quot;4&quot; = &quot;#EF9A9A&quot;, &quot;f&quot; = &quot;#90CAF9&quot;, &quot;r&quot; = &quot;#A5D6A7&quot;),
+    labels = c(&quot;4&quot; = &quot;4WD&quot;, &quot;f&quot; = &quot;Front-wheel&quot;, &quot;r&quot; = &quot;Rear-wheel&quot;)
+  ) +
+  labs(
+    title  = &quot;Engine Displacement vs MPG by Drive Type&quot;,
+    x      = &quot;Engine Displacement (L)&quot;, y = &quot;Highway MPG&quot;,
+    color  = &quot;Drive Type&quot;, fill = &quot;Drive Type&quot;
+  ) +
+  theme_minimal()
+
+p_group</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<p>The slope of each line tells a story: rear-wheel drive cars show a steeper fuel-efficiency penalty as engine displacement increases. Front-wheel drive cars maintain better fuel economy across sizes.</p>
+
+<p><strong>Try it:</strong> Add <code>method = &quot;loess&quot;</code> (no quotes needed, that's the default) to use LOESS per group instead of linear fits. Compare the two — do the linear fits miss any important curvature?</p>
+
+<h2>Complete Example: Multi-layer Smooth Plot</h2>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Show both LOESS and LM on the same plot for comparison
+p_final &lt;- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(alpha = 0.25, color = &quot;grey50&quot;) +
+  # LOESS smooth (flexible)
+  geom_smooth(
+    method = &quot;loess&quot;, formula = y ~ x,
+    color = &quot;#1565C0&quot;, fill = &quot;#90CAF9&quot;,
+    linewidth = 1, linetype = &quot;solid&quot;,
+    alpha = 0.15, se = TRUE
+  ) +
+  # Linear regression line (no band, for contrast)
+  geom_smooth(
+    method = &quot;lm&quot;, formula = y ~ x,
+    color = &quot;#C62828&quot;,
+    linewidth = 1, linetype = &quot;dashed&quot;,
+    se = FALSE
+  ) +
+  annotate(&quot;text&quot;, x = 6, y = 38, label = &quot;LOESS&quot;, color = &quot;#1565C0&quot;, fontface = &quot;bold&quot;, size = 4) +
+  annotate(&quot;text&quot;, x = 6, y = 35, label = &quot;Linear&quot;, color = &quot;#C62828&quot;, fontface = &quot;bold&quot;, size = 4) +
+  labs(
+    title    = &quot;Displacement vs Highway MPG&quot;,
+    subtitle = &quot;Blue = LOESS smooth with 95% CI | Red dashed = linear regression&quot;,
+    x        = &quot;Engine Displacement (L)&quot;,
+    y        = &quot;Highway MPG&quot;
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(plot.title = element_text(face = &quot;bold&quot;),
+        plot.subtitle = element_text(color = &quot;grey50&quot;, size = 11))
+
+p_final</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h2>Common Mistakes and How to Fix Them</h2>
+
+<h4>Mistake 1: Using LOESS for extrapolation</h4>
+
+<p>LOESS only smooths within the range of your observed data — it cannot reliably extend beyond it. Use <code>method = &quot;lm&quot;</code> or <code>method = &quot;gam&quot;</code> when you need to predict outside the data range.</p>
+
+<h4>Mistake 2: Ignoring the warning about method selection</h4>
+
+<p>When n ≥ 1,000, ggplot2 silently switches from LOESS to GAM. If you see "geom_smooth() using method = 'gam' and formula = 'y ~ s(x, bs = \"cs\")'", you're no longer fitting LOESS. Be explicit: <code>method = &quot;loess&quot;</code> or <code>method = &quot;gam&quot;</code>.</p>
+
+<h4>Mistake 3: Treating the CI band as a prediction interval</h4>
+
+<p>The confidence band shows where the <em>true smooth/line</em> likely falls — not where individual new observations would fall. A prediction interval would be much wider.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># The CI band is NOT a prediction interval
+# For individual prediction bounds, compute them from predict() manually</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 4: Forgetting formula = y ~ x with method = "lm"</h4>
+
+<p>Without the explicit formula, ggplot2 may issue a warning. Always pair <code>method = &quot;lm&quot;</code> with <code>formula = y ~ x</code> (or your polynomial formula).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Add formula explicitly
+geom_smooth(method = &quot;lm&quot;, formula = y ~ x)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+</div>
+
+<h4>Mistake 5: Too many group smooths on one plot</h4>
+
+<p>More than 3-4 group-specific smooth lines creates a tangled spaghetti plot. Use <code>facet_wrap()</code> when you have many groups.</p>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: LOESS vs linear</h4>
+
+<p>Using <code>cars</code> (speed vs dist), create a scatter plot with two overlaid <code>geom_smooth()</code> layers: one LOESS (default), one linear (method = "lm"). Use different colors and remove the CI band from the linear fit for clarity.</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(cars, aes(x = speed, y = dist)) +
+  geom_point(alpha = 0.6, color = &quot;grey50&quot;) +
+  geom_smooth(
+    method = &quot;loess&quot;, formula = y ~ x,
+    color = &quot;#1565C0&quot;, fill = &quot;#90CAF9&quot;, alpha = 0.2, linewidth = 1
+  ) +
+  geom_smooth(
+    method = &quot;lm&quot;, formula = y ~ x,
+    color = &quot;#C62828&quot;, se = FALSE,
+    linewidth = 1, linetype = &quot;dashed&quot;
+  ) +
+  labs(
+    title    = &quot;Stopping Distance vs Speed&quot;,
+    subtitle = &quot;Blue = LOESS | Red dashed = Linear fit&quot;,
+    x = &quot;Speed (mph)&quot;, y = &quot;Stopping Distance (ft)&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h4>Exercise 2: Polynomial fit</h4>
+
+<p>Using <code>cars</code>, fit a quadratic smooth (<code>formula = y ~ poly(x, 2)</code>) and compare with a cubic (<code>poly(x, 3)</code>). Which better captures the relationship without overfitting?</p>
+
+<details>
+<summary>Show solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(cars, aes(x = speed, y = dist)) +
+  geom_point(alpha = 0.6, color = &quot;grey50&quot;) +
+  geom_smooth(
+    method = &quot;lm&quot;, formula = y ~ poly(x, 2),
+    color = &quot;#1565C0&quot;, se = FALSE, linewidth = 1.2,
+    linetype = &quot;solid&quot;
+  ) +
+  geom_smooth(
+    method = &quot;lm&quot;, formula = y ~ poly(x, 3),
+    color = &quot;#C62828&quot;, se = FALSE, linewidth = 1.2,
+    linetype = &quot;dashed&quot;
+  ) +
+  annotate(&quot;text&quot;, x = 22, y = 10, label = &quot;Quadratic&quot;, color = &quot;#1565C0&quot;, size = 4) +
+  annotate(&quot;text&quot;, x = 22, y = 5, label = &quot;Cubic&quot;, color = &quot;#C62828&quot;, size = 4) +
+  labs(title = &quot;Stopping Distance: Quadratic vs Cubic Fit&quot;,
+       x = &quot;Speed (mph)&quot;, y = &quot;Stopping Distance (ft)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+</div>
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>method = &quot;loess&quot;</code></td>
+<td>Flexible local smooth (default, n < 1,000)</td>
+</tr>
+<tr>
+<td><code>method = &quot;lm&quot;</code></td>
+<td>Straight linear regression line</td>
+</tr>
+<tr>
+<td><code>method = &quot;gam&quot;</code></td>
+<td>Generalized additive model (default, n ≥ 1,000)</td>
+</tr>
+<tr>
+<td><code>formula = y ~ poly(x, 2)</code></td>
+<td>Quadratic (curved) regression</td>
+</tr>
+<tr>
+<td><code>se = FALSE</code></td>
+<td>Hide confidence band</td>
+</tr>
+<tr>
+<td><code>level = 0.99</code></td>
+<td>99% CI instead of default 95%</td>
+</tr>
+<tr>
+<td><code>span = 0.5</code></td>
+<td>LOESS smoothing span (lower = wigglier)</td>
+</tr>
+<tr>
+<td><code>color</code>, <code>fill</code></td>
+<td>Line and band color</td>
+</tr>
+<tr>
+<td><code>linewidth</code></td>
+<td>Line thickness</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Choosing a smooth type:</strong></p>
+
+<ul>
+
+<li>Exploring unknown patterns → LOESS</li>
+
+<li>Reporting a model (slope, intercept) → <code>method = &quot;lm&quot;</code></li>
+
+<li>Clear curvature → <code>method = &quot;lm&quot;</code>, <code>formula = y ~ poly(x, 2)</code></li>
+
+<li>Per-group patterns → map <code>color</code> or <code>group</code>, ggplot2 fits one smooth per group</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Why does geom_smooth() switch from loess to gam for large datasets?</strong> LOESS is computationally expensive (O(n²)) — for n ≥ 1,000, it becomes slow. ggplot2 automatically uses GAM (from the <code>mgcv</code> package) for large data. Force LOESS with <code>method = &quot;loess&quot;</code> if you need it.</p>
+
+<p><strong>What is the span parameter in LOESS?</strong> <code>span</code> controls how much of the data is used for each local fit. Smaller span (e.g., 0.3) fits more locally (wigglier), larger span (e.g., 1.0) uses more of the data (smoother). The default is 0.75.</p>
+
+<p><strong>Can geom_smooth() fit a log or spline model?</strong> Yes — <code>formula = y ~ log(x)</code> fits a logarithmic curve. For splines, use <code>formula = y ~ splines::ns(x, df = 4)</code> (natural splines with 4 degrees of freedom).</p>
+
+<p><strong>How do I make geom_smooth() use my own model?</strong> Pass a function to <code>method</code>. For example, <code>method = MASS::rlm</code> fits a robust linear model. Any function that works like <code>lm()</code> (takes <code>formula</code> and <code>data</code>) can be used.</p>
+
+<p><strong>Why does my CI band disappear when I add both color and fill mapping?</strong> When <code>aes(fill = group)</code> is set, geom_smooth uses <code>fill</code> for the CI band <em>and</em> the group-specific colors. The band may become invisible if fill scales conflict. Fix: use <code>aes(color = group)</code> only, and let ggplot auto-set fill from color.</p>
+
+<h2>References</h2>
+
+<ul>
+
+<li>Wickham H. (2016). <em>ggplot2: Elegant Graphics for Data Analysis</em>. Springer.</li>
+
+<li>ggplot2 official docs — geom_smooth: ggplot2.tidyverse.org/reference/geom_smooth.html</li>
+
+<li>Cleveland W.S. (1979). Robust Locally Weighted Regression and Smoothing Scatterplots. <em>JASA</em>.</li>
+
+<li>Wilke C. (2019). <em>Fundamentals of Data Visualization</em> — Chapter 14: Visualizing trends</li>
+
+</ul>
+
+<h2>What's Next?</h2>
+
+<ul>
+
+<li><strong><a class="auto-link" href="ggplot2-Scatter-Plots.html" title="ggplot2 Scatter Plots: Map Color, Size, Shape and Add Trend Lines">ggplot2 Scatter Plots</a></strong> — the foundation: <a class="auto-link" href="ggplot2-Getting-Started.html" title="ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes — Zero Experience Needed">geom_point()</a>, overplotting, and annotations</li>
+
+<li><strong><a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">Error Bars</a> in ggplot2</strong> — add uncertainty intervals to mean estimates</li>
+
+<li><strong>R Correlation Matrix Plot</strong> — visualize the full pairwise correlation structure</li>
+
+</ul>
