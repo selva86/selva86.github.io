@@ -88,6 +88,69 @@ def load_sidebar_map():
             mapping[item['href']] = title
     return mapping
 
+
+def load_prev_next_map():
+    """Build a slug -> (prev, next) map from sidebar.json linear order.
+
+    Each value is a tuple ((prev_href, prev_text) | None, (next_href, next_text) | None).
+    Traversal is continuous across sections and learning paths — last item of one
+    section links to first item of the next.
+    """
+    if not os.path.exists(SIDEBAR_PATH):
+        return {}
+    with open(SIDEBAR_PATH, 'r', encoding='utf-8') as f:
+        sections = json.load(f)
+    flat = []
+    for section in sections:
+        for item in section.get('items', []):
+            if item.get('divider'):
+                continue
+            flat.append((item['href'], item.get('text', '')))
+    mapping = {}
+    for i, (href, text) in enumerate(flat):
+        prev_item = flat[i - 1] if i > 0 else None
+        next_item = flat[i + 1] if i + 1 < len(flat) else None
+        mapping[href] = (prev_item, next_item)
+    return mapping
+
+
+def render_prev_next(slug, prev_next_map):
+    """Render the prev/next navigation HTML for a given slug.
+
+    Returns '' if the slug is not in the map or has neither neighbor.
+    """
+    entry = prev_next_map.get(slug)
+    if not entry:
+        return ''
+    prev_item, next_item = entry
+    if not prev_item and not next_item:
+        return ''
+
+    def esc(s):
+        return (s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+
+    parts = ['<nav class="prev-next-nav" aria-label="Post navigation">']
+    if prev_item:
+        parts.append(
+            '<a class="pn-link pn-prev" href="{href}">'
+            '<span class="pn-label">&larr; Previous</span>'
+            '<span class="pn-title">{text}</span>'
+            '</a>'.format(href=prev_item[0], text=esc(prev_item[1]))
+        )
+    else:
+        parts.append('<span class="pn-link pn-placeholder"></span>')
+    if next_item:
+        parts.append(
+            '<a class="pn-link pn-next" href="{href}">'
+            '<span class="pn-label">Next &rarr;</span>'
+            '<span class="pn-title">{text}</span>'
+            '</a>'.format(href=next_item[0], text=esc(next_item[1]))
+        )
+    else:
+        parts.append('<span class="pn-link pn-placeholder"></span>')
+    parts.append('</nav>')
+    return '\n'.join(parts)
+
 MATHJAX_BLOCK = """
   <script type="text/x-mathjax-config">
     MathJax.Hub.Config({
@@ -958,7 +1021,7 @@ def extract_faq_items(html_content):
     return items[:10]  # Cap at 10 FAQ items
 
 
-def build_post(template, post_path, sidebar_map=None):
+def build_post(template, post_path, sidebar_map=None, prev_next_map=None):
     """Build a single post from its source file."""
     with open(post_path, 'r', encoding='utf-8') as f:
         raw = f.read()
@@ -1054,8 +1117,11 @@ def build_post(template, post_path, sidebar_map=None):
     }}
     </script>'''
 
-    # Prepend breadcrumb to content
+    # Prepend breadcrumb to content, append prev/next nav
+    prev_next_html = render_prev_next(slug, prev_next_map) if prev_next_map else ''
     content_with_breadcrumb = breadcrumb_html + '\n' + content
+    if prev_next_html:
+        content_with_breadcrumb = content_with_breadcrumb + '\n' + prev_next_html
 
     page_html = template
     page_html = page_html.replace('{{TITLE}}', title)
@@ -1205,6 +1271,7 @@ def main():
         return
 
     sidebar_map = load_sidebar_map()
+    prev_next_map = load_prev_next_map()
 
     # "Global" dependencies — when any of these changes, every page must rebuild
     # because the change affects every output. sidebar.json feeds into every
@@ -1245,7 +1312,7 @@ def main():
             skipped += 1
             continue
 
-        page_html = build_post(template, post_path, sidebar_map)
+        page_html = build_post(template, post_path, sidebar_map, prev_next_map)
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(page_html)
         print(f"Built: {post_file}")
