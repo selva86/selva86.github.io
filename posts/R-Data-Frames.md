@@ -1,682 +1,396 @@
 ---
-title: "R Data Frames: Every Operation You'll Actually Need"
+title: "R Data Frames: Every Operation You'll Need, With 10 Real Examples"
 slug: "R-Data-Frames"
-description: "Master R data frames — create, subset, filter, modify, sort, merge, and summarize. Interactive examples covering every operation you'll use daily."
-keywords: "R data frames, data.frame in R, subset R, filter rows R, R data manipulation, merge data frames, aggregate in R"
+description: "Data frames are R's spreadsheet equivalent. Learn to create, subset, add columns, filter rows, and reshape data — illustrated with 10 real-world worked examples."
+keywords: "R data frames, data.frame R, subset data frame, filter rows R, add column R, aggregate R, data frame tutorial"
+auto_link_terms: "R data frames|data.frame()|data frame subsetting|data frame filtering|data frame columns|aggregate() in R"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-05"
+date: 2026-04-11
 curriculum_id: "1.1.7"
-post_type: "C"
-auto_link_terms: "R data frames|data.frame()|R data frame|data frame in R"
-auto_link_case_sensitive: false
-sidebar_section: "Learn R"
+post_type: C
+sidebar_section: "R Fundamentals"
 sidebar_title: "R Data Frames"
 sidebar_order: 7
 ---
 
+# R Data Frames: Every Operation You'll Need, With 10 Real Examples
 
-# R Data Frames: Every Operation You'll Actually Need
+<p class="lead">A data frame in R is a table of rows and columns — like a spreadsheet or a database table — where each column can be a different type. It's the single most important data structure for real analysis work, and it powers everything from <code>lm()</code> to ggplot2.</p>
 
-<p class="lead">A data frame is R's built-in table — rows are observations, columns are variables, and every column is a vector of the same length. It's the workhorse of data analysis in R and the structure most packages expect as input and output.</p>
+## What is an R data frame and how do you build one?
 
-## Introduction
-
-Think of a data frame as a spreadsheet with strict rules: each column must be a vector of a single type, and all columns must have the same length. This structure is what makes data frames efficient, predictable, and the foundation of virtually every R analysis.
-
-This tutorial walks through every data frame operation you'll use in real work — creating, inspecting, subsetting, filtering, modifying, sorting, and merging. Every code block is live — click **Run** to execute.
-
-By the end you'll handle data frames as confidently as you'd handle a spreadsheet, and you'll have the vocabulary to move on to dplyr and tidyverse operations.
-
-## How do you create a data frame in R?
-
-Use `data.frame()` with named arguments — each argument becomes a column. All columns must be the same length.
-
-![R Data Frame Structure](screenshots/R-Data-Frames-structure.webp)
-*Figure 1: A data frame is a rectangular collection of equal-length vectors.*
+Under the hood, a data frame is just a list of equal-length vectors, with each vector being one column. That's why columns can be different types (numeric, character, logical) but a column itself must be one type. Let's build one and look at it.
 
 ```r
-# Create a data frame from vectors
-students <- data.frame(
-  name = c("Alice", "Bob", "Carol", "Dave"),
-  age = c(22, 25, 23, 28),
-  score = c(85, 72, 91, 68),
-  passed = c(TRUE, TRUE, TRUE, FALSE)
+employees <- data.frame(
+  name = c("Alice", "Bob", "Carol", "David", "Eve"),
+  age = c(29, 42, 31, 55, 38),
+  salary = c(65000, 82000, 70000, 95000, 78000),
+  remote = c(TRUE, FALSE, TRUE, FALSE, TRUE)
 )
-students
-#>    name age score passed
-#> 1 Alice  22    85   TRUE
-#> 2   Bob  25    72   TRUE
-#> 3 Carol  23    91   TRUE
-#> 4  Dave  28    68  FALSE
+employees
+#>    name age salary remote
+#> 1 Alice  29  65000   TRUE
+#> 2   Bob  42  82000  FALSE
+#> 3 Carol  31  70000   TRUE
+#> 4 David  55  95000  FALSE
+#> 5   Eve  38  78000   TRUE
 ```
 
-The `data.frame()` function stacks the vectors as columns. R shows row numbers on the left (1, 2, 3, 4) automatically. Each column has one type: character, double, double, logical.
+Five rows, four columns, two types (numeric and logical plus character). That's a typical data frame in a realistic shape. You'll build many of these from scratch for demos, tests, and quick prototypes — and many more from `read.csv()` when you load real data.
 
-[KEY INSIGHT]
-**A data frame is really a list of equal-length vectors.** This is why you can access columns with `df$col` (list-style) and why most list operations work on data frames. Understanding this unlocks everything else.
+![Anatomy of an R data frame](screenshots/R-Data-Frames-structure.webp)
+*Figure 1: A data frame is a list of equal-length column vectors. Each column has a type; each row spans all columns.*
 
-R also ships with built-in data frames for practice. Use these instead of inventing data every time:
+> [TIP]
+> Older R (before 4.0) used `stringsAsFactors = TRUE` by default, which silently turned character columns into factors. That default is gone, but you'll still see tutorials setting `stringsAsFactors = FALSE` explicitly — harmless, but no longer required.
+
+**Try it:** Build a data frame with three cities, their populations, and whether they're coastal.
 
 ```r
-# Built-in datasets
-head(mtcars, 3)
-#>                mpg cyl disp  hp drat    wt  qsec vs am gear carb
-#> Mazda RX4     21.0   6  160 110 3.90 2.620 16.46  0  1    4    4
-#> Mazda RX4 Wag 21.0   6  160 110 3.90 2.875 17.02  0  1    4    4
-#> Datsun 710    22.8   4  108  93 3.85 2.320 18.61  1  1    4    1
+# your turn
+ex_cities <- data.frame(
+  city = c("___", "___", "___"),
+  population = c(___, ___, ___),
+  coastal = c(___, ___, ___)
+)
 
-# Number of rows and columns
-nrow(mtcars)
-#> [1] 32
-ncol(mtcars)
-#> [1] 11
-dim(mtcars)
-#> [1] 32 11
 ```
-
-`mtcars`, `iris`, `airquality`, `diamonds` (ggplot2), and `starwars` (dplyr) are go-to datasets for examples. `head()` shows the first 6 rows by default. `nrow()`, `ncol()`, and `dim()` report dimensions.
 
 ## How do you inspect a data frame?
 
-Before doing any analysis, always inspect the structure. R provides several functions that give different perspectives on the same data.
+Before you touch a new data frame, you want a quick profile: how big is it, what types are the columns, what's in the first few rows? R gives you a handful of inspection functions that together answer every "what am I looking at?" question.
 
 ```r
-# Quick summary of structure
-str(students)
-#> 'data.frame':    4 obs. of  4 variables:
-#>  $ name  : chr  "Alice" "Bob" "Carol" "Dave"
-#>  $ age   : num  22 25 23 28
-#>  $ score : num  85 72 91 68
-#>  $ passed: logi  TRUE TRUE TRUE FALSE
-
-# Statistical summary
-summary(students)
-#>      name                age            score          passed
-#>  Length:4           Min.   :22.00   Min.   :68.00   Mode :logical
-#>  Class :character   1st Qu.:22.75   1st Qu.:71.00   FALSE:1
-#>  Mode  :character   Median :24.00   Median :78.50   TRUE :3
-#>                     Mean   :24.50   Mean   :79.00
-
-# Column names and row count
-names(students)
-#> [1] "name"   "age"    "score"  "passed"
-nrow(students)
+dim(employees)
+#> [1] 5 4
+nrow(employees)
+#> [1] 5
+ncol(employees)
 #> [1] 4
+
+str(employees)
+#> 'data.frame':   5 obs. of  4 variables:
+#>  $ name  : chr  "Alice" "Bob" "Carol" "David" ...
+#>  $ age   : num  29 42 31 55 38
+#>  $ salary: num  65000 82000 70000 95000 78000
+#>  $ remote: logi  TRUE FALSE TRUE FALSE TRUE
+
+head(employees, 3)
+#>    name age salary remote
+#> 1 Alice  29  65000   TRUE
+#> 2   Bob  42  82000  FALSE
+#> 3 Carol  31  70000   TRUE
+
+summary(employees$salary)
+#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#>   65000   70000   78000   78000   82000   95000
 ```
 
-`str()` is your most important tool — it shows types, sample values, and structure in a few lines. `summary()` gives per-column statistics. `names()` lists column names. These three are how every R user starts every analysis.
+`str()` is the workhorse — it tells you shape, column names, types, and a preview in one line per column. `summary()` gives five-number summaries for numeric columns and counts for factors/characters.
 
-[TIP]
-**Call `str(df)` first whenever you meet a new data frame.** It answers "what types are my columns?" and "what do the values look like?" in one call — faster than trial-and-error.
-
-## How do you access columns and rows?
-
-R offers three main ways to pull data out: `$`, `[[ ]]`, and `[ , ]`. Each has a specific use case.
+**Try it:** Print the names of all columns in `employees` using `names()` or `colnames()`.
 
 ```r
-# Access a column with $
-students$age
-#> [1] 22 25 23 28
+# one line
+names(employees)
 
-# Access a column with [[
-students[["score"]]
-#> [1] 85 72 91 68
-
-# Access by [row, column] — 2D indexing
-students[1, ]           # row 1, all columns
-#>    name age score passed
-#> 1 Alice  22    85   TRUE
-
-students[, "name"]      # all rows, name column
-#> [1] "Alice" "Bob"   "Carol" "Dave"
-
-students[2, "score"]    # row 2, score column
-#> [1] 72
 ```
 
-`$col` and `[["col"]]` both return a single column as a vector. `[row, col]` handles 2D access — leave either blank to mean "all". The rule: `[row, col]` always, with either position empty selecting everything in that dimension.
+## How do you select columns?
 
-Extracting multiple columns returns a smaller data frame:
+There are four ways to pull a column out of a data frame, and you'll see all of them in real code. Let's work through them, because the differences matter — especially when one returns a vector and another returns a one-column data frame.
 
 ```r
-# Select multiple columns
-students[, c("name", "score")]
-#>    name score
-#> 1 Alice    85
-#> 2   Bob    72
-#> 3 Carol    91
-#> 4  Dave    68
+employees$salary
+#> [1] 65000 82000 70000 95000 78000
 
-# Select specific rows and columns
-students[c(1, 3), c("name", "passed")]
-#>    name passed
-#> 1 Alice   TRUE
-#> 3 Carol   TRUE
+employees[["salary"]]
+#> [1] 65000 82000 70000 95000 78000
+
+employees[, "salary"]
+#> [1] 65000 82000 70000 95000 78000
+
+employees[, c("name", "salary")]
+#>    name salary
+#> 1 Alice  65000
+#> 2   Bob  82000
+#> 3 Carol  70000
+#> 4 David  95000
+#> 5   Eve  78000
 ```
 
-Pass vectors of row indices and column names to subset both dimensions. The result is always a smaller data frame (or a vector when you select one column without `drop = FALSE`).
+The first three return the column as a plain vector. The fourth — selecting multiple columns — returns a smaller data frame. That asymmetry is a classic R gotcha: `df[, "x"]` is a vector, but `df[, c("x", "y")]` is a data frame.
 
-## How do you filter rows by condition?
+> [KEY INSIGHT]
+> Use `df$col` for quick interactive work, `df[["col"]]` when the column name is in a variable, and `df[, cols]` (with a character vector) when you want a sub-data-frame with multiple columns.
 
-Use logical vectors inside `[` to keep only rows where a condition is `TRUE`. This is the bread-and-butter of data analysis.
+**Try it:** Pull just the `age` column out of `employees` as a vector, then compute its mean.
 
 ```r
-# Single condition
-students[students$score >= 80, ]
-#>    name age score passed
-#> 1 Alice  22    85   TRUE
-#> 3 Carol  23    91   TRUE
+ex_mean_age <- mean(employees$___)
+ex_mean_age
 
-# Combined conditions with & (AND) and | (OR)
-students[students$score >= 70 & students$age < 25, ]
-#>    name age score passed
-#> 1 Alice  22    85   TRUE
-#> 3 Carol  23    91   TRUE
-
-# Negation with !
-students[!students$passed, ]
-#>   name age score passed
-#> 4 Dave  28    68  FALSE
-
-# Using subset() for readability (base R)
-subset(students, score >= 80 & passed)
-#>    name age score passed
-#> 1 Alice  22    85   TRUE
-#> 3 Carol  23    91   TRUE
 ```
 
-Each filter condition produces a logical vector the same length as the number of rows. R keeps rows where the vector is `TRUE`. `subset()` is a convenience wrapper that lets you reference column names without `$` — useful for one-liners but avoid it in production code (non-standard evaluation can surprise you).
+## How do you filter rows?
 
-## How do you modify a data frame?
-
-Adding, updating, and removing columns uses assignment. Each operation is a single line.
+Filtering rows is the operation you'll do most often. In base R, you index with a logical vector in the row position: `df[condition, ]`. The comma is critical — it says "all columns." Leave it out and R gets confused.
 
 ```r
-# Add a new column
-students$grade <- ifelse(students$score >= 80, "A",
-                  ifelse(students$score >= 70, "B", "F"))
-students
-#>    name age score passed grade
-#> 1 Alice  22    85   TRUE     A
-#> 2   Bob  25    72   TRUE     B
-#> 3 Carol  23    91   TRUE     A
-#> 4  Dave  28    68  FALSE     F
+employees[employees$age > 35, ]
+#>    name age salary remote
+#> 2   Bob  42  82000  FALSE
+#> 4 David  55  95000  FALSE
+#> 5   Eve  38  78000   TRUE
 
-# Update existing values
-students$score[students$name == "Dave"] <- 72
-students[students$name == "Dave", ]
-#>   name age score passed grade
-#> 4 Dave  28    72  FALSE     F
+employees[employees$remote == TRUE, ]
+#>    name age salary remote
+#> 1 Alice  29  65000   TRUE
+#> 3 Carol  31  70000   TRUE
+#> 5   Eve  38  78000   TRUE
 
-# Remove a column
-students$grade <- NULL
-names(students)
-#> [1] "name"   "age"    "score"  "passed"
+employees[employees$salary > 70000 & employees$age < 50, ]
+#>   name age salary remote
+#> 2  Bob  42  82000  FALSE
+#> 5  Eve  38  78000   TRUE
 ```
 
-Three patterns: `df$new <- value` adds, `df$col[mask] <- value` updates selectively, `df$col <- NULL` removes. These three cover most column-level operations.
+Combine conditions with `&` (and) and `|` (or). Never use `&&` or `||` — those are scalar operators for single `TRUE`/`FALSE` values, not vectors.
 
-Adding rows uses `rbind()`:
+> [WARNING]
+> `df[df$x > 5]` (without the comma) silently picks *columns* whose position matches the logical vector's `TRUE`s, not rows. Always include the comma: `df[df$x > 5, ]`.
+
+**Try it:** Filter `employees` to rows where salary is below 75000.
 
 ```r
-# Add a row
-new_student <- data.frame(name = "Eve", age = 26, score = 79, passed = TRUE)
-students <- rbind(students, new_student)
-students
-#>    name age score passed
-#> 1 Alice  22    85   TRUE
-#> 2   Bob  25    72   TRUE
-#> 3 Carol  23    91   TRUE
-#> 4  Dave  28    72  FALSE
-#> 5   Eve  26    79   TRUE
+# include the comma!
+employees[employees$salary < 75000, ]
+
 ```
 
-`rbind()` stacks data frames vertically. The new data frame must have the same column names and compatible types.
+## How do you add or modify columns?
 
-[WARNING]
-**`rbind()` on large data frames in a loop is slow — it copies the whole frame each iteration.** For many row additions, collect rows in a list and use `do.call(rbind, list_of_dfs)` once at the end, or use `dplyr::bind_rows()`.
-
-## How do you sort a data frame?
-
-Use `order()` to sort by one or more columns. `order()` returns an integer vector of positions that, when used as indices, reorder the rows.
+Adding a column is the same syntax as selecting one — just assign into it. This works whether the column already exists (modify) or doesn't (create). The new column can be a constant, a vector, or a vectorized computation on existing columns.
 
 ```r
-# Sort by score (ascending)
-students[order(students$score), ]
-#>    name age score passed
-#> 4  Dave  28    72  FALSE
-#> 2   Bob  25    72   TRUE
-#> 5   Eve  26    79   TRUE
-#> 1 Alice  22    85   TRUE
-#> 3 Carol  23    91   TRUE
+employees$bonus <- employees$salary * 0.10
+employees
+#>    name age salary remote  bonus
+#> 1 Alice  29  65000   TRUE   6500
+#> 2   Bob  42  82000  FALSE   8200
+#> 3 Carol  31  70000   TRUE   7000
+#> 4 David  55  95000  FALSE   9500
+#> 5   Eve  38  78000   TRUE   7800
 
-# Sort by score (descending)
-students[order(-students$score), ]
-#>    name age score passed
-#> 3 Carol  23    91   TRUE
-#> 1 Alice  22    85   TRUE
-#> 5   Eve  26    79   TRUE
-#> 4  Dave  28    72  FALSE
-#> 2   Bob  25    72   TRUE
+employees$seniority <- ifelse(employees$age >= 40, "senior", "junior")
+employees$seniority
+#> [1] "junior" "senior" "junior" "senior" "junior"
 
-# Sort by two columns: passed (TRUE first), then score descending
-students[order(-students$passed, -students$score), ]
-#>    name age score passed
-#> 3 Carol  23    91   TRUE
-#> 1 Alice  22    85   TRUE
-#> 5   Eve  26    79   TRUE
-#> 2   Bob  25    72   TRUE
-#> 4  Dave  28    72  FALSE
+employees$salary <- employees$salary + employees$bonus
+employees$salary
+#> [1] 71500 90200 77000 104500 85800
 ```
 
-Minus signs flip the sort direction. Multiple columns create a tiebreaker hierarchy — first column first, second column breaks ties. The pattern `df[order(...), ]` is the base-R sort idiom.
+`ifelse()` is the vectorized counterpart to the scalar `if/else` — it applies the condition element-by-element across the vector. To drop a column, assign `NULL`: `employees$bonus <- NULL`.
 
-## How do you summarize groups in a data frame?
-
-Use `aggregate()` to compute summary statistics per group. One function call replaces a loop.
+**Try it:** Add a column `high_earner` that is `TRUE` when salary is above 80000.
 
 ```r
-# Mean mpg by number of cylinders in mtcars
-aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
-#>   cyl      mpg
-#> 1   4 26.66364
-#> 2   6 19.74286
-#> 3   8 15.10000
+employees$high_earner <- employees$salary > ___
+employees
 
-# Multiple statistics with summary function
-aggregate(mpg ~ cyl, data = mtcars, FUN = function(x) c(mean = mean(x), sd = sd(x)))
-#>   cyl   mpg.mean    mpg.sd
-#> 1   4 26.663636  4.509828
-#> 2   6 19.742857  1.453567
-#> 3   8 15.100000  2.560048
 ```
 
-The formula `mpg ~ cyl` reads "mpg by cyl" — compute the statistic on `mpg`, grouped by `cyl`. This is base R's equivalent to SQL `GROUP BY`. For heavier work, `dplyr::group_by() %>% summarise()` is more readable and faster.
+## How do you sort and rank rows?
 
-## How do you merge two data frames?
-
-Use `merge()` for SQL-style joins. It matches rows based on shared column values.
+Sorting a data frame means reordering its rows by one or more columns. Base R uses `order()`, which returns the *positions* that would put a vector in sorted order. You then use those positions as a row index.
 
 ```r
-# Two related data frames
-orders <- data.frame(
-  order_id = 1:4,
-  customer_id = c(101, 102, 101, 103),
-  amount = c(250, 400, 120, 890)
-)
+employees[order(employees$salary), ]
+#>    name age salary remote bonus seniority
+#> 3 Carol  31  77000   TRUE  7000    junior
+#> 1 Alice  29  71500   TRUE  6500    junior
+#> 5   Eve  38  85800   TRUE  7800    junior
+#> 2   Bob  42  90200  FALSE  8200    senior
+#> 4 David  55 104500  FALSE  9500    senior
 
-customers <- data.frame(
-  customer_id = c(101, 102, 103, 104),
-  name = c("Alice", "Bob", "Carol", "Dave")
-)
+employees[order(-employees$salary), ]
+#>    name age salary remote bonus seniority
+#> 4 David  55 104500  FALSE  9500    senior
+#> 2   Bob  42  90200  FALSE  8200    senior
+#> 5   Eve  38  85800   TRUE  7800    junior
+#> 3 Carol  31  77000   TRUE  7000    junior
+#> 1 Alice  29  71500   TRUE  6500    junior
 
-# Inner join (default) — matches only
-merge(orders, customers, by = "customer_id")
-#>   customer_id order_id amount  name
-#> 1         101        1    250 Alice
-#> 2         101        3    120 Alice
-#> 3         102        2    400   Bob
-#> 4         103        4    890 Carol
-
-# Left join — keep all orders
-merge(orders, customers, by = "customer_id", all.x = TRUE)
-#>   customer_id order_id amount  name
-#> 1         101        1    250 Alice
-#> 2         101        3    120 Alice
-#> 3         102        2    400   Bob
-#> 4         103        4    890 Carol
+employees[order(employees$seniority, -employees$salary), ]
+#>    name age salary remote bonus seniority
+#> 5   Eve  38  85800   TRUE  7800    junior
+#> 3 Carol  31  77000   TRUE  7000    junior
+#> 1 Alice  29  71500   TRUE  6500    junior
+#> 4 David  55 104500  FALSE  9500    senior
+#> 2   Bob  42  90200  FALSE  8200    senior
 ```
 
-`merge()` matches on the `by` column. Default is an inner join (keep only matches). `all.x = TRUE` keeps all left rows (left join), `all.y = TRUE` keeps all right rows (right join), `all = TRUE` keeps both (full join). Dave has no orders, so he only appears if you use `all.y = TRUE`.
+A negative sign in front of a numeric column reverses that column's sort order. For character/factor columns, wrap them in `order(..., decreasing = TRUE)` instead.
 
-[NOTE]
-**For modern R, prefer `dplyr::inner_join()`, `left_join()`, etc.** They're faster, more explicit about join direction, and part of a consistent grammar. `merge()` is still widely used in base-R codebases.
+**Try it:** Sort `employees` by `age` ascending.
 
-## Common Mistakes and How to Fix Them
-
-### Mistake 1: `stringsAsFactors = TRUE` in old R versions
-
-❌ **Wrong (R < 4.0):**
 ```r
-# On R 3.x, characters were auto-converted to factors
-df <- data.frame(name = c("Alice", "Bob"))
-class(df$name)
-#> [1] "factor"  # ← unexpected
+employees[order(employees$___), ]
+
 ```
 
-**Why it is wrong:** Before R 4.0, `data.frame()` silently converted character columns to factors, surprising anyone who didn't set `stringsAsFactors = FALSE`.
+## How do you summarize by group with `aggregate()`?
 
-✅ **Correct (R 4.0+ default):**
+The "split-apply-combine" pattern — group rows by a column, compute something on each group, combine the results — is the core of most analyses. Base R's `aggregate()` does it in one call.
+
 ```r
-df <- data.frame(name = c("Alice", "Bob"))
-class(df$name)
-#> [1] "character"
+aggregate(salary ~ seniority, data = employees, FUN = mean)
+#>   seniority salary
+#> 1    junior  78100
+#> 2    senior  97350
+
+aggregate(cbind(salary, age) ~ seniority, data = employees, FUN = mean)
+#>   seniority salary  age
+#> 1    junior  78100 32.67
+#> 2    senior  97350 48.50
+
+aggregate(salary ~ remote, data = employees, FUN = function(x) c(mean = mean(x), n = length(x)))
+#>   remote salary.mean salary.n
+#> 1  FALSE    97350.00     2.00
+#> 2   TRUE    78100.00     3.00
 ```
 
-Modern R defaults to character — no action needed. If you see code with `stringsAsFactors = FALSE`, it's pre-R-4.0 defensive coding.
+The `~` is formula syntax: "compute this on the left, grouped by that on the right." You can supply any function — `sum`, `median`, `sd`, or a custom one. For heavier aggregation work you'll eventually reach for `dplyr::group_by()` + `summarise()`, but `aggregate()` is perfect when you want zero dependencies.
 
-### Mistake 2: Forgetting the comma in `df[row, col]`
+> [NOTE]
+> `aggregate()` drops rows where the grouping column is `NA`. If you need to keep them, convert `NA` to a sentinel string first.
 
-❌ **Wrong:**
+**Try it:** Compute the maximum salary grouped by `remote`.
+
 ```r
-my_df <- data.frame(x = 1:3, y = 4:6)
-my_df[1]   # returns a data frame with column 1, not row 1
-#>   x
-#> 1 1
-#> 2 2
-#> 3 3
-```
+aggregate(salary ~ remote, data = employees, FUN = ___)
 
-**Why it is wrong:** Without the comma, R treats `[1]` as list-style column access (data frame is a list), not row access.
-
-✅ **Correct:**
-```r
-my_df <- data.frame(x = 1:3, y = 4:6)
-my_df[1, ]
-#>   x y
-#> 1 1 4
-```
-
-### Mistake 3: Using `==` with NA values
-
-❌ **Wrong:**
-```r
-my_df <- data.frame(x = c(1, NA, 3, NA, 5))
-my_df[my_df$x == NA, ]
-#> [1] x
-#> <0 rows> (or 0-length row.names)
-```
-
-**Why it is wrong:** `== NA` returns `NA` for every comparison, not `TRUE`. The subset returns nothing.
-
-✅ **Correct:**
-```r
-my_df <- data.frame(x = c(1, NA, 3, NA, 5))
-my_df[is.na(my_df$x), ]
-#>    x
-#> 2 NA
-#> 4 NA
-```
-
-### Mistake 4: Adding rows with wrong types
-
-❌ **Wrong:**
-```r
-my_df <- data.frame(x = 1:3, y = c("a", "b", "c"))
-my_df <- rbind(my_df, data.frame(x = "four", y = "d"))
-my_df$x
-#> [1] "1"    "2"    "3"    "four"
-```
-
-**Why it is wrong:** `rbind()` with type mismatch silently coerces the entire column — here, integer `x` became character. Bug is invisible until later arithmetic fails.
-
-✅ **Correct:**
-```r
-my_df <- data.frame(x = 1:3, y = c("a", "b", "c"))
-my_df <- rbind(my_df, data.frame(x = 4L, y = "d"))
-my_df$x
-#> [1] 1 2 3 4
 ```
 
 ## Practice Exercises
 
-### Exercise 1: Build a Data Frame
+### Exercise 1: Top earners by department
 
-Create a data frame `my_products` with 4 rows and columns: `id` (1 to 4), `name` (4 product names), `price` (prices), `in_stock` (TRUE/FALSE).
-
-```r
-# Exercise: build a products data frame
-# Hint: data.frame(col1 = ..., col2 = ..., ...)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+Build a data frame of 8 employees across 3 departments, then return the top earner in each.
 
 ```r
-my_products <- data.frame(
-  id = 1:4,
-  name = c("Laptop", "Phone", "Tablet", "Headphones"),
-  price = c(999, 699, 499, 149),
-  in_stock = c(TRUE, TRUE, FALSE, TRUE)
+df <- data.frame(
+  name = c("A","B","C","D","E","F","G","H"),
+  dept = c("eng","eng","sales","sales","sales","hr","hr","eng"),
+  pay  = c(90, 110, 75, 82, 68, 72, 78, 120)
 )
-my_products
-#>   id       name price in_stock
-#> 1  1     Laptop   999     TRUE
-#> 2  2      Phone   699     TRUE
-#> 3  3     Tablet   499    FALSE
-#> 4  4 Headphones   149     TRUE
-```
-
-**Explanation:** `data.frame()` with named arguments builds columns. Each vector must be the same length (4 here).
-
-</details>
-
-### Exercise 2: Filter by Condition
-
-From `mtcars`, extract cars with 6 cylinders AND more than 100 horsepower.
-
-```r
-# Exercise: filter mtcars
-# Hint: combine conditions with &
-
-# Write your code below:
-
+# return top earner per dept
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-my_result <- mtcars[mtcars$cyl == 6 & mtcars$hp > 100, ]
-my_result
-#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
-#> Mazda RX4      21.0   6 160.0 110 3.90 2.620 16.46  0  1    4    4
-#> Mazda RX4 Wag  21.0   6 160.0 110 3.90 2.875 17.02  0  1    4    4
-#> Hornet 4 Drive 21.4   6 258.0 110 3.08 3.215 19.44  1  0    3    1
-#> Valiant        18.1   6 225.0 105 3.76 2.620 20.22  1  0    3    1
-#> Merc 280       19.2   6 167.6 123 3.92 3.440 18.30  1  0    4    4
-#> Merc 280C      17.8   6 167.6 123 3.92 3.440 18.30  1  0    4    4
-#> Ferrari Dino   19.7   6 145.0 175 3.52 3.170 15.50  0  1    5    6
+top <- do.call(rbind, by(df, df$dept, function(g) g[which.max(g$pay), ]))
+top
+#>       name  dept pay
+#> eng      H   eng 120
+#> hr       G    hr  78
+#> sales    B sales  82
 ```
-
-**Explanation:** `mtcars$cyl == 6` and `mtcars$hp > 100` each produce logical vectors; `&` combines them element-wise.
-
 </details>
 
-### Exercise 3: Add Computed Column
+### Exercise 2: Filter and summarize
 
-Add a column `value_score` to `mtcars` defined as `mpg / wt` (miles per gallon per ton). Show the top 3 cars by value_score.
-
-```r
-# Exercise: add computed column, find top 3
-# Hint: order() for sorting, head() for top N
-
-# Write your code below:
-
-```
+From `mtcars`, return the mean `mpg` for 4-cylinder cars weighing under 2.5.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-my_cars <- mtcars
-my_cars$value_score <- my_cars$mpg / my_cars$wt
-head(my_cars[order(-my_cars$value_score), c("mpg", "wt", "value_score")], 3)
-#>                 mpg    wt value_score
-#> Toyota Corolla 33.9 1.835    18.47411
-#> Lotus Europa   30.4 1.513    20.09253
-#> Fiat 128       32.4 2.200    14.72727
+mean(mtcars[mtcars$cyl == 4 & mtcars$wt < 2.5, "mpg"])
+#> [1] 28.01429
 ```
-
-**Explanation:** Division is vectorized. `order(-x)` sorts descending. `head(, 3)` takes the top 3.
-
 </details>
 
-### Exercise 4: Summarize by Group
+### Exercise 3: Add a categorical column
 
-Compute mean horsepower by number of cylinders from `mtcars` using `aggregate()`.
-
-```r
-# Exercise: mean hp by cylinder count
-# Hint: aggregate(y ~ x, data = ..., FUN = mean)
-
-# Write your code below:
-
-```
+Add a column `mpg_class` to `mtcars`: "low" if mpg < 18, "mid" if 18-25, "high" if > 25. Then count the rows in each class.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-my_hp_by_cyl <- aggregate(hp ~ cyl, data = mtcars, FUN = mean)
-my_hp_by_cyl
-#>   cyl        hp
-#> 1   4  82.63636
-#> 2   6 122.28571
-#> 3   8 209.21429
+mtcars$mpg_class <- cut(mtcars$mpg,
+                        breaks = c(-Inf, 18, 25, Inf),
+                        labels = c("low", "mid", "high"))
+table(mtcars$mpg_class)
+#> 
+#>  low  mid high 
+#>   12   14    6
 ```
-
-**Explanation:** `hp ~ cyl` means "compute on hp, grouped by cyl". `FUN = mean` applies to each group.
-
 </details>
 
-### Exercise 5: Join Two Data Frames
+## Putting It All Together
 
-Create two small data frames and inner-join them on a shared column.
-
-```r
-# Exercise: merge two data frames
-# Hint: merge(df1, df2, by = "shared_col")
-
-my_sales <- data.frame(product_id = c(1, 2, 3, 1), amount = c(100, 200, 150, 80))
-my_products <- data.frame(product_id = c(1, 2, 3, 4), name = c("A", "B", "C", "D"))
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+A complete mini-analysis on `iris` — load it, inspect, filter, add a derived column, sort, and summarize by species.
 
 ```r
-my_sales <- data.frame(product_id = c(1, 2, 3, 1), amount = c(100, 200, 150, 80))
-my_products <- data.frame(product_id = c(1, 2, 3, 4), name = c("A", "B", "C", "D"))
-my_merged <- merge(my_sales, my_products, by = "product_id")
-my_merged
-#>   product_id amount name
-#> 1          1    100    A
-#> 2          1     80    A
-#> 3          2    200    B
-#> 4          3    150    C
+data(iris)
+str(iris)
+#> 'data.frame':   150 obs. of  5 variables:
+#>  $ Sepal.Length: num  5.1 4.9 4.7 4.6 5 5.4 4.6 5 4.4 4.9 ...
+#>  $ Sepal.Width : num  3.5 3 3.2 3.1 3.6 3.9 3.4 3.4 2.9 3.1 ...
+#>  $ Petal.Length: num  1.4 1.4 1.3 1.5 1.4 1.7 1.4 1.5 1.4 1.5 ...
+#>  $ Petal.Width : num  0.2 0.2 0.2 0.2 0.2 0.4 0.2 0.2 0.2 0.1 ...
+#>  $ Species     : Factor w/ 3 levels "setosa","versicolor",..: 1 1 1 1 1 1 1 1 1 1
+
+big <- iris[iris$Sepal.Length > 6, ]
+nrow(big)
+#> [1] 61
+
+big$petal_ratio <- big$Petal.Length / big$Petal.Width
+aggregate(petal_ratio ~ Species, data = big, FUN = mean)
+#>      Species petal_ratio
+#> 1 versicolor    3.242105
+#> 2  virginica    2.782927
+
+head(big[order(-big$petal_ratio), c("Species", "petal_ratio")], 3)
+#>       Species petal_ratio
+#> 58 versicolor    4.071429
+#> 80 versicolor    3.846154
+#> 91 versicolor    3.818182
 ```
 
-**Explanation:** `merge()` matches rows by `product_id`. Product D (id=4) has no sales, so it's dropped in the default inner join.
-
-</details>
-
-## Complete Example: Analyzing Airline Data
-
-Here's a full analysis using the built-in `airquality` dataset.
-
-```r
-# --- Air Quality Analysis ---
-
-# Step 1: Inspect the data
-str(airquality)
-#> 'data.frame':    153 obs. of  6 variables:
-#>  $ Ozone  : int  41 36 12 18 NA 28 23 19 8 NA ...
-#>  $ Solar.R: int  190 118 149 313 NA NA 299 99 19 194 ...
-#>  $ Wind   : num  7.4 8 12.6 11.5 14.3 14.9 8.6 13.8 20.1 8.6 ...
-#>  $ Temp   : int  67 72 74 62 56 66 65 59 61 69 ...
-#>  $ Month  : int  5 5 5 5 5 5 5 5 5 5 ...
-#>  $ Day    : int  1 2 3 4 5 5 5 5 5 5 ...
-
-# Step 2: Remove rows with missing Ozone
-clean_air <- airquality[!is.na(airquality$Ozone), ]
-cat("Removed", nrow(airquality) - nrow(clean_air), "rows with missing Ozone\n")
-#> Removed 37 rows with missing Ozone
-
-# Step 3: Find hot, polluted days
-bad_days <- clean_air[clean_air$Temp > 80 & clean_air$Ozone > 80, ]
-nrow(bad_days)
-#> [1] 17
-
-# Step 4: Monthly averages
-monthly_avg <- aggregate(Ozone ~ Month, data = clean_air, FUN = mean)
-monthly_avg$Ozone <- round(monthly_avg$Ozone, 1)
-monthly_avg
-#>   Month Ozone
-#> 1     5  23.6
-#> 2     6  29.4
-#> 3     7  59.1
-#> 4     8  60.0
-#> 5     9  31.4
-
-# Step 5: Sort months by pollution level
-monthly_avg[order(-monthly_avg$Ozone), ]
-#>   Month Ozone
-#> 4     8  60.0
-#> 3     7  59.1
-#> 5     9  31.4
-#> 2     6  29.4
-#> 1     5  23.6
-```
-
-This pipeline uses every major operation: `str()` for inspection, logical filtering for NA removal, multi-condition filtering for problem days, `aggregate()` for group summaries, and `order()` for ranking. August and July are the worst months for ozone — that's the kind of insight you can extract in 5 lines of R.
+Five operations, five lines — and every single one is a base-R idiom you'll reach for daily.
 
 ## Summary
 
-| Operation | Syntax | Example |
-|---|---|---|
-| Create | `data.frame(col = vec, ...)` | `data.frame(x = 1:3, y = 4:6)` |
-| Inspect | `str()`, `summary()`, `head()` | `str(mtcars)` |
-| Column access | `df$col` or `df[["col"]]` | `mtcars$mpg` |
-| Row/col access | `df[row, col]` | `mtcars[1, "mpg"]` |
-| Filter rows | `df[condition, ]` | `mtcars[mtcars$cyl==4, ]` |
-| Add column | `df$new <- value` | `df$total <- df$a + df$b` |
-| Remove column | `df$col <- NULL` | `df$extra <- NULL` |
-| Sort | `df[order(df$col), ]` | `df[order(-df$x), ]` |
-| Aggregate | `aggregate(y ~ x, data, FUN)` | `aggregate(mpg ~ cyl, mtcars, mean)` |
-| Merge | `merge(df1, df2, by)` | `merge(a, b, by = "id")` |
-
-## FAQ
-
-### What's the difference between a data frame and a tibble?
-
-A tibble (`tibble::tibble()` or `dplyr::tibble()`) is a modern data frame with stricter printing and fewer surprises — it won't convert strings to factors, won't partial-match column names, and prints only the first 10 rows by default. Under the hood it's still a data frame; everything you learn about data frames applies to tibbles.
-
-### When should I use `df$col` vs `df[["col"]]`?
-
-Both return a single column as a vector. Use `df$col` for interactive exploration (shorter to type) and `df[["col"]]` when the column name is stored in a variable: `df[[colname]]`. Never use `df[colname]` (single brackets) — that returns a one-column data frame, not a vector.
-
-### Why do some data frame operations return a data frame and others return a vector?
-
-Single-column selection with `[ , col]` returns a vector by default (`drop = TRUE`). Multi-column selection always returns a data frame. To keep single-column selection as a data frame, use `[ , col, drop = FALSE]`.
-
-### How do I rename a column?
-
-Assign to `names(df)`: `names(df)[names(df) == "old"] <- "new"`. Or use `colnames(df)` which is identical. For many renames, `dplyr::rename()` is cleaner.
-
-### How do I find the number of unique values in a column?
-
-`length(unique(df$col))` gives the count. For a frequency table, use `table(df$col)` which returns counts per unique value.
+| Operation | Syntax |
+|-----------|--------|
+| Create | `data.frame(col1 = ..., col2 = ...)` |
+| Inspect | `str()`, `dim()`, `head()`, `summary()` |
+| Select column | `df$col`, `df[["col"]]`, `df[, "col"]` |
+| Filter rows | `df[df$col > 5, ]` — don't forget the comma |
+| Add column | `df$new <- ...` |
+| Drop column | `df$col <- NULL` |
+| Sort | `df[order(df$col), ]` |
+| Group summary | `aggregate(y ~ g, data = df, FUN = mean)` |
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Chapter 6 (Lists and data frames). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 3.5 (Data frames and tibbles). [Link](https://adv-r.hadley.nz/vectors-chap.html#tibble)
-3. R manual — `data.frame()` reference (stat.ethz.ch). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/data.frame.html)
-4. R manual — `merge()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/merge.html)
-5. R manual — `aggregate()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aggregate.html)
-6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 5 (Data transformation with dplyr). [Link](https://r4ds.hadley.nz/data-transform.html)
-7. R Core — Changes in R 4.0 (stringsAsFactors default change). [Link](https://cran.r-project.org/doc/manuals/r-devel/NEWS.html)
+1. [R Language Definition — Data Frames](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Data-frame-objects)
+2. [Advanced R — Data Frames](https://adv-r.hadley.nz/vectors-chap.html#tibble) by Hadley Wickham
+3. [R for Data Science](https://r4ds.hadley.nz/) — modern tidyverse perspective on tables
+4. [Base R Cheat Sheet (RStudio)](https://rstudio.github.io/cheatsheets/base-r.pdf)
+5. [An Introduction to R — Chapter 6: Lists and data frames](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Lists-and-data-frames)
 
 ## Continue Learning
 
-- **[R Lists](R-Lists.html)** — the flexible cousin of data frames, for heterogeneous collections.
-- **[dplyr filter() and select()](dplyr-filter-select.html)** — the modern, readable way to subset data frames.
-- **[dplyr group_by() and summarise()](dplyr-group-by-summarise.html)** — tidyverse's aggregation grammar.
+- [R Lists: When Data Frames Aren't Flexible Enough](R-Lists.html) — the more flexible cousin of data frames.
+- [R Vectors: The Foundation of Everything in R](R-Vectors.html) — understand the columns that data frames are built from.
+- [R Data Types: Which Type Is Your Variable?](R-Data-Types.html) — know the types each column can hold.
