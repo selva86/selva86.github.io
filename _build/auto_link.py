@@ -418,10 +418,10 @@ def scan_fr_parents():
             elif line.startswith('post_type:'):
                 post_type = line.split(':', 1)[1].strip().strip('"').strip("'").upper()
 
-        # Only process FR and PSEO posts that have fr_parent.
-        # Aligned with sync_registries.sync_links_fr — EX posts are
-        # linked from parents via auto-link terms, not Further Reading.
-        if not fr_parent or post_type not in ('FR', 'PSEO'):
+        # Process FR, EX, and PSEO posts that have fr_parent.
+        # Aligned with sync_registries.sync_links_fr so both scanners
+        # produce the same further_reading graph.
+        if not fr_parent or post_type not in ('FR', 'EX', 'PSEO'):
             continue
 
         # Determine published status: does the built HTML exist at root?

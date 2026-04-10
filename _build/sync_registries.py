@@ -306,7 +306,7 @@ def sync_links_fr(posts, links_data, dry_run=False):
 
     for post in posts:
         post_type = post.get('post_type', '')
-        if post_type not in ('FR', 'PSEO'):
+        if post_type not in ('FR', 'EX', 'PSEO'):
             continue
         fr_parent_str = post.get('fr_parent', '')
         if not fr_parent_str:
