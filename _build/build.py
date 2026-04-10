@@ -10,6 +10,7 @@ import os
 import re
 import json
 import sys
+import random
 import textwrap
 import datetime
 import html as html_module
@@ -150,6 +151,164 @@ def render_prev_next(slug, prev_next_map):
         parts.append('<span class="pn-link pn-placeholder"></span>')
     parts.append('</nav>')
     return '\n'.join(parts)
+
+
+CURRICULUM_STATUS_PATH = os.path.join(REPO_ROOT, "curriculum-status.json")
+MARKDOWN_POSTS_DIR = os.path.join(REPO_ROOT, "posts")
+
+
+def load_curriculum_siblings():
+    """Read curriculum-status.json and return sibling mappings.
+
+    Returns (slug_to_subpath, subpath_to_slugs) where:
+      - slug_to_subpath: "R-Syntax-101.html" -> "/learn-r/fundamentals/"
+      - subpath_to_slugs: sub_path_key -> [list of published sibling hrefs]
+
+    Returns ({}, {}) if curriculum-status.json is missing (it's gitignored,
+    so this is a normal case on fresh checkouts).
+    """
+    if not os.path.exists(CURRICULUM_STATUS_PATH):
+        return {}, {}
+    try:
+        with open(CURRICULUM_STATUS_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}, {}
+    slug_to_subpath = {}
+    subpath_to_slugs = {}
+    for _, path_data in data.get('paths', {}).items():
+        for spk, sp in path_data.get('sub_paths', {}).items():
+            slugs = []
+            for post in sp.get('posts', []):
+                if post.get('status') != 'published':
+                    continue
+                slug = post.get('slug')
+                if not slug:
+                    continue
+                href = slug + '.html'
+                slug_to_subpath[href] = spk
+                slugs.append(href)
+            if slugs:
+                subpath_to_slugs[spk] = slugs
+    return slug_to_subpath, subpath_to_slugs
+
+
+_WORD_RE = re.compile(r"\b[\w']+\b")
+_FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
+_INLINE_CODE_RE = re.compile(r"`[^`]*`")
+_FRONTMATTER_RE = re.compile(r"^---\n.*?\n---\n", re.DOTALL)
+
+
+def compute_reading_time(slug_href):
+    """Compute reading time in minutes for a post's markdown source.
+
+    Uses 250 wpm prose-only (strips fenced code blocks and inline code).
+    Floors to integer, minimum 1 minute. Returns 0 if markdown is missing
+    (caller should skip showing reading time).
+    """
+    slug_no_ext = slug_href[:-5] if slug_href.endswith('.html') else slug_href
+    md_path = os.path.join(MARKDOWN_POSTS_DIR, slug_no_ext + '.md')
+    if not os.path.exists(md_path):
+        return 0
+    try:
+        with open(md_path, 'r', encoding='utf-8') as f:
+            text = f.read()
+    except OSError:
+        return 0
+    text = _FRONTMATTER_RE.sub('', text, count=1)
+    text = _FENCED_CODE_RE.sub(' ', text)
+    text = _INLINE_CODE_RE.sub(' ', text)
+    words = len(_WORD_RE.findall(text))
+    if words == 0:
+        return 0
+    minutes = words // 250
+    return max(1, minutes)
+
+
+def load_post_titles():
+    """Scan _posts/*.html fragments and return slug -> title map from frontmatter."""
+    titles = {}
+    if not os.path.exists(POSTS_DIR):
+        return titles
+    for fname in os.listdir(POSTS_DIR):
+        if not fname.endswith('.html'):
+            continue
+        path = os.path.join(POSTS_DIR, fname)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                head = f.read(2000)
+        except OSError:
+            continue
+        m = re.search(r"^title:\s*(.+)$", head, re.MULTILINE)
+        if m:
+            titles[fname] = m.group(1).strip().strip('"').strip("'")
+    return titles
+
+
+def render_related_tutorials(
+    slug, meta, slug_to_subpath, subpath_to_slugs,
+    sidebar_map, post_titles, reading_time_cache
+):
+    """Render the Related Tutorials grid for a given slug.
+
+    Pool resolution:
+      - Core posts: siblings from the same curriculum sub_path.
+      - FR/EX posts: if fr_parent is set in frontmatter, use the parent's
+        sub_path as the sibling pool (so FR posts get related content from
+        the same topic cluster as their parent).
+
+    Returns '' if no related posts can be found.
+    """
+    if not slug_to_subpath:
+        return ''
+
+    subpath = None
+    fr_parent = meta.get('fr_parent', '').strip() if meta else ''
+    if fr_parent:
+        subpath = slug_to_subpath.get(fr_parent)
+    if not subpath:
+        subpath = slug_to_subpath.get(slug)
+    if not subpath:
+        return ''
+
+    pool = [s for s in subpath_to_slugs.get(subpath, []) if s != slug]
+    if fr_parent and fr_parent in pool:
+        # Keep the parent in the pool — it's a legitimate related post.
+        pass
+    if not pool:
+        return ''
+
+    sample = random.sample(pool, min(4, len(pool)))
+
+    def esc(s):
+        return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    cards = []
+    for href in sample:
+        title = post_titles.get(href, href[:-5].replace('-', ' '))
+        section = sidebar_map.get(href, '')
+        if href not in reading_time_cache:
+            reading_time_cache[href] = compute_reading_time(href)
+        minutes = reading_time_cache[href]
+        sub_bits = []
+        if section:
+            sub_bits.append(esc(section))
+        if minutes:
+            sub_bits.append(f"{minutes} min read")
+        sub_label = ' &middot; '.join(sub_bits)
+        cards.append(
+            '<a class="rt-card" href="{href}">'
+            '<span class="rt-title">{title}</span>'
+            '<span class="rt-meta">{meta}</span>'
+            '</a>'.format(href=href, title=esc(title), meta=sub_label)
+        )
+
+    return (
+        '<section class="related-tutorials" aria-label="Related tutorials">'
+        '<h2 class="rt-heading">Related Tutorials</h2>'
+        '<div class="rt-grid">' + ''.join(cards) + '</div>'
+        '</section>'
+    )
 
 MATHJAX_BLOCK = """
   <script type="text/x-mathjax-config">
@@ -1021,7 +1180,11 @@ def extract_faq_items(html_content):
     return items[:10]  # Cap at 10 FAQ items
 
 
-def build_post(template, post_path, sidebar_map=None, prev_next_map=None):
+def build_post(
+    template, post_path, sidebar_map=None, prev_next_map=None,
+    slug_to_subpath=None, subpath_to_slugs=None,
+    post_titles=None, reading_time_cache=None,
+):
     """Build a single post from its source file."""
     with open(post_path, 'r', encoding='utf-8') as f:
         raw = f.read()
@@ -1117,9 +1280,17 @@ def build_post(template, post_path, sidebar_map=None, prev_next_map=None):
     }}
     </script>'''
 
-    # Prepend breadcrumb to content, append prev/next nav
+    # Prepend breadcrumb to content, append related tutorials + prev/next nav
     prev_next_html = render_prev_next(slug, prev_next_map) if prev_next_map else ''
+    related_html = ''
+    if slug_to_subpath is not None:
+        related_html = render_related_tutorials(
+            slug, meta, slug_to_subpath, subpath_to_slugs or {},
+            sidebar_map or {}, post_titles or {}, reading_time_cache or {},
+        )
     content_with_breadcrumb = breadcrumb_html + '\n' + content
+    if related_html:
+        content_with_breadcrumb = content_with_breadcrumb + '\n' + related_html
     if prev_next_html:
         content_with_breadcrumb = content_with_breadcrumb + '\n' + prev_next_html
 
@@ -1272,6 +1443,9 @@ def main():
 
     sidebar_map = load_sidebar_map()
     prev_next_map = load_prev_next_map()
+    slug_to_subpath, subpath_to_slugs = load_curriculum_siblings()
+    post_titles = load_post_titles()
+    reading_time_cache = {}
 
     # "Global" dependencies — when any of these changes, every page must rebuild
     # because the change affects every output. sidebar.json feeds into every
@@ -1312,7 +1486,10 @@ def main():
             skipped += 1
             continue
 
-        page_html = build_post(template, post_path, sidebar_map, prev_next_map)
+        page_html = build_post(
+            template, post_path, sidebar_map, prev_next_map,
+            slug_to_subpath, subpath_to_slugs, post_titles, reading_time_cache,
+        )
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(page_html)
         print(f"Built: {post_file}")
