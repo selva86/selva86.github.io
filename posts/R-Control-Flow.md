@@ -1,537 +1,395 @@
 ---
-title: "R Control Flow: if/else, for, while — Stop Avoiding Loops"
+title: "R Control Flow: if/else, for, and while — Stop Avoiding Loops"
 slug: "R-Control-Flow"
-description: "Master R control flow — if/else branching, for loops, while loops, and when vectorization beats them. Interactive examples with the patterns that actually work."
-keywords: "R control flow, if else in R, for loop R, while loop R, R branching, ifelse() vectorized, R iteration"
+description: "Master R's control flow: if/else conditionals, for loops with real iteration patterns, while loops, and when to replace all of them with vectorised alternatives."
+keywords: "R control flow, if else R, for loop R, while loop R, next break R, ifelse vectorized, R conditionals"
+auto_link_terms: "R control flow|if else in R|for loop in R|while loop in R|ifelse()|next and break in R"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-05"
+date: 2026-04-11
 curriculum_id: "1.1.9"
-post_type: "C"
-auto_link_terms: "R control flow|for loop in R|if else in R|while loop in R"
-auto_link_case_sensitive: false
-sidebar_section: "Learn R"
+post_type: C
+sidebar_section: "R Fundamentals"
 sidebar_title: "R Control Flow"
 sidebar_order: 9
 ---
 
+# R Control Flow: if/else, for, and while — Stop Avoiding Loops
 
-# R Control Flow: if/else, for, while — Stop Avoiding Loops
+<p class="lead">Control flow is how you tell R to make decisions (<code>if/else</code>) and repeat work (<code>for</code>, <code>while</code>). R has a reputation for hating loops — but that's half-true. This guide shows you when loops are fine, when they're slow, and when a vectorized one-liner replaces twenty lines of iteration.</p>
 
-<p class="lead">R control flow has three building blocks: <code>if/else</code> for branching, <code>for</code> for known-length iteration, and <code>while</code> for condition-based iteration. Knowing when to reach for each — and when to skip them entirely with vectorization — is a defining R skill.</p>
+## How does if/else work in R?
 
-## Introduction
-
-R's reputation for "slow loops" has caused a strange overreaction: some R users avoid loops entirely, even when loops are the right tool. The truth is simpler — loops are fine when iterations depend on each other; vectorization is fine when they don't.
-
-This tutorial teaches the three control-flow constructs, the vectorized `ifelse()` alternative, and how to decide which to use. Every block is interactive — click **Run** to experiment.
-
-By the end you'll write loops when they're appropriate, vectorize when that's faster, and never feel guilty about either choice.
-
-## How do you branch with if/else in R?
-
-Use `if/else` to run different code based on a condition. The condition must be a **single** logical value (length 1).
+An `if` statement runs a block of code only when a condition is `TRUE`. Attach an `else` and you get a two-way branch. Attach `else if` and you chain as many branches as you need. The syntax is C-like, with one important R twist: the condition must be a single `TRUE` or `FALSE`, not a vector.
 
 ```r
-x <- 15
+temperature <- 28
 
-if (x > 10) {
-  print("large")
+if (temperature > 30) {
+  message("Hot")
+} else if (temperature > 20) {
+  message("Warm")
 } else {
-  print("small")
+  message("Cool")
 }
-#> [1] "large"
+#> Warm
 ```
 
-Simple branching. The condition goes in parentheses, the body in braces. If the condition is `TRUE`, the first block runs; otherwise the `else` block runs.
+The braces `{ }` aren't strictly required for one-line bodies, but they prevent bugs — always use them. The message functions `message()`, `warning()`, and `stop()` are the three channels for progress, caution, and error output.
 
-For multiple conditions, chain with `else if`:
+![How R's control flow decisions work](screenshots/R-Control-Flow-decision.webp)
+*Figure 1: An if/else if/else chain evaluates conditions top to bottom and runs the first block whose condition is TRUE. At most one block runs.*
+
+> [WARNING]
+> `if (x > 0)` requires `x` to be length-1. If `x` is a vector, you get "the condition has length > 1" (an error in R 4.2+). For vectors, use `ifelse()` or logical indexing — see the next section.
+
+**Try it:** Write an `if/else if/else` that classifies a grade (0-100) as "A", "B", "C", or "F".
 
 ```r
-score <- 78
-
-if (score >= 90) {
-  grade <- "A"
-} else if (score >= 80) {
-  grade <- "B"
-} else if (score >= 70) {
-  grade <- "C"
+grade <- 83
+if (grade >= 90) {
+  "A"
+} else if (grade >= 80) {
+  "___"
+} else if (grade >= 70) {
+  "___"
 } else {
-  grade <- "F"
+  "___"
 }
-grade
-#> [1] "C"
+
 ```
 
-R checks conditions in order, stopping at the first `TRUE`. This pattern is readable for 3-5 branches. Beyond that, consider `switch()` or a lookup table.
+## How do you branch across a whole vector with ifelse() and dplyr::case_when()?
 
-[WARNING]
-**`if()` works on a single logical value, NOT a vector.** `if (c(TRUE, FALSE)) ...` throws an error. Use `ifelse()` (below) when you need vectorized branching.
-
-For vectorized branching, use `ifelse()` — it works element-by-element on vectors:
+For vectors, `if` is the wrong tool. Use `ifelse()` — the vectorized, element-wise version. It takes a logical vector, a value for the `TRUE` positions, and a value for the `FALSE` positions.
 
 ```r
-scores <- c(85, 62, 91, 45, 78)
+temps <- c(12, 25, 31, 18, 28)
+ifelse(temps > 20, "warm", "cool")
+#> [1] "cool" "warm" "warm" "cool" "warm"
 
-# Element-wise if/else
-ifelse(scores >= 70, "pass", "fail")
-#> [1] "pass" "fail" "pass" "fail" "pass"
-
-# Nested for multiple conditions
-grades <- ifelse(scores >= 90, "A",
-         ifelse(scores >= 80, "B",
-         ifelse(scores >= 70, "C", "F")))
-grades
-#> [1] "B" "F" "A" "F" "C"
+ifelse(temps > 30, "hot",
+  ifelse(temps > 20, "warm", "cool"))
+#> [1] "cool" "warm" "hot"  "cool" "warm"
 ```
 
-`ifelse()` returns a vector the same length as its input. This is R's idiomatic way to turn a numeric vector into a categorical one.
-
-## How do you loop over a known set of items with `for`?
-
-A `for` loop iterates over a vector or list, running the body once per element.
+The nested `ifelse()` works but gets ugly fast. For multi-way branching across vectors, `dplyr::case_when()` is far cleaner:
 
 ```r
-# Basic for loop
+library(dplyr)
+case_when(
+  temps > 30 ~ "hot",
+  temps > 20 ~ "warm",
+  TRUE       ~ "cool"
+)
+#> [1] "cool" "warm" "hot"  "cool" "warm"
+```
+
+The `TRUE` at the end is the catch-all — think of it as the `else`. Every row must match at least one condition, so always include a fallback.
+
+> [KEY INSIGHT]
+> If you're reaching for an `if` statement inside a `for` loop over a vector, stop and ask: can I use `ifelse()` or `case_when()` instead? Nine times out of ten you can, and the vectorized version is 10-100× faster.
+
+**Try it:** Use `ifelse()` on `c(-3, 5, -1, 8, 0)` to return "neg", "pos", or "zero" — note that basic `ifelse()` handles two branches; you'll need a nested call.
+
+```r
+v <- c(-3, 5, -1, 8, 0)
+ifelse(v > 0, "pos", ifelse(v < 0, "neg", "___"))
+
+```
+
+## How do for loops work in R?
+
+A `for` loop in R iterates over any object with a length — most commonly a vector. The loop variable takes each value in turn.
+
+```r
 for (i in 1:5) {
-  cat("Iteration", i, "\n")
+  cat("Step", i, "squared is", i^2, "\n")
 }
-#> Iteration 1
-#> Iteration 2
-#> Iteration 3
-#> Iteration 4
-#> Iteration 5
-
-# Iterate over vector elements
-fruits <- c("apple", "banana", "cherry")
-for (fruit in fruits) {
-  cat(fruit, "has", nchar(fruit), "letters\n")
-}
-#> apple has 5 letters
-#> banana has 6 letters
-#> cherry has 6 letters
+#> Step 1 squared is 1 
+#> Step 2 squared is 4 
+#> Step 3 squared is 9 
+#> Step 4 squared is 16 
+#> Step 5 squared is 25
 ```
 
-`for (var in sequence)` assigns each element of `sequence` to `var` in turn. The body runs once per assignment.
-
-When you need the index too, use `seq_along()`:
+You can iterate over any vector, not just integers:
 
 ```r
 fruits <- c("apple", "banana", "cherry")
+for (f in fruits) {
+  cat("I love", f, "\n")
+}
+#> I love apple 
+#> I love banana 
+#> I love cherry
+```
+
+When you need the index *and* the value, iterate over `seq_along()`:
+
+```r
 for (i in seq_along(fruits)) {
   cat(i, ":", fruits[i], "\n")
 }
-#> 1 : apple
-#> 2 : banana
+#> 1 : apple 
+#> 2 : banana 
 #> 3 : cherry
 ```
 
-`seq_along(x)` returns `1:length(x)` but handles the empty-vector edge case correctly. Prefer it over `1:length(x)`.
+Prefer `seq_along(x)` over `1:length(x)` — if `x` is empty, `1:length(x)` gives `1:0 = c(1, 0)` and loops twice with wrong values. `seq_along(c())` correctly returns an empty vector.
 
-[TIP]
-**Always use `seq_along(x)` or `seq_len(n)` instead of `1:length(x)`.** When `x` is empty, `1:length(x)` becomes `1:0` = `c(1, 0)`, which iterates backward and causes bugs. `seq_along(c())` correctly returns an empty sequence.
+**Try it:** Loop over `c(10, 20, 30)` and print the running sum at each step.
 
-## When should you use a for loop vs vectorization?
-
-![When to Use Loop vs Vectorization](screenshots/R-Control-Flow-decision.webp)
-*Figure 1: Use vectorization when iterations are independent. Use loops when they depend on each other.*
-
-The decision is simple: **if iterations are independent, vectorize. If each iteration depends on previous results, use a loop.**
-
-Example — independent (vectorize):
 ```r
-# Bad: loop for independent operation
-x <- c(1, 2, 3, 4, 5)
-result <- numeric(length(x))
-for (i in seq_along(x)) {
-  result[i] <- x[i] * 2
+running <- 0
+for (x in c(10, 20, 30)) {
+  running <- running + x
+  print(running)
 }
-result
-#> [1]  2  4  6  8 10
 
-# Good: vectorized
-result <- x * 2
-result
-#> [1]  2  4  6  8 10
 ```
 
-Example — dependent (loop):
+## When is a for loop the wrong tool?
+
+R's reputation for slow loops comes from one specific anti-pattern: **growing a result inside a loop**. Watch this:
+
 ```r
-# Each Fibonacci number depends on previous two
-fib <- numeric(10)
-fib[1] <- 1
-fib[2] <- 1
-for (i in 3:10) {
-  fib[i] <- fib[i-1] + fib[i-2]
+n <- 10000
+result <- c()
+for (i in 1:n) {
+  result <- c(result, i^2)
 }
-fib
-#>  [1]  1  1  2  3  5  8 13 21 34 55
 ```
 
-You can't vectorize Fibonacci because each value needs the previous two. Loop is the right tool.
-
-## How do you loop while a condition is true with `while`?
-
-Use `while` when you don't know how many iterations you'll need — stopping depends on a condition.
+Every `c(result, i^2)` *copies the entire vector* and allocates a new one. It's O(n²) — slow enough to notice past a few thousand elements. The fix is either pre-allocation:
 
 ```r
-# Halving until below a threshold
-x <- 100
-steps <- 0
-while (x > 1) {
-  x <- x / 2
-  steps <- steps + 1
+result <- numeric(n)
+for (i in 1:n) {
+  result[i] <- i^2
 }
-cat("Steps:", steps, " Final x:", x, "\n")
-#> Steps: 7  Final x: 0.78125
 ```
 
-The loop checks `x > 1` before each iteration. When the condition becomes `FALSE`, the loop exits. Useful for convergence algorithms, retries, and simulations.
-
-[WARNING]
-**Always include a guaranteed exit in while loops.** If the condition never becomes `FALSE`, R loops forever. Use `break` or a max-iteration counter as a safety net.
-
-## How do you exit loops early with break and next?
-
-`break` exits the loop immediately. `next` skips to the next iteration.
+…or skipping the loop entirely with vectorization:
 
 ```r
-# break: stop at first match
-for (i in 1:100) {
-  if (i * i > 50) {
-    cat("First square over 50 is", i * i, "\n")
-    break
-  }
-}
-#> First square over 50 is 64
+result <- (1:n)^2
+```
 
-# next: skip even numbers
+All three give the same answer. The vectorized version is by far the fastest (and shortest), the pre-allocated loop is a respectable second, and the growing-vector version is the one that gave R loops their bad name.
+
+> [TIP]
+> If you ever write `result <- c(result, ...)` inside a loop — stop. Either pre-allocate with `numeric(n)` / `vector("list", n)`, or find the vectorized equivalent. Your future self and your coworkers will thank you.
+
+**Try it:** Rewrite this slow loop as a one-line vectorized expression: `out <- c(); for (x in 1:5) out <- c(out, x * 10)`.
+
+```r
+# one line
+out <- ___
+
+```
+
+## How do while loops and break/next work?
+
+A `while` loop runs as long as its condition is `TRUE`. Use it when you don't know in advance how many iterations you need — typically convergence loops, polling, or random-stopping situations.
+
+```r
+x <- 1
+while (x < 100) {
+  x <- x * 2
+}
+x
+#> [1] 128
+```
+
+`break` exits a loop immediately. `next` skips the rest of the current iteration and starts the next one. Both work in `for` and `while`.
+
+```r
 for (i in 1:10) {
+  if (i == 5) break
   if (i %% 2 == 0) next
-  cat(i, " ")
-}
-#> 1  3  5  7  9
-```
-
-`break` jumps out of the loop entirely. `next` skips the remaining body and goes to the next iteration. Together they give you fine-grained loop control.
-
-## Common Mistakes and How to Fix Them
-
-### Mistake 1: Using `if()` with a vector
-
-❌ **Wrong:**
-```r
-my_x <- c(5, 10, 15)
-if (my_x > 7) {
-  print("big")
-}
-#> Error in if (my_x > 7) { : the condition has length > 1
-```
-
-**Why it is wrong:** `if()` needs a single TRUE/FALSE. `my_x > 7` returns `c(FALSE, TRUE, TRUE)` — length 3.
-
-✅ **Correct:**
-```r
-my_x <- c(5, 10, 15)
-my_label <- ifelse(my_x > 7, "big", "small")
-my_label
-#> [1] "small" "big"   "big"
-```
-
-### Mistake 2: `1:length(x)` on empty vectors
-
-❌ **Wrong:**
-```r
-my_empty <- c()
-for (i in 1:length(my_empty)) {
   print(i)
 }
 #> [1] 1
-#> [1] 0
+#> [1] 3
 ```
 
-**Why it is wrong:** `length(c()) == 0`, so `1:0 == c(1, 0)`, iterating backward.
+The loop printed 1 and 3 (odd numbers), skipped 2 and 4 via `next`, and broke at 5 before printing. `break` and `next` are sharp tools — useful, but a clue that your logic could often be expressed more declaratively.
 
-✅ **Correct:**
+> [NOTE]
+> `repeat { ... }` is R's infinite loop — equivalent to `while (TRUE)`. Always pair it with a `break` or you'll lock up your session.
+
+**Try it:** Write a `while` loop that keeps dividing `n` by 2 until it's below 10, starting from `n = 1000`. Print the final value.
+
 ```r
-my_empty <- c()
-for (i in seq_along(my_empty)) {
-  print(i)
+n <- 1000
+while (n >= 10) {
+  n <- n / ___
 }
-# (no output — seq_along returns empty sequence)
+n
+
 ```
 
-### Mistake 3: Growing a vector inside a loop
+## When should you prefer apply-family functions over loops?
 
-❌ **Wrong:**
+R has a family of functions — `lapply()`, `sapply()`, `vapply()`, `mapply()`, `apply()` — that replace many loops with a single function call. They're not magically faster than a well-written `for` loop (they use loops under the hood), but they express intent more clearly.
+
 ```r
-my_result <- c()
-for (i in 1:1000) {
-  my_result <- c(my_result, i * 2)  # reallocates every iteration
-}
+values <- list(a = 1:5, b = 10:15, c = 100:105)
+
+lapply(values, sum)
+#> $a
+#> [1] 15
+#> 
+#> $b
+#> [1] 75
+#> 
+#> $c
+#> [1] 615
+
+sapply(values, sum)
+#>   a   b   c 
+#>  15  75 615
+
+mat <- matrix(1:12, nrow = 3)
+apply(mat, 1, sum)
+#> [1] 22 26 30
+apply(mat, 2, sum)
+#> [1]  6 15 24 33
 ```
 
-**Why it is wrong:** `c()` copies the entire vector each iteration. For large N, this is O(n²) slow.
+`apply(mat, 1, f)` applies `f` to every row (margin = 1); `apply(mat, 2, f)` to every column. The apply family shines when you want "for each element, compute X" without the bookkeeping of indexing, pre-allocation, and assembling results.
 
-✅ **Correct:**
+**Try it:** Use `sapply()` to get the length of each vector in `values`.
+
 ```r
-my_result <- numeric(1000)
-for (i in 1:1000) {
-  my_result[i] <- i * 2
-}
-# Or better: vectorize
-my_result <- (1:1000) * 2
-```
+sapply(values, ___)
 
-### Mistake 4: `if()` with NA condition
-
-❌ **Wrong:**
-```r
-my_val <- NA
-if (my_val > 5) print("big")
-#> Error in if (my_val > 5) print("big") : missing value where TRUE/FALSE needed
-```
-
-**Why it is wrong:** `NA > 5` is `NA`, and `if()` can't branch on `NA`.
-
-✅ **Correct:**
-```r
-my_val <- NA
-if (!is.na(my_val) && my_val > 5) print("big")
-# (no output — NA handled safely)
 ```
 
 ## Practice Exercises
 
-### Exercise 1: Letter Grade with if/else
+### Exercise 1: FizzBuzz in R
 
-Write an if/else chain that assigns a letter grade to `my_score`.
-
-```r
-my_score <- 84
-
-# Exercise: assign "A" (>=90), "B" (>=80), "C" (>=70), else "F"
-
-# Write your code below:
-
-```
+Print numbers 1 to 15. For multiples of 3 print "Fizz", multiples of 5 print "Buzz", multiples of both print "FizzBuzz".
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-my_score <- 84
-if (my_score >= 90) {
-  my_grade <- "A"
-} else if (my_score >= 80) {
-  my_grade <- "B"
-} else if (my_score >= 70) {
-  my_grade <- "C"
-} else {
-  my_grade <- "F"
+for (i in 1:15) {
+  out <- ""
+  if (i %% 3 == 0) out <- paste0(out, "Fizz")
+  if (i %% 5 == 0) out <- paste0(out, "Buzz")
+  if (out == "") out <- as.character(i)
+  cat(out, "\n")
 }
-my_grade
-#> [1] "B"
 ```
 
+Or vectorized:
+
+```r
+n <- 1:15
+ifelse(n %% 15 == 0, "FizzBuzz",
+  ifelse(n %% 3 == 0, "Fizz",
+    ifelse(n %% 5 == 0, "Buzz", as.character(n))))
+#>  [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
+#>  [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
+#> [13] "13"       "14"       "FizzBuzz"
+```
 </details>
 
-### Exercise 2: Vectorized Grading
+### Exercise 2: First power of 2 exceeding N
 
-Do the same grading for a whole vector of scores using nested `ifelse()`.
-
-```r
-my_scores <- c(95, 72, 88, 60, 55)
-
-# Exercise: vectorized grading
-
-# Write your code below:
-
-```
+Write a `while` loop that finds the smallest power of 2 strictly greater than 1,000,000.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-my_scores <- c(95, 72, 88, 60, 55)
-my_grades <- ifelse(my_scores >= 90, "A",
-             ifelse(my_scores >= 80, "B",
-             ifelse(my_scores >= 70, "C", "F")))
-my_grades
-#> [1] "A" "C" "B" "F" "F"
+x <- 1
+while (x <= 1e6) x <- x * 2
+x
+#> [1] 1048576
 ```
-
 </details>
 
-### Exercise 3: Cumulative Sum with a Loop
+### Exercise 3: Convert a loop to vectorized
 
-Compute the running total of `my_values`, storing in `my_cumulative`. Each element is the sum up to that index.
-
-```r
-my_values <- c(10, 20, 30, 40, 50)
-
-# Exercise: running total with for loop
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+This loop computes squared distance from the mean for each element. Rewrite it in one vectorized line.
 
 ```r
-my_values <- c(10, 20, 30, 40, 50)
-my_cumulative <- numeric(length(my_values))
-my_cumulative[1] <- my_values[1]
-for (i in 2:length(my_values)) {
-  my_cumulative[i] <- my_cumulative[i-1] + my_values[i]
+x <- c(4, 7, 2, 9, 5)
+out <- numeric(length(x))
+for (i in seq_along(x)) {
+  out[i] <- (x[i] - mean(x))^2
 }
-my_cumulative
-#> [1]  10  30  60 100 150
-
-# R's built-in for comparison:
-cumsum(my_values)
-#> [1]  10  30  60 100 150
-```
-
-**Explanation:** Each iteration depends on the previous — a real loop use case. R's `cumsum()` does this internally.
-
-</details>
-
-### Exercise 4: While Loop for Convergence
-
-Starting at 1, keep doubling until you exceed 1000. Count how many doublings.
-
-```r
-# Exercise: double until > 1000, count steps
-
-# Write your code below:
-
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-my_x <- 1
-my_steps <- 0
-while (my_x <= 1000) {
-  my_x <- my_x * 2
-  my_steps <- my_steps + 1
-}
-cat("Final:", my_x, "after", my_steps, "steps\n")
-#> Final: 1024 after 10 steps
+out <- (x - mean(x))^2
+out
+#> [1]  1.44  4.84  9.24 11.56  0.04
 ```
-
 </details>
 
-### Exercise 5: Filter with break
+## Putting It All Together
 
-Loop through `1:100` and return the first number divisible by BOTH 7 and 13. Use `break`.
-
-```r
-# Exercise: first number divisible by 7 and 13 in 1:100
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+A realistic workflow: simulate 1,000 coin flips, track how many flips you need until you hit 5 heads in a row, and repeat the experiment 500 times to estimate the average.
 
 ```r
-my_found <- NA
-for (i in 1:100) {
-  if (i %% 7 == 0 & i %% 13 == 0) {
-    my_found <- i
-    break
-  }
-}
-my_found
-#> [1] 91
-```
-
-**Explanation:** `%%` is modulo. `break` exits the loop the moment we find the answer, avoiding wasted iterations.
-
-</details>
-
-## Complete Example: Simulating a Coin Flip Game
-
-A while loop with a stopping condition, tracking the result.
-
-```r
-# --- Flip coins until 3 heads in a row ---
 set.seed(42)
 
-flips <- character(0)   # growing log (short game, so OK)
-consecutive_heads <- 0
-
-while (consecutive_heads < 3) {
-  result <- sample(c("H", "T"), 1)
-  flips <- c(flips, result)
-
-  if (result == "H") {
-    consecutive_heads <- consecutive_heads + 1
-  } else {
-    consecutive_heads <- 0
+flips_until_5_heads <- function() {
+  streak <- 0
+  flips  <- 0
+  while (streak < 5) {
+    flips <- flips + 1
+    if (sample(c(0, 1), 1) == 1) {
+      streak <- streak + 1
+    } else {
+      streak <- 0
+    }
   }
+  flips
 }
 
-cat("Flips:", paste(flips, collapse = " "), "\n")
-cat("Total flips needed:", length(flips), "\n")
-#> Flips: H H T H T T H T H T T T H H H
-#> Total flips needed: 15
+results <- sapply(1:500, function(i) flips_until_5_heads())
+mean(results)
+#> [1] 62.012
+summary(results)
+#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#>    6.00   21.00   41.00   62.01   84.00  486.00
 ```
 
-A while loop is the right tool here — we don't know in advance how many flips we'll need. Each iteration updates `consecutive_heads`, and the loop exits when it reaches 3. The random seed makes it reproducible.
+One `while` loop wrapped in a function, then `sapply()` to replicate it 500 times, then one-line summaries. That's the idiomatic R pattern: iterate where you must, vectorize where you can.
 
 ## Summary
 
-| Construct | Syntax | When to use |
-|---|---|---|
-| `if/else` | `if (cond) {...} else {...}` | Single condition, scalar result |
-| `ifelse()` | `ifelse(vec_cond, yes, no)` | Vectorized branching |
-| `for` | `for (x in seq) {...}` | Known iterations, dependent results |
-| `while` | `while (cond) {...}` | Condition-based, unknown iterations |
-| `break` | `break` (inside loop) | Exit loop early |
-| `next` | `next` (inside loop) | Skip to next iteration |
-| `switch()` | `switch(x, "a"=1, "b"=2)` | Many-way branching on a value |
-| `seq_along()` | `seq_along(x)` | Safe index iteration |
-
-## FAQ
-
-### Is `ifelse()` always faster than a loop?
-
-For vectorized conditions, yes — `ifelse()` uses compiled C internals. For scalar conditions, use `if/else` because `ifelse()` has overhead.
-
-### What's the difference between `&` and `&&`?
-
-`&` is vectorized (element-wise). `&&` is scalar (short-circuit). Use `&` on vectors, `&&` inside `if()`. Same for `|` vs `||`.
-
-### When should I use `switch()`?
-
-When branching on a single value with 3+ options. Cleaner than nested if/else: `switch(key, "a" = 1, "b" = 2, "c" = 3)`.
-
-### How do I iterate over both index and value?
-
-Use `seq_along(x)` and index into x: `for (i in seq_along(x)) { ... x[i] ... }`. Or use `purrr::imap()` for a named-list pattern.
-
-### Why are R loops slow?
-
-They're not. The myth comes from two factors: (1) growing a vector with `c()` inside the loop is O(n²), (2) R's interpreter is slower than compiled C. Pre-allocate, and loops are fine for most work.
+| Construct | Use when |
+|-----------|----------|
+| `if / else if / else` | A single scalar decision |
+| `ifelse()` / `case_when()` | Element-wise branching across a vector |
+| `for (x in seq) { }` | Known iteration count; pre-allocate the result |
+| `while (cond) { }` | Unknown iteration count; convergence or polling |
+| `break` / `next` | Early exit / skip iteration — use sparingly |
+| `lapply()` / `sapply()` / `apply()` | "For each element, compute X" — cleaner than a loop |
+| Vectorized op | Arithmetic or boolean work on every element — always preferred |
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Chapter 9 (Grouping, loops and conditional execution). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 5 (Control flow). [Link](https://adv-r.hadley.nz/control-flow.html)
-3. R manual — `Control` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Control.html)
-4. R manual — `ifelse()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/ifelse.html)
-5. R manual — `seq_along()` and `seq_len()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/seq.html)
-6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 27 (A field guide to base R). [Link](https://r4ds.hadley.nz/base-R.html)
-7. Burns, P. — *The R Inferno*, Circle 2 (Growing objects). [Link](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf)
+1. [R Language Definition — Control Flow](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Control-structures)
+2. [Advanced R — Control flow](https://adv-r.hadley.nz/control-flow.html) by Hadley Wickham
+3. [R for Data Science — Iteration](https://r4ds.hadley.nz/iteration)
+4. [R Inferno — Growing objects](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf) — why growing vectors in loops kills performance
+5. [The R Inferno — Circle 2](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf) — vectorization patterns
 
 ## Continue Learning
 
-- **[Writing R Functions](R-Functions.html)** — package control-flow patterns into reusable functions.
-- **[Functional Programming in R](Functional-Programming-in-R.html)** — map, filter, reduce — the higher-level alternative to loops.
-- **[purrr map() Variants](purrr-map-Variants.html)** — the tidyverse way to iterate without writing explicit loops.
+- [R Vectors: The Foundation of Everything in R](R-Vectors.html) — why vectorized ops beat loops.
+- [R Data Frames: Every Operation You'll Need](R-Data-Frames.html) — filter and transform without explicit loops.
+- [R Lists: When Data Frames Aren't Flexible Enough](R-Lists.html) — the structure that `lapply()` returns by default.
