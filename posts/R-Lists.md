@@ -1,511 +1,430 @@
 ---
-title: "R Lists: When Data Frames Aren't Flexible Enough"
+title: "R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)"
 slug: "R-Lists"
-description: "Master R lists — create, subset, modify, and nest. Lists hold mixed types and lengths, making them R's most flexible data structure and the basis of data frames."
-keywords: "R lists, list() in R, nested lists, list subsetting, [[ vs [, lapply, list manipulation R"
+description: "R lists hold any mix of data types — vectors, data frames, even other lists. Learn to create, access with [] vs [[]], modify, and convert lists efficiently."
+keywords: "R lists, list() R, list indexing, [[]] vs [] R, nested lists R, list to vector, unlist R"
+auto_link_terms: "R lists|list() in R|list indexing|nested lists in R|unlist()"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-05"
+date: 2026-04-11
 curriculum_id: "1.1.8"
-post_type: "C"
-auto_link_terms: "R lists|list in R|nested lists|list() function"
-auto_link_case_sensitive: false
-sidebar_section: "Learn R"
+post_type: C
+sidebar_section: "R Fundamentals"
 sidebar_title: "R Lists"
 sidebar_order: 8
 ---
 
+# R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)
 
-# R Lists: When Data Frames Aren't Flexible Enough
+<p class="lead">A list in R is a container that can hold elements of any type, any length, and any structure — numbers next to data frames next to other lists. It's the most flexible data structure R has, and nearly every R object you'll encounter in the wild is built on top of one.</p>
 
-<p class="lead">A list is R's most flexible data structure — it can hold any combination of types, lengths, and nested structures. Every data frame is secretly a list. When you outgrow rectangular data, lists are where you go.</p>
+## What is an R list and when do you need one?
 
-## Introduction
-
-A vector holds same-type values. A data frame holds equal-length vectors. A **list** holds anything — numbers, strings, vectors, data frames, even other lists — with no length or type constraints.
-
-This tutorial covers how to create lists, access elements with `[[`, `[`, and `$`, add and remove elements, nest lists, and iterate with `lapply()`. Every example runs live in your browser.
-
-By the end you'll understand why data frames behave like lists (they ARE lists) and when to reach for a list instead of a data frame.
-
-## How do you create a list in R?
-
-Use `list()` with named or unnamed arguments. Each argument becomes an element.
-
-![R List Structure](screenshots/R-Lists-structure.webp)
-*Figure 1: A list can hold mixed types, lengths, and nested structures.*
+Vectors force every element to be the same type. Data frames force every column to be the same length. Lists throw away both restrictions. Any slot can hold anything — a number, a string, a vector of 1,000 values, a linear model object, another list. That's why `lm()`, `summary()`, and virtually every statistical function returns a list.
 
 ```r
-# Mixed types in one container
-person <- list(
-  name = "Alice",
-  age = 30,
-  scores = c(85, 92, 78),
-  active = TRUE
+result <- list(
+  model_name = "linear regression",
+  coefficients = c(intercept = 2.5, slope = 0.8),
+  residuals = c(-0.3, 0.1, -0.2, 0.4, 0.0),
+  converged = TRUE,
+  fit_date = Sys.Date()
 )
-person
-#> $name
-#> [1] "Alice"
-#>
-#> $age
-#> [1] 30
-#>
-#> $scores
-#> [1] 85 92 78
-#>
-#> $active
+result
+#> $model_name
+#> [1] "linear regression"
+#> 
+#> $coefficients
+#> intercept     slope 
+#>       2.5       0.8 
+#> 
+#> $residuals
+#> [1] -0.3  0.1 -0.2  0.4  0.0
+#> 
+#> $converged
 #> [1] TRUE
+#> 
+#> $fit_date
+#> [1] "2026-04-11"
+
+length(result)
+#> [1] 5
 ```
 
-Four elements, four different types and lengths: a string, a number, a 3-element vector, a logical. Lists are the only R structure that holds this mix naturally.
+Five elements, five different types and shapes, all in one object. No vector or data frame can hold this. That flexibility is exactly what you need when "the result of an analysis" is more than a single table.
 
-[KEY INSIGHT]
-**A data frame is a list of equal-length vectors with `class = "data.frame"`.** This is why `df$col` works — it's list-style access. Understanding this equivalence unlocks most of R's advanced tricks.
+![Structure of an R list](screenshots/R-Lists-structure.webp)
+*Figure 1: A list is a sequence of named (or unnamed) slots, where each slot can point to an object of any type and size.*
 
-## How do you access list elements?
+> [KEY INSIGHT]
+> If you've used Python: R lists are roughly like Python dicts with ordered keys. If you've used JSON: an R list *is* basically a JSON object. That's why `jsonlite::toJSON()` can convert most R lists to JSON in one line.
 
-Lists have three access operators: `[[`, `[`, and `$`. Each does something subtly different.
+**Try it:** Create a list holding your name (character), three favorite numbers (vector), and `TRUE`.
 
 ```r
-person <- list(name = "Alice", age = 30, scores = c(85, 92, 78))
+ex_me <- list(
+  name = "___",
+  numbers = c(___, ___, ___),
+  r_user = ___
+)
 
-# [[ ]] returns the element itself
-person[["name"]]
-#> [1] "Alice"
-person[[2]]
-#> [1] 30
+```
 
-# $ is shorthand for [[ ]] with names
-person$name
-#> [1] "Alice"
+## How do you access list elements with `$`, `[`, and `[[`?
 
-# [ ] returns a SUBLIST — still a list
-person["name"]
-#> $name
-#> [1] "Alice"
+This is the single biggest confusion in R for beginners. Lists have three access operators, and they return different things. Let's disentangle them.
 
-class(person[["name"]])
-#> [1] "character"
-class(person["name"])
+```r
+result$model_name
+#> [1] "linear regression"
+
+result[["coefficients"]]
+#> intercept     slope 
+#>       2.5       0.8 
+
+result["coefficients"]
+#> $coefficients
+#> intercept     slope 
+#>       2.5       0.8
+```
+
+Look carefully: the second call returns the vector itself, but the third returns a list of length 1 that *contains* the vector. That's the rule:
+
+- `[[ ]]` (double brackets) or `$` → extracts the element itself
+- `[ ]` (single brackets) → returns a sub-list
+
+Single brackets are for *sub-setting* a list (returning a smaller list), double brackets are for *extracting* (pulling one element out).
+
+```r
+class(result[["coefficients"]])
+#> [1] "numeric"
+class(result["coefficients"])
 #> [1] "list"
 ```
 
-The critical distinction: `[[` and `$` return the **content** of an element (unwrapped). `[` returns a **sublist** containing that element (still wrapped). 90% of bugs involving lists come from using `[` when you meant `[[`.
+> [WARNING]
+> `result["coefficients"] * 2` will error — you can't multiply a list. `result[["coefficients"]] * 2` works because it returns a numeric vector. This mistake is responsible for about half of all "non-numeric argument" errors in R.
 
-[WARNING]
-**`list[i]` returns a list; `list[[i]]` returns the element.** If you compute with `list[i]` you'll get type errors. Remember: double brackets unwrap, single brackets filter.
-
-## How do you modify a list?
-
-Add elements with `$` or `[[ ]]`, remove with `NULL`, update with assignment.
+**Try it:** From `result`, extract the `residuals` as a numeric vector and compute its sum.
 
 ```r
-person <- list(name = "Alice", age = 30)
+ex_sum <- sum(result[[___]])
+ex_sum
 
-# Add an element
-person$city <- "Mumbai"
-person$email <- "alice@example.com"
-names(person)
-#> [1] "name"  "age"   "city"  "email"
-
-# Update an existing element
-person$age <- 31
-person$age
-#> [1] 31
-
-# Remove an element (assign NULL)
-person$email <- NULL
-names(person)
-#> [1] "name" "age"  "city"
-
-# Add a nested list
-person$address <- list(street = "MG Road", pincode = "400001")
-person$address$pincode
-#> [1] "400001"
 ```
 
-Assignment grows the list. Assigning `NULL` deletes. Lists can contain lists, so you can build arbitrary depth.
+## How do you add, modify, and remove list elements?
 
-## How do you iterate over a list?
-
-Use `lapply()` to apply a function to every element. It returns a new list. `sapply()` returns a simplified vector when possible.
+Modifying a list works like a data frame column: assign into a named slot. If the slot exists, you update it; if it doesn't, you create it. To remove, assign `NULL`.
 
 ```r
-numbers <- list(a = 1:3, b = 4:6, c = 7:9)
+result$r_squared <- 0.87
+length(result)
+#> [1] 6
 
-# Apply mean to each element
+result[["converged"]] <- FALSE
+result$converged
+#> [1] FALSE
+
+result$fit_date <- NULL
+length(result)
+#> [1] 5
+names(result)
+#> [1] "model_name"   "coefficients" "residuals"    "r_squared"    "converged"
+```
+
+Three edits, three different access styles — all valid. Pick whichever is clearest for the context.
+
+> [TIP]
+> To *really* set an element to `NULL` (not remove it), use `result["x"] <- list(NULL)`. The `list(NULL)` wrapping is the escape hatch R provides for this edge case.
+
+**Try it:** Add a new element `notes` containing the string "looks good".
+
+```r
+result$notes <- "___"
+result$notes
+
+```
+
+## How do you work with nested lists?
+
+A list element can itself be a list — and the inner list can have its own list elements, and so on. Nested lists are everywhere: JSON responses, model outputs, configuration objects. The rule for accessing them is: chain the operators.
+
+```r
+experiment <- list(
+  name = "A/B test 42",
+  groups = list(
+    control = list(n = 500, mean = 3.2, sd = 0.8),
+    treatment = list(n = 510, mean = 3.5, sd = 0.9)
+  )
+)
+
+experiment$groups$treatment$mean
+#> [1] 3.5
+
+experiment[["groups"]][["control"]][["n"]]
+#> [1] 500
+```
+
+Both styles work. `$` chains are shorter for interactive use; `[[ ]]` chains let you parameterize the path (e.g., `experiment[["groups"]][[grp]]`).
+
+```r
+diff_in_means <- experiment$groups$treatment$mean - experiment$groups$control$mean
+diff_in_means
+#> [1] 0.3
+```
+
+That's extracting and computing in a single expression — the everyday pattern when pulling metrics out of a results object.
+
+**Try it:** Pull the standard deviation of the treatment group from `experiment`.
+
+```r
+ex_sd <- experiment$groups$___$___
+ex_sd
+
+```
+
+## How do you iterate over a list with lapply() and sapply()?
+
+When every element of a list is the same shape (say, five numeric vectors), you often want to apply a function to each one. `lapply()` does this and returns a list; `sapply()` simplifies the result to a vector or matrix when possible.
+
+```r
+numbers <- list(
+  a = 1:5,
+  b = 10:15,
+  c = c(100, 200, 300)
+)
+
 lapply(numbers, mean)
 #> $a
-#> [1] 2
-#>
+#> [1] 3
+#> 
 #> $b
-#> [1] 5
-#>
+#> [1] 12.5
+#> 
 #> $c
-#> [1] 8
+#> [1] 200
 
-# sapply simplifies to a vector
 sapply(numbers, mean)
-#> a b c
-#> 2 5 8
+#>    a    b    c 
+#>  3.0 12.5 200.0
 
-# sapply with sum
-sapply(numbers, sum)
-#>  a  b  c
-#>  6 15 24
+sapply(numbers, function(x) c(min = min(x), max = max(x)))
+#>       a  b   c
+#> min   1 10 100
+#> max   5 15 300
 ```
 
-`lapply()` always returns a list of the same length. `sapply()` tries to simplify the result to a vector or matrix when shapes match. Use `sapply()` for quick summaries; `lapply()` for safety when you want predictable output types.
+`sapply()` returned a named numeric vector in the first case and a matrix in the second — it picks the simplest container that fits. If you want predictability, use `vapply()` (you declare the return shape) or stick to `lapply()`.
 
-[TIP]
-**When a function returns a list and you want one element from each, use `lapply()` then extract.** Example: `lapply(model_list, function(m) m$coefficients)` pulls coefficients from a list of fitted models.
+> [KEY INSIGHT]
+> `lapply()` is how you write "map" in R. Once you can express an operation as "apply this function to every list element," you've internalized functional iteration and can write clean, loopless R code.
 
-## Common Mistakes and How to Fix Them
+**Try it:** Use `sapply()` to get the length of each element in `numbers`.
 
-### Mistake 1: Using `[` when you meant `[[`
-
-❌ **Wrong:**
 ```r
-my_list <- list(x = 1:5, y = 10:14)
-result <- my_list["x"] + 1
-#> Error in my_list["x"] + 1 : non-numeric argument to binary operator
+sapply(numbers, ___)
+
 ```
 
-**Why it is wrong:** `my_list["x"]` returns a sublist (still a list), and you can't add 1 to a list.
+## How do you flatten a list into a vector?
 
-✅ **Correct:**
+Sometimes you just want all the values from a list as a single flat vector. `unlist()` does it — walking the list recursively and concatenating everything into one vector of the most flexible type.
+
 ```r
-my_list <- list(x = 1:5, y = 10:14)
-result <- my_list[["x"]] + 1
-result
-#> [1] 2 3 4 5 6
+unlist(numbers)
+#>  a1  a2  a3  a4  a5  b1  b2  b3  b4  b5  b6  c1  c2  c3 
+#>   1   2   3   4   5  10  11  12  13  14  15 100 200 300
+
+unlist(list(1, "two", TRUE))
+#> [1] "1"    "two"  "TRUE"
+
+unlist(experiment$groups$control)
+#>     n  mean    sd 
+#> 500.0   3.2   0.8
 ```
 
-### Mistake 2: Forgetting `NULL` deletes an element
+Notice the second example: `unlist()` still obeys the coercion hierarchy — mix a string in and everything becomes character. Notice also the first example: the names came from concatenating the list slot names with the inner element positions.
 
-❌ **Wrong:**
+> [NOTE]
+> `unlist()` is destructive. You lose the list structure, and if any element was itself a complex object (like an S4 class), the result may be unexpected. Use it only when you're sure you want flat atomic values.
+
+**Try it:** Flatten `numbers` and compute its total sum.
+
 ```r
-my_list <- list(a = 1, b = 2, c = 3)
-my_list$b <- "remove it"  # actually replaces with a string
-my_list
-#> $a
-#> [1] 1
-#>
-#> $b
-#> [1] "remove it"
-#>
-#> $c
-#> [1] 3
+sum(unlist(___))
+
 ```
 
-**Why it is wrong:** To delete, assign `NULL`. Assigning any other value just overwrites.
+## How do you convert between lists and data frames?
 
-✅ **Correct:**
+A data frame *is* a list (of equal-length columns), so converting between them is common. The key constraint: to become a data frame, list elements must all have the same length.
+
 ```r
-my_list <- list(a = 1, b = 2, c = 3)
-my_list$b <- NULL
-my_list
-#> $a
-#> [1] 1
-#>
-#> $c
-#> [1] 3
+columns <- list(
+  id = 1:4,
+  name = c("Ann", "Bo", "Cal", "Di"),
+  active = c(TRUE, TRUE, FALSE, TRUE)
+)
+
+df <- as.data.frame(columns)
+df
+#>   id name active
+#> 1  1  Ann   TRUE
+#> 2  2   Bo   TRUE
+#> 3  3  Cal  FALSE
+#> 4  4   Di   TRUE
+
+as.list(df)
+#> $id
+#> [1] 1 2 3 4
+#> 
+#> $name
+#> [1] "Ann" "Bo"  "Cal" "Di" 
+#> 
+#> $active
+#> [1]  TRUE  TRUE FALSE  TRUE
 ```
 
-### Mistake 3: Mixing `[` and `[[` returns wrong type
+Going the other way — a list where elements are *rows* rather than columns — needs `do.call(rbind, ...)`:
 
-❌ **Wrong:**
 ```r
-my_list <- list(nums = c(10, 20, 30))
-# Trying to get the second number
-my_list["nums"][2]
-#> $<NA>
-#> NULL
+rows <- list(
+  list(id = 1, name = "Ann"),
+  list(id = 2, name = "Bo"),
+  list(id = 3, name = "Cal")
+)
+
+do.call(rbind, lapply(rows, as.data.frame))
+#>   id name
+#> 1  1  Ann
+#> 2  2   Bo
+#> 3  3  Cal
 ```
 
-**Why it is wrong:** `my_list["nums"]` returns a 1-element sublist, then `[2]` tries to access its second element (there isn't one).
+**Try it:** Convert `columns` to a data frame and print its dimensions.
 
-✅ **Correct:**
 ```r
-my_list <- list(nums = c(10, 20, 30))
-my_list[["nums"]][2]   # unwrap first, then index
-#> [1] 20
-```
+dim(as.data.frame(columns))
 
-### Mistake 4: `sapply()` returning unexpected shapes
-
-❌ **Wrong:**
-```r
-# When results have different lengths, sapply returns a list (not simplified)
-my_list <- list(a = 1:3, b = 1:5)
-result <- sapply(my_list, function(x) x * 2)
-class(result)
-#> [1] "list"
-```
-
-**Why it is wrong:** `sapply()` can only simplify when all results have the same shape. Different lengths → list.
-
-✅ **Correct:**
-```r
-# Use lapply() when you want predictable list output
-result <- lapply(my_list, function(x) x * 2)
-class(result)
-#> [1] "list"
-# Or use vapply() for strict type checking
 ```
 
 ## Practice Exercises
 
-### Exercise 1: Build a List
+### Exercise 1: Summary stats list
 
-Create a list `my_book` with 4 elements: title (character), author (character), year (numeric), chapters (vector of chapter names).
-
-```r
-# Exercise: build a book list
-
-# Write your code below:
-
-```
+Write a function that takes a numeric vector and returns a list with `n`, `mean`, `sd`, `min`, and `max`.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-my_book <- list(
-  title = "Advanced R",
-  author = "Hadley Wickham",
-  year = 2019,
-  chapters = c("Names and values", "Vectors", "Subsetting", "Functions")
-)
-my_book$title
-#> [1] "Advanced R"
-length(my_book$chapters)
-#> [1] 4
-```
-
-**Explanation:** `list()` with named arguments packages mixed types into one object.
-
-</details>
-
-### Exercise 2: Extract an Element
-
-From `my_book`, extract just the `chapters` vector (not a sublist).
-
-```r
-my_book <- list(title = "R4DS", chapters = c("Import", "Tidy", "Transform"))
-# Exercise: extract chapters as a vector (not a list)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-my_book <- list(title = "R4DS", chapters = c("Import", "Tidy", "Transform"))
-my_chapters <- my_book[["chapters"]]
-my_chapters
-#> [1] "Import"    "Tidy"      "Transform"
-class(my_chapters)
-#> [1] "character"
-```
-
-**Explanation:** `[[` unwraps the element, returning the character vector directly.
-
-</details>
-
-### Exercise 3: Add to a Nested List
-
-Add a new chapter "Functions" to `my_book$chapters`.
-
-```r
-my_book <- list(title = "R4DS", chapters = c("Import", "Tidy"))
-# Exercise: append "Functions" to the chapters vector
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-my_book <- list(title = "R4DS", chapters = c("Import", "Tidy"))
-my_book$chapters <- c(my_book$chapters, "Functions")
-my_book$chapters
-#> [1] "Import"    "Tidy"      "Functions"
-```
-
-**Explanation:** Extract with `$`, modify with `c()`, assign back.
-
-</details>
-
-### Exercise 4: Iterate with lapply
-
-Given a list of numeric vectors, compute the maximum of each using `lapply()`.
-
-```r
-my_data <- list(group_a = c(3, 7, 2, 9), group_b = c(5, 1, 8), group_c = c(4, 6))
-# Exercise: max of each element using lapply
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-my_data <- list(group_a = c(3, 7, 2, 9), group_b = c(5, 1, 8), group_c = c(4, 6))
-my_maxes <- lapply(my_data, max)
-my_maxes
-#> $group_a
-#> [1] 9
-#>
-#> $group_b
-#> [1] 8
-#>
-#> $group_c
+describe <- function(x) {
+  list(n = length(x), mean = mean(x), sd = sd(x),
+       min = min(x), max = max(x))
+}
+describe(c(4, 8, 6, 5, 3, 9))
+#> $n
 #> [1] 6
+#> $mean
+#> [1] 5.833333
+#> $sd
+#> [1] 2.228602
+#> $min
+#> [1] 3
+#> $max
+#> [1] 9
 ```
-
-**Explanation:** `lapply()` applies `max` to each element, returning a list of scalars.
-
 </details>
 
-### Exercise 5: Flatten a Named List to a Vector
+### Exercise 2: Extract from lm() output
 
-Given a named list of single numbers, convert it to a named numeric vector.
-
-```r
-my_list <- list(alpha = 1.5, beta = 2.3, gamma = 0.8)
-# Exercise: convert to a named numeric vector
-# Hint: unlist()
-
-# Write your code below:
-
-```
+Fit a linear model on `mtcars` and pull the R² and the residual standard error from the `summary()` object.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-my_list <- list(alpha = 1.5, beta = 2.3, gamma = 0.8)
-my_vec <- unlist(my_list)
-my_vec
-#> alpha  beta gamma
-#>   1.5   2.3   0.8
-class(my_vec)
-#> [1] "numeric"
+fit <- lm(mpg ~ wt, data = mtcars)
+s <- summary(fit)
+s$r.squared
+#> [1] 0.7528328
+s$sigma
+#> [1] 3.045882
 ```
-
-**Explanation:** `unlist()` flattens a list into a vector, preserving names. Works when all elements are the same type (or can be coerced).
-
 </details>
 
-## Complete Example: Storing a Linear Model's Results
+### Exercise 3: Apply across a list of models
 
-The `lm()` function returns a list. Here's how to explore and extract from it.
+Fit three models (`mpg ~ wt`, `mpg ~ hp`, `mpg ~ wt + hp`) on `mtcars`, store them in a named list, then use `sapply()` to get the R² of each.
+
+<details>
+<summary>Show solution</summary>
 
 ```r
-# --- Inspecting a model object ---
-
-# Step 1: Fit a model — returns a list
-model <- lm(mpg ~ wt + hp, data = mtcars)
-class(model)
-#> [1] "lm"
-
-# Step 2: What's inside?
-names(model)
-#>  [1] "coefficients"  "residuals"     "effects"       "rank"
-#>  [5] "fitted.values" "assign"        "qr"            "df.residual"
-#>  [9] "xlevels"       "call"          "terms"         "model"
-
-# Step 3: Extract specific components
-model$coefficients
-#> (Intercept)          wt          hp
-#> 37.22727012 -3.87783074 -0.03177295
-
-length(model$residuals)
-#> [1] 32
-head(model$fitted.values, 3)
-#> Mazda RX4 Mazda RX4 Wag    Datsun 710
-#>  23.57233      22.58348      25.27582
-
-# Step 4: Build your own results list
-my_results <- list(
-  formula = "mpg ~ wt + hp",
-  coefs = model$coefficients,
-  rsquared = summary(model)$r.squared,
-  n_obs = length(model$residuals)
+models <- list(
+  wt = lm(mpg ~ wt, data = mtcars),
+  hp = lm(mpg ~ hp, data = mtcars),
+  both = lm(mpg ~ wt + hp, data = mtcars)
 )
-my_results
-#> $formula
-#> [1] "mpg ~ wt + hp"
-#>
-#> $coefs
-#> (Intercept)          wt          hp
-#> 37.22727012 -3.87783074 -0.03177295
-#>
-#> $rsquared
-#> [1] 0.8267855
-#>
-#> $n_obs
-#> [1] 32
+sapply(models, function(m) summary(m)$r.squared)
+#>        wt        hp      both 
+#> 0.7528328 0.6024373 0.8267855
+```
+</details>
+
+## Putting It All Together
+
+A realistic pattern: run three models, collect the results in a nested list, extract key metrics, and assemble a summary data frame.
+
+```r
+predictors <- c("wt", "hp", "disp")
+fits <- lapply(predictors, function(p) {
+  f <- as.formula(paste("mpg ~", p))
+  lm(f, data = mtcars)
+})
+names(fits) <- predictors
+
+summaries <- list(
+  r_squared = sapply(fits, function(m) summary(m)$r.squared),
+  sigma     = sapply(fits, function(m) summary(m)$sigma),
+  n_coef    = sapply(fits, function(m) length(coef(m)))
+)
+
+report <- as.data.frame(summaries)
+report
+#>      r_squared    sigma n_coef
+#> wt   0.7528328 3.045882      2
+#> hp   0.6024373 3.862962      2
+#> disp 0.7183433 3.251454      2
 ```
 
-R's `lm()` returns a list with 12+ components. You explored it with `names()`, extracted pieces with `$`, and repackaged what you needed into your own compact list. This pattern — explore, extract, repackage — is how you work with every R statistical function.
+Six lines: fit a list of models, extract three metrics via `sapply()`, assemble into a summary table. This pattern — list of models → apply → data frame — scales to dozens of models or cross-validation folds without changing shape.
 
 ## Summary
 
-| Operation | Syntax | Example |
-|---|---|---|
-| Create | `list(...)` | `list(a = 1, b = "x")` |
-| Element | `L[[i]]` or `L$name` | `person$name` |
-| Sublist | `L[i]` | `person[1:2]` |
-| Add | `L$new <- value` | `L$extra <- 5` |
-| Remove | `L$name <- NULL` | `L$extra <- NULL` |
-| Iterate | `lapply(L, FUN)` | `lapply(L, mean)` |
-| Iterate, simplify | `sapply(L, FUN)` | `sapply(L, sum)` |
-| Flatten | `unlist(L)` | `unlist(named_list)` |
-| Names | `names(L)` | `names(L) <- c("a","b")` |
-| Length | `length(L)` | `length(L)` |
-
-## FAQ
-
-### When should I use a list instead of a data frame?
-
-Use a list when your elements have different lengths or structures. Use a data frame when your data is rectangular (equal-length columns). Examples of list-shaped data: a model's output, a config object, a tree structure, a JSON response.
-
-### How do I check if an element exists in a list?
-
-Use `"name" %in% names(my_list)` or `!is.null(my_list[["name"]])`. The `%in%` version is more readable.
-
-### What's the difference between `lapply()` and `map()` from purrr?
-
-Both apply a function to each element. `purrr::map()` has consistent return-type variants (`map_dbl`, `map_chr`, `map_df`) and anonymous function shortcuts (`~ .x * 2`). In base R, `lapply()` + `sapply()` + `vapply()` cover the same needs with more typing.
-
-### How do I convert a list to a data frame?
-
-If elements have equal length, `data.frame(my_list)` works. For more complex conversions, `do.call(rbind, list_of_rows)` or `dplyr::bind_rows()` handle row-oriented lists of lists.
-
-### Can a list contain itself (recursion)?
-
-Yes — R supports recursive lists. This creates infinite-depth structures, useful for trees and graphs. Use `rapply()` or recursive helper functions to traverse them.
+| Task | Syntax |
+|------|--------|
+| Create | `list(a = 1, b = "two", c = 1:5)` |
+| Extract element | `lst$a`, `lst[["a"]]` |
+| Sub-list | `lst["a"]` or `lst[c("a", "b")]` |
+| Modify | `lst$a <- new_value` |
+| Remove | `lst$a <- NULL` |
+| Iterate | `lapply(lst, f)` or `sapply(lst, f)` |
+| Flatten | `unlist(lst)` |
+| To data frame | `as.data.frame(lst)` (equal-length elements) |
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Chapter 6 (Lists and data frames). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 3.6 (Lists). [Link](https://adv-r.hadley.nz/vectors-chap.html#lists)
-3. R manual — `list()` reference (stat.ethz.ch). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/list.html)
-4. R manual — `lapply` family reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
-5. R manual — `Extract` for lists. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.html)
-6. Wickham, H. — *Advanced R*, Chapter 20 (Subsetting). [Link](https://adv-r.hadley.nz/subsetting.html)
-7. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 23 (Hierarchical data). [Link](https://r4ds.hadley.nz/rectangling.html)
+1. [R Language Definition — List objects](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#List-objects)
+2. [Advanced R — Lists](https://adv-r.hadley.nz/vectors-chap.html#lists) by Hadley Wickham
+3. [An Introduction to R — Lists and data frames](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Lists-and-data-frames)
+4. [R for Data Science — Iteration](https://r4ds.hadley.nz/iteration) — modern alternatives with `purrr`
+5. [R Inferno — Chapter 8: Believing it does as intended](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf) by Patrick Burns — `[` vs `[[` gotchas
 
 ## Continue Learning
 
-- **[R Subsetting](R-Subsetting.html)** — deep dive on `[`, `[[`, `$`, and `@` across all R objects.
-- **[purrr map() Variants](purrr-map-Variants.html)** — the modern tidyverse way to work with lists.
-- **[R Control Flow](R-Control-Flow.html)** — `if`/`else`, `for`, `while` to write logic around lists.
+- [R Data Frames: Every Operation You'll Need](R-Data-Frames.html) — the tabular cousin of lists.
+- [R Vectors: The Foundation of Everything in R](R-Vectors.html) — the building blocks that go inside list slots.
+- [R Data Types: Which Type Is Your Variable?](R-Data-Types.html) — the types a list can hold.
