@@ -140,7 +140,7 @@ height_m  <- 1.78
 # Use them in a formula (BMI = weight / height^2)
 bmi <- weight_kg / height_m ^ 2
 bmi
-#> [1] 22.72188
+#> [1] 22.72441
 ```
 
 Three things are happening here. First, `<-` stores `72` into `weight_kg`; nothing is printed, because assignment is silent. Second, R computes the BMI formula using the two variables you just defined. Third, typing `bmi` by itself tells R "print this" — so you see the final value. This print-by-typing shortcut is one of R's most beginner-friendly features.

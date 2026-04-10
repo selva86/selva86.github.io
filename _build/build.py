@@ -645,7 +645,8 @@ WEBR_BODY_BLOCK = """
         }
       });
       el.classList.add('cm-initialized');
-      editors.push({ cm, originalCode: code, el });
+      const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
+      editors[domIdx] = { cm, originalCode: code, el };
     }
 
     // Yielding init: queue editors and init one at a time, yielding between each
@@ -752,6 +753,9 @@ WEBR_BODY_BLOCK = """
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
+      // Ensure the editor for this block is initialized even if the user
+      // clicked Run before the lazy IntersectionObserver fired.
+      if (!editorEl.dataset.cmInit) initEditor(editorEl);
       const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
       let code = editors[idx].cm.getValue();
 
@@ -854,6 +858,7 @@ WEBR_BODY_BLOCK = """
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
+      if (!editorEl.dataset.cmInit) initEditor(editorEl);
       const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
       editors[idx].cm.setValue(editors[idx].originalCode);
       outputEl.textContent = '';
