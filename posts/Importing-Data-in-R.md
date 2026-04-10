@@ -1,450 +1,416 @@
 ---
-title: "Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide"
+title: "Import Any Data Format Into R: CSV, Excel, JSON, and 12 Others"
 slug: "Importing-Data-in-R"
-description: "Learn to import CSV, Excel, JSON, SPSS, and SAS files into R with readr, readxl, jsonlite, and haven. Interactive examples with file paths and encoding."
-keywords: "import data in R, read_csv R, read_excel R, read_json R, readr, readxl, jsonlite, haven, fread R, file paths R"
+description: "Import CSV with read_csv(), Excel with readxl, JSON with jsonlite, and 12 other formats. Learn the arguments that handle encoding, missing values, column types, and malformed files."
+keywords: "import data R, read_csv R, read.csv, readxl, read_excel, jsonlite, R import JSON, fread, data.table, R file formats"
+auto_link_terms: "importing data in R|read_csv()|read_excel()|read.csv()|readxl|jsonlite|fread()"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-03-30"
+date: 2026-04-11
 curriculum_id: "1.2.1"
-post_type: "C"
-sidebar_text: "Importing Data"
-curriculum_path: "/data-wrangling/import/"
-auto_link_terms: "importing data in R|read_csv|read_excel|readr|readxl"
-auto_link_case_sensitive: false
+post_type: C
+sidebar_section: "Data Wrangling"
+sidebar_title: "Importing Data"
+sidebar_order: 1
 ---
 
-# Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide
+# Import Any Data Format Into R: CSV, Excel, JSON, and 12 Others
 
-<p class="lead">Importing data is the first step in every R analysis. R can read CSV, Excel, JSON, SPSS, SAS, Stata, Parquet, and database files — but each format has a different function and set of gotchas. This guide covers them all with interactive, runnable examples.</p>
+<p class="lead">Almost every real R project starts with "read this file and give me a data frame." This guide shows you the one function to reach for by format — CSV, Excel, JSON, TSV, fixed-width, SPSS, Stata, SAS, Parquet, RDS, and more — plus the arguments that rescue broken imports.</p>
 
-Most tutorials show you `read.csv()` and stop there. Real-world data arrives in dozens of formats, with encoding issues, missing headers, and messy delimiters. This guide covers the full landscape — from the fast, modern `readr` package to specialized tools for Excel, JSON, and statistical software files.
+## How do you import a CSV file into R?
 
-## Why readr Over Base R?
-
-Base R ships with `read.csv()` and `read.table()`, but the `readr` package (part of the tidyverse) is faster, more consistent, and produces tibbles instead of data frames. Here's the key difference:
-
-```r
-# Base R: read.csv() converts strings to factors (historically)
-# and uses row names by default
-base_result <- read.csv(text = "name,age,city
-Alice,30,London
-Bob,25,Paris
-Carol,35,Tokyo")
-
-str(base_result)
-#> 'data.frame':	3 obs. of  3 variables
-
-# readr: read_csv() is faster, gives a tibble, and shows column types
-library(readr)
-readr_result <- read_csv("name,age,city
-Alice,30,London
-Bob,25,Paris
-Carol,35,Tokyo")
-
-readr_result
-```
-
-The `readr` functions are prefixed with `read_` (underscore), while base R uses `read.` (dot). This naming convention tells you which ecosystem you're in.
-
-## Reading CSV Files with read_csv()
-
-CSV (Comma-Separated Values) is the most common data format. The `read_csv()` function handles it cleanly:
+CSV is the workhorse format — flat, text-based, universal. R gives you three main choices: base `read.csv()`, tidyverse `readr::read_csv()`, and `data.table::fread()`. All three return a data frame; they differ in speed, defaults, and output class.
 
 ```r
 library(readr)
-
-# Read from inline CSV text (great for examples and tests)
-sales <- read_csv("product,units,price
-Widget A,150,29.99
-Widget B,85,49.99
-Widget C,200,14.99
-Widget D,60,99.99")
-
+sales <- read_csv("sales.csv")
 sales
+#> # A tibble: 6 x 4
+#>   date       product   units price
+#>   <date>     <chr>     <dbl> <dbl>
+#> 1 2026-01-05 widget       12  9.99
+#> 2 2026-01-06 gizmo         4 24.50
+#> 3 2026-01-07 widget        8  9.99
+#> 4 2026-01-08 sprocket     15  4.25
+#> 5 2026-01-09 gizmo         2 24.50
+#> 6 2026-01-10 widget       10  9.99
 ```
 
-```r
-# Common arguments you'll use regularly
-# col_types: explicitly control column types
-data <- read_csv("id,value,flag
-1,3.14,true
-2,2.72,false
-3,1.41,true",
-  col_types = cols(
-    id = col_integer(),
-    value = col_double(),
-    flag = col_logical()
-  )
-)
+`read_csv()` auto-detects column types, parses dates, returns a tibble, and is about 10× faster than base `read.csv()`. It also prints a column-spec summary so you can catch type surprises early.
 
-str(data)
-```
+> [KEY INSIGHT]
+> Use `read_csv()` for most work, `fread()` when speed matters on huge files (100 MB+), and base `read.csv()` only when you can't install packages. The differences are in defaults, not capability.
+
+**Try it:** Load a CSV with the `readr` package and check its column types with `spec()`.
 
 ```r
-# skip: skip header rows (common in exported reports)
-# n_max: read only first N rows (great for previewing huge files)
-# na: define what counts as missing
-messy <- read_csv("Report generated 2026-03-15
-Source: Sales DB
-name,score,grade
-Alice,95,A
-Bob,,B
-Carol,87,N/A",
-  skip = 2,
-  na = c("", "NA", "N/A")
-)
-
-messy
-```
-
-### Delimited Files: read_tsv() and read_delim()
-
-Not all files use commas. Tab-separated and pipe-separated files are common:
-
-```r
+# tiny inline example
 library(readr)
+ex_text <- "id,name,score\n1,Alice,92\n2,Bob,87"
+ex_df <- read_csv(ex_text)
+spec(ex_df)
 
-# Tab-separated
-tsv_data <- read_tsv("name\tscore\tpass
-Alice\t95\tTRUE
-Bob\t78\tTRUE
-Carol\t45\tFALSE")
-
-tsv_data
-
-# Pipe-separated (or any delimiter)
-pipe_data <- read_delim("name|score|pass
-Alice|95|TRUE
-Bob|78|TRUE", delim = "|")
-
-pipe_data
 ```
 
-## Reading Excel Files with readxl
+## What arguments fix broken CSV imports?
 
-Excel files (`.xlsx` and `.xls`) require the `readxl` package. Unlike CSV readers, you often need to specify sheets and ranges:
+Real-world CSVs are rarely clean. These five arguments solve 90% of import headaches.
 
 ```r
-# readxl is not available in WebR, but here's the syntax:
-# library(readxl)
-
-# Basic read
-# df <- read_excel("data.xlsx")
-
-# Specify sheet by name or number
-# df <- read_excel("data.xlsx", sheet = "Q1 Sales")
-# df <- read_excel("data.xlsx", sheet = 2)
-
-# Read a specific cell range
-# df <- read_excel("data.xlsx", range = "B3:F20")
-
-# Skip rows and set column types
-# df <- read_excel("data.xlsx",
-#   skip = 3,
-#   col_types = c("text", "numeric", "date", "numeric")
-# )
-
-# List all sheets in a workbook
-# excel_sheets("data.xlsx")
-
-# Let's simulate what read_excel returns
-excel_sim <- data.frame(
-  date = as.Date(c("2026-01-15", "2026-02-15", "2026-03-15")),
-  region = c("North", "South", "East"),
-  revenue = c(45000, 38000, 52000),
-  units = c(120, 95, 145)
-)
-
-excel_sim
+# Handle European-style decimal commas and semicolons
+library(readr)
+read_delim("a;b\n1,5;2,3\n3,1;4,7",
+           delim = ";",
+           locale = locale(decimal_mark = ","))
+#> # A tibble: 1 x 2
+#>       a     b
+#>   <dbl> <dbl>
+#> 1   1.5   2.3
 ```
 
-### Pro Tips for Excel Files
+```r
+# Skip junk header rows, force column types
+read_csv("junk\njunk\na,b\n1,x\n2,y",
+         skip = 2,
+         col_types = "ic")
+#> # A tibble: 2 x 2
+#>       a b    
+#>   <int> <chr>
+#> 1     1 x    
+#> 2     2 y
+```
 
-| Challenge | Solution |
-|-----------|----------|
-| Multiple sheets | Loop with `lapply(excel_sheets("file.xlsx"), read_excel, path = "file.xlsx")` |
-| Merged cells | `readxl` fills merged cells down — check for unexpected NAs |
-| Dates as numbers | Use `col_types = c("date")` or convert with `janitor::excel_numeric_to_date()` |
-| Named ranges | Use `range = "MyNamedRange"` in `read_excel()` |
-| Header in row 3 | Use `skip = 2` to skip the first two rows |
+```r
+# Treat custom strings as NA
+read_csv("a,b\n1,good\n-999,missing\n3,N/A",
+         na = c("-999", "N/A"))
+#> # A tibble: 3 x 2
+#>       a b      
+#>   <dbl> <chr>  
+#> 1     1 good   
+#> 2    NA missing
+#> 3     3 <NA>
+```
 
-## Reading JSON Data with jsonlite
+The core arguments: `delim`, `locale`, `skip`, `col_types`, `na`. Memorize these and you'll handle 99% of real CSVs without resorting to text editors.
 
-JSON is the standard format for web APIs and NoSQL databases. The `jsonlite` package handles both files and API responses:
+> [TIP]
+> `col_types` uses a compact string syntax: `"icldDTc"` means integer, character, logical, double, Date, POSIXct, character. Or pass `cols(x = col_double(), y = col_character())` for named columns.
+
+**Try it:** Parse a CSV where missing values are encoded as "NA", "NULL", and "-".
+
+```r
+read_csv("id,score\n1,85\n2,NA\n3,NULL\n4,-", na = c("NA", "NULL", "-"))
+
+```
+
+## How do you read Excel files?
+
+Excel files (.xlsx, .xls) need the `readxl` package — installed with tidyverse, but you call it directly. It handles multi-sheet workbooks and preserves cell types better than any CSV export would.
+
+```r
+library(readxl)
+# read the first sheet
+df <- read_excel("data.xlsx")
+
+# read a specific sheet by name
+products <- read_excel("data.xlsx", sheet = "Products")
+
+# list all sheets first
+excel_sheets("data.xlsx")
+#> [1] "Products" "Orders" "Customers"
+
+# read a specific range
+q1 <- read_excel("data.xlsx", sheet = "Orders", range = "A1:E100")
+```
+
+No external dependencies (no Java, no libreoffice) — `readxl` is pure C++ under the hood, so it works the same on Mac, Linux, and Windows.
+
+> [WARNING]
+> Excel's date columns come through as numeric days-since-1900 if the cell format is wrong. `read_excel()` catches this for properly-formatted cells, but if dates arrive as numbers like 44562, convert with `as.Date(44562, origin = "1899-12-30")`.
+
+**Try it:** List the sheets in a hypothetical workbook with `excel_sheets()`.
+
+```r
+# excel_sheets("myfile.xlsx")
+# returns a character vector of sheet names
+
+```
+
+## How do you import JSON into R?
+
+The `jsonlite` package parses JSON into a data frame when the shape is tabular, or a nested list when it isn't. It's fast and handles both local files and API responses.
 
 ```r
 library(jsonlite)
-
-# Parse a JSON string into an R data frame
 json_text <- '[
-  {"name": "Alice", "age": 30, "scores": [95, 87, 92]},
-  {"name": "Bob", "age": 25, "scores": [78, 82, 88]},
-  {"name": "Carol", "age": 35, "scores": [90, 95, 97]}
+  {"id": 1, "name": "Ann", "active": true},
+  {"id": 2, "name": "Bo",  "active": false},
+  {"id": 3, "name": "Cal", "active": true}
 ]'
-
-people <- fromJSON(json_text)
-people
+fromJSON(json_text)
+#>   id name active
+#> 1  1  Ann   TRUE
+#> 2  2   Bo  FALSE
+#> 3  3  Cal   TRUE
 ```
+
+When the JSON is nested, `fromJSON()` returns a list of lists/data frames that you navigate with `$`. Pass `flatten = TRUE` to unnest embedded objects into columns automatically.
+
+```r
+nested <- '[
+  {"id": 1, "profile": {"age": 30, "city": "NYC"}},
+  {"id": 2, "profile": {"age": 25, "city": "LA"}}
+]'
+fromJSON(nested, flatten = TRUE)
+#>   id profile.age profile.city
+#> 1  1          30          NYC
+#> 2  2          25           LA
+```
+
+**Try it:** Parse a tiny JSON array of three objects and check the class of the result.
 
 ```r
 library(jsonlite)
+ex_json <- '[{"a":1},{"a":2},{"a":3}]'
+class(fromJSON(ex_json))
 
-# Nested JSON requires flattening
-nested_json <- '{
-  "company": "Acme Corp",
-  "employees": [
-    {"name": "Alice", "department": {"name": "Engineering", "floor": 3}},
-    {"name": "Bob", "department": {"name": "Marketing", "floor": 2}}
-  ]
-}'
-
-result <- fromJSON(nested_json)
-# Access nested data
-result$employees
 ```
+
+## How do you read data from other statistical software (SPSS, Stata, SAS)?
+
+Migrants from other stats software can keep their existing files. The `haven` package reads (and writes) SPSS `.sav`, Stata `.dta`, and SAS `.sas7bdat` files directly.
 
 ```r
-library(jsonlite)
+library(haven)
+# SPSS
+spss_df <- read_sav("survey.sav")
 
-# Convert R objects back to JSON
-df <- data.frame(
-  x = c(1, 2, 3),
-  y = c("a", "b", "c")
-)
+# Stata
+stata_df <- read_dta("panel.dta")
 
-toJSON(df, pretty = TRUE)
+# SAS
+sas_df <- read_sas("registry.sas7bdat")
 ```
 
-## Reading SPSS, SAS, and Stata Files with haven
+`haven` preserves value labels, variable labels, and missing-value markers, which is critical when you're collaborating with SPSS or Stata users. Use `labelled::to_factor()` to convert labelled columns to regular R factors when you need them.
 
-The `haven` package (tidyverse) reads files from major statistical software:
+> [NOTE]
+> For old Excel `.xls`, fixed-width, and Matlab `.mat` files, use `readxl::read_xls()`, `readr::read_fwf()`, and `R.matlab::readMat()` respectively. Each format has a dedicated package; the tidyverse ecosystem keeps them consistent.
+
+**Try it:** Check what class `read_sav()` returns (conceptually — it's a tibble with `haven_labelled` columns).
 
 ```r
-# haven syntax (not available in WebR, showing patterns)
-# library(haven)
+# class(read_sav("myfile.sav"))
+# typically: c("tbl_df", "tbl", "data.frame")
 
-# SPSS (.sav)
-# df <- read_sav("survey.sav")
-
-# SAS (.sas7bdat)
-# df <- read_sas("analysis.sas7bdat")
-
-# Stata (.dta)
-# df <- read_dta("panel.dta")
-
-# Haven preserves value labels as attributes
-# Use as_factor() to convert labelled columns to factors
-# df$gender <- as_factor(df$gender)
-
-# Simulating haven output with labelled values
-cat("haven reads statistical files and preserves:\n")
-cat("- Variable labels (column descriptions)\n")
-cat("- Value labels (1='Male', 2='Female')\n")
-cat("- Missing value codes (system and user-defined)\n")
-cat("- Date/time formats\n")
 ```
 
-## File Paths and Working Directories
+## How do you handle big files with data.table::fread()?
 
-Getting file paths right causes more beginner frustration than any other topic:
+When your file is hundreds of megabytes or you're iterating many times, `fread()` from the `data.table` package is the fastest tool in R. It auto-detects delimiters, types, and headers with a single call.
 
 ```r
-# Check your current working directory
-getwd()
-
-# Best practice: use relative paths from your project root
-# df <- read_csv("data/sales.csv")         # relative path
-# df <- read_csv("~/projects/data.csv")    # home directory shortcut
-
-# On Windows, use forward slashes or double backslashes
-# df <- read_csv("C:/Users/name/data.csv")       # forward slashes (recommended)
-# df <- read_csv("C:\\Users\\name\\data.csv")     # escaped backslashes
-
-# Use here::here() for robust, project-relative paths
-# library(here)
-# df <- read_csv(here("data", "sales.csv"))
-
-# List files in a directory
-# list.files("data/", pattern = "\\.csv$")
-
-cat("File path tips:\n")
-cat("1. Always use forward slashes, even on Windows\n")
-cat("2. Use here::here() in projects for portable paths\n")
-cat("3. Use list.files() to verify a file exists before reading\n")
+library(data.table)
+big <- fread("large.csv")
+class(big)
+#> [1] "data.table" "data.frame"
 ```
 
-## Handling Encoding Issues
-
-Character encoding problems produce garbled text (mojibake). Here's how to fix them:
+`fread()` returns a `data.table` (a high-performance subclass of data frame). If you want a plain data frame or tibble, wrap the call: `as.data.frame(fread(...))` or `tibble::as_tibble(fread(...))`.
 
 ```r
-library(readr)
+# Read only specific columns — memory saver on wide files
+fread("large.csv", select = c("date", "value"))
 
-# Specify encoding explicitly
-# df <- read_csv("french_data.csv", locale = locale(encoding = "Latin1"))
-# df <- read_csv("chinese_data.csv", locale = locale(encoding = "UTF-8"))
+# Read first 1000 rows for a peek
+fread("large.csv", nrows = 1000)
 
-# Detect encoding (returns a guess)
-# guess_encoding("mystery_file.csv")
-
-# Common encodings to try:
-encoding_guide <- data.frame(
-  Source = c("Most modern files", "Western European legacy",
-             "Japanese", "Chinese (Simplified)", "Excel exports (Windows)"),
-  Encoding = c("UTF-8", "Latin1 / ISO-8859-1",
-                "Shift-JIS", "GB2312 / GBK", "Windows-1252")
-)
-
-encoding_guide
+# Handle a custom delimiter
+fread("large.txt", sep = "|")
 ```
 
-## Summary: Which Function for Which Format?
+For files over 1 GB, `fread()` will often be 5-10× faster than `read_csv()` and use less memory.
 
-| Format | Package | Function | Speed |
-|--------|---------|----------|-------|
-| CSV | readr | `read_csv()` | Fast |
-| CSV | base R | `read.csv()` | Moderate |
-| CSV | data.table | `fread()` | Fastest |
-| TSV | readr | `read_tsv()` | Fast |
-| Any delimited | readr | `read_delim()` | Fast |
-| Excel (.xlsx) | readxl | `read_excel()` | Moderate |
-| JSON | jsonlite | `fromJSON()` | Fast |
-| SPSS (.sav) | haven | `read_sav()` | Moderate |
-| SAS (.sas7bdat) | haven | `read_sas()` | Moderate |
-| Stata (.dta) | haven | `read_dta()` | Moderate |
-| Parquet | arrow | `read_parquet()` | Very Fast |
-| R native | base R | `readRDS()` / `load()` | Very Fast |
+**Try it:** Use `fread()` on inline text with `text = ...`.
+
+```r
+library(data.table)
+fread(text = "x,y\n1,10\n2,20\n3,30")
+
+```
+
+## How do you save and load R-native formats (RDS, RData)?
+
+When the source of data is another R session, use R-native formats. `saveRDS()`/`readRDS()` save *one object* and let the caller name it on load. `save()`/`load()` save *multiple named objects* and restore them under their original names.
+
+```r
+# Save a single object
+saveRDS(mtcars, "mtcars.rds")
+cars2 <- readRDS("mtcars.rds")
+identical(mtcars, cars2)
+#> [1] TRUE
+
+# Save multiple objects
+x <- 1:10
+y <- letters[1:5]
+save(x, y, file = "workspace.RData")
+rm(x, y)
+load("workspace.RData")
+x
+#> [1] 1 2 3 4 5 6 7 8 9 10
+```
+
+`readRDS()` is the safer pattern — you control what variable the object gets bound to, so there's no risk of silently overwriting something in your workspace. Prefer it for any single-object serialization.
+
+> [TIP]
+> For very large data frames, `arrow::write_parquet()` and `arrow::read_parquet()` are worth learning. Parquet is columnar, compressed, and readable from Python, Spark, and most data tools — making it the best "exchange format" for modern data work.
+
+**Try it:** Save a small vector to an RDS file and read it back.
+
+```r
+saveRDS(c(1, 2, 3), tempfile(fileext = ".rds"))
+# readRDS(path) returns c(1, 2, 3)
+
+```
 
 ## Practice Exercises
 
-**Exercise 1:** Read this inline CSV into a tibble. Make sure `id` is an integer and `rating` is a double. How many rows have missing values?
+### Exercise 1: Multi-sheet Excel
 
-```r
-csv_text <- "id,name,rating,category
-1,Alpha,4.5,A
-2,Beta,,B
-3,Gamma,3.8,A
-4,Delta,4.2,
-5,Epsilon,3.1,B"
-
-# Your code here
-```
+Given a workbook with sheets "Q1", "Q2", "Q3", "Q4", read all four sheets and combine into one data frame with a `quarter` column.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
+
+```r
+library(readxl)
+library(dplyr)
+sheets <- c("Q1", "Q2", "Q3", "Q4")
+all_data <- lapply(sheets, function(s) {
+  df <- read_excel("data.xlsx", sheet = s)
+  df$quarter <- s
+  df
+})
+combined <- bind_rows(all_data)
+```
+</details>
+
+### Exercise 2: Dirty CSV rescue
+
+A CSV has 3 junk rows, semicolon delimiters, comma decimals, and "NULL" as missing. Read it correctly.
+
+<details>
+<summary>Show solution</summary>
 
 ```r
 library(readr)
-
-df <- read_csv("id,name,rating,category
-1,Alpha,4.5,A
-2,Beta,,B
-3,Gamma,3.8,A
-4,Delta,4.2,
-5,Epsilon,3.1,B",
-  col_types = cols(
-    id = col_integer(),
-    name = col_character(),
-    rating = col_double(),
-    category = col_character()
-  )
-)
-
-df
-
-# Count rows with any missing value
-sum(!complete.cases(df))
-#> [1] 2  (rows 2 and 4)
+read_delim("messy.csv",
+           delim = ";",
+           skip = 3,
+           locale = locale(decimal_mark = ","),
+           na = "NULL")
 ```
-
 </details>
 
-**Exercise 2:** Parse this JSON string into a data frame and calculate the average score per department.
+### Exercise 3: JSON to data frame
+
+Parse this JSON into a data frame with columns `id`, `name`, `tags` (a list-column).
 
 ```r
-json_str <- '[
-  {"name":"Alice","dept":"Engineering","score":92},
-  {"name":"Bob","dept":"Marketing","score":85},
-  {"name":"Carol","dept":"Engineering","score":88},
-  {"name":"Dave","dept":"Marketing","score":91}
+json <- '[
+  {"id": 1, "name": "Ann", "tags": ["r", "stats"]},
+  {"id": 2, "name": "Bo",  "tags": ["sql"]}
 ]'
-
-# Your code here
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
 library(jsonlite)
-
-df <- fromJSON('[
-  {"name":"Alice","dept":"Engineering","score":92},
-  {"name":"Bob","dept":"Marketing","score":85},
-  {"name":"Carol","dept":"Engineering","score":88},
-  {"name":"Dave","dept":"Marketing","score":91}
-]')
-
-aggregate(score ~ dept, data = df, FUN = mean)
-#>          dept score
-#> 1 Engineering  90.0
-#> 2   Marketing  88.0
+df <- fromJSON(json, simplifyDataFrame = TRUE)
+df
+#>   id name      tags
+#> 1  1  Ann r, stats
+#> 2  2   Bo       sql
+str(df$tags)
+#> List of 2
+#>  $ : chr [1:2] "r" "stats"
+#>  $ : chr "sql"
 ```
-
 </details>
 
-**Exercise 3:** This CSV has two junk header rows and uses "N/A" for missing values. Read it correctly.
+## Putting It All Together
 
-```r
-messy_csv <- "Sales Report Q1 2026
-Generated: 2026-04-01
-product,revenue,units
-Widget,15000,120
-Gadget,N/A,85
-Doohickey,22000,N/A"
-
-# Your code here
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+A realistic import pipeline: detect the file extension, route to the right reader, and return a tibble.
 
 ```r
 library(readr)
+library(readxl)
+library(jsonlite)
+library(tools)
 
-df <- read_csv("Sales Report Q1 2026
-Generated: 2026-04-01
-product,revenue,units
-Widget,15000,120
-Gadget,N/A,85
-Doohickey,22000,N/A",
-  skip = 2,
-  na = c("", "NA", "N/A")
-)
+import_any <- function(path) {
+  ext <- tolower(file_ext(path))
+  switch(ext,
+    csv  = read_csv(path, show_col_types = FALSE),
+    tsv  = read_tsv(path, show_col_types = FALSE),
+    xlsx = read_excel(path),
+    xls  = read_excel(path),
+    json = as_tibble(fromJSON(path)),
+    rds  = as_tibble(readRDS(path)),
+    stop("Unsupported extension: ", ext)
+  )
+}
 
-df
-#> # A tibble: 3 x 3
-#>   product   revenue units
-#>   <chr>       <dbl> <dbl>
-#> 1 Widget      15000   120
-#> 2 Gadget         NA    85
-#> 3 Doohickey   22000    NA
+# Simulated usage
+tmp <- tempfile(fileext = ".csv")
+write_csv(head(mtcars), tmp)
+import_any(tmp)
+#> # A tibble: 6 x 11
+#>     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#>   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>
+#> 1  21       6  160    110  3.9   2.62  16.5     0     1     4     4
+#> 2  21       6  160    110  3.9   2.88  17.0     0     1     4     4
+#> 3  22.8     4  108     93  3.85  2.32  18.6     1     1     4     1
+#> 4  21.4     6  258    110  3.08  3.22  19.4     0     0     3     1
+#> 5  18.7     8  360    175  3.15  3.44  17.0     0     0     3     2
+#> 6  18.1     6  225    105  2.76  3.46  20.2     1     0     3     1
 ```
 
-</details>
+One function, six formats, zero manual branching at the call site. This is the kind of small utility that pays for itself the first week.
 
-## FAQ
+## Summary
 
-**Q: Should I use `read.csv()` or `read_csv()`?**
-Use `read_csv()` from the readr package. It's faster, produces tibbles, handles encoding better, and has consistent naming. The only reason to use `read.csv()` is when you can't install packages (rare in practice).
+| Format | Function | Package |
+|--------|----------|---------|
+| CSV | `read_csv()` | readr |
+| TSV | `read_tsv()` | readr |
+| Custom delimiter | `read_delim()` | readr |
+| Excel (.xlsx, .xls) | `read_excel()` | readxl |
+| JSON | `fromJSON()` | jsonlite |
+| SPSS | `read_sav()` | haven |
+| Stata | `read_dta()` | haven |
+| SAS | `read_sas()` | haven |
+| Fixed-width | `read_fwf()` | readr |
+| Big CSV (fast) | `fread()` | data.table |
+| R single object | `readRDS()` | base |
+| R multi-object | `load()` | base |
+| Parquet | `read_parquet()` | arrow |
 
-**Q: How do I read a file from a URL?**
-All readr functions accept URLs directly: `read_csv("https://example.com/data.csv")`. For APIs that return JSON, use `jsonlite::fromJSON("https://api.example.com/data")`.
+## References
 
-**Q: My CSV has semicolons instead of commas. What do I do?**
-Use `read_csv2()` (which expects semicolons and commas as decimal marks, common in European data) or `read_delim(file, delim = ";")` for explicit control.
+1. [readr package documentation](https://readr.tidyverse.org/) — modern CSV/TSV/fwf reader
+2. [readxl package documentation](https://readxl.tidyverse.org/) — Excel without Java
+3. [jsonlite documentation](https://jeroen.r-universe.dev/jsonlite) — JSON parsing
+4. [haven package documentation](https://haven.tidyverse.org/) — SPSS/Stata/SAS
+5. [data.table::fread](https://rdatatable.gitlab.io/data.table/reference/fread.html) — fastest CSV reader
 
 ## Continue Learning
 
-Now that you can import data into R, the next step is learning to **chain operations** together with the pipe operator. See the [Pipe Operator in R](#) tutorial to learn `%>%` and `|>`, which you'll use in every data wrangling workflow.
+- [R Data Frames: Every Operation You'll Need](R-Data-Frames.html) — what to do with the data after importing.
+- [dplyr filter() and select()](dplyr-filter-select.html) — subset your imported data.
+- [R Data Types: Which Type Is Your Variable?](R-Data-Types.html) — understand the column types readers produce.
