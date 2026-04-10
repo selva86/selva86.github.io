@@ -1,420 +1,405 @@
 ---
 title: "R Syntax 101: Write Your First Working Script in 10 Minutes"
-slug: "R-Syntax-101"
+slug: R-Syntax-101
 description: "Learn R's core syntax: arithmetic operators, variable assignment with <-, comments, and how to write and run your first script — with every line explained."
-keywords: "R syntax, R arithmetic operators, R assignment operator, R comments, R script, learn R basics, R first script, operator precedence R, R variables, R for beginners"
-auto_link_terms: "R syntax|basic R syntax|R arithmetic operators|assignment operator in R|R comments|writing R scripts"
+keywords: "R syntax, R basic syntax, R arithmetic operators, R assignment operator, R comments, first R script, R programming basics, learn R"
+auto_link_terms: "R syntax|R basic syntax|arithmetic operators in R|assignment operator in R|R comments"
 auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-11"
+date: 2026-04-11
 curriculum_id: "1.1.4"
-post_type: "C"
-sidebar_section: "Learn R"
+post_type: C
+sidebar_section: "R Fundamentals"
 sidebar_title: "R Syntax 101"
-sidebar_order: 5
+sidebar_order: 1
 ---
 
 # R Syntax 101: Write Your First Working Script in 10 Minutes
 
-<p class="lead">R's syntax is the small set of rules that lets you do arithmetic, store values with <code>&lt;-</code>, write <code>#</code> comments, and save it all as a <code>.R</code> script. Master these four pieces and you can write real R code today.</p>
+<p class="lead">R's core syntax is refreshingly small. Learn five ideas — arithmetic operators, variable assignment with <code>&lt;-</code>, hash comments, naming rules, and running a <code>.R</code> script — and you can read nearly any R code you'll ever encounter.</p>
 
-## How do you do arithmetic in R?
+## How do you run your first line of R code?
 
-Arithmetic is the gentlest way into R. Type an expression, press Enter, and R prints the answer — no `print()` call, no setup, no boilerplate. Every calculator key you've ever used has a one-character equivalent in R, plus two extras Excel doesn't give you.
+The fastest way to understand R is to type an expression and watch R answer back. Open RStudio, click inside the console at the bottom, and every line you type is evaluated the moment you press Enter — no compile step, no build. R is an interactive calculator that happens to also run whole scripts. Here's a three-line example that shows arithmetic, assignment, and printing in one go.
 
-Here are all six arithmetic operators in a single block. Run it and read the `#>` output lines alongside each expression.
-
-```r
-# The six arithmetic operators in R
-2 + 3        # addition
-#> [1] 5
-
-10 - 4       # subtraction
-#> [1] 6
-
-6 * 7        # multiplication
-#> [1] 42
-
-20 / 8       # real division
-#> [1] 2.5
-
-2 ^ 10       # exponent (2 to the power of 10)
-#> [1] 1024
-
-17 %% 5      # modulo — the remainder after dividing
-#> [1] 2
-```
-
-Four of those are identical to a pocket calculator. The two worth a closer look are `^` and `%%`. `^` is R's power operator — `2 ^ 10` means "two raised to the tenth", giving `1024`. `%%` returns what's left over after division: `17 %% 5` equals `2` because `17 = 5 × 3 + 2`. Modulo is how you test whether a number is even (`x %% 2 == 0`) or divisible by anything else.
-
-### What order does R apply operators in?
-
-R follows the same PEMDAS rules your maths teacher drilled into you: parentheses first, then exponents, then multiplication and division, then addition and subtraction. Mix operators in one expression and the order matters.
+Try typing each of the four lines below. R prints the answer right under each expression that returns a value.
 
 ```r
-2 + 3 * 4      # multiplication happens before addition
-#> [1] 14
-
-(2 + 3) * 4    # parentheses force addition first
-#> [1] 20
-
-2 ^ 3 + 1      # exponent first, then add
-#> [1] 9
-
-2 ^ (3 + 1)    # parentheses flip it to 2^4
-#> [1] 16
-```
-
-The first two lines give different answers from the same numbers. That's the whole reason parentheses exist. When you read code written by someone else, parentheses spell out the author's intent — there's no ambiguity left for R (or you) to misinterpret.
-
-![R operator precedence from parentheses down to assignment](screenshots/R-Syntax-101-operator-precedence.webp)
-*Figure 1: R evaluates operators in PEMDAS order — parentheses first, assignment last.*
-
-[TIP]
-**Parentheses are free — use them liberally.** Even when you're sure of the precedence, `(a * b) + (c * d)` reads in one glance where `a * b + c * d` makes the reader stop and translate. Clarity beats cleverness every time.
-
-### What built-in math functions does R ship with?
-
-Beyond the basic operators, R bundles every maths function you'd expect: square roots, logarithms, exponentials, rounding. You don't need to load a library — they're ready the moment R starts.
-
-```r
-sqrt(16)        # square root
+2 + 2
 #> [1] 4
 
-log(100)        # natural log (base e)
-#> [1] 4.60517
-
-log10(100)      # log base 10
-#> [1] 2
-
-exp(1)          # e ^ 1 (Euler's number)
-#> [1] 2.718282
-
-abs(-7.5)       # absolute value
-#> [1] 7.5
-
-round(3.14159, digits = 2)   # round to 2 decimal places
-#> [1] 3.14
+x <- 10        # store 10 in x
+y <- x * 3     # use x to compute y
+y
+#> [1] 30
 ```
 
-Notice `round()` takes two arguments: the number and how many decimals to keep, separated by a comma. That comma pattern — function, open paren, arguments, close paren — is how every R function is called. You just saw the syntactic backbone of the entire language.
+That tiny snippet already uses three of the five syntax elements we'll cover. Line 1 is pure arithmetic: R evaluates `2 + 2` and prints `4`. The strange `[1]` at the front is R's row index — R prints results as vectors, and `[1]` means "this is the first element". You can ignore it for now. Line 2 uses the `<-` operator to store the number `10` in a variable called `x`. Line 3 does the same, but reuses `x` in the calculation. Line 4 simply types `y`, and R echoes its value back.
 
-**Try it:** Write a one-liner that computes the value of $100 invested at 5% annual interest for 3 years, using the formula `principal * (1 + rate) ^ years`. The three inputs are already set up — you just need to write the expression.
+**Try it:** Store your age in seconds in a variable called `ex_age_seconds`. A year has roughly 31,557,600 seconds.
 
 ```r
-# Try it: compound interest
-ex_principal <- 100
-ex_rate <- 0.05
-ex_years <- 3
+# Try it: compute your age in seconds
+ex_age_seconds <- # your code here
 
-# your code here
-#> Expected: [1] 115.7625
+# Test:
+ex_age_seconds
+#> Expected: a large number (e.g., 946728000 for 30 years)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-ex_principal * (1 + ex_rate) ^ ex_years
-#> [1] 115.7625
+ex_age_seconds <- 30 * 31557600
+ex_age_seconds
+#> [1] 946728000
 ```
 
-**Explanation:** Parentheses wrap `1 + ex_rate` so the addition happens before the exponent; otherwise `^` would bind tighter and break the formula.
+**Explanation:** Multiplying your age in years by the number of seconds in a year gives the total. Replace `30` with your own age.
+
+</details>
+
+[KEY INSIGHT]
+**R evaluates one line at a time, left to right, top to bottom.** Every time you press Enter in the console, R reads the line, computes the result, and prints anything that wasn't assigned. Assignment silently stores the value without printing it.
+
+## What arithmetic operators does R support?
+
+R supports seven arithmetic operators. Five of them are the usual suspects you'd find on a calculator — addition, subtraction, multiplication, division, and exponentiation. The other two are handy for integer math: modulo (remainder) and integer division. You'll use the first five constantly; the last two show up in loops, hashing, and date calculations.
+
+Let's run every operator in a single block so you can see the results side by side.
+
+```r
+5 + 2       # addition
+#> [1] 7
+
+5 - 2       # subtraction
+#> [1] 3
+
+5 * 2       # multiplication
+#> [1] 10
+
+5 / 2       # division (always returns a decimal)
+#> [1] 2.5
+
+5 ^ 2       # exponentiation (5 to the power of 2)
+#> [1] 25
+
+5 %% 2      # modulo (remainder after dividing)
+#> [1] 1
+
+5 %/% 2     # integer division (quotient, no remainder)
+#> [1] 2
+```
+
+Two things are worth noting. First, `/` in R always returns a decimal, even when both operands are whole numbers — `5 / 2` gives `2.5`, not `2`. If you want the integer part, use `%/%`. Second, `^` is the exponent operator, not `**` — that's a Python habit you'll have to drop.
+
+Operator precedence in R follows standard math rules: exponentiation first, then multiplication and division, then addition and subtraction. When in doubt, use parentheses to force the order you want.
+
+```r
+2 + 3 * 4          # multiplication happens first
+#> [1] 14
+
+(2 + 3) * 4        # parentheses override precedence
+#> [1] 20
+
+2 ^ 3 + 1          # exponent first, then addition
+#> [1] 9
+```
+
+The first expression evaluates `3 * 4 = 12`, then adds `2` to get `14`. The second forces the addition to happen first, so you get `5 * 4 = 20`. Small difference, big consequences — a stray missing parenthesis is a classic bug source in scientific code.
+
+[TIP]
+**When in doubt, parenthesize.** R does not charge extra for parentheses, and a future reader (often you, in six months) will thank you. `(x - mean(x)) / sd(x)` is clearer than trusting everyone to remember that division binds tighter than subtraction.
+
+**Try it:** Compute the area of a rectangle that is `12.5` units wide and `8` units tall, and store it in `ex_area`.
+
+```r
+# Try it: compute rectangle area
+ex_area <- # your code here
+
+# Test:
+ex_area
+#> Expected: 100
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_area <- 12.5 * 8
+ex_area
+#> [1] 100
+```
+
+**Explanation:** Area of a rectangle is width × height. Parentheses are unnecessary here because there's only one operation.
 
 </details>
 
 ## How do you assign values to variables in R?
 
-A variable is a name you give to a value so you can reuse it. In R, you create one with the `<-` operator, which you should read out loud as "gets". Say `x <- 5` as "x gets five" and the mental model clicks instantly.
+A variable is a name attached to a value. Once you've stored a number, a string, or an entire dataset in a variable, you can recall it later and use it in other calculations. R has three ways to assign values, but only one is considered good style. The figure below shows the three directions side by side.
 
-Here's how you'd compute body mass index (BMI) using named variables instead of raw numbers. Each assignment stores a value; the final line uses all three.
+![Three ways to assign values in R](screenshots/R-Syntax-101-assignment-directions.webp)
+*Figure 1: Three ways to assign in R — `<-` (idiomatic), `=` (valid but reserved for function arguments), and `->` (rare right-to-left form).*
 
-```r
-weight_kg <- 72
-height_m  <- 1.78
-bmi <- weight_kg / (height_m ^ 2)
-
-bmi
-#> [1] 22.72188
-```
-
-Three things just happened. First, `weight_kg <- 72` created a box called `weight_kg` and put `72` inside it. Second, `height_m <- 1.78` did the same for height. Third, the BMI line pulled values out of both boxes, ran the calculation, and stored the answer in a new box called `bmi`. Typing a variable name on its own line (`bmi`) tells R to print its contents.
-
-![Flow showing x gets 5 through evaluation, memory storage, and later reuse](screenshots/R-Syntax-101-assignment-flow.webp)
-*Figure 2: The `<-` operator sends a value into a name.*
-
-[TIP]
-**Alt+- types `<-` for you in RStudio.** RStudio maps `Alt + Minus` (Option + Minus on Mac) to insert ` <- ` with spaces on both sides. Your pinky will thank you after the hundredth variable.
-
-### What can you name a variable?
-
-R variable names must start with a letter or a dot, and can contain letters, digits, underscores, and dots. They're case-sensitive — `Sales` and `sales` are two different variables. A few conventions make your code easier to read later.
+Let's see all three operators in action. Every line below stores the number `10` in a variable, just using different syntax.
 
 ```r
-# Valid, readable names
-sales_2026 <- 45000
-mean_mpg   <- 20.09
-customer_count <- 128
+a <- 10       # idiomatic left-arrow assignment
+b = 10        # equals-sign assignment (avoid outside function calls)
+10 -> c       # rare right-arrow assignment
 
-# Also valid, but less common
-salesTotal <- 100     # camelCase
-sales.total <- 100    # dot.style (legacy — avoid, dots have S3 meaning)
-
-# INVALID — each of these would throw an error:
-# 2026_sales <- 45000   # can't start with a digit
-# sales-2026 <- 45000   # dash is subtraction, not part of a name
-# my var <- 5           # spaces not allowed
+a
+#> [1] 10
+b
+#> [1] 10
+c
+#> [1] 10
 ```
 
-Stick with `snake_case` (lowercase words joined by underscores) — it's the tidyverse convention and matches most modern R code you'll read online. Avoid single letters except in short formulas; `customer_count` is always clearer than `cc`.
+All three variables now hold the same value. But even though they're functionally equivalent at the top level, the R community has overwhelmingly settled on `<-`. Every style guide — tidyverse, Google, Bioconductor — prefers it, so nearly all R code you'll read uses left-arrow.
 
 [KEY INSIGHT]
-**`<-` takes a snapshot, it doesn't create a link.** When you write `bmi <- weight_kg / (height_m^2)`, R calculates the number *once* and stores it. Change `weight_kg` afterwards and `bmi` stays put — it's a photograph of the answer, not a live formula. This is the opposite of how Excel cells work, and it trips up every spreadsheet migrant on day one.
+**`<-` and `=` are not identical everywhere.** Inside function calls like `mean(x = 1:10)`, the `=` is *naming an argument*, not assigning a variable. If you accidentally write `<-` there, R will create a new top-level variable called `x` as a side effect. That is why R programmers reserve `=` for arguments and `<-` for everything else — it keeps the two meanings visually separate.
 
-### Can you reassign a variable?
-
-Yes — and you do it constantly. Writing `counter <- counter + 1` means "take whatever is in `counter`, add one, and put the result back". R evaluates the right side first, then overwrites the left.
+You can reassign variables as often as you like. R does not complain; it just replaces the old value with the new one. Variable names are also case-sensitive — `counter` and `Counter` are two completely different variables.
 
 ```r
 counter <- 0
-counter
-#> [1] 0
-
+counter <- counter + 1     # reassign: new value is old value + 1
 counter <- counter + 1
 counter
-#> [1] 1
+#> [1] 2
 
-counter <- counter + 10
-counter
-#> [1] 11
+Counter <- 99              # different variable — capital C
+Counter
+#> [1] 99
+
+counter                    # the lowercase one is unchanged
+#> [1] 2
 ```
 
-Each assignment completely replaces the previous value. There's no history — `counter` now holds `11` and the `0` and `1` are gone unless you stored them somewhere else. This is how loops, counters, and running totals work in every imperative language, R included.
+Notice how `counter + 1` uses the current value of `counter` on the right side before the new value is assigned on the left. This "read old value, write new value" pattern is how counters and accumulators work in nearly every programming language.
 
-**Try it:** Create two variables `ex_a` and `ex_b` with any two numbers, then compute and print their product in a third variable called `ex_product`.
+[WARNING]
+**Don't confuse `=` with `==`.** A single `=` is assignment (or argument naming). A double `==` is a comparison that returns `TRUE` or `FALSE`. Writing `if (x = 5)` when you meant `if (x == 5)` is a silent bug: the first assigns `5` to `x` and then checks whether `5` is truthy.
+
+**Try it:** You have two variables `ex_a <- 1` and `ex_b <- 2`. Swap their values using a temporary variable `ex_temp`, so that at the end `ex_a` is `2` and `ex_b` is `1`.
 
 ```r
-# Try it: assign and multiply
-ex_a <- 7
-ex_b <- 6
+# Try it: swap ex_a and ex_b
+ex_a <- 1
+ex_b <- 2
 
-# your code here — create ex_product
-#> Expected: [1] 42
+# your code here
+
+# Test:
+ex_a
+#> Expected: 2
+ex_b
+#> Expected: 1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-ex_product <- ex_a * ex_b
-ex_product
-#> [1] 42
+ex_a <- 1
+ex_b <- 2
+
+ex_temp <- ex_a
+ex_a <- ex_b
+ex_b <- ex_temp
+
+ex_a
+#> [1] 2
+ex_b
+#> [1] 1
 ```
 
-**Explanation:** `ex_a * ex_b` evaluates to `42`, and `<-` stores that number in the new name `ex_product`.
+**Explanation:** You need the temporary variable because the moment you write `ex_a <- ex_b`, the original `ex_a` is lost. Save it in `ex_temp` first, then overwrite.
 
 </details>
 
-## How do you add comments to R code?
+## How do comments make R code readable?
 
-A comment is a note for humans that R ignores. Every character after a `#` on a line is treated as plain text. Comments explain *why* the code exists — the *what* is already in the code itself.
+A comment is a note to yourself (or the next reader) that R ignores while running the code. In R, the hash symbol `#` starts a comment that runs to the end of the line. Everything after the `#` is skipped by the interpreter. R has no multi-line comment syntax like `/* ... */` in C or `"""..."""` in Python — if you want a paragraph of explanation, put `#` at the start of every line.
+
+Comments serve two purposes. First, they explain *why* a line exists, not what it does (the code itself already tells you *what*). Second, they let you temporarily disable a line of code without deleting it, which is handy when debugging.
 
 ```r
-# This is a full-line comment — R skips it entirely
+# Calculate the total price including tax
+price <- 100            # base price in dollars
+tax_rate <- 0.08        # 8% sales tax
 
-radius <- 5                    # inline comment after a statement
-area <- pi * radius ^ 2        # pi is a built-in constant ≈ 3.14159
-area
-#> [1] 78.53982
-
-# ----------------------------
-# Section header: helpful for
-# organising long scripts
-# ----------------------------
+# total <- price + 50   # disabled: old flat tax logic
+total <- price * (1 + tax_rate)
+total
+#> [1] 108
 ```
 
-Three patterns cover 99% of real-world use. Full-line comments explain the next block. Inline comments clarify a single line — especially non-obvious values or units. Section header comments (a row of dashes or `###`) visually divide a long script so you can scan it.
+Three kinds of comments appear here. The first line is a whole-line comment explaining the block's purpose. The next two have trailing comments describing each variable. The `# total <- price + 50` line is a *commented-out* expression — useful when you want to keep old logic around for reference or to undo a change quickly.
+
+[TIP]
+**Write comments for the reader six months from now.** "Use 0.08 because the office is in California and sales tax is 8%" is a great comment. "Set tax_rate to 0.08" is a useless one — the code already says that. Comments should explain intent, constraints, or anything that isn't obvious from the code itself.
+
+**Try it:** Add a trailing comment to each line below explaining what the line does in plain English.
+
+```r
+# Try it: add comments to explain each line
+ex_miles <- 26.2            # your comment here
+ex_km <- ex_miles * 1.609   # your comment here
+
+ex_km
+#> Expected: 42.1558
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_miles <- 26.2            # marathon distance in miles
+ex_km <- ex_miles * 1.609   # convert to kilometres (1 mile = 1.609 km)
+
+ex_km
+#> [1] 42.1558
+```
+
+**Explanation:** Good trailing comments explain units, sources, or the "why" behind a magic number — not just what the operator does.
+
+</details>
+
+## What are the rules for naming R variables?
+
+R is flexible about variable names, but it's not a free-for-all. A valid R name must start with a letter or a dot (`.`), and after that can contain letters, digits, dots, and underscores. It cannot start with a digit, cannot contain spaces or most symbols, and cannot be one of R's reserved words like `TRUE`, `FALSE`, `NULL`, `if`, or `function`.
+
+```r
+my_var <- 1          # valid: snake_case, letters and underscore
+userName <- 2        # valid: camelCase
+.hidden <- 3         # valid: leading dot (but hidden from ls())
+score.1 <- 4         # valid: dots are allowed (but see note below)
+x2 <- 5              # valid: digits allowed after the first char
+
+my_var + userName + .hidden + score.1 + x2
+#> [1] 15
+```
+
+All five names work, but a few would fail. `2x <- 1` is invalid because the name starts with a digit. `my-var <- 1` is invalid because R reads the `-` as subtraction. `if <- 1` is invalid because `if` is a reserved keyword. R will throw an "unexpected symbol" or "invalid assignment" error on any of those.
 
 [NOTE]
-**R has no block-comment syntax.** Unlike C's `/* ... */` or Python's triple-quoted strings, R only supports single-line `#`. To comment out ten lines, you prefix each one with `#`. In RStudio, select the lines and press `Ctrl+Shift+C` (`Cmd+Shift+C` on Mac) to toggle them all at once.
+**Prefer snake_case for new code.** The tidyverse style guide — used by most modern R packages — recommends lowercase words separated by underscores: `user_name`, `total_sales`, `fit_model`. Avoid dots in new variable names: `my.data` looks like it might be a method call on `my`, and historically that has caused confusion in R's S3 object system. Dots in names are valid, just not recommended.
 
-**Try it:** Below is a mini tax calculator. Comment out the first assignment so `ex_tax` uses the second `ex_price`. The expected output should be the tax on `200`, not `100`.
+**Try it:** Three of the variable names below are invalid. Rewrite them so they work and store the value on the right.
 
 ```r
-# Try it: comment out one line so ex_price ends up as 200
-ex_price <- 100
-ex_price <- 200
-ex_tax <- ex_price * 0.18
-ex_tax
-#> Expected: [1] 36
+# Try it: fix the three invalid names
+# 2user <- "Alex"       invalid: starts with digit
+# my name <- "Alex"     invalid: contains a space
+# total$ <- 100         invalid: contains $
+
+# your corrected code here:
+ex_user_name <- # ...
+ex_v2 <- # ...
+ex_total <- # ...
+
+# Test:
+ex_user_name
+#> Expected: "Alex"
+ex_v2
+#> Expected: "Alex"
+ex_total
+#> Expected: 100
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-# ex_price <- 100       # commented out, so this line is skipped
-ex_price <- 200
-ex_tax <- ex_price * 0.18
-ex_tax
-#> [1] 36
+ex_user_name <- "Alex"     # replaced space with underscore
+ex_v2 <- "Alex"            # moved the digit after the letter
+ex_total <- 100            # dropped the $
+
+ex_user_name
+#> [1] "Alex"
+ex_v2
+#> [1] "Alex"
+ex_total
+#> [1] 100
 ```
 
-**Explanation:** Once the first assignment is commented, only the second one runs, and `ex_price` ends up as `200`. The tax calculation then gives `36`.
+**Explanation:** The fixes follow the three rules: start with a letter, no spaces, no special symbols. Underscores are the safest separator.
 
 </details>
 
-## How do you write and run your first R script?
+## How do you write and run a complete R script?
 
-A script is a plain text file with a `.R` extension holding a sequence of R statements. R reads it from top to bottom, running each non-comment line in order. Scripts are how you save your work, share it, and rerun the same analysis tomorrow without retyping.
+Typing lines into the console is great for quick experiments, but anything you want to keep — analyses, reports, pipelines — belongs in a script file. An R script is nothing fancier than a plain text file with a `.R` extension that contains the same lines you'd type into the console. You save it, open it in RStudio, and run it.
 
-Here's a complete script that converts Celsius to Fahrenheit. Copy it into a new file called `temp_converter.R` in RStudio (File → New File → R Script) and save it.
+![How R evaluates a script](screenshots/R-Syntax-101-script-run-flow.webp)
+*Figure 2: How R evaluates a script — write, save, run, see output. No separate compile step.*
+
+There are three common ways to run code from a script file in RStudio. You can put the cursor on any line and press **Ctrl+Enter** (Cmd+Enter on Mac) to run just that line. You can select several lines and press the same keys to run the selection. Or you can press **Ctrl+Shift+Enter** to source the entire file in one go. No matter which you pick, R evaluates the lines top to bottom in the order they appear.
+
+Here is a complete working script you can paste into a file called `temperature.R` and run. It converts a Celsius temperature to Fahrenheit.
 
 ```r
-# temp_converter.R
-# Convert a Celsius temperature to Fahrenheit.
-# Author: You
-# Date: 2026-04-11
+# temperature.R — convert Celsius to Fahrenheit
 
-celsius <- 25                          # input temperature
-fahrenheit <- celsius * 9 / 5 + 32     # conversion formula
+# Step 1: define the input
+celsius <- 25
 
-# Print both values
-print(celsius)
-#> [1] 25
-print(fahrenheit)
+# Step 2: apply the conversion formula F = C * 9/5 + 32
+fahrenheit <- celsius * 9 / 5 + 32
+
+# Step 3: print the result
+fahrenheit
 #> [1] 77
 ```
 
-Every line in that script falls into one of the categories you've already learned. The first four lines are comments — a header block that documents the purpose. Lines 6 and 7 are assignments using arithmetic. Lines 10 and 11 print the values. That's the whole language so far.
-
-![Flowchart showing a script reading lines, skipping comments, executing others, and storing results](screenshots/R-Syntax-101-script-execution.webp)
-*Figure 3: A script runs top-to-bottom, skipping comment lines.*
-
-### What are the three ways to run a script?
-
-Once the file is saved, you have three ways to execute it:
-
-1. **RStudio Source button.** Open the file and click **Source** in the top-right of the editor (or press `Ctrl+Shift+S`). RStudio runs the whole script in the Console and prints any output.
-2. **`source()` from the console.** Type `source("temp_converter.R")` at the R prompt. R reads the file and executes every line as if you'd typed them yourself.
-3. **`Rscript` from the terminal.** Outside RStudio, open a terminal in the same folder and run `Rscript temp_converter.R`. This is how scheduled jobs, batch processing, and deployment pipelines run R code.
-
-Use the Source button while you're developing, `source()` when you want a helper script available inside a bigger analysis, and `Rscript` when you're automating something that should run without a human in the loop.
+Read the script top to bottom. Comments mark each step so a future reader can follow along. The formula uses operator precedence: `celsius * 9 / 5` is computed left to right before `+ 32` is added. Change `celsius` to any number and rerun the script — that is the core workflow of almost every R analysis you'll ever write.
 
 [TIP]
-**Start every script with a header comment.** Three lines — purpose, author, date — take five seconds to write and save Future-You hours of "what is this file?". A single extra line listing required packages or input files is worth ten more minutes later.
+**Ctrl+Enter is your best friend.** Running one line at a time lets you inspect intermediate results and catch mistakes early. Source the whole file only once you're confident each line works.
 
-**Try it:** Extend the script to convert Fahrenheit back to Celsius. Use the inverse formula `(ex_f - 32) * 5 / 9` and store the result in `ex_c`.
+**Try it:** Modify the script so it converts kilograms to pounds instead. The conversion is `pounds = kilograms * 2.20462`.
 
 ```r
-# Try it: convert Fahrenheit back to Celsius
-ex_f <- 77
-
-# your code here — compute ex_c from ex_f
-#> Expected: [1] 25
+# Try it: kilograms to pounds
+kilograms <- 70
+# your code here: compute and print pounds
+pounds <- # ...
+pounds
+#> Expected: 154.3234
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-ex_f <- 77
-ex_c <- (ex_f - 32) * 5 / 9
-ex_c
-#> [1] 25
+kilograms <- 70
+pounds <- kilograms * 2.20462
+pounds
+#> [1] 154.3234
 ```
 
-**Explanation:** The subtraction must happen before the multiplication, so the parentheses around `ex_f - 32` are essential. Drop them and you'd compute `77 - 32 * 5 / 9`, which is not what you want.
-
-</details>
-
-## What other operators will you use all the time?
-
-Beyond arithmetic, two more operator families come up in almost every real script: comparison and logical operators. Comparison operators ask "is this true?" and return `TRUE` or `FALSE`. Logical operators combine those answers.
-
-```r
-# Comparison operators — all return TRUE or FALSE
-celsius > 20       # greater than
-#> [1] TRUE
-
-celsius < 10       # less than
-#> [1] FALSE
-
-celsius >= 25      # greater than or equal
-#> [1] TRUE
-
-celsius == 25      # EQUAL — note the double equals
-#> [1] TRUE
-
-celsius != 30      # NOT equal
-#> [1] TRUE
-```
-
-The critical one to notice is `==` (two equals signs), which tests equality. A single `=` is an assignment (like `<-`), not a test. Mixing them up is the single most common beginner mistake in every language — and R is no gentler.
-
-[WARNING]
-**`=` inside `if()` is a hard error in R, not a silent bug.** In some languages, `if (x = 5)` quietly assigns `5` to `x` and keeps going. In R, the parser raises a syntax error the moment it sees `=` where a comparison belongs. That's a feature — it turns a hidden bug into a loud, immediate failure. Always use `==` for equality tests.
-
-### How do you combine conditions with logical operators?
-
-Once you have TRUE/FALSE values, you combine them with `&` (AND), `|` (OR), and `!` (NOT). These follow normal boolean logic.
-
-```r
-celsius <- 25
-
-# AND — both must be TRUE
-celsius > 20 & celsius < 30
-#> [1] TRUE
-
-# OR — at least one must be TRUE
-celsius < 10 | celsius > 20
-#> [1] TRUE
-
-# NOT — flips TRUE to FALSE and vice versa
-!(celsius == 25)
-#> [1] FALSE
-```
-
-These three operators are the whole vocabulary of conditional logic in R. "Between 20 and 30" is two comparisons joined by `&`. "Outside normal range" is two comparisons joined by `|`. Any filter you'll ever write — in base R, in `dplyr`, or in a model formula — is built out of these three symbols.
-
-**Try it:** Check whether `ex_score` is strictly between 10 and 20. The expression should return `TRUE` for `15` and `FALSE` for `25`.
-
-```r
-# Try it: range check
-ex_score <- 15
-
-# your code here — return TRUE if 10 < ex_score < 20
-#> Expected: [1] TRUE
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-ex_score <- 15
-ex_score > 10 & ex_score < 20
-#> [1] TRUE
-```
-
-**Explanation:** R has no chained comparison like Python's `10 < x < 20`. You must write two separate comparisons and join them with `&`.
+**Explanation:** Same three-step shape as the temperature script: define the input, apply the formula, print the result. That shape will turn up in nearly every script you write.
 
 </details>
 
 ## Practice Exercises
 
-These capstone exercises combine everything from the tutorial. Each one is solvable with just arithmetic, assignment, comments, and comparison operators. Use `my_`-prefixed variable names so they don't overwrite anything from earlier blocks.
+These capstone problems combine several ideas from above. Work through them without peeking at the solutions — the struggle is where the learning happens.
 
-### Exercise 1: BMI calculator with category
+### Exercise 1: BMI Calculator
 
-Compute the BMI of a person weighing 80 kg who is 1.80 m tall, then decide which category it falls into: `"Under"` if BMI < 18.5, `"Normal"` if 18.5 ≤ BMI < 25, or `"Over"` if BMI ≥ 25. Hint: use three comparisons and print whichever one is TRUE.
+Write a short script that computes Body Mass Index from a person's weight (kg) and height (metres). The formula is `BMI = weight / height^2`. Use variables called `my_weight`, `my_height`, and `my_bmi`, and add comments explaining each step.
 
 ```r
-# Exercise 1: BMI + category
-# Hint: compute my_bmi first, then use comparison operators
-
-my_weight <- 80
-my_height <- 1.80
+# Exercise 1: BMI calculator
+# Use my_weight <- 72 and my_height <- 1.75
+# Hint: remember to square the height with ^
 
 # Write your code below:
 
@@ -424,39 +409,31 @@ my_height <- 1.80
 <summary>Click to reveal solution</summary>
 
 ```r
-my_weight <- 80
-my_height <- 1.80
-my_bmi <- my_weight / (my_height ^ 2)
+# BMI calculator
+my_weight <- 72            # weight in kilograms
+my_height <- 1.75          # height in metres
+my_bmi <- my_weight / my_height^2    # BMI formula
 my_bmi
-#> [1] 24.69136
-
-# Category checks — exactly one will be TRUE
-my_bmi < 18.5                          # "Under"
-#> [1] FALSE
-my_bmi >= 18.5 & my_bmi < 25           # "Normal"
-#> [1] TRUE
-my_bmi >= 25                           # "Over"
-#> [1] FALSE
+#> [1] 23.51020
 ```
 
-**Explanation:** The BMI of `24.69` falls inside the `[18.5, 25)` range, so the middle comparison returns `TRUE`. Once you learn `if/else` in a later tutorial, you can turn those three checks into a single branching statement.
+**Explanation:** The `^2` raises `my_height` to the power of 2, and division happens after (exponentiation binds tighter than division in R). A result around 23 puts this person in the "healthy" range on the standard BMI scale.
 
 </details>
 
-### Exercise 2: Restaurant tip and split calculator
+### Exercise 2: Compound Interest
 
-Three friends share a restaurant bill of $84.50. They want to leave an 18% tip and split the total equally. Compute the total (bill + tip) and the per-person share rounded to 2 decimal places. Store the share in `my_share`.
+An investment of `my_principal` dollars grows at an annual interest rate `my_rate` (as a decimal, so 5% is `0.05`) for `my_years` years. Compound-interest growth is `final = principal * (1 + rate)^years`. Compute the final amount for `$1000` at 5% over 10 years.
 
 ```r
-# Exercise 2: tip + split
-# Hint: compute my_total first (bill * (1 + tip_pct)), then divide by people
-# Use round(x, digits = 2) for the final answer
+# Exercise 2: compound interest
+# Hint: use ^ for the exponent
 
-my_bill    <- 84.50
-my_tip_pct <- 0.18
-my_people  <- 3
+my_principal <- 1000
+my_rate <- 0.05
+my_years <- 10
 
-# Write your code below:
+# Compute my_final here:
 
 ```
 
@@ -464,82 +441,112 @@ my_people  <- 3
 <summary>Click to reveal solution</summary>
 
 ```r
-my_bill    <- 84.50
-my_tip_pct <- 0.18
-my_people  <- 3
+my_principal <- 1000
+my_rate <- 0.05
+my_years <- 10
 
-my_total <- my_bill * (1 + my_tip_pct)
-my_total
-#> [1] 99.71
-
-my_share <- round(my_total / my_people, digits = 2)
-my_share
-#> [1] 33.24
+my_final <- my_principal * (1 + my_rate)^my_years
+my_final
+#> [1] 1628.895
 ```
 
-**Explanation:** Parentheses around `1 + my_tip_pct` are essential — without them, R computes `my_bill * 1 + my_tip_pct`, which adds the decimal tip percent after the full bill and gives a nonsense answer. Always parenthesise when mixing addition with multiplication.
+**Explanation:** Parentheses are essential around `1 + my_rate` — without them, R would compute `my_rate^my_years` first due to operator precedence, giving a completely wrong answer. After 10 years, `$1000` grows to about `$1628.89`.
 
 </details>
 
-## Complete Example: A Monthly Budget Script
+### Exercise 3: Rectangle Analyzer
 
-Here's everything you've learned in one short script. It computes monthly disposable income from a handful of inputs, uses comments for structure, and prints a clear result.
+Given `my_width <- 4` and `my_height <- 3`, compute and store three values: `my_area` (width × height), `my_perimeter` (twice the sum of width and height), and `my_diagonal` (the square root of width² + height², which you can compute with `^0.5`).
 
 ```r
-# --------------------------------------------
-# monthly_budget.R
-# Quick disposable-income calculator.
-# Inputs at the top, computation in the middle,
-# result at the bottom — the classic script shape.
-# --------------------------------------------
+# Exercise 3: rectangle analyzer
+my_width <- 4
+my_height <- 3
 
-# --- Inputs ---
-income    <- 4500      # monthly take-home, in dollars
-rent      <- 1400
-groceries <- 450
-transport <- 180
+# Compute my_area, my_perimeter, my_diagonal below:
 
-# --- Calculation ---
-total_expenses <- rent + groceries + transport
-savings        <- income - total_expenses
-
-# --- Output ---
-total_expenses
-#> [1] 2030
-savings
-#> [1] 2470
 ```
 
-Read the script top to bottom and you can trace every rule from this tutorial. The header block is comments that document the purpose. The `--- Inputs ---`, `--- Calculation ---`, and `--- Output ---` dividers are also just comments — pure visual sugar. Every variable is created with `<-`. The arithmetic in `total_expenses` and `savings` uses plain `+` and `-`. Nothing exotic is happening, and that's exactly the point: 90% of real R code is this shape, scaled up.
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_width <- 4
+my_height <- 3
+
+my_area <- my_width * my_height
+my_perimeter <- 2 * (my_width + my_height)
+my_diagonal <- (my_width^2 + my_height^2)^0.5
+
+my_area
+#> [1] 12
+my_perimeter
+#> [1] 14
+my_diagonal
+#> [1] 5
+```
+
+**Explanation:** The perimeter formula needs parentheses around `my_width + my_height` so the addition happens before the multiplication by 2. The diagonal uses the Pythagorean theorem, and `^0.5` is a quick way to take a square root without calling `sqrt()`. You just computed the classic 3-4-5 right triangle.
+
+</details>
+
+## Putting It All Together
+
+Let's close with a complete, realistic script that uses every idea from this post in one place: a tip calculator that splits a restaurant bill. Read it top to bottom and notice how comments, assignment, arithmetic, and clear names work together.
+
+```r
+# tip_calculator.R — split a restaurant bill with tip
+
+# Inputs
+bill <- 84.50           # bill total in dollars
+tip_pct <- 0.18         # tip as a decimal (18%)
+n_people <- 4           # number of people splitting
+
+# Calculations
+tip_amount <- bill * tip_pct            # total tip
+total_with_tip <- bill + tip_amount     # bill + tip
+per_person <- total_with_tip / n_people # per-person share
+
+# Output
+tip_amount
+#> [1] 15.21
+total_with_tip
+#> [1] 99.71
+per_person
+#> [1] 24.9275
+```
+
+Every line is either a comment, a variable assignment, or a printed result. The arithmetic uses `*`, `+`, and `/`. The variable names are lowercase with underscores. The script runs top to bottom, with later lines reusing values computed earlier. Change any input at the top and rerun to get new answers. That is the complete mental model for writing R scripts — you now have all five syntax elements working together to solve a real problem.
 
 ## Summary
 
-![Mind map showing Arithmetic, Assignment, Comments, and First Script branching from R Syntax](screenshots/R-Syntax-101-syntax-mindmap.webp)
-*Figure 4: The four building blocks of R syntax in one view.*
+The picture below is a visual recap of everything covered. Five small ideas are all it takes to read most R code.
 
-Four rules, one language:
+![Core R syntax elements](screenshots/R-Syntax-101-syntax-map.webp)
+*Figure 3: The five core R syntax elements covered in this post, at a glance.*
 
-| Concept | Syntax | Purpose |
+| Element | One-line summary | Example |
 |---|---|---|
-| Arithmetic | `+` `-` `*` `/` `^` `%%` | Calculate numbers, respecting PEMDAS precedence. |
-| Assignment | `x <- value` | Give a value a name you can reuse. |
-| Comments | `# text` | Leave notes for humans; R ignores them. |
-| Scripts | `file.R` + Source | Save a sequence of statements as a file and rerun anytime. |
-| Comparison | `<` `>` `<=` `>=` `==` `!=` | Ask yes/no questions; return `TRUE` or `FALSE`. |
-| Logical | `&` `|` `!` | Combine or negate comparisons. |
+| Arithmetic | Seven operators: `+ - * / ^ %% %/%` | `5 + 2`, `5 ^ 2`, `5 %% 2` |
+| Assignment | `<-` is the idiomatic way to store a value | `x <- 10` |
+| Comments | `#` starts a comment that runs to end of line | `x <- 10   # dollars` |
+| Naming | Start with a letter or dot; use snake_case | `my_total`, `user_name` |
+| Scripts | A `.R` file of lines R runs top to bottom | `temperature.R` above |
 
-Master these and you've already internalised the shape of every R program you'll ever read. Data types, vectors, functions, and packages are the vocabulary built on top — but the grammar doesn't get much more complicated than what you just learned.
+Master these, and the rest of R — vectors, data frames, functions, packages — is just more structure built on top. You haven't learned everything, but you've learned the grammar that everything else speaks.
 
 ## References
 
-1. R Core Team — *An Introduction to R*, §1.8 Simple manipulations: numbers and vectors. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Simple-manipulations-numbers-and-vectors)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 2: Names and values. [Link](https://adv-r.hadley.nz/names-values.html)
-3. Wickham, H. — *The tidyverse style guide*, Syntax chapter. [Link](https://style.tidyverse.org/syntax.html)
-4. R Core Team — *R Language Definition*, §3 Evaluation of expressions. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Evaluation-of-expressions)
-5. Paradis, E. — *R for Beginners* (CRAN contributed docs). [Link](https://cran.r-project.org/doc/contrib/Paradis-rdebuts_en.pdf)
+1. R Core Team. *An Introduction to R*. CRAN. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. R Core Team. *R Language Definition*. CRAN. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
+3. Wickham, H. *Advanced R*, 2nd Edition. Chapman & Hall, 2019. Chapter 2: Names and values. [Link](https://adv-r.hadley.nz/names-values.html)
+4. Wickham, H. & Grolemund, G. *R for Data Science*, 2nd Edition. O'Reilly, 2023. Chapter 2: Workflow basics. [Link](https://r4ds.hadley.nz/workflow-basics.html)
+5. The tidyverse style guide — Syntax. [Link](https://style.tidyverse.org/syntax.html)
+6. Posit. *RStudio IDE User Guide*. [Link](https://docs.posit.co/ide/user/)
+7. R FAQ — CRAN. [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
 
 ## What's Next?
 
-1. **[R Data Types](R-Data-Types.html)** — numbers, text, TRUE/FALSE, and the type system living inside every variable you just created.
-2. **[R Vectors](R-Vectors.html)** — how a single value becomes many. Vectors are R's fundamental data structure, and every variable you've written so far is secretly a length-1 vector.
-3. **[Install R and RStudio](Install-R-and-RStudio-2026.html)** — if you haven't set up your environment yet, come back here after.
+1. **[R Data Types](R-Data-Types.html)** — numeric, character, logical, and the other fundamental types you'll store in your newly-named variables.
+2. **[R Vectors](R-Vectors.html)** — the workhorse data structure of R. Everything you assign with `<-` is secretly a vector.
+3. **[Writing R Functions](R-Functions.html)** — package the scripts you just wrote into reusable functions you can call with a single line.
