@@ -549,7 +549,7 @@ Convert the variable to a factor with levels in the desired order before plottin
 4. RStudio/Posit ggplot2 cheat sheet (PDF). https://rstudio.github.io/cheatsheets/html/data-visualization.html
 5. Wilke, C. O. (2019). *Fundamentals of Data Visualization*. O'Reilly. https://clauswilke.com/dataviz/
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Getting Started** — the full introductory tutorial covering the grammar of graphics from scratch with step-by-step examples.
 - **ggplot2 Scatter Plots** — deep dive into `geom_point()` with color, size, and shape mappings and overplotting solutions.

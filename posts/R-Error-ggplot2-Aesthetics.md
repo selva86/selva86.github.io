@@ -197,7 +197,7 @@ Yes. If you pass a length-1 vector, ggplot2 recycles it to match all rows. For e
 
 The error message names the offending aesthetic (e.g., `colour`, `size`). Remove aesthetics one at a time until the plot renders, then check the length of the one that failed.
 
-## What's Next?
+## Continue Learning
 
 1. **ggplot2 Error: object 'X' not found** — data vs environment mapping issues
 2. **R Error: object 'x' not found** — general object-not-found troubleshooting

@@ -347,8 +347,7 @@ Yes. Pass a character vector to `contains`: `setClass("C", contains = c("A", "B"
 **Q: What is the difference between @ and $?**
 `@` accesses S4 slots. `$` accesses list elements (S3) or R5/R6 fields. Using `$` on an S4 object won't work for slots (unless a `$` method is defined). Always use `@` for S4.
 
-## What's Next
-
+## Continue Learning
 - [S4 Methods & Multiple Dispatch](S4-Methods-in-R.html) -- Learn `setMethod()`, method signatures, and multiple dispatch
 - [R6 Classes in R](R6-Classes-in-R.html) -- Modern reference semantics with mutable state
 - [OOP in R Overview](OOP-in-R.html) -- Compare all four OOP systems side by side

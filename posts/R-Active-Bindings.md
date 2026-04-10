@@ -213,7 +213,7 @@ R6 classes have an `active` field in their class definition. Active fields look 
 
 Yes — each access runs a function call instead of a simple value lookup. For rarely-accessed properties this is negligible. For hot loops accessing millions of times, use regular variables instead.
 
-## What's Next?
+## Continue Learning
 
 1. **R6 Classes** — active bindings are a key feature of R6's OOP system
 2. **R Environments** — active bindings live in environments

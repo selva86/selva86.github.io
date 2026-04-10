@@ -192,7 +192,7 @@ Use `suppressWarnings(as.numeric(x))`. But only suppress it when you've delibera
 
 Run `x[is.na(suppressWarnings(as.numeric(x))) & !is.na(x)]`. This returns only the values that are not already NA but would become NA after conversion — the actual problem values.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: non-numeric argument to binary operator** — type mismatch in arithmetic
 2. **R Error in read.csv: more columns than column names** — CSV parsing issues

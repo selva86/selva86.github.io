@@ -504,7 +504,7 @@ Yes — R supports recursive lists. This creates infinite-depth structures, usef
 6. Wickham, H. — *Advanced R*, Chapter 20 (Subsetting). [Link](https://adv-r.hadley.nz/subsetting.html)
 7. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 23 (Hierarchical data). [Link](https://r4ds.hadley.nz/rectangling.html)
 
-## What's Next?
+## Continue Learning
 
 - **[R Subsetting](R-Subsetting.html)** — deep dive on `[`, `[[`, `$`, and `@` across all R objects.
 - **[purrr map() Variants](purrr-map-Variants.html)** — the modern tidyverse way to work with lists.

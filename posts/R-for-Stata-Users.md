@@ -254,8 +254,7 @@ Use the `sandwich` and `lmtest` packages: `lmtest::coeftest(model, vcov = sandwi
 **Is R slower than Stata for large datasets?**
 For standard operations, R is comparable or faster — especially with data.table for very large data. R's vectorized operations and packages like `collapse` can outperform Stata on datasets with millions of rows.
 
-## What's Next
-
+## Continue Learning
 - [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html) — The full case for learning R
 - [R for SAS Users](R-for-SAS-Users.html) — SAS-to-R migration guide
 - [R for Excel Users](R-for-Excel-Users.html) — Excel-to-R translation

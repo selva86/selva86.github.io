@@ -509,7 +509,7 @@ Logically, yes — you get the same rows and columns. Practically, `filter()` fi
 5. Posit — Data transformation with dplyr cheatsheet. [Link](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
 6. R Core Team — An Introduction to R, Logical vectors and NA. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Logical-vectors)
 
-## What's Next?
+## Continue Learning
 
 - [dplyr filter() and select() Tutorial](dplyr-filter-select.html) — the parent tutorial that covers every pattern in depth with explanations
 - [dplyr Exercises: 15 Practice Problems](dplyr-Exercises.html) — broader dplyr practice covering `mutate`, `summarise`, `group_by`, joins, and `across`

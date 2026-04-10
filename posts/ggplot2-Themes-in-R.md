@@ -893,7 +893,7 @@ Set `family = "your font"` inside `element_text()`. Built-in families include `"
 7. Mock, T. — Creating and using custom ggplot2 themes (2020). [Link](https://themockup.blog/posts/2020-12-26-creating-and-using-custom-ggplot2-themes/)
 8. Peng, R. — *Mastering Software Development in R*. Section 4.6: Building a New Theme. [Link](https://bookdown.org/rdpeng/RProgDA/building-a-new-theme.html)
 
-## What's Next?
+## Continue Learning
 
 - **[ggplot2 Tutorial 1 - Intro](Complete-Ggplot2-Tutorial-Part1-With-R-Code.html)** — covers the foundations of ggplot2 layers, geoms, and aesthetics
 - **[ggplot2 Quickref](ggplot2-cheatsheet.html)** — a compact reference card for common ggplot2 operations and syntax

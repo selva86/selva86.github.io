@@ -203,8 +203,7 @@ A: Yes. Your R code, packages (managed by renv), and data are independent of you
 **Q: Which is fastest for editing?**
 A: VS Code and Positron are generally faster for text editing, especially with large files. For R execution speed, all three are identical -- they all run the same R interpreter.
 
-## What's Next
-
+## Continue Learning
 - [Install R and RStudio](/Install-R-and-RStudio-2026.html) -- Get started with the most common R setup
 - [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html) -- The case for learning R today
 - [R vs Python](/R-vs-Python.html) -- Choosing between the two dominant data science languages

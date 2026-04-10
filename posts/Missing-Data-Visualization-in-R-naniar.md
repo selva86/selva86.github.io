@@ -738,7 +738,7 @@ Yes. naniar functions accept data.tables because they inherit from data.frame. H
 6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 18: Missing Values. [Link](https://r4ds.hadley.nz/missing-values)
 7. Tierney, N.J. — *The Missing Book: Exploring Missing Data*. [Link](https://tmb.njtierney.com/)
 
-## What's Next?
+## Continue Learning
 
 - **[Missing Values in R: Detect, Count, Remove, and Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)** — Once you know the pattern, this tutorial covers the full toolkit: `is.na()`, `complete.cases()`, `na.omit()`, and mice imputation.
 - **[Statistical Tests in R](Statistical-Tests-in-R.html)** — Many statistical tests handle missing data differently. Learn which tests are robust to NAs and which require complete cases.

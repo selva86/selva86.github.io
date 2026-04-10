@@ -252,8 +252,7 @@ Increasingly, yes. The R Validation Hub (pharmaR.org) provides a framework for v
 **How do I replicate SAS formats in R?**
 SAS formats (like putting labels on numeric codes) are handled by factors in R: `df$gender <- factor(df$gender_code, levels = c(1,2), labels = c("Male","Female"))`. For date formats, use `format(date, "%m/%d/%Y")`.
 
-## What's Next
-
+## Continue Learning
 - [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html) — The full case for learning R
 - [R for Stata Users](R-for-Stata-Users.html) — Another migration guide for Stata users
 - [R for SPSS Users](R-for-SPSS-Users.html) — Switching from SPSS to R

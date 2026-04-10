@@ -324,7 +324,7 @@ Yes. Any function that takes a vector and returns a single value works: `summari
 
 `summarise(across(where(is.numeric), mean))` applies `mean` to every numeric column.
 
-## What's Next?
+## Continue Learning
 
 - [dplyr arrange & slice](/dplyr-arrange-slice.html) — sort and sample summaries
 - [R Joins](/R-Joins.html) — combine grouped summaries with other data

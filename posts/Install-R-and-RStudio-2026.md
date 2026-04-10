@@ -359,7 +359,7 @@ Yes. RStudio Desktop (the open-source edition) is completely free and always wil
 
 Yes, but you probably shouldn't. You can run R from the command line, or use other editors like VS Code (with the R extension) or Positron. But RStudio is purpose-built for R and provides the best experience for beginners: integrated help, variable explorer, plot viewer, and package manager all in one window.
 
-## What's Next?
+## Continue Learning
 
 Now that R and RStudio are installed and configured, you're ready to start coding. The next tutorial walks you through the RStudio interface:
 

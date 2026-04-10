@@ -226,7 +226,7 @@ R's default C stack limit is typically 8 MB. You can check with `Cstack_info()`.
 
 Yes — for tree traversals, divide-and-conquer algorithms, and problems with natural recursive structure, as long as the depth stays under ~500. Combine with memoization for dynamic programming problems.
 
-## What's Next?
+## Continue Learning
 
 - [Functional Programming in R](/Functional-Programming-in-R.html) — the parent tutorial
 - [Memoization in R](/Memoization-in-R.html) — cache recursive function results

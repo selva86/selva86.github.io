@@ -545,7 +545,7 @@ Master these, and the rest of R — vectors, data frames, functions, packages �
 6. Posit. *RStudio IDE User Guide*. [Link](https://docs.posit.co/ide/user/)
 7. R FAQ — CRAN. [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
 
-## What's Next?
+## Continue Learning
 
 1. **[R Data Types](R-Data-Types.html)** — numeric, character, logical, and the other fundamental types you'll store in your newly-named variables.
 2. **[R Vectors](R-Vectors.html)** — the workhorse data structure of R. Everything you assign with `<-` is secretly a vector.

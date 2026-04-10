@@ -481,7 +481,7 @@ Almost never in scientific or analytical contexts. Rainbow has no perceptual uni
 6. ggplot2 reference — `scale_color_brewer()`. https://ggplot2.tidyverse.org/reference/scale_brewer.html
 7. ggplot2 reference — `scale_color_viridis_*()`. https://ggplot2.tidyverse.org/reference/scale_viridis.html
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Scales** — control axis formatting, breaks, labels, and color scales with the full `scale_*()` system.
 - **ggplot2 Distribution Charts** — choose histograms, density plots, boxplots, and violin plots with colorblind-safe palettes applied throughout.

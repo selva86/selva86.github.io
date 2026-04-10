@@ -614,7 +614,7 @@ For interactive analysis and new pipelines, yes — `library(duckplyr)` is a fre
 4. Appsilon — R dplyr vs DuckDB benchmarks. [appsilon.com/post/r-dplyr-vs-duckdb](https://www.appsilon.com/post/r-dplyr-vs-duckdb)
 5. duckplyr large data vignette. [duckplyr.tidyverse.org/articles/large.html](https://duckplyr.tidyverse.org/articles/large.html)
 
-## What's Next?
+## Continue Learning
 
 - **[DuckDB in R](DuckDB-in-R.html)** — The parent tutorial covering DuckDB's SQL interface, in-process architecture, and when to use SQL vs dplyr syntax.
 - **[Connect R to Any Database: DBI](DBI-in-R.html)** — Learn the DBI package for connecting to PostgreSQL, MySQL, SQLite, and other databases from R.

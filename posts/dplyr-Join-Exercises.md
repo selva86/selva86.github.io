@@ -573,7 +573,7 @@ Yes. Pass a character vector: `by = c("region", "quarter", "product_id")`. All l
 4. Posit — dplyr 1.1.0: Joins announcement (introduces `join_by()` and many-to-many warning). [Link](https://www.tidyverse.org/blog/2023/01/dplyr-1-1-0-joins/)
 5. STAT 545 — Join cheatsheet. [Link](https://stat545.com/join-cheatsheet.html)
 
-## What's Next?
+## Continue Learning
 
 - [R Joins: left, right, inner, full](R-Joins.html) — the parent tutorial that walks through each mutating join with diagrams.
 - [dplyr group_by() & summarise() Exercises](dplyr-group-by-summarise-Exercises.html) — ten more problems covering aggregation and per-group slicing.

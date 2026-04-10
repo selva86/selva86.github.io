@@ -732,7 +732,7 @@ For API-based data collection, use httr2. For JavaScript-heavy sites, use chromo
 7. W3Schools — CSS Selectors Reference. [Link](https://www.w3schools.com/cssref/css_selectors.php)
 8. Wickham, H. — httr2: Perform HTTP Requests and Process the Responses. CRAN. [Link](https://cran.r-project.org/package=httr2)
 
-## What's Next?
+## Continue Learning
 
 Now that you can scrape data from websites, explore these related tutorials:
 

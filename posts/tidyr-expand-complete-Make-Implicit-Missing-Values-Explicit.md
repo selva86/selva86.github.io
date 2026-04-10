@@ -681,7 +681,7 @@ Set `explicit = FALSE` inside `complete()`. By default, the `fill` parameter rep
 6. Verde Arregoitia, L.D. — You tidyr::complete() me. [Link](https://luisdva.github.io/rstats/complete/)
 7. tidyr GitHub source — complete.R. [Link](https://github.com/tidyverse/tidyr/blob/main/R/complete.R)
 
-## What's Next?
+## Continue Learning
 
 - **[Reshape Data with pivot_longer and pivot_wider](pivot_longer-pivot_wider-Reshape-Data-in-R.html)** — Convert between wide and long formats, the other essential tidyr skill.
 - **[Split and Combine Columns with separate and unite](tidyr-separate-unite-Split-Combine-Columns-in-R.html)** — Break apart and reassemble character columns using tidyr's modern splitting functions.

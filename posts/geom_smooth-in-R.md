@@ -355,7 +355,7 @@ When `aes(fill = group)` is set, geom_smooth uses `fill` for the CI band *and* t
 - Cleveland W.S. (1979). Robust Locally Weighted Regression and Smoothing Scatterplots. *JASA*.
 - Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 14: Visualizing trends
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Scatter Plots** — the foundation: geom_point(), overplotting, and annotations
 - **Error Bars in ggplot2** — add uncertainty intervals to mean estimates

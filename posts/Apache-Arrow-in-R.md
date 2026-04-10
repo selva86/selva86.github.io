@@ -196,7 +196,7 @@ Yes. Parquet is a cross-language standard. Files created by PySpark, pandas, Duc
 
 Arrow excels at file I/O and cross-language interop. DuckDB excels at SQL-style analytics. They integrate well — `duckdb::tbl()` can query Arrow datasets directly. Use Arrow for reading/writing and DuckDB for complex queries.
 
-## What's Next?
+## Continue Learning
 
 - [Importing Data in R](/Importing-Data-in-R.html) — the parent tutorial covering all formats
 - [readr vs read.csv vs fread](/readr-vs-read-csv-vs-fread.html) — CSV reader comparison

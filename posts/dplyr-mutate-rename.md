@@ -310,7 +310,7 @@ Use `group_by()` before `mutate()`: `df |> group_by(region) |> mutate(pct = sale
 
 `across()` replaced all three in dplyr 1.0. `mutate_if(is.numeric, round)` becomes `mutate(across(where(is.numeric), round))`. `mutate_at(vars(x, y), log)` becomes `mutate(across(c(x, y), log))`.
 
-## What's Next?
+## Continue Learning
 
 - [dplyr group_by & summarise](/dplyr-group-by-summarise.html) — aggregate grouped data
 - [dplyr filter & select](/dplyr-filter-select.html) — subset before transforming

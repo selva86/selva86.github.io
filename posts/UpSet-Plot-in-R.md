@@ -330,7 +330,7 @@ Wrap in `pdf()` / `dev.off()` or use `png()`: `png("upset.png", width=10, height
 - Conway J.R., et al. (2017). UpSetR: an R package for the visualization of intersecting sets. *Bioinformatics*.
 - upset.app — Official UpSet visualization website
 
-## What's Next?
+## Continue Learning
 
 - **R Waffle Chart** — visualize counts as grids of unit squares
 - **Heatmap in R** — encode a matrix of values as a color grid

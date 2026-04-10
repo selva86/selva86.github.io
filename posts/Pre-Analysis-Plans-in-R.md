@@ -293,8 +293,7 @@ Yes, but only before you look at the data. If circumstances change (e.g., lower-
 **Is pre-registration required for publication?**
 Not universally, but increasingly expected. Many journals offer "Registered Reports" where the study is accepted based on the design alone (before results are known). This eliminates publication bias because the paper is accepted regardless of whether results are significant.
 
-## What's Next
-
+## Continue Learning
 - [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework
 - [Reproducibility Crisis](Reproducibility-Crisis.html) — Why pre-registration matters
 - [Open Science with R](Open-Science-with-R.html) — The full open science workflow

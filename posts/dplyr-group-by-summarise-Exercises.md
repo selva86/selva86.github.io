@@ -600,7 +600,7 @@ Yes. `group_by(cyl, hp_class = hp > 150)` creates a new grouping variable on the
 5. dplyr — `across()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/across.html)
 6. dplyr — `slice_max()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/slice.html)
 
-## What's Next?
+## Continue Learning
 
 - [dplyr group_by() + summarise(): Aggregate Data by Group (10 Examples)](dplyr-group-by-summarise.html) — the parent tutorial behind these exercises.
 - [dplyr filter() & select() Exercises: 12 Practice Problems](dplyr-filter-select-Exercises.html) — companion exercise set for row filtering and column picking.

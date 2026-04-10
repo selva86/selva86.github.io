@@ -218,8 +218,7 @@ Compliance means following laws and regulations (GDPR, HIPAA). Ethics goes furth
 **Do I need IRB approval for analyzing publicly available data?**
 It depends. If you're at a university, check with your IRB. Even public data can raise ethical issues — for example, analyzing scraped social media posts without users' awareness. When in doubt, consult your institution's ethics board.
 
-## What's Next
-
+## Continue Learning
 - [Bias in Data & Models](Bias-in-Data-and-Models.html) — How to detect and reduce bias in your analyses
 - [Reproducibility Crisis](Reproducibility-Crisis.html) — What went wrong and how R tools help fix it
 - [Data Privacy in R](Data-Privacy-in-R.html) — Anonymization, differential privacy, and GDPR compliance

@@ -213,7 +213,7 @@ No. Lazy evaluation means "don't compute until needed." Memoization means "compu
 
 Lazy evaluation enables powerful patterns: default arguments that reference other arguments, short-circuit evaluation, and functions like `substitute()` that inspect the caller's expression. It also avoids computing unused arguments.
 
-## What's Next?
+## Continue Learning
 
 1. **R Active Bindings** — computed variables with makeActiveBinding()
 2. **R Closures** — how functions capture environments (closely related to promises)

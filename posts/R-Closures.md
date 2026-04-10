@@ -332,7 +332,7 @@ Technically, yes — every function has an enclosing environment. But the term "
 
 Yes. Because closures keep their enclosing environment alive, any large objects in that environment stay in memory. If you create a closure inside a function that also has a large data frame, that data frame won't be garbage collected. To avoid this, only capture what you need, or explicitly `rm()` large objects before returning the closure.
 
-## What's Next?
+## Continue Learning
 
 Closures connect to several important R topics:
 

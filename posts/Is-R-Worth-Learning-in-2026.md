@@ -369,7 +369,7 @@ Both. While R started in academia, it's now widely used in industry. Pharma comp
 
 Yes, if you work with data. Learning R gives you ggplot2 (better visualizations), a richer statistical toolkit, and the ability to work with colleagues in R-heavy fields. Many data scientists report that learning R made them better at Python, because R forces you to think more carefully about data structures and statistical methods.
 
-## What's Next?
+## Continue Learning
 
 Now that you know R is worth your time, let's get started. The next tutorials in this series will take you from zero to productive:
 

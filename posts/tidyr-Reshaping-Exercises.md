@@ -674,7 +674,7 @@ Yes. Pass a vector to `values_from` in `pivot_wider()`, like `values_from = c(sc
 6. Data Carpentry — R for Social Scientists: Data Wrangling with tidyr. [Link](https://datacarpentry.github.io/r-socialsci/04-tidyr.html)
 7. Arnold, J. — R for Data Science Exercise Solutions: Tidy Data. [Link](https://jrnold.github.io/r4ds-exercise-solutions/tidy-data.html)
 
-## What's Next?
+## Continue Learning
 
 Now that you can reshape data confidently, explore these related tutorials:
 

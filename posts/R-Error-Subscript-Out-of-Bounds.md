@@ -277,7 +277,7 @@ cat("Empty:", length(find_pairs(c(), 10)), "pairs\n")
 
 If your function might get indices out of range, wrap the access in `tryCatch` or validate before accessing. `purrr::pluck()` is a safe alternative that returns a default value when the element doesn't exist.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: undefined columns selected** — data frame subsetting fix
 2. **R Error: replacement has length zero** — the NA assignment bug

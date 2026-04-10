@@ -732,7 +732,7 @@ The practical limit is 6-8 colours. Beyond that, viewers struggle to match colou
 6. Okabe, M. & Ito, K. — Color Universal Design: How to make figures and presentations that are friendly to Colorblind people (2008). [Link](https://jfly.uni-koeln.de/color/)
 7. R Core Team — grDevices: Colors and palettes. [Link](https://stat.ethz.ch/R-manual/R-devel/library/grDevices/html/palettes.html)
 
-## What's Next?
+## Continue Learning
 
 - [ggplot2 Tutorial](ggplot2-Tutorial-With-R.html) — A complete introduction to building plots with ggplot2, from geoms to facets
 - [ggplot2 Theme Customization](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html) — Control fonts, backgrounds, axes, and every visual element of your chart

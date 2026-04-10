@@ -1000,7 +1000,7 @@ Non-significant does not mean no effect. Say: "We did not find evidence for a di
 7. Jane, M.B. -- Guide to Effect Sizes and Confidence Intervals. [Link](https://matthewbjane.quarto.pub/guide-to-effect-sizes-and-confidence-intervals/)
 8. Makowski, D. et al. -- report: Automated Reporting of Results and Statistical Models (easystats). [Link](https://easystats.github.io/report/)
 
-## What's Next?
+## Continue Learning
 
 - **[Communicating Uncertainty](Communicating-Uncertainty.html)** -- A deeper dive into visualizing uncertainty honestly, including error bars, confidence bands, and interval plots.
 - **[Linear Regression](Linear-Regression.html)** -- The statistical foundation behind regression models, from assumptions to diagnostics.

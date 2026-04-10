@@ -474,7 +474,7 @@ If your data contains `NA` values in the x or y columns, `geom_point()` removes 
 6. Slowikowski, K. ggrepel package documentation. https://ggrepel.slowkow.com/
 7. ColorBrewer palettes for R. https://colorbrewer2.org/
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Line Charts** — connect points over time or ordered categories with `geom_line()` and customize line types, colors, and groups.
 - **ggplot2 Bar Charts** — compare counts and values across categories using `geom_bar()` and `geom_col()` with full control over stacking and ordering.

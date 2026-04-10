@@ -725,7 +725,7 @@ Yes. The `performance` package from easystats provides `check_outliers()`, which
 7. Lüdecke, D., Ben-Shachar, M.S., Patil, I., Waggoner, P., & Makowski, D. (2021). performance: An R Package for Assessment, Comparison and Testing of Statistical Models. *Journal of Open Source Software*, 6(60), 3139. [Link](https://doi.org/10.21105/joss.03139)
 
 
-## What's Next?
+## Continue Learning
 
 - **[Missing Values in R](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)** — After removing outliers, you often create NAs. Learn how to detect, count, and impute missing values.
 - **[Linear Regression](Linear-Regression.html)** — See how outliers influence regression slopes, R-squared, and prediction accuracy.

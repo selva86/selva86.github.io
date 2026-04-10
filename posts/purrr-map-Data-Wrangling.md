@@ -156,7 +156,7 @@ Use `map()` when each iteration is independent and returns a value. Use a for lo
 
 They do the same thing. `map()` adds typed variants (`map_dbl`, `map_chr`), formula shorthand (`~ .x + 1`), and element extraction by name (`map(list, "field")`). Use `lapply()` for zero dependencies, `map()` for everything else.
 
-## What's Next?
+## Continue Learning
 
 - [dplyr group_by & summarise](/dplyr-group-by-summarise.html) — the parent tutorial
 - [purrr map Variants](/purrr-map-Variants.html) — complete map() reference

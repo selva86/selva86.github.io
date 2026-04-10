@@ -315,8 +315,7 @@ A: Use whichever you're faster and more confident with. If the company uses tidy
 **Q: How important is it to know both R and Python?**
 A: Depends on the role. Pharma biostatistician roles may only need R. Data scientist roles at tech companies often expect both. Ask the recruiter about the team's primary language.
 
-## What's Next
-
+## Continue Learning
 - [R Data Scientist Career](/R-Data-Scientist-Career.html) -- Career paths, salaries, and required skills
 - [R Resume Skills](/R-Resume-Skills.html) -- What to list and how to prove your R expertise
 - [How to Learn R](/How-to-Learn-R.html) -- 12-month structured roadmap

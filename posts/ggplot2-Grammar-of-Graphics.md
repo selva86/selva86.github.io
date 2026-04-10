@@ -634,7 +634,7 @@ Every geom has a default stat, and every stat has a default geom. Use `stat_*()`
 6. RStudio -- ggplot2 Cheat Sheet. [Link](https://rstudio.github.io/cheatsheets/data-visualization.pdf)
 7. Wilke, C. -- *Fundamentals of Data Visualization*. [Link](https://clauswilke.com/dataviz/)
 
-## What's Next?
+## Continue Learning
 
 - **[ggplot2 Tutorial](ggplot2-Tutorial-With-R.html)** -- A hands-on walkthrough building common chart types with ggplot2
 - **[ggplot2 Tutorial Part 1: Introduction](Complete-Ggplot2-Tutorial-Part1-With-R-Code.html)** -- Deeper ggplot2 examples covering scatterplots, bar charts, and histograms

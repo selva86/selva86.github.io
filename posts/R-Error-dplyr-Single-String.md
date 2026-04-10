@@ -202,7 +202,7 @@ In dplyr 1.0+, `summarise()` can return multiple rows per group if `.groups` is 
 
 Yes. Wrap the result in `list()`: `summarise(data = list(val))` creates a list column. This is useful for nested data frames but is an advanced pattern. For simple summaries, stick to scalar values.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: could not find function 'X'** — namespace and package conflicts
 2. **ggplot2 Error: object 'X' not found** — data vs environment mapping

@@ -856,7 +856,7 @@ Document them. Create a log that records which values were flagged, what the iss
 6. Peng, R.D. — *Exploratory Data Analysis with R*, Chapter 4: EDA Checklist. [Link](https://bookdown.org/rdpeng/exdata/exploratory-data-analysis-checklist.html)
 7. dlookr package — Data Quality Diagnosis. [Link](https://cran.r-project.org/web/packages/dlookr/vignettes/diagonosis.html)
 
-## What's Next?
+## Continue Learning
 
 Now that you can check and clean your data, explore these related tutorials on r-statistics.co:
 

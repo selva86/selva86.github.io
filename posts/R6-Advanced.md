@@ -497,8 +497,7 @@ Active bindings use property syntax (`obj$prop` and `obj$prop <- val`) while get
 **Q: Should I always use finalize for cleanup?**
 Only when your object holds external resources (file handles, database connections, temp files). For normal R objects, garbage collection handles memory automatically.
 
-## What's Next
-
+## Continue Learning
 - [Operator Overloading in R](Operator-Overloading-in-R.html) -- Define custom operators for your classes
 - [OOP Design Patterns in R](OOP-Design-Patterns-in-R.html) -- Factory, strategy, and observer patterns with R6
 - [R6 Classes in R (Basics)](R6-Classes-in-R.html) -- Review the fundamentals if needed

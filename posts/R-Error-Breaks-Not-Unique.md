@@ -231,7 +231,7 @@ R uses the "Sturges" method by default, which computes `ceiling(log2(n) + 1)` bi
 
 No. `hist()` only works with numeric vectors. For categorical data, use `barplot(table(x))`. For date/time data, convert to numeric first or use `hist.Date()` / `hist.POSIXct()`.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error in read.csv: more columns than column names** — CSV parsing fixes
 2. **R Error: singular matrix in solve()** — near-singular matrix solutions

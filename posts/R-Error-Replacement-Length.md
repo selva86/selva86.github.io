@@ -258,7 +258,7 @@ for (r in records) {
 
 In lists, `x[["name"]] <- NULL` is a valid operation that *removes* the element. In atomic vectors, every position must have a value (possibly NA), so NULL assignment is meaningless and throws an error.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: object 'x' not found** — the most common R error
 2. **R Error: subscript out of bounds** — indexing beyond length

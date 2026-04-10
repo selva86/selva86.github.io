@@ -410,7 +410,7 @@ Yes, using the `gghalves` package: `gghalves::geom_half_violin()` draws only one
 5. R Graph Gallery — Violin Charts. https://r-graph-gallery.com/violin.html
 6. gghalves package documentation. https://erocoar.github.io/gghalves/
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Distribution Charts** — the full guide to histograms, density plots, boxplots, and violin plots with guidance on when each type works best.
 - **Ridgeline Plot in R** — stack distributions vertically with `ggridges::geom_density_ridges()` for clean comparison of 5+ groups.

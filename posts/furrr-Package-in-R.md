@@ -244,7 +244,7 @@ Yes. `plan(multisession)` works on all platforms. `plan(multicore)` only works o
 
 Parallel overhead (starting workers, sending data, collecting results) exceeds the computation time. This happens when individual iterations are very fast. Parallelism helps when each iteration takes at least a few hundred milliseconds.
 
-## What's Next?
+## Continue Learning
 
 - [purrr map() Variants](/purrr-map-Variants.html) — the sequential versions furrr parallelizes
 - [Functional Programming in R](/Functional-Programming-in-R.html) — the parent tutorial

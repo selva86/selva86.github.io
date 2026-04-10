@@ -419,7 +419,7 @@ ggplot2 doesn't support true 3D. For interactive 3D, use the `plotly` package wi
 - r-charts.com — Bubble chart in ggplot2
 - Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 12: Visualizing associations
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Scatter Plots** — the foundation: geom_point(), trend lines, overplotting, and annotations
 - **Heatmap in R** — encode a matrix of values as a color grid with geom_tile()

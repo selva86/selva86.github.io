@@ -220,7 +220,7 @@ Most commonly for: (1) generating informative error messages that include the ca
 
 They're identical. `parent.frame(n)` is `sys.frame(-n)`. `parent.frame()` defaults to `n=1`, so `parent.frame()` = `sys.frame(-1)`.
 
-## What's Next?
+## Continue Learning
 
 1. **R Namespaces** — how package environments and the search path work together
 2. **R Environments** — the foundational concept behind all stack frames

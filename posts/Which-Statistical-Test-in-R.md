@@ -777,7 +777,7 @@ When you have multiple outcome variables measured on the same subjects, consider
 7. Wasserstein, R. & Lazar, N. — The ASA Statement on p-Values: Context, Process, and Purpose. *The American Statistician* 70(2), 129-133 (2016). [Link](https://doi.org/10.1080/00031305.2016.1154108)
 8. Stats and R — What Statistical Test Should I Do? [Link](https://statsandr.com/blog/what-statistical-test-should-i-do/)
 
-## What's Next?
+## Continue Learning
 
 - **Hypothesis Testing Fundamentals** — For a deeper dive into p-values, confidence intervals, and Type I/II errors, the hypothesis testing foundations tutorial covers the theory behind every test in this guide.
 - **Regression Decision Guide** — When your question is about predicting an outcome rather than comparing groups, the regression model selection guide walks you through choosing between linear, logistic, Poisson, and other regression models.

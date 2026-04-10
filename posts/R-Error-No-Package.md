@@ -194,7 +194,7 @@ cat("MASS is loaded:", "MASS" %in% loadedNamespaces(), "\n")
 
 Use `remotes::install_version("dplyr", version = "1.0.0")`. You need the `remotes` package installed first. Alternatively, install from a source archive: `install.packages("path/to/pkg_1.0.0.tar.gz", repos = NULL, type = "source")`.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: could not find function 'X'** — namespace and package conflicts
 2. **R Error: object 'x' not found** — variable not found troubleshooting

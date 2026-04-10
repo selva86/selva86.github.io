@@ -765,7 +765,7 @@ This happens when `geom_text()` or `geom_label()` is in your plot. The text geom
 5. Tidyverse Blog — ggplot2 3.5.0: Legends (February 2024). [Link](https://tidyverse.org/blog/2024/02/ggplot2-3-5-0-legends/)
 6. R-Charts — Legends in ggplot2. [Link](https://r-charts.com/ggplot2/legend/)
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Themes** — Master `theme_minimal()`, `theme_classic()`, and build your own reusable custom theme. [Read more](ggplot2-Themes-in-R.html)
 - **ggplot2 Colour Scales** — Control colours with `scale_colour_manual()`, viridis, and ColorBrewer palettes for accessible, beautiful plots.

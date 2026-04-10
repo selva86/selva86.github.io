@@ -445,7 +445,7 @@ A data frame is a list of equal-length vectors (columns). When you pass a data f
 
 It throws an error immediately: "Result 1 must be a single double, not ...". This is the point of typed variants — they fail fast on unexpected types instead of silently producing a mixed-type list.
 
-## What's Next?
+## Continue Learning
 
 - [Functional Programming in R](/Functional-Programming-in-R.html) — the foundation: first-class functions and closures
 - [R Anonymous Functions](/R-Anonymous-Functions.html) — deep dive into `\(x)` syntax and when to use lambdas

@@ -628,7 +628,7 @@ cat("Complete rows:", sum(complete.cases(messy)), "of", nrow(messy), "\n")
 - `tapply()` → grouped operations on vectors
 - `mapply()` → parallel iteration over multiple inputs
 
-## What's Next?
+## Continue Learning
 
 You've completed all the R Fundamentals exercise sets! Continue your R journey:
 

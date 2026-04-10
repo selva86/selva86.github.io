@@ -497,7 +497,7 @@ IEEE 754 floating-point convention: the difference between two infinities is und
 6. R FAQ — Why doesn't NA == NA return TRUE? [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
 7. IEEE 754-2008 standard — Floating-point arithmetic. [Link](https://en.wikipedia.org/wiki/IEEE_754)
 
-## What's Next?
+## Continue Learning
 
 - **[R Data Types](R-Data-Types.html)** — the six basic types and how NA fits into each.
 - **[R Vectors](R-Vectors.html)** — special values inside the core R data structure.

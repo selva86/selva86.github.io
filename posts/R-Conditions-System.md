@@ -395,7 +395,7 @@ Use `stop()` when the function cannot produce a valid result. Use `warning()` wh
 
 Yes. Inner `tryCatch` catches conditions first. If a condition isn't caught by the inner handler, it propagates to the outer one. This is useful for handling different error types at different levels of your code.
 
-## What's Next?
+## Continue Learning
 
 Now that you can handle errors, learn to find and fix the bugs that cause them:
 

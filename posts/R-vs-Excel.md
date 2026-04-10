@@ -240,8 +240,7 @@ A: It's different, not necessarily harder. If you can write `=VLOOKUP(A1, Sheet2
 **Q: My boss needs everything in Excel. Can R help?**
 A: Yes. Use R for the analysis (accurate, reproducible), then export the final results to Excel with `openxlsx`. Your boss gets their spreadsheet, and you have a trustworthy analytical pipeline behind it.
 
-## What's Next
-
+## Continue Learning
 - [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html) -- Evidence-based case for investing in R
 - [How to Learn R](/How-to-Learn-R.html) -- A 12-month structured roadmap from zero
 - [R vs Python](/R-vs-Python.html) -- Comparison with the other major data science language

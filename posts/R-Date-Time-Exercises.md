@@ -549,7 +549,7 @@ for (y in 2024:2030) {
 | 5-7 (Medium) | Age calculation, business days, monthly aggregation |
 | 8-10 (Hard) | Cohort analysis, time series gap filling, holiday calculation |
 
-## What's Next?
+## Continue Learning
 
 One more exercise set:
 

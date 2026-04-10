@@ -784,7 +784,7 @@ Yes. You can join a registered R data frame with a Parquet file on disk in a sin
 6. Posit Team — "duckplyr: dplyr Powered by DuckDB — A High-Level Overview." Posit Blog (2024). [Link](https://posit.co/blog/duckplyr-dplyr-powered-by-duckdb/)
 7. DuckDB Foundation — Official Documentation. [Link](https://duckdb.org/docs/)
 
-## What's Next?
+## Continue Learning
 
 - [Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL](DBI-in-R.html) — Learn the DBI foundation that DuckDB builds on. DBI provides the universal database interface that dbConnect(), dbGetQuery(), and parameterised queries all come from.
 - [dplyr group_by and summarise](dplyr-group-by-summarise.html) — Master the dplyr aggregation verbs that duckplyr accelerates. Understanding group_by() and summarise() will make your DuckDB pipelines more effective.

@@ -199,8 +199,7 @@ A: 10-15, organized by category. Quality over quantity -- only list packages you
 **Q: Are R certifications worth listing?**
 A: Yes, they help with ATS and show commitment. But they're less impactful than a strong portfolio. See [R Certifications Guide](/R-Certifications-Guide.html) for which ones carry the most weight.
 
-## What's Next
-
+## Continue Learning
 - [R Interview Questions](/R-Interview-Questions.html) -- 50 questions to prepare for interviews
 - [R Data Scientist Career](/R-Data-Scientist-Career.html) -- Roles, salaries, career progression
 - [R Certifications Guide](/R-Certifications-Guide.html) -- Which certifications are worth it

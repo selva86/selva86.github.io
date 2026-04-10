@@ -789,7 +789,7 @@ They serve opposite purposes. `get_dupes()` shows you which rows are duplicated 
 6. rdrr.io — clean_names() function reference. [Link](https://rdrr.io/cran/janitor/man/clean_names.html)
 7. R-bloggers — Easy data cleaning with the janitor package (2024). [Link](https://www.r-bloggers.com/2024/05/easy-data-cleaning-with-the-janitor-package/)
 
-## What's Next?
+## Continue Learning
 
 - **[Data Quality Checking in R](Data-Quality-Checking-in-R.html)** — The parent guide covering the full data quality workflow, from missing values to outlier detection.
 - **[Missing Values in R](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)** — How to detect, count, remove, and impute NA values in your datasets.

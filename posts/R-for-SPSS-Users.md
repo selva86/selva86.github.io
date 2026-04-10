@@ -253,8 +253,7 @@ SPSS has a separate Output Viewer window. In R, output prints to the console. Fo
 **Is R's statistical output different from SPSS?**
 The numbers are the same (they use the same algorithms), but the formatting differs. R's `summary(lm(...))` shows coefficients, standard errors, t-values, and p-values — the same information as SPSS regression output, just in a different layout.
 
-## What's Next
-
+## Continue Learning
 - [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html) — The case for adding R to your toolkit
 - [R for SAS Users](R-for-SAS-Users.html) — Similar migration guide for SAS users
 - [R for Excel Users](R-for-Excel-Users.html) — Excel to R translation

@@ -530,7 +530,7 @@ They're not. The myth comes from two factors: (1) growing a vector with `c()` in
 6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 27 (A field guide to base R). [Link](https://r4ds.hadley.nz/base-R.html)
 7. Burns, P. — *The R Inferno*, Circle 2 (Growing objects). [Link](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf)
 
-## What's Next?
+## Continue Learning
 
 - **[Writing R Functions](R-Functions.html)** — package control-flow patterns into reusable functions.
 - **[Functional Programming in R](Functional-Programming-in-R.html)** — map, filter, reduce — the higher-level alternative to loops.

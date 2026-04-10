@@ -527,7 +527,7 @@ Your data likely has `NA` values in the y column at those positions. `geom_line(
 5. R Graph Gallery — Line Charts. https://r-graph-gallery.com/line-chart-ggplot2.html
 6. Healy, K. (2018). *Data Visualization: A Practical Introduction*. Princeton University Press. https://socviz.co/
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Bar Charts** — compare counts and values across categories with `geom_bar()` and `geom_col()`, including stacked and dodged variants.
 - **ggplot2 Distribution Charts** — understand data spread with histograms, density plots, boxplots, and violin plots.

@@ -636,7 +636,7 @@ R coerces to the highest type in the coercion ladder (logical → integer → do
 6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 20 (Vectors). [Link](https://r4ds.hadley.nz/base-R.html)
 7. R Language Definition — Vector objects. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Vector-objects)
 
-## What's Next?
+## Continue Learning
 
 - **[R Data Frames](R-Data-Frames.html)** — stacks of vectors side-by-side, R's workhorse for tabular data.
 - **[R Lists](R-Lists.html)** — collections that can hold vectors of mixed types and lengths.

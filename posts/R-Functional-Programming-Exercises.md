@@ -497,7 +497,7 @@ cat("Top scorer:", valid[[best_idx]]$name,
 | Function operators | 9 |
 | Full pipeline | 10 |
 
-## What's Next?
+## Continue Learning
 
 - [Functional Programming in R](/Functional-Programming-in-R.html) — review the core concepts
 - [purrr map() Variants](/purrr-map-Variants.html) — deep dive on map family

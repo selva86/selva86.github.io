@@ -359,7 +359,7 @@ Use a named vector: `left_join(a, b, by = c("emp_id" = "employee_id"))`. The lef
 
 Omit `by =` — dplyr will auto-detect shared column names and join on all of them. But being explicit is safer to avoid accidental joins on unintended columns.
 
-## What's Next?
+## Continue Learning
 
 - [dplyr filter & select](/dplyr-filter-select.html) — filter before joining
 - [dplyr group_by & summarise](/dplyr-group-by-summarise.html) — summarise after joining

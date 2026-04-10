@@ -429,7 +429,7 @@ Filter the long data to keep only rows where `Var1 >= Var2` (or `<=`) before plo
 4. Wilke, C. O. (2019). *Fundamentals of Data Visualization*, Chapter 12: Visualizing Associations. https://clauswilke.com/dataviz/
 5. R Graph Gallery — Heatmaps. https://r-graph-gallery.com/heatmap.html
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Scatter Plots** — the parent tutorial on `geom_point()` for exploring relationships between two continuous variables.
 - **R Color Theory** — choosing sequential, diverging, and qualitative palettes with ColorBrewer and viridis.

@@ -374,7 +374,7 @@ Increase the `expand` parameter in `scale_x_discrete()` to give more horizontal 
 - Rosvall M. & Bergstrom C.T. (2010). Mapping Change in Large Networks. *PLoS ONE*.
 - Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 12: Visualizing associations
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Line Charts** — the go-to for trends over continuous time
 - **R UpSet Plot** — visualize intersections across many sets

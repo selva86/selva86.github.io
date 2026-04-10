@@ -702,7 +702,7 @@ Yes. Use `sec.axis` inside both `scale_x_continuous()` and `scale_y_continuous()
 5. Few, S. — "Dual-Scaled Axes in Graphs: Are They Ever the Best Solution?" Visual Business Intelligence Newsletter (2008). [Link](https://www.perceptualedge.com/articles/visual_business_intelligence/dual-scaled_axes.pdf)
 6. ggplot2 source code — axis-secondary.R. [Link](https://github.com/tidyverse/ggplot2/blob/main/R/axis-secondary.R)
 
-## What's Next?
+## Continue Learning
 
 - **[ggplot2 Scales](ggplot2-Scales.html)** — The full guide to controlling axes, colours, sizes, and all scale functions in ggplot2.
 - **[ggplot2 Themes](ggplot2-Themes.html)** — Customise fonts, grid lines, backgrounds, and build a reusable house style.

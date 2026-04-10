@@ -665,7 +665,7 @@ cat("Least active day:", min(valid), "steps (day",
 
 **If you got 11-15 right:** You're ready for real data analysis. Try the Data Wrangling with dplyr tutorial.
 
-## What's Next?
+## Continue Learning
 
 More practice exercises for specific topics:
 

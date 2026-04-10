@@ -211,8 +211,7 @@ A: Very unlikely. Julia solves a different core problem (raw speed) than R (stat
 **Q: Is Julia's TTFX (time-to-first-execution) still a problem?**
 A: It's improving. Julia 1.9+ introduced significant compilation caching, and Julia 1.10+ improved further. For interactive work, the first execution still takes seconds (vs. milliseconds in R), but subsequent calls are instant.
 
-## What's Next
-
+## Continue Learning
 - [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html) -- Where R stands in the broader landscape
 - [R vs Python](/R-vs-Python.html) -- The most common language comparison
 - [Best R Books](/Best-R-Books.html) -- Deepen your R expertise

@@ -408,7 +408,7 @@ Copy the error message (without your specific variable names), put it in quotes,
 
 Many tidyverse errors about "objects not found" happen because of non-standard evaluation (NSE). Functions like `dplyr::filter()` look for column names inside the data frame, not in your environment. If you pass a variable that isn't a column name, you get confusing errors.
 
-## What's Next?
+## Continue Learning
 
 For deep dives into the most common errors, see:
 

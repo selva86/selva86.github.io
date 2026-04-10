@@ -285,8 +285,7 @@ Not always, but dot plots or box plots are usually better. Bar charts hide the d
 **How do I show uncertainty in maps or spatial data?**
 Use graduated colors with explicit legends showing the margin of error. Small-area estimates (like county-level) often have wide confidence intervals. Some cartographers use hatching or transparency to indicate uncertainty regions.
 
-## What's Next
-
+## Continue Learning
 - [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework for analysis
 - [Bias in Data & Models](Bias-in-Data-and-Models.html) — Detecting bias before it reaches your charts
 - [Reproducibility Crisis](Reproducibility-Crisis.html) — Why honest reporting matters for science

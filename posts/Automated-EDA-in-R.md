@@ -748,7 +748,7 @@ Yes, but with limits. You can specify a response variable with `y = "target_colu
 6. DataExplorer documentation — Official package site. [Link](https://boxuancui.github.io/DataExplorer/)
 7. SmartEDA vignette — CRAN. [Link](https://cran.r-project.org/web/packages/SmartEDA/vignettes/SmartEDA.html)
 
-## What's Next?
+## Continue Learning
 
 - **[Missing Values in R: Detect, Count, Remove, and Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)** — After EDA reveals missing data, learn the full toolkit for handling it: detection patterns, removal strategies, and imputation methods.
 - **[Importing Data in R](Importing-Data-in-R.html)** — Before you can profile data, you need to load it. This guide covers CSV, Excel, databases, and web APIs.

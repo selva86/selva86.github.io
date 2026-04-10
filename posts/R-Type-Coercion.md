@@ -502,7 +502,7 @@ df <- df |> mutate(across(c(col1, col2, col3), as.numeric))
 
 Not directly for implicit coercion. But `str()` shows the current types, and comparing `class()` before and after operations reveals changes. The `readr` package shows column type guesses during import.
 
-## What's Next?
+## Continue Learning
 
 Understanding coercion prevents the most frustrating R bugs. Related topics:
 

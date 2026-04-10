@@ -445,6 +445,6 @@ All readr functions accept URLs directly: `read_csv("https://example.com/data.cs
 **Q: My CSV has semicolons instead of commas. What do I do?**
 Use `read_csv2()` (which expects semicolons and commas as decimal marks, common in European data) or `read_delim(file, delim = ";")` for explicit control.
 
-## What's Next?
+## Continue Learning
 
 Now that you can import data into R, the next step is learning to **chain operations** together with the pipe operator. See the [Pipe Operator in R](#) tutorial to learn `%>%` and `|>`, which you'll use in every data wrangling workflow.

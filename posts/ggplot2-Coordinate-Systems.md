@@ -431,7 +431,7 @@ Sort of. `coord_fixed()` fixes the x/y pixel ratio, which gives a rough approxim
 5. ggplot2 reference — `coord_cartesian()`. https://ggplot2.tidyverse.org/reference/coord_cartesian.html
 6. Wilke, C. O. (2019). *Fundamentals of Data Visualization*. O'Reilly. https://clauswilke.com/dataviz/
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Scales** — control axis breaks, labels, and color palettes with `scale_x_*()`, `scale_y_*()`, and `scale_color_*()`.
 - **ggplot2 Distribution Charts** — histograms, density plots, boxplots, and violin plots to explore how your data is spread.

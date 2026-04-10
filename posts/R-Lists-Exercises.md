@@ -507,7 +507,7 @@ cat("DB pool:", final$database$pool_size, "(from default)\n")
 | 5-7 (Medium) | `lapply`/`sapply`, loops with lists, `do.call(rbind)` |
 | 8-10 (Hard) | Model results, API-like data, recursive merge |
 
-## What's Next?
+## Continue Learning
 
 More exercise sets:
 

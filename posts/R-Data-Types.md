@@ -628,7 +628,7 @@ No. `NA` represents a missing value (a placeholder inside a vector, with a type)
 6. R manual — `NULL` reference (stat.ethz.ch). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/NULL.html)
 7. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 12 (Logical vectors). [Link](https://r4ds.hadley.nz/logicals.html)
 
-## What's Next?
+## Continue Learning
 
 - **[R Vectors](R-Vectors.html)** — R's core data structure. Every data type lives inside vectors, and vectors are where coercion happens in practice.
 - **[R Factors](R-Factors.html)** — a special integer-backed type for categorical data. Looks like a character, behaves like an integer internally.

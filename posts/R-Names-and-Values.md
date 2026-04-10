@@ -335,8 +335,7 @@ You can't directly force it, but you can arrange your code so that only one refe
 **Q: Do all R objects use copy-on-modify?**
 Most do: vectors, lists, data frames, matrices. The exceptions are environments (always reference) and certain internal objects. R6 classes use environments internally, which is why they have reference semantics.
 
-## What's Next
-
+## Continue Learning
 - [R Assignment Deep Dive](R-Assignment-Deep-Dive.html) -- All assignment operators and their scoping rules
 - [Understanding R Memory with lobstr](R-Memory-lobstr.html) -- Inspect object sizes and references
 - [R Copy-on-Modify](R-Copy-on-Modify.html) -- More examples of copy-on-modify in action

@@ -494,7 +494,7 @@ By default, ggplot2 adds padding below the x-axis. To remove it: `scale_y_contin
 5. R Graph Gallery — Bar Charts. https://r-graph-gallery.com/barplot.html
 6. Healy, K. (2018). *Data Visualization: A Practical Introduction*, Chapter 4. https://socviz.co/
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Scatter Plots** — explore relationships between two continuous variables with `geom_point()`, color mapping, and trend lines.
 - **ggplot2 Distribution Charts** — compare distributions with histograms, boxplots, and violin plots — a natural complement to bar charts when you need more than a single summary value per group.

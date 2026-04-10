@@ -240,8 +240,7 @@ A: If you prefer reading on paper or want to support the authors, yes. But since
 **Q: How quickly should I read these books?**
 A: Don't just read -- type every code example, do the exercises, and build projects alongside. One chapter per day (with coding) is a sustainable pace. Reading without coding teaches you almost nothing.
 
-## What's Next
-
+## Continue Learning
 - [Free R Courses](/Free-R-Courses.html) -- 15 best free learning resources beyond books
 - [How to Learn R](/How-to-Learn-R.html) -- 12-month roadmap with these books integrated
 - [R Interview Questions](/R-Interview-Questions.html) -- Test your knowledge

@@ -241,7 +241,7 @@ The Moore-Penrose generalized inverse (`MASS::ginv()`) always exists, even for s
 
 Compute `det(mat)` — if it's zero (or very close), the matrix is singular. A more reliable check is `kappa(mat)` (condition number) or `qr(mat)$rank` (numerical rank). If rank < ncol, the matrix is singular.
 
-## What's Next?
+## Continue Learning
 
 1. **lme4 Error: Model failed to converge** — mixed model convergence fixes
 2. **R Warning: longer object length is not a multiple** — vector recycling

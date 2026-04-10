@@ -196,7 +196,7 @@ Use `??function_name` to search all installed packages. Or use `help.search("fun
 
 Use `library()` — it throws an error if the package is missing, which is what you want (fail loudly). `require()` returns `FALSE` silently, which can let your script continue with broken assumptions. Only use `require()` inside functions where you explicitly check the return value.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: there is no package called 'X'** — package installation troubleshooting
 2. **R Error: object 'x' not found** — variable not found troubleshooting

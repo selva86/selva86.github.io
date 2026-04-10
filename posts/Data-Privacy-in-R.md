@@ -309,8 +309,7 @@ There's no universal answer. Values between 0.1 and 1.0 are considered strong pr
 **Can anonymized data be re-identified?**
 Potentially, yes. Netflix "anonymized" viewing data was re-identified by cross-referencing with IMDb reviews. AOL search logs were re-identified through unique query patterns. True anonymization is hard — differential privacy provides the strongest guarantees.
 
-## What's Next
-
+## Continue Learning
 - [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework
 - [Synthetic Data in R](Synthetic-Data-in-R.html) — Generate fake data that preserves statistical properties
 - [Communicating Uncertainty](Communicating-Uncertainty.html) — Present results honestly

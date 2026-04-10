@@ -497,7 +497,7 @@ Before R 4.0, `data.frame()` and `read.csv()` converted strings to factors by de
 
 Use `forcats::fct_reorder()` to order by a numeric variable, or `forcats::fct_infreq()` to order by frequency. For manual order, set levels: `factor(x, levels = c("first", "second", "third"))`.
 
-## What's Next?
+## Continue Learning
 
 Factors complete your understanding of R's type system. Related tutorials:
 

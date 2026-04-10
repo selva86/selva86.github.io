@@ -467,7 +467,7 @@ print(table(grades))
 | 5-8 (Medium) | Logical filtering, conditional replacement, named vectors, set operations |
 | 9-12 (Hard) | `cumsum()`, NA handling, `rank()`, weighted arithmetic |
 
-## What's Next?
+## Continue Learning
 
 Continue practicing with more exercise sets:
 

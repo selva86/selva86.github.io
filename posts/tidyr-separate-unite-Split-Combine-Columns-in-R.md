@@ -488,7 +488,7 @@ Yes, but you need different functions. `separate_longer_delim()` and `separate_l
 4. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 14: Strings. [Link](https://r4ds.hadley.nz/strings)
 5. tidyr changelog — tidyr 1.3.0 release notes (separate_wider_* introduction). [Link](https://tidyr.tidyverse.org/news/index.html)
 
-## What's Next?
+## Continue Learning
 
 - [pivot_longer() and pivot_wider(): Reshape Data in R](pivot_longer-pivot_wider-Reshape-Data-in-R.html) — The parent tutorial covering row-level reshaping, the complement to column-level splitting and combining.
 - [Missing Values in R: Detect, Count, Remove, and Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html) — Splitting columns often reveals hidden NAs. Learn the full toolkit for handling them.

@@ -345,7 +345,7 @@ Use a regular function with parameters when callers always supply all arguments.
 
 No. `force(x)` is literally just `x` — it evaluates the argument. The performance cost is negligible. Always use it in factories to avoid the lazy evaluation trap.
 
-## What's Next?
+## Continue Learning
 
 - [R Anonymous Functions](/R-Anonymous-Functions.html) — the inline functions you'll use inside factories
 - [R Function Operators](/R-Function-Operators.html) — compose, negate, and memoize existing functions

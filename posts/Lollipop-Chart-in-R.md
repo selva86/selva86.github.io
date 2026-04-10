@@ -402,7 +402,7 @@ No — you compose it from `geom_segment()` + `geom_point()`. The `ggalt` packag
 - Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 6: Visualizing amounts
 - data-to-viz.com — Lollipop chart
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Bar Charts** — the classic alternative for comparing categorical magnitudes
 - **Error Bars in ggplot2** — add uncertainty intervals to your point estimates

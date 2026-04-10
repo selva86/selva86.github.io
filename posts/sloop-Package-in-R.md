@@ -305,8 +305,7 @@ No. sloop is a debugging and learning tool. You use it when investigating unfami
 **Q: What is the difference between otype() and class()?**
 `class()` tells you the class name(s). `otype()` tells you which OOP system the object belongs to. A data.frame has class "data.frame" and otype "S3".
 
-## What's Next
-
+## Continue Learning
 - [OOP in R Overview](OOP-in-R.html) -- Compare all four OOP systems
 - [S3 Method Dispatch](S3-Method-Dispatch-in-R.html) -- Deep dive into how UseMethod() works
 - [OOP Design Patterns in R](OOP-Design-Patterns-in-R.html) -- Factory, strategy, and observer patterns

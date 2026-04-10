@@ -184,7 +184,7 @@ Three reasons: (1) parallel C-level parsing across multiple threads, (2) memory-
 
 Yes. `read_csv("data.csv.gz")` automatically decompresses gzip, bzip2, and xz files. Same for `fread()`. Base `read.csv()` needs `gzfile("data.csv.gz")` wrapper.
 
-## What's Next?
+## Continue Learning
 
 - [Importing Data in R](/Importing-Data-in-R.html) — the parent tutorial covering all formats
 - [Apache Arrow in R](/Apache-Arrow-in-R.html) — for even faster I/O with Parquet files

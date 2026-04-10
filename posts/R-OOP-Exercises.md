@@ -544,8 +544,7 @@ A good class has a clear responsibility, hides internal details (encapsulation),
 **Q: Can I mix S3, S4, and R6 in the same project?**
 Yes, and many packages do. A common pattern is R6 for internal state management and S3 for user-facing objects that work with base R generics like `print()`, `summary()`, etc.
 
-## What's Next
-
+## Continue Learning
 - [OOP in R Overview](OOP-in-R.html) -- Review the four OOP systems
 - [OOP Design Patterns in R](OOP-Design-Patterns-in-R.html) -- Factory, Strategy, Observer patterns
 - [R6 Advanced](R6-Advanced.html) -- Inheritance, active bindings, finalize

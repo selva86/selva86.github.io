@@ -665,7 +665,7 @@ For standard designs (t-test, ANOVA, proportions), `pwr` is exact and preferred.
 6. Lakens, D. — "Calculating and reporting effect sizes to facilitate cumulative science." *Frontiers in Psychology*, 4, 863 (2013).
 7. R Core Team — *R: A Language and Environment for Statistical Computing*. [Link](https://www.r-project.org/)
 
-## What's Next?
+## Continue Learning
 
 - **[Correlation Analysis in R](Correlation-Analysis-in-R.html)** — Pearson, Spearman, and visualising relationships before you commit to a sample size estimate.
 - **[Data Quality Checking in R](Data-Quality-Checking-in-R.html)** — Validate your data before analysis so your collected N counts.

@@ -891,7 +891,7 @@ Yes. The `survival` package supports time-varying covariates by restructuring da
 9. Harrell, F.E. — *Regression Modeling Strategies*, 2nd Edition. Springer (2015). [Link](https://hbiostat.org/rmsc/)
 10. Fox, J. — *Applied Regression Analysis and Generalized Linear Models*, 3rd Edition. Sage (2016).
 
-## What's Next?
+## Continue Learning
 
 - **[Which Statistical Test in R? A Decision Flowchart](Choosing-the-Right-Statistical-Test-in-R.html)** — the parent guide that covers hypothesis tests, not just regression models
 - **[Linear Regression in R](Linear-Regression-in-R.html)** — deep dive into OLS with diagnostics, transformations, and feature selection

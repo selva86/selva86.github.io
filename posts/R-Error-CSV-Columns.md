@@ -266,7 +266,7 @@ unlink(tmp)
 
 Use `readLines()` to read the raw file, then parse it yourself with `strsplit()`. For truly messy files, the `data.table::fread()` function is excellent at auto-detecting delimiters and handling irregularities.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: cannot open the connection** — file path troubleshooting
 2. **R Warning: NAs introduced by coercion** — type conversion issues

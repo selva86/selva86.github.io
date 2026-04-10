@@ -166,7 +166,7 @@ iris |>
 
 Not directly. Use `if_any()` or `if_all()` instead: `filter(if_any(cols, ~ .x > threshold))`.
 
-## What's Next?
+## Continue Learning
 
 - [dplyr filter & select](/dplyr-filter-select.html) — the parent tutorial
 - [dplyr mutate & rename](/dplyr-mutate-rename.html) — where across() is used most

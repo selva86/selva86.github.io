@@ -239,8 +239,7 @@ A: Yes, but you need the ARM64 toolchain. Download it from https://mac.r-project
 **Q: My Stan model compiles but takes forever. Is something wrong?**
 A: Slow compilation is normal for complex models (2-5 minutes). However, if simple models also take minutes, your CXX17FLAGS may be missing optimization flags. Add `-O3` to speed up both compilation and execution.
 
-## What's Next
-
+## Continue Learning
 - [R Common Errors](/R-Common-Errors.html) -- Reference for the 50 most common R error messages
 - [R Debugging](/R-Debugging.html) -- Master R's debugging tools: browser(), debug(), trace()
 - [Install R and RStudio](/Install-R-and-RStudio-2026.html) -- Ensure your R environment is set up correctly

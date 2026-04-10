@@ -274,7 +274,7 @@ iris |> group_by(Species) |> slice_sample(prop=0.3) |> ungroup() |> count(Specie
 ```
 </details>
 
-## What's Next?
+## Continue Learning
 
 - [dplyr filter & select](/dplyr-filter-select.html) — review fundamentals
 - [dplyr group_by & summarise](/dplyr-group-by-summarise.html) — grouped operations

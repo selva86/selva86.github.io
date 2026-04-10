@@ -141,7 +141,7 @@ No. `.Internal()` can only be called from base R functions. If you try `eval(.In
 
 Primitive functions have no R source code — they're implemented entirely in C. The R interpreter recognizes the function name and jumps directly to compiled code without creating an execution environment.
 
-## What's Next?
+## Continue Learning
 
 1. **R Promise Objects** — lazy evaluation and the force() function
 2. **R Namespaces** — how packages organize their exported and internal functions

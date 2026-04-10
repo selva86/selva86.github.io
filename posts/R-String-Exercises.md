@@ -496,7 +496,7 @@ print(table(domains))
 | 5-7 (Medium) | `gsub` with regex, text extraction, word frequency |
 | 8-10 (Hard) | CSV parsing, log analysis, email validation with regex |
 
-## What's Next?
+## Continue Learning
 
 More exercise sets:
 

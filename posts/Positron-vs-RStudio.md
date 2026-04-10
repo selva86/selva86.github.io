@@ -382,7 +382,7 @@ Yes. Like RStudio, Positron runs locally. The AI assistant requires internet, bu
 
 Positron is where most of Posit's new IDE development is focused. RStudio will be maintained and improved, but Positron will likely get new features faster.
 
-## What's Next?
+## Continue Learning
 
 Now you know both IDE options. Related tutorials:
 

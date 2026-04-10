@@ -278,8 +278,7 @@ No, this is called "fairness through unawareness" and it doesn't work. Other var
 **What fairness metric should I use?**
 It depends on the context. Demographic parity (equal selection rates) is appropriate for some cases. Equalized odds (equal TPR and FPR) is better when accuracy matters per group. No single metric works for all situations — and some are mathematically incompatible.
 
-## What's Next
-
+## Continue Learning
 - [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework for data analysis
 - [Algorithmic Fairness in R](Algorithmic-Fairness-in-R.html) — Deep dive into fairml and aif360
 - [Reproducibility Crisis](Reproducibility-Crisis.html) — How sloppy practices undermine science

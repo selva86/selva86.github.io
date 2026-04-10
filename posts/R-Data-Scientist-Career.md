@@ -210,8 +210,7 @@ A: For biostatistics and clinical statistics, R alone is sufficient. For general
 **Q: How do R salaries compare to Python salaries?**
 A: Nearly identical for equivalent roles. The difference is which roles are available -- R dominates in pharma, research, and specialized analytics, while Python dominates in tech and ML engineering.
 
-## What's Next
-
+## Continue Learning
 - [R Resume Skills](/R-Resume-Skills.html) -- Exactly what R skills to list and how to prove them
 - [R Interview Questions](/R-Interview-Questions.html) -- 50 questions to prepare for technical interviews
 - [R Certifications Guide](/R-Certifications-Guide.html) -- Which certifications are worth your time

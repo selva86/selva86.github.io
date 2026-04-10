@@ -444,7 +444,7 @@ analyze_by_group(iris, "Species", "Petal.Length")
 | 5-7 (Medium) | Validation, multiple returns, `...`, memoization |
 | 8-10 (Hard) | Pipe-friendly, function factories, complete pipelines |
 
-## What's Next?
+## Continue Learning
 
 More exercise sets:
 

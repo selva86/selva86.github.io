@@ -660,7 +660,7 @@ ggplot(airquality, aes(x = Month_f, y = Temp, fill = Month_f)) +
 | 14 | Annotated scatter | `geom_text_repel()`, `annotate()` |
 | 15 | Multi-layer violin | `geom_violin()`, `geom_boxplot()`, `geom_jitter()` |
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Getting Started** — the full ggplot2 grammar explained from the ground up
 - **ggplot2 Themes in R** — master `theme()` to create professional publication-ready plots

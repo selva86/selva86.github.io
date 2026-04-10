@@ -747,7 +747,7 @@ Use `direction = -1` inside Brewer or viridis scales: `scale_color_brewer(direct
 7. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 12: Communication. [Link](https://r4ds.hadley.nz/communication.html)
 8. ggplot2 documentation — scale_manual reference. [Link](https://ggplot2.tidyverse.org/reference/scale_manual.html)
 
-## What's Next?
+## Continue Learning
 
 Now that you can control every axis, colour, and size in your plots, explore these related tutorials:
 

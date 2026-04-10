@@ -414,7 +414,7 @@ print(result2)
 
 Insert `browser()` inside the function you pass to `lapply()`. Or wrap it in a `tryCatch` to catch which element fails. Example: `lapply(data, function(x) { if (is.character(x)) browser(); process(x) })`.
 
-## What's Next?
+## Continue Learning
 
 With debugging skills in hand, explore related topics:
 

@@ -558,7 +558,7 @@ Use dbplyr when your analysis fits naturally into dplyr verbs — filter, group,
 4. DBI package documentation. [dbi.r-dbi.org](https://dbi.r-dbi.org/)
 5. RSQLite package. [rsqlite.r-dbi.org](https://rsqlite.r-dbi.org/)
 
-## What's Next?
+## Continue Learning
 
 - **[Connect R to Any Database: DBI](DBI-in-R.html)** — The parent tutorial covering dbConnect(), dbGetQuery(), parameterised queries, and the DBI interface that dbplyr builds on.
 - **[DuckDB in R](DuckDB-in-R.html)** — An alternative analytical engine that also speaks dplyr (via duckplyr) and excels at querying Parquet and CSV files directly.

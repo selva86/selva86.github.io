@@ -379,7 +379,7 @@ Not directly. Use `grepl("pattern", col)` or `stringr::str_detect(col, "pattern"
 
 No. Like all dplyr verbs, `filter()` returns a new data frame. The original is unchanged. Assign the result to save it: `result <- df |> filter(...)`.
 
-## What's Next?
+## Continue Learning
 
 - [dplyr mutate & rename](/dplyr-mutate-rename.html) — create and modify columns
 - [dplyr group_by & summarise](/dplyr-group-by-summarise.html) — aggregate data by group

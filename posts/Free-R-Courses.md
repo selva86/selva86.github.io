@@ -242,8 +242,7 @@ A: For R, yes. The free resources listed here are genuinely the best in the ecos
 **Q: In what order should I use these resources?**
 A: Start with Swirl (week 1-2) for basics, then R for Data Science (weeks 3-12) for the core workflow, then specialize with domain-specific books. Use Exercism throughout for practice.
 
-## What's Next
-
+## Continue Learning
 - [Best R Books](/Best-R-Books.html) -- Full reading list including paid books
 - [How to Learn R](/How-to-Learn-R.html) -- 12-month structured roadmap
 - [R Certifications Guide](/R-Certifications-Guide.html) -- Paid certifications reviewed

@@ -315,7 +315,7 @@ Name a function when you use it more than once, when it's complex enough to need
 
 The `~` formula only works inside purrr functions. It uses `.x` and `.y` as implicit arguments (or `..1`, `..2`, `..3` for pmap). The `\(x)` syntax works everywhere in R and lets you name your arguments anything.
 
-## What's Next?
+## Continue Learning
 
 - [Functional Programming in R](/Functional-Programming-in-R.html) — the bigger picture of FP in R
 - [purrr map() Variants](/purrr-map-Variants.html) — where anonymous functions are used most

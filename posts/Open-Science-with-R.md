@@ -308,8 +308,7 @@ This is a common fear but rarely happens in practice. Pre-registration with a ti
 **How much extra work is open science?**
 Less than you think. If you're already writing R scripts, using Git, and documenting your analysis, you're 80% there. The main additional steps are: uploading to OSF/Zenodo (10 minutes), choosing a license (5 minutes), and writing a good README (30 minutes). The upfront investment pays off in easier collaboration and fewer "but I can't reproduce it" headaches.
 
-## What's Next
-
+## Continue Learning
 - [Data Ethics in R](Data-Ethics-in-R.html) — The ethical foundations underlying open science
 - [Pre-Analysis Plans in R](Pre-Analysis-Plans-in-R.html) — Detailed pre-registration guide
 - [Reproducibility Crisis](Reproducibility-Crisis.html) — Why open science matters

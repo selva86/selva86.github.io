@@ -287,6 +287,6 @@ Technically yes, but don't. Pick one per chain for readability. It's fine to use
 **Q: Why does my pipe chain give a different result than the nested version?**
 The most common cause: you forgot that the pipe passes to the **first** argument. If the function you're piping into doesn't take data as its first argument, use a placeholder (`_` or `.`).
 
-## What's Next?
+## Continue Learning
 
 With pipes in your toolkit, you're ready to start transforming data. The next tutorial covers [dplyr filter() and select()](#) — the two functions you'll use most often to subset rows and columns.

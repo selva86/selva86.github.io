@@ -191,7 +191,7 @@ No. Default arguments are set in the function definition and can be overridden b
 
 No. R doesn't have a built-in curry function. You can implement one manually or use `functional::Curry()` from the functional package. In practice, partial application with `purrr::partial()` is more useful in R than currying.
 
-## What's Next?
+## Continue Learning
 
 - [R Function Operators](/R-Function-Operators.html) — compose, negate, and more
 - [R Function Factories](/R-Function-Factories.html) — functions that create functions

@@ -285,7 +285,7 @@ cat("Pre-allocation is O(n). For n=1000, that's 1000x fewer copies.\n")
 
 Yes. Use `arrow` for Parquet files (out-of-core column access), `duckdb` for SQL queries on large files without loading them, `data.table` with memory-mapped files, or `ff`/`bigmemory` packages for disk-backed matrices. For truly big data, use Spark via `sparklyr`.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: cannot open the connection** — file path troubleshooting
 2. **R Error: non-numeric argument to binary operator** — type mismatch fix

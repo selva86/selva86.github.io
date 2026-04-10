@@ -200,7 +200,7 @@ cat("Grand total:", sum(orders$total_cost), "\n")
 
 Use `is.na(suppressWarnings(as.numeric(x)))` to find positions where conversion fails. For example: `x[is.na(suppressWarnings(as.numeric(x)))]` shows the problematic values.
 
-## What's Next?
+## Continue Learning
 
 1. **R Warning: NAs introduced by coercion** — what happens when `as.numeric()` fails
 2. **R Error: object 'x' not found** — variable not found troubleshooting

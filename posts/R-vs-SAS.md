@@ -177,8 +177,7 @@ A: No. The FDA has publicly stated it accepts submissions using any validated so
 **Q: Can I run SAS code in R?**
 A: Not directly, but the `haven` package reads SAS datasets (.sas7bdat), and the translation from SAS PROCs to R functions is straightforward. The `sasr` package can interface with a SAS installation if you need to run both during migration.
 
-## What's Next
-
+## Continue Learning
 - [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html) -- Evidence-based analysis of R's position in the market
 - [R vs Python](/R-vs-Python.html) -- The other major comparison every data professional faces
 - [R Data Scientist Career](/R-Data-Scientist-Career.html) -- Career paths, salaries, and skills for R professionals

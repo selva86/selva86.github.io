@@ -263,8 +263,7 @@ Enough to prevent re-identification but not so much that utility is destroyed. S
 **Is synthpop the only R package for synthetic data?**
 No. Other options include `simPop` (for complex survey data), `simstudy` (for clinical trial simulation), `fabricatr` (for social science), and `MICE` (imputation-based synthesis). Choose based on your data type and use case.
 
-## What's Next
-
+## Continue Learning
 - [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework for data analysis
 - [Data Privacy in R](Data-Privacy-in-R.html) — Anonymization and differential privacy techniques
 - [Pre-Analysis Plans in R](Pre-Analysis-Plans-in-R.html) — Commit to your analysis before running it

@@ -433,7 +433,7 @@ Usually no. R is very backwards-compatible. The most common breaking changes inv
 
 If the project uses renv, check `renv.lock` — it records the R version. Otherwise, look for `sessionInfo()` output in reports or README files.
 
-## What's Next?
+## Continue Learning
 
 Version management is part of the broader reproducibility toolkit:
 

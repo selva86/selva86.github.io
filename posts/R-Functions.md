@@ -648,7 +648,7 @@ Skip the function if the code runs once and reads clearly in place, or if the "f
 5. R Documentation — `stopifnot()`. [rdocumentation.org](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/stopifnot)
 6. Dataquest — Writing Functions in R. [dataquest.io/blog/write-functions-in-r](https://www.dataquest.io/blog/write-functions-in-r/)
 
-## What's Next?
+## Continue Learning
 
 - **[R Control Flow](R-Control-Flow.html)** — Conditionals and loops are the building blocks you will use inside function bodies. Review `if`/`else`, `for`, and `while` before diving deeper into function design.
 - **[R Special Values](R-Special-Values.html)** — Learn how `NA`, `NULL`, `NaN`, and `Inf` behave in R, so your functions handle them correctly instead of returning mystery results.

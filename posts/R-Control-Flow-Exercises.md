@@ -548,7 +548,7 @@ cat("Theoretical:", round(244/495 * 100, 2), "%\n")
 | 5-8 (Medium) | Nested loops, while loops, break/next, `switch()` |
 | 9-12 (Hard) | Binary search, Monte Carlo, pattern generation, game simulation |
 
-## What's Next?
+## Continue Learning
 
 More exercise sets:
 

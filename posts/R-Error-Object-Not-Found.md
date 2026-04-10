@@ -235,7 +235,7 @@ Both mean R can't find a name. `object 'x' not found` is for variables. `could n
 
 R Markdown knits in a clean environment. If you defined a variable in the console but not in your .Rmd file, knitting fails. Solution: make sure every variable is created within a code chunk.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: subscript out of bounds** — indexing errors explained
 2. **R Error: undefined columns selected** — data frame subsetting fix

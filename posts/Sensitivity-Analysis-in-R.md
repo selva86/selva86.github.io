@@ -720,7 +720,7 @@ For confidence intervals, 2000 is the standard recommendation. For simple sign-f
 5. Cook, R.D. — Detection of Influential Observation in Linear Regression. *Technometrics*, 19(1), 15-18 (1977). [Link](https://doi.org/10.2307/1268249)
 6. Steegen, S., Tuerlinckx, F., Gelman, A., & Vanpaemel, W. — Increasing Transparency Through a Multiverse Analysis. *Perspectives on Psychological Science*, 11(5), 702-712 (2016). [Link](https://doi.org/10.1177/1745691616658637)
 
-## What's Next?
+## Continue Learning
 
 - **[Outlier Detection in R](Outlier-Detection-in-R.html)** — A deep dive into identifying outliers using statistical methods, from z-scores to isolation forests.
 - **[Pre-Analysis Plans in R](Pre-Analysis-Plans-in-R.html)** — Learn to commit your hypotheses and analysis plan before seeing data, preventing the garden of forking paths.

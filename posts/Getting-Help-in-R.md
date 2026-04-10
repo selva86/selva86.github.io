@@ -364,7 +364,7 @@ Check the tidyverse cheat sheets at posit.co/resources/cheatsheets. Each cheat s
 6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 2 (Workflow: getting help). [Link](https://r4ds.hadley.nz/intro.html)
 7. Stack Overflow — How to make a great R reproducible example. [Link](https://stackoverflow.com/q/5963269)
 
-## What's Next?
+## Continue Learning
 
 - **[R Common Errors](R-Common-Errors.html)** — 50 errors decoded with exact fixes.
 - **[R Debugging](R-Debugging.html)** — `browser()`, `debug()`, and RStudio's visual debugger.

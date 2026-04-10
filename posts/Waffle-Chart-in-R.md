@@ -404,7 +404,7 @@ You forgot `coord_equal()`. Add `+ coord_equal()` to the plot.
 - Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 10: Visualizing proportions
 - r-charts.com — Waffle chart in ggplot2
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Bar Charts** — precise comparisons for categorical data
 - **Pie Chart and Donut Chart in R** — classic proportional charts for 3-5 categories

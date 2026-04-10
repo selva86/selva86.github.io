@@ -253,7 +253,7 @@ Not necessarily. If the gradient is very close to the tolerance (e.g., `max|grad
 
 Never suppress it. Instead, verify the results are stable: re-fit with a different optimizer or starting values. If all approaches give similar estimates, report that you checked and the results are robust. Always mention convergence issues in your write-up.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: singular matrix in solve()** — near-singular matrix solutions
 2. **R Error: non-numeric argument to binary operator** — type mismatch fix

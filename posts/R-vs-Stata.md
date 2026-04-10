@@ -205,8 +205,7 @@ A: Yes, consistently. Benchmarks show fixest is 5-10x faster for high-dimensiona
 **Q: My advisor uses Stata. Should I still learn R?**
 A: Learn both. Use Stata for collaboration with your advisor, and learn R for visualization, reproducibility, and career flexibility. The investment in R will pay off whether you stay in academia or move to industry.
 
-## What's Next
-
+## Continue Learning
 - [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html) -- The broader case for R across all fields
 - [R vs Python](/R-vs-Python.html) -- The other major language comparison
 - [R Interview Questions](/R-Interview-Questions.html) -- Prepare for data science interviews with R

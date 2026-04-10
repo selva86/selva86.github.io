@@ -189,8 +189,7 @@ A: Yes. The `haven` package reads SPSS files directly: `haven::read_sav("data.sa
 **Q: Is jamovi a good middle ground?**
 A: Yes. jamovi (jamovi.org) is a free GUI built on R that looks and feels similar to SPSS. It's an excellent stepping stone — you get R's statistical engine with a familiar interface, and it can output R code for each analysis so you learn as you go.
 
-## What's Next
-
+## Continue Learning
 - [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html) -- Evidence-based look at R's value for your career
 - [R vs SAS](/R-vs-SAS.html) -- Compare R with the enterprise statistics platform
 - [How to Learn R](/How-to-Learn-R.html) -- A 12-month structured roadmap from zero

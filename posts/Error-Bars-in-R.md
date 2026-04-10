@@ -405,7 +405,7 @@ Yes — `geom_errorbarh(aes(xmin = lo, xmax = hi))` draws horizontal bars. Use w
 - Cumming G. et al. (2007). Error bars in experimental biology. *Journal of Cell Biology*.
 - Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 16: Visualizing uncertainty
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Scatter Plots** — the foundation for point-based visualizations
 - **geom_smooth() in ggplot2** — add regression lines and confidence ribbons

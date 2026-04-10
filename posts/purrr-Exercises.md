@@ -481,7 +481,7 @@ No. `map_dbl()` already returns a plain numeric vector. You only need `unlist()`
 5. tidyr nest documentation — list-columns and `nest()`. [Link](https://tidyr.tidyverse.org/reference/nest.html)
 6. R Core Team — *An Introduction to R*: functionals and apply-family. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 
-## What's Next?
+## Continue Learning
 
 - [Functional Programming in R](Functional-Programming-in-R.html) — the mindset behind map, reduce, and filter.
 - [purrr map() Variants](purrr-map-Variants.html) — deep dive on every map variant with the mental model.

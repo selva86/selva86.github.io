@@ -222,7 +222,7 @@ print(df)
 
 It allows you to write `aes(x = mpg, y = wt)` instead of `aes(x = df$mpg, y = df$wt)`. This is more concise and readable, but it means ggplot2 looks for column names, not environment variables. This is called data masking — column names take priority over environment variables.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error in ggplot2: Aesthetics must be either length 1** — aes length mismatch
 2. **R Error: object 'x' not found** — general object-not-found troubleshooting

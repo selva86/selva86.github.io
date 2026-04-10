@@ -414,7 +414,7 @@ Wide format is fine for display tables, correlation matrices, and some time seri
 
 Yes. It trades columns for rows. If you pivot 4 quarter columns, each original row becomes 4 rows. The total data is the same — just reshaped.
 
-## What's Next?
+## Continue Learning
 
 - [Importing Data in R](/Importing-Data-in-R.html) — load data before tidying it
 - [dplyr filter & select](/dplyr-filter-select.html) — manipulate your tidy data

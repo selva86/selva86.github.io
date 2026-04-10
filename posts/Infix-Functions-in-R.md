@@ -192,7 +192,7 @@ Yes, but you shouldn't for primitive types. You can define methods for custom S3
 
 The `%...%` syntax is R's way of distinguishing user-defined infix operators from built-in ones. Without it, the parser wouldn't know if `myop` is a variable or an operator.
 
-## What's Next?
+## Continue Learning
 
 - [Functional Programming in R](/Functional-Programming-in-R.html) — the parent tutorial
 - [R Function Operators](/R-Function-Operators.html) — compose, negate, and partial

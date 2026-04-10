@@ -781,7 +781,7 @@ Use the `theme()` layer. For example: `theme(axis.text = element_text(size = 12)
 6. R Graph Gallery — ggplot2 section. [Link](https://r-graph-gallery.com/)
 7. Scherer, C. — A ggplot2 Tutorial for Beautiful Plotting in R (2019). [Link](https://www.cedricscherer.com/2019/08/05/a-ggplot2-tutorial-for-beautiful-plotting-in-r/)
 
-## What's Next?
+## Continue Learning
 
 Now that you can build five chart types, here are your next steps on r-statistics.co:
 

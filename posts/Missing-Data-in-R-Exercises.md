@@ -540,7 +540,7 @@ Group-wise imputation returns `NaN` (Not a Number) because `mean(c(NA, NA), na.r
 6. The Epidemiologist R Handbook — Missing Data chapter. [Link](https://www.epirhandbook.com/en/new_pages/missing_data.html)
 7. Tierney, N. — naniar: Data Structures, Summaries, and Visualisations for Missing Data. [Link](https://naniar.njtierney.com/)
 
-## What's Next?
+## Continue Learning
 
 Now that you can detect, remove, and impute missing values, explore these related tutorials:
 

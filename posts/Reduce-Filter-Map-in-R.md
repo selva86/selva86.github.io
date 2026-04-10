@@ -286,7 +286,7 @@ Yes. Set `right = TRUE` for right-to-left reduction: `Reduce(f, x, right = TRUE)
 
 Without `init`, an empty list causes an error. With `init`, it returns `init`. Always provide `init` when the input could be empty.
 
-## What's Next?
+## Continue Learning
 
 - [Functional Programming in R](/Functional-Programming-in-R.html) — the bigger FP picture
 - [purrr map() Variants](/purrr-map-Variants.html) — purrr's enhanced versions of Map

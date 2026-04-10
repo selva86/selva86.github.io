@@ -585,7 +585,7 @@ print(best_v8)
 | 6-10 (Medium) | Filter, dplyr pipes, `group_by`/`summarise`, NAs, `case_when` |
 | 11-15 (Hard) | Merge, reshape, cross-tabulation, complete analysis |
 
-## What's Next?
+## Continue Learning
 
 More exercise sets:
 

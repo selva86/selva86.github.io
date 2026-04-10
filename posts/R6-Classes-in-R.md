@@ -407,8 +407,7 @@ No. R6 is a CRAN package. Install it with `install.packages("R6")`. It has zero 
 **Q: How do I avoid accidental reference sharing?**
 Always use `$clone()` (or `$clone(deep = TRUE)` for nested R6 objects) when you want an independent copy. `y <- x` does NOT copy -- it creates a reference to the same object.
 
-## What's Next
-
+## Continue Learning
 - [R6 Advanced: Inheritance, Private Methods & Active Bindings](R6-Advanced.html) -- Inheritance, super, active bindings, and finalize
 - [OOP Design Patterns in R](OOP-Design-Patterns-in-R.html) -- Factory, strategy, and observer patterns with R6
 - [R5 Reference Classes](R5-Reference-Classes.html) -- The legacy alternative to R6

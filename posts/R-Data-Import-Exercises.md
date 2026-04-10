@@ -220,7 +220,7 @@ bind_rows(df_a, df_b)
 ```
 </details>
 
-## What's Next?
+## Continue Learning
 
 - [Importing Data in R](/Importing-Data-in-R.html) — the parent tutorial
 - [Pipe Operator](/R-Pipe-Operator.html) — chain import with transformation

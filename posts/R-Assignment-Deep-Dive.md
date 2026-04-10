@@ -376,8 +376,7 @@ Yes, in closures (factory functions that return functions). The `make_counter()`
 **Q: Does the space around <- matter?**
 Yes! `x<-3` is ambiguous -- is it `x <- 3` or `x < -3`? Always add spaces: `x <- 3`. R parses `x<-3` as assignment, but `x< -3` is a comparison. Don't risk it.
 
-## What's Next
-
+## Continue Learning
 - [R Names and Values](R-Names-and-Values.html) -- Deeper dive into copy-on-modify semantics
 - [Understanding R Memory with lobstr](R-Memory-lobstr.html) -- Measure object sizes and references
 - [R Environments and Scoping](R-Environments.html) -- How R looks up variables

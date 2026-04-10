@@ -358,7 +358,7 @@ Yes — `facet_wrap()` and `facet_grid()` work with treemapify geoms, creating s
 - Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 11: Visualizing nested proportions
 - r-charts.com — Treemaps with treemapify
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Bar Charts** — precise categorical comparisons when you have fewer categories
 - **Pie Chart and Donut Chart in R** — part-to-whole for 3-5 categories

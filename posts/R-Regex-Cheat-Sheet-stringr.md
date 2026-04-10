@@ -623,7 +623,7 @@ Use `str_view()` to see matches highlighted in your console. Call `str_view("tes
 5. R Core Team — *R Documentation: Regular Expressions*. `?regex` help page. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/regex.html)
 6. RStudio — *Work with Strings: stringr Cheat Sheet*. [Link](https://rstudio.github.io/cheatsheets/html/strings.html)
 
-## What's Next?
+## Continue Learning
 
 - **[stringr in R: 15 Functions That Handle Every String Task](stringr-in-R.html)** — The full stringr tutorial covering `str_split()`, `str_pad()`, `str_trim()`, and 12 more functions with real data examples.
 - **[R Cheat Sheet: The Ultimate Quick Reference](R-Cheat-Sheet.html)** — 200 essential R functions organized by category, including base R string functions.

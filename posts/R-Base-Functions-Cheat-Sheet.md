@@ -274,8 +274,7 @@ Learn base R first. Understanding `c()`, `[`, `$`, `apply()`, and the type syste
 **How can I check all arguments a function accepts?**
 Use `args(function_name)` or `?function_name`. For example, `args(read.csv)` shows all parameters, and `?read.csv` opens the full help page with descriptions.
 
-## What's Next
-
+## Continue Learning
 - [R Cheat Sheet](R-Cheat-Sheet.html) — Extended 200-function reference organized by category
 - [Getting Help in R](Getting-Help-in-R.html) — Master R's built-in help system
 - [R for Excel Users](R-for-Excel-Users.html) — Translate your Excel skills to R

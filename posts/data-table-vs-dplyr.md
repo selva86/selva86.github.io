@@ -189,7 +189,7 @@ dplyr. Its verb-based syntax (`filter`, `select`, `mutate`, `summarise`) is more
 
 Yes — `:=` modifies the data.table without copying. This is faster and uses less memory, but can cause unexpected side effects if you're used to R's copy-on-modify behavior. Use `copy(dt)` when you need an independent copy.
 
-## What's Next?
+## Continue Learning
 
 - [dplyr filter & select](/dplyr-filter-select.html) — the parent tutorial
 - [R Joins](/R-Joins.html) — compare join syntax between dplyr and data.table

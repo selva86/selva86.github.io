@@ -524,7 +524,7 @@ Your long data had duplicate keys: two or more rows share the same `names_from` 
 5. Wickham, H. - "Tidy Data" - Journal of Statistical Software (2014). [Link](https://www.jstatsoft.org/article/view/v059i10)
 6. tidyr 1.0.0 release notes. [Link](https://www.tidyverse.org/blog/2019/09/tidyr-1-0-0/)
 
-## What's Next?
+## Continue Learning
 
 - **[Tidy Data in R](Tidy-Data-in-R.html)** - understand the three rules of tidy data that make reshaping meaningful.
 - **[dplyr group_by() and summarise()](dplyr-group-by-summarise.html)** - the next step after going long: collapse long data into summaries.

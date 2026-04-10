@@ -751,7 +751,7 @@ They are aliases that do exactly the same thing. Both return the day of the mont
 6. RStudio — lubridate Cheatsheet. [Link](https://rstudio.github.io/cheatsheets/html/lubridate.html)
 7. Spinu, V., Grolemund, G., & Wickham, H. — lubridate: Make Dealing with Dates a Little Easier. CRAN. [Link](https://cran.r-project.org/package=lubridate)
 
-## What's Next?
+## Continue Learning
 
 Now that you can handle dates and times confidently, here are related tutorials to continue your learning:
 

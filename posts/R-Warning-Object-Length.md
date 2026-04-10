@@ -233,7 +233,7 @@ Yes — recycling a scalar (length 1) is standard R: `x * 2` or `x + 1`. Recycli
 
 Recycling is a core R design feature inherited from S. It enables concise vectorized code like `x * 2` or `matrix + row_vector`. The trade-off is that it can silently produce wrong results when lengths are accidentally mismatched. Many R users consider the silent (no-warning) recycling case more dangerous.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: argument is not a matrix** — apply() on wrong object types
 2. **R Error: subscript out of bounds** — indexing errors

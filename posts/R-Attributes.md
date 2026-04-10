@@ -450,7 +450,7 @@ Yes! This is the basis of S3 classes. Set `class(x) <- "my_class"`, then define 
 
 Minimally. Attributes are stored as a named list attached to the object. A few character strings and numbers add negligible memory compared to the data itself.
 
-## What's Next?
+## Continue Learning
 
 Attributes unlock understanding of R's type system. Related topics:
 

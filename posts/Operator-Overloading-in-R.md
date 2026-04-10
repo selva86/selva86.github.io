@@ -340,8 +340,7 @@ For S3, R checks the class of both operands. If neither has a method, it falls b
 **Q: Should I use Ops group generic or individual operator methods?**
 Use the Ops group generic when the logic is similar for all operators (e.g., extract values, apply operator, wrap result). Use individual methods when different operators need very different logic.
 
-## What's Next
-
+## Continue Learning
 - [S3 Method Dispatch in R](S3-Method-Dispatch-in-R.html) -- Understand the dispatch mechanism behind operator methods
 - [S4 Methods & Multiple Dispatch](S4-Methods-in-R.html) -- Formal operator overloading with S4
 - [OOP in R Overview](OOP-in-R.html) -- Compare all four OOP systems

@@ -1000,7 +1000,7 @@ Most consultants charge hourly (typically 100-300 USD/hour depending on experien
 7. Derr, J. — *Statistical Consulting: A Guide to Effective Communication*. Duxbury Press (2000).
 
 
-## What's Next?
+## Continue Learning
 
 - [Statistical Tests in R](Statistical-Tests-in-R.html) — learn which test to use for each data type and question structure
 - [Linear Regression](Linear-Regression.html) — the most common analysis you will deliver in consulting engagements

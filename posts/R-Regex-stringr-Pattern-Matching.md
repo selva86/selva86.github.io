@@ -776,7 +776,7 @@ Build the pattern incrementally. Start with the simplest part and add one piece 
 6. Sanchez, G. — *Handling Strings with R*. Chapter 15: Boundaries and Lookarounds. [Link](https://www.gastonsanchez.com/r4strings/boundaries.html)
 7. ICU Regular Expressions Documentation. [Link](https://unicode-org.github.io/icu/userguide/strings/regexp.html)
 
-## What's Next?
+## Continue Learning
 
 - **[stringr in R](stringr-in-R.html)** — The parent tutorial covering all 15 essential stringr functions. If you want the full picture of string manipulation beyond regex, start here.
 - **[lubridate in R](lubridate-in-R.html)** — Dates are the other common "messy text" problem. Learn how lubridate parses, extracts, and computes with dates and times.

@@ -794,7 +794,7 @@ Increase `max.overlaps` (default is 10) to allow more labels. Increase `force` t
 6. R Graph Gallery — Add text labels with ggplot2. [Link](https://r-graph-gallery.com/275-add-text-labels-with-ggplot2.html)
 7. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Visualization chapters. [Link](https://r4ds.hadley.nz/)
 
-## What's Next?
+## Continue Learning
 
 Now that your charts communicate clearly with labels and annotations, here are natural next steps on r-statistics.co:
 

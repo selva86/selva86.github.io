@@ -547,7 +547,7 @@ Yes: `ggplot(df, aes(y = variable)) + geom_boxplot()`. The x-axis is meaningless
 6. R Graph Gallery — "Violin and Boxplot" section. [Link](https://r-graph-gallery.com/violin_and_boxplot_ggplot2.html)
 7. Wilke, C.O. — *Fundamentals of Data Visualization*. O'Reilly (2019). Chapter 7: Visualizing Distributions. [Link](https://clauswilke.com/dataviz/histograms-density-plots.html)
 
-## What's Next?
+## Continue Learning
 
 - **[ggplot2 Scatter Plots](ggplot2-Scatter-Plots.html)** — Move from single-variable distributions to bivariate relationships with `geom_point()`.
 - **[ggplot2 Violin Plot](ggplot2-Violin-Plot.html)** — Deep dive into `geom_violin()`: embedded jitter, quantile lines, and split violins for paired data.

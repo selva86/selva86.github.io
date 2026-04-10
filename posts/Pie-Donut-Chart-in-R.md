@@ -362,7 +362,7 @@ Yes: treemaps (for hierarchical data), waffle charts (for counts), stacked bar c
 - Cairo A. (2016). *The Truthful Art* — Chapter 9: The perils of pie charts
 - ggplot2 3.5.0 release notes — coord_radial()
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Bar Charts** — the more reliable alternative to pie charts for comparing categories
 - **R Treemap** — visualize hierarchical part-to-whole data with nested rectangles

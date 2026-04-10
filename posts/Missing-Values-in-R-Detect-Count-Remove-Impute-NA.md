@@ -454,7 +454,7 @@ Only if 0 means "none" in your domain, such as "zero items sold." If 0 is a real
 6. tidyr reference. `drop_na()` documentation. [Link](https://tidyr.tidyverse.org/reference/drop_na.html)
 7. dplyr reference. `across()` documentation. [Link](https://dplyr.tidyverse.org/reference/across.html)
 
-## What's Next?
+## Continue Learning
 
 - **[dplyr mutate & rename](dplyr-mutate-rename.html)** — Build on the `mutate(across(...))` pattern used here for imputation.
 - **[pivot_longer and pivot_wider](pivot_longer-pivot_wider-Reshape-Data-in-R.html)** — Reshape the NA audit table into a long format for reporting.

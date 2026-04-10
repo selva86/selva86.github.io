@@ -302,8 +302,7 @@ Yes, but carefully. You can call `setGeneric()` on an existing S3 generic, and S
 **Q: When would I use callNextMethod() vs writing separate methods?**
 Use `callNextMethod()` when child classes should extend (not replace) parent behavior. If the child method does something completely different, write a standalone method without calling the parent.
 
-## What's Next
-
+## Continue Learning
 - [R6 Classes in R](R6-Classes-in-R.html) -- Reference semantics and mutable state with the R6 package
 - [S3 Method Dispatch](S3-Method-Dispatch-in-R.html) -- How UseMethod() and NextMethod() work under the hood
 - [Operator Overloading in R](Operator-Overloading-in-R.html) -- Custom `+`, `-`, `==`, `[` methods for your classes

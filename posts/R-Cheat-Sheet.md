@@ -342,8 +342,7 @@ No. Focus on the 30-40 you use most often. Bookmark this page for the rest. Flue
 **Are these functions still relevant with tidyverse?**
 Absolutely. Base R functions underpin everything — even tidyverse packages use them internally. Knowing base R makes you a stronger programmer regardless of which packages you prefer.
 
-## What's Next
-
+## Continue Learning
 - [R Base Functions Cheat Sheet](R-Base-Functions-Cheat-Sheet.html) — Deep dive into the 100 most-used base functions
 - [Getting Help in R](Getting-Help-in-R.html) — How to use R's help system effectively
 - [R for Excel Users](R-for-Excel-Users.html) — Migrate your Excel workflows to R

@@ -324,8 +324,7 @@ Yes. They're just R objects. You can pass an R5 object as an argument to an R6 m
 **Q: Why does R5 use <<- instead of self$?**
 R5 methods run in a special environment where fields are in the parent environment. `<<-` assigns to the parent environment (the object's fields). This is confusing, which is one reason R6 switched to explicit `self$`.
 
-## What's Next
-
+## Continue Learning
 - [R6 Classes in R](R6-Classes-in-R.html) -- The modern replacement for R5
 - [OOP in R Overview](OOP-in-R.html) -- Compare S3, S4, R5, and R6 side by side
 - [sloop Package in R](sloop-Package-in-R.html) -- Inspect any object's OOP system

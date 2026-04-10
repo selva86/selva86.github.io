@@ -229,8 +229,7 @@ A: No. R's user base grows every year, CRAN adds ~1,500 packages annually, and R
 **Q: Can R do everything Python can?**
 A: For data science tasks, mostly yes. For production software, web development, or deep learning at scale, Python is the better tool.
 
-## What's Next
-
+## Continue Learning
 - [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html) -- Evidence-based look at R's position in the data science landscape
 - [R vs SAS](/R-vs-SAS.html) -- Compare R with the enterprise statistics standard
 - [How to Learn R](/How-to-Learn-R.html) -- A structured 12-month roadmap from zero

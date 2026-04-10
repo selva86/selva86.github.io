@@ -413,7 +413,7 @@ Yes. The `.Rproj` file is small (a few lines of settings) and ensures everyone u
 
 Use a `data/` folder with a README explaining where to download the data, or use a symbolic link to an external data directory. Never hardcode paths to external data — use environment variables or a config file.
 
-## What's Next?
+## Continue Learning
 
 A well-structured project makes everything easier. Related topics:
 

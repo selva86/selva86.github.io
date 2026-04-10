@@ -220,7 +220,7 @@ Historical design choice. `$` uses partial matching and is lenient — it was de
 
 Use `tolower()`: `df[, tolower(names(df)) %in% tolower(wanted_cols)]`. Or rename columns first with `names(df) <- tolower(names(df))`.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error: replacement has length zero** — the NA assignment bug
 2. **R Error: subscript out of bounds** — indexing beyond vector length

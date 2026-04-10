@@ -698,7 +698,7 @@ DBI is the interface specification — it defines the functions. RSQLite is a dr
 6. RPostgres — PostgreSQL driver for R. [Link](https://rpostgres.r-dbi.org/)
 7. OWASP — SQL Injection Prevention Cheat Sheet. [Link](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
 
-## What's Next?
+## Continue Learning
 
 - **[R Joins](R-Joins.html)** — Learn how inner_join(), left_join(), and other join types work in dplyr to combine data from multiple tables.
 - **[Importing Data in R](Importing-Data-in-R.html)** — Read CSV, Excel, JSON, and other file formats into R data frames.

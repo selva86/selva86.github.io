@@ -378,8 +378,7 @@ Every R object (SEXP) has a header of about 40-56 bytes on 64-bit systems. This 
 **Q: Is lobstr available in WebR?**
 As of 2026, lobstr may not be available in WebR. The examples in this tutorial use base R alternatives (`object.size()`, `gc()`, `tracemem()`) that work everywhere. Install lobstr in a regular R session with `install.packages("lobstr")`.
 
-## What's Next
-
+## Continue Learning
 - [R Names and Values](R-Names-and-Values.html) -- The mental model behind copy-on-modify
 - [R Assignment Deep Dive](R-Assignment-Deep-Dive.html) -- All assignment operators and scoping
 - [R Copy-on-Modify](R-Copy-on-Modify.html) -- Practical copy-on-modify examples

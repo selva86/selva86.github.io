@@ -250,8 +250,7 @@ A: Yes. The learning is the valuable part. If you need the credential for your r
 **Q: Which certification has the best ROI?**
 A: Google Data Analytics offers the best combination of brand recognition, reasonable cost, and structured learning. For R-specific depth, the JHU specialization is strongest.
 
-## What's Next
-
+## Continue Learning
 - [R Resume Skills](/R-Resume-Skills.html) -- How to list certifications and skills effectively
 - [R Data Scientist Career](/R-Data-Scientist-Career.html) -- Career paths and salary data
 - [Free R Courses](/Free-R-Courses.html) -- 15 free alternatives to paid certifications

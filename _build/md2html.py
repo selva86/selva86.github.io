@@ -79,6 +79,104 @@ def convert(md_text):
             i += 1
             continue
 
+        # Try It practice block: wraps "**Try it:** ..." prompt + next r-code-block
+        # + next <details> block in <section class="tryit-block">.
+        # Details handling below duplicates the main <details> consumer (lines ~108-148) —
+        # keep the two in sync if that handler changes.
+        if line.strip().startswith('**Try it:**'):
+            # 1. Consume prompt paragraph until blank line
+            prompt_lines = [line.strip()]
+            i += 1
+            while i < len(lines) and lines[i].strip() != '':
+                prompt_lines.append(lines[i].strip())
+                i += 1
+            prompt_html = f'<p>{md_inline(" ".join(prompt_lines))}</p>'
+
+            # 2. Skip blanks, consume next r code block (graceful if missing)
+            while i < len(lines) and lines[i].strip() == '':
+                i += 1
+            code_html = ''
+            if i < len(lines) and lines[i].strip().startswith('```r'):
+                i += 1
+                code_lines = []
+                while i < len(lines) and not lines[i].strip().startswith('```'):
+                    code_lines.append(lines[i])
+                    i += 1
+                if i < len(lines):
+                    i += 1  # skip closing ```
+                ecode = escape_html('\n'.join(code_lines))
+                if webr_enabled:
+                    code_html = (
+                        '<div class="webr-container">\n'
+                        '  <div class="webr-code-block">\n'
+                        f'    <div class="webr-editor" data-language="r">{ecode}</div>\n'
+                        '    <div class="webr-buttons">\n'
+                        '      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>\n'
+                        '      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>\n'
+                        '    </div>\n'
+                        '    <pre class="webr-output"></pre>\n'
+                        '  </div>\n'
+                        '  <div class="webr-plot-output"></div>\n'
+                        '</div>'
+                    )
+                else:
+                    code_html = f'<pre><code class="language-r">{ecode}</code></pre>'
+
+            # 3. Skip blanks, consume next <details> block (graceful if missing)
+            while i < len(lines) and lines[i].strip() == '':
+                i += 1
+            details_html = ''
+            if i < len(lines) and '<details>' in lines[i]:
+                details_block = [lines[i]]
+                i += 1
+                while i < len(lines):
+                    cur_line = lines[i]
+                    if '</details>' in cur_line:
+                        details_block.append(cur_line)
+                        i += 1
+                        break
+                    if cur_line.strip().startswith('```r'):
+                        i += 1
+                        dcode_lines = []
+                        while i < len(lines) and not lines[i].strip().startswith('```'):
+                            dcode_lines.append(lines[i])
+                            i += 1
+                        if i < len(lines):
+                            i += 1
+                        dcode = escape_html('\n'.join(dcode_lines))
+                        if webr_enabled:
+                            details_block.append('<div class="webr-container">')
+                            details_block.append('  <div class="webr-code-block">')
+                            details_block.append(f'    <div class="webr-editor" data-language="r">{dcode}</div>')
+                            details_block.append('    <div class="webr-buttons">')
+                            details_block.append('      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>')
+                            details_block.append('      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>')
+                            details_block.append('    </div>')
+                            details_block.append('    <pre class="webr-output"></pre>')
+                            details_block.append('  </div>')
+                            details_block.append('  <div class="webr-plot-output"></div>')
+                            details_block.append('</div>')
+                        else:
+                            details_block.append(f'<pre><code class="language-r">{dcode}</code></pre>')
+                        continue
+                    stripped = cur_line.strip()
+                    if stripped and not stripped.startswith('<') and not stripped.startswith('```'):
+                        details_block.append(f'<p>{md_inline(stripped)}</p>')
+                    else:
+                        details_block.append(cur_line)
+                    i += 1
+                details_html = '\n'.join(details_block)
+
+            # Always wrap in tryit-block, even when code/details are absent (prose-only prompts
+            # like "Try it: change this value and see what happens" still count as practice).
+            pieces = [prompt_html]
+            if code_html:
+                pieces.append(code_html)
+            if details_html:
+                pieces.append(details_html)
+            out.append('<section class="tryit-block">\n' + '\n'.join(pieces) + '\n</section>')
+            continue
+
         # Callout boxes: [TIP], [WARNING], [NOTE], [KEY INSIGHT]
         callout_match = re.match(r'^\[(TIP|WARNING|NOTE|KEY INSIGHT)\]\s*$', line.strip())
         if callout_match:

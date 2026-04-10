@@ -573,7 +573,7 @@ For single operations, stringr and base R are comparable in speed. stringr may b
 6. R Core Team — grep() and related functions documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/grep.html)
 7. Sanchez, G. — *Handling Strings with R*. [Link](https://www.gastonsanchez.com/r4strings/)
 
-## What's Next?
+## Continue Learning
 
 Now that you can clean and manipulate strings, here are three natural next steps:
 

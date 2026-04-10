@@ -283,7 +283,7 @@ Yes. `memoise(stats::lm)` would cache linear model fits. But be careful — mode
 
 Memoization is a specific type of caching: caching function results based on their arguments. General caching can store anything anywhere. Memoization is automatic, transparent, and tied to a specific function.
 
-## What's Next?
+## Continue Learning
 
 - [R Function Operators](/R-Function-Operators.html) — other ways to transform functions
 - [Writing Composable R Code](/Writing-Composable-R-Code.html) — pipes, functions, and architecture

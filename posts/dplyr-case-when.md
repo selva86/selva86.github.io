@@ -159,7 +159,7 @@ No. All right-hand-side values must be the same type. `case_when(x > 0 ~ "yes", 
 
 Yes. It operates on entire vectors at once — no row-by-row loop. This makes it fast, even on millions of rows.
 
-## What's Next?
+## Continue Learning
 
 - [dplyr mutate & rename](/dplyr-mutate-rename.html) — the parent tutorial
 - [dplyr across](/dplyr-across.html) — apply case_when logic across columns

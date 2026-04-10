@@ -461,7 +461,7 @@ By default, ridgeline density curves are filled above the x-axis. Set `alpha = 1
 4. Wickham, H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer. https://ggplot2-book.org/
 5. R Graph Gallery — Ridgeline Charts. https://r-graph-gallery.com/ridgeline-plot.html
 
-## What's Next?
+## Continue Learning
 
 - **ggplot2 Distribution Charts** — the complete guide to histograms, density plots, boxplots, and violin plots — the foundation that ridgeline plots extend.
 - **Violin Plot in R** — similar distribution visualization with a different emphasis; better for 2-5 groups with embedded boxplots.

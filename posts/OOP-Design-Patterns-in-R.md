@@ -559,8 +559,7 @@ Yes, but R6's mutable objects and encapsulation make patterns much more natural.
 **Q: Which pattern is most useful for R programmers?**
 Strategy is probably the most practical for data science workflows (swappable models, preprocessors, or scoring functions). Observer is essential for Shiny development.
 
-## What's Next
-
+## Continue Learning
 - [R6 Classes in R](R6-Classes-in-R.html) -- Learn R6 basics if you haven't already
 - [R6 Advanced: Inheritance & Active Bindings](R6-Advanced.html) -- Deeper R6 features
 - [OOP in R Exercises](R-OOP-Exercises.html) -- Practice problems covering all OOP systems

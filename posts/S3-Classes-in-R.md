@@ -311,7 +311,7 @@ No. S3 objects are just lists — anyone can read or modify any field. Use R6 if
 
 Use `methods(class = "ClassName")` to list all methods, or `methods("generic")` to see all classes a generic dispatches to.
 
-## What's Next?
+## Continue Learning
 
 - [S3 Method Dispatch](/S3-Method-Dispatch-in-R.html) — deep dive into UseMethod and NextMethod
 - [OOP in R](/OOP-in-R.html) — compare S3 with S4, R5, and R6

@@ -297,8 +297,7 @@ No. This is "fairness through unawareness" and it doesn't work because other fea
 **Is there a legal requirement for algorithmic fairness?**
 Increasingly, yes. The EU AI Act classifies hiring and credit models as "high-risk" requiring bias audits. US agencies (EEOC, CFPB) use disparate impact analysis. Several US states have enacted algorithmic accountability laws. The legal landscape is evolving rapidly.
 
-## What's Next
-
+## Continue Learning
 - [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework
 - [Bias in Data & Models](Bias-in-Data-and-Models.html) — Detecting bias at the data level
 - [Synthetic Data in R](Synthetic-Data-in-R.html) — Generate unbiased synthetic datasets

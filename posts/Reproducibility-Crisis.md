@@ -270,8 +270,7 @@ Pre-registration doesn't prevent exploratory analysis — it just requires you t
 **Do I need Docker for every analysis?**
 No. For most analyses, renv + Git is sufficient. Use Docker when you need to guarantee reproducibility across different operating systems, or for high-stakes analyses (clinical trials, regulatory submissions, published papers).
 
-## What's Next
-
+## Continue Learning
 - [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework
 - [Data Privacy in R](Data-Privacy-in-R.html) — Anonymization and differential privacy
 - [Pre-Analysis Plans in R](Pre-Analysis-Plans-in-R.html) — Commit to your analysis before running it

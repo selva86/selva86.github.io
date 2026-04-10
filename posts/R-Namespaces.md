@@ -169,7 +169,7 @@ Functions accessed via `:::` are not part of the package's public API. The packa
 
 Three options: (1) Use `package::function()` to be explicit. (2) Load the package you want to use last — it masks the earlier one. (3) Use `conflicted::conflict_prefer("filter", "dplyr")` to declare your preference.
 
-## What's Next?
+## Continue Learning
 
 1. **R Environments** — the foundation namespaces are built on
 2. **R Internal Functions** — .Internal(), .Call(), and R's C interface

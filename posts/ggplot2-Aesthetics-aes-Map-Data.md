@@ -580,8 +580,7 @@ Use a scale function. For discrete colour: `scale_colour_manual(values = c(...))
 6. Wilkinson, L. — *The Grammar of Graphics*, 2nd ed. Springer (2005).
 7. Wickham, H., Cetinkaya-Rundel, M., Grolemund, G. — *R for Data Science*, 2nd ed. O'Reilly (2023). Ch. 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize.html)
 
-## What's Next
-
+## Continue Learning
 - **[Top 50 ggplot2 Visualizations](Top50-Ggplot2-Visualizations-MasterList-R-Code.html)** — a gallery of 50 chart types with code, organized by data relationship
 - **[ggplot2 Tutorial Part 1 — Introduction](Complete-Ggplot2-Tutorial-Part1-With-R-Code.html)** — the full ggplot2 foundation including geoms, stats, and coordinates
 - **[ggplot2 Tutorial Part 2 — Customizing Theme](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html)** — how to control fonts, colours, gridlines, and every non-data element

@@ -375,7 +375,7 @@ Three strategies: (1) Use unique, descriptive variable names. (2) Use `package::
 
 `parent.env(env)` returns the **enclosing** (lexical) parent — where the function was defined. `parent.frame()` returns the **calling** (dynamic) parent — the environment of the code that called the current function. Lexical scoping uses `parent.env`; dynamic scoping uses `parent.frame`.
 
-## What's Next?
+## Continue Learning
 
 Now that you understand how R looks up names, explore how functions capture their environment:
 

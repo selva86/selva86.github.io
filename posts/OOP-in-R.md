@@ -369,7 +369,7 @@ Yes. S3 and S4 interoperate (S4 can inherit from S3). R6 objects can have S3 met
 
 Historical evolution. S3 came from S (1990s). S4 was added for stricter needs. R5 added reference semantics. R6 was created as a faster, cleaner alternative to R5. Each solved a real problem at the time.
 
-## What's Next?
+## Continue Learning
 
 - [S3 Classes in R](/S3-Classes-in-R.html) — deep dive into creating and using S3
 - [R6 Classes in R](/R6-Classes-in-R.html) — modern R OOP with reference semantics

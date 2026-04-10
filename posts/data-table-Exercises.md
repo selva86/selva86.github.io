@@ -640,7 +640,7 @@ It returns the table invisibly for chaining, but you should not assign the resul
 5. Wickham, H., Grolemund, G. — *R for Data Science*, 2nd edition. [Link](https://r4ds.hadley.nz/)
 6. Dowle, M. — data.table FAQ vignette. [Link](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-faq.html)
 
-## What's Next?
+## Continue Learning
 
 - [dplyr filter() and select() Exercises](dplyr-filter-select-Exercises.html) — practise the tidyverse equivalent of Exercises 1-3 above.
 - [dplyr group_by() and summarise() Exercises](dplyr-group-by-summarise-Exercises.html) — contrast Exercises 4-5 with the dplyr aggregation pattern.

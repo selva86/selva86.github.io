@@ -364,7 +364,7 @@ R throws the error `object 'x' not found`. The empty environment has no bindings
 
 Yes, with `parent.env(env) <- new_parent`. But this is rarely needed and can cause confusing behavior. It's mainly used internally by R's package system.
 
-## What's Next?
+## Continue Learning
 
 Environments are the foundation for understanding how R finds variables. Continue with:
 

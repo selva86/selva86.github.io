@@ -345,8 +345,7 @@ Yes. `UseMethod("generic", object)` lets you dispatch on a different object. How
 **Q: Does NextMethod() work with group generics?**
 Yes. Inside an `Ops.MyClass` method, calling `NextMethod()` will look for the next class's Ops method or the specific operator method (e.g., `+.ParentClass`).
 
-## What's Next
-
+## Continue Learning
 - [S4 Classes in R](S4-Classes-in-R.html) -- Learn formal class definitions with `setClass()` and typed slots
 - [Operator Overloading in R](Operator-Overloading-in-R.html) -- Define custom `+`, `-`, `==`, `[` and `print` methods
 - [sloop Package in R](sloop-Package-in-R.html) -- Inspect any object's OOP system with `otype()` and `ftype()`

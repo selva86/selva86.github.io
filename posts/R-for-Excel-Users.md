@@ -1156,7 +1156,7 @@ Yes, and more reliably. R scripts are plain text files that run identically ever
 8. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
 
 
-## What's Next?
+## Continue Learning
 
 Now that you can translate Excel operations into R, here are three tutorials to deepen your skills:
 

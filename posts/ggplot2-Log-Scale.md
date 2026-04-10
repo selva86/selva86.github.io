@@ -689,7 +689,7 @@ Add `guide_axis_logticks()` via the `guides()` function: `guides(y = guide_axis_
 5. scales package documentation — transformation functions. [Link](https://scales.r-lib.org/reference/index.html)
 6. Heiss, A. — "How to use natural and base 10 log scales in ggplot2" (2022). [Link](https://www.andrewheiss.com/blog/2022/12/08/log10-natural-log-scales-ggplot/)
 
-## What's Next?
+## Continue Learning
 
 - **[ggplot2 Scales](ggplot2-Scales.html)** — The full reference on controlling axes, colors, sizes, and all scale types in ggplot2
 - **[ggplot2 Themes](ggplot2-Themes.html)** — Customize fonts, colors, grid lines, and overall plot appearance after setting up your scales

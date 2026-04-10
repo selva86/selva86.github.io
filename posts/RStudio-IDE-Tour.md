@@ -481,7 +481,7 @@ Go to **Help → Cheat Sheets → RStudio IDE Cheat Sheet**. This opens a 2-page
 
 Yes, since RStudio 2023+. You can create Python scripts, run them in a Python REPL, and even mix R and Python in Quarto documents using the `reticulate` package. However, if Python is your primary language, VS Code or Positron might be better choices.
 
-## What's Next?
+## Continue Learning
 
 Now that you know your way around RStudio, it's time to start writing R code:
 

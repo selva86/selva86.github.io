@@ -285,7 +285,7 @@ Use `partial()` for simple argument pre-filling — it's concise and self-docume
 
 Yes. `Negate(f)` applies `!` to whatever `f` returns. If `f` returns a logical vector, `Negate(f)` returns the element-wise negation.
 
-## What's Next?
+## Continue Learning
 
 - [R Function Factories](/R-Function-Factories.html) — functions that create functions from data
 - [Reduce, Filter, Map in Base R](/Reduce-Filter-Map-in-R.html) — the functional trifecta in base R

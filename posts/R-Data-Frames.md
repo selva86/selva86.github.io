@@ -675,7 +675,7 @@ Assign to `names(df)`: `names(df)[names(df) == "old"] <- "new"`. Or use `colname
 6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 5 (Data transformation with dplyr). [Link](https://r4ds.hadley.nz/data-transform.html)
 7. R Core — Changes in R 4.0 (stringsAsFactors default change). [Link](https://cran.r-project.org/doc/manuals/r-devel/NEWS.html)
 
-## What's Next?
+## Continue Learning
 
 - **[R Lists](R-Lists.html)** — the flexible cousin of data frames, for heterogeneous collections.
 - **[dplyr filter() and select()](dplyr-filter-select.html)** — the modern, readable way to subset data frames.

@@ -251,8 +251,7 @@ A: Month 1 covers base R fundamentals (essential). Months 2-3 switch to tidyvers
 **Q: 12 months sounds long. Can I learn faster?**
 A: Yes. With 2-3 hours daily, you can compress this to 6 months. With full-time study, 3 months is possible. The timeline assumes ~1 hour/day.
 
-## What's Next
-
+## Continue Learning
 - [Free R Courses](/Free-R-Courses.html) -- 15 best free resources ranked by quality
 - [Best R Books](/Best-R-Books.html) -- Complete reading list from beginner to expert
 - [R Data Scientist Career](/R-Data-Scientist-Career.html) -- Where this roadmap leads

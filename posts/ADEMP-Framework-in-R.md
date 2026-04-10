@@ -743,7 +743,7 @@ Report MCSE in parentheses after each performance measure, e.g., "Coverage = 0.9
 7. Sigal, M. J. & Chalmers, R. P. — `SimDesign`: Structure for Organizing Monte Carlo Simulation Designs. CRAN. [Link](https://cran.r-project.org/package=SimDesign)
 8. Burton, A., Altman, D. G., Royston, P., & Holder, R. L. — The design of simulation studies in medical statistics. *Statistics in Medicine*, 25(24), 4279-4292 (2006). [Link](https://doi.org/10.1002/sim.2673)
 
-## What's Next?
+## Continue Learning
 
 1. **[Statistical Consulting in R](Statistical-Consulting-in-R.html)** — The parent tutorial on translating client questions into well-posed statistical problems using the PPDAC cycle.
 2. **[Sample Size Planning in R](Sample-Size-Planning-in-R.html)** — Learn power analysis and simulation-based sample size calculation for complex designs.

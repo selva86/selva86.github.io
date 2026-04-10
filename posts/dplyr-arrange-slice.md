@@ -251,7 +251,7 @@ Yes. dplyr's arrange is a stable sort — rows with identical sort values keep t
 
 Yes: `arrange(desc(hp / wt))` sorts by power-to-weight ratio without creating a new column first.
 
-## What's Next?
+## Continue Learning
 
 - [R Joins](/R-Joins.html) — combine sorted data with other tables
 - [dplyr filter & select](/dplyr-filter-select.html) — filter before sorting

@@ -704,7 +704,7 @@ Call `OlsonNames()` to get a character vector of all valid time zone strings. Th
 5. RStudio — *Dates and Times with lubridate Cheatsheet*. [Link](https://rstudio.github.io/cheatsheets/html/lubridate.html)
 6. lubridate GitHub repository. [Link](https://github.com/tidyverse/lubridate)
 
-## What's Next?
+## Continue Learning
 
 - [lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever](lubridate-in-R.html) — The full lubridate tutorial with in-depth explanations of every concept in this cheat sheet.
 - [stringr in R](stringr-in-R.html) — Master string manipulation, the other half of the strings-and-dates toolkit.

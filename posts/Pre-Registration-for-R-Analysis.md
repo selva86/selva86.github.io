@@ -801,7 +801,7 @@ A Registered Report is a journal submission format where you submit your introdu
 7. van 't Veer, A.E. & Giner-Sorolla, R. (2016). "Pre-registration in social psychology — A discussion and suggested template." *Journal of Experimental Social Psychology*, 67, 2-12.
 8. Chambers, C.D. (2013). "Registered Reports: A new publishing initiative at Cortex." *Cortex*, 49(3), 609-610.
 
-## What's Next?
+## Continue Learning
 
 - [Open Science with R](/Open-Science-with-R.html) — Learn how to share your data, code, and preprints using OSF integration, Zenodo, and FAIR principles.
 - Statistical Consulting in R — The parent guide on approaching any client's data problem with a structured framework (coming soon).

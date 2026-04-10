@@ -229,7 +229,7 @@ It works but is often not ideal. `apply()` coerces data frames to matrices, whic
 
 Yes. Built-in vectorized functions like `colSums()`, `rowMeans()`, and `pmax()` are implemented in C and are much faster than `apply()`. Use `apply()` for custom functions, but prefer built-in alternatives when they exist.
 
-## What's Next?
+## Continue Learning
 
 1. **R Warning: longer object length is not a multiple of shorter** — vector recycling
 2. **R Error: object 'x' not found** — variable not found troubleshooting

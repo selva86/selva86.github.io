@@ -687,7 +687,7 @@ No. Negative indexing only works with numeric indices (`x[-1]` removes the first
 
 Use `df[rows, cols]` where `rows` and `cols` can be integers, names, or logical vectors. For example, `df[df$age > 30, c("name", "score")]` gets the name and score of people over 30.
 
-## What's Next?
+## Continue Learning
 
 - [R Vectors](/R-Vectors.html) — the parent tutorial covering everything about vectors and subsetting
 - [R Lists and Data Frames](/R-Lists-and-Data-Frames.html) — deep dive into list and data frame structures

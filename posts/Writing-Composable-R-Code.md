@@ -346,7 +346,7 @@ A function should do one conceptual thing. If you can describe what it does with
 
 Function call overhead in R is negligible for typical data analysis. The readability and reusability gains far outweigh microseconds of overhead. Only optimize hot loops after profiling.
 
-## What's Next?
+## Continue Learning
 
 - [Functional Programming in R](/Functional-Programming-in-R.html) — the FP foundation
 - [R Function Operators](/R-Function-Operators.html) — compose, negate, and memoize

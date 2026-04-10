@@ -218,7 +218,7 @@ In RStudio, use Projects (.Rproj files) — they automatically set the working d
 
 If `read.csv("http://...")` fails, check your internet connection and whether the URL is valid. Use `url.exists()` from the `RCurl` package, or wrap in `tryCatch()`. Some servers block R's default user-agent — try `download.file()` first, then read the local copy.
 
-## What's Next?
+## Continue Learning
 
 1. **R Error in read.csv: more columns than column names** — CSV parsing fixes
 2. **R Error: object 'x' not found** — variable not found troubleshooting

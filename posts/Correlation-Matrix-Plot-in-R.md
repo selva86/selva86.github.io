@@ -368,7 +368,7 @@ Yes — the `GGally::ggpairs()` function creates a scatterplot matrix with corre
 - Wickham H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer.
 - Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 12: Visualizing associations
 
-## What's Next?
+## Continue Learning
 
 - **Heatmap in R** — the general case: any matrix as a color grid with geom_tile()
 - **ggplot2 Scatter Plots** — explore bivariate relationships between individual variable pairs
