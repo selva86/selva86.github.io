@@ -1,386 +1,388 @@
 ---
-title: "dplyr filter() and select(): Subset Rows & Columns with Precision"
+title: "dplyr filter() and select(): Subset Exactly the Data You Need, Every Time"
 slug: "dplyr-filter-select"
-description: "Master dplyr filter() to subset rows by condition and select() to pick columns by name, pattern, or type. Includes helpers like starts_with() and where()."
-keywords: "dplyr filter, dplyr select, subset rows R, select columns R, filter conditions R, tidyverse filter, starts_with, where"
+description: "filter() keeps rows matching conditions; select() keeps specified columns. Learn boolean operators in filter(), column selection helpers like starts_with(), and how to combine both efficiently."
+keywords: "dplyr filter, dplyr select, R filter rows, R select columns, starts_with R, where dplyr, filter multiple conditions R"
+auto_link_terms: "dplyr filter()|dplyr select()|filter rows in R|select columns in R|starts_with()|ends_with()|contains()"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-03-30"
+date: 2026-04-11
 curriculum_id: "1.2.3"
-post_type: "C"
-sidebar_text: "dplyr filter & select"
-curriculum_path: "/data-wrangling/dplyr/"
-auto_link_terms: "dplyr filter|dplyr select|filter()|select()|filter and select"
-auto_link_case_sensitive: false
+post_type: C
+sidebar_section: "Data Wrangling"
+sidebar_title: "dplyr filter() & select()"
+sidebar_order: 3
 ---
 
-# dplyr filter() and select(): Subset Rows & Columns with Precision
+# dplyr filter() and select(): Subset Exactly the Data You Need, Every Time
 
-<p class="lead"><code>filter()</code> keeps rows that match a condition. <code>select()</code> picks columns by name, position, or pattern. Together they're the most-used dplyr verbs — you'll call them in almost every analysis.</p>
+<p class="lead">In dplyr, <code>filter()</code> keeps the <em>rows</em> that match a condition, and <code>select()</code> keeps the <em>columns</em> you name. Together they're the first two verbs you'll reach for in any data analysis — and they replace half a dozen clunky base-R patterns with two clean, composable calls.</p>
 
-Base R subsetting with `df[df$col > 5, c("a", "b")]` works but gets ugly fast, especially with multiple conditions. dplyr's filter and select are readable, pipe-friendly, and come with powerful helper functions that save typing.
+## How do you filter rows with dplyr::filter()?
 
-## filter(): Keep Rows by Condition
-
-Start with a simple comparison. `filter()` takes a data frame and one or more logical conditions. It returns only the rows where every condition is TRUE.
+`filter()` takes a data frame and one or more conditions. It keeps the rows where every condition evaluates to `TRUE`. You refer to columns by their bare names — no `$`, no quotes.
 
 ```r
 library(dplyr)
 
-# Cars with more than 25 miles per gallon
-mtcars |>
-  filter(mpg > 25) |>
-  select(mpg, hp, wt, cyl)
+filter(mtcars, mpg > 25)
+#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+#> Fiat 128       32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1
+#> Honda Civic    30.4   4  75.7  52 4.93 1.615 18.52  1  1    4    2
+#> Toyota Corolla 33.9   4  71.1  79 4.22 1.835 19.90  1  1    4    1
+#> Fiat X1-9      27.3   4  79.0  66 4.08 1.935 18.90  1  1    4    1
+#> Porsche 914-2  26.0   4 120.3  91 4.43 2.140 16.70  0  1    5    2
+#> Lotus Europa   30.4   4  95.1 113 3.77 1.513 16.90  1  1    5    2
 ```
 
-### Multiple Conditions (AND)
-
-Separate conditions with commas — they're combined with AND (all must be true).
+Compare that to base R: `mtcars[mtcars$mpg > 25, ]`. The dplyr version is shorter, and it composes cleanly with the pipe. The real wins show up with multiple conditions.
 
 ```r
-library(dplyr)
-
-# 4-cylinder AND manual transmission (am == 1)
-mtcars |>
-  filter(cyl == 4, am == 1) |>
-  select(mpg, cyl, am, hp)
+mtcars |> filter(mpg > 20, cyl == 4)
+#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+#> Datsun 710     22.8   4 108.0  93 3.85 2.320 18.61  1  1    4    1
+#> Merc 240D      24.4   4 146.7  62 3.69 3.190 20.00  1  0    4    2
+#> Merc 230       22.8   4 140.8  95 3.92 22.90  0  0    4    2
+#> Fiat 128       32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1
+#> ...
 ```
 
-### OR Conditions
+Commas between conditions mean "and." Every row must satisfy all of them. This is the single most readable way to write multi-condition filters in R.
 
-Use `|` for OR — rows matching either condition are kept.
+> [KEY INSIGHT]
+> Inside `filter()`, dplyr uses *tidy evaluation*: column names are bare identifiers. That's why `filter(mtcars, mpg > 25)` works but `filter(mtcars, "mpg" > 25)` doesn't — the second is comparing a string to a number.
+
+**Try it:** Filter `mtcars` to rows where `gear == 4` and `carb == 4`.
 
 ```r
 library(dplyr)
+mtcars |> filter(gear == ___, carb == ___)
 
-# 4-cylinder OR 6-cylinder
-mtcars |>
-  filter(cyl == 4 | cyl == 6) |>
-  select(mpg, cyl, hp) |>
-  head(8)
 ```
 
-### %in% for Multiple Values
+## How do you combine filter conditions with `&`, `|`, and `!`?
 
-When checking against several values, `%in%` is cleaner than chaining `|`.
+Commas mean "and" — that's the common case. For "or" and "not," use the standard logical operators: `|` for or, `!` for not.
 
 ```r
-library(dplyr)
+# OR — either condition matches
+mtcars |> filter(cyl == 8 | mpg > 30)
 
-# Same as above but cleaner
-mtcars |>
-  filter(cyl %in% c(4, 6), gear >= 4) |>
-  select(mpg, cyl, gear, hp)
+# NOT — exclude a group
+mtcars |> filter(!(cyl == 8))
+
+# Complex — (cyl 4 or 6) AND high mpg
+mtcars |> filter(cyl %in% c(4, 6), mpg > 25)
 ```
 
-### Negation with !
+The `%in%` operator is your friend for "is this value one of these values" checks — cleaner than chaining `==` with `|`.
 
 ```r
-library(dplyr)
+# Between — numeric range
+mtcars |> filter(between(hp, 100, 150))
 
-# Everything EXCEPT 8-cylinder cars
-mtcars |>
-  filter(!(cyl == 8)) |>
-  select(mpg, cyl) |>
-  head(6)
+# String matching with stringr::str_detect()
+library(stringr)
+starwars |> filter(str_detect(name, "Luke"))
+#> # A tibble: 1 x 14
+#>   name       height  mass ...
+#> 1 Luke Skywalker 172    77 ...
 ```
 
-### between() for Ranges
+> [WARNING]
+> Don't use `&&` or `||` inside `filter()`. Those are scalar operators — they return one value even if you give them vectors, and they'll silently filter wrong. Always use the vectorized `&` and `|`.
+
+**Try it:** Filter to rows where `am == 1` OR `gear == 5`.
 
 ```r
-library(dplyr)
+mtcars |> filter(am == 1 | gear == ___)
 
-# Weight between 2.5 and 3.5 tons (inclusive)
-mtcars |>
-  filter(between(wt, 2.5, 3.5)) |>
-  select(mpg, wt, hp) |>
-  arrange(wt)
 ```
 
-### Filtering with NA
+## How do you handle NA in filters?
 
-`filter()` automatically drops rows where the condition evaluates to NA. If you want to keep NAs, be explicit.
+`NA` propagates through comparisons: `NA > 5` is `NA`, not `FALSE`. `filter()` drops rows where the condition is `NA` — safer than base R, which sometimes returns mystery `NA` rows. But you still need `is.na()` to explicitly select missing rows.
 
 ```r
-library(dplyr)
+df <- tibble(x = c(1, 2, NA, 4, NA))
 
-df <- data.frame(
-  name  = c("Alice", "Bob", "Carol", "David", "Eve"),
-  score = c(88, NA, 92, NA, 76)
-)
+df |> filter(x > 2)
+#> # A tibble: 1 x 1
+#>       x
+#>   <dbl>
+#> 1     4
 
-# This drops NAs automatically
-cat("score > 80 (NAs dropped):\n")
-df |> filter(score > 80)
+df |> filter(is.na(x))
+#> # A tibble: 2 x 1
+#>       x
+#>   <dbl>
+#> 1    NA
+#> 2    NA
 
-# Keep NAs explicitly
-cat("\nscore > 80 OR is NA:\n")
-df |> filter(score > 80 | is.na(score))
+df |> filter(!is.na(x))
+#> # A tibble: 3 x 1
+#>       x
+#>   <dbl>
+#> 1     1
+#> 2     2
+#> 3     4
 ```
 
-### String Filtering with grepl / str_detect
+`!is.na(x)` is the idiomatic "keep the non-missing rows" filter. You'll write it in nearly every analysis that loads real data.
+
+**Try it:** On `starwars`, keep only rows where `mass` is not `NA`.
 
 ```r
-library(dplyr)
+starwars |> filter(!is.na(___))
 
-# Filter by string pattern
-mtcars |>
-  mutate(car = rownames(mtcars)) |>
-  filter(grepl("^M", car)) |>
-  select(car, mpg, cyl)
 ```
 
-## select(): Pick Columns
+## How do you pick columns with select()?
 
-### By Name
+`select()` keeps (or drops) columns by name. The simplest form lists the columns you want:
 
 ```r
-library(dplyr)
-
-mtcars |> select(mpg, hp, wt) |> head(4)
+mtcars |> select(mpg, cyl, hp) |> head(3)
+#>                mpg cyl  hp
+#> Mazda RX4       21   6 110
+#> Mazda RX4 Wag   21   6 110
+#> Datsun 710    22.8   4  93
 ```
 
-### By Range
+A minus sign drops columns instead:
 
 ```r
-library(dplyr)
-
-# All columns from mpg to drat
-mtcars |> select(mpg:drat) |> head(4)
+mtcars |> select(-vs, -am, -gear, -carb) |> head(3)
+#>                mpg cyl disp  hp drat    wt  qsec
+#> Mazda RX4       21   6  160 110 3.90 2.620 16.46
+#> Mazda RX4 Wag   21   6  160 110 3.90 2.875 17.02
+#> Datsun 710    22.8   4  108  93 3.85 2.320 18.61
 ```
 
-### Exclude Columns with -
+Ranges work with `:` — the colon operator picks every column between two names inclusive:
 
 ```r
-library(dplyr)
-
-mtcars |> select(-c(vs, am, gear, carb)) |> head(4)
+mtcars |> select(mpg:drat) |> head(3)
+#>                mpg cyl disp  hp drat
+#> Mazda RX4       21   6  160 110 3.90
+#> Mazda RX4 Wag   21   6  160 110 3.90
+#> Datsun 710    22.8   4  108  93 3.85
 ```
 
-### Select Helpers
-
-These functions match columns by name patterns — no need to type every column.
+**Try it:** Select just `mpg`, `wt`, and `hp` from `mtcars`.
 
 ```r
-library(dplyr)
+mtcars |> select(___, ___, ___) |> head()
 
-# starts_with()
-cat("starts_with('Sepal'):\n")
+```
+
+## What are the column selection helpers (starts_with, ends_with, contains)?
+
+Typing column names gets old fast when tables have 50+ columns. dplyr's tidyselect helpers let you pick by pattern.
+
+```r
 iris |> select(starts_with("Sepal")) |> head(3)
+#>   Sepal.Length Sepal.Width
+#> 1          5.1         3.5
+#> 2          4.9         3.0
+#> 3          4.7         3.2
 
-# ends_with()
-cat("\nends_with('Width'):\n")
 iris |> select(ends_with("Width")) |> head(3)
+#>   Sepal.Width Petal.Width
+#> 1         3.5         0.2
+#> 2         3.0         0.2
+#> 3         3.2         0.2
 
-# contains()
-cat("\ncontains('pal'):\n")
-iris |> select(contains("pal")) |> head(3)
+iris |> select(contains("eng")) |> head(3)
+#>   Sepal.Length Petal.Length
+#> 1          5.1          1.4
+#> 2          4.9          1.4
+#> 3          4.7          1.3
 ```
 
-### Select by Type with where()
+And `where()` lets you pick by column *type*:
 
 ```r
-library(dplyr)
-
-# Only numeric columns
-iris |> select(where(is.numeric)) |> head(4)
+iris |> select(where(is.numeric)) |> head(3)
+#>   Sepal.Length Sepal.Width Petal.Length Petal.Width
+#> 1          5.1         3.5          1.4         0.2
+#> 2          4.9         3.0          1.4         0.2
+#> 3          4.7         3.2          1.3         0.2
 ```
 
-```r
-library(dplyr)
+> [TIP]
+> `select(where(is.numeric))` plus `summarise(across(everything(), mean))` is how you compute summary stats on every numeric column in one line. Memorize this pattern — you'll use it constantly.
 
-# Only character/factor columns
-iris |> select(where(~ !is.numeric(.x))) |> head(4)
+**Try it:** From `iris`, select all columns whose name starts with "Petal".
+
+```r
+iris |> select(starts_with("___")) |> head()
+
 ```
 
-### Rename While Selecting
+## How do you rename columns with select() and rename()?
+
+`select()` can rename columns inline: the syntax is `new_name = old_name`. If you only want to rename without dropping anything, use `rename()`.
 
 ```r
-library(dplyr)
+mtcars |>
+  select(miles_per_gallon = mpg, cylinders = cyl, horsepower = hp) |>
+  head(3)
+#>               miles_per_gallon cylinders horsepower
+#> Mazda RX4                 21.0         6        110
+#> Mazda RX4 Wag             21.0         6        110
+#> Datsun 710                22.8         4         93
 
 mtcars |>
-  select(fuel_efficiency = mpg, horsepower = hp, weight = wt) |>
-  head(4)
+  rename(miles_per_gallon = mpg) |>
+  head(3) |>
+  colnames()
+#>  [1] "miles_per_gallon" "cyl"  "disp" "hp" "drat" "wt" "qsec" "vs" "am"   
+#> [10] "gear"  "carb"
 ```
 
-### Reorder: Move Columns to Front
+`rename()` keeps every other column; `select()` drops anything you didn't list.
+
+**Try it:** Rename `wt` to `weight` in `mtcars`.
 
 ```r
-library(dplyr)
+mtcars |> rename(weight = ___) |> head()
 
-# Move Species to the first column
-iris |> select(Species, everything()) |> head(4)
 ```
 
-## Combining filter and select
+## How do you combine filter() and select() in a pipeline?
 
-The real power comes from chaining filter and select in a pipeline.
+The pair composes naturally. Filter first (reduce rows), then select (reduce columns) — or vice versa, it doesn't affect the result but it can affect memory for huge tables.
 
 ```r
-library(dplyr)
-
-# Full pipeline: filter → select → arrange
 mtcars |>
-  filter(mpg > 20, hp > 90) |>
-  select(mpg, hp, wt, gear) |>
+  filter(cyl == 4, mpg > 25) |>
+  select(mpg, wt, hp, gear) |>
   arrange(desc(mpg))
+#>                mpg    wt  hp gear
+#> Toyota Corolla 33.9 1.835  79    4
+#> Fiat 128       32.4 2.200  66    4
+#> Honda Civic    30.4 1.615  52    4
+#> Lotus Europa   30.4 1.513 113    5
+#> Fiat X1-9      27.3 1.935  66    4
+#> Porsche 914-2  26.0 2.140  91    5
 ```
+
+Three verbs, four lines, and you've answered "which 4-cylinder cars have the best mileage, showing just the relevant columns." That's dplyr at its best.
+
+> [NOTE]
+> The order `filter() |> select()` is the conventional one — keep it even when either order works. Consistency makes pipelines faster to read for the next person (or future you).
+
+**Try it:** From `mtcars`, filter to `gear == 4`, then keep only `mpg`, `hp`, and `wt`.
 
 ```r
-library(dplyr)
+mtcars |>
+  filter(gear == ___) |>
+  select(mpg, hp, ___)
 
-# Iris: setosa species, petal measurements only, sorted
-iris |>
-  filter(Species == "setosa") |>
-  select(starts_with("Petal")) |>
-  arrange(desc(Petal.Length)) |>
-  head(6)
 ```
-
-## filter() vs subset() vs base R [
-
-| Method | Syntax | Drops NA? | Pipe-friendly? |
-|--------|--------|-----------|---------------|
-| `filter()` | `filter(df, x > 5)` | Yes | Yes |
-| `subset()` | `subset(df, x > 5)` | Yes | Awkward |
-| `[` | `df[df$x > 5, ]` | No (keeps NA rows) | No |
-
-> Use `filter()` in tidyverse workflows. Use `[` only when you need to preserve NA rows or avoid dependencies.
 
 ## Practice Exercises
 
-### Exercise 1: Complex Filter
+### Exercise 1: Top fuel-efficient manuals
 
-Find all 4-cylinder cars with above-average mpg and manual transmission (am == 1).
-
-```r
-library(dplyr)
-
-# Hint: mean(mtcars$mpg) gives the average
-
-```
+From `mtcars`, return the names and mpg of manual-transmission cars (`am == 1`) with mpg above the overall median.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
 library(dplyr)
-
-avg_mpg <- mean(mtcars$mpg)
-cat("Average mpg:", round(avg_mpg, 1), "\n\n")
-
+med <- median(mtcars$mpg)
 mtcars |>
-  filter(cyl == 4, mpg > avg_mpg, am == 1) |>
-  select(mpg, cyl, hp, wt, am)
+  tibble::rownames_to_column("model") |>
+  filter(am == 1, mpg > med) |>
+  select(model, mpg) |>
+  arrange(desc(mpg))
 ```
-
-**Explanation:** Three comma-separated conditions combine with AND. `avg_mpg` is computed outside the pipeline and used inside filter.
-
 </details>
 
-### Exercise 2: Select by Pattern and Type
+### Exercise 2: Select by type and pattern
 
-From iris, select Species plus all columns containing "Width". Then select only numeric columns and compute their means.
-
-```r
-library(dplyr)
-
-# Part 1: Species + Width columns
-# Part 2: numeric columns → means
-
-```
+From `iris`, select every numeric column whose name contains "Length".
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-library(dplyr)
-
-cat("Species + Width columns:\n")
-iris |> select(Species, contains("Width")) |> head(4)
-
-cat("\nNumeric column means:\n")
-iris |>
-  select(where(is.numeric)) |>
-  summarise(across(everything(), ~ round(mean(.x), 2)))
+iris |> select(where(is.numeric) & contains("Length"))
+#>   Sepal.Length Petal.Length
+#> 1          5.1          1.4
+#> ...
 ```
-
-**Explanation:** `contains("Width")` matches any column with "Width" in its name. `where(is.numeric)` selects by column type. Both are tidy-select helpers.
-
 </details>
 
-### Exercise 3: Negated Filter with NA
+### Exercise 3: Exclude and rename
 
-From this dataset, keep rows where score is NOT NA and grade is NOT "F".
-
-```r
-library(dplyr)
-
-df <- data.frame(
-  name  = c("Alice", "Bob", "Carol", "David", "Eve"),
-  score = c(88, NA, 72, NA, 95),
-  grade = c("B", "C", "C", "F", "A"),
-  stringsAsFactors = FALSE
-)
-
-```
+From `mtcars`, drop the `vs`, `am`, and `carb` columns, then rename `mpg` to `miles_per_gallon`.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
+
+```r
+mtcars |>
+  select(-vs, -am, -carb) |>
+  rename(miles_per_gallon = mpg) |>
+  head()
+```
+</details>
+
+## Putting It All Together
+
+A complete mini-analysis on `starwars`: find the tallest human characters with known homeworlds, keeping only the columns we care about.
 
 ```r
 library(dplyr)
-
-df <- data.frame(
-  name  = c("Alice", "Bob", "Carol", "David", "Eve"),
-  score = c(88, NA, 72, NA, 95),
-  grade = c("B", "C", "C", "F", "A"),
-  stringsAsFactors = FALSE
-)
-
-df |> filter(!is.na(score), grade != "F")
+starwars |>
+  filter(
+    species == "Human",
+    !is.na(height),
+    !is.na(homeworld)
+  ) |>
+  select(name, height, mass, homeworld, gender) |>
+  arrange(desc(height)) |>
+  head(5)
+#> # A tibble: 5 x 5
+#>   name              height  mass homeworld      gender   
+#>   <chr>              <int> <dbl> <chr>          <chr>    
+#> 1 Darth Vader          202   136 Tatooine       masculine
+#> 2 Qui-Gon Jinn         193    89 unknown        masculine
+#> 3 Dooku                193    80 Serenno        masculine
+#> 4 Bail Prestor Organa  191    NA Alderaan       masculine
+#> 5 Anakin Skywalker     188    84 Tatooine       masculine
 ```
 
-**Explanation:** `!is.na(score)` keeps non-missing scores. `grade != "F"` excludes failing grades. Both conditions are ANDed.
-
-</details>
+Three filters (species, no NA height, no NA homeworld), a column selection, a sort, a top-5. Every line reads top-to-bottom as one thought.
 
 ## Summary
 
-| Function | Purpose | Example |
-|----------|---------|---------|
-| `filter(condition)` | Keep matching rows | `filter(mpg > 20)` |
-| `filter(c1, c2)` | AND conditions | `filter(cyl == 4, am == 1)` |
-| `filter(c1 \| c2)` | OR conditions | `filter(cyl == 4 \| cyl == 6)` |
-| `filter(x %in% vals)` | Match set | `filter(cyl %in% c(4, 6))` |
-| `select(cols)` | Pick columns | `select(mpg, hp)` |
-| `select(-cols)` | Drop columns | `select(-c(vs, am))` |
-| `starts_with("x")` | Name prefix | `select(starts_with("Sepal"))` |
-| `ends_with("x")` | Name suffix | `select(ends_with("Width"))` |
-| `contains("x")` | Name contains | `select(contains("ar"))` |
-| `where(fn)` | By column type | `select(where(is.numeric))` |
-| `everything()` | All remaining | `select(id, everything())` |
+| Verb | What it does | Key pattern |
+|------|-------------|-------------|
+| `filter(cond, cond, ...)` | Keep rows where all conditions are `TRUE` | `filter(df, x > 5, y == "a")` |
+| `filter(cond \| cond)` | Keep rows matching any condition | `filter(df, x > 5 \| y == "a")` |
+| `filter(!is.na(x))` | Drop missing values in a column | Essential cleanup idiom |
+| `select(a, b, c)` | Keep named columns | Explicit, clearest form |
+| `select(-x, -y)` | Drop named columns | Inverse selection |
+| `select(starts_with("x"))` | Keep by name pattern | Also `ends_with`, `contains` |
+| `select(where(is.numeric))` | Keep by type | Combine with `across()` later |
+| `rename(new = old)` | Rename without dropping | Use when selecting would drop too much |
 
-## FAQ
+## References
 
-### What's the difference between filter() and subset()?
-
-Functionally similar for basic use. `filter()` is faster, works with grouped data frames, supports tidy evaluation, and integrates with the pipe. Always prefer `filter()` in tidyverse code.
-
-### Can filter() use regular expressions?
-
-Not directly. Use `grepl("pattern", col)` or `stringr::str_detect(col, "pattern")` inside filter: `filter(str_detect(name, "^A"))`.
-
-### How do I select columns by position number?
-
-`select(1, 3, 5)` or `select(1:5)`. But name-based selection is safer — column positions can change if the data source is updated.
-
-### Does filter() modify the original data frame?
-
-No. Like all dplyr verbs, `filter()` returns a new data frame. The original is unchanged. Assign the result to save it: `result <- df |> filter(...)`.
+1. [dplyr package documentation](https://dplyr.tidyverse.org/)
+2. [R for Data Science — Data Transformation](https://r4ds.hadley.nz/data-transform)
+3. [tidyselect helpers reference](https://tidyselect.r-lib.org/reference/language.html)
+4. [dplyr cheat sheet (RStudio)](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
+5. [Tidyverse Style Guide](https://style.tidyverse.org/)
 
 ## Continue Learning
 
-- [dplyr mutate & rename](/dplyr-mutate-rename.html) — create and modify columns
-- [dplyr group_by & summarise](/dplyr-group-by-summarise.html) — aggregate data by group
-- [R Joins](/R-Joins.html) — combine multiple data frames
+- [dplyr mutate(): Create New Columns](dplyr-mutate-rename.html) — the natural next verb after filter/select.
+- [dplyr group_by() + summarise()](dplyr-group-by-summarise.html) — aggregate filtered data.
+- [R Pipe Operator: %>% vs |>](R-Pipe-Operator.html) — the glue that connects dplyr verbs.
