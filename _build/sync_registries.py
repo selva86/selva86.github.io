@@ -21,6 +21,38 @@ SIDEBAR_PATH = os.path.join(REPO_ROOT, 'www', 'sidebar.json')
 LINKS_PATH = os.path.join(REPO_ROOT, 'www', 'links.json')
 CURRICULUM_PATH = os.path.join(REPO_ROOT, 'curriculum-status.json')
 PSEO_PATH = os.path.join(REPO_ROOT, 'www', 'programmatic-seo.json')
+PENDING_REFRESH_PATH = os.path.join(SCRIPT_DIR, '.fr_refresh_pending.json')
+
+
+def _load_pending_parents():
+    """Load any parents left unrefreshed by a prior crashed sync run."""
+    if not os.path.exists(PENDING_REFRESH_PATH):
+        return set()
+    try:
+        with open(PENDING_REFRESH_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return set(data)
+    except Exception:
+        pass
+    return set()
+
+
+def _write_pending_parents(parents):
+    try:
+        with open(PENDING_REFRESH_PATH, 'w', encoding='utf-8') as f:
+            json.dump(sorted(parents), f, indent=2)
+            f.write('\n')
+    except Exception as e:
+        print(f'  WARN: could not write pending-refresh state: {e}')
+
+
+def _clear_pending_parents():
+    if os.path.exists(PENDING_REFRESH_PATH):
+        try:
+            os.remove(PENDING_REFRESH_PATH)
+        except Exception:
+            pass
 
 
 def parse_front_matter(filepath):
@@ -130,15 +162,14 @@ def sync_sidebar(posts, dry_run=False):
     return added
 
 
-def sync_links_auto(posts, dry_run=False):
+def sync_links_auto(posts, links_data, dry_run=False):
     """Add new auto_link entries AND merge terms into existing entries.
 
-    Returns (added, updated, new_terms_set) where new_terms_set contains
-    all terms that were newly added to the registry (for affected-fragment
-    re-linking).
+    Mutates `links_data` in place. Returns (added, updated, new_terms_set)
+    where new_terms_set contains all terms that were newly added to the
+    registry (for affected-fragment re-linking).
     """
-    with open(LINKS_PATH, 'r', encoding='utf-8') as f:
-        links = json.load(f)
+    links = links_data
 
     # Index existing entries by URL for lookup + mutation
     existing_index = {entry['url']: entry for entry in links['auto_links']}
@@ -216,12 +247,7 @@ def sync_links_auto(posts, dry_run=False):
                 if status == 'published':
                     new_terms_set.update(terms)
 
-    if not dry_run and (added > 0 or updated > 0):
-        with open(LINKS_PATH, 'w', encoding='utf-8') as f:
-            json.dump(links, f, indent=2, ensure_ascii=False)
-            f.write('\n')
-
-    return added, updated, new_terms_set, links
+    return added, updated, new_terms_set
 
 
 def reinject_affected_fragments(new_terms_set, links_data=None, dry_run=False, verbose=False):
@@ -264,15 +290,20 @@ def reinject_affected_fragments(new_terms_set, links_data=None, dry_run=False, v
     return re_injected
 
 
-def sync_links_fr(posts, dry_run=False):
-    """Add/update further_reading entries for FR/PSEO posts."""
-    with open(LINKS_PATH, 'r', encoding='utf-8') as f:
-        links = json.load(f)
+def sync_links_fr(posts, links_data, dry_run=False):
+    """Add/update further_reading entries for FR/PSEO posts.
 
-    if 'further_reading' not in links:
-        links['further_reading'] = {}
+    Mutates `links_data` in place. Returns (added, affected_parents) where
+    affected_parents contains every parent whose entry for this child was
+    newly added or whose observable fields (url/status/title) changed —
+    these are the parents whose HTML FR block must be regenerated.
+    """
+    links = links_data
+    fr = links.setdefault('further_reading', {})
 
     added = 0
+    affected_parents = set()
+
     for post in posts:
         post_type = post.get('post_type', '')
         if post_type not in ('FR', 'PSEO'):
@@ -284,44 +315,57 @@ def sync_links_fr(posts, dry_run=False):
         parents = [p.strip() for p in fr_parent_str.split('|') if p.strip()]
         filename = post['filename']
         curriculum_id = post.get('curriculum_id', '')
+        new_title = post.get('title', filename)
 
         for parent in parents:
-            # Verify fr_parent target exists as fragment or legacy root
+            # Verify fr_parent target exists as fragment or legacy root.
+            # Orphaned parents (neither present) are skipped entirely —
+            # don't pollute the registry, don't schedule a refresh.
             parent_frag = os.path.join(POSTS_DIR, parent)
             parent_root = os.path.join(REPO_ROOT, parent)
             if not os.path.exists(parent_frag) and not os.path.exists(parent_root):
-                print(f'  WARN: {filename} fr_parent "{parent}" not found (no fragment or legacy root) — FR link will be dangling')
+                print(f'  WARN: {filename} fr_parent "{parent}" not found — orphaned FR, skipping')
+                continue
 
-            if parent not in links['further_reading']:
-                links['further_reading'][parent] = []
+            fr_list = fr.setdefault(parent, [])
 
-            # Check if already exists
-            fr_list = links['further_reading'][parent]
-            found = False
+            # Find existing entry: prefer url match, fall back to curriculum_id
+            existing = None
             for entry in fr_list:
-                if entry.get('url') == filename or entry.get('curriculum_id') == curriculum_id:
-                    # Update existing entry
-                    entry['url'] = filename
-                    entry['status'] = 'published'
-                    entry['title'] = post.get('title', filename)
-                    found = True
+                if entry.get('url') == filename:
+                    existing = entry
                     break
+            if existing is None and curriculum_id:
+                for entry in fr_list:
+                    if entry.get('curriculum_id') == curriculum_id:
+                        existing = entry
+                        break
 
-            if not found:
+            if existing is None:
                 fr_list.append({
-                    'curriculum_id': curriculum_id or post.get('filename', ''),
+                    'curriculum_id': curriculum_id or filename,
                     'url': filename,
-                    'title': post.get('title', filename),
-                    'status': 'published'
+                    'title': new_title,
+                    'status': 'published',
                 })
                 added += 1
+                affected_parents.add(parent)
+                continue
 
-    if not dry_run and added > 0:
-        with open(LINKS_PATH, 'w', encoding='utf-8') as f:
-            json.dump(links, f, indent=2, ensure_ascii=False)
-            f.write('\n')
+            # Update path: capture pre-values, mutate, compare
+            before = (
+                existing.get('url'),
+                existing.get('status'),
+                existing.get('title'),
+            )
+            existing['url'] = filename
+            existing['status'] = 'published'
+            existing['title'] = new_title
+            after = (existing['url'], existing['status'], existing['title'])
+            if before != after:
+                affected_parents.add(parent)
 
-    return added
+    return added, affected_parents
 
 
 def sync_curriculum(posts, dry_run=False):
@@ -363,8 +407,74 @@ def sync_curriculum(posts, dry_run=False):
     return updated
 
 
+def refresh_fr_parent_fragments(affected_parents, links_data, dry_run=False):
+    """Refresh Further Reading blocks on every affected parent.
+
+    Fragment parents get `inject_fr_for_fragment` (strip + rebuild).
+    Legacy root-only parents get `refresh_fr_section_in_root`.
+    Parents with a manual-curation marker are skipped.
+
+    Returns (frag_count, legacy_count, skipped_manual, errors).
+    `errors` is a list of (parent, message) tuples.
+    """
+    from link_injector import inject_fr_for_fragment, has_manual_fr_marker
+
+    frag_count = 0
+    legacy_parents = []
+    skipped_manual = 0
+    errors = []
+
+    for parent in sorted(affected_parents):
+        frag_path = os.path.join(POSTS_DIR, parent)
+        root_path = os.path.join(REPO_ROOT, parent)
+
+        if os.path.exists(frag_path):
+            try:
+                if has_manual_fr_marker(frag_path):
+                    skipped_manual += 1
+                    print(f'  SKIP {parent}: fr_manual marker present')
+                    continue
+                if inject_fr_for_fragment(frag_path, links_data=links_data, dry_run=dry_run):
+                    frag_count += 1
+            except Exception as e:
+                errors.append((parent, str(e)))
+                print(f'  ERROR refreshing fragment {parent}: {e}')
+            continue
+
+        if os.path.exists(root_path):
+            legacy_parents.append(parent)
+            continue
+
+        print(f'  WARN: FR parent "{parent}" has no fragment and no root HTML')
+
+    # Legacy root-only parents
+    legacy_count = 0
+    if legacy_parents:
+        from auto_link import refresh_fr_section_in_root
+        for parent in legacy_parents:
+            root_path = os.path.join(REPO_ROOT, parent)
+            try:
+                if has_manual_fr_marker(root_path):
+                    skipped_manual += 1
+                    print(f'  SKIP {parent}: fr_manual marker present (legacy)')
+                    continue
+                result = refresh_fr_section_in_root(root_path, links_data, dry_run=dry_run)
+                if result == 'ok':
+                    legacy_count += 1
+                elif result == 'no-insertion-point':
+                    print(f'  WARN: {parent}: could not locate FR insertion point — skipped')
+                # 'unchanged' is silent
+            except Exception as e:
+                errors.append((parent, str(e)))
+                print(f'  ERROR refreshing legacy root {parent}: {e}')
+
+    return frag_count, legacy_count, skipped_manual, errors
+
+
 def main():
-    dry_run = '--dry-run' in sys.argv
+    args = sys.argv[1:]
+    dry_run = '--dry-run' in args
+    force_refresh_all = '--refresh-all-fr' in args
 
     if not os.path.exists(POSTS_DIR):
         print('No _posts/ directory found.')
@@ -400,27 +510,75 @@ def main():
         print(f'  ({warnings} posts have missing required fields — registry sync may be incomplete)')
     print()
 
+    # Single load of links.json — both sync functions mutate in place
+    with open(LINKS_PATH, 'r', encoding='utf-8') as f:
+        links_data = json.load(f)
+
     sidebar_added = sync_sidebar(posts, dry_run)
-    auto_added, auto_updated, new_terms_set, links_data = sync_links_auto(posts, dry_run)
-    fr_added = sync_links_fr(posts, dry_run)
+    auto_added, auto_updated, new_terms_set = sync_links_auto(posts, links_data, dry_run)
+    fr_added, affected_parents = sync_links_fr(posts, links_data, dry_run)
     curriculum_updated = sync_curriculum(posts, dry_run)
 
+    # Resume any parents left unrefreshed by a prior crashed run
+    pending = _load_pending_parents()
+    if pending:
+        print(f'  Resuming {len(pending)} parent(s) from prior incomplete sync')
+        affected_parents |= pending
+
+    # Force-refresh every registered parent (one-time backfill tool)
+    if force_refresh_all:
+        all_parents = set(links_data.get('further_reading', {}).keys())
+        affected_parents |= all_parents
+        print(f'  --refresh-all-fr: scheduling {len(all_parents)} registered parent(s)')
+
+    # Persist links.json FIRST so fragment refresh operates on a stable state
+    links_changed = bool(auto_added or auto_updated or fr_added)
+    if not dry_run and links_changed:
+        with open(LINKS_PATH, 'w', encoding='utf-8') as f:
+            json.dump(links_data, f, indent=2, ensure_ascii=False)
+            f.write('\n')
+
+    # Record pending state BEFORE refresh starts so a crash can resume
+    if not dry_run and affected_parents:
+        _write_pending_parents(affected_parents)
+
+    # Refresh FR blocks on affected parents
+    frag_count, legacy_count, skipped_manual, errors = refresh_fr_parent_fragments(
+        affected_parents, links_data, dry_run=dry_run
+    )
+
     # Re-inject auto-links into affected fragments whenever new terms
-    # were introduced (new entries or merged terms). This keeps _posts/
-    # fragments as the source of truth for links.
-    re_injected = reinject_affected_fragments(new_terms_set, links_data=links_data, dry_run=dry_run)
+    # were introduced (new entries or merged terms).
+    re_injected = reinject_affected_fragments(
+        new_terms_set, links_data=links_data, dry_run=dry_run
+    )
+
+    # Clear pending state only on clean completion
+    if not dry_run and not errors:
+        _clear_pending_parents()
 
     print(f'\nSummary:')
-    print(f'  Sidebar:    {sidebar_added} entries added')
-    print(f'  Auto-links: {auto_added} added, {auto_updated} merged')
-    print(f'  Further Reading: {fr_added} entries added/updated')
-    print(f'  Curriculum: {curriculum_updated} posts marked published')
+    print(f'  Sidebar:             {sidebar_added} entries added')
+    print(f'  Auto-links:          {auto_added} added, {auto_updated} merged')
+    print(f'  FR registry:         {fr_added} entries added/updated')
+    print(f'  FR fragments:        {frag_count} refreshed')
+    print(f'  FR legacy roots:     {legacy_count} refreshed')
+    print(f'  FR manual-skipped:   {skipped_manual}')
     print(f'  Re-linked fragments: {re_injected}')
+    print(f'  Curriculum:          {curriculum_updated} posts marked published')
+
+    if errors:
+        print(f'\n  ERRORS: {len(errors)} parent(s) failed to refresh — pending state retained for retry')
+        for parent, msg in errors:
+            print(f'    {parent}: {msg}')
 
     if dry_run:
         print('\n(Dry run — no files modified)')
+    elif errors:
+        sys.exit(2)
     else:
-        total = sidebar_added + auto_added + auto_updated + fr_added + curriculum_updated + re_injected
+        total = (sidebar_added + auto_added + auto_updated + fr_added
+                 + curriculum_updated + frag_count + legacy_count + re_injected)
         if total == 0:
             print('\nAll registries already in sync.')
         else:

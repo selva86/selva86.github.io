@@ -16,6 +16,7 @@ import json
 import os
 import re
 import sys
+from html import escape as html_escape
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -225,11 +226,12 @@ FURTHER_READING_TEMPLATE = """<div id="auto-further-reading">
 
 
 def build_further_reading_html(items):
-    """Build the Further Reading HTML block."""
+    """Build the Further Reading HTML block (HTML-escaped titles/urls)."""
     li_items = []
     for item in items:
         li_items.append('<li><a href="{}">{}</a></li>'.format(
-            item["url"], item["title"]
+            html_escape(item["url"], quote=True),
+            html_escape(item["title"]),
         ))
     return FURTHER_READING_TEMPLATE.format("\n".join(li_items))
 
@@ -258,11 +260,12 @@ def inject_further_reading(html, items):
         if not new_items:
             return html, False
 
-        # Build new <li> entries
+        # Build new <li> entries (HTML-escaped)
         new_lis = []
         for item in new_items:
             new_lis.append('<li><a href="{}">{}</a></li>'.format(
-                item["url"], item["title"]
+                html_escape(item["url"], quote=True),
+                html_escape(item["title"]),
             ))
         insert_html = "\n".join(new_lis)
 
@@ -315,6 +318,49 @@ def inject_further_reading(html, items):
         return new_html, True
 
     return html, False
+
+
+# ---------------------------------------------------------------------------
+# Single-file FR refresh (used by sync_registries for legacy root parents)
+# ---------------------------------------------------------------------------
+
+def refresh_fr_section_in_root(root_html_path, links_data, dry_run=False):
+    """Strip and rebuild the FR block in one legacy root HTML file.
+
+    Used by sync_registries.refresh_fr_parent_fragments for parents that
+    exist only as legacy root HTML (no _posts/ fragment).
+
+    Returns one of:
+      'ok'                 — file was rewritten
+      'unchanged'          — strip + rebuild produced identical output
+      'no-insertion-point' — no existing block and no valid insertion target
+    """
+    parent_url = os.path.basename(root_html_path)
+    items = links_data.get('further_reading', {}).get(parent_url, [])
+    published = [it for it in items if it.get('status') == 'published']
+
+    try:
+        with open(root_html_path, 'r', encoding='utf-8', errors='replace') as f:
+            html = f.read()
+    except Exception:
+        return 'no-insertion-point'
+    original = html
+
+    had_existing_block = 'id="auto-further-reading"' in html
+    html = strip_further_reading(html)
+
+    if published:
+        html, injected = inject_further_reading(html, published)
+        if not injected and not had_existing_block:
+            # Nothing existed and we could not find an insertion point
+            return 'no-insertion-point'
+
+    if html == original:
+        return 'unchanged'
+    if not dry_run:
+        with open(root_html_path, 'w', encoding='utf-8', newline='') as f:
+            f.write(html)
+    return 'ok'
 
 
 # ---------------------------------------------------------------------------
@@ -372,8 +418,10 @@ def scan_fr_parents():
             elif line.startswith('post_type:'):
                 post_type = line.split(':', 1)[1].strip().strip('"').strip("'").upper()
 
-        # Only process FR and EX posts that have fr_parent
-        if not fr_parent or post_type not in ('FR', 'EX'):
+        # Only process FR and PSEO posts that have fr_parent.
+        # Aligned with sync_registries.sync_links_fr — EX posts are
+        # linked from parents via auto-link terms, not Further Reading.
+        if not fr_parent or post_type not in ('FR', 'PSEO'):
             continue
 
         # Determine published status: does the built HTML exist at root?

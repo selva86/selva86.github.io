@@ -16,6 +16,7 @@ Usage:
 import json
 import os
 import re
+from html import escape as html_escape
 
 # Import from auto_link (same directory)
 from auto_link import (
@@ -39,6 +40,26 @@ def strip_frontmatter(text):
     if m:
         return m.group(1), m.group(2)
     return '', text
+
+
+def has_manual_fr_marker(path):
+    """True if the file at `path` opts out of auto FR refresh.
+
+    Two opt-out mechanisms:
+      1. frontmatter field `fr_manual: true` (fragments only)
+      2. literal HTML comment `<!-- fr-manual -->` anywhere in the body
+    """
+    try:
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            text = f.read()
+    except Exception:
+        return False
+    if '<!-- fr-manual -->' in text:
+        return True
+    fm, _ = strip_frontmatter(text)
+    if fm and re.search(r'^\s*fr_manual:\s*true\s*$', fm, re.MULTILINE | re.IGNORECASE):
+        return True
+    return False
 
 
 def inject_links_for_fragment(fragment_path, self_url, links_data=None, verbose=False, dry_run=False):
@@ -230,9 +251,10 @@ def inject_fr_for_fragment(fragment_path, links_data=None, dry_run=False):
     new_body = _strip_fr_from_text(body)
 
     if published:
-        # Build and append FR block
+        # Build and append FR block (HTML-escaped titles/urls)
         lis = '\n'.join(
-            f'<li><a href="{it["url"]}">{it["title"]}</a></li>'
+            f'<li><a href="{html_escape(it["url"], quote=True)}">'
+            f'{html_escape(it["title"])}</a></li>'
             for it in published
         )
         fr_block = (
