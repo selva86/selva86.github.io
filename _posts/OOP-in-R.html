@@ -1,409 +1,112 @@
 ---
-title: "OOP in R: S3 vs S4 vs R5 vs R6 — When to Use Each System"
-description: "Compare R's four OOP systems: S3 (informal), S4 (formal), R5 (reference classes), and R6 (modern). Learn when to use each with side-by-side examples."
-keywords: "OOP in R, S3 classes R, S4 classes R, R5 reference classes, R6 classes, object oriented R, R class systems"
+title: "OOP in R: S3, S4, R5, R6 Compared — Pick the Right System in 3 Questions"
+description: "R has four object-oriented systems — S3, S4, R5 (Reference), and R6. This guide compares them on syntax, dispatch, mutability, and use case, and gives a 3-question decision tree."
+keywords: "OOP in R, R S3 vs S4, R R6, R object oriented programming, R classes comparison"
 mathjax: false
 webr: true
 curriculum_id: "4.3.1"
 post_type: "C"
-auto_link_terms: "OOP in R|S3 vs S4|R6 classes|object oriented R"
+auto_link_terms: "OOP in R|R object systems|S3 vs S4|R OOP comparison"
 auto_link_case_sensitive: false
+sidebar_section: "Learn R"
+sidebar_title: "OOP in R (Overview)"
+sidebar_order: "41"
 ---
 <!-- md2html:generated -->
 
-<h1>OOP in R: S3 vs S4 vs R5 vs R6 — When to Use Each System</h1>
+<h1>OOP in R: S3, S4, R5, R6 Compared — Pick the Right System in 3 Questions</h1>
 
-<p class="lead">R has four object-oriented programming systems: <strong>S3</strong> (simple, informal), <strong>S4</strong> (formal, strict), <strong>R5/Reference Classes</strong> (mutable), and <strong>R6</strong> (modern, fast). This guide compares all four and tells you when to pick each one.</p>
+<p class="lead">R has four object-oriented systems: <strong>S3</strong> (informal, the default for most of base R and <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>), <strong>S4</strong> (formal, used in Bioconductor), <strong>R5/Reference Classes</strong> (deprecated in favour of R6), and <strong>R6</strong> (mutable, encapsulated, the one you want for stateful objects). This guide lets you pick the right one in three questions.</p>
 
-<p>Most languages have one OOP system. R has four, because they evolved over decades to serve different needs. You don't need to master all four — but you need to recognize them in the wild and know which one fits your project.</p>
+<p>Most tutorials teach S3 as if it is OOP and leave S4/R6 for "advanced topics". That is backwards. S3 is a <strong>convention</strong>, not a class system — and for most everyday R code the convention is all you need. S4 and R6 are full systems; you reach for them when specific problems demand the formality. This post explains the trade-offs so you can decide, not the syntax of each one — each has its own tutorial.</p>
 
-<h2>The Big Picture</h2>
+<h2>How Is OOP in R Different From Python or Java?</h2>
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>System</th>
-<th>Style</th>
-<th>Mutability</th>
-<th>Validation</th>
-<th>Speed</th>
-<th>Use case</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>S3</td>
-<td>Informal</td>
-<td><a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">Copy-on-modify</a></td>
-<td>None built-in</td>
-<td>Fast</td>
-<td>Quick classes, most packages</td>
-</tr>
-<tr>
-<td>S4</td>
-<td>Formal</td>
-<td>Copy-on-modify</td>
-<td>Strict slots</td>
-<td>Medium</td>
-<td>Bioconductor, complex hierarchies</td>
-</tr>
-<tr>
-<td>R5</td>
-<td>Reference</td>
-<td>Mutable</td>
-<td>Optional</td>
-<td>Slow</td>
-<td>Legacy mutable objects</td>
-</tr>
-<tr>
-<td>R6</td>
-<td>Reference</td>
-<td>Mutable</td>
-<td>Optional</td>
-<td>Fast</td>
-<td>Modern mutable objects, APIs</td>
-</tr>
-</tbody>
-</table>
-
-<h2>S3: The Informal System</h2>
-
-<p>S3 is R's most common OOP system. It's what <code>lm()</code>, <code>data.frame</code>, and <code>factor</code> use. There's no formal class definition — you just set an attribute.</p>
+<p>In Python, every object has a class, and methods live <em>on</em> the class (<code>obj.method()</code>). In R, <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 methods</a> live on <strong>generic functions</strong> — you call <code>print(obj)</code>, and R looks at <code>obj</code>'s class to decide which <code>print.*</code> method to run. This is called <strong>generic-function OOP</strong>, and it is the dominant style in statistical languages (R, Julia, Common Lisp).</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Create an S3 object: it's just a list with a &quot;class&quot; attribute
-dog &lt;- list(name = &quot;Rex&quot;, breed = &quot;Labrador&quot;, age = 5)
-class(dog) &lt;- &quot;Dog&quot;
+    <div class="webr-editor" data-language="r">x &lt;- c(1, 2, 3)
+class(x)
+#&gt; [1] &quot;numeric&quot;
 
-# Define a method: create a function named generic.class
-print.Dog &lt;- function(x, ...) {
-  cat(sprintf(&quot;Dog: %s (%s, %d years old)\n&quot;, x$name, x$breed, x$age))
-}
+# `print` is a generic — it dispatches on x's class
+print(x)
+#&gt; [1] 1 2 3
 
-# R dispatches print() to print.Dog automatically
+m &lt;- lm(mpg ~ wt, mtcars)
+class(m)
+#&gt; [1] &quot;lm&quot;
+
+# Same generic, different class, different method
+print(m)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = mpg ~ wt, data = mtcars)
+#&gt; 
+#&gt; Coefficients:
+#&gt; (Intercept)           wt  
+#&gt;      37.285       -5.344</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Same function name (<code>print</code>), two completely different outputs. That is generic-function dispatch. You never wrote <code>x.print()</code>; you wrote <code>print(x)</code> and R found the right method by looking at <code>x</code>'s class.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>R's OOP is built around verbs, not nouns.</strong> <code>summary(model)</code>, <code>plot(data)</code>, <code>predict(fit)</code> — the verb is the generic, the noun is the object. This fits statistics because the same operation (predict, <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a>, plot) makes sense on wildly different objects. In Java/Python you would write <code>model.summary()</code>; in R you write <code>summary(model)</code>, and the language figures out which <code>summary</code> method to run.</div></div>
+
+<h2>What Are the Four Systems?</h2>
+
+<p>Here is the 30-second tour of each. Detailed posts cover the syntax of each.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># S3: informal, just set the class attribute
+dog &lt;- list(name = &quot;Rex&quot;, breed = &quot;Lab&quot;)
+class(dog) &lt;- &quot;dog&quot;
+print.dog &lt;- function(x, ...) cat(&quot;Dog:&quot;, x$name, &quot;(&quot;, x$breed, &quot;)\n&quot;)
 print(dog)
-
-# S3 is informal — no validation, no enforcement
-dog$color &lt;- &quot;brown&quot;  # Add any field anytime
-dog$age &lt;- &quot;old&quot;      # No type checking</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>S3 Constructors and Methods</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Best practice: create a constructor function
-new_Dog &lt;- function(name, breed, age) {
-  obj &lt;- list(name = name, breed = breed, age = age)
-  class(obj) &lt;- &quot;Dog&quot;
-  obj
-}
-
-# Define methods for generics
-summary.Dog &lt;- function(object, ...) {
-  cat(&quot;Dog Summary\n&quot;)
-  cat(&quot;  Name:&quot;, object$name, &quot;\n&quot;)
-  cat(&quot;  Breed:&quot;, object$breed, &quot;\n&quot;)
-  cat(&quot;  Human years:&quot;, object$age * 7, &quot;\n&quot;)
-}
-
-bark &lt;- function(x, ...) UseMethod(&quot;bark&quot;)
-bark.Dog &lt;- function(x, ...) cat(x$name, &quot;says: Woof!\n&quot;)
-
-rex &lt;- new_Dog(&quot;Rex&quot;, &quot;Labrador&quot;, 5)
-summary(rex)
-bark(rex)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>S4: The Formal System</h2>
-
-<p>S4 enforces structure with <code>setClass()</code>, typed slots, and <code>setGeneric()</code>/<code>setMethod()</code>. It's used heavily in Bioconductor.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Define class with typed slots
-setClass(&quot;Person&quot;, representation(
-  name = &quot;character&quot;,
-  age = &quot;numeric&quot;,
-  email = &quot;character&quot;
-))
-
-# Create an instance
-alice &lt;- new(&quot;Person&quot;, name = &quot;Alice&quot;, age = 30, email = &quot;alice@example.com&quot;)
-
-# Access slots with @
-cat(&quot;Name:&quot;, alice@name, &quot;\n&quot;)
-cat(&quot;Age:&quot;, alice@age, &quot;\n&quot;)
-
-# Slots are type-checked
-# new(&quot;Person&quot;, name = &quot;Bob&quot;, age = &quot;thirty&quot;)  # Error!</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># S4 methods
-setClass(&quot;Person&quot;, representation(
-  name = &quot;character&quot;,
-  age = &quot;numeric&quot;
-))
-
-setGeneric(&quot;greet&quot;, function(x, ...) standardGeneric(&quot;greet&quot;))
-setMethod(&quot;greet&quot;, &quot;Person&quot;, function(x, ...) {
-  cat(&quot;Hi, I'm&quot;, x@name, &quot;and I'm&quot;, x@age, &quot;\n&quot;)
-})
-
-bob &lt;- new(&quot;Person&quot;, name = &quot;Bob&quot;, age = 25)
-greet(bob)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>R6: The Modern Reference System</h2>
-
-<p>R6 classes use <a class="auto-link" href="R6-Classes-in-R.html" title="R6 Classes in R: Reference Semantics & Mutable State Tutorial">reference semantics</a> (objects are mutable) and have a clean, familiar syntax. Install with <code>install.packages(&quot;R6&quot;)</code>.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(R6)
-
-BankAccount &lt;- R6Class(&quot;BankAccount&quot;,
-  public = list(
-    owner = NULL,
-    initialize = function(owner, balance = 0) {
-      self$owner &lt;- owner
-      private$bal &lt;- balance
-    },
-    deposit = function(amount) {
-      private$bal &lt;- private$bal + amount
-      cat(&quot;Deposited $&quot;, amount, &quot;. Balance: $&quot;, private$bal, &quot;\n&quot;)
-      invisible(self)
-    },
-    withdraw = function(amount) {
-      if (amount &gt; private$bal) stop(&quot;Insufficient funds&quot;)
-      private$bal &lt;- private$bal - amount
-      cat(&quot;Withdrew $&quot;, amount, &quot;. Balance: $&quot;, private$bal, &quot;\n&quot;)
-      invisible(self)
-    },
-    get_balance = function() private$bal
-  ),
-  private = list(
-    bal = 0
-  )
-)
-
-acct &lt;- BankAccount$new(&quot;Alice&quot;, 1000)
-acct$deposit(500)
-acct$withdraw(200)
-cat(&quot;Final balance: $&quot;, acct$get_balance(), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>R6 Reference Semantics</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(R6)
-
-Counter &lt;- R6Class(&quot;Counter&quot;,
-  public = list(
-    count = 0,
-    increment = function() { self$count &lt;- self$count + 1; invisible(self) }
-  )
-)
-
-c1 &lt;- Counter$new()
-c2 &lt;- c1  # NOT a copy — same object!
-
-c1$increment()
-c1$increment()
-cat(&quot;c1$count:&quot;, c1$count, &quot;\n&quot;)
-cat(&quot;c2$count:&quot;, c2$count, &quot;\n&quot;)  # Also 2!
-
-# To make a true copy:
-c3 &lt;- c1$clone()
-c1$increment()
-cat(&quot;\nAfter c1$increment():\n&quot;)
-cat(&quot;c1:&quot;, c1$count, &quot;  c3:&quot;, c3$count, &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Side-by-Side Comparison</h2>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># S3 version
-new_Point_S3 &lt;- function(x, y) {
-  obj &lt;- list(x = x, y = y)
-  class(obj) &lt;- &quot;Point&quot;
-  obj
-}
-print.Point &lt;- function(p, ...) cat(sprintf(&quot;(%g, %g)\n&quot;, p$x, p$y))
-
-p1 &lt;- new_Point_S3(3, 4)
-print(p1)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># S4 version
-setClass(&quot;PointS4&quot;, representation(x = &quot;numeric&quot;, y = &quot;numeric&quot;))
-setMethod(&quot;show&quot;, &quot;PointS4&quot;, function(object) {
-  cat(sprintf(&quot;(%g, %g)\n&quot;, object@x, object@y))
-})
-
-p2 &lt;- new(&quot;PointS4&quot;, x = 3, y = 4)
-p2</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># R6 version
+#&gt; Dog: Rex ( Lab )
+
+# S4: formal, with slots and validation
+setClass(&quot;Dog&quot;, representation(name = &quot;character&quot;, breed = &quot;character&quot;))
+rex4 &lt;- new(&quot;Dog&quot;, name = &quot;Rex&quot;, breed = &quot;Lab&quot;)
+rex4@name
+#&gt; [1] &quot;Rex&quot;
+
+# R6: encapsulated, mutable, familiar to Python programmers
 library(R6)
-PointR6 &lt;- R6Class(&quot;PointR6&quot;,
+Dog6 &lt;- R6Class(&quot;Dog6&quot;,
   public = list(
-    x = NULL, y = NULL,
-    initialize = function(x, y) { self$x &lt;- x; self$y &lt;- y },
-    print = function(...) cat(sprintf(&quot;(%g, %g)\n&quot;, self$x, self$y))
+    name  = NULL,
+    breed = NULL,
+    initialize = function(name, breed) {
+      self$name  &lt;- name
+      self$breed &lt;- breed
+    },
+    bark = function() cat(self$name, &quot;says woof!\n&quot;)
   )
 )
-
-p3 &lt;- PointR6$new(3, 4)
-p3</div>
+rex6 &lt;- Dog6$new(&quot;Rex&quot;, &quot;Lab&quot;)
+rex6$bark()
+#&gt; Rex says woof!</div>
 
     <div class="webr-buttons">
 
@@ -421,130 +124,180 @@ p3</div>
 
 </div>
 
-<h2>Decision Guide</h2>
+<p>Three "Dog" classes, three very different styles. S3 is a five-line convention; S4 is a formal definition with slot types; R6 is an encapsulated class with methods attached to instances. None is "best" — each fits a different problem.</p>
 
-<p><img src="screenshots/OOP-in-R-decision-guide.webp" alt="R OOP system decision guide" class="img-responsive" loading="lazy" /></p>
+<h2>How Do They Compare?</h2>
 
-<p><em>Figure 1: Choose S3 for most packages (simple dispatch), S4 for strict types and Bioconductor, R6 for mutable state and reference semantics, R5 only for legacy code.</em></p>
+<p>Here is the trade-off table. It is the most important thing to internalise before picking a system.</p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Choose...</th>
-<th>When...</th>
+<th>Feature</th>
+<th>S3</th>
+<th>S4</th>
+<th>R5 (Reference)</th>
+<th>R6</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>S3</strong></td>
-<td>You need simple method dispatch, compatibility with base R, or you're building a CRAN package</td>
+<td><strong>Formality</strong></td>
+<td>Informal</td>
+<td>Formal</td>
+<td>Formal</td>
+<td>Formal</td>
 </tr>
 <tr>
-<td><strong>S4</strong></td>
-<td>You need strict <a class="auto-link" href="R-Data-Types.html" title="R Data Types: Which Type Is Your Variable? (And Why It Matters)">type checking</a>, <a class="auto-link" href="S4-Methods-in-R.html" title="S4 Methods & Multiple Dispatch in R: setMethod() Explained">multiple dispatch</a>, or you're in the Bioconductor ecosystem</td>
+<td><strong>Dispatch</strong></td>
+<td>Single (class)</td>
+<td>Multi (class sig)</td>
+<td>Single</td>
+<td>Single</td>
 </tr>
 <tr>
-<td><strong>R6</strong></td>
-<td>You need mutable objects (connections, caches, stateful APIs) or you prefer <code>obj$method()</code> syntax</td>
+<td><strong>Mutable?</strong></td>
+<td>No (<a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">copy-on-modify</a>)</td>
+<td>No</td>
+<td>Yes (by reference)</td>
+<td>Yes (by reference)</td>
 </tr>
 <tr>
-<td><strong>R5</strong></td>
-<td>Only for maintaining legacy code — use R6 for new projects</td>
+<td><strong>Encapsulation</strong></td>
+<td>None</td>
+<td>Slots with <code>@</code></td>
+<td>Fields + methods</td>
+<td>Public/private/active</td>
+</tr>
+<tr>
+<td><strong>Method syntax</strong></td>
+<td><code>verb(object)</code></td>
+<td><code>verb(object)</code></td>
+<td><code>object$method()</code></td>
+<td><code>object$method()</code></td>
+</tr>
+<tr>
+<td><strong>Typical use</strong></td>
+<td>Everyday R</td>
+<td>Bioconductor, strict typing</td>
+<td>(Legacy; use R6)</td>
+<td>Stateful OO systems, Shiny modules</td>
+</tr>
+<tr>
+<td><strong>Inheritance</strong></td>
+<td>Yes (cheap)</td>
+<td>Yes (multiple allowed)</td>
+<td>Yes</td>
+<td>Yes</td>
 </tr>
 </tbody>
 </table>
+
+<p>The four axes that matter most: <strong>mutability</strong> (S3/S4 copy on change; R5/R6 mutate in place), <strong>formality</strong> (S3 is a convention, the rest are systems), <strong>dispatch</strong> (only S4 dispatches on multiple arguments), and <strong>syntax</strong> (S3/S4 use <code>generic(object)</code>, R5/R6 use <code>object$method()</code>).</p>
+
+<h2>How Do You Pick? Three Questions</h2>
+
+<p>Answer these in order; the first "yes" ends the search.</p>
+
+<p><strong>Question 1: Do you need the object to mutate in place?</strong> State that changes and needs to be shared — a database connection, a UI component, a growing log — cannot be modelled cleanly with S3 or S4 because R's copy-on-modify semantics give every "change" a new copy. Pick <strong>R6</strong>.</p>
+
+<p><strong>Question 2: Do you need formal slot typing or <a class="auto-link" href="S4-Methods-in-R.html" title="S4 Methods & Multiple Dispatch in R: setMethod() Explained">multiple dispatch</a>?</strong> Strict <a class="auto-link" href="R-Data-Types.html" title="R Data Types: Which Type Is Your Variable? (And Why It Matters)">type checking</a>, controlled inheritance, or methods that dispatch on more than one argument (e.g., <code>add(x, y)</code> where the behaviour depends on both classes) are S4's domain. Most Bioconductor packages use S4 for this reason. Pick <strong>S4</strong>.</p>
+
+<p><strong>Question 3: Do none of the above apply?</strong> Pick <strong>S3</strong>. It is what 95% of R code uses, it is what <code>ggplot2</code>, <code>dplyr</code>, <code>lm</code>, <code>glm</code>, <code>data.frame</code>, and all of base R use. The default is S3 for a reason: low ceremony, high interop, zero learning curve.</p>
+
+<pre><code>Need mutation?  ─── yes ──▶ R6
+       │
+       no
+       ▼
+Need typing / multi-dispatch?  ─── yes ──▶ S4
+       │
+       no
+       ▼
+                           ─────────▶ S3  (the default)</code></pre>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start with S3. Graduate to R6 when you need state, or S4 when you need typing.</strong> Do not pre-pick a formal system because "it seems more serious" — the informality of S3 is a feature, not a bug. You can always add structure later; you cannot take it away.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a one-line S3 classifier: make a list <code>p &lt;- list(name = &quot;Ann&quot;, age = 30)</code>, set its class to <code>&quot;person&quot;</code>, write <code>print.person</code>, and call <code>print(p)</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">p &lt;- list(name = &quot;Ann&quot;, age = 30)
+class(p) &lt;- &quot;person&quot;
+print.person &lt;- function(x, ...) cat(&quot;Person:&quot;, x$name, &quot;(&quot;, x$age, &quot;yrs)\n&quot;)
+print(p)
+#&gt; Person: Ann ( 30 yrs)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>class(p) &lt;- &quot;person&quot;</code> tags the list. <code>print(p)</code> is the generic; R looks up <code>print.person</code> and runs it.</p>
+
+</details>
+</section>
+
+<h2>Why Is R5 Deprecated in Favour of R6?</h2>
+
+<p>Reference Classes (R5) shipped with R 2.12 in 2010 as R's first attempt at mutable OO. R6 arrived in 2014 as a cleaner, faster alternative — same core ideas (mutable objects, methods attached to instances), but simpler internals, better performance, and no dependency on S4.</p>
+
+<p>All new stateful-object code should use R6. The only reason to touch R5 is to maintain legacy code or to understand older Shiny internals.</p>
+
+<h2>What About Newer Systems Like S7?</h2>
+
+<p>The R Consortium's Object-Oriented Programming Working Group (OOP-WG) has released <strong>S7</strong>, a new formal system designed to combine the best of S3 and S4. It is not yet widely adopted, and base R does not ship it, but it is worth knowing about. When S7 stabilises, it may become the recommended formal system for future code.</p>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Create an S3 Class</h4>
+<h4>Exercise 1: Pick the System</h4>
 
-<p>Build a <code>Temperature</code> S3 class that stores a value and unit, with a <code>print</code> method.</p>
+<p>For each scenario, pick S3, S4, or R6 and justify in one sentence.</p>
 
-<div class="webr-container">
+<ul>
 
-  <div class="webr-code-block">
+<li>(a) A <code>data.frame</code>-like object with custom <code>print</code> and <code>summary</code> methods.</li>
 
-    <div class="webr-editor" data-language="r"># Create new_Temperature(value, unit = &quot;C&quot;)
-# print.Temperature should display &quot;25°C&quot; or &quot;77°F&quot;
-# Create a convert() generic that converts between C and F
-</div>
+<li>(b) A Shiny UI component that tracks its own open/closed state.</li>
 
-    <div class="webr-buttons">
+<li>(c) A Bioconductor class with 12 typed slots and strict validation.</li>
 
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
+</ul>
 
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">new_Temperature &lt;- function(value, unit = &quot;C&quot;) {
-  stopifnot(unit %in% c(&quot;C&quot;, &quot;F&quot;))
-  obj &lt;- list(value = value, unit = unit)
-  class(obj) &lt;- &quot;Temperature&quot;
-  obj
-}
-
-print.Temperature &lt;- function(x, ...) {
-  cat(sprintf(&quot;%.1f°%s\n&quot;, x$value, x$unit))
-}
-
-convert &lt;- function(x, ...) UseMethod(&quot;convert&quot;)
-convert.Temperature &lt;- function(x, to, ...) {
-  if (x$unit == to) return(x)
-  if (x$unit == &quot;C&quot; &amp;&amp; to == &quot;F&quot;) return(new_Temperature(x$value * 9/5 + 32, &quot;F&quot;))
-  if (x$unit == &quot;F&quot; &amp;&amp; to == &quot;C&quot;) return(new_Temperature((x$value - 32) * 5/9, &quot;C&quot;))
-}
-
-boiling &lt;- new_Temperature(100, &quot;C&quot;)
-print(boiling)
-print(convert(boiling, &quot;F&quot;))
-
-body_temp &lt;- new_Temperature(98.6, &quot;F&quot;)
-print(body_temp)
-print(convert(body_temp, &quot;C&quot;))</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 classes</a> are just lists with a <a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">class attribute</a>. Methods follow the <code>generic.class</code> naming convention. <code>UseMethod()</code> enables dispatch.</p>
+<p>- (a) <strong>S3</strong> — you are adding custom print/summary to a list-like structure; no mutation, no typing.</p>
+<p>- (b) <strong>R6</strong> — stateful, mutable, needs encapsulation.</p>
+<p>- (c) <strong>S4</strong> — typed slots and validation are S4's core offering.</p>
 
 </details>
 
-<h4>Exercise 2: R6 Stack</h4>
+<h4>Exercise 2: Add an S3 <code>summary</code> Method</h4>
 
-<p>Implement a stack (LIFO data structure) using R6.</p>
+<p>Given <code>p &lt;- structure(list(name = &quot;Ann&quot;, scores = c(85, 92, 78)), class = &quot;student&quot;)</code>, write <code>summary.student</code> that prints the name and the mean score.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(R6)
-
-# Create a Stack R6 class with:
-# - push(item): add to top
-# - pop(): remove and return top
-# - peek(): view top without removing
-# - size(): return number of elements
-# - is_empty(): TRUE/FALSE
-</div>
+    <div class="webr-editor" data-language="r"># your code here</div>
 
     <div class="webr-buttons">
 
@@ -567,42 +320,16 @@ print(convert(body_temp, &quot;C&quot;))</div>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(R6)
+    <div class="webr-editor" data-language="r">p &lt;- structure(list(name = &quot;Ann&quot;, scores = c(85, 92, 78)), class = &quot;student&quot;)
 
-Stack &lt;- R6Class(&quot;Stack&quot;,
-  public = list(
-    initialize = function() private$items &lt;- list(),
-    push = function(item) {
-      private$items &lt;- c(list(item), private$items)
-      invisible(self)
-    },
-    pop = function() {
-      if (self$is_empty()) stop(&quot;Stack is empty&quot;)
-      item &lt;- private$items[[1]]
-      private$items &lt;- private$items[-1]
-      item
-    },
-    peek = function() {
-      if (self$is_empty()) stop(&quot;Stack is empty&quot;)
-      private$items[[1]]
-    },
-    size = function() length(private$items),
-    is_empty = function() length(private$items) == 0,
-    print = function(...) {
-      cat(&quot;Stack [&quot;, self$size(), &quot;items ]&quot;)
-      if (!self$is_empty()) cat(&quot; top:&quot;, format(self$peek()))
-      cat(&quot;\n&quot;)
-    }
-  ),
-  private = list(items = NULL)
-)
+summary.student &lt;- function(object, ...) {
+  cat(&quot;Student:&quot;, object$name, &quot;\n&quot;)
+  cat(&quot;Average score:&quot;, mean(object$scores), &quot;\n&quot;)
+}
 
-s &lt;- Stack$new()
-s$push(10)$push(20)$push(30)
-print(s)
-cat(&quot;Pop:&quot;, s$pop(), &quot;\n&quot;)
-cat(&quot;Peek:&quot;, s$peek(), &quot;\n&quot;)
-cat(&quot;Size:&quot;, s$size(), &quot;\n&quot;)</div>
+summary(p)
+#&gt; Student: Ann
+#&gt; Average score: 85</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -612,7 +339,7 @@ cat(&quot;Size:&quot;, s$size(), &quot;\n&quot;)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> R6 classes use <code>self$</code> to access their own fields and methods. <code>invisible(self)</code> enables method chaining. Private fields keep internal state hidden.</p>
+<p><strong>Explanation:</strong> <code>summary</code> is a generic. Defining <code>summary.student</code> teaches R what to do when <code>summary</code> is called on an object of class <code>&quot;student&quot;</code>.</p>
 
 </details>
 
@@ -621,89 +348,55 @@ cat(&quot;Size:&quot;, s$size(), &quot;\n&quot;)</div>
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Feature</th>
-<th>S3</th>
-<th>S4</th>
-<th>R5</th>
-<th>R6</th>
+<th>System</th>
+<th>Best for</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Define class</td>
-<td><code>class(x) &lt;- &quot;Foo&quot;</code></td>
-<td><code>setClass()</code></td>
-<td><code>setRefClass()</code></td>
-<td><code>R6Class()</code></td>
+<td><strong>S3</strong></td>
+<td>Everyday R, custom print/summary/plot, fast prototyping</td>
 </tr>
 <tr>
-<td>Create object</td>
-<td><code>new_Foo()</code></td>
-<td><code>new(&quot;Foo&quot;)</code></td>
-<td><code>Foo$new()</code></td>
-<td><code>Foo$new()</code></td>
+<td><strong>S4</strong></td>
+<td>Bioconductor, strict typing, multi-dispatch</td>
 </tr>
 <tr>
-<td>Access fields</td>
-<td><code>x$field</code></td>
-<td><code>x@slot</code></td>
-<td><code>x$field</code></td>
-<td><code>x$field</code></td>
+<td><strong>R5</strong></td>
+<td>Legacy — use R6 instead</td>
 </tr>
 <tr>
-<td>Define methods</td>
-<td><code>method.Class</code></td>
-<td><code>setMethod()</code></td>
-<td>Inside class</td>
-<td>Inside class</td>
-</tr>
-<tr>
-<td>Inheritance</td>
-<td>Implicit</td>
-<td><code>contains=</code></td>
-<td><code>contains=</code></td>
-<td><code>inherit=</code></td>
-</tr>
-<tr>
-<td>Copy semantics</td>
-<td>Copy-on-modify</td>
-<td>Copy-on-modify</td>
-<td>Reference</td>
-<td>Reference</td>
-</tr>
-<tr>
-<td>Package needed</td>
-<td>No</td>
-<td>No</td>
-<td>No</td>
-<td>R6</td>
+<td><strong>R6</strong></td>
+<td>Mutable state, Shiny components, OO systems</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<h2>References</h2>
 
-<h4>Which OOP system should I learn first?</h4>
+<ol>
 
-<p>S3. It's used by most R packages and base R itself. Learn R6 next if you need mutable objects. Only learn S4 when you need it (Bioconductor work, formal validation).</p>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Part III: Object-Oriented Programming. <a href="https://adv-r.hadley.nz/oo.html">Link</a></li>
 
-<h4>Can I mix OOP systems?</h4>
+<li>Chambers, J. M. — <em>Software for Data Analysis: Programming with R</em>. Springer (2008).</li>
 
-<p>Yes. S3 and S4 interoperate (S4 can inherit from S3). R6 objects can have S3 methods added to them. In practice, pick one system per class and stick with it.</p>
+<li><code>R6</code> package documentation. <a href="https://r6.r-lib.org/">Link</a></li>
 
-<h4>Why does R have so many OOP systems?</h4>
+<li>Bioconductor — S4 class guidelines. <a href="https://bioconductor.org/developers/how-to/commonMethodsAndClasses/">Link</a></li>
 
-<p>Historical evolution. S3 came from S (1990s). S4 was added for stricter needs. R5 added reference semantics. R6 was created as a faster, cleaner alternative to R5. Each solved a real problem at the time.</p>
+<li>R Consortium OOP-WG — S7 proposal. <a href="https://github.com/RConsortium/S7">Link</a></li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><a href="/S3-Classes-in-R.html">S3 Classes in R</a> — deep dive into creating and using S3</li>
+<li><a href="S3-Classes-in-R.html">S3 Classes in R</a> — the dominant informal system.</li>
 
-<li><a href="/R6-Classes-in-R.html">R6 Classes in R</a> — modern R OOP with reference semantics</li>
+<li><a href="S4-Classes-in-R.html">S4 Classes in R</a> — formal typing and slots.</li>
 
-<li><a href="/S4-Classes-in-R.html">S4 Classes in R</a> — formal OOP for complex hierarchies</li>
+<li><a href="R6-Classes-in-R.html">R6 Classes in R</a> — mutable, encapsulated objects.</li>
 
 </ul>
 
