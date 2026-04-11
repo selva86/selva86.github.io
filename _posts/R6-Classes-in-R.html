@@ -1,93 +1,28 @@
 ---
-title: "R6 Classes in R: Reference Semantics & Mutable State Tutorial"
-description: "Learn R6 classes in R with R6Class(), public/private fields, initialize(), self/private references, clone(), and reference semantics. Complete guide."
-keywords: "R6 classes R, R6Class, reference semantics R, mutable state R, R6 tutorial, R OOP R6, clone R6"
+title: "R6 Classes in R: When You Need Objects That Mutate in Place"
+description: "R6 is R's modern OOP system for mutable, encapsulated objects — the one you want for stateful classes that behave like Python or Java objects. Here is the full workflow."
+keywords: "R6 classes in R, R mutable objects, R6 package, R reference semantics, R OOP encapsulated"
 mathjax: false
 webr: true
 curriculum_id: "4.3.6"
 post_type: "C"
-auto_link_terms: "R6 classes|R6Class|reference semantics|mutable state R"
+auto_link_terms: "R6 classes|R6 class|R6Class|R6 mutable"
 auto_link_case_sensitive: false
+sidebar_section: "Learn R"
+sidebar_title: "R6 Classes in R"
+sidebar_order: "46"
 ---
 <!-- md2html:generated -->
 
-<h1>R6 Classes in R: Reference Semantics & Mutable State Tutorial</h1>
+<h1>R6 Classes in R: When You Need Objects That Mutate in Place</h1>
 
-<p class="lead"><strong>R6</strong> is R's modern OOP system with <strong>reference semantics</strong>. Unlike S3/S4 where objects are copied on modification, R6 objects are <strong>mutable</strong> -- modifying an object changes it in place, just like objects in Python or Java. This makes R6 ideal for stateful things like database connections, API clients, and game objects.</p>
+<p class="lead">R6 is R's modern system for <strong>mutable, encapsulated</strong> objects. Unlike S3 and S4 (where every change returns a new copy), an R6 object can update its own state in place — so <code>counter$increment()</code> actually modifies <code>counter</code>. It is the OOP system you reach for when you need a Python-style object.</p>
 
-<p>R6 is provided by the <code>R6</code> package (not built into base R). It's simple to use, fast, and increasingly popular for packages that manage state.</p>
+<p>Most R code is purely functional: functions take values in, return new values out, and never mutate anything. That model is beautiful until you need a Shiny module tracking its own state, a database connection that knows if it is open, or a stream parser with a growing buffer. For those, R6 is the right tool. This tutorial walks you from the empty class to a working counter, then shows private fields, <a class="auto-link" href="R-Active-Bindings.html" title="Active Bindings in R: makeActiveBinding() for Computed Variables">active bindings</a>, and inheritance.</p>
 
-<h2>Creating Your First R6 Class</h2>
+<h2>How Do You Create an R6 Class?</h2>
 
-<p>Use <code>R6Class()</code> to define a class. Public fields and methods go in the <code>public</code> list.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(R6)
-
-# Define a class
-Dog &lt;- R6Class(&quot;Dog&quot;,
-  public = list(
-    name = NULL,
-    breed = NULL,
-    energy = 100,
-
-    initialize = function(name, breed) {
-      self$name &lt;- name
-      self$breed &lt;- breed
-    },
-
-    bark = function() {
-      cat(self$name, &quot;says: Woof!\n&quot;)
-      self$energy &lt;- self$energy - 10
-    },
-
-    status = function() {
-      cat(self$name, &quot;(&quot;, self$breed, &quot;) - Energy:&quot;, self$energy, &quot;\n&quot;)
-    }
-  )
-)
-
-# Create an instance with $new()
-rex &lt;- Dog$new(&quot;Rex&quot;, &quot;Labrador&quot;)
-rex$status()
-rex$bark()
-rex$bark()
-rex$status()</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Key differences from S3/S4:</p>
-
-<ul>
-
-<li>Methods use <code>self$</code> to access fields and other methods</li>
-
-<li>Objects are created with <code>ClassName$new()</code></li>
-
-<li>No <code>@</code> or <code>$</code> dispatch magic -- everything is explicit</li>
-
-</ul>
-
-<h2>Reference Semantics: The Big Difference</h2>
-
-<p>In S3/S4, <code>y &lt;- x</code> copies the object. In R6, <code>y &lt;- x</code> creates a <strong>reference</strong> -- both variables point to the same object.</p>
+<p>Load the <code>R6</code> package and call <code>R6Class()</code> with a name and a list of <code>public</code> fields and methods. Fields are plain data; methods are functions that can reference <code>self$</code> to access or update them.</p>
 
 <div class="webr-container">
 
@@ -100,27 +35,18 @@ Counter &lt;- R6Class(&quot;Counter&quot;,
     count = 0,
     increment = function() {
       self$count &lt;- self$count + 1
-    }
+      invisible(self)
+    },
+    get = function() self$count
   )
 )
 
-# Reference semantics: both point to the SAME object
 c1 &lt;- Counter$new()
-c2 &lt;- c1  # NOT a copy!
-
 c1$increment()
 c1$increment()
-
-cat(&quot;c1 count:&quot;, c1$count, &quot;\n&quot;)  # 2
-cat(&quot;c2 count:&quot;, c2$count, &quot;\n&quot;)  # Also 2! Same object!
-
-# To get a real copy, use $clone()
-c3 &lt;- c1$clone()
 c1$increment()
-
-cat(&quot;\nAfter cloning and incrementing c1:\n&quot;)
-cat(&quot;c1 count:&quot;, c1$count, &quot;\n&quot;)  # 3
-cat(&quot;c3 count:&quot;, c3$count, &quot;\n&quot;)  # Still 2 -- independent copy</div>
+c1$get()
+#&gt; [1] 3</div>
 
     <div class="webr-buttons">
 
@@ -138,11 +64,104 @@ cat(&quot;c3 count:&quot;, c3$count, &quot;\n&quot;)  # Still 2 -- independent c
 
 </div>
 
-<p>This is fundamentally different from how most R objects work. Always use <code>$clone()</code> when you need an independent copy.</p>
+<p>Three things to notice. First, the class is defined in one call — no <code>setClass</code> + <code>setMethod</code> split like S4. Second, calling <code>c1$increment()</code> <strong>mutated</strong> <code>c1</code> — after three calls, <code>c1$count</code> is 3, not still 0. That is the key difference from S3/S4. Third, methods return <code>invisible(self)</code> so you can chain them: <code>c1$increment()$increment()$increment()</code> works.</p>
 
-<h2>Public vs Private</h2>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>R6 objects have reference semantics.</strong> <code>c2 &lt;- c1</code> does <em>not</em> make a copy — both names point to the same underlying object, so <code>c2$increment()</code> will also affect <code>c1$count</code>. This is the opposite of S3/S4 (<a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">copy on modify</a>) and matches Python/Java behaviour. If you need a real copy, use <code>c1$clone()</code>.</div></div>
 
-<p>Private fields and methods are only accessible from within the class. Use <code>private$</code> to access them.</p>
+<h2>Why Does R6 Matter? The Copy Problem in S3/S4</h2>
+
+<p>Watch what happens when you try to build a counter as an <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 class</a>:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">new_counter_s3 &lt;- function() structure(list(count = 0), class = &quot;counter_s3&quot;)
+
+increment_s3 &lt;- function(x) {
+  x$count &lt;- x$count + 1
+  x                          # must return the new version
+}
+
+c1 &lt;- new_counter_s3()
+increment_s3(c1)             # this builds a modified copy — but c1 is unchanged
+c1$count
+#&gt; [1] 0</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Calling <code>increment_s3(c1)</code> returned a modified copy but left <code>c1</code> alone. To make the change stick, you would have to reassign: <code>c1 &lt;- increment_s3(c1)</code>. For a single counter that is annoying; for a database connection shared across 20 functions it is untenable. R6 fixes this by giving the object genuine identity — one mutation updates <em>the</em> object, everywhere it is referenced.</p>
+
+<h2>How Do You Add Private Fields?</h2>
+
+<p>R6 supports <strong>private</strong> fields and methods — data and helpers that are hidden from the outside but accessible inside the class. Reference them with <code>private$</code> instead of <code>self$</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+
+SecureCounter &lt;- R6Class(&quot;SecureCounter&quot;,
+  public = list(
+    initialize = function() {
+      private$count &lt;- 0
+    },
+    increment = function() {
+      private$count &lt;- private$count + 1
+      invisible(self)
+    },
+    get = function() private$count
+  ),
+  private = list(
+    count = NULL
+  )
+)
+
+sc &lt;- SecureCounter$new()
+sc$increment()
+sc$increment()
+sc$get()
+#&gt; [1] 2
+
+sc$count
+#&gt; NULL</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>sc$count</code> returns <code>NULL</code> — outside code cannot reach the private <code>count</code> field directly. The only way to read it is through the public <code>get()</code> method; the only way to change it is through <code>increment()</code>. This is proper <strong>encapsulation</strong>: the class controls every access to its state.</p>
+
+<h2>How Do You Use <code>initialize</code> for Constructor Logic?</h2>
+
+<p>The special method named <code>initialize</code> runs when you call <code>ClassName$new(args)</code>. Use it to validate inputs and set up initial state.</p>
 
 <div class="webr-container">
 
@@ -152,245 +171,35 @@ cat(&quot;c3 count:&quot;, c3$count, &quot;\n&quot;)  # Still 2 -- independent c
 
 BankAccount &lt;- R6Class(&quot;BankAccount&quot;,
   public = list(
-    owner = NULL,
-
-    initialize = function(owner, balance = 0) {
-      self$owner &lt;- owner
-      private$balance &lt;- balance
+    initialize = function(owner, opening_balance = 0) {
+      stopifnot(is.character(owner), length(owner) == 1)
+      stopifnot(is.numeric(opening_balance), opening_balance &gt;= 0)
+      private$owner   &lt;- owner
+      private$balance &lt;- opening_balance
     },
-
     deposit = function(amount) {
-      if (amount &lt;= 0) stop(&quot;Amount must be positive&quot;)
+      stopifnot(amount &gt; 0)
       private$balance &lt;- private$balance + amount
-      private$log_transaction(&quot;deposit&quot;, amount)
       invisible(self)
     },
-
     withdraw = function(amount) {
-      if (amount &lt;= 0) stop(&quot;Amount must be positive&quot;)
-      if (amount &gt; private$balance) stop(&quot;Insufficient funds&quot;)
+      stopifnot(amount &gt; 0, amount &lt;= private$balance)
       private$balance &lt;- private$balance - amount
-      private$log_transaction(&quot;withdrawal&quot;, amount)
       invisible(self)
     },
-
-    get_balance = function() {
-      private$balance
-    },
-
-    print = function(...) {
-      cat(&quot;Account:&quot;, self$owner, &quot;| Balance:&quot;, private$balance, &quot;\n&quot;)
-    }
-  ),
-
-  private = list(
-    balance = 0,
-
-    log_transaction = function(type, amount) {
-      cat(&quot;  [LOG]&quot;, type, &quot;of&quot;, amount, &quot;| New balance:&quot;, private$balance, &quot;\n&quot;)
-    }
-  )
-)
-
-acct &lt;- BankAccount$new(&quot;Alice&quot;, balance = 1000)
-acct$deposit(500)
-acct$withdraw(200)
-acct$print()
-
-# Cannot access private fields from outside
-tryCatch(
-  acct$balance,
-  error = function(e) cat(&quot;Cannot access private field directly\n&quot;)
-)
-cat(&quot;Balance via getter:&quot;, acct$get_balance(), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>The initialize() Method</h2>
-
-<p><code>initialize()</code> is the constructor. It runs when you call <code>$new()</code>. Use it to validate inputs and set up the object.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(R6)
-
-Person &lt;- R6Class(&quot;Person&quot;,
-  public = list(
-    name = NULL,
-    age = NULL,
-
-    initialize = function(name, age) {
-      stopifnot(is.character(name), length(name) == 1)
-      stopifnot(is.numeric(age), age &gt;= 0, age &lt;= 150)
-      self$name &lt;- name
-      self$age &lt;- age
-      cat(&quot;Created person:&quot;, name, &quot;age&quot;, age, &quot;\n&quot;)
-    },
-
-    greet = function() {
-      cat(&quot;Hi, I'm&quot;, self$name, &quot;and I'm&quot;, self$age, &quot;years old.\n&quot;)
-    }
-  )
-)
-
-p &lt;- Person$new(&quot;Alice&quot;, 30)
-p$greet()
-
-# Validation catches bad input
-tryCatch(
-  Person$new(&quot;Bob&quot;, -5),
-  error = function(e) cat(&quot;Error:&quot;, e$message, &quot;\n&quot;)
-)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Method Chaining with invisible(self)</h2>
-
-<p>Return <code>invisible(self)</code> from methods to enable fluent method chaining.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(R6)
-
-QueryBuilder &lt;- R6Class(&quot;QueryBuilder&quot;,
-  public = list(
-    initialize = function(table) {
-      private$table &lt;- table
-      private$conditions &lt;- character()
-      private$limit_val &lt;- NULL
-    },
-
-    where = function(condition) {
-      private$conditions &lt;- c(private$conditions, condition)
-      invisible(self)
-    },
-
-    limit = function(n) {
-      private$limit_val &lt;- n
-      invisible(self)
-    },
-
-    build = function() {
-      sql &lt;- paste(&quot;SELECT * FROM&quot;, private$table)
-      if (length(private$conditions) &gt; 0) {
-        sql &lt;- paste(sql, &quot;WHERE&quot;, paste(private$conditions, collapse = &quot; AND &quot;))
-      }
-      if (!is.null(private$limit_val)) {
-        sql &lt;- paste(sql, &quot;LIMIT&quot;, private$limit_val)
-      }
-      sql
-    }
-  ),
-
-  private = list(
-    table = NULL,
-    conditions = NULL,
-    limit_val = NULL
-  )
-)
-
-# Method chaining!
-query &lt;- QueryBuilder$new(&quot;users&quot;)$
-  where(&quot;age &gt; 18&quot;)$
-  where(&quot;active = TRUE&quot;)$
-  limit(10)$
-  build()
-
-cat(query, &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Deep Cloning</h2>
-
-<p>By default, <code>$clone()</code> does a shallow clone. If your object contains other R6 objects, you need <code>$clone(deep = TRUE)</code> and a <code>deep_clone</code> private method.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(R6)
-
-Engine &lt;- R6Class(&quot;Engine&quot;,
-  public = list(
-    horsepower = NULL,
-    initialize = function(hp) self$horsepower &lt;- hp
-  )
-)
-
-Car &lt;- R6Class(&quot;Car&quot;,
-  public = list(
-    model = NULL,
-    engine = NULL,
-    initialize = function(model, hp) {
-      self$model &lt;- model
-      self$engine &lt;- Engine$new(hp)
-    }
+    balance = function() private$balance
   ),
   private = list(
-    deep_clone = function(name, value) {
-      if (is.environment(value) &amp;&amp; !is.null(value$clone)) {
-        value$clone(deep = TRUE)
-      } else {
-        value
-      }
-    }
+    owner   = NULL,
+    balance = NULL
   )
 )
 
-car1 &lt;- Car$new(&quot;Sedan&quot;, 200)
-car2 &lt;- car1$clone(deep = TRUE)
-
-# Modify car2's engine -- car1 is unaffected
-car2$engine$horsepower &lt;- 300
-
-cat(&quot;car1 HP:&quot;, car1$engine$horsepower, &quot;\n&quot;)  # 200
-cat(&quot;car2 HP:&quot;, car2$engine$horsepower, &quot;\n&quot;)  # 300</div>
+acc &lt;- BankAccount$new(&quot;Ada&quot;, 100)
+acc$deposit(50)
+acc$withdraw(30)
+acc$balance()
+#&gt; [1] 120</div>
 
     <div class="webr-buttons">
 
@@ -408,75 +217,24 @@ cat(&quot;car2 HP:&quot;, car2$engine$horsepower, &quot;\n&quot;)  # 300</div>
 
 </div>
 
-<h2>Summary Table</h2>
+<p>The class has three public methods (<code>deposit</code>, <code>withdraw</code>, <code>balance</code>) and two private fields. Every state change goes through a public method that enforces the business rules — you cannot withdraw more than you have, and the balance can never go below zero. Because state is private, there is literally no way to violate the rules from outside.</p>
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Feature</th>
-<th>Syntax</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Define class</td>
-<td><code>R6Class(&quot;Name&quot;, public=list(...))</code></td>
-<td>Create a new R6 class</td>
-</tr>
-<tr>
-<td>Create instance</td>
-<td><code>ClassName$new(...)</code></td>
-<td>Instantiate an object</td>
-</tr>
-<tr>
-<td>Public field</td>
-<td><code>self$field</code></td>
-<td>Access within methods</td>
-</tr>
-<tr>
-<td>Private field</td>
-<td><code>private$field</code></td>
-<td>Accessible only inside the class</td>
-</tr>
-<tr>
-<td>Constructor</td>
-<td><code>initialize = function(...)</code></td>
-<td>Runs on <code>$new()</code></td>
-</tr>
-<tr>
-<td>Method chaining</td>
-<td><code>invisible(self)</code></td>
-<td>Return self for chaining</td>
-</tr>
-<tr>
-<td>Clone</td>
-<td><code>obj$clone()</code></td>
-<td>Shallow copy</td>
-</tr>
-<tr>
-<td>Deep clone</td>
-<td><code>obj$clone(deep = TRUE)</code></td>
-<td>Deep copy (needs <code>deep_clone</code>)</td>
-</tr>
-<tr>
-<td>Reference semantics</td>
-<td><code>y &lt;- x</code></td>
-<td>Both point to same object</td>
-</tr>
-<tr>
-<td>Print</td>
-<td><code>print = function(...)</code></td>
-<td>Custom display</td>
-</tr>
-</tbody>
-</table>
-
-<h2>Practice Exercises</h2>
-
-<p><strong>Exercise 1:</strong> Create a <code>Stack</code> R6 class with <code>push(value)</code>, <code>pop()</code>, and <code>peek()</code> methods. Use a private list to store the elements.</p>
-
-<details><summary>Click to reveal solution</summary>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write an <code>R6Class</code> called <code>Stack</code> with <code>push(x)</code>, <code>pop()</code>, and <code>size()</code> methods backed by a private <code>items</code> list.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(R6)
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
@@ -485,34 +243,32 @@ cat(&quot;car2 HP:&quot;, car2$engine$horsepower, &quot;\n&quot;)  # 300</div>
 Stack &lt;- R6Class(&quot;Stack&quot;,
   public = list(
     initialize = function() {
-      private$elements &lt;- list()
+      private$items &lt;- list()
     },
-    push = function(value) {
-      private$elements &lt;- c(private$elements, list(value))
+    push = function(x) {
+      private$items &lt;- c(private$items, list(x))
       invisible(self)
     },
     pop = function() {
-      if (self$size() == 0) stop(&quot;Stack is empty&quot;)
-      val &lt;- private$elements[[self$size()]]
-      private$elements &lt;- private$elements[-self$size()]
-      val
+      n &lt;- length(private$items)
+      if (n == 0) return(NULL)
+      top &lt;- private$items[[n]]
+      private$items &lt;- private$items[-n]
+      top
     },
-    peek = function() {
-      if (self$size() == 0) stop(&quot;Stack is empty&quot;)
-      private$elements[[self$size()]]
-    },
-    size = function() length(private$elements)
+    size = function() length(private$items)
   ),
-  private = list(
-    elements = NULL
-  )
+  private = list(items = NULL)
 )
 
 s &lt;- Stack$new()
-s$push(10)$push(20)$push(30)
-cat(&quot;Peek:&quot;, s$peek(), &quot;\n&quot;)
-cat(&quot;Pop:&quot;, s$pop(), &quot;\n&quot;)
-cat(&quot;Size:&quot;, s$size(), &quot;\n&quot;)</div>
+s$push(1)$push(2)$push(3)
+s$size()
+#&gt; [1] 3
+s$pop()
+#&gt; [1] 3
+s$size()
+#&gt; [1] 2</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -522,48 +278,121 @@ cat(&quot;Size:&quot;, s$size(), &quot;\n&quot;)</div>
   <div class="webr-plot-output"></div>
 </div>
 
+<p><strong>Explanation:</strong> <code>push</code> appends to the private list; <code>pop</code> removes and returns the last element. Method chaining works because each mutator returns <code>invisible(self)</code>.</p>
+
 </details>
+</section>
 
-<p><strong>Exercise 2:</strong> Create a <code>Timer</code> class that tracks elapsed time. It should have <code>start()</code>, <code>stop()</code>, and <code>elapsed()</code> methods. Use <code>Sys.time()</code> internally.</p>
+<h2>How Does R6 Handle Inheritance?</h2>
 
-<details><summary>Click to reveal solution</summary>
+<p>Pass <code>inherit =</code> to <code>R6Class()</code> to extend an existing class. The subclass gets everything from the parent and can add new methods or override existing ones. Call <code>super$method()</code> to invoke the parent's version from inside the override.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+
+SavingsAccount &lt;- R6Class(&quot;SavingsAccount&quot;,
+  inherit = BankAccount,
+  public = list(
+    initialize = function(owner, opening_balance = 0, rate = 0.03) {
+      super$initialize(owner, opening_balance)
+      private$rate &lt;- rate
+    },
+    accrue = function(years = 1) {
+      private$balance &lt;- private$balance * (1 + private$rate)^years
+      invisible(self)
+    }
+  ),
+  private = list(rate = NULL)
+)
+
+sav &lt;- SavingsAccount$new(&quot;Bo&quot;, 1000, rate = 0.05)
+sav$deposit(500)      # inherited from BankAccount
+sav$accrue(2)         # new SavingsAccount method
+round(sav$balance(), 2)
+#&gt; [1] 1653.75</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>super$initialize(...)</code> called the parent <code>BankAccount$initialize</code> to set up <code>owner</code> and <code>balance</code>, then the subclass added its own <code>rate</code>. The <code>deposit</code> method was inherited as-is; <code>accrue</code> is new. This is classic single inheritance — familiar from Python, Java, C++.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>$clone()</code> when you want a true copy.</strong> Because R6 objects have reference semantics, <code>b &lt;- a</code> does not copy the state. If you need an independent copy, call <code>b &lt;- a$clone()</code>. For deep copies of nested R6 objects, pass <code>deep = TRUE</code>.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Running Average Tracker</h4>
+
+<p>Write an R6 class <code>RunningMean</code> with <code>add(x)</code> to include a new value and <code>mean()</code> to return the current running average. Use private fields for <code>n</code> and <code>total</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+# your code here</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-editor" data-language="r">library(R6)
 
-Timer &lt;- R6Class(&quot;Timer&quot;,
+RunningMean &lt;- R6Class(&quot;RunningMean&quot;,
   public = list(
-    start = function() {
-      private$start_time &lt;- Sys.time()
-      private$end_time &lt;- NULL
-      cat(&quot;Timer started.\n&quot;)
+    initialize = function() {
+      private$n &lt;- 0
+      private$total &lt;- 0
+    },
+    add = function(x) {
+      private$n     &lt;- private$n + 1
+      private$total &lt;- private$total + x
       invisible(self)
     },
-    stop = function() {
-      if (is.null(private$start_time)) stop(&quot;Timer not started&quot;)
-      private$end_time &lt;- Sys.time()
-      cat(&quot;Timer stopped.\n&quot;)
-      invisible(self)
-    },
-    elapsed = function() {
-      if (is.null(private$start_time)) return(0)
-      end &lt;- if (is.null(private$end_time)) Sys.time() else private$end_time
-      as.numeric(difftime(end, private$start_time, units = &quot;secs&quot;))
+    mean = function() {
+      if (private$n == 0) return(NaN)
+      private$total / private$n
     }
   ),
-  private = list(
-    start_time = NULL,
-    end_time = NULL
-  )
+  private = list(n = NULL, total = NULL)
 )
 
-t &lt;- Timer$new()
-t$start()
-Sys.sleep(0.1)
-cat(&quot;Elapsed:&quot;, t$elapsed(), &quot;seconds\n&quot;)
-t$stop()
-cat(&quot;Final:&quot;, t$elapsed(), &quot;seconds\n&quot;)</div>
+rm &lt;- RunningMean$new()
+rm$add(10)$add(20)$add(30)
+rm$mean()
+#&gt; [1] 20</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -573,24 +402,151 @@ cat(&quot;Final:&quot;, t$elapsed(), &quot;seconds\n&quot;)</div>
   <div class="webr-plot-output"></div>
 </div>
 
+<p><strong>Explanation:</strong> The class tracks a running sum and count privately; <code>mean()</code> returns the ratio. Chaining works because <code>add</code> returns <code>invisible(self)</code>.</p>
+
 </details>
 
-<h2>FAQ</h2>
+<h4>Exercise 2: Logger With Inheritance</h4>
 
-<p><strong>Q: Why use R6 instead of S3 or S4?</strong> Use R6 when you need mutable state (objects that change in place), encapsulation (private fields), or when coming from Python/Java and want familiar OOP. R6 is also faster than R5 (Reference Classes).</p>
+<p>Build a base <code>Logger</code> R6 class with a <code>log(msg)</code> method that prints <code>&quot;[INFO] msg&quot;</code>. Subclass it as <code>TimestampLogger</code> that overrides <code>log(msg)</code> to prepend the current time.</p>
 
-<p><strong>Q: Is R6 part of base R?</strong> No. R6 is a CRAN package. Install it with <code>install.packages(&quot;R6&quot;)</code>. It has zero dependencies and is very lightweight.</p>
+<div class="webr-container">
 
-<p><strong>Q: How do I avoid accidental reference sharing?</strong> Always use <code>$clone()</code> (or <code>$clone(deep = TRUE)</code> for nested R6 objects) when you want an independent copy. <code>y &lt;- x</code> does NOT copy -- it creates a reference to the same object.</p>
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+# your code here</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(R6)
+
+Logger &lt;- R6Class(&quot;Logger&quot;,
+  public = list(
+    log = function(msg) {
+      cat(&quot;[INFO]&quot;, msg, &quot;\n&quot;)
+    }
+  )
+)
+
+TimestampLogger &lt;- R6Class(&quot;TimestampLogger&quot;,
+  inherit = Logger,
+  public = list(
+    log = function(msg) {
+      cat(&quot;[&quot;, format(Sys.time(), &quot;%H:%M:%S&quot;), &quot;] &quot;, sep = &quot;&quot;)
+      super$log(msg)
+    }
+  )
+)
+
+tl &lt;- TimestampLogger$new()
+tl$log(&quot;server started&quot;)
+#&gt; [12:34:56] [INFO] server started</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>super$log(msg)</code> invokes the parent's <code>log</code> method after the subclass prints the timestamp prefix. Classic method override with superclass delegation.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>How it works</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Class definition</td>
+<td><code>R6Class(&quot;Name&quot;, public = list(...), private = list(...))</code></td>
+</tr>
+<tr>
+<td>Create instance</td>
+<td><code>obj &lt;- ClassName$new(args)</code></td>
+</tr>
+<tr>
+<td>Access field</td>
+<td><code>obj$field</code> (public only)</td>
+</tr>
+<tr>
+<td>Call method</td>
+<td><code>obj$method(args)</code></td>
+</tr>
+<tr>
+<td>Inside class</td>
+<td><code>self$x</code> (public), <code>private$x</code> (private)</td>
+</tr>
+<tr>
+<td>Mutate</td>
+<td>Direct assignment — changes persist</td>
+</tr>
+<tr>
+<td>Inherit</td>
+<td><code>inherit = ParentClass</code></td>
+</tr>
+<tr>
+<td>Call parent</td>
+<td><code>super$method(...)</code></td>
+</tr>
+<tr>
+<td>Copy</td>
+<td><code>obj$clone()</code> (shallow), <code>obj$clone(deep=TRUE)</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li><code>R6</code> package documentation. <a href="https://r6.r-lib.org/">Link</a></li>
+
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 14: R6. <a href="https://adv-r.hadley.nz/r6.html">Link</a></li>
+
+<li>Chang, W. — <em>R6: Encapsulated Object-Oriented Programming for R</em>. <a href="https://cran.r-project.org/package=R6">Link</a></li>
+
+<li>RStudio — Shiny modules (a major consumer of R6). <a href="https://shiny.posit.co/r/articles/modules.html">Link</a></li>
+
+<li><code>plumber</code> package — R6-based API routing.</li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><a href="R6-Advanced.html">R6 Advanced: Inheritance, Private Methods & Active Bindings</a> -- Inheritance, super, active bindings, and finalize</li>
+<li><a href="OOP-in-R.html">OOP in R</a> — where R6 fits among the four OOP systems.</li>
 
-<li><a href="OOP-Design-Patterns-in-R.html">OOP Design Patterns in R</a> -- Factory, strategy, and observer patterns with R6</li>
+<li><a href="S4-Classes-in-R.html">S4 Classes in R</a> — the formal alternative for immutable typed objects.</li>
 
-<li><a href="R5-Reference-Classes.html">R5 Reference Classes</a> -- The legacy alternative to R6</li>
+<li><a href="R-Function-Factories.html">R Function Factories</a> — the functional alternative for closures that capture state.</li>
 
 </ul>
