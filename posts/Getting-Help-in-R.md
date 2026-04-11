@@ -1,371 +1,361 @@
 ---
-title: "Stuck in R? 6 Ways to Get Unstuck Fast"
+title: "Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours"
 slug: "Getting-Help-in-R"
-description: "Six battle-tested ways to get R help fast — built-in help, vignettes, package docs, error lookup, reprex, and community resources. Stop wasting hours Googling."
-keywords: "R help, R documentation, help() R, ?function R, vignettes R, reprex R, R community, Stack Overflow R"
+description: "Master R's built-in help system: ?, help(), example(), vignette(), apropos(), and reprex. Plus a Stack Overflow strategy that gets answers in minutes."
+keywords: "R help, getting help in R, help() R, vignette R, reprex R, R Stack Overflow, apropos R, R example() function"
+auto_link_terms: "getting help in R|help() in R|vignette() in R|reprex in R|apropos() in R"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-05"
+date: "2026-04-11"
 curriculum_id: "1.1.12"
 post_type: "C"
-auto_link_terms: "getting help in R|R documentation|R help|reprex"
-auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "Getting Help in R"
 sidebar_order: 12
 ---
 
+# Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours
 
-# Stuck in R? 6 Ways to Get Unstuck Fast
+<p class="lead">When you're stuck in R, you don't need Google — you need `?function_name`. R ships with a help system that covers every function, and between `help()`, `example()`, `vignette()`, `apropos()`, and a clean **reprex**, most problems are 60 seconds away from being solved without ever leaving your R session.</p>
 
-<p class="lead">R has some of the richest help systems of any programming language — but only if you know where to look. These six techniques, in order of speed, will unstick you from most problems in under ten minutes.</p>
+## What's the fastest way to look up a function you already know?
 
-## Introduction
-
-Every R user gets stuck. The difference between beginners and experienced users isn't that experts never hit walls — it's that they know exactly which resource to check first, second, and third. That playlist of fallbacks is what this tutorial teaches.
-
-Every command below runs live — click **Run** to open help pages and search the R ecosystem.
-
-By the end, you'll have a clear escalation path: quick local checks first, targeted online resources next, and the community as a last resort.
-
-## How do you open a function's help page?
-
-Use `?function_name` for a concise help page or `help(function_name)` for the long form.
+A single question mark in front of a function name opens its help page instantly. That's the one shortcut every R user types hundreds of times a week, and it almost always contains the answer you were about to Google.
 
 ```r
-# Quick help
 ?mean
-# Same as help(mean)
-
-# For an operator, wrap in backticks or quotes
-?`+`
-?"for"
+# opens the help page for mean() — arguments, return value, examples
 ```
 
-The help page shows: usage (function signature with defaults), arguments (one per line with description), details (the "why"), value (what the function returns), examples (runnable code at the bottom). The examples section is often the fastest path to understanding — scroll down and read 3-4 examples.
+The help page follows a consistent structure: **Description** (one-line summary), **Usage** (the signature with defaults), **Arguments** (what each parameter does), **Details** (gotchas and edge cases), **Value** (what gets returned), **Examples** (runnable code). Learn to jump straight to Arguments and Examples — that's 90% of what you need.
+
+![Flowchart showing where to look for R help — help(), apropos(), vignette(), reprex](screenshots/Getting-Help-in-R-help-sources.webp)
+
+*Figure 1: R's help system handles most questions before you ever open a browser. Use `?` first, `vignette()` for tutorials, reprex only when asking humans.*
+
+`?mean` is shorthand for `help("mean")`. They're identical — use whichever feels faster. For operators and reserved words you need quotes: `` ?`+` `` or `help("if")`.
+
+```r
+?`+`
+help("if")
+help("[")    # help for the subsetting operator
+```
 
 [TIP]
-**Scroll to the Examples section first, then read Arguments.** Help pages front-load formal descriptions, but the examples usually answer your question in 5 seconds.
+If you've loaded multiple packages and two export the same function name, use `help("filter", package = "dplyr")` to target the one you want. This is the cure for "why is filter() giving me a signal-processing function?"
 
-## How do you search when you don't know the function name?
-
-Use `??search_term` to full-text search all installed help pages.
+**Try it:** Look up `?round`. How many arguments does it take, and what does `digits` default to?
 
 ```r
-# Search across all installed packages
-??"linear regression"
-
-# Search only a specific package
-??dplyr::mutate
-
-# Apropos - find functions whose names match a pattern
-apropos("reg")
+?round
+# read the Usage and Arguments sections
 ```
 
-`??` performs a fuzzy search. `apropos("reg")` returns function names containing "reg" — useful when you half-remember a name.
+## How do you find a function when you only remember what it does?
 
-## How do you find package-wide documentation?
-
-Use `vignette()` to read long-form tutorials bundled with packages.
+This is the harder case — you want to reshape a data frame but can't remember if it's `pivot_longer`, `melt`, `reshape`, or something else. Two tools cover it: `apropos()` for partial name matching and `help.search()` (shortcut `??`) for full-text search across help pages.
 
 ```r
-# List vignettes in a package
-vignette(package = "dplyr")
-
-# Open a specific vignette
-vignette("dplyr")
-
-# List ALL vignettes you have installed
-vignette()
+apropos("mean")
+#> [1] ".colMeans"     ".rowMeans"     "colMeans"      "kmeans"        
+#> [5] "mean"          "mean.Date"     "mean.default"  "mean.difftime" 
+#> [9] "mean.POSIXct"  "rowMeans"      "weightedMean"
 ```
 
-Vignettes are polished tutorials the package authors wrote — usually better than any blog post. Always check vignettes first for unfamiliar packages. `dplyr`, `ggplot2`, `tidyr`, `purrr`, and `data.table` all have excellent vignettes.
+`apropos()` lists every loaded object whose name contains the pattern. It's great when you know the target function's name starts with or contains a specific word.
+
+```r
+??"linear model"
+# opens a search results page across all installed packages
+```
+
+`??` (help.search) scans help-page text, so it finds functions by *description* not just name. Searching for `"linear model"` surfaces `lm`, `glm`, `lm.fit`, and regression diagnostics — even if none of those names contain the word "linear."
 
 [KEY INSIGHT]
-**Vignettes are the package authors' own tutorial.** They're reviewed, tested, and kept current across package versions. Reach for them before any third-party tutorial.
-
-## How do you decode a confusing error message?
-
-When an R error is cryptic, copy the message verbatim and search. Two tools help:
+`apropos()` searches **names**. `??` searches **descriptions**. When you know roughly what the function is called, use `apropos()`. When you know what it *does*, use `??`.
 
 ```r
-# Show the last error details + call stack
-traceback()
-
-# Read an error's help page (for base R errors)
-# Example: ?"subscript out of bounds"
+apropos("^cor")      # functions whose name starts with "cor"
+#> [1] "cor"        "cor.test"   "corrcoeff"  "corrplot"   "correlation"
 ```
 
-`traceback()` after an error shows the sequence of function calls leading to the crash — the last line is usually where the error happened, and the line above tells you who called it.
+The `^` anchor is a regex — `apropos()` accepts regular expressions, so you can narrow results when a common prefix produces too many hits.
 
-The error decoder recipe: **copy the error, find the first noun, search that noun in Google with "R"** — e.g., `"subscript out of bounds" R`. r-statistics.co has dedicated error pages for 20+ common errors under its Common Errors section.
-
-## How do you reproduce a bug to ask for help?
-
-A **reprex** (reproducible example) is R's social contract for asking good questions. Use the `reprex` package to generate one.
+**Try it:** Use `apropos()` to find everything in base R with "lm" in its name. Then use `??"logistic regression"` to find functions for logistic regression.
 
 ```r
-# Install once
-# install.packages("reprex")
-
-# Put code on clipboard, then:
-# reprex::reprex()
+# apropos("lm")
+# ??"logistic regression"
 ```
 
-A good reprex has: (1) minimal code (strip everything unrelated), (2) no dependencies on your local files, (3) output shown inline, (4) session info at the bottom. The `reprex::reprex()` function renders your clipboard code into a Markdown block you can paste into Stack Overflow, GitHub issues, or Slack.
+## Why is example() the most underused help command?
+
+Every help page has an **Examples** section at the bottom. Instead of copy-pasting them, you can run them all with one call: `example(function_name)`. R pipes each example into the console, one at a time, so you can watch the output interactively.
+
+```r
+example(mean)
+#> mean> x <- c(0:10, 50)
+#> mean> xm <- mean(x)
+#> mean> c(xm, mean(x, trim = 0.10))
+#> [1] 8.75 5.50
+```
+
+That's the entire `?mean` examples section running live — including the `trim` argument demonstration that most beginners never notice. It's the fastest way to go from "I read the help page" to "I actually understand how this behaves on real data."
+
+```r
+example(lm)
+# runs every lm() example from the help page, plots included
+```
+
+For functions with plotting examples (like `lm`, `ggplot`, `hist`), `example()` draws every plot — you get a visual tour of the function's capabilities in one call.
+
+**Try it:** Run `example(plot)` and watch what comes up. Then try `example(strsplit)` to see string-splitting in action.
+
+```r
+# example(plot)
+# example(strsplit)
+```
+
+## When should you read a vignette instead of a help page?
+
+Help pages document individual functions. **Vignettes** are the long-form tutorials that package authors write to explain how pieces fit together. If `?dplyr::filter` tells you *what* filter does, `vignette("dplyr")` tells you *how* to use filter with select, mutate, and group_by in a real workflow.
+
+```r
+vignette()                    # list all vignettes on your system
+vignette(package = "dplyr")   # vignettes in one specific package
+vignette("dplyr")             # open the main dplyr vignette
+```
+
+Vignettes are the difference between understanding a package as a pile of functions versus understanding it as a coherent tool. Any time you're learning a new package, check its vignettes before searching online — the author wrote them specifically to save you that search.
 
 [NOTE]
-**Stack Overflow users close unreproducible questions within minutes.** Spending 5 minutes on a reprex saves hours of back-and-forth.
+Not every package ships vignettes, and which ones are available depends on how you installed the package. `install.packages("pkg")` by default includes vignettes; Bioconductor-style installs do too.
 
-## What are the best R community resources?
+**Try it:** List the vignettes available in your `stats` package with `vignette(package = "stats")`. (Base packages often have few or none, which is why you go to tutorials for the core language.)
 
-The canonical list, ranked by typical quality:
+```r
+# vignette(package = "stats")
+```
 
-| Resource | Best for | URL |
-|---|---|---|
-| Stack Overflow `[r]` tag | Specific code errors | stackoverflow.com/questions/tagged/r |
-| RStudio Community | Tidyverse questions | community.rstudio.com |
-| CRAN Task Views | "Which package should I use?" | cran.r-project.org/web/views |
-| R-bloggers | Blog aggregator | r-bloggers.com |
-| r-statistics.co | Interactive R tutorials | r-statistics.co |
-| R for Data Science book | Tidyverse learning | r4ds.hadley.nz |
-| Advanced R book | Language internals | adv-r.hadley.nz |
+## How do you read an R error message without panicking?
+
+An R error is not a wall of nonsense — it's a structured report with three layers you should read in reverse. The **last** line is usually the useful one; the rest is the call stack that led there.
+
+```r
+mean("hello")
+#> Warning message:
+#> In mean.default("hello") :
+#>   argument is not numeric or logical: returning NA
+```
+
+R is telling you the exact problem: `"hello"` isn't numeric, so `mean.default` (the method it dispatched to) can't compute a mean. The fix is obvious once you read it — pass a number. But the first instinct of most beginners is to panic at the word "default" and paste the whole message into Google.
+
+```r
+# A more complex one
+lm(y ~ x, data = data.frame(x = 1:5))
+#> Error in eval(predvars, data, env) : object 'y' not found
+```
+
+Two pieces of info: the error happened inside `eval(predvars, data, env)` (internals of `lm`), and the root cause is `object 'y' not found` — you referenced a column `y` that doesn't exist in the data frame. Ignore the internals, focus on the last clause.
 
 [TIP]
-**Check the date on every Stack Overflow answer.** R has changed significantly since 2015 — answers that say `plyr::ddply()` or `stringsAsFactors = FALSE` are probably outdated. Prefer answers from 2020+ with high votes.
+When an error mentions a function you don't recognize, ignore it — it's almost always internal machinery, not the function you called. Focus on the quoted name, missing object, or type mismatch in the last sentence.
 
-## Common Mistakes and How to Fix Them
+Use `traceback()` right after an error to see the full call chain if the error happened deep in someone else's code. It shows which of your lines led to which internal call.
 
-### Mistake 1: Ignoring the error message text
-
-❌ **Wrong:**
 ```r
-# "It just says an error, let me Google 'R error'"
+# After an error:
+# traceback()
 ```
 
-**Why it is wrong:** Generic searches return noise. R errors are specific and searchable.
+## How do you ask a good Stack Overflow question (and get an answer in minutes)?
 
-✅ **Correct:**
-Copy the exact error message. Search `"exact error text in quotes" R`. Usually the first result is your answer.
+Some problems genuinely need human help — a weird edge case, a bug in a package, a design question. When you get there, the single biggest factor in getting a fast answer is the **reprex**: a minimal, self-contained example that someone else can copy-paste and run.
 
-### Mistake 2: Not checking the package version
+![Debug loop: read error, isolate, check types, build reprex if needed](screenshots/Getting-Help-in-R-debug-loop.webp)
 
-❌ **Wrong:**
+*Figure 2: Most R problems resolve in the first three steps. The reprex step is for when you need someone else's eyes.*
+
+A good reprex has four qualities: **minimal** (smallest code that shows the bug), **complete** (anyone can run it as-is, with `library()` calls and data), **reproducible** (it actually triggers the problem), and **readable** (formatted code block, error output included).
+
+The `reprex` package automates the formatting:
+
 ```r
-# "The tutorial says across() should work but it errors!"
+# install.packages("reprex")
+library(reprex)
+
+# Copy your code to the clipboard, then:
+reprex()
+# generates a ready-to-paste Markdown block with code + output
 ```
 
-**Why it is wrong:** `across()` was added in dplyr 1.0. Old installs don't have it.
+Here's a bad reprex and a good one, side by side.
 
-✅ **Correct:**
 ```r
-packageVersion("dplyr")
-#> [1] '1.1.4'
+# BAD — no data, no library, vague
+"my filter isn't working, I get no rows"
+df |> filter(col == "x")
 ```
 
-Check the package version against the tutorial's requirements.
-
-### Mistake 3: Asking without a reprex
-
-❌ **Wrong:**
-> "My dplyr code isn't working, what's wrong?"
-
-**Why it is wrong:** No one can help without seeing the code, data, and error.
-
-✅ **Correct:**
-> "With dplyr 1.1.4, I run: (code). Expected (X). Got error: (exact error). Here's a minimal reprex: (output)."
-
-### Mistake 4: Installing every package you see
-
-❌ **Wrong:**
 ```r
-# Blindly install anything suggested
-install.packages("some_random_package")
+# GOOD — complete and runnable
+library(dplyr)
+
+df <- data.frame(
+  id = 1:3,
+  col = c("x", "X", "x")
+)
+
+df |> filter(col == "x")
+#>   id col
+#> 1  1   x
+#> 3  3   x
+# Expected 3 rows, got 2 — case-sensitive match is surprising me
 ```
 
-**Why it is wrong:** Wastes disk, clutters `sessionInfo()`, increases load time. Each package is a dependency to maintain.
+The good version is 10 lines, runs standalone, shows the expected vs actual, and gives an answerer everything they need. You'll usually have your answer within the time it takes to post.
 
-✅ **Correct:**
-Check CRAN Task Views to find the canonical package for a task. Prefer tidyverse or base R when both can do the job.
+[KEY INSIGHT]
+Half the time you spend building a good reprex, you solve the problem yourself. Boiling code down to the minimal case strips away distractions and reveals the bug. Even if nobody answers, the exercise pays for itself.
+
+**Try it:** The next time you hit a bug, spend 5 minutes writing the reprex *before* searching. You'll often find the bug during the reduction.
 
 ## Practice Exercises
 
-### Exercise 1: Open a Help Page
+### Exercise 1: Find a function by description
 
-Open the help page for `sd()` and find its first argument name.
-
-```r
-# Hint: ?sd
-# Write your code below:
-
-```
+Use R's help system to find a function that computes the **correlation between two variables**, without knowing its name. Then verify your answer by opening its help page.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-?sd
-# The first argument is `x` — the vector to compute standard deviation of.
-```
+# Search by description
+??"correlation"
+# or
+help.search("correlation")
 
+# That surfaces cor() as the primary answer
+?cor
+# Arguments: x, y, use, method
+# method supports "pearson", "kendall", "spearman"
+```
 </details>
 
-### Exercise 2: Apropos Search
+### Exercise 2: Read the help page for a complex function
 
-Find all base R functions containing "split" in their name.
-
-```r
-# Hint: apropos("split")
-# Write your code below:
-
-```
+Open `?lm` and answer these three questions just from the help page:
+1. What does the `subset` argument do?
+2. What does the function return — a vector, a list, or a custom object?
+3. What does `na.action` default to?
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-apropos("split")
-#> [1] "split"         "split.data.frame" "split.Date"    ...
+?lm
+
+# 1. subset: An optional vector specifying a subset of observations
+#    to be used in the fitting process.
+# 2. Returns an object of class "lm" (a list with components like
+#    coefficients, residuals, fitted.values).
+# 3. na.action defaults to the value of options("na.action"),
+#    which is usually na.omit — drops rows with NAs.
 ```
 
+The "Value" section of every help page tells you what you get back. Reading it once saves hours of downstream debugging.
 </details>
 
-### Exercise 3: Check a Package Version
+### Exercise 3: Build a minimal reprex
 
-Find the version of `base` currently loaded.
-
-```r
-# Hint: packageVersion()
-# Write your code below:
+You're seeing this error when trying to plot grouped data:
 
 ```
+Error in FUN(X[[i]], ...) : only defined on a data frame with all numeric-alike variables
+```
+
+Build a 6-line reprex that reproduces it using built-in data. Start with `library()` and a small data frame.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Show solution</summary>
 
 ```r
-packageVersion("base")
-#> [1] '4.x.y'
+# Reprex:
+library(stats)
+
+df <- data.frame(
+  name = c("a", "b", "c"),
+  value = c(1, 2, 3)
+)
+
+colMeans(df)
+#> Error in colMeans(df) : 
+#>   'x' must be numeric
 ```
 
+`colMeans` needs all numeric columns; the `name` character column triggers the error. Six lines, completely self-contained, uses built-ins — anyone can run it.
 </details>
 
-### Exercise 4: List Loaded Packages
+## Complete Example: Diagnosing a Mystery Function
 
-List all packages currently loaded in your session.
-
-```r
-# Hint: search() or (.packages())
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+Suppose you find `stats::mahalanobis` in someone's code and have no idea what it does. Here's the full "get unstuck" workflow using nothing but R itself.
 
 ```r
-(.packages())
-#> [1] "stats" "graphics" "grDevices" "utils" "datasets" "methods" "base"
+# Step 1: Open the help page
+?mahalanobis
+
+# Step 2: Run the examples live
+example(mahalanobis)
+#> mahalanobis> ma <- cbind(1:6, 1:3)
+#> mahalanobis> (S <-  var(ma))
+#>      [,1] [,2]
+#> [1,]  3.5    0
+#> [2,]  0.0    1
+#> 
+#> mahalanobis> mahalanobis(c(0, 0), 1:2, S)
+#> [1] 5.285714
+
+# Step 3: If you need deeper context, check vignettes
+vignette(package = "stats")    # returns any available
+
+# Step 4: Look up related functions
+apropos("^mah")
+#> [1] "mahalanobis"
 ```
 
-</details>
+You now know: `mahalanobis()` computes the Mahalanobis distance between points and a distribution, it takes a vector, a center, and a covariance matrix, and there's exactly one related function in base R. Total time: under a minute, zero browser tabs.
 
-### Exercise 5: Session Info
-
-Print your full session info — R version + loaded packages.
-
-```r
-# Hint: sessionInfo()
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-sessionInfo()
-#> R version 4.x.y ...
-#> attached base packages: ...
-```
-
-**Explanation:** `sessionInfo()` is what you include at the bottom of every bug report.
-
-</details>
-
-## Complete Example: Debugging a Confusing Error
-
-Here's the full workflow when you hit an error.
-
-```r
-# Step 1: Hit an error (contrived example)
-x <- c(1, 2, 3)
-x[[5]]
-#> Error in x[[5]] : subscript out of bounds
-
-# Step 2: See what R says
-# Step 3: Search the exact error
-# Google: "subscript out of bounds" R
-
-# Step 4: Check the function's help if needed
-?"[[."
-
-# Step 5: Diagnose — x has 3 elements, we asked for index 5
-length(x)
-#> [1] 3
-
-# Step 6: Fix
-x[[3]]   # use a valid index
-#> [1] 3
-```
-
-The workflow: read → search → diagnose → fix. For most errors you'll resolve it in step 2-3 without needing community help.
+If at any point you're still confused, *then* you build a reprex and ask. But 9 times out of 10, the in-session tools are enough.
 
 ## Summary
 
-| Step | Command | When |
-|---|---|---|
-| Quick help | `?function` | Know the function, need details |
-| Search | `??term` or `apropos()` | Don't know the function name |
-| Package docs | `vignette()` | Learning a new package |
-| Error | `traceback()` | After an error happens |
-| Bug report | `reprex::reprex()` | Before asking online |
-| Session info | `sessionInfo()` | Include in every bug report |
+| You need to... | Use |
+|---|---|
+| Look up a function you know | `?name` or `help("name")` |
+| Find a function by partial name | `apropos("pattern")` |
+| Find a function by description | `??"phrase"` or `help.search()` |
+| Run a help page's examples | `example(name)` |
+| Read a long-form tutorial | `vignette("pkg")` |
+| Trace an error's call chain | `traceback()` |
+| Ask another human for help | `reprex::reprex()` |
 
-## FAQ
+Three habits that separate fast R users from stuck ones:
 
-### Is Stack Overflow still the best place for R questions?
-
-For specific coding errors, yes. For tidyverse-specific or philosophical questions, RStudio Community is often better. For fast answers to basic questions, the Posit Community forum is very responsive.
-
-### Can I use ChatGPT or Claude for R help?
-
-They're useful for explaining errors and generating boilerplate. But always verify with `?function` and run the code — LLMs can confidently hallucinate function names and arguments. Trust but verify.
-
-### How do I find what packages I have installed?
-
-`installed.packages()` lists all of them. `rownames(installed.packages())` gives just the names.
-
-### Where do I get R news and package updates?
-
-Subscribe to R-bloggers (aggregator) and follow key package authors on GitHub. Posit's blog covers tidyverse updates.
-
-### What's the fastest way to find the right tidyverse function?
-
-Check the tidyverse cheat sheets at posit.co/resources/cheatsheets. Each cheat sheet maps common tasks to the right function in one page.
+1. **Type `?function` before Googling.** The answer is almost always on the help page; Google just adds latency.
+2. **Read errors in reverse.** The last line is the actionable one. Ignore the internal call stack until you've read the root cause.
+3. **Write reprexes even when you're debugging alone.** Minimising the code reveals the bug about half the time before you even post anywhere.
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Appendix B (Invoking R and accessing help). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. R manual — `help()` and `?` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/help.html)
-3. R manual — `vignette()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/vignette.html)
-4. reprex package documentation. [Link](https://reprex.tidyverse.org/)
-5. CRAN Task Views. [Link](https://cran.r-project.org/web/views/)
-6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 2 (Workflow: getting help). [Link](https://r4ds.hadley.nz/intro.html)
-7. Stack Overflow — How to make a great R reproducible example. [Link](https://stackoverflow.com/q/5963269)
+1. R Core Team. *An Introduction to R* — Getting help with functions and features. <https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Getting-help>
+2. `reprex` package documentation. <https://reprex.tidyverse.org/>
+3. Wickham, H. *Advanced R*, 2nd ed. — Debugging chapter. <https://adv-r.hadley.nz/debugging.html>
+4. Stack Overflow — How to make a great R reproducible example. <https://stackoverflow.com/q/5963269>
+5. R Documentation: `?help`, `?apropos`, `?example`, `?vignette`, `?traceback`. Run in any R session.
 
 ## Continue Learning
 
-- **[R Common Errors](R-Common-Errors.html)** — 50 errors decoded with exact fixes.
-- **[R Debugging](R-Debugging.html)** — `browser()`, `debug()`, and RStudio's visual debugger.
-- **[R Project Structure](R-Project-Structure.html)** — organize your work so future-you can find things.
+- [Write Better R Functions](R-Functions.html) — once you've mastered help(), you'll want to write functions others can `?` into.
+- [R's Four Special Values](R-Special-Values.html) — the most common source of mystery errors: NA poisoning a computation.
+- [Control Flow in R](Control-Flow-in-R.html) — understanding `if` and `for` makes tracebacks much easier to read.
