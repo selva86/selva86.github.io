@@ -1,357 +1,267 @@
 ---
-title: "Why R Copies Your Data: Copy-on-Modify Explained"
+title: "Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)"
 slug: "R-Copy-on-Modify"
-description: "Master R's copy-on-modify semantics — when R copies data, when it doesn't, and how to track memory usage. Understand why reference semantics surprise you in R."
-keywords: "copy on modify R, R memory, R reference semantics, tracemem R, lobstr, R data copying"
+description: "R uses copy-on-modify: variables share memory until one changes. Use lobstr to see exactly when R makes real copies and when it doesn't."
+keywords: "copy on modify R, R memory model, lobstr R, obj_addr R, R variable sharing, R pass by value, tracemem R"
+auto_link_terms: "copy-on-modify in R|copy on modify|lobstr package|obj_addr()|tracemem()"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-05"
+date: "2026-04-11"
 curriculum_id: "FR-fund-1"
 post_type: "FR"
-auto_link_terms: "copy-on-modify|R memory model|copy on modify"
-auto_link_case_sensitive: false
-fr_parent: "R-Data-Types.html"
+fr_parent: "R-Data-Frames.html"
 ---
 
+# Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)
 
-# Why R Copies Your Data: Copy-on-Modify Explained
+<p class="lead">R uses **copy-on-modify** semantics: when you write `y <- x`, R doesn't duplicate the data. Both names point to the same memory. R only makes an actual copy the moment one of them is modified — and sometimes not even then. This is why R can handle large objects without doubling memory on every assignment.</p>
 
-<p class="lead">R uses <strong>copy-on-modify</strong> semantics — when you assign <code>y &lt;- x</code>, both names point to the same object in memory. Only when you modify one does R actually copy. This is both memory-efficient and a source of beginner confusion.</p>
+## What actually happens when you write y <- x?
 
-## Introduction
-
-In most programming languages, `y <- x` makes a copy. In R, it doesn't — both names point to the same memory until one of them is modified. This "copy-on-modify" design saves memory when you're just reading data and defers the cost of copying until it's actually needed.
-
-This tutorial unpacks when R copies and when it doesn't, using the `tracemem()` function to watch copying happen in real time. Understanding this changes how you write efficient R code.
-
-## What is copy-on-modify?
-
-When you assign one object to another name, R does NOT create a new copy. Both names point to the same memory.
-
-```r
-x <- c(1, 2, 3, 4, 5)
-y <- x           # no copy — both names point to same vector
-
-# tracemem() reports when an object gets copied
-tracemem(x)
-#> [1] "<0x...>"
-
-# Modifying y triggers the copy
-y[1] <- 99
-#> tracemem[0x...]: y   <- copy happened here
-
-x    # x is unchanged
-#> [1] 1 2 3 4 5
-y
-#> [1] 99  2  3  4  5
-```
-
-`y <- x` created a second name for the same vector — no memory allocation. The copy only happened when we modified `y[1]`. After that moment, `x` and `y` point to different objects.
-
-[KEY INSIGHT]
-**R is reference-sharing until you modify. Assignment is free; modification triggers copying.** This is why you can pass large data frames to functions without worrying about memory — they share until the function modifies them.
-
-## When does R skip the copy?
-
-R's internal code can detect "this object has only one name pointing to it" and modify in place without copying.
-
-```r
-# Single reference — modifies in place
-x <- c(1, 2, 3)
-tracemem(x)
-x[1] <- 99       # may modify in place (R 4.0+)
-# No tracemem copy message printed for in-place modify
-
-# Multiple references — forces copy
-x <- c(1, 2, 3)
-y <- x
-tracemem(x)
-x[1] <- 99       # copy happens (x had 2 references)
-untracemem(x)
-```
-
-R 4.0+ has refcount tracking that can modify objects in place when it's safe. In older R versions, every modification triggered a copy regardless.
-
-## How do you see when R copies?
-
-Use `tracemem()` to print a message each time R copies an object.
-
-```r
-library(lobstr)
-
-x <- c(1:100)
-obj_addr(x)
-#> [1] "0x..."
-
-# Copy-on-modify in a function
-modify <- function(v) {
-  v[1] <- 999
-  v
-}
-
-y <- modify(x)
-obj_addr(x)
-#> [1] "0x..."         # x unchanged
-obj_addr(y)
-#> [1] "0x...different"  # y is a new object
-```
-
-`lobstr::obj_addr()` shows the memory address of an R object. If two names share an address, they share memory. If `modify()` had returned `v` without touching it, `y` would share `x`'s address.
-
-## When does copy-on-modify surprise you?
-
-Three common scenarios catch beginners off guard.
-
-### Scenario 1: Modifying a data frame column
-
-```r
-df <- data.frame(x = 1:1000, y = rnorm(1000))
-tracemem(df)
-
-df$x[1] <- 999   # copies the entire data frame!
-#> tracemem[...]: df
-```
-
-Changing one element copies the entire data frame because R's refcount sees `df` as having multiple "parts" being modified. For heavy data manipulation, packages like `data.table` use reference semantics to avoid this.
-
-### Scenario 2: Function arguments
-
-```r
-big_vector <- 1:1e7   # 10 million elements
-
-show_length <- function(v) {
-  length(v)   # just reading — no copy
-}
-
-modify_arg <- function(v) {
-  v[1] <- 999   # copies because we're modifying
-  v
-}
-```
-
-Passing to a read-only function: no copy. Passing to a modify-then-return function: copies once inside.
-
-### Scenario 3: Growing a vector in a loop
-
-```r
-# Slow — allocates and copies every iteration
-result <- c()
-for (i in 1:1000) {
-  result <- c(result, i)
-}
-
-# Fast — pre-allocated, modifies in place
-result <- numeric(1000)
-for (i in 1:1000) {
-  result[i] <- i
-}
-```
-
-Pre-allocated vectors can be modified in place (single reference). Growing with `c()` creates a new vector every iteration.
-
-## Common Mistakes and How to Fix Them
-
-### Mistake 1: Assuming R will mutate in place
-
-❌ **Wrong:**
-```r
-# Trying to modify from inside a function
-modify_global <- function(x) {
-  x[1] <- 999    # only modifies local copy
-}
-
-my_v <- c(1, 2, 3)
-modify_global(my_v)
-my_v
-#> [1] 1 2 3   # unchanged!
-```
-
-**Why it is wrong:** R passes arguments by copy-on-modify. The function's `x` is a local reference; modifying it doesn't touch `my_v`.
-
-✅ **Correct:**
-```r
-modify_return <- function(x) {
-  x[1] <- 999
-  x
-}
-my_v <- modify_return(my_v)
-my_v
-#> [1] 999   2   3
-```
-
-### Mistake 2: Growing a vector with `c()` in a loop
-
-❌ **Wrong:** (see Scenario 3 above)
-
-✅ **Correct:** Pre-allocate, then assign by index.
-
-### Mistake 3: Chained assignments with shared references
-
-❌ **Wrong:**
-```r
-my_list <- list(a = 1:3, b = 4:6)
-my_copy <- my_list
-my_list$a[1] <- 999
-# Did my_copy change? No — copy-on-modify triggered.
-my_copy$a
-#> [1] 1 2 3
-```
-
-**Actually this is fine** — R correctly copied. But don't assume list elements are shared after modification.
-
-### Mistake 4: Using `<<-` to "avoid copies"
-
-❌ **Wrong:**
-```r
-modify_via_global <- function() {
-  my_v[1] <<- 999   # writes to global — confusing!
-}
-```
-
-**Why it is wrong:** `<<-` bypasses scoping rules, creating hidden dependencies. Avoid it except in closures where you deliberately capture state.
-
-## Practice Exercises
-
-### Exercise 1: Verify Same Address
-
-Use `lobstr::obj_addr()` to verify that `x` and `y` share memory after assignment.
+Nothing. R binds the name `y` to the same memory that `x` already points to — no data is copied. You can prove it with `lobstr::obj_addr()`, which returns the memory address an R object lives at.
 
 ```r
 # install.packages("lobstr")
 library(lobstr)
 
-my_x <- c(1, 2, 3, 4, 5)
-my_y <- my_x
-# Write your code below to check addresses
+x <- c(10, 20, 30, 40, 50)
+y <- x
 
+obj_addr(x)
+obj_addr(y)
+#> [1] "0x5626b8f4c5c8"
+#> [1] "0x5626b8f4c5c8"
 ```
 
-<details>
-<summary>Click to reveal solution</summary>
+Same address. `x` and `y` are two names pointing to one vector. Assigning `y <- x` was free — it didn't allocate, didn't copy, didn't touch your RAM. That's why even a 1GB data frame costs nothing to "pass around" in R as long as you're not modifying it.
+
+![Diagram showing x and y sharing memory until y is modified, then a copy is made](screenshots/R-Copy-on-Modify-shared-binding.webp)
+
+*Figure 1: Assignment in R is a pointer operation. A copy only happens at the exact moment one binding tries to change the shared value.*
+
+## When does R actually make a copy?
+
+The moment you modify one of the shared bindings. At that instant, R says "these two names can't share memory anymore" and duplicates the data so each has its own. You can watch it happen with `tracemem()`.
+
+```r
+x <- c(10, 20, 30, 40, 50)
+y <- x
+
+tracemem(x)
+#> [1] "<0x5626b8f4c5c8>"
+
+y[1] <- 99      # modifying y triggers the copy
+#> tracemem[0x5626b8f4c5c8 -> 0x5626b9103e40]: 
+
+obj_addr(x)
+obj_addr(y)
+untracemem(x)
+#> [1] "0x5626b8f4c5c8"
+#> [1] "0x5626b9103e40"
+```
+
+Two different addresses now. `x` is untouched (still at the original address); `y` got its own fresh copy with the modified value. This is "copy-on-modify" in action — R defers the expensive work until there's no choice.
+
+[KEY INSIGHT]
+The copy is lazy. If you never modify either binding, no copy ever happens. You can have ten variables pointing at one huge data frame and pay the memory cost of exactly one data frame.
+
+## Why doesn't R copy function arguments?
+
+Same reason — copy-on-modify. When you call `f(big_df)`, R doesn't duplicate `big_df`. The argument `big_df` inside the function is just another name bound to the same memory. Only if the function **modifies** its argument does R make a copy.
 
 ```r
 library(lobstr)
-my_x <- c(1, 2, 3, 4, 5)
-my_y <- my_x
-obj_addr(my_x) == obj_addr(my_y)
-#> [1] TRUE
-```
 
-</details>
+big <- 1:1e6
 
-### Exercise 2: Observe Copy on Modify
-
-After assignment, modify `y` and check if addresses still match.
-
-```r
-library(lobstr)
-my_x <- c(1, 2, 3)
-my_y <- my_x
-my_y[1] <- 99
-# Check addresses now
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-library(lobstr)
-my_x <- c(1, 2, 3)
-my_y <- my_x
-my_y[1] <- 99
-obj_addr(my_x) == obj_addr(my_y)
-#> [1] FALSE
-```
-
-**Explanation:** Modifying `my_y` triggered the copy.
-
-</details>
-
-### Exercise 3: Track Copies in a Function
-
-```r
-my_modify <- function(v) {
-  v[1] <- 999
-  v
+inspect_no_modify <- function(x) {
+  obj_addr(x)
 }
 
-my_x <- 1:1000
-tracemem(my_x)
-# Call my_modify - how many copies happen?
-my_y <- my_modify(my_x)
-untracemem(my_x)
+obj_addr(big)
+inspect_no_modify(big)
+#> [1] "0x5626c0a1f820"
+#> [1] "0x5626c0a1f820"
 ```
 
-<details>
-<summary>Click to reveal solution</summary>
+The function received `big` as its argument `x`, both names pointing at the same million-element vector. No copy — `obj_addr(x)` inside the function returns the same address as `obj_addr(big)` outside it.
 
-One copy happens: when `my_modify` assigns to `v[1]`. The argument `v` initially shared with `my_x`, but the assignment triggered a copy.
+```r
+modify_inside <- function(x) {
+  x[1] <- 99
+  obj_addr(x)
+}
 
-</details>
+obj_addr(big)
+modify_inside(big)
+obj_addr(big)        # unchanged
+#> [1] "0x5626c0a1f820"
+#> [1] "0x5626c1a3b500"
+#> [1] "0x5626c0a1f820"
+```
 
-## Complete Example: Measuring Memory Impact
+The moment `x[1] <- 99` runs, R makes `x` its own copy *inside the function*. The outer `big` is untouched — modifying a function argument never leaks back to the caller. This is R's version of "pass by value" without the cost of actually passing by value.
+
+## When does R copy unnecessarily (and how do you avoid it)?
+
+R's copy detection isn't perfect. In older R versions, certain operations would trigger copies even when nothing was really shared. Modern R (4.0+) is much smarter, but a few patterns still cost more than they should.
+
+```r
+# Growing a vector in a loop — classic pitfall
+result <- c()
+for (i in 1:1000) {
+  result <- c(result, i^2)    # appends and potentially copies each time
+}
+```
+
+Every `c(result, i^2)` creates a new longer vector. Even if R is clever about some of these, the pattern fights copy-on-modify's assumptions. Pre-allocating fixes it completely:
+
+```r
+# Pre-allocate — one allocation, in-place writes
+result <- numeric(1000)
+for (i in 1:1000) {
+  result[i] <- i^2
+}
+```
+
+Same outcome, dramatically less memory churn. The rule: if you know the final size, allocate it up front.
+
+[TIP]
+Use `lobstr::obj_size()` and `lobstr::mem_used()` to measure actual memory consumption. They account for sharing — `obj_size(x, y)` on two shared vectors is the size of *one*, not two.
 
 ```r
 library(lobstr)
 
-# Make a 10M element vector
-big <- 1:1e7
-obj_size(big)
-#> 40.00 MB
+x <- 1:1e6
+y <- x
 
-# Assignment is free (still 40 MB total)
-big2 <- big
-obj_size(big, big2)
-#> 40.00 MB   (shared)
-
-# Modifying triggers a copy
-big2[1] <- 0L
-obj_size(big, big2)
-#> 80.00 MB   (two separate objects now)
+obj_size(x)
+obj_size(y)
+obj_size(x, y)       # combined — but shared, so same as one
+#> 680 B
+#> 680 B
+#> 680 B
 ```
 
-`lobstr::obj_size()` is smart enough to report shared memory correctly. Before modification, two 40 MB vectors share memory and total 40 MB. After, they're separate and total 80 MB.
+Three calls, three identical numbers. `x` and `y` share memory, so their combined footprint is the footprint of one vector. That's the payoff of the whole copy-on-modify model.
+
+## Does this apply to lists and data frames too?
+
+Yes, and it gets more interesting. Lists and data frames are containers — they hold references to their elements. When you modify one element, R has to decide whether to copy *just that element* or the whole container.
+
+```r
+library(lobstr)
+
+df1 <- data.frame(a = 1:3, b = 4:6)
+df2 <- df1
+
+# The data frame and its columns start shared
+ref(df1, df2)
+```
+
+`lobstr::ref()` prints a tree showing which objects share memory. When you run the above on recent R versions, you'll see both data frames sharing the same underlying column vectors. Now modify a column in `df2`:
+
+```r
+df2$a[1] <- 99
+
+ref(df1, df2)
+# df1's column a is untouched; df2's column a is a new vector
+# df1 and df2's column b still share memory
+```
+
+Only the changed column is duplicated. The unchanged column `b` still shares memory between `df1` and `df2`. This is why a 10-column data frame where you modify one column costs roughly 10% more memory, not 100%.
+
+[NOTE]
+In R versions before 4.0, modifying a data frame column could copy the *entire* data frame. Modern R tracks sharing per-column, which is why `dplyr::mutate()` and similar operations are so much cheaper than they used to be.
+
+## Practice Exercises
+
+### Exercise 1: Watch a copy happen
+
+Use `lobstr::obj_addr()` and `tracemem()` to observe when R actually copies a vector.
+
+```r
+library(lobstr)
+
+a <- c(1, 2, 3, 4, 5)
+b <- a
+
+# 1. Print obj_addr for both — same or different?
+# 2. Modify b[2] and print addresses again
+# 3. Explain what happened
+```
+
+<details>
+<summary>Show solution</summary>
+
+```r
+library(lobstr)
+
+a <- c(1, 2, 3, 4, 5)
+b <- a
+
+obj_addr(a)
+obj_addr(b)
+# Same address — they share memory
+
+b[2] <- 99
+
+obj_addr(a)
+obj_addr(b)
+# Different addresses — b was copied the moment it was modified
+```
+</details>
+
+### Exercise 2: No copy, no cost
+
+Write a function `peek(x)` that prints the length of `x` and returns `x` unchanged. Prove with `obj_addr()` that no copy happens when you pass a large vector to `peek`.
+
+<details>
+<summary>Show solution</summary>
+
+```r
+library(lobstr)
+
+peek <- function(x) {
+  cat("length:", length(x), "\n")
+  x
+}
+
+big <- 1:1e6
+obj_addr(big)
+result <- peek(big)
+obj_addr(result)
+# Same address — no copy, because peek never modified x
+```
+</details>
 
 ## Summary
 
-| Action | Copies? |
+| Action | Causes a copy? |
 |---|---|
-| `y <- x` | No |
-| Pass `x` to function (read only) | No |
-| Modify `x` with single reference | No (R 4.0+, in place) |
-| Modify `x` after `y <- x` | Yes |
-| `c(result, new)` in a loop | Yes, every iteration |
-| Modify data frame column | Usually yes (whole frame) |
+| `y <- x` | No — both names share memory |
+| `f(x)` (function call) | No — argument shares memory |
+| `y[1] <- 99` | Yes — y gets its own copy |
+| Modify a column in shared data frame | Only that column is copied |
+| Pre-allocate then fill | No per-iteration copy |
+| Grow a vector with `c()` in a loop | Repeated copies — slow |
 
-## FAQ
+Three things to remember:
 
-### Is R pass-by-value or pass-by-reference?
-
-Pass-by-copy-on-modify. Names are references, but modifying through a reference triggers a copy. The end result feels like pass-by-value to the caller.
-
-### Why do loops with `c()` get slow?
-
-Each `c(result, new)` copies `result` entirely because both the function call and the result name reference the vector. O(n²) total copying.
-
-### Do `data.table` and R6 avoid copying?
-
-Yes — both use reference semantics. `dt[, new_col := x]` modifies `dt` in place. R6 objects are mutable references.
-
-### How much memory does my object use?
-
-`object.size(x)` (base R) or `lobstr::obj_size(x)` (smarter about shared memory). `obj_size()` handles lists, environments, and shared references correctly.
-
-### Can I force R to copy?
-
-Rarely needed, but `x <- rlang::duplicate(y)` makes an explicit copy. Usually you want copy-on-modify; explicit copying is a rare optimization choice.
+1. **Assignment is free.** `y <- x` is a pointer operation, not a data duplication.
+2. **Copies happen at the point of modification,** not before. Functions that only read data pay no copy cost.
+3. **Measure, don't guess.** `lobstr::obj_addr()`, `tracemem()`, and `obj_size()` show you exactly what R is doing — no need to theorise.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 2 (Names and values). [Link](https://adv-r.hadley.nz/names-values.html)
-2. lobstr package documentation. [Link](https://lobstr.r-lib.org/)
-3. R manual — `tracemem()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/tracemem.html)
-4. R Internals — SEXP reference counting. [Link](https://cran.r-project.org/doc/manuals/r-release/R-ints.html)
-5. Wickham, H. — *Advanced R*, Section 2.5 (Modify in place). [Link](https://adv-r.hadley.nz/names-values.html#modify-in-place)
-6. data.table documentation — Reference semantics. [Link](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-reference-semantics.html)
-7. R Core — R 4.0 release notes (refcount improvements). [Link](https://cran.r-project.org/doc/manuals/r-devel/NEWS.html)
+1. Wickham, H. *Advanced R*, 2nd ed. — Chapter 2: Names and values. <https://adv-r.hadley.nz/names-values.html>
+2. `lobstr` package — inspecting R's internals. <https://lobstr.r-lib.org/>
+3. R Documentation: `?tracemem`, `?obj_addr`. Run in any R session.
+4. R Internals manual — Memory allocation. <https://cran.r-project.org/doc/manuals/r-release/R-ints.html>
+
+## Continue Learning
+
+- [R Data Frames](R-Data-Frames.html) — the main data structure where copy-on-modify matters most in practice.
+- [Write Better R Functions](R-Functions.html) — understand why you can pass big objects to functions without memory penalty.
+- [R Vectors](R-Vectors.html) — the building blocks that copy-on-modify operates on.
