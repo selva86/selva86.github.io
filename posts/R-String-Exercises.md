@@ -1,506 +1,306 @@
 ---
 title: "R String Manipulation Exercises: 10 stringr Practice Problems Solved"
 slug: "R-String-Exercises"
-description: "10 R string exercises: paste, grep, gsub, substr, stringr functions, regex patterns, and text cleaning. Interactive problems with solutions."
-keywords: "R string exercises, stringr exercises, R text manipulation exercises, R regex practice, R gsub exercises"
+description: "10 interactive stringr exercises with worked solutions — detect, extract, replace, split, pad, case, and regex. Every problem runs in the browser."
+keywords: "R string exercises, stringr exercises, R regex exercises, R string practice, stringr practice problems"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-11"
 curriculum_id: "E1.7"
 post_type: "EX"
-auto_link_terms: "R string exercises|stringr exercises|R text manipulation exercises"
+sidebar_section: "Practice Exercises"
+sidebar_title: "R Strings (10 problems)"
+auto_link_terms: "R string exercises|stringr exercises|R regex exercises"
 auto_link_case_sensitive: false
 fr_parent: "R-Syntax-101.html"
 ---
 
 # R String Manipulation Exercises: 10 stringr Practice Problems Solved
 
-<p class="lead">Practice R string manipulation with 10 exercises: combining text, searching patterns, extracting substrings, replacing text, and cleaning messy data. Uses both base R and stringr functions.</p>
+<p class="lead">Ten focused string exercises using the <code>stringr</code> package — detect, extract, replace, split, pad, case and regex. Every problem runs in the browser with a worked solution you can reveal. Use these to build fluency with the functions you will reach for in every data-cleaning job.</p>
 
-String manipulation is essential for data cleaning — fixing column names, parsing text fields, extracting patterns from messy data. These exercises progress from basic paste/grep to regex-powered text processing.
+Every real dataset has messy strings: trailing whitespace, inconsistent case, dates embedded in filenames, phone numbers with parentheses. The `stringr` package gives you a small, consistent set of verbs that handle all of this. These exercises cover the ten you will use most often.
 
-## Easy (1-4): Basic String Operations
-
-### Exercise 1: Build Formatted Strings
-
-Given vectors of first names, last names, and ages, create formatted strings like "Alice Smith (age 25)".
+## Setup
 
 ```r
-# Exercise 1: Format strings
-first <- c("Alice", "Bob", "Carol")
-last <- c("Smith", "Jones", "Williams")
-ages <- c(25, 32, 28)
+library(stringr)
 
-# Create: "Alice Smith (age 25)", etc.
+# A small messy dataset we'll reuse throughout
+names_raw <- c("  Ada Lovelace ", "alan TURING", "grace Hopper",
+               "Donald knuth", "  Barbara Liskov")
+```
+
+## Section 1 — Trim, pad, and case
+
+### Exercise 1. Trim whitespace and fix case
+
+From `names_raw`, produce a vector where leading and trailing whitespace is removed and each name is converted to title case (first letter of each word capitalised).
+
+```r
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-first <- c("Alice", "Bob", "Carol")
-last <- c("Smith", "Jones", "Williams")
-ages <- c(25, 32, 28)
+library(stringr)
 
-# Method 1: paste()
-result1 <- paste(first, last, paste0("(age ", ages, ")"))
-cat("paste:", result1, sep = "\n")
-
-# Method 2: sprintf() — more control
-result2 <- sprintf("%s %s (age %d)", first, last, ages)
-cat("\nsprintf:", result2, sep = "\n")
-
-# Method 3: Build emails
-emails <- paste0(tolower(first), ".", tolower(last), "@company.com")
-cat("\nEmails:", emails, sep = "\n")
+names_clean <- str_to_title(str_trim(names_raw))
+names_clean
+# "Ada Lovelace" "Alan Turing" "Grace Hopper" "Donald Knuth" "Barbara Liskov"
 ```
+
+`str_trim()` removes whitespace on both sides; `str_squish()` also collapses internal runs of whitespace to single spaces. `str_to_title()` uppercases the first character of each word.
 
 </details>
 
-### Exercise 2: Case Conversion
+### Exercise 2. Pad to fixed width
 
-Given messy product names, standardize them: title case for display, lowercase for IDs, uppercase for codes.
+Given `ids <- c("7", "42", "309", "1024")`, pad each to width 5 with leading zeros so they become `"00007", "00042", "00309", "01024"`.
 
 ```r
-# Exercise 2: Standardize text case
-products <- c("  WIRELESS mouse  ", "USB keyboard", "  hdmi Cable", "MONITOR stand  ")
-
-# 1. Trim whitespace from both ends
-# 2. Create display names (Title Case)
-# 3. Create IDs (lowercase, spaces → hyphens)
-# Hint: trimws(), toupper(), tolower(), gsub()
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-products <- c("  WIRELESS mouse  ", "USB keyboard", "  hdmi Cable", "MONITOR stand  ")
+ids <- c("7", "42", "309", "1024")
 
-# 1. Trim whitespace
-trimmed <- trimws(products)
-cat("Trimmed:", trimmed, sep = "\n")
-
-# 2. Title case (capitalize first letter of each word)
-title_case <- gsub("(^|\\s)(\\w)", "\\1\\U\\2", tolower(trimmed), perl = TRUE)
-cat("\nTitle case:", title_case, sep = "\n")
-
-# 3. IDs: lowercase, spaces to hyphens
-ids <- gsub("\\s+", "-", tolower(trimmed))
-cat("\nIDs:", ids, sep = "\n")
-
-# 4. Codes: uppercase, no spaces
-codes <- gsub("\\s+", "", toupper(trimmed))
-cat("\nCodes:", codes, sep = "\n")
+str_pad(ids, width = 5, side = "left", pad = "0")
+# "00007" "00042" "00309" "01024"
 ```
 
-**Key concept:** `trimws()` removes leading/trailing whitespace. `gsub()` with regex handles pattern-based replacement. `\\U\\2` in `gsub(..., perl=TRUE)` uppercases the matched group.
+`str_pad()` is the cleanest way to build fixed-width identifiers. The `side` argument can be `"left"`, `"right"`, or `"both"`.
 
 </details>
 
-### Exercise 3: Search and Filter
+## Section 2 — Detect and count
 
-From a vector of file names, find all CSV files, all files that start with "data", and all files with a date pattern (YYYY-MM-DD).
+### Exercise 3. Detect a substring
+
+Using `names_clean` from Exercise 1, return a logical vector that is `TRUE` for names containing the letter `"a"` (case-insensitive).
 
 ```r
-# Exercise 3: Filter strings by pattern
-files <- c("data_2024-01-15.csv", "report.pdf", "data_summary.xlsx",
-           "backup_2024-02-20.csv", "notes.txt", "data_2024-03-10.csv",
-           "image.png", "analysis_final.csv")
-
-# 1. Find CSV files
-# 2. Find files starting with "data"
-# 3. Find files containing a date (YYYY-MM-DD pattern)
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-files <- c("data_2024-01-15.csv", "report.pdf", "data_summary.xlsx",
-           "backup_2024-02-20.csv", "notes.txt", "data_2024-03-10.csv",
-           "image.png", "analysis_final.csv")
+str_detect(names_clean, regex("a", ignore_case = TRUE))
+# TRUE TRUE TRUE FALSE TRUE
 
-# 1. CSV files (end with .csv)
-csv_files <- grep("\\.csv$", files, value = TRUE)
-cat("CSV files:", csv_files, sep = "\n")
-
-# 2. Files starting with "data"
-data_files <- grep("^data", files, value = TRUE)
-cat("\nData files:", data_files, sep = "\n")
-
-# 3. Files with dates (YYYY-MM-DD)
-dated_files <- grep("\\d{4}-\\d{2}-\\d{2}", files, value = TRUE)
-cat("\nDated files:", dated_files, sep = "\n")
-
-# Bonus: extract just the dates
-dates <- regmatches(dated_files, regexpr("\\d{4}-\\d{2}-\\d{2}", dated_files))
-cat("\nExtracted dates:", dates, "\n")
+# Equivalent shortcut:
+str_detect(tolower(names_clean), "a")
 ```
 
-**Key concept:** `grep(pattern, x, value=TRUE)` returns matching elements. `$` anchors to end, `^` to start. `\\d{4}` matches exactly 4 digits.
+`str_detect()` returns a logical vector the same length as its input. Use `regex(..., ignore_case = TRUE)` when you want to ignore case inside the pattern itself.
 
 </details>
 
-### Exercise 4: Substring Extraction
+### Exercise 4. Count occurrences
 
-Extract parts of structured product codes: the category (first 3 chars), the ID (digits), and the region (last 2 chars).
+Count how many times the letter `"e"` appears in each element of `names_clean`.
 
 ```r
-# Exercise 4: Parse product codes
-codes <- c("ELC-1234-US", "FUR-5678-UK", "CLO-9012-DE", "TOY-3456-JP")
-
-# Extract: category (ELC, FUR, etc.), ID (1234, etc.), region (US, UK, etc.)
-# Hint: substr(), strsplit(), or regex
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-codes <- c("ELC-1234-US", "FUR-5678-UK", "CLO-9012-DE", "TOY-3456-JP")
+str_count(names_clean, "e")
+# 1 0 1 0 0
 
-# Method 1: substr (positional)
-categories <- substr(codes, 1, 3)
-ids <- substr(codes, 5, 8)
-regions <- substr(codes, 10, 11)
-
-cat("Categories:", categories, "\n")
-cat("IDs:", ids, "\n")
-cat("Regions:", regions, "\n")
-
-# Method 2: strsplit
-parts <- strsplit(codes, "-")
-cat("\nParsed with strsplit:\n")
-for (i in seq_along(parts)) {
-  cat(sprintf("  %s → Category: %s, ID: %s, Region: %s\n",
-    codes[i], parts[[i]][1], parts[[i]][2], parts[[i]][3]))
-}
+# Case-insensitive version:
+str_count(tolower(names_clean), "e")
 ```
+
+`str_count()` returns an integer vector — one count per input string.
 
 </details>
 
-## Medium (5-7): Pattern Matching and Replacement
+## Section 3 — Extract
 
-### Exercise 5: Clean Messy Phone Numbers
+### Exercise 5. Extract the first word
 
-Standardize phone numbers to the format (XXX) XXX-XXXX.
+Return the first word (the given name) from each element of `names_clean`.
 
 ```r
-# Exercise 5: Standardize phone numbers
-phones <- c("5551234567", "555-123-4567", "(555) 123-4567",
-            "555.123.4567", "1-555-123-4567", "555 123 4567")
-
-# Standardize ALL to: (555) 123-4567 format
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-phones <- c("5551234567", "555-123-4567", "(555) 123-4567",
-            "555.123.4567", "1-555-123-4567", "555 123 4567")
+str_extract(names_clean, "^\\S+")
+# "Ada" "Alan" "Grace" "Donald" "Barbara"
 
-# Step 1: Remove all non-digit characters
-digits <- gsub("[^0-9]", "", phones)
-cat("Digits only:", digits, "\n")
-
-# Step 2: Remove leading 1 (country code) if 11 digits
-digits <- ifelse(nchar(digits) == 11 & substr(digits, 1, 1) == "1",
-                 substr(digits, 2, 11), digits)
-cat("Normalized:", digits, "\n")
-
-# Step 3: Format as (XXX) XXX-XXXX
-formatted <- sprintf("(%s) %s-%s",
-  substr(digits, 1, 3),
-  substr(digits, 4, 6),
-  substr(digits, 7, 10))
-
-cat("\nFormatted:\n")
-for (i in seq_along(phones)) {
-  cat(sprintf("  %-20s → %s\n", phones[i], formatted[i]))
-}
+# Equivalent using word():
+word(names_clean, 1)
 ```
 
-**Key concept:** `gsub("[^0-9]", "", x)` removes everything except digits. Then `sprintf()` reformats with consistent structure. This pattern works for any standardization task.
+`str_extract()` returns the first match of the pattern, or `NA` if there is none. `word(x, 1)` is a shortcut that does not require regex.
 
 </details>
 
-### Exercise 6: Extract Data from Text
+### Exercise 6. Extract all numbers from a string
 
-Parse structured text to extract names, values, and units.
+Given `txt <- "Year 2024, month 03, day 15 — score 42.7"`, extract every number (including the decimal) as a character vector.
 
 ```r
-# Exercise 6: Parse measurement strings
-measurements <- c("Temperature: 72.5 F", "Humidity: 45 %",
-                   "Pressure: 1013.25 hPa", "Wind Speed: 12.3 mph")
-
-# Extract: parameter name, numeric value, and unit from each string
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-measurements <- c("Temperature: 72.5 F", "Humidity: 45 %",
-                   "Pressure: 1013.25 hPa", "Wind Speed: 12.3 mph")
+txt <- "Year 2024, month 03, day 15 — score 42.7"
 
-# Split on ": " to get name and value+unit
-parts <- strsplit(measurements, ": ")
-names_vec <- sapply(parts, `[`, 1)
+str_extract_all(txt, "\\d+\\.?\\d*")[[1]]
+# "2024" "03" "15" "42.7"
 
-# Extract numeric value and unit from the second part
-value_unit <- sapply(parts, `[`, 2)
-values <- as.numeric(gsub("[^0-9.]", "", value_unit))
-units <- trimws(gsub("[0-9.]", "", value_unit))
-
-# Create a data frame
-result <- data.frame(
-  parameter = names_vec,
-  value = values,
-  unit = units,
-  stringsAsFactors = FALSE
-)
-
-print(result)
+# Convert to numeric if you need it:
+as.numeric(str_extract_all(txt, "\\d+\\.?\\d*")[[1]])
 ```
 
-**Key concept:** Combine `strsplit()` for structured parts and `gsub()` with regex for extracting numbers vs text. `gsub("[^0-9.]", "", x)` keeps only digits and dots.
+`str_extract_all()` returns a *list* because each string can have any number of matches. Index into the list with `[[1]]` for a single-string input.
 
 </details>
 
-### Exercise 7: Text Search and Replace
+## Section 4 — Replace and split
 
-Clean a paragraph of text: fix double spaces, standardize quotes, remove trailing punctuation from a list, and count word frequency.
+### Exercise 7. Replace the first match
+
+In `"2024-03-15"`, replace the first `-` with a space, keeping the rest intact.
 
 ```r
-# Exercise 7: Text cleaning
-text <- '  The   "quick"  brown fox   jumped  over the  lazy   dog.  The dog  was  not  amused.  The  fox  ran  away.  '
-
-# 1. Trim and collapse multiple spaces to single
-# 2. Replace curly quotes with straight quotes
-# 3. Count total words
-# 4. Find the 3 most common words
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-text <- '  The   "quick"  brown fox   jumped  over the  lazy   dog.  The dog  was  not  amused.  The  fox  ran  away.  '
+str_replace("2024-03-15", "-", " ")
+# "2024 03-15"
 
-# 1. Trim and collapse spaces
-clean <- trimws(text)
-clean <- gsub("\\s+", " ", clean)
-cat("Cleaned:", clean, "\n\n")
-
-# 2. Replace special quotes (if any)
-clean <- gsub('[\u201c\u201d]', '"', clean)
-
-# 3. Count words
-words <- tolower(unlist(strsplit(clean, "\\s+")))
-words <- gsub("[^a-z]", "", words)  # Remove punctuation
-words <- words[nchar(words) > 0]    # Remove empty strings
-cat("Word count:", length(words), "\n\n")
-
-# 4. Most common words
-freq <- sort(table(words), decreasing = TRUE)
-cat("Top 5 words:\n")
-print(head(freq, 5))
+# Compare with str_replace_all() which replaces all occurrences:
+str_replace_all("2024-03-15", "-", " ")
+# "2024 03 15"
 ```
 
-**Key concept:** `gsub("\\s+", " ", x)` collapses all whitespace runs to single spaces. `strsplit(x, "\\s+")` splits on any whitespace. `table()` counts frequencies.
+`str_replace()` replaces only the first match; `str_replace_all()` replaces every match.
 
 </details>
 
-## Hard (8-10): Real-World Text Processing
+### Exercise 8. Split and take
 
-### Exercise 8: CSV Line Parser
-
-Write a function that parses a CSV line, handling quoted fields that may contain commas.
+Given `paths <- c("data/raw/file1.csv", "data/clean/file2.csv", "output/file3.csv")`, extract just the file name (the part after the last `/`).
 
 ```r
-# Exercise 8: Parse CSV with quoted fields
-# "John Smith","New York, NY","45","Engineer"
-# The comma in "New York, NY" should NOT split the field
-
-lines <- c(
-  '"Alice","San Francisco, CA","30","Designer"',
-  '"Bob","Austin, TX","25","Developer"',
-  '"Carol","Portland, OR","35","Manager"'
-)
-
-# Parse each line into a vector of 4 fields
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-lines <- c(
-  '"Alice","San Francisco, CA","30","Designer"',
-  '"Bob","Austin, TX","25","Developer"',
-  '"Carol","Portland, OR","35","Manager"'
-)
+paths <- c("data/raw/file1.csv", "data/clean/file2.csv", "output/file3.csv")
 
-parse_csv_line <- function(line) {
-  # Use a regex that matches quoted fields
-  matches <- regmatches(line, gregexpr('"[^"]*"', line))[[1]]
-  # Remove surrounding quotes
-  gsub('^"|"$', "", matches)
+sapply(str_split(paths, "/"), tail, 1)
+# "file1.csv" "file2.csv" "file3.csv"
+
+# Or, using basename() from base R:
+basename(paths)
+```
+
+`str_split()` returns a list because each string can split into a different number of pieces. For known-structured paths, `basename()` is simpler and faster.
+
+</details>
+
+## Section 5 — Light regex
+
+### Exercise 9. Extract an email address
+
+Given `text <- "Contact: ada@example.org for help, or bob@work.dev"`, extract both email addresses.
+
+```r
+# Your attempt here
+
+```
+
+<details>
+<summary>Solution</summary>
+
+```r
+text <- "Contact: ada@example.org for help, or bob@work.dev"
+
+str_extract_all(text, "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")[[1]]
+# "ada@example.org" "bob@work.dev"
+```
+
+The pattern says: one or more allowed local-part characters, then `@`, then one or more allowed domain characters, then a dot, then two or more letters for the TLD. This is a pragmatic email regex, not a complete RFC-compliant one (which is notoriously complex).
+
+</details>
+
+### Exercise 10. Validate with a pattern
+
+Write a function `is_valid_phone(x)` that returns `TRUE` for strings of the form `xxx-xxx-xxxx` where each `x` is a digit, and `FALSE` otherwise. Test with `c("555-123-4567", "5551234567", "abc-def-ghij", "555-12-4567")`.
+
+```r
+# Your attempt here
+
+```
+
+<details>
+<summary>Solution</summary>
+
+```r
+is_valid_phone <- function(x) {
+  str_detect(x, "^\\d{3}-\\d{3}-\\d{4}$")
 }
 
-# Parse all lines
-for (line in lines) {
-  fields <- parse_csv_line(line)
-  cat(sprintf("Name: %-8s City: %-20s Age: %s  Job: %s\n",
-    fields[1], fields[2], fields[3], fields[4]))
-}
-
-# Or build a data frame
-records <- lapply(lines, parse_csv_line)
-df <- do.call(rbind, lapply(records, function(r) {
-  data.frame(name=r[1], city=r[2], age=as.integer(r[3]), job=r[4],
-             stringsAsFactors=FALSE)
-}))
-cat("\nData frame:\n")
-print(df)
+is_valid_phone(c("555-123-4567", "5551234567", "abc-def-ghij", "555-12-4567"))
+# TRUE FALSE FALSE FALSE
 ```
 
-**Key concept:** `gregexpr('"[^"]*"', line)` finds all quoted strings. `[^"]*` means "any characters except quotes." This handles commas inside quotes correctly.
+The anchors `^` and `$` force the pattern to match the *entire* string, not just a substring. `\d{3}` means exactly three digits. Without the anchors, `"555-123-4567 ext 99"` would also match.
 
 </details>
 
-### Exercise 9: Log File Analysis
+## Summary
 
-Parse web server log entries to extract IP addresses, timestamps, and status codes.
+- Trim with `str_trim()` / `str_squish()`. Pad with `str_pad()`. Change case with `str_to_lower()`, `str_to_upper()`, `str_to_title()`.
+- Detect with `str_detect()`, count with `str_count()` — both return vectors the same length as the input.
+- Extract with `str_extract()` (first match) or `str_extract_all()` (all matches, returns a list).
+- Replace with `str_replace()` (first) or `str_replace_all()` (all). Split with `str_split()`.
+- Light regex essentials: `\\d` digit, `\\s` whitespace, `\\S` non-whitespace, `{n}` exactly n, `+` one or more, `*` zero or more, `^`/`$` anchors.
 
-```r
-# Exercise 9: Parse log entries
-logs <- c(
-  '192.168.1.1 - - [2024-03-15 10:23:45] "GET /index.html" 200 1234',
-  '10.0.0.42 - - [2024-03-15 10:24:01] "POST /api/login" 401 89',
-  '192.168.1.1 - - [2024-03-15 10:24:15] "GET /dashboard" 200 5678',
-  '172.16.0.5 - - [2024-03-15 10:25:00] "GET /api/data" 500 0',
-  '10.0.0.42 - - [2024-03-15 10:25:30] "POST /api/login" 200 445'
-)
+## References
 
-# Extract: IP, timestamp, HTTP method, path, status code
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-logs <- c(
-  '192.168.1.1 - - [2024-03-15 10:23:45] "GET /index.html" 200 1234',
-  '10.0.0.42 - - [2024-03-15 10:24:01] "POST /api/login" 401 89',
-  '192.168.1.1 - - [2024-03-15 10:24:15] "GET /dashboard" 200 5678',
-  '172.16.0.5 - - [2024-03-15 10:25:00] "GET /api/data" 500 0',
-  '10.0.0.42 - - [2024-03-15 10:25:30] "POST /api/login" 200 445'
-)
-
-# Extract with regex
-ips <- regmatches(logs, regexpr("^[\\d.]+", logs))
-timestamps <- regmatches(logs, regexpr("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", logs))
-methods <- regmatches(logs, regexpr("(GET|POST|PUT|DELETE)", logs))
-paths <- regmatches(logs, regexpr("/[^\"]+", logs))
-status <- as.integer(regmatches(logs, regexpr("\\b[2-5]\\d{2}\\b", logs)))
-
-# Build data frame
-log_df <- data.frame(ip = ips, time = timestamps, method = methods,
-                     path = paths, status = status, stringsAsFactors = FALSE)
-print(log_df)
-
-# Analysis
-cat("\nStatus code distribution:\n")
-print(table(log_df$status))
-cat("\nRequests per IP:\n")
-print(table(log_df$ip))
-cat("\nFailed requests:", sum(log_df$status >= 400), "\n")
-```
-
-**Key concept:** `regexpr()` finds the first match, `regmatches()` extracts it. Each regex targets a specific part of the log format. This is how real log analysis works.
-
-</details>
-
-### Exercise 10: Email Validator and Parser
-
-Write functions to validate email addresses and extract the username and domain parts.
-
-```r
-# Exercise 10: Email validation and parsing
-emails <- c("alice@example.com", "bob.smith@company.co.uk", "invalid@",
-            "@nodomain.com", "carol+tag@gmail.com", "not an email",
-            "david@sub.domain.org", "eve@.com")
-
-# 1. Validate each email (TRUE/FALSE)
-# 2. For valid emails: extract username and domain
-# 3. Count emails per domain
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-emails <- c("alice@example.com", "bob.smith@company.co.uk", "invalid@",
-            "@nodomain.com", "carol+tag@gmail.com", "not an email",
-            "david@sub.domain.org", "eve@.com")
-
-# 1. Validate with regex
-is_valid_email <- function(x) {
-  grepl("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", x)
-}
-
-valid <- is_valid_email(emails)
-cat("Validation:\n")
-for (i in seq_along(emails)) {
-  cat(sprintf("  %-30s %s\n", emails[i], if (valid[i]) "VALID" else "INVALID"))
-}
-
-# 2. Parse valid emails
-valid_emails <- emails[valid]
-parts <- strsplit(valid_emails, "@")
-usernames <- sapply(parts, `[`, 1)
-domains <- sapply(parts, `[`, 2)
-
-cat("\nParsed valid emails:\n")
-parsed <- data.frame(email = valid_emails, user = usernames, domain = domains,
-                     stringsAsFactors = FALSE)
-print(parsed)
-
-# 3. Count per domain
-cat("\nEmails per domain:\n")
-print(table(domains))
-```
-
-**Key concept:** The email regex `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$` checks for: valid characters before @, valid domain, and a TLD of 2+ letters. `strsplit(x, "@")` cleanly separates username and domain.
-
-</details>
-
-## Summary: Skills Practiced
-
-| Exercises | String Skills |
-|-----------|-------------|
-| 1-4 (Easy) | `paste`/`sprintf`, case conversion, `grep`, `substr`/`strsplit` |
-| 5-7 (Medium) | `gsub` with regex, text extraction, word frequency |
-| 8-10 (Hard) | CSV parsing, log analysis, email validation with regex |
+- [stringr reference](https://stringr.tidyverse.org/reference/index.html)
+- [R for Data Science (2e) — Strings](https://r4ds.hadley.nz/strings.html)
+- [Regular Expressions in R (cheat sheet)](https://rstudio.github.io/cheatsheets/strings.pdf)
 
 ## Continue Learning
 
-More exercise sets:
-
-1. **R Date/Time Exercises** — lubridate practice problems
-2. **R apply Family Exercises** — master apply, lapply, sapply, tapply
-
-Or continue learning: **Data Wrangling with dplyr** tutorial.
+- [R Syntax 101: Write Your First Working Script in 10 Minutes](R-Syntax-101.html)
+- [R Date & Time Exercises: 10 lubridate Practice Problems](R-Date-Time-Exercises.html)
+- [R Functions Exercises: 10 Problems — Write, Debug & Optimize](R-Functions-Exercises.html)
