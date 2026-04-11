@@ -409,10 +409,11 @@ def sync_curriculum(posts, dry_run=False):
                     entry['in_sidebar'] = post.get('post_type') == 'C'
                     changed = True
 
-                # Every sync (first publish OR rewrite): refresh modified_date to today.
-                # published_date is set once and never changed.
-                if entry.get('modified_date') != today:
-                    entry['modified_date'] = today
+                # modified_date reflects the fragment file's mtime — bumped
+                # only when the post is actually rewritten, not every sync run.
+                frag_mtime = post.get('fragment_mtime')
+                if frag_mtime and entry.get('modified_date') != frag_mtime:
+                    entry['modified_date'] = frag_mtime
                     changed = True
 
                 if changed:
@@ -503,8 +504,10 @@ def main():
     posts = []
     for f in sorted(os.listdir(POSTS_DIR)):
         if f.endswith('.html'):
-            meta = parse_front_matter(os.path.join(POSTS_DIR, f))
+            fpath = os.path.join(POSTS_DIR, f)
+            meta = parse_front_matter(fpath)
             meta['filename'] = f
+            meta['fragment_mtime'] = datetime.date.fromtimestamp(os.path.getmtime(fpath)).isoformat()
             posts.append(meta)
 
     print(f'Found {len(posts)} posts in _posts/')
