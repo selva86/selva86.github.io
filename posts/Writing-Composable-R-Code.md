@@ -1,291 +1,235 @@
 ---
-title: "Writing Composable R Code: Pipes, Functions & Functional Architecture"
+title: "Composable R Code: Design Functions That Chain Together Like Unix Pipes"
 slug: "Writing-Composable-R-Code"
-description: "Write cleaner R code with composable functions, pipes, and functional architecture. Learn to chain, combine, and structure R code for readability and reuse."
-keywords: "composable R code, R pipes, R functional architecture, clean R code, R code organization, pipe operator R"
+description: "Learn to write composable R functions that chain cleanly through the pipe. Five practical rules: single responsibility, data-first, no side effects, predictable types, and small."
+keywords: "composable R code, R pipe design, R function design, composable functions R, R function architecture"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-12"
 curriculum_id: "4.2.8"
 post_type: "C"
-auto_link_terms: "composable R code|functional architecture|R pipes"
+auto_link_terms: "composable R code|composable functions|R pipe design"
 auto_link_case_sensitive: false
+sidebar_section: "Learn R"
+sidebar_title: "Composable R Code"
+sidebar_order: 40
 ---
 
-# Writing Composable R Code: Pipes, Functions & Functional Architecture
+# Composable R Code: Design Functions That Chain Together Like Unix Pipes
 
-<p class="lead">Composable code means building complex operations from simple, reusable pieces that snap together like Lego blocks. This tutorial shows you how to write R functions that compose naturally using pipes, higher-order functions, and clean architecture.</p>
+<p class="lead">Composable R code is built from small, single-purpose functions that accept a data object as their first argument and return the same shape. Functions written this way chain effortlessly through the native pipe <code>|&gt;</code>, exactly like Unix pipes chain shell commands.</p>
 
-Most R scripts start well but grow into tangled spaghetti. The fix isn't more comments or better variable names — it's composability. When each function does one thing and plays nicely with others, your code stays readable at any scale.
+The reason Unix shell commands are so powerful in combination is not the shell itself — it is that every command reads from stdin and writes to stdout in a predictable way. R can feel the same once you adopt five rules for how you write functions. This tutorial gives you those rules and shows what "composable" code looks like in practice.
 
-## What Makes Code Composable?
+## What Does "Composable" Actually Mean?
 
-A composable function has three properties:
+Two functions are composable when the output of one can be fed directly to the other. In R this usually means "take a data frame and return a data frame" or "take a vector and return a vector". If every step in your pipeline shares the same input/output shape, every permutation is legal — just like stringing together Unix commands with pipes.
 
-1. **Single responsibility** — it does one thing well
-2. **Consistent interface** — data in, data out (same type when possible)
-3. **No hidden state** — the result depends only on the arguments
+Here is the difference. Look at two ways of computing the mean `mpg` for 4-cylinder cars in `mtcars`.
 
 ```r
-# NOT composable: does too many things, side effects, hidden state
-process_data <- function(file) {
-  data <- read.csv(file)                    # I/O side effect
-  data <- data[complete.cases(data), ]      # Cleaning
-  data$score <- scale(data$score)           # Transformation
-  write.csv(data, "output.csv")            # I/O side effect
-  cat("Done! Processed", nrow(data), "rows\n")  # Print side effect
-  data
-}
+# Not composable: nested, hard to read
+round(mean(subset(mtcars, cyl == 4)$mpg), 1)
+#> [1] 26.7
 
-# COMPOSABLE: each function does one thing
-read_data    <- \(file) read.csv(file)
-remove_na    <- \(df) df[complete.cases(df), ]
-scale_column <- \(df, col) { df[[col]] <- scale(df[[col]]); df }
-```
-
-## Pipes: The Composition Operator
-
-Pipes connect composable functions into readable pipelines. R has two pipe operators.
-
-### The Native Pipe |> (R 4.1+)
-
-```r
-# Without pipes: read inside-out
-result <- round(mean(abs(c(-3, 1, -5, 2, -4))), 2)
-cat("Nested:", result, "\n")
-
-# With native pipe: read left to right
-result <- c(-3, 1, -5, 2, -4) |> abs() |> mean() |> round(2)
-cat("Piped:", result, "\n")
-```
-
-### Data Frame Pipelines
-
-```r
-# Build a data analysis pipeline
+# Composable: each step takes and returns something pipeable
 mtcars |>
-  subset(cyl == 6) |>
-  transform(kpl = mpg * 0.425) |>
-  (\(df) df[order(df$kpl, decreasing = TRUE), ])() |>
-  head(5) |>
-  print()
+  subset(cyl == 4) |>
+  (\(df) df$mpg)() |>
+  mean() |>
+  round(1)
+#> [1] 26.7
 ```
 
-### Writing Pipe-Friendly Functions
+The second version is longer by a line or two but reads top to bottom: take `mtcars`, filter, pull a column, average, round. Each step is a function whose job is one verb. That is composability in action — and the rest of this tutorial is about how to write your own functions so they fit this shape.
 
-For a function to work well with pipes, the **data argument should come first**.
+[KEY INSIGHT]
+**Composable code is about interfaces, not cleverness.** Any function can be written "composably" if you decide in advance what goes in, what comes out, and that the function does exactly one thing. Those three decisions are the entire design.
+
+## Rule 1 — Data First Argument
+
+If the first argument of every function is the data, the pipe becomes effortless. This is the single most important convention. `dplyr`, `tidyr`, `purrr`, and base R's `subset` all follow it; so should your own helpers.
 
 ```r
-# Pipe-friendly: data is first argument
-add_column <- function(df, name, values) {
-  df[[name]] <- values
+# Good: data first
+add_total <- function(df, qty_col, price_col) {
+  df$total <- df[[qty_col]] * df[[price_col]]
   df
 }
 
-tag_rows <- function(df, condition_col, threshold, label = "high") {
-  df$tag <- ifelse(df[[condition_col]] > threshold, label, "low")
-  df
-}
-
-# Now they compose with pipes
-result <- mtcars[1:5, c("mpg", "hp")] |>
-  add_column("brand", rownames(mtcars)[1:5]) |>
-  tag_rows("mpg", 20, "efficient")
-
-print(result)
-```
-
-## Composing with Higher-Order Functions
-
-Higher-order functions (functions that take or return functions) are the backbone of composable R code.
-
-### Pattern: Transform-Then-Summarize
-
-```r
-# Reusable building blocks
-trim_outliers <- function(x, lower = 0.05, upper = 0.95) {
-  q <- quantile(x, c(lower, upper), na.rm = TRUE)
-  x[x >= q[1] & x <= q[2]]
-}
-
-robust_summary <- function(x) {
-  c(mean = mean(x, na.rm = TRUE),
-    median = median(x, na.rm = TRUE),
-    sd = sd(x, na.rm = TRUE),
-    n = length(x))
-}
-
-# Compose them
-set.seed(42)
-data <- c(rnorm(100), 50, -50)  # Normal data + outliers
-
-cat("Raw summary:\n")
-print(round(robust_summary(data), 2))
-
-cat("\nTrimmed summary:\n")
-print(round(robust_summary(trim_outliers(data)), 2))
-```
-
-### Pattern: Apply Multiple Functions
-
-```r
-# Apply a list of functions to the same data
-apply_fns <- function(x, fns) {
-  sapply(fns, \(f) f(x))
-}
-
-stats <- list(
-  mean = mean,
-  sd = sd,
-  min = min,
-  max = max,
-  range = \(x) max(x) - min(x)
+orders <- data.frame(
+  item  = c("Pen", "Pad"),
+  qty   = c(10, 5),
+  price = c(1.5, 3.0)
 )
 
-data <- c(23, 45, 12, 67, 34, 89, 56)
-results <- apply_fns(data, stats)
-cat("Statistics:\n")
-print(round(results, 2))
+orders |> add_total("qty", "price")
+#>   item qty price total
+#> 1  Pen  10   1.5    15
+#> 2  Pad   5   3.0    15
 ```
 
-### Pattern: Pipeline as a List of Steps
+Because `df` is first, the pipe slots the data in automatically. If you had written `add_total(qty_col, price_col, df)` instead, you would need `|> (\(d) add_total("qty", "price", d))()` at every call site. Data first is the small choice that makes or breaks your library.
+
+## Rule 2 — Return the Same Shape You Took
+
+A function that takes a data frame and returns a data frame can be followed by another function that expects a data frame. A function that takes a data frame and returns a named list breaks the chain — the next step needs a custom unpacker.
 
 ```r
-# Define a pipeline as a list of transformation functions
-pipeline <- list(
-  \(x) x[!is.na(x)],           # Remove NAs
-  \(x) x[x > 0],               # Keep positives
-  log,                           # Log transform
-  \(x) round(x, 3)              # Round
-)
-
-# Execute pipeline using Reduce
-run_pipeline <- function(data, steps) {
-  Reduce(\(d, f) f(d), steps, init = data)
-}
-
-raw <- c(NA, 3, -1, 10, NA, 0, 7, -2, 15)
-cat("Raw:", raw, "\n")
-cat("Processed:", run_pipeline(raw, pipeline), "\n")
-```
-
-## Composable Data Frame Operations
-
-### Building a Verb Library
-
-Create a set of verbs (functions) that all take a data frame as input and return a data frame.
-
-```r
-# Composable verbs for data frames
-select_cols <- function(df, cols) df[, cols, drop = FALSE]
-filter_rows <- function(df, condition) df[condition, , drop = FALSE]
-sort_by <- function(df, col, desc = FALSE) {
-  ord <- order(df[[col]], decreasing = desc)
-  df[ord, , drop = FALSE]
-}
-add_col <- function(df, name, expr) {
-  df[[name]] <- expr
+# Good: data frame in, data frame out
+add_z_score <- function(df, col) {
+  z_values <- scale(df[[col]])[, 1]
+  df[[paste0(col, "_z")]] <- z_values
   df
 }
-top_n <- function(df, n) head(df, n)
 
-# Compose them
-result <- mtcars |>
-  add_col("brand", rownames(mtcars)) |>
-  select_cols(c("brand", "mpg", "hp", "wt")) |>
-  filter_rows(mtcars$cyl == 4) |>
-  sort_by("mpg", desc = TRUE) |>
-  top_n(5)
-
-print(result)
+mtcars |>
+  add_z_score("mpg") |>
+  add_z_score("hp") |>
+  head(3)
+#>                    mpg cyl ...        mpg_z     hp_z
+#> Mazda RX4         21.0   6 ...   0.15088602 -0.5350928
+#> Mazda RX4 Wag     21.0   6 ...   0.15088602 -0.5350928
+#> Datsun 710        22.8   4 ...   0.44954344 -0.7830405
 ```
 
-## Error Handling in Composable Code
+Two chained calls to `add_z_score` work because each one returns the same shape it received — a data frame with one extra column. You can keep piping indefinitely.
 
-Composable functions should fail clearly or handle errors explicitly.
-
-```r
-# Safe wrapper that catches errors in a pipeline
-safe_step <- function(f, on_error = NULL) {
-  function(...) {
-    tryCatch(f(...), error = function(e) {
-      warning("Step failed: ", e$message)
-      on_error
-    })
-  }
-}
-
-# Use in a pipeline
-safe_parse <- safe_step(as.numeric, on_error = NA)
-
-inputs <- c("42", "3.14", "abc", "100")
-results <- sapply(inputs, safe_parse)
-cat("Parsed:", results, "\n")
-```
-
-## Anti-Patterns to Avoid
-
-| Anti-Pattern | Problem | Fix |
-|-------------|---------|-----|
-| Function does 5 things | Can't reuse parts | Split into 5 functions |
-| Modifies global variables | Hidden dependencies | Return results, don't assign globally |
-| Prints AND returns | Side effect in pipeline | Return only; use `walk()` for printing |
-| Data arg is 3rd parameter | Can't pipe easily | Put data first |
-| Returns different types | Can't predict output | Be consistent |
-
-## Practice Exercises
-
-### Exercise 1: Build a Text Processing Pipeline
-
-Create composable functions and chain them to clean text data.
+**Try it:** Write `ex_add_constant(df, col, k)` that adds `k` to every value of `col` and returns the data frame unchanged otherwise.
 
 ```r
-# Create these functions:
-# - remove_punctuation(text): removes all punctuation
-# - to_lower(text): converts to lowercase
-# - split_words(text): splits into words, returns a list
-# - count_words(words): counts unique words
-
-# Then compose them into a pipeline:
-text <- "Hello, World! Hello R. R is great, R is fun."
-
+# your code here
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-remove_punctuation <- \(text) gsub("[[:punct:]]", "", text)
-to_lower <- tolower
-split_words <- \(text) strsplit(text, "\\s+")[[1]]
-count_words <- \(words) sort(table(words), decreasing = TRUE)
-
-text <- "Hello, World! Hello R. R is great, R is fun."
-
-result <- text |>
-  remove_punctuation() |>
-  to_lower() |>
-  split_words() |>
-  count_words()
-
-print(result)
+ex_add_constant <- function(df, col, k) {
+  df[[col]] <- df[[col]] + k
+  df
+}
+mtcars |> ex_add_constant("mpg", 10) |> head(2)
+#>                    mpg cyl disp  hp ...
+#> Mazda RX4         31.0   6  160 110 ...
+#> Mazda RX4 Wag     31.0   6  160 110 ...
 ```
 
-**Explanation:** Each function takes one input and returns one output. The pipe chains them naturally. You could rearrange, add, or remove steps without touching the other functions.
+**Explanation:** The function returns the modified data frame as its last expression, preserving the shape for the next pipe step.
 
 </details>
 
-### Exercise 2: Configurable Pipeline
+## Rule 3 — One Function, One Verb
 
-Create a `make_pipeline()` function factory that takes a list of functions and returns a single composed function.
+A composable function does one thing. If your helper "loads a file, filters it, computes summary statistics, and writes a report", break it into four functions. Each becomes independently testable and reusable in other pipelines.
 
 ```r
-# Create make_pipeline that accepts a list of functions
-# and returns a single function that runs them in order
+# Good: four single-verb helpers
+load_data     <- function(path) read.csv(path)
+filter_valid  <- function(df) df[complete.cases(df), ]
+compute_stats <- function(df, col) {
+  data.frame(
+    n    = nrow(df),
+    mean = mean(df[[col]], na.rm = TRUE),
+    sd   = sd(df[[col]], na.rm = TRUE)
+  )
+}
 
-# Example usage:
-# clean <- make_pipeline(list(trimws, tolower, \(x) gsub(" ", "-", x)))
-# clean("  Hello World  ")  # "hello-world"
+# A pipeline assembles them
+# path |> load_data() |> filter_valid() |> compute_stats("price")
+```
+
+If you ever need to "load and filter without computing", you call the first two. If you need to "compute stats on an in-memory data frame", you skip the first two. The composed pipeline is just one way to use the pieces, not the only way.
+
+[TIP]
+**If your function's name needs "and", split it.** `load_and_filter()` is two functions. `parse_and_validate()` is two functions. The `and` is the seam.
+
+## Rule 4 — No Side Effects in the Core
+
+Functions in the middle of your pipeline should not print, write files, or change global state. Save those actions for the edges — the first step (reading) and the last (writing). A pure middle makes the pipeline safe to call twice, re-run in parallel, or unit test.
+
+```r
+# Bad: prints in the middle of a pipeline
+filter_valid_noisy <- function(df) {
+  cat("Filtering", nrow(df), "rows\n")  # side effect!
+  df[complete.cases(df), ]
+}
+
+# Good: returns quietly; any reporting happens outside
+filter_valid <- function(df) df[complete.cases(df), ]
+```
+
+If you need logging, wrap the function with a function operator like `with_timing` from [R Function Operators](R-Function-Operators.html). That way the core is pure and the logging lives in a separate, optional layer.
+
+## Rule 5 — Keep Functions Small and Predictable
+
+A composable function is short — often five to fifteen lines. It has a small, documented return type. It does not accept dozens of arguments. It does not branch into wildly different behaviours based on a flag. If yours are getting long, the fix is usually to extract a helper and let your main function compose *that*.
+
+```r
+# Before: one big function doing three things
+summarise_file <- function(path, col) {
+  df <- read.csv(path)
+  df <- df[complete.cases(df), ]
+  data.frame(
+    n    = nrow(df),
+    mean = mean(df[[col]], na.rm = TRUE),
+    sd   = sd(df[[col]], na.rm = TRUE)
+  )
+}
+
+# After: three composable pieces
+load_data     <- function(path) read.csv(path)
+filter_valid  <- function(df) df[complete.cases(df), ]
+compute_stats <- function(df, col) {
+  data.frame(
+    n = nrow(df),
+    mean = mean(df[[col]], na.rm = TRUE),
+    sd = sd(df[[col]], na.rm = TRUE)
+  )
+}
+
+# Original behaviour, now composable
+# summarise_file <- \(path, col) path |> load_data() |> filter_valid() |> compute_stats(col)
+```
+
+The "after" code is longer by line count but smaller in complexity. Each helper is separately testable, and you can compose them into pipelines that the original author never imagined.
+
+**Try it:** Given `mtcars`, chain `subset(cyl == 6)`, then a function you write called `ex_standardise(df, col)` that replaces `col` with its z-scores, then `head(2)`.
+
+```r
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_standardise <- function(df, col) {
+  df[[col]] <- as.numeric(scale(df[[col]]))
+  df
+}
+mtcars |>
+  subset(cyl == 6) |>
+  ex_standardise("mpg") |>
+  head(2)
+```
+
+**Explanation:** `ex_standardise` follows the four rules: data first, same shape out, one verb, no side effects. It slots into the pipeline cleanly.
+
+</details>
+
+## Practice Exercises
+
+### Exercise 1: Refactor a Nested Call Into a Pipeline
+
+Rewrite this nested expression as a composable pipeline using `|>` and anonymous helpers.
+
+```r
+# Original
+round(mean(subset(airquality, Month == 7 & !is.na(Ozone))$Ozone), 1)
+#> [1] 59.1
+
+# Your pipeline version:
 
 ```
 
@@ -293,61 +237,67 @@ Create a `make_pipeline()` function factory that takes a list of functions and r
 <summary>Click to reveal solution</summary>
 
 ```r
-make_pipeline <- function(steps) {
-  function(data) {
-    Reduce(\(d, f) f(d), steps, init = data)
-  }
-}
-
-clean <- make_pipeline(list(
-  trimws,
-  tolower,
-  \(x) gsub("\\s+", "-", x)
-))
-
-tests <- c("  Hello World  ", "R Programming  ", "  DATA SCIENCE")
-cat("Cleaned:", sapply(tests, clean, USE.NAMES = FALSE), "\n")
-
-# Pipelines are composable too!
-slug_maker <- make_pipeline(list(
-  clean,
-  \(x) gsub("[^a-z0-9-]", "", x)
-))
-
-cat("Slugs:", sapply(tests, slug_maker, USE.NAMES = FALSE), "\n")
+my_answer <- airquality |>
+  subset(Month == 7 & !is.na(Ozone)) |>
+  (\(df) df$Ozone)() |>
+  mean() |>
+  round(1)
+my_answer
+#> [1] 59.1
 ```
 
-**Explanation:** `make_pipeline` is a function factory that returns a composed function. The inner function uses `Reduce` to apply each step in order. Pipelines can even compose with other pipelines.
+**Explanation:** Each step is a single verb; the whole chain reads top to bottom.
+
+</details>
+
+### Exercise 2: Build Three Composable Helpers
+
+Write three helpers — `keep_complete(df)`, `keep_numeric(df)`, `col_means(df)` — each following the five rules. Chain them on `airquality`.
+
+```r
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+keep_complete <- function(df) df[complete.cases(df), ]
+keep_numeric  <- function(df) df[, sapply(df, is.numeric)]
+col_means     <- function(df) sapply(df, mean)
+
+my_output <- airquality |>
+  keep_complete() |>
+  keep_numeric() |>
+  col_means() |>
+  round(2)
+my_output
+```
+
+**Explanation:** Each helper is data-first, shape-preserving (until the last), single-verb, pure, and short. That is why they chain without friction.
 
 </details>
 
 ## Summary
 
-| Principle | Implementation |
-|-----------|---------------|
-| Single responsibility | One function, one job |
-| Data-first arguments | Enables piping with `\|>` |
-| No side effects | Return data, don't print or write |
-| Consistent types | Data frame in → data frame out |
-| Composability | Small functions that chain together |
-| Error handling | `tryCatch()` or purrr `safely()` |
+| Rule                                          | Why                                               |
+|-----------------------------------------------|---------------------------------------------------|
+| 1. Data is the first argument                 | Makes the pipe effortless.                        |
+| 2. Return the same shape you took             | Every step can feed the next without translation. |
+| 3. One function, one verb                     | Small pieces recombine in more ways than one big one. |
+| 4. No side effects in the core                | Pure code is safe, testable, parallelisable.      |
+| 5. Keep functions small (5-15 lines)          | Small functions are easy to read and compose.     |
 
-## FAQ
+## References
 
-### Should I use |> or %>%?
-
-Use `|>` (native pipe, R 4.1+) for new code. It's built into R, requires no packages, and is slightly faster. Use `%>%` (magrittr) only if you need its extra features like `.` placeholder or `%<>%` assignment pipe.
-
-### How small should a composable function be?
-
-A function should do one conceptual thing. If you can describe what it does without the word "and," it's probably the right size. `clean_and_transform_and_save()` should be three functions.
-
-### Don't small functions hurt performance?
-
-Function call overhead in R is negligible for typical data analysis. The readability and reusability gains far outweigh microseconds of overhead. Only optimize hot loops after profiling.
+1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
+2. Wickham, H. — *The tidyverse style guide*, function design chapter. [Link](https://style.tidyverse.org/)
+3. Raymond, E. S. — *The Art of Unix Programming*, chapter on pipes and composition. [Link](http://www.catb.org/esr/writings/taoup/)
+4. Bache, S. M. and Wickham, H. — *magrittr* package documentation. [Link](https://magrittr.tidyverse.org/)
+5. R 4.1 NEWS — introduction of the native pipe `|>`. [Link](https://cran.r-project.org/doc/manuals/r-release/NEWS.html)
 
 ## Continue Learning
 
-- [Functional Programming in R](/Functional-Programming-in-R.html) — the FP foundation
-- [R Function Operators](/R-Function-Operators.html) — compose, negate, and memoize
-- [Reduce, Filter, Map](/Reduce-Filter-Map-in-R.html) — base R's functional building blocks
+- [Functional Programming in R](Functional-Programming-in-R.html) — the broader mindset; composability is one of its benefits.
+- [R Function Operators](R-Function-Operators.html) — add cross-cutting behaviour without breaking the core.
+- [purrr map() Variants](purrr-map-Variants.html) — compose pipelines that iterate over collections.
