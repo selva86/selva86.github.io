@@ -97,6 +97,7 @@ def convert(md_text):
                 i += 1
             code_html = ''
             if i < len(lines) and lines[i].strip().startswith('```r'):
+                tryit_lang = lines[i].strip()[3:].strip()
                 i += 1
                 code_lines = []
                 while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -105,7 +106,7 @@ def convert(md_text):
                 if i < len(lines):
                     i += 1  # skip closing ```
                 ecode = escape_html('\n'.join(code_lines))
-                if webr_enabled:
+                if webr_enabled and tryit_lang == 'r':
                     code_html = (
                         '<div class="webr-container">\n'
                         '  <div class="webr-code-block">\n'
@@ -136,6 +137,7 @@ def convert(md_text):
                         i += 1
                         break
                     if cur_line.strip().startswith('```r'):
+                        d_lang = cur_line.strip()[3:].strip()
                         i += 1
                         dcode_lines = []
                         while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -144,7 +146,7 @@ def convert(md_text):
                         if i < len(lines):
                             i += 1
                         dcode = escape_html('\n'.join(dcode_lines))
-                        if webr_enabled:
+                        if webr_enabled and d_lang == 'r':
                             details_block.append('<div class="webr-container">')
                             details_block.append('  <div class="webr-code-block">')
                             details_block.append(f'    <div class="webr-editor" data-language="r">{dcode}</div>')
@@ -199,6 +201,15 @@ def convert(md_text):
 
         # HTML passthrough (for <p class="lead">, <details>, etc.)
         if line.strip().startswith('<') and not line.strip().startswith('<code') and not line.strip().startswith('<strong') and not line.strip().startswith('<em') and not line.strip().startswith('<a '):
+            # Single-line HTML wrapper with inline content (e.g. <p class="lead">...**bold**...</p>)
+            # Run md_inline on inner text so bold/italic/code markdown renders.
+            stripped_line = line.strip()
+            single_line_match = re.match(r'^(<[a-zA-Z][^>]*>)(.*)(</[a-zA-Z]+>)\s*$', stripped_line)
+            if single_line_match and '<details' not in stripped_line:
+                open_tag, inner, close_tag = single_line_match.groups()
+                out.append(f'{open_tag}{md_inline(inner)}{close_tag}')
+                i += 1
+                continue
             # Collect contiguous HTML lines
             html_block = [line]
             i += 1
@@ -212,6 +223,7 @@ def convert(md_text):
                         break
                     # Check for code block inside details
                     if cur_line.strip().startswith('```r'):
+                        det_lang = cur_line.strip()[3:].strip()
                         i += 1
                         code_lines = []
                         while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -220,7 +232,7 @@ def convert(md_text):
                         if i < len(lines):
                             i += 1  # skip closing ```
                         code = escape_html('\n'.join(code_lines))
-                        if webr_enabled:
+                        if webr_enabled and det_lang == 'r':
                             html_block.append(f'<div class="webr-container">')
                             html_block.append(f'  <div class="webr-code-block">')
                             html_block.append(f'    <div class="webr-editor" data-language="r">{code}</div>')
@@ -260,7 +272,7 @@ def convert(md_text):
                 i += 1  # skip closing ```
             code = '\n'.join(code_lines)
 
-            if lang == 'r' and webr_enabled:
+            if lang == 'r' and webr_enabled:  # r-static falls through to static block below
                 ecode = escape_html(code)
                 out.append(f'<div class="webr-container">')
                 out.append(f'  <div class="webr-code-block">')
@@ -273,7 +285,7 @@ def convert(md_text):
                 out.append(f'  </div>')
                 out.append(f'  <div class="webr-plot-output"></div>')
                 out.append(f'</div>')
-            elif lang == 'r':
+            elif lang == 'r' or lang == 'r-static':
                 ecode = escape_html(code)
                 out.append(f'<pre><code class="language-r">{ecode}</code></pre>')
             elif lang == 'mermaid':

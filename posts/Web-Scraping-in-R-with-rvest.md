@@ -23,7 +23,10 @@ sidebar_order: 15
 
 Anything that lives in the HTML source — tables, headlines, prices, links, image URLs, ratings, review text. The payoff is direct: instead of copy-pasting a Wikipedia table into Excel, you pull it into R as a data frame in one call. Let's start with exactly that.
 
-```r
+[NOTE]
+Scraping real URLs needs live network access, so the code blocks on this page are shown as static snippets. Copy them into your local RStudio (or any R session) to run them end-to-end.
+
+```r-static
 library(rvest)
 
 url <- "https://en.wikipedia.org/wiki/List_of_countries_by_GDP_(nominal)"
@@ -39,11 +42,12 @@ head(gdp, 5)
 
 One page, one line, a real data frame. `read_html()` downloads the HTML; `html_elements("table.wikitable")` grabs every table with that CSS class; `html_table()` parses each one into a tibble.
 
-[NOTE] rvest ships with the tidyverse. If it's not installed: `install.packages("rvest")`. The native pipe `|>` needs R 4.1+.
+[NOTE]
+rvest ships with the tidyverse. If it's not installed: `install.packages("rvest")`. The native pipe `|>` needs R 4.1+.
 
 **Try it:** Change the index from `[[1]]` to `[[2]]` and inspect the second GDP table. What's different about its columns?
 
-```r
+```r-static
 ex_gdp <- gdp_tables[[2]]
 head(ex_gdp, 3)
 ```
@@ -52,7 +56,7 @@ head(ex_gdp, 3)
 
 `read_html()` fetches a URL (or reads a local HTML string) and returns an `xml_document` — a parsed tree of the page. From that tree, `html_elements()` selects nodes that match a CSS selector, returning an `xml_nodeset` you can chain further operations on.
 
-```r
+```r-static
 library(rvest)
 
 html <- minimal_html("
@@ -75,14 +79,15 @@ html |> html_elements("li.title")
 
 `minimal_html()` is rvest's helper for building example pages in-memory — ideal for testing selectors without hitting the network. Use `html_element()` (singular) when you want just the first match; `html_elements()` returns every match.
 
-[KEY INSIGHT] The pattern is always the same: **fetch → select → extract**. `read_html()` fetches, `html_elements()` selects, and `html_text2()` / `html_table()` / `html_attr()` extract.
+[KEY INSIGHT]
+The pattern is always the same: **fetch → select → extract**. `read_html()` fetches, `html_elements()` selects, and `html_text2()` / `html_table()` / `html_attr()` extract.
 
 ![rvest pipeline from URL to data frame](screenshots/Web-Scraping-in-R-with-rvest-pipeline.webp)
 *Figure 1: The rvest workflow — fetch the HTML, select nodes with CSS, extract text, tables, or attributes.*
 
 **Try it:** Use `html_element()` (singular) instead of `html_elements()` and explain what changes.
 
-```r
+```r-static
 ex_one <- html |> html_element("li.title")
 ex_one
 ```
@@ -95,7 +100,7 @@ Three functions do 95% of the extraction work:
 - `html_text2()` — extracts visible text (preserves line breaks; prefer this over `html_text()`)
 - `html_attr("href")` — pulls the value of any HTML attribute
 
-```r
+```r-static
 library(rvest)
 
 page <- minimal_html("
@@ -124,14 +129,15 @@ data.frame(title = titles, price = prices, link = links)
 
 Each extractor is vectorized — apply it to the whole node set and you get one value per match. Wrap the parallel vectors in `data.frame()` (or `tibble()`) and you have clean tabular output.
 
-[TIP] Always prefer `html_text2()` over `html_text()`. The former trims whitespace and preserves paragraph breaks the way a browser renders them. The latter returns raw text with all the original indentation noise.
+[TIP]
+Always prefer `html_text2()` over `html_text()`. The former trims whitespace and preserves paragraph breaks the way a browser renders them. The latter returns raw text with all the original indentation noise.
 
 ![Map of rvest's key functions](screenshots/Web-Scraping-in-R-with-rvest-function-map.webp)
 *Figure 2: The small set of rvest functions you'll use in almost every scraping script.*
 
 **Try it:** Extract just the numeric part of the prices (strip the `$`) using `readr::parse_number()`.
 
-```r
+```r-static
 ex_prices <- readr::parse_number(prices)
 ex_prices
 ```
@@ -148,7 +154,7 @@ CSS selectors are the language you use to tell `html_elements()` *which* nodes t
 | `tag.class` | Tag AND class | `"div.product"` |
 | `parent child` | Descendant relationship | `".card .title"` |
 
-```r
+```r-static
 library(rvest)
 
 page <- minimal_html("
@@ -173,11 +179,12 @@ Two practical tricks:
 ![Common CSS selector patterns](screenshots/Web-Scraping-in-R-with-rvest-css-selectors.webp)
 *Figure 3: The handful of CSS selector patterns that cover almost every real-world scraping job.*
 
-[WARNING] Selectors are brittle. If a site redesigns, your scraper breaks. Keep selectors as short and specific as possible, and re-test your scripts periodically.
+[WARNING]
+Selectors are brittle. If a site redesigns, your scraper breaks. Keep selectors as short and specific as possible, and re-test your scripts periodically.
 
 **Try it:** Write a selector that grabs only the sidebar link (not the article links).
 
-```r
+```r-static
 ex_sidebar <- page |> html_elements("#sidebar a") |> html_text2()
 ex_sidebar
 ```
@@ -186,7 +193,7 @@ ex_sidebar
 
 Most real datasets span many pages — `?page=1`, `?page=2`, and so on. The solution is a loop or `purrr::map()` over the URL list. Build the URLs, fetch each one, extract, then stack the results.
 
-```r
+```r-static
 library(rvest)
 library(purrr)
 
@@ -213,11 +220,12 @@ head(all_quotes, 2)
 
 `map_dfr()` applies `scrape_quotes()` to each page number and row-binds the results into one data frame. The function encapsulates one page's work so the loop stays clean.
 
-[TIP] Sprinkle `Sys.sleep(1)` (or `Sys.sleep(runif(1, 1, 3))`) inside the loop to throttle your requests. A free quote site might tolerate rapid scraping; a real production site will rate-limit or block you.
+[TIP]
+Sprinkle `Sys.sleep(1)` (or `Sys.sleep(runif(1, 1, 3))`) inside the loop to throttle your requests. A free quote site might tolerate rapid scraping; a real production site will rate-limit or block you.
 
 **Try it:** Add a `page` column to `all_quotes` showing which page each row came from.
 
-```r
+```r-static
 ex_labeled <- map_dfr(pages, function(p) {
   df <- scrape_quotes(p)
   df$page <- p
@@ -230,7 +238,7 @@ head(ex_labeled, 2)
 
 Scraping without checking `robots.txt` is rude and can get you IP-banned. The **robotstxt** package makes the check trivial — one call tells you whether a path is allowed.
 
-```r
+```r-static
 library(robotstxt)
 
 paths_allowed(
@@ -252,11 +260,12 @@ Three rules for polite scraping:
 2. **Identify yourself.** Set a User-Agent string so site owners can contact you. With `httr2`, use `req_user_agent("my-research-bot (me@example.com)")` before passing the response to `read_html()`.
 3. **Rate-limit.** One request per 1-5 seconds is a safe default. The **polite** package wraps `rvest` with automatic rate limiting and robots.txt checking — worth learning for any serious scraping project.
 
-[WARNING] Even if `robots.txt` allows scraping, a site's **Terms of Service** may forbid it. Commercial sites often do. Check both, especially if you plan to redistribute the data.
+[WARNING]
+Even if `robots.txt` allows scraping, a site's **Terms of Service** may forbid it. Commercial sites often do. Check both, especially if you plan to redistribute the data.
 
 **Try it:** Check whether you're allowed to scrape the CRAN task views page.
 
-```r
+```r-static
 ex_cran <- paths_allowed(paths = "/web/views/", domain = "cran.r-project.org")
 ex_cran
 ```
@@ -269,7 +278,7 @@ ex_cran
 2. **Use `chromote` + `rvest::read_html_live()`.** `read_html_live()` launches a headless Chrome session, waits for JavaScript to execute, then hands you the rendered HTML.
 3. **RSelenium** — heavier, browser-automation-style. Overkill for most tasks in 2026; `read_html_live()` covers the same ground with less ceremony.
 
-```r
+```r-static
 library(rvest)
 
 # Requires the chromote package: install.packages("chromote")
@@ -279,7 +288,8 @@ library(rvest)
 # session$session$close()
 ```
 
-[KEY INSIGHT] Try the hidden-API route first. If you find a JSON endpoint in DevTools, you'll get cleaner data in a fraction of the time, and it won't break the next time the site changes its CSS.
+[KEY INSIGHT]
+Try the hidden-API route first. If you find a JSON endpoint in DevTools, you'll get cleaner data in a fraction of the time, and it won't break the next time the site changes its CSS.
 
 **Try it:** Open any "JavaScript-heavy" site in Chrome DevTools → Network → filter by `fetch/xhr`. Can you spot a JSON response?
 
@@ -291,7 +301,7 @@ Capstone problems combining multiple concepts from this post.
 
 Use `https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)`. Extract the main population table as a tibble **and** the URL of the first footnote reference.
 
-```r
+```r-static
 library(rvest)
 
 # Your code here
@@ -300,7 +310,7 @@ library(rvest)
 <details>
 <summary>Solution</summary>
 
-```r
+```r-static
 library(rvest)
 
 url <- "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)"
@@ -318,7 +328,7 @@ first_ref
 
 Scrape the first 5 pages of `https://quotes.toscrape.com/` and return a tibble with columns `quote`, `author`, and `tags` (comma-separated). Throttle with `Sys.sleep(1)`.
 
-```r
+```r-static
 library(rvest)
 library(purrr)
 
@@ -328,7 +338,7 @@ library(purrr)
 <details>
 <summary>Solution</summary>
 
-```r
+```r-static
 library(rvest)
 library(purrr)
 
@@ -355,7 +365,7 @@ Write a function `safe_scrape(url)` that:
 2. Calls `paths_allowed()` — if `FALSE`, returns `NULL` with a warning
 3. Otherwise fetches and returns the parsed HTML
 
-```r
+```r-static
 library(rvest)
 library(robotstxt)
 
@@ -365,7 +375,7 @@ library(robotstxt)
 <details>
 <summary>Solution</summary>
 
-```r
+```r-static
 library(rvest)
 library(robotstxt)
 
@@ -388,7 +398,7 @@ res |> html_element("h1") |> html_text2()
 
 Here's an end-to-end script that scrapes the first 3 pages of quotes.toscrape.com politely, respecting `robots.txt`, throttling requests, and returning a clean tibble you could save as CSV.
 
-```r
+```r-static
 library(rvest)
 library(robotstxt)
 library(purrr)

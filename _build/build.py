@@ -1236,7 +1236,7 @@ def build_post(
       "@type": "BreadcrumbList",
       "itemListElement": [
         {{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"}},
-        {{"@type": "ListItem", "position": 2, "name": "{section_json}"}},
+        {{"@type": "ListItem", "position": 2, "name": "{section_json}", "item": "https://r-statistics.co/"}},
         {{"@type": "ListItem", "position": 3, "name": "{title_json}", "item": "https://r-statistics.co/{slug}"}}
       ]
     }}
