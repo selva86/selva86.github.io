@@ -382,6 +382,7 @@
       .webr-editor .cm-string { color: #0a3069; }
       .webr-editor .cm-string-2 { color: #0a3069; }
       .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+      .webr-editor .cm-function-call { color: #6f42c1; }
 
       /* --- Run button --- */
       .webr-run-btn {
@@ -505,6 +506,7 @@
       html.dark .webr-editor .cm-string { color: #86efac; }
       html.dark .webr-editor .cm-string-2 { color: #86efac; }
       html.dark .webr-editor .cm-builtin { color: #c084fc; }
+      html.dark .webr-editor .cm-function-call { color: #c4b5fd; }
 
       /* Output panel */
       html.dark .webr-output { background: #0f172a; color: #cbd5e1; border-top-color: #1e293b; }
@@ -1081,7 +1083,7 @@ for (r in records) {
 <li><strong><a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">R Common Errors</a></strong> — the full reference of 50 common errors</li>
 
 </ol>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Error-dplyr-Single-String.html"><span class="rt-title">dplyr Error: must return a single string in group_by — Exact Fix</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Error-Undefined-Columns.html"><span class="rt-title">R Error: undefined columns selected — Data Frame Subsetting Fix</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Warning-Object-Length.html"><span class="rt-title">R Warning: longer object length is not a multiple of shorter</span><span class="rt-meta">2 min read</span></a><a class="rt-card" href="R-Error-Subscript-Out-of-Bounds.html"><span class="rt-title">R Error: subscript out of bounds — What It Means &amp; How to Solve It</span><span class="rt-meta">1 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Error-Object-Not-Found.html"><span class="rt-title">R Error: object 'x' not found — 7 Causes &amp; Step-by-Step Fixes</span><span class="rt-meta">2 min read</span></a><a class="rt-card" href="R-Error-Subscript-Out-of-Bounds.html"><span class="rt-title">R Error: subscript out of bounds — What It Means &amp; How to Solve It</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Error-Stan-Compile.html"><span class="rt-title">R Stan Model Error: failed to compile — RStan Troubleshooting Guide</span><span class="rt-meta">3 min read</span></a><a class="rt-card" href="R-Common-Errors.html"><span class="rt-title">50 Most Common R Error Messages: What They Mean &amp; How to Fix Them</span><span class="rt-meta">Advanced R &middot; 3 min read</span></a></div></section>
 
         </div>
 
@@ -1121,6 +1123,26 @@ for (r in records) {
     let shelter = null;
     const editors = [];
     let pendingRunBtn = null;
+
+    // Lightweight overlay on top of the stock R mode: highlight function-call
+    // sites (any identifier immediately followed by `(`). Skips R reserved
+    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
+    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
+    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+      CodeMirror.defineMode('r-plus', function(cfg) {
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
+          token: function(stream) {
+            const m = stream.match(/[A-Za-z_.][\w.]*(?=\s*\()/);
+            if (m) {
+              if (R_RESERVED_CALL.test(m[0])) return null;
+              return 'function-call';
+            }
+            stream.next();
+            return null;
+          }
+        });
+      });
+    }
 
     const banner = document.querySelector('.webr-loading-banner');
 
@@ -1270,7 +1292,7 @@ for (r in records) {
       el.textContent = '';
       const cm = CodeMirror(el, {
         value: code,
-        mode: 'r',
+        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,

@@ -542,6 +542,7 @@ WEBR_HEAD_BLOCK = """
       .webr-editor .cm-string { color: #0a3069; }
       .webr-editor .cm-string-2 { color: #0a3069; }
       .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+      .webr-editor .cm-function-call { color: #6f42c1; }
 
       /* --- Run button --- */
       .webr-run-btn {
@@ -665,6 +666,7 @@ WEBR_HEAD_BLOCK = """
       html.dark .webr-editor .cm-string { color: #86efac; }
       html.dark .webr-editor .cm-string-2 { color: #86efac; }
       html.dark .webr-editor .cm-builtin { color: #c084fc; }
+      html.dark .webr-editor .cm-function-call { color: #c4b5fd; }
 
       /* Output panel */
       html.dark .webr-output { background: #0f172a; color: #cbd5e1; border-top-color: #1e293b; }
@@ -696,6 +698,26 @@ WEBR_BODY_BLOCK = """
     let shelter = null;
     const editors = [];
     let pendingRunBtn = null;
+
+    // Lightweight overlay on top of the stock R mode: highlight function-call
+    // sites (any identifier immediately followed by `(`). Skips R reserved
+    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
+    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
+    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+      CodeMirror.defineMode('r-plus', function(cfg) {
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
+          token: function(stream) {
+            const m = stream.match(/[A-Za-z_.][\\w.]*(?=\\s*\\()/);
+            if (m) {
+              if (R_RESERVED_CALL.test(m[0])) return null;
+              return 'function-call';
+            }
+            stream.next();
+            return null;
+          }
+        });
+      });
+    }
 
     const banner = document.querySelector('.webr-loading-banner');
 
@@ -845,7 +867,7 @@ WEBR_BODY_BLOCK = """
       el.textContent = '';
       const cm = CodeMirror(el, {
         value: code,
-        mode: 'r',
+        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,

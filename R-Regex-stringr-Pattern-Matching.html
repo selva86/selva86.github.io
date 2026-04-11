@@ -374,6 +374,7 @@
       .webr-editor .cm-string { color: #0a3069; }
       .webr-editor .cm-string-2 { color: #0a3069; }
       .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+      .webr-editor .cm-function-call { color: #6f42c1; }
 
       /* --- Run button --- */
       .webr-run-btn {
@@ -497,6 +498,7 @@
       html.dark .webr-editor .cm-string { color: #86efac; }
       html.dark .webr-editor .cm-string-2 { color: #86efac; }
       html.dark .webr-editor .cm-builtin { color: #c084fc; }
+      html.dark .webr-editor .cm-function-call { color: #c4b5fd; }
 
       /* Output panel */
       html.dark .webr-output { background: #0f172a; color: #cbd5e1; border-top-color: #1e293b; }
@@ -2112,7 +2114,7 @@ clean_df
 <li><strong><a href="lubridate-in-R.html">lubridate in R</a></strong> — Dates are the other common "messy text" problem. Learn how lubridate parses, extracts, and computes with dates and times.</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Regex-Cheat-Sheet-stringr.html"><span class="rt-title">R Regex Cheat Sheet: 30 Patterns With stringr Examples — Copy and Paste</span><span class="rt-meta">9 min read</span></a><a class="rt-card" href="lubridate-in-R.html"><span class="rt-title">lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever</span><span class="rt-meta">Data Wrangling &middot; 6 min read</span></a><a class="rt-card" href="lubridate-Cheat-Sheet-R.html"><span class="rt-title">lubridate Cheat Sheet: Parse, Extract, Modify, and Do Arithmetic on Dates</span><span class="rt-meta">9 min read</span></a><a class="rt-card" href="stringr-in-R.html"><span class="rt-title">stringr in R: 15 Functions That Handle Every String Task You'll Actually Encounter</span><span class="rt-meta">Data Wrangling &middot; 6 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="lubridate-Cheat-Sheet-R.html"><span class="rt-title">lubridate Cheat Sheet: Parse, Extract, Modify, and Do Arithmetic on Dates</span><span class="rt-meta">9 min read</span></a><a class="rt-card" href="stringr-in-R.html"><span class="rt-title">stringr in R: 15 Functions That Handle Every String Task You'll Actually Encounter</span><span class="rt-meta">Data Wrangling &middot; 6 min read</span></a><a class="rt-card" href="lubridate-in-R.html"><span class="rt-title">lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever</span><span class="rt-meta">Data Wrangling &middot; 6 min read</span></a><a class="rt-card" href="R-Regex-Cheat-Sheet-stringr.html"><span class="rt-title">R Regex Cheat Sheet: 30 Patterns With stringr Examples — Copy and Paste</span><span class="rt-meta">9 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="stringr-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">stringr</span></a>
 <a class="pn-link pn-next" href="lubridate-in-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">lubridate</span></a>
@@ -2156,6 +2158,26 @@ clean_df
     let shelter = null;
     const editors = [];
     let pendingRunBtn = null;
+
+    // Lightweight overlay on top of the stock R mode: highlight function-call
+    // sites (any identifier immediately followed by `(`). Skips R reserved
+    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
+    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
+    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+      CodeMirror.defineMode('r-plus', function(cfg) {
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
+          token: function(stream) {
+            const m = stream.match(/[A-Za-z_.][\w.]*(?=\s*\()/);
+            if (m) {
+              if (R_RESERVED_CALL.test(m[0])) return null;
+              return 'function-call';
+            }
+            stream.next();
+            return null;
+          }
+        });
+      });
+    }
 
     const banner = document.querySelector('.webr-loading-banner');
 
@@ -2305,7 +2327,7 @@ clean_df
       el.textContent = '';
       const cm = CodeMirror(el, {
         value: code,
-        mode: 'r',
+        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,

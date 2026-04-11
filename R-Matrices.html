@@ -374,6 +374,7 @@
       .webr-editor .cm-string { color: #0a3069; }
       .webr-editor .cm-string-2 { color: #0a3069; }
       .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+      .webr-editor .cm-function-call { color: #6f42c1; }
 
       /* --- Run button --- */
       .webr-run-btn {
@@ -497,6 +498,7 @@
       html.dark .webr-editor .cm-string { color: #86efac; }
       html.dark .webr-editor .cm-string-2 { color: #86efac; }
       html.dark .webr-editor .cm-builtin { color: #c084fc; }
+      html.dark .webr-editor .cm-function-call { color: #c4b5fd; }
 
       /* Output panel */
       html.dark .webr-output { background: #0f172a; color: #cbd5e1; border-top-color: #1e293b; }
@@ -1199,7 +1201,7 @@ A %*% x   # should equal b
 <li><a href="R-Functions.html">Write Better R Functions</a> — write functions that accept both matrices and data frames gracefully.</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Basics-Exercises.html"><span class="rt-title">R Basics Exercises: 15 Practice Problems for Beginners (With Solutions)</span><span class="rt-meta">Practice Exercises &middot; 4 min read</span></a><a class="rt-card" href="R-Lists.html"><span class="rt-title">R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)</span><span class="rt-meta">Learn R &middot; 4 min read</span></a><a class="rt-card" href="Getting-Help-in-R.html"><span class="rt-title">Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours</span><span class="rt-meta">Learn R &middot; 6 min read</span></a><a class="rt-card" href="R-Functions.html"><span class="rt-title">Write Better R Functions: Arguments, Defaults, Scope &amp; When to Vectorise</span><span class="rt-meta">Learn R &middot; 6 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Install-R-and-RStudio-2026.html"><span class="rt-title">Install R &amp; RStudio in 2026: The Setup That Actually Works First Time</span><span class="rt-meta">Learn R &middot; 8 min read</span></a><a class="rt-card" href="Multiple-R-Versions.html"><span class="rt-title">Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)</span><span class="rt-meta">5 min read</span></a><a class="rt-card" href="R-Vectors-Exercises.html"><span class="rt-title">R Vectors Exercises: 12 Hands-On Problems with Step-by-Step Answers</span><span class="rt-meta">Practice Exercises &middot; 3 min read</span></a><a class="rt-card" href="R-Data-Types.html"><span class="rt-title">R Data Types: Which Type Is Your Variable? (And Why It Matters)</span><span class="rt-meta">Learn R &middot; 8 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="R-Vectors.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">R Vectors</span></a>
 <a class="pn-link pn-next" href="R-Factors.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">R Factors</span></a>
@@ -1252,6 +1254,26 @@ A %*% x   # should equal b
     let shelter = null;
     const editors = [];
     let pendingRunBtn = null;
+
+    // Lightweight overlay on top of the stock R mode: highlight function-call
+    // sites (any identifier immediately followed by `(`). Skips R reserved
+    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
+    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
+    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+      CodeMirror.defineMode('r-plus', function(cfg) {
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
+          token: function(stream) {
+            const m = stream.match(/[A-Za-z_.][\w.]*(?=\s*\()/);
+            if (m) {
+              if (R_RESERVED_CALL.test(m[0])) return null;
+              return 'function-call';
+            }
+            stream.next();
+            return null;
+          }
+        });
+      });
+    }
 
     const banner = document.querySelector('.webr-loading-banner');
 
@@ -1401,7 +1423,7 @@ A %*% x   # should equal b
       el.textContent = '';
       const cm = CodeMirror(el, {
         value: code,
-        mode: 'r',
+        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,

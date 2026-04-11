@@ -373,6 +373,7 @@
       .webr-editor .cm-string { color: #0a3069; }
       .webr-editor .cm-string-2 { color: #0a3069; }
       .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+      .webr-editor .cm-function-call { color: #6f42c1; }
 
       /* --- Run button --- */
       .webr-run-btn {
@@ -496,6 +497,7 @@
       html.dark .webr-editor .cm-string { color: #86efac; }
       html.dark .webr-editor .cm-string-2 { color: #86efac; }
       html.dark .webr-editor .cm-builtin { color: #c084fc; }
+      html.dark .webr-editor .cm-function-call { color: #c4b5fd; }
 
       /* Output panel */
       html.dark .webr-output { background: #0f172a; color: #cbd5e1; border-top-color: #1e293b; }
@@ -1482,7 +1484,7 @@ paste0(&quot;n=&quot;, attr(summary_obj, &quot;n&quot;), &quot; (&quot;, attr(su
 <li><strong><a href="R-Lists.html">R Lists Explained</a></strong> — Lists carry attributes too, and are the internal representation of every data frame.</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Project-Structure.html"><span class="rt-title">R Project Structure: The Setup That Eliminates setwd() Forever</span><span class="rt-meta">Learn R &middot; 3 min read</span></a><a class="rt-card" href="R-Functions-Exercises.html"><span class="rt-title">R Functions Exercises: 10 Problems — Write, Debug &amp; Optimize Functions — Solved Step-by-Step</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a><a class="rt-card" href="R-Data-Types.html"><span class="rt-title">R Data Types: Which Type Is Your Variable? (And Why It Matters)</span><span class="rt-meta">Learn R &middot; 8 min read</span></a><a class="rt-card" href="Install-R-and-RStudio-2026.html"><span class="rt-title">Install R &amp; RStudio in 2026: The Setup That Actually Works First Time</span><span class="rt-meta">Learn R &middot; 8 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Vectors.html"><span class="rt-title">R Vectors: The Foundation of Everything in R (Master This First)</span><span class="rt-meta">Learn R &middot; 5 min read</span></a><a class="rt-card" href="R-Syntax-101.html"><span class="rt-title">R Syntax 101: Write Your First Working Script in 10 Minutes</span><span class="rt-meta">Learn R &middot; 10 min read</span></a><a class="rt-card" href="R-Type-Coercion.html"><span class="rt-title">R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters</span><span class="rt-meta">Learn R &middot; 7 min read</span></a><a class="rt-card" href="R-Data-Frames-Exercises.html"><span class="rt-title">R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced — Solved Step-by-Step)</span><span class="rt-meta">Practice Exercises &middot; 3 min read</span></a></div></section>
 
         </div>
 
@@ -1522,6 +1524,26 @@ paste0(&quot;n=&quot;, attr(summary_obj, &quot;n&quot;), &quot; (&quot;, attr(su
     let shelter = null;
     const editors = [];
     let pendingRunBtn = null;
+
+    // Lightweight overlay on top of the stock R mode: highlight function-call
+    // sites (any identifier immediately followed by `(`). Skips R reserved
+    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
+    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
+    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+      CodeMirror.defineMode('r-plus', function(cfg) {
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
+          token: function(stream) {
+            const m = stream.match(/[A-Za-z_.][\w.]*(?=\s*\()/);
+            if (m) {
+              if (R_RESERVED_CALL.test(m[0])) return null;
+              return 'function-call';
+            }
+            stream.next();
+            return null;
+          }
+        });
+      });
+    }
 
     const banner = document.querySelector('.webr-loading-banner');
 
@@ -1671,7 +1693,7 @@ paste0(&quot;n=&quot;, attr(summary_obj, &quot;n&quot;), &quot; (&quot;, attr(su
       el.textContent = '';
       const cm = CodeMirror(el, {
         value: code,
-        mode: 'r',
+        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,

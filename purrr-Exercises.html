@@ -374,6 +374,7 @@
       .webr-editor .cm-string { color: #0a3069; }
       .webr-editor .cm-string-2 { color: #0a3069; }
       .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+      .webr-editor .cm-function-call { color: #6f42c1; }
 
       /* --- Run button --- */
       .webr-run-btn {
@@ -497,6 +498,7 @@
       html.dark .webr-editor .cm-string { color: #86efac; }
       html.dark .webr-editor .cm-string-2 { color: #86efac; }
       html.dark .webr-editor .cm-builtin { color: #c084fc; }
+      html.dark .webr-editor .cm-function-call { color: #c4b5fd; }
 
       /* Output panel */
       html.dark .webr-output { background: #0f172a; color: #cbd5e1; border-top-color: #1e293b; }
@@ -1453,7 +1455,7 @@ round(map_dbl(my_scaled[, 1:4], sd), 2)
 <li><a href="R-Functional-Programming-Exercises.html">R Functional Programming Exercises</a> — base R versions (Map, <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a>, Filter) for comparison.</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Writing-Composable-R-Code.html"><span class="rt-title">Writing Composable R Code: Pipes, Functions &amp; Functional Architecture</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="Tail-Call-Optimization-in-R.html"><span class="rt-title">Tail Call Optimization in R: Recursive Functions Without Stack Overflow</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="furrr-Package-in-R.html"><span class="rt-title">furrr Package in R: Parallel purrr with future Backend</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="Functional-Programming-in-R.html"><span class="rt-title">Functional Programming in R: First-Class Functions &amp; purrr Explained</span><span class="rt-meta">Advanced R &middot; 6 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Tail-Call-Optimization-in-R.html"><span class="rt-title">Tail Call Optimization in R: Recursive Functions Without Stack Overflow</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Functional-Programming-Exercises.html"><span class="rt-title">Advanced R Exercises: 10 Functional Programming Practice Problems</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a><a class="rt-card" href="R-Anonymous-Functions.html"><span class="rt-title">R Anonymous Functions: \\(x) Syntax &amp; When to Use Lambda Style</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="furrr-Package-in-R.html"><span class="rt-title">furrr Package in R: Parallel purrr with future Backend</span><span class="rt-meta">1 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="data-table-Exercises.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">data.table (12 problems)</span></a>
 <a class="pn-link pn-next" href="tidyr-Reshaping-Exercises.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">tidyr Reshaping (10 problems)</span></a>
@@ -1497,6 +1499,26 @@ round(map_dbl(my_scaled[, 1:4], sd), 2)
     let shelter = null;
     const editors = [];
     let pendingRunBtn = null;
+
+    // Lightweight overlay on top of the stock R mode: highlight function-call
+    // sites (any identifier immediately followed by `(`). Skips R reserved
+    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
+    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
+    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+      CodeMirror.defineMode('r-plus', function(cfg) {
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
+          token: function(stream) {
+            const m = stream.match(/[A-Za-z_.][\w.]*(?=\s*\()/);
+            if (m) {
+              if (R_RESERVED_CALL.test(m[0])) return null;
+              return 'function-call';
+            }
+            stream.next();
+            return null;
+          }
+        });
+      });
+    }
 
     const banner = document.querySelector('.webr-loading-banner');
 
@@ -1646,7 +1668,7 @@ round(map_dbl(my_scaled[, 1:4], sd), 2)
       el.textContent = '';
       const cm = CodeMirror(el, {
         value: code,
-        mode: 'r',
+        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,

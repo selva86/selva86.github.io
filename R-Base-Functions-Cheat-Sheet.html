@@ -373,6 +373,7 @@
       .webr-editor .cm-string { color: #0a3069; }
       .webr-editor .cm-string-2 { color: #0a3069; }
       .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+      .webr-editor .cm-function-call { color: #6f42c1; }
 
       /* --- Run button --- */
       .webr-run-btn {
@@ -496,6 +497,7 @@
       html.dark .webr-editor .cm-string { color: #86efac; }
       html.dark .webr-editor .cm-string-2 { color: #86efac; }
       html.dark .webr-editor .cm-builtin { color: #c084fc; }
+      html.dark .webr-editor .cm-function-call { color: #c4b5fd; }
 
       /* Output panel */
       html.dark .webr-output { background: #0f172a; color: #cbd5e1; border-top-color: #1e293b; }
@@ -1689,7 +1691,7 @@ cat(&quot;log('a'):&quot;, safe_log(&quot;a&quot;), &quot;\n&quot;)</div>
 <li><a href="R-for-Excel-Users.html">R for Excel Users</a> — Translate your Excel skills to R</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Install-R-and-RStudio-2026.html"><span class="rt-title">Install R &amp; RStudio in 2026: The Setup That Actually Works First Time</span><span class="rt-meta">Learn R &middot; 8 min read</span></a><a class="rt-card" href="R-Data-Frames.html"><span class="rt-title">R Data Frames: Every Operation You'll Need, With 10 Real Examples</span><span class="rt-meta">Learn R &middot; 4 min read</span></a><a class="rt-card" href="R-Control-Flow.html"><span class="rt-title">R Control Flow: if/else, for, and while — Stop Avoiding Loops</span><span class="rt-meta">Learn R &middot; 4 min read</span></a><a class="rt-card" href="R-Copy-on-Modify.html"><span class="rt-title">Why R Copies Your Data: Copy-on-Modify Explained</span><span class="rt-meta">3 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Syntax-101.html"><span class="rt-title">R Syntax 101: Write Your First Working Script in 10 Minutes</span><span class="rt-meta">Learn R &middot; 10 min read</span></a><a class="rt-card" href="Positron-vs-RStudio.html"><span class="rt-title">Positron vs RStudio: Should You Switch? A Feature-by-Feature Verdict</span><span class="rt-meta">6 min read</span></a><a class="rt-card" href="R-Lists-Exercises.html"><span class="rt-title">R Lists Exercises: 10 Practice Problems with Full Solutions</span><span class="rt-meta">Practice Exercises &middot; 3 min read</span></a><a class="rt-card" href="Multiple-R-Versions.html"><span class="rt-title">Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)</span><span class="rt-meta">5 min read</span></a></div></section>
 
         </div>
 
@@ -1729,6 +1731,26 @@ cat(&quot;log('a'):&quot;, safe_log(&quot;a&quot;), &quot;\n&quot;)</div>
     let shelter = null;
     const editors = [];
     let pendingRunBtn = null;
+
+    // Lightweight overlay on top of the stock R mode: highlight function-call
+    // sites (any identifier immediately followed by `(`). Skips R reserved
+    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
+    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
+    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+      CodeMirror.defineMode('r-plus', function(cfg) {
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
+          token: function(stream) {
+            const m = stream.match(/[A-Za-z_.][\w.]*(?=\s*\()/);
+            if (m) {
+              if (R_RESERVED_CALL.test(m[0])) return null;
+              return 'function-call';
+            }
+            stream.next();
+            return null;
+          }
+        });
+      });
+    }
 
     const banner = document.querySelector('.webr-loading-banner');
 
@@ -1878,7 +1900,7 @@ cat(&quot;log('a'):&quot;, safe_log(&quot;a&quot;), &quot;\n&quot;)</div>
       el.textContent = '';
       const cm = CodeMirror(el, {
         value: code,
-        mode: 'r',
+        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,

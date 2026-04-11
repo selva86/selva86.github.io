@@ -374,6 +374,7 @@
       .webr-editor .cm-string { color: #0a3069; }
       .webr-editor .cm-string-2 { color: #0a3069; }
       .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+      .webr-editor .cm-function-call { color: #6f42c1; }
 
       /* --- Run button --- */
       .webr-run-btn {
@@ -497,6 +498,7 @@
       html.dark .webr-editor .cm-string { color: #86efac; }
       html.dark .webr-editor .cm-string-2 { color: #86efac; }
       html.dark .webr-editor .cm-builtin { color: #c084fc; }
+      html.dark .webr-editor .cm-function-call { color: #c4b5fd; }
 
       /* Output panel */
       html.dark .webr-output { background: #0f172a; color: #cbd5e1; border-top-color: #1e293b; }
@@ -1049,7 +1051,7 @@ cat(&quot;Transform: DOB -&gt; age_group (bins reduce re-identification risk)\n&
 </ul>
 </div>
 
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Open-Science-with-R.html"><span class="rt-title">Open Science with R: OSF Integration, Preprints &amp; Sharing Code</span><span class="rt-meta">2 min read</span></a><a class="rt-card" href="Bias-in-Data-and-Models.html"><span class="rt-title">Bias in Data &amp; Models: How to Detect &amp; Reduce It in R</span><span class="rt-meta">Learn R &middot; 2 min read</span></a><a class="rt-card" href="Pre-Analysis-Plans-in-R.html"><span class="rt-title">Pre-Analysis Plans in R: Commit Before You Analyze</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="Reproducibility-Crisis.html"><span class="rt-title">Reproducibility Crisis: What It Means for R Users &amp; How to Help Fix It</span><span class="rt-meta">Learn R &middot; 2 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Bias-in-Data-and-Models.html"><span class="rt-title">Bias in Data &amp; Models: How to Detect &amp; Reduce It in R</span><span class="rt-meta">Learn R &middot; 2 min read</span></a><a class="rt-card" href="Data-Privacy-in-R.html"><span class="rt-title">Data Privacy in R: Anonymization, Differential Privacy &amp; GDPR Compliance</span><span class="rt-meta">Learn R &middot; 2 min read</span></a><a class="rt-card" href="Open-Science-with-R.html"><span class="rt-title">Open Science with R: OSF Integration, Preprints &amp; Sharing Code</span><span class="rt-meta">2 min read</span></a><a class="rt-card" href="Synthetic-Data-in-R.html"><span class="rt-title">Synthetic Data Generation in R: Protect Privacy While Testing Models</span><span class="rt-meta">2 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="R-Cheat-Sheet.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">R Cheat Sheet</span></a>
 <a class="pn-link pn-next" href="Bias-in-Data-and-Models.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Bias in Data &amp; Models</span></a>
@@ -1093,6 +1095,26 @@ cat(&quot;Transform: DOB -&gt; age_group (bins reduce re-identification risk)\n&
     let shelter = null;
     const editors = [];
     let pendingRunBtn = null;
+
+    // Lightweight overlay on top of the stock R mode: highlight function-call
+    // sites (any identifier immediately followed by `(`). Skips R reserved
+    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
+    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
+    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+      CodeMirror.defineMode('r-plus', function(cfg) {
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
+          token: function(stream) {
+            const m = stream.match(/[A-Za-z_.][\w.]*(?=\s*\()/);
+            if (m) {
+              if (R_RESERVED_CALL.test(m[0])) return null;
+              return 'function-call';
+            }
+            stream.next();
+            return null;
+          }
+        });
+      });
+    }
 
     const banner = document.querySelector('.webr-loading-banner');
 
@@ -1242,7 +1264,7 @@ cat(&quot;Transform: DOB -&gt; age_group (bins reduce re-identification risk)\n&
       el.textContent = '';
       const cm = CodeMirror(el, {
         value: code,
-        mode: 'r',
+        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,

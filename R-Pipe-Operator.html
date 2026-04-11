@@ -374,6 +374,7 @@
       .webr-editor .cm-string { color: #0a3069; }
       .webr-editor .cm-string-2 { color: #0a3069; }
       .webr-editor .cm-builtin { color: #8250df; font-weight: 500; }
+      .webr-editor .cm-function-call { color: #6f42c1; }
 
       /* --- Run button --- */
       .webr-run-btn {
@@ -497,6 +498,7 @@
       html.dark .webr-editor .cm-string { color: #86efac; }
       html.dark .webr-editor .cm-string-2 { color: #86efac; }
       html.dark .webr-editor .cm-builtin { color: #c084fc; }
+      html.dark .webr-editor .cm-function-call { color: #c4b5fd; }
 
       /* Output panel */
       html.dark .webr-output { background: #0f172a; color: #cbd5e1; border-top-color: #1e293b; }
@@ -1255,7 +1257,7 @@ result
 <li><a href="R-Data-Frames.html">R Data Frames: Every Operation You'll Need</a> — the structures that flow through pipelines.</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Error-CSV-Columns.html"><span class="rt-title">R Error in read.csv: more columns than column names — CSV Parse Fix</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="Tidy-Data-in-R.html"><span class="rt-title">Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable</span><span class="rt-meta">Data Wrangling &middot; 6 min read</span></a><a class="rt-card" href="R-Data-Import-Exercises.html"><span class="rt-title">R Data Import Exercises: 10 read_csv(), read_excel() Practice Problems</span><span class="rt-meta">Practice Exercises &middot; 1 min read</span></a><a class="rt-card" href="readr-vs-read-csv-vs-fread.html"><span class="rt-title">readr vs read.csv vs fread: Which Data Import Function Is Fastest?</span><span class="rt-meta">2 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Data-Import-Exercises.html"><span class="rt-title">R Data Import Exercises: 10 read_csv(), read_excel() Practice Problems</span><span class="rt-meta">Practice Exercises &middot; 1 min read</span></a><a class="rt-card" href="readr-vs-read-csv-vs-fread.html"><span class="rt-title">readr vs read.csv vs fread: Which Data Import Function Is Fastest?</span><span class="rt-meta">2 min read</span></a><a class="rt-card" href="R-Error-CSV-Columns.html"><span class="rt-title">R Error in read.csv: more columns than column names — CSV Parse Fix</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="Apache-Arrow-in-R.html"><span class="rt-title">Apache Arrow in R: Read Parquet Files &amp; Run Fast In-Memory Analytics</span><span class="rt-meta">2 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="Importing-Data-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Importing Data</span></a>
 <a class="pn-link pn-next" href="Tidy-Data-in-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Tidy Data</span></a>
@@ -1299,6 +1301,26 @@ result
     let shelter = null;
     const editors = [];
     let pendingRunBtn = null;
+
+    // Lightweight overlay on top of the stock R mode: highlight function-call
+    // sites (any identifier immediately followed by `(`). Skips R reserved
+    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
+    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
+    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+      CodeMirror.defineMode('r-plus', function(cfg) {
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
+          token: function(stream) {
+            const m = stream.match(/[A-Za-z_.][\w.]*(?=\s*\()/);
+            if (m) {
+              if (R_RESERVED_CALL.test(m[0])) return null;
+              return 'function-call';
+            }
+            stream.next();
+            return null;
+          }
+        });
+      });
+    }
 
     const banner = document.querySelector('.webr-loading-banner');
 
@@ -1448,7 +1470,7 @@ result
       el.textContent = '';
       const cm = CodeMirror(el, {
         value: code,
-        mode: 'r',
+        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
         lineNumbers: true,
         viewportMargin: Infinity,
         tabSize: 2,
