@@ -1,40 +1,42 @@
 ---
-title: "Tail Call Optimization in R: Recursive Functions Without Stack Overflow"
-description: "R doesn't optimize tail calls, but you can avoid stack overflows with trampolining, Recall(), and iterative rewrites. Practical solutions for deep recursion."
-keywords: "R tail call optimization, R recursion, stack overflow R, trampoline R, Recall function, deep recursion R"
+title: "Tail Call Optimization in R: Why Deep Recursion Blows the Stack"
+description: "R does not perform tail call optimization, so deep recursion blows the stack. Learn what TCO is, why R skips it, and three practical workarounds: iteration, trampolines, and Reduce."
+keywords: "tail call optimization R, R recursion stack overflow, R TCO, trampoline R, R recursion to iteration"
 mathjax: false
 webr: true
 curriculum_id: "FR-func-3"
 post_type: "FR"
-auto_link_terms: "tail call optimization|tail recursion|stack overflow R"
+auto_link_terms: "tail call optimization|TCO|recursion in R|stack overflow R"
 auto_link_case_sensitive: false
 fr_parent: "Functional-Programming-in-R.html"
 ---
 <!-- md2html:generated -->
 
-<h1>Tail Call Optimization in R: Recursive Functions Without Stack Overflow</h1>
+<h1>Tail Call Optimization in R: Why Deep Recursion Blows the Stack</h1>
 
-<p class="lead">R does <strong>not</strong> perform tail call <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a> (TCO). Deep recursion will crash with a stack overflow. This tutorial shows three workarounds: converting to iteration, using trampolines, and increasing the stack limit.</p>
+<p class="lead">Tail call <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a> (TCO) is a compiler trick that reuses the current stack frame when a function's last action is to call itself. Scheme and Haskell do it; R does not. This post explains why, and shows three ways to write recursive-looking R code that still handles huge inputs.</p>
 
-<p>A recursive function calls itself. In languages with TCO (like Scheme or Haskell), tail-recursive functions use constant stack space. R isn't one of those languages — every recursive call adds a frame to the call stack, and R's default limit is about 1,000 frames.</p>
+<p>Write a naive recursive factorial in R, call it with <code>n = 100000</code>, and R throws <code>Error: C stack usage ... is too close to the limit</code>. The same recursion in Scheme runs forever without a hiccup, because Scheme converts tail calls into jumps rather than stack pushes. R keeps every call frame alive until the recursion unwinds, so deep recursion hits a hard ceiling — typically a few thousand frames.</p>
 
-<h2>The Problem: Stack Overflow</h2>
+<h2>What Is a Tail Call, Exactly?</h2>
+
+<p>A tail call is a function call that is the <strong>last</strong> thing a function does before returning. If the result of the recursive call is returned directly, with no extra work, it is a tail call. If there is any pending operation — an addition, a multiplication, anything — it is not.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># This will crash for large n
-factorial_recursive &lt;- function(n) {
-  if (n &lt;= 1) return(1)
-  n * factorial_recursive(n - 1)
+    <div class="webr-editor" data-language="r"># Tail call: the recursive call's result is returned directly
+count_down_tco &lt;- function(n) {
+  if (n &lt;= 0) return(&quot;done&quot;)
+  count_down_tco(n - 1)          # nothing left to do after this returns
 }
 
-# Works for small n
-cat(&quot;10!:&quot;, factorial_recursive(10), &quot;\n&quot;)
-
-# Stack overflow for large n (don't run with n &gt; 900)
-# factorial_recursive(10000)  # Error: C stack usage is too close to the limit</div>
+# NOT a tail call: the result is multiplied before being returned
+factorial_naive &lt;- function(n) {
+  if (n &lt;= 1) return(1)
+  n * factorial_naive(n - 1)     # must wait for result, then multiply
+}</div>
 
     <div class="webr-buttons">
 
@@ -52,66 +54,35 @@ cat(&quot;10!:&quot;, factorial_recursive(10), &quot;\n&quot;)
 
 </div>
 
-<h2>What Is Tail Call Optimization?</h2>
+<p>The naive factorial cannot be tail-optimized even in Scheme. Each call has to wait for the inner result, multiply by <code>n</code>, and return — so the stack frame has to stay alive. The "tail call" version of factorial uses an accumulator to move the multiplication <em>before</em> the recursive call.</p>
 
-<p>A function call is in <strong>tail position</strong> when it's the last thing the function does before returning. With TCO, the runtime reuses the current stack frame instead of creating a new one.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Tail position means "nothing left to do".</strong> If a function's return value is literally "whatever the recursive call returns", the current frame is useless once the call is made — a TCO-aware language discards it. Without TCO, the language keeps the dead frame alive anyway, which is why R's recursion is shallow.</div></div>
 
-<div class="webr-container">
+<h2>Why Does R Skip Tail Call Optimization?</h2>
 
-  <div class="webr-code-block">
+<p>R's evaluator is designed around <strong><a class="auto-link" href="R-Promise-Objects.html" title="R Promise Objects: Lazy Evaluation & Force() Explained">lazy evaluation</a></strong> and <strong>environment frames</strong>: every function call creates an environment, arguments are promises, and the debugger (<code>traceback</code>) relies on the full stack being intact. TCO would require either eagerly discarding frames (breaking <code>traceback</code>) or adding a whole new calling convention.</p>
 
-    <div class="webr-editor" data-language="r"># NOT tail recursive: multiplication happens AFTER the recursive call
-factorial_not_tail &lt;- function(n) {
-  if (n &lt;= 1) return(1)
-  n * factorial_not_tail(n - 1)  # Must multiply after return
-}
+<p>The R Core team has discussed TCO repeatedly; it has been judged not worth the complexity. See R-devel archives for the long version. The practical upshot: if your recursion might go deeper than a few thousand levels, rewrite it.</p>
 
-# Tail recursive form: the recursive call IS the last operation
-factorial_tail &lt;- function(n, acc = 1) {
-  if (n &lt;= 1) return(acc)
-  factorial_tail(n - 1, n * acc)  # Nothing left to do after this
-}
+<h2>Workaround 1: Rewrite as a Loop</h2>
 
-cat(&quot;Tail form, 10!:&quot;, factorial_tail(10), &quot;\n&quot;)
-# But R still uses O(n) stack space — TCO doesn't happen!</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Solution 1: Convert to Iteration</h2>
-
-<p>The most reliable fix. Any tail-recursive function can be mechanically converted to a while loop.</p>
+<p>The simplest fix is also the most boring: a <code>while</code> or <code>for</code> loop with an accumulator. Loops never touch the stack, so they scale to any input.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Iterative factorial — no recursion, no stack issues
+    <div class="webr-editor" data-language="r"># Factorial as a loop — handles any n (up to numerical overflow)
 factorial_iter &lt;- function(n) {
-  acc &lt;- 1
-  while (n &gt; 1) {
-    acc &lt;- acc * n
-    n &lt;- n - 1
+  result &lt;- 1
+  for (i in seq_len(n)) {
+    result &lt;- result * i
   }
-  acc
+  result
 }
 
-cat(&quot;factorial_iter(10):&quot;, factorial_iter(10), &quot;\n&quot;)
-cat(&quot;factorial_iter(100):&quot;, format(factorial_iter(100), scientific = TRUE), &quot;\n&quot;)
-# Works for any n (limited only by numeric overflow, not stack)</div>
+factorial_iter(10)
+#&gt; [1] 3628800</div>
 
     <div class="webr-buttons">
 
@@ -129,52 +100,17 @@ cat(&quot;factorial_iter(100):&quot;, format(factorial_iter(100), scientific = T
 
 </div>
 
-<div class="webr-container">
+<p>Twenty years of FP tutorials make loops feel unclean — but in R they are the performant, idiomatic choice. Save recursion for cases where the problem is <em>naturally</em> recursive (tree traversal, divide-and-conquer) and the depth is bounded.</p>
 
-  <div class="webr-code-block">
+<h2>Workaround 2: Use a Trampoline</h2>
 
-    <div class="webr-editor" data-language="r"># Iterative Fibonacci
-fib_iter &lt;- function(n) {
-  if (n &lt;= 1) return(n)
-  a &lt;- 0; b &lt;- 1
-  for (i in 2:n) {
-    temp &lt;- a + b
-    a &lt;- b
-    b &lt;- temp
-  }
-  b
-}
-
-cat(&quot;fib(10):&quot;, fib_iter(10), &quot;\n&quot;)
-cat(&quot;fib(30):&quot;, fib_iter(30), &quot;\n&quot;)
-cat(&quot;fib(50):&quot;, fib_iter(50), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Solution 2: Trampolining</h2>
-
-<p>A trampoline converts recursive calls into a loop that repeatedly calls returned functions until a final value is reached.</p>
+<p>A <strong>trampoline</strong> is a small loop that repeatedly calls a function which returns either a result or the next call to make. The recursion becomes data — a function value that the trampoline keeps invoking until it returns something non-function.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Trampoline: keeps calling the result until it's not a function
-trampoline &lt;- function(f, ...) {
+    <div class="webr-editor" data-language="r">trampoline &lt;- function(f, ...) {
   result &lt;- f(...)
   while (is.function(result)) {
     result &lt;- result()
@@ -182,15 +118,14 @@ trampoline &lt;- function(f, ...) {
   result
 }
 
-# Trampolined factorial
-factorial_tramp &lt;- function(n, acc = 1) {
-  if (n &lt;= 1) return(acc)
-  # Return a THUNK (zero-argument function) instead of recursing
-  function() factorial_tramp(n - 1, n * acc)
+# &quot;Recursive&quot; countdown that returns a thunk instead of self-calling
+count_down &lt;- function(n, acc = 0) {
+  if (n &lt;= 0) return(acc)
+  function() count_down(n - 1, acc + 1)
 }
 
-cat(&quot;Trampolined 10!:&quot;, trampoline(factorial_tramp, 10), &quot;\n&quot;)
-cat(&quot;Trampolined 100!:&quot;, format(trampoline(factorial_tramp, 100), scientific = TRUE), &quot;\n&quot;)</div>
+trampoline(count_down, 100000)
+#&gt; [1] 100000</div>
 
     <div class="webr-buttons">
 
@@ -208,22 +143,27 @@ cat(&quot;Trampolined 100!:&quot;, format(trampoline(factorial_tramp, 100), scie
 
 </div>
 
-<h2>Solution 3: Recall() for Self-Reference</h2>
+<p><code>count_down(1, 0)</code> does not call itself — it returns a <strong>thunk</strong> (a zero-arg function) that, when called, will do the next step. The trampoline invokes the thunk, gets another thunk, invokes that, and so on. The stack depth stays at 1 forever. This is how you simulate TCO by hand.</p>
 
-<p><code>Recall()</code> calls the current function. It doesn't solve the stack problem, but it makes recursive functions more robust to renaming.</p>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Trampolines are ideal for interpreters and state machines.</strong> If you are writing a small language inside R, or a turn-based simulation, the trampoline pattern lets you write recursive code that scales. For everyday work, a loop is simpler.</div></div>
+
+<h2>Workaround 3: Use <code>Reduce()</code> for Accumulations</h2>
+
+<p>Many recursions are really "fold this function across a list" — and R has a built-in fold called <code>Reduce</code>. Instead of recursion, express the accumulation declaratively and let <code>Reduce</code> handle the iteration.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Recall() is syntactic sugar for calling the current function
-countdown &lt;- function(n) {
-  cat(n, &quot;&quot;)
-  if (n &gt; 0) Recall(n - 1)
+    <div class="webr-editor" data-language="r"># Instead of recursive sum:
+sum_recursive &lt;- function(xs) {
+  if (length(xs) == 0) return(0)
+  xs[1] + sum_recursive(xs[-1])  # not tail, and O(n^2) because of xs[-1]
 }
 
-countdown(5)
-cat(&quot;\n&quot;)</div>
+# Use Reduce:
+Reduce(`+`, 1:100000)
+#&gt; [1] 5000050000</div>
 
     <div class="webr-buttons">
 
@@ -241,23 +181,62 @@ cat(&quot;\n&quot;)</div>
 
 </div>
 
-<h2>Solution 4: Memoization for Overlapping Subproblems</h2>
+<p><code>Reduce(</code>+<code>, 1:100000)</code> runs in a simple loop inside C code — fast, stack-safe, and idiomatic. Many "naturally recursive" problems collapse into a <code>Reduce</code> once you stare at them. Ask yourself: is my recursion really "start with an accumulator, walk the list, fold each element in"? If yes, <code>Reduce</code> is the answer.</p>
 
-<p>When recursion recomputes the same values (like Fibonacci), memoization eliminates redundant work.</p>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rewrite <code>factorial_iter</code> using <code>Reduce(</code>*<code>, seq_len(n))</code> and test on <code>10</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">factorial_reduce &lt;- function(n) Reduce(`*`, seq_len(n), accumulate = FALSE)
+factorial_reduce(10)
+#&gt; [1] 3628800</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>Reduce(</code>*<code>, 1:10)</code> chains multiplications: <code>1*2*3*...*10</code>. No recursion, no stack growth.</p>
+
+</details>
+</section>
+
+<h2>When Is Recursion Still OK in R?</h2>
+
+<p>Recursion is fine when the depth is naturally bounded. Walking a tree of 30 levels, parsing nested parentheses 20 deep, or dividing a sorted array (binary search: <code>log2(n)</code> deep) are all trivially safe — the stack never exceeds a few dozen frames.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(memoise)
+    <div class="webr-editor" data-language="r"># Binary search: log2(1e6) = 20 frames deep — totally fine
+binary_search &lt;- function(xs, target, lo = 1, hi = length(xs)) {
+  if (lo &gt; hi) return(NA_integer_)
+  mid &lt;- (lo + hi) %/% 2
+  if      (xs[mid] == target) mid
+  else if (xs[mid] &lt;  target) binary_search(xs, target, mid + 1, hi)
+  else                        binary_search(xs, target, lo, mid - 1)
+}
 
-fib &lt;- memoise(function(n) {
-  if (n &lt;= 1) return(n)
-  fib(n - 1) + fib(n - 2)
-})
-
-cat(&quot;fib(10):&quot;, fib(10), &quot;\n&quot;)
-cat(&quot;fib(30):&quot;, fib(30), &quot;\n&quot;)</div>
+binary_search(1:1e6, 500000)
+#&gt; [1] 500000</div>
 
     <div class="webr-buttons">
 
@@ -275,60 +254,19 @@ cat(&quot;fib(30):&quot;, fib(30), &quot;\n&quot;)</div>
 
 </div>
 
-<h2>When to Use Each Approach</h2>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Approach</th>
-<th>Best for</th>
-<th>Limitation</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Iteration (while/for)</td>
-<td>Any recursive algorithm</td>
-<td>Requires manual rewrite</td>
-</tr>
-<tr>
-<td>Trampolining</td>
-<td>Tail-recursive algorithms</td>
-<td>Overhead of thunk creation</td>
-</tr>
-<tr>
-<td>Memoization</td>
-<td>Overlapping subproblems (DP)</td>
-<td>Memory for cache</td>
-</tr>
-<tr>
-<td>Increase stack limit</td>
-<td>Quick fix for moderate depth</td>
-<td>Still finite; fragile</td>
-</tr>
-</tbody>
-</table>
+<p>Twenty stack frames is nothing — the issue only shows up at thousands. Know which regime you are in.</p>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Convert Recursion to Iteration</h4>
+<h4>Exercise 1: Convert Naive Fibonacci to a Loop</h4>
 
-<p>Convert this recursive <code>sum_to(n)</code> function to an iterative version.</p>
+<p>Rewrite naive recursive Fibonacci as a loop with two running variables. Test <code>fib(30)</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Recursive (crashes for large n)
-sum_to_recursive &lt;- function(n) {
-  if (n &lt;= 0) return(0)
-  n + sum_to_recursive(n - 1)
-}
-
-cat(&quot;sum_to(10):&quot;, sum_to_recursive(10), &quot;\n&quot;)
-
-# Write sum_to_iter using a while loop
-</div>
+    <div class="webr-editor" data-language="r"># your code here</div>
 
     <div class="webr-buttons">
 
@@ -351,20 +289,18 @@ cat(&quot;sum_to(10):&quot;, sum_to_recursive(10), &quot;\n&quot;)
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">sum_to_iter &lt;- function(n) {
-  total &lt;- 0
-  while (n &gt; 0) {
-    total &lt;- total + n
-    n &lt;- n - 1
+    <div class="webr-editor" data-language="r">fib_loop &lt;- function(n) {
+  if (n &lt; 2) return(n)
+  a &lt;- 0; b &lt;- 1
+  for (i in seq_len(n - 1)) {
+    tmp &lt;- a + b
+    a &lt;- b
+    b &lt;- tmp
   }
-  total
+  b
 }
-
-cat(&quot;Iterative sum_to(10):&quot;, sum_to_iter(10), &quot;\n&quot;)
-cat(&quot;Iterative sum_to(10000):&quot;, sum_to_iter(10000), &quot;\n&quot;)
-
-# Verify: n*(n+1)/2
-cat(&quot;Formula check:&quot;, 10000 * 10001 / 2, &quot;\n&quot;)</div>
+fib_loop(30)
+#&gt; [1] 832040</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -374,7 +310,53 @@ cat(&quot;Formula check:&quot;, 10000 * 10001 / 2, &quot;\n&quot;)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Replace the recursive call with a while loop that updates an accumulator. The tail-recursive pattern <code>f(n-1, acc+n)</code> maps directly to <code>acc &lt;- acc + n; n &lt;- n - 1</code>.</p>
+<p><strong>Explanation:</strong> Two-variable accumulator walks up from <code>(0, 1)</code> to <code>(F_{n-1}, F_n)</code> in <code>n-1</code> steps — no recursion, no stack.</p>
+
+</details>
+
+<h4>Exercise 2: Reduce for Running Maximum</h4>
+
+<p>Use <code>Reduce(pmax, xs, accumulate = TRUE)</code> on <code>c(3, 1, 4, 1, 5, 9, 2, 6)</code> to produce the cumulative running max.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># your code here</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Reduce(pmax, c(3, 1, 4, 1, 5, 9, 2, 6), accumulate = TRUE)
+#&gt; [1] 3 3 4 4 5 9 9 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>accumulate = TRUE</code> emits every intermediate step; <code>pmax</code> keeps the larger of the running value and the next element.</p>
 
 </details>
 
@@ -383,56 +365,59 @@ cat(&quot;Formula check:&quot;, 10000 * 10001 / 2, &quot;\n&quot;)</div>
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Concept</th>
-<th>R Support</th>
+<th>Approach</th>
+<th>Stack-safe?</th>
+<th>When to use</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Tail call optimization</td>
-<td>Not supported</td>
+<td>Naive recursion</td>
+<td>No</td>
+<td>Only when depth is bounded (<~1000)</td>
 </tr>
 <tr>
-<td>Default stack depth</td>
-<td>~1,000 frames</td>
-</tr>
-<tr>
-<td><code>Recall()</code></td>
-<td>Syntactic sugar for self-call</td>
+<td><code>for</code> / <code>while</code> loop</td>
+<td>Yes</td>
+<td>Default for accumulations in R</td>
 </tr>
 <tr>
 <td>Trampoline</td>
-<td>Manual implementation</td>
+<td>Yes</td>
+<td>Simulating TCO, interpreters</td>
 </tr>
 <tr>
-<td>Best practice</td>
-<td>Convert to iteration</td>
+<td><code>Reduce()</code></td>
+<td>Yes</td>
+<td>Fold-shaped problems</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<h2>References</h2>
 
-<h4>Will R ever support tail call optimization?</h4>
+<ol>
 
-<p>There are no plans to add TCO to R. The interpreter architecture would need significant changes. The R Core team recommends using iteration for deep recursion.</p>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 9: Functionals. <a href="https://adv-r.hadley.nz/functionals.html">Link</a></li>
 
-<h4>What is R's stack limit?</h4>
+<li>R-devel mailing list — TCO discussions. <a href="https://stat.ethz.ch/pipermail/r-devel/">Link</a></li>
 
-<p>R's default C stack limit is typically 8 MB. You can check with <code>Cstack_info()</code>. The <code>options(expressions = N)</code> setting controls the number of nested expressions allowed (default ~5000).</p>
+<li>Abelson and Sussman — <em>Structure and Interpretation of Computer Programs</em>, section on tail recursion. <a href="https://mitpress.mit.edu/sicp/">Link</a></li>
 
-<h4>Is recursion ever appropriate in R?</h4>
+<li>Steele, G. L. — <em>Debunking the "Expensive Procedure Call" Myth</em> (1977). The original TCO paper.</li>
 
-<p>Yes — for tree traversals, divide-and-conquer algorithms, and problems with natural recursive structure, as long as the depth stays under ~500. Combine with memoization for dynamic programming problems.</p>
+<li><code>Recall()</code> in base R — the function for naming-independent recursion. <a href="https://rdrr.io/r/base/Recall.html">Link</a></li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><a href="/Functional-Programming-in-R.html">Functional Programming in R</a> — the parent tutorial</li>
+<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a> — the broader mindset and parent topic.</li>
 
-<li><a href="/Memoization-in-R.html">Memoization in R</a> — cache recursive function results</li>
+<li><a href="Reduce-Filter-Map-in-R.html">Reduce, Filter, Map in Base R</a> — the fold that often replaces recursion.</li>
 
-<li><a href="/R-Function-Factories.html">R Function Factories</a> — closures and environment capture</li>
+<li><a href="Writing-Composable-R-Code.html">Writing Composable R Code</a> — composition patterns that sidestep deep recursion.</li>
 
 </ul>

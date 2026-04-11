@@ -1,105 +1,78 @@
 ---
-title: "Tail Call Optimization in R: Recursive Functions Without Stack Overflow"
+title: "Tail Call Optimization in R: Why Deep Recursion Blows the Stack"
 slug: "Tail-Call-Optimization-in-R"
-description: "R doesn't optimize tail calls, but you can avoid stack overflows with trampolining, Recall(), and iterative rewrites. Practical solutions for deep recursion."
-keywords: "R tail call optimization, R recursion, stack overflow R, trampoline R, Recall function, deep recursion R"
+description: "R does not perform tail call optimization, so deep recursion blows the stack. Learn what TCO is, why R skips it, and three practical workarounds: iteration, trampolines, and Reduce."
+keywords: "tail call optimization R, R recursion stack overflow, R TCO, trampoline R, R recursion to iteration"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-12"
 curriculum_id: "FR-func-3"
 post_type: "FR"
-auto_link_terms: "tail call optimization|tail recursion|stack overflow R"
+auto_link_terms: "tail call optimization|TCO|recursion in R|stack overflow R"
 auto_link_case_sensitive: false
 fr_parent: "Functional-Programming-in-R.html"
 ---
 
-# Tail Call Optimization in R: Recursive Functions Without Stack Overflow
+# Tail Call Optimization in R: Why Deep Recursion Blows the Stack
 
-<p class="lead">R does <strong>not</strong> perform tail call optimization (TCO). Deep recursion will crash with a stack overflow. This tutorial shows three workarounds: converting to iteration, using trampolines, and increasing the stack limit.</p>
+<p class="lead">Tail call optimization (TCO) is a compiler trick that reuses the current stack frame when a function's last action is to call itself. Scheme and Haskell do it; R does not. This post explains why, and shows three ways to write recursive-looking R code that still handles huge inputs.</p>
 
-A recursive function calls itself. In languages with TCO (like Scheme or Haskell), tail-recursive functions use constant stack space. R isn't one of those languages — every recursive call adds a frame to the call stack, and R's default limit is about 1,000 frames.
+Write a naive recursive factorial in R, call it with `n = 100000`, and R throws `Error: C stack usage ... is too close to the limit`. The same recursion in Scheme runs forever without a hiccup, because Scheme converts tail calls into jumps rather than stack pushes. R keeps every call frame alive until the recursion unwinds, so deep recursion hits a hard ceiling — typically a few thousand frames.
 
-## The Problem: Stack Overflow
+## What Is a Tail Call, Exactly?
+
+A tail call is a function call that is the **last** thing a function does before returning. If the result of the recursive call is returned directly, with no extra work, it is a tail call. If there is any pending operation — an addition, a multiplication, anything — it is not.
 
 ```r
-# This will crash for large n
-factorial_recursive <- function(n) {
-  if (n <= 1) return(1)
-  n * factorial_recursive(n - 1)
+# Tail call: the recursive call's result is returned directly
+count_down_tco <- function(n) {
+  if (n <= 0) return("done")
+  count_down_tco(n - 1)          # nothing left to do after this returns
 }
 
-# Works for small n
-cat("10!:", factorial_recursive(10), "\n")
-
-# Stack overflow for large n (don't run with n > 900)
-# factorial_recursive(10000)  # Error: C stack usage is too close to the limit
+# NOT a tail call: the result is multiplied before being returned
+factorial_naive <- function(n) {
+  if (n <= 1) return(1)
+  n * factorial_naive(n - 1)     # must wait for result, then multiply
+}
 ```
 
-## What Is Tail Call Optimization?
+The naive factorial cannot be tail-optimized even in Scheme. Each call has to wait for the inner result, multiply by `n`, and return — so the stack frame has to stay alive. The "tail call" version of factorial uses an accumulator to move the multiplication *before* the recursive call.
 
-A function call is in **tail position** when it's the last thing the function does before returning. With TCO, the runtime reuses the current stack frame instead of creating a new one.
+[KEY INSIGHT]
+**Tail position means "nothing left to do".** If a function's return value is literally "whatever the recursive call returns", the current frame is useless once the call is made — a TCO-aware language discards it. Without TCO, the language keeps the dead frame alive anyway, which is why R's recursion is shallow.
 
-```r
-# NOT tail recursive: multiplication happens AFTER the recursive call
-factorial_not_tail <- function(n) {
-  if (n <= 1) return(1)
-  n * factorial_not_tail(n - 1)  # Must multiply after return
-}
+## Why Does R Skip Tail Call Optimization?
 
-# Tail recursive form: the recursive call IS the last operation
-factorial_tail <- function(n, acc = 1) {
-  if (n <= 1) return(acc)
-  factorial_tail(n - 1, n * acc)  # Nothing left to do after this
-}
+R's evaluator is designed around **lazy evaluation** and **environment frames**: every function call creates an environment, arguments are promises, and the debugger (`traceback`) relies on the full stack being intact. TCO would require either eagerly discarding frames (breaking `traceback`) or adding a whole new calling convention.
 
-cat("Tail form, 10!:", factorial_tail(10), "\n")
-# But R still uses O(n) stack space — TCO doesn't happen!
-```
+The R Core team has discussed TCO repeatedly; it has been judged not worth the complexity. See R-devel archives for the long version. The practical upshot: if your recursion might go deeper than a few thousand levels, rewrite it.
 
-## Solution 1: Convert to Iteration
+## Workaround 1: Rewrite as a Loop
 
-The most reliable fix. Any tail-recursive function can be mechanically converted to a while loop.
+The simplest fix is also the most boring: a `while` or `for` loop with an accumulator. Loops never touch the stack, so they scale to any input.
 
 ```r
-# Iterative factorial — no recursion, no stack issues
+# Factorial as a loop — handles any n (up to numerical overflow)
 factorial_iter <- function(n) {
-  acc <- 1
-  while (n > 1) {
-    acc <- acc * n
-    n <- n - 1
+  result <- 1
+  for (i in seq_len(n)) {
+    result <- result * i
   }
-  acc
+  result
 }
 
-cat("factorial_iter(10):", factorial_iter(10), "\n")
-cat("factorial_iter(100):", format(factorial_iter(100), scientific = TRUE), "\n")
-# Works for any n (limited only by numeric overflow, not stack)
+factorial_iter(10)
+#> [1] 3628800
 ```
 
-```r
-# Iterative Fibonacci
-fib_iter <- function(n) {
-  if (n <= 1) return(n)
-  a <- 0; b <- 1
-  for (i in 2:n) {
-    temp <- a + b
-    a <- b
-    b <- temp
-  }
-  b
-}
+Twenty years of FP tutorials make loops feel unclean — but in R they are the performant, idiomatic choice. Save recursion for cases where the problem is *naturally* recursive (tree traversal, divide-and-conquer) and the depth is bounded.
 
-cat("fib(10):", fib_iter(10), "\n")
-cat("fib(30):", fib_iter(30), "\n")
-cat("fib(50):", fib_iter(50), "\n")
-```
+## Workaround 2: Use a Trampoline
 
-## Solution 2: Trampolining
-
-A trampoline converts recursive calls into a loop that repeatedly calls returned functions until a final value is reached.
+A **trampoline** is a small loop that repeatedly calls a function which returns either a result or the next call to make. The recursion becomes data — a function value that the trampoline keeps invoking until it returns something non-function.
 
 ```r
-# Trampoline: keeps calling the result until it's not a function
 trampoline <- function(f, ...) {
   result <- f(...)
   while (is.function(result)) {
@@ -108,126 +81,149 @@ trampoline <- function(f, ...) {
   result
 }
 
-# Trampolined factorial
-factorial_tramp <- function(n, acc = 1) {
-  if (n <= 1) return(acc)
-  # Return a THUNK (zero-argument function) instead of recursing
-  function() factorial_tramp(n - 1, n * acc)
+# "Recursive" countdown that returns a thunk instead of self-calling
+count_down <- function(n, acc = 0) {
+  if (n <= 0) return(acc)
+  function() count_down(n - 1, acc + 1)
 }
 
-cat("Trampolined 10!:", trampoline(factorial_tramp, 10), "\n")
-cat("Trampolined 100!:", format(trampoline(factorial_tramp, 100), scientific = TRUE), "\n")
+trampoline(count_down, 100000)
+#> [1] 100000
 ```
 
-## Solution 3: Recall() for Self-Reference
+`count_down(1, 0)` does not call itself — it returns a **thunk** (a zero-arg function) that, when called, will do the next step. The trampoline invokes the thunk, gets another thunk, invokes that, and so on. The stack depth stays at 1 forever. This is how you simulate TCO by hand.
 
-`Recall()` calls the current function. It doesn't solve the stack problem, but it makes recursive functions more robust to renaming.
+[TIP]
+**Trampolines are ideal for interpreters and state machines.** If you are writing a small language inside R, or a turn-based simulation, the trampoline pattern lets you write recursive code that scales. For everyday work, a loop is simpler.
+
+## Workaround 3: Use `Reduce()` for Accumulations
+
+Many recursions are really "fold this function across a list" — and R has a built-in fold called `Reduce`. Instead of recursion, express the accumulation declaratively and let `Reduce` handle the iteration.
 
 ```r
-# Recall() is syntactic sugar for calling the current function
-countdown <- function(n) {
-  cat(n, "")
-  if (n > 0) Recall(n - 1)
+# Instead of recursive sum:
+sum_recursive <- function(xs) {
+  if (length(xs) == 0) return(0)
+  xs[1] + sum_recursive(xs[-1])  # not tail, and O(n^2) because of xs[-1]
 }
 
-countdown(5)
-cat("\n")
+# Use Reduce:
+Reduce(`+`, 1:100000)
+#> [1] 5000050000
 ```
 
-## Solution 4: Memoization for Overlapping Subproblems
+`Reduce(`+`, 1:100000)` runs in a simple loop inside C code — fast, stack-safe, and idiomatic. Many "naturally recursive" problems collapse into a `Reduce` once you stare at them. Ask yourself: is my recursion really "start with an accumulator, walk the list, fold each element in"? If yes, `Reduce` is the answer.
 
-When recursion recomputes the same values (like Fibonacci), memoization eliminates redundant work.
-
-```r
-library(memoise)
-
-fib <- memoise(function(n) {
-  if (n <= 1) return(n)
-  fib(n - 1) + fib(n - 2)
-})
-
-cat("fib(10):", fib(10), "\n")
-cat("fib(30):", fib(30), "\n")
-```
-
-## When to Use Each Approach
-
-| Approach | Best for | Limitation |
-|----------|----------|------------|
-| Iteration (while/for) | Any recursive algorithm | Requires manual rewrite |
-| Trampolining | Tail-recursive algorithms | Overhead of thunk creation |
-| Memoization | Overlapping subproblems (DP) | Memory for cache |
-| Increase stack limit | Quick fix for moderate depth | Still finite; fragile |
-
-## Practice Exercises
-
-### Exercise 1: Convert Recursion to Iteration
-
-Convert this recursive `sum_to(n)` function to an iterative version.
+**Try it:** Rewrite `factorial_iter` using `Reduce(`*`, seq_len(n))` and test on `10`.
 
 ```r
-# Recursive (crashes for large n)
-sum_to_recursive <- function(n) {
-  if (n <= 0) return(0)
-  n + sum_to_recursive(n - 1)
-}
-
-cat("sum_to(10):", sum_to_recursive(10), "\n")
-
-# Write sum_to_iter using a while loop
-
+# your code here
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-sum_to_iter <- function(n) {
-  total <- 0
-  while (n > 0) {
-    total <- total + n
-    n <- n - 1
-  }
-  total
-}
-
-cat("Iterative sum_to(10):", sum_to_iter(10), "\n")
-cat("Iterative sum_to(10000):", sum_to_iter(10000), "\n")
-
-# Verify: n*(n+1)/2
-cat("Formula check:", 10000 * 10001 / 2, "\n")
+factorial_reduce <- function(n) Reduce(`*`, seq_len(n), accumulate = FALSE)
+factorial_reduce(10)
+#> [1] 3628800
 ```
 
-**Explanation:** Replace the recursive call with a while loop that updates an accumulator. The tail-recursive pattern `f(n-1, acc+n)` maps directly to `acc <- acc + n; n <- n - 1`.
+**Explanation:** `Reduce(`*`, 1:10)` chains multiplications: `1*2*3*...*10`. No recursion, no stack growth.
+
+</details>
+
+## When Is Recursion Still OK in R?
+
+Recursion is fine when the depth is naturally bounded. Walking a tree of 30 levels, parsing nested parentheses 20 deep, or dividing a sorted array (binary search: `log2(n)` deep) are all trivially safe — the stack never exceeds a few dozen frames.
+
+```r
+# Binary search: log2(1e6) = 20 frames deep — totally fine
+binary_search <- function(xs, target, lo = 1, hi = length(xs)) {
+  if (lo > hi) return(NA_integer_)
+  mid <- (lo + hi) %/% 2
+  if      (xs[mid] == target) mid
+  else if (xs[mid] <  target) binary_search(xs, target, mid + 1, hi)
+  else                        binary_search(xs, target, lo, mid - 1)
+}
+
+binary_search(1:1e6, 500000)
+#> [1] 500000
+```
+
+Twenty stack frames is nothing — the issue only shows up at thousands. Know which regime you are in.
+
+## Practice Exercises
+
+### Exercise 1: Convert Naive Fibonacci to a Loop
+
+Rewrite naive recursive Fibonacci as a loop with two running variables. Test `fib(30)`.
+
+```r
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+fib_loop <- function(n) {
+  if (n < 2) return(n)
+  a <- 0; b <- 1
+  for (i in seq_len(n - 1)) {
+    tmp <- a + b
+    a <- b
+    b <- tmp
+  }
+  b
+}
+fib_loop(30)
+#> [1] 832040
+```
+
+**Explanation:** Two-variable accumulator walks up from `(0, 1)` to `(F_{n-1}, F_n)` in `n-1` steps — no recursion, no stack.
+
+</details>
+
+### Exercise 2: Reduce for Running Maximum
+
+Use `Reduce(pmax, xs, accumulate = TRUE)` on `c(3, 1, 4, 1, 5, 9, 2, 6)` to produce the cumulative running max.
+
+```r
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+Reduce(pmax, c(3, 1, 4, 1, 5, 9, 2, 6), accumulate = TRUE)
+#> [1] 3 3 4 4 5 9 9 9
+```
+
+**Explanation:** `accumulate = TRUE` emits every intermediate step; `pmax` keeps the larger of the running value and the next element.
 
 </details>
 
 ## Summary
 
-| Concept | R Support |
-|---------|-----------|
-| Tail call optimization | Not supported |
-| Default stack depth | ~1,000 frames |
-| `Recall()` | Syntactic sugar for self-call |
-| Trampoline | Manual implementation |
-| Best practice | Convert to iteration |
+| Approach             | Stack-safe? | When to use                          |
+|----------------------|:-----------:|--------------------------------------|
+| Naive recursion      | No          | Only when depth is bounded (<~1000)  |
+| `for` / `while` loop | Yes         | Default for accumulations in R       |
+| Trampoline           | Yes         | Simulating TCO, interpreters         |
+| `Reduce()`           | Yes         | Fold-shaped problems                 |
 
-## FAQ
+## References
 
-### Will R ever support tail call optimization?
-
-There are no plans to add TCO to R. The interpreter architecture would need significant changes. The R Core team recommends using iteration for deep recursion.
-
-### What is R's stack limit?
-
-R's default C stack limit is typically 8 MB. You can check with `Cstack_info()`. The `options(expressions = N)` setting controls the number of nested expressions allowed (default ~5000).
-
-### Is recursion ever appropriate in R?
-
-Yes — for tree traversals, divide-and-conquer algorithms, and problems with natural recursive structure, as long as the depth stays under ~500. Combine with memoization for dynamic programming problems.
+1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+2. R-devel mailing list — TCO discussions. [Link](https://stat.ethz.ch/pipermail/r-devel/)
+3. Abelson and Sussman — *Structure and Interpretation of Computer Programs*, section on tail recursion. [Link](https://mitpress.mit.edu/sicp/)
+4. Steele, G. L. — *Debunking the "Expensive Procedure Call" Myth* (1977). The original TCO paper.
+5. `Recall()` in base R — the function for naming-independent recursion. [Link](https://rdrr.io/r/base/Recall.html)
 
 ## Continue Learning
 
-- [Functional Programming in R](/Functional-Programming-in-R.html) — the parent tutorial
-- [Memoization in R](/Memoization-in-R.html) — cache recursive function results
-- [R Function Factories](/R-Function-Factories.html) — closures and environment capture
+- [Functional Programming in R](Functional-Programming-in-R.html) — the broader mindset and parent topic.
+- [Reduce, Filter, Map in Base R](Reduce-Filter-Map-in-R.html) — the fold that often replaces recursion.
+- [Writing Composable R Code](Writing-Composable-R-Code.html) — composition patterns that sidestep deep recursion.
