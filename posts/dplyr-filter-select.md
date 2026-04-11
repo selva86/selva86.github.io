@@ -61,6 +61,23 @@ mtcars |> filter(gear == ___, carb == ___)
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(dplyr)
+mtcars |> filter(gear == 4, carb == 4)
+#>                mpg cyl  disp  hp drat   wt  qsec vs am gear carb
+#> Mazda RX4     21.0   6 160.0 110 3.90 2.62 16.46  0  1    4    4
+#> Mazda RX4 Wag 21.0   6 160.0 110 3.90 2.88 17.02  0  1    4    4
+#> Merc 280      19.2   6 167.6 123 3.92 3.44 18.30  1  0    4    4
+#> Merc 280C     17.8   6 167.6 123 3.92 3.44 18.90  1  0    4    4
+#> Volvo 142E    21.4   4 121.0 109 4.11 2.78 18.60  1  1    4    2
+```
+
+Each comma-separated condition is ANDed together, so only rows with both `gear == 4` and `carb == 4` survive. Both column names resolve by tidy evaluation inside `filter()`, which is why you don't need `mtcars$gear` — dplyr scopes the names to the data frame on the left of the pipe.
+</details>
+
 ## How do you combine filter conditions with `&`, `|`, and `!`?
 
 Commas mean "and" — that's the common case. For "or" and "not," use the standard logical operators: `|` for or, `!` for not.
@@ -100,6 +117,18 @@ mtcars |> filter(am == 1 | gear == ___)
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(dplyr)
+mtcars |> filter(am == 1 | gear == 5) |> nrow()
+#> [1] 13
+```
+
+`|` is the vectorised OR — each row is kept if either side is `TRUE`. Because every manual car (`am == 1`) also has `gear` of 4 or 5, the OR mostly matches the same rows as `am == 1`, giving 13 cars. Don't swap `|` for `||`: `||` is the scalar shortcut used in `if` statements and it'll only look at the first row.
+</details>
+
 ## How do you handle NA in filters?
 
 `NA` propagates through comparisons: `NA > 5` is `NA`, not `FALSE`. `filter()` drops rows where the condition is `NA` — safer than base R, which sometimes returns mystery `NA` rows. But you still need `is.na()` to explicitly select missing rows.
@@ -137,6 +166,18 @@ df |> filter(!is.na(x))
 starwars |> filter(!is.na(___))
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(dplyr)
+starwars |> filter(!is.na(mass)) |> nrow()
+#> [1] 59
+```
+
+`!is.na(mass)` is a logical vector that's `TRUE` wherever `mass` has a value, and `filter()` keeps exactly those rows. Of the 87 characters in `starwars`, 59 have a recorded mass — the other 28 drop out. This pattern is the cleanest way to guarantee downstream numeric work won't choke on NAs.
+</details>
 
 ## How do you pick columns with select()?
 
@@ -176,6 +217,24 @@ mtcars |> select(mpg:drat) |> head(3)
 mtcars |> select(___, ___, ___) |> head()
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(dplyr)
+mtcars |> select(mpg, wt, hp) |> head()
+#>                    mpg    wt  hp
+#> Mazda RX4         21.0 2.620 110
+#> Mazda RX4 Wag     21.0 2.875 110
+#> Datsun 710        22.8 2.320  93
+#> Hornet 4 Drive    21.4 3.215 110
+#> Hornet Sportabout 18.7 3.440 175
+#> Valiant           18.1 3.460 105
+```
+
+`select()` keeps columns in the order you list them, so you can reorder while subsetting — the output shows `mpg` first, then `wt`, then `hp`, even though the original data frame has `wt` after `hp`. Row names (`Mazda RX4`, ...) travel with the rows.
+</details>
 
 ## What are the column selection helpers (starts_with, ends_with, contains)?
 
@@ -221,6 +280,24 @@ iris |> select(starts_with("___")) |> head()
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(dplyr)
+iris |> select(starts_with("Petal")) |> head()
+#>   Petal.Length Petal.Width
+#> 1          1.4         0.2
+#> 2          1.4         0.2
+#> 3          1.3         0.2
+#> 4          1.5         0.2
+#> 5          1.4         0.2
+#> 6          1.7         0.4
+```
+
+`starts_with("Petal")` matches any column name that begins with `Petal`, so `Petal.Length` and `Petal.Width` are kept and the three Sepal/Species columns are dropped. tidyselect helpers like this keep working as new columns are added, so you don't have to update your select call when the schema grows.
+</details>
+
 ## How do you rename columns with select() and rename()?
 
 `select()` can rename columns inline: the syntax is `new_name = old_name`. If you only want to rename without dropping anything, use `rename()`.
@@ -250,6 +327,22 @@ mtcars |>
 mtcars |> rename(weight = ___) |> head()
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(dplyr)
+mtcars |> rename(weight = wt) |> head()
+#>                    mpg cyl disp  hp drat weight  qsec vs am gear carb
+#> Mazda RX4         21.0   6  160 110 3.90  2.620 16.46  0  1    4    4
+#> Mazda RX4 Wag     21.0   6  160 110 3.90  2.875 17.02  0  1    4    4
+#> Datsun 710        22.8   4  108  93 3.85  2.320 18.61  1  1    4    1
+#> ...
+```
+
+`rename()` takes `new_name = old_name` pairs and changes the name in place — every other column stays put. Unlike `select(weight = wt)`, you don't have to list every column you want to keep, which is exactly what you want when you only need to retitle one thing.
+</details>
 
 ## How do you combine filter() and select() in a pipeline?
 
@@ -282,6 +375,26 @@ mtcars |>
   select(mpg, hp, ___)
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(dplyr)
+mtcars |>
+  filter(gear == 4) |>
+  select(mpg, hp, wt)
+#>                 mpg  hp    wt
+#> Mazda RX4      21.0 110 2.620
+#> Mazda RX4 Wag  21.0 110 2.875
+#> Datsun 710     22.8  93 2.320
+#> Fiat 128       32.4  66 2.200
+#> Honda Civic    30.4  52 1.615
+#> ...
+```
+
+The pipe hands the filtered data frame to `select()`, so the column pick operates only on the 12 four-gear cars — not the full 32 rows. Doing `filter()` before `select()` is the conventional order because it usually shrinks the row count first, which is cheaper and matches how you'd describe the query in English.
+</details>
 
 ## Practice Exercises
 

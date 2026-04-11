@@ -89,6 +89,23 @@ c <- tibble(stat = c("math","science"), Asha = c(88,81), Bilal = c(72,79))
 # Your answer: a, b, or c?
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+b
+#> # A tibble: 4 x 3
+#>   name  subject grade
+#>   <chr> <chr>   <dbl>
+#> 1 Asha  math       88
+#> 2 Asha  science    81
+#> 3 Bilal math       72
+#> 4 Bilal science    79
+```
+
+Table `b` is tidy: each row is one student-subject observation, each column is one variable (`name`, `subject`, `grade`). Table `a` hides the `subject` variable in column headers, and table `c` hides the `student` variable in headers — both would need a `pivot_longer()` before dplyr or ggplot would cooperate.
+</details>
+
 ## What are the three rules of tidy data?
 
 Wickham's original paper states them in one sentence each:
@@ -154,6 +171,36 @@ raw <- tibble(
 )
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr); library(tibble); library(dplyr)
+raw <- tibble(
+  teacher = "Mr. Singh",
+  subject = "math",
+  asha_score = 88,
+  bilal_score = 72,
+  cleo_score = 95
+)
+raw |>
+  pivot_longer(
+    cols = ends_with("_score"),
+    names_to = "student",
+    values_to = "score"
+  ) |>
+  mutate(student = sub("_score", "", student))
+#> # A tibble: 3 x 4
+#>   teacher   subject student score
+#>   <chr>     <chr>   <chr>   <dbl>
+#> 1 Mr. Singh math    asha       88
+#> 2 Mr. Singh math    bilal      72
+#> 3 Mr. Singh math    cleo       95
+```
+
+The hidden variables are `student` (buried in column names like `asha_score`) and `score`. Two observation types are also mixed — teachers-for-subjects and students-for-subjects — so a fully tidy version would split into a `teachers` table (subject, teacher) and a `grades` table (student, subject, score) joined on `subject`.
+</details>
+
 ## How do you spot values hiding in column headers?
 
 This is the most common untidy pattern. Column names should be **variable names**, not **variable values**. If your columns are named `2020`, `2021`, `2022`, then "year" is a variable and those numbers are its values — they should be rows, not headers.
@@ -207,6 +254,32 @@ expenses <- tibble(
   Mar = c(1250, 400, 150)
 )
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr); library(tibble)
+expenses <- tibble(
+  category = c("rent","food","travel"),
+  Jan = c(1200, 350, 100),
+  Feb = c(1200, 380, 200),
+  Mar = c(1250, 400, 150)
+)
+expenses |>
+  pivot_longer(cols = -category, names_to = "month", values_to = "amount")
+#> # A tibble: 9 x 3
+#>   category month amount
+#>   <chr>    <chr>  <dbl>
+#> 1 rent     Jan     1200
+#> 2 rent     Feb     1200
+#> 3 rent     Mar     1250
+#> 4 food     Jan      350
+#> ...
+```
+
+`cols = -category` tells `pivot_longer()` to gather every column except `category`, turning `Jan`, `Feb`, `Mar` into values of a new `month` column. One observation — "one category in one month" — now lives on one row, so `group_by(month)` and `ggplot(aes(month, amount))` become one-liners.
+</details>
 
 ## What about multiple variables crammed into one column?
 
@@ -275,6 +348,26 @@ tbl <- tibble(code = c("2024-A","2024-B","2025-A"), value = c(10,20,15))
 # Hint: separate(code, into = c("year","category"), sep = "-")
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tibble); library(tidyr); library(dplyr)
+tbl <- tibble(code = c("2024-A","2024-B","2025-A"), value = c(10,20,15))
+tbl |>
+  separate(code, into = c("year","category"), sep = "-") |>
+  mutate(year = as.integer(year))
+#> # A tibble: 3 x 3
+#>    year category value
+#>   <int> <chr>    <dbl>
+#> 1  2024 A           10
+#> 2  2024 B           20
+#> 3  2025 A           15
+```
+
+`separate()` splits on the first `-` and drops the two resulting pieces into the named columns — `year` starts out as character because the source was character, so the `mutate()` upgrades it to integer. In modern tidyr (≥ 1.3) `separate_wider_delim(code, delim = "-", names = c("year","category"))` does the same job with a more explicit name.
+</details>
+
 ## How do you handle variables split across columns?
 
 The mirror-image problem: one variable spread across multiple columns. The classic case is a table where each row has a `min` column and a `max` column for the same quantity, or a `type` column and a `value` column where `type` is what should have been the column name.
@@ -320,6 +413,28 @@ obs <- tibble(
   value = c(170, 68, 155, 52)
 )
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tibble); library(tidyr)
+obs <- tibble(
+  patient = c("A","A","B","B"),
+  measure = c("height_cm","weight_kg","height_cm","weight_kg"),
+  value = c(170, 68, 155, 52)
+)
+obs |>
+  pivot_wider(names_from = measure, values_from = value)
+#> # A tibble: 2 x 3
+#>   patient height_cm weight_kg
+#>   <chr>       <dbl>     <dbl>
+#> 1 A             170        68
+#> 2 B             155        52
+```
+
+Not tidy: a single patient's measurements are spread across two rows, so "one row = one observation of a patient" is violated. `height_cm` and `weight_kg` are two different variables (different units, different meanings), so the right move is `pivot_wider()` to put each on its own column.
+</details>
 
 ## When should one table become two (or more)?
 
@@ -391,6 +506,39 @@ mixed <- tibble(
 # Hint: products with (product, price), sales with (sale_id, product, qty)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tibble); library(dplyr)
+mixed <- tibble(
+  sale_id = 1:4,
+  product = c("Laptop","Laptop","Phone","Tablet"),
+  price = c(1200, 1200, 800, 500),
+  qty = c(1, 2, 1, 3)
+)
+products <- mixed |> distinct(product, price)
+sales <- mixed |> select(sale_id, product, qty)
+products
+#> # A tibble: 3 x 2
+#>   product price
+#>   <chr>   <dbl>
+#> 1 Laptop   1200
+#> 2 Phone     800
+#> 3 Tablet    500
+sales
+#> # A tibble: 4 x 3
+#>   sale_id product  qty
+#>     <int> <chr>  <dbl>
+#> 1       1 Laptop     1
+#> 2       2 Laptop     2
+#> 3       3 Phone      1
+#> 4       4 Tablet     3
+```
+
+`distinct(product, price)` pulls the unique product/price pairs into the products table, and `select()` drops the redundant `price` column from sales. Change a price later and you update one row in `products` instead of hunting down every sale — join on `product` when you need the combined view.
+</details>
+
 ## How does tidy data make dplyr and ggplot "just work"?
 
 Every tidyverse function is designed assuming tidy input. Once the data is tidy, each analysis question becomes a short pipeline. Here are three common questions answered the tidy way.
@@ -444,6 +592,32 @@ Three questions, three short pipelines. Each one reads almost like English becau
 ```r
 # Your code — group_by(student), summarise(avg = mean(score)), arrange(desc(avg))
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(dplyr); library(tibble)
+grades <- tibble(
+  student = rep(c("Asha","Bilal","Cleo","Daan"), each = 3),
+  subject = rep(c("math","science","english"), 4),
+  score = c(88, 81, 77, 72, 79, 85, 95, 90, 92, 60, 65, 70)
+)
+grades |>
+  group_by(student) |>
+  summarise(avg = mean(score)) |>
+  arrange(desc(avg))
+#> # A tibble: 4 x 2
+#>   student   avg
+#>   <chr>   <dbl>
+#> 1 Cleo     92.3
+#> 2 Asha     82
+#> 3 Bilal    78.7
+#> 4 Daan     65
+```
+
+`group_by(student)` tags each row with its group, `summarise()` collapses each group to a single row with the mean, and `arrange(desc(avg))` sorts by the computed column. This pipeline reads left-to-right exactly like English because the data is tidy — each student already has their own set of rows to aggregate.
+</details>
 
 ## Practice Exercises
 
