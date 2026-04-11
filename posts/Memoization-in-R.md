@@ -1,238 +1,185 @@
 ---
-title: "Memoization in R: memoise Package — Cache Expensive Functions"
+title: "Memoize R Functions: Cache Results and Call Expensive Code Only Once"
 slug: "Memoization-in-R"
-description: "Speed up R with memoization. Cache function results using the memoise package. Interactive examples with benchmarks, cache control, and real use cases."
-keywords: "R memoization, memoise package, cache functions R, speed up R, R performance, function caching"
+description: "Memoization caches the results of pure functions so repeat calls return instantly. Learn how it works, when to use it, and how the memoise package makes it one line of code."
+keywords: "memoization R, memoise package R, cache function results R, R performance caching, memoize R"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-12"
 curriculum_id: "4.2.7"
 post_type: "C"
-auto_link_terms: "memoization|memoise|cache functions"
+auto_link_terms: "memoization in R|memoise|memoization|function caching"
 auto_link_case_sensitive: false
+sidebar_section: "Learn R"
+sidebar_title: "Memoization in R"
+sidebar_order: 39
 ---
 
-# Memoization in R: memoise Package — Cache Expensive Functions
+# Memoize R Functions: Cache Results and Call Expensive Code Only Once
 
-<p class="lead"><strong>Memoization</strong> caches a function's results so that calling it again with the same arguments returns the cached result instantly. The <code>memoise</code> package makes this a one-line change in R.</p>
+<p class="lead">Memoization caches the results of a pure function by its inputs, so the second call with the same arguments returns instantly from the cache instead of recomputing. In R, the <code>memoise</code> package turns any function into a memoised version with one line of code.</p>
 
-If your function is slow and you call it repeatedly with the same inputs, memoization can eliminate redundant computation entirely. The first call computes and stores the result; every subsequent call with the same arguments returns the stored answer in microseconds.
+If your code repeatedly calls the same function with the same arguments — parsing a config, running the same database query, computing a Fibonacci number — memoization is the cheapest possible speedup. You do not rewrite your logic; you just wrap the function. This tutorial covers the idea, the one-liner, and the couple of rules that separate a helpful cache from a subtle bug.
 
-## The Problem: Redundant Computation
+## What Is Memoization and When Should You Use It?
+
+Memoization stores the result of each function call keyed by its arguments. The first call does the real work; every subsequent call with identical arguments skips straight to the answer. It is a space-for-time trade — you spend a little memory to save a lot of compute.
+
+Memoization is the right tool when **all three** of these are true: the function is **pure** (same inputs always give same outputs), it is **expensive** (slow enough that saving the call matters), and it is **called repeatedly** with some overlap in arguments. If any one of those is false, memoization is either wrong (impure functions will cache stale values) or pointless (nothing to skip).
+
+Here is the canonical case. `slow_square` deliberately pauses so the speedup is visible.
 
 ```r
-# Simulate a slow function (e.g., API call, complex model)
 slow_square <- function(x) {
-  Sys.sleep(0.5)  # Pretend this takes time
+  Sys.sleep(0.1)
   x^2
 }
 
-# Calling it twice with same input wastes time
-t1 <- system.time(slow_square(5))
-t2 <- system.time(slow_square(5))  # Same input, same wait
-cat("First call:", t1["elapsed"], "sec\n")
-cat("Second call:", t2["elapsed"], "sec\n")
-cat("Total wasted:", t1["elapsed"] + t2["elapsed"], "sec\n")
+# First call is slow, repeat call is just as slow
+system.time(slow_square(5))
+#>    user  system elapsed
+#>   0.000   0.000   0.101
+
+system.time(slow_square(5))
+#>    user  system elapsed
+#>   0.000   0.000   0.101
 ```
 
-## Basic Memoization with memoise
+Two calls, two hundred milliseconds. The second call should have been free — the answer is literally the same. That is what memoization fixes.
+
+[KEY INSIGHT]
+**Memoization is "write once, reuse forever" for function calls.** The function body runs exactly once per unique input. Everything after that is a dictionary lookup.
+
+## How Do You Memoise a Function in One Line?
+
+The `memoise` package from Posit provides one function, `memoise::memoise()`, that wraps any function. The wrapper keeps a private cache keyed on the argument list.
 
 ```r
 library(memoise)
 
 slow_square <- function(x) {
-  Sys.sleep(0.5)
+  Sys.sleep(0.1)
   x^2
 }
 
-# Wrap with memoise — one line change
 fast_square <- memoise(slow_square)
 
-# First call: computes and caches
-t1 <- system.time(result1 <- fast_square(5))
-cat("First call:", t1["elapsed"], "sec, result:", result1, "\n")
+system.time(fast_square(5))
+#>    user  system elapsed
+#>   0.000   0.000   0.102
 
-# Second call: instant from cache
-t2 <- system.time(result2 <- fast_square(5))
-cat("Second call:", t2["elapsed"], "sec, result:", result2, "\n")
-
-# Different argument: computes fresh
-t3 <- system.time(result3 <- fast_square(10))
-cat("New input:", t3["elapsed"], "sec, result:", result3, "\n")
+system.time(fast_square(5))
+#>    user  system elapsed
+#>   0.000   0.000   0.000
 ```
 
-> `memoise(f)` returns a new function that behaves identically to `f` but caches results. The cache key is the function arguments — same arguments, same cached result.
+First call: 100 ms (real work). Second call: 0 ms (cache hit). `fast_square` and `slow_square` are two separate function values — the original is still available untouched if you need it. That is what lets you memoise third-party functions from packages you cannot modify.
 
-## How Memoization Works
-
-![Memoization cache flow](screenshots/Memoization-in-R-cache-flow.webp)
-
-*Figure 1: When f(x) is called, the cache is checked first. On a hit, the stored result is returned instantly. On a miss, the function computes the result, stores it, then returns it.*
-
-The cache is a key-value store:
-- **Key**: The function's arguments (hashed)
-- **Value**: The computed result
+**Try it:** Memoise `Sys.sleep` wrapped in a tiny identity function and confirm the second call returns instantly.
 
 ```r
 library(memoise)
-
-# Simple example showing cache behavior
-counter <- 0
-tracked_fn <- function(x) {
-  counter <<- counter + 1
-  x * 10
-}
-
-memo_fn <- memoise(tracked_fn)
-
-memo_fn(5)   # Computes: counter = 1
-memo_fn(5)   # Cached: counter still 1
-memo_fn(10)  # Computes: counter = 2
-memo_fn(5)   # Cached: counter still 2
-
-cat("Function was actually called", counter, "times\n")
-cat("But memo_fn was called 4 times\n")
+slow_id <- function(x) { Sys.sleep(0.05); x }
+# your code here
 ```
 
-## When to Memoize
-
-Memoization works best when a function is:
-
-| Condition | Why it matters |
-|-----------|---------------|
-| **Pure** (same input → same output) | Cached results must be correct next time |
-| **Expensive** (slow to compute) | Otherwise caching overhead isn't worth it |
-| **Called repeatedly with same args** | No reuse = no benefit |
-| **Results fit in memory** | Large results bloat the cache |
-
-Functions that should NOT be memoized:
-- Functions with side effects (printing, writing files, database updates)
-- Functions that depend on external state (current time, random numbers)
-- Functions with very large return values that would exhaust memory
-
-## Cache Management
-
-### Clearing the Cache
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
 library(memoise)
-
-fn <- memoise(\(x) { cat("Computing...\n"); x^2 })
-
-fn(5)   # Computing...
-fn(5)   # Cached (no output)
-
-# Clear all cached results
-forget(fn)
-
-fn(5)   # Computing... (recomputed)
+slow_id <- function(x) { Sys.sleep(0.05); x }
+fast_id <- memoise(slow_id)
+system.time(fast_id(1))
+system.time(fast_id(1))
+#> First call: ~0.05; second call: ~0.000
 ```
 
-### Checking if a Result is Cached
+**Explanation:** `memoise` caches on the argument list `list(1)`, so the second call returns the cached value without running the body.
+
+</details>
+
+## How Does Memoization Work Under the Hood?
+
+A memoised function is a closure that owns a hash table. When you call it, it hashes the arguments, looks them up in the table, and either returns the stored answer or runs the real function and stores the new answer.
+
+Here is a pocket implementation. It is not production-quality — `memoise::memoise` handles many edge cases — but it shows the idea in twelve lines.
 
 ```r
-library(memoise)
-
-fn <- memoise(\(x) x + 1)
-fn(10)
-
-cat("Is fn memoised?", is.memoised(fn), "\n")
-cat("Has fn(10) been cached?", has_cache(fn)(10), "\n")
-cat("Has fn(20) been cached?", has_cache(fn)(20), "\n")
-```
-
-## Practical Examples
-
-### Caching API Responses
-
-```r
-library(memoise)
-
-# Simulate an API call
-fetch_user <- function(id) {
-  Sys.sleep(0.3)  # Network delay
-  list(id = id, name = paste("User", id), score = sample(100, 1))
-}
-
-cached_fetch <- memoise(fetch_user)
-
-# First call: slow
-t1 <- system.time(u1 <- cached_fetch(42))
-cat("First:", t1["elapsed"], "sec —", u1$name, "\n")
-
-# Repeated calls: instant
-t2 <- system.time(u2 <- cached_fetch(42))
-cat("Cached:", t2["elapsed"], "sec —", u2$name, "\n")
-```
-
-### Caching Recursive Functions (Fibonacci)
-
-```r
-library(memoise)
-
-# Naive recursive fibonacci (exponentially slow)
-fib_slow <- function(n) {
-  if (n <= 1) return(n)
-  fib_slow(n - 1) + fib_slow(n - 2)
-}
-
-# Memoized version (linear time)
-fib <- memoise(function(n) {
-  if (n <= 1) return(n)
-  fib(n - 1) + fib(n - 2)
-})
-
-cat("fib(10):", fib(10), "\n")
-cat("fib(20):", fib(20), "\n")
-cat("fib(30):", fib(30), "\n")
-
-# Compare speed
-t_slow <- system.time(fib_slow(25))
-forget(fib)
-t_fast <- system.time(fib(25))
-cat("\nSlow fib(25):", t_slow["elapsed"], "sec\n")
-cat("Memo fib(25):", t_fast["elapsed"], "sec\n")
-```
-
-## DIY Memoization (Without memoise)
-
-You can implement basic memoization with an environment as a cache.
-
-```r
-make_memo <- function(f) {
+memoise_simple <- function(f) {
   cache <- new.env(parent = emptyenv())
   function(...) {
-    key <- paste(..., sep = "_")
-    if (exists(key, envir = cache)) {
-      return(get(key, envir = cache))
+    key <- paste(deparse(list(...)), collapse = "")
+    if (!exists(key, envir = cache, inherits = FALSE)) {
+      assign(key, f(...), envir = cache)
     }
-    result <- f(...)
-    assign(key, result, envir = cache)
-    result
+    get(key, envir = cache, inherits = FALSE)
   }
 }
 
-slow_fn <- function(x) { Sys.sleep(0.3); x^2 }
-memo_fn <- make_memo(slow_fn)
+slow_double <- function(x) { Sys.sleep(0.05); x * 2 }
+fast_double <- memoise_simple(slow_double)
 
-t1 <- system.time(memo_fn(5))
-t2 <- system.time(memo_fn(5))
-cat("First:", t1["elapsed"], "sec\n")
-cat("Cached:", t2["elapsed"], "sec\n")
+fast_double(10)
+#> [1] 20
+fast_double(10)  # cache hit
+#> [1] 20
 ```
 
-## Practice Exercises
+The factory creates a fresh environment per call to `memoise_simple`, so two different memoised functions have two different caches. The returned closure captures both `f` (the original function) and `cache` (the hash table) in its enclosing environment.
 
-### Exercise 1: Memoize a Computation
+## Why Does Memoization Break Impure Functions?
 
-Create a function that simulates an expensive calculation and memoize it.
+If a function's output depends on *anything* besides its arguments — current time, a database row, a global variable, a random seed — the cache lies on every call after the first.
 
 ```r
 library(memoise)
 
-# Create a function that: takes a number, sleeps 0.2 sec, returns its factorial
-# Memoize it and verify the cache works
+# An impure function: depends on Sys.time()
+now <- function() as.numeric(Sys.time())
 
+fast_now <- memoise(now)
+fast_now()
+#> [1] 1744...
+
+Sys.sleep(0.5)
+
+fast_now()
+#> [1] 1744...   # same value — cached, but wrong
+```
+
+The cache returned the value from the first call instead of the current timestamp. For pure functions this is exactly what you want; for impure functions it is a silent bug. **Never memoise a function that reaches into the outside world.**
+
+[WARNING]
+**Memoising random functions gives you the same "random" number every time.** `memoise(rnorm)(1)` caches the first draw and returns it forever. If randomness is part of your function's contract, do not memoise it — or pass the seed as an explicit argument so different seeds produce different cache entries.
+
+## How Do You Make the Cache Expire?
+
+`memoise` supports a `cache` argument that controls the storage. For caches that should expire or refresh, pass a `cache_filesystem` (persistent across sessions) or use `timeout` to invalidate entries older than N seconds.
+
+```r
+library(memoise)
+
+get_config <- memoise(
+  function() { Sys.sleep(0.1); list(version = "1.0", debug = TRUE) },
+  ~ memoise::timeout(60)  # cache expires after 60 seconds
+)
+
+system.time(get_config())
+system.time(get_config())
+```
+
+The `~ timeout(60)` formula tells `memoise` to key the cache on "which 60-second window am I in". Once the clock ticks past the boundary, the next call recomputes. For most interactive analysis you will never need this — the default in-session cache is plenty.
+
+## Practice Exercises
+
+### Exercise 1: Memoise a Recursive Fibonacci
+
+Write a naive recursive Fibonacci and memoise it. Measure the difference in `system.time()` on `fib(25)`.
+
+```r
+library(memoise)
+# your code here
 ```
 
 <details>
@@ -241,50 +188,55 @@ library(memoise)
 ```r
 library(memoise)
 
-slow_factorial <- function(n) {
-  Sys.sleep(0.2)
-  factorial(n)
+fib_slow <- function(n) {
+  if (n < 2) return(n)
+  fib_slow(n - 1) + fib_slow(n - 2)
 }
 
-fast_factorial <- memoise(slow_factorial)
+fib_fast <- memoise(function(n) {
+  if (n < 2) return(n)
+  fib_fast(n - 1) + fib_fast(n - 2)
+})
 
-# First calls compute
-for (n in c(5, 10, 5, 10, 15)) {
-  t <- system.time(r <- fast_factorial(n))
-  cached <- if (t["elapsed"] < 0.1) "CACHED" else "COMPUTED"
-  cat(sprintf("n=%2d: %s (%.3fs) = %s\n", n, cached, t["elapsed"], format(r, big.mark=",")))
-}
+system.time(fib_slow(25))
+system.time(fib_fast(25))
 ```
 
-**Explanation:** The first call for each unique `n` computes and caches. Subsequent calls with the same `n` return instantly from cache.
+**Explanation:** The naive `fib_slow` recomputes the same subcalls exponentially. Memoised `fib_fast` caches every `n`, so it runs in linear time — often 100x faster.
+
+</details>
+
+### Exercise 2: Detect an Impure Function
+
+Given `random_msg <- function() sample(c("A","B","C"), 1)`, explain why `memoise(random_msg)` is a bad idea.
+
+<details>
+<summary>Click to reveal solution</summary>
+
+**Explanation:** `random_msg` is not pure — `sample()` calls R's random number generator, which is stateful. The first call caches whichever value came out, and every subsequent call returns the same cached value, breaking the randomness the caller expects. To memoise "randomness" safely, pass the seed as an explicit argument: `random_msg <- function(seed) { set.seed(seed); sample(c("A","B","C"), 1) }`. Now two different seeds produce two different cache entries.
 
 </details>
 
 ## Summary
 
-| Feature | Function | Description |
-|---------|----------|-------------|
-| Memoize | `memoise(f)` | Wrap function with cache |
-| Clear cache | `forget(f)` | Remove all cached results |
-| Check cache | `has_cache(f)(args)` | Test if specific args are cached |
-| Check memoized | `is.memoised(f)` | Test if function is memoized |
+| Question                          | Answer                                                |
+|-----------------------------------|-------------------------------------------------------|
+| When is memoization safe?         | The function is pure and expensive.                  |
+| How do you apply it in R?         | `memoise::memoise(f)` — one line, returns a new function. |
+| What does the cache live in?      | An environment private to the wrapper.               |
+| What breaks it?                   | Any side effect or external dependency.             |
+| Persistent cache across sessions? | `memoise(..., cache = cache_filesystem(...))`.        |
 
-## FAQ
+## References
 
-### Does memoization use a lot of memory?
-
-It depends on the size of results being cached. Each unique set of arguments stores one result. For small return values (numbers, short strings), memory is minimal. For large objects (data frames, model objects), the cache can grow quickly. Use `forget()` to clear when done.
-
-### Can I memoize functions from packages?
-
-Yes. `memoise(stats::lm)` would cache linear model fits. But be careful — model-fitting functions may depend on mutable data, making cached results stale.
-
-### Is memoization the same as caching?
-
-Memoization is a specific type of caching: caching function results based on their arguments. General caching can store anything anywhere. Memoization is automatic, transparent, and tied to a specific function.
+1. `memoise` package documentation. [Link](https://memoise.r-lib.org/)
+2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 11: Function operators. [Link](https://adv-r.hadley.nz/function-operators.html)
+3. Hadley Wickham and Jim Hester — original `memoise` CRAN page. [Link](https://cran.r-project.org/package=memoise)
+4. `digest` package — the hashing back-end used by `memoise`. [Link](https://cran.r-project.org/package=digest)
+5. Dynamic Programming entry in *The Algorithm Design Manual* (Skiena) — the broader algorithmic context. [Link](https://www.algorist.com/)
 
 ## Continue Learning
 
-- [R Function Operators](/R-Function-Operators.html) — other ways to transform functions
-- [Writing Composable R Code](/Writing-Composable-R-Code.html) — pipes, functions, and architecture
-- [Functional Programming in R](/Functional-Programming-in-R.html) — the FP foundation
+- [R Function Operators](R-Function-Operators.html) — memoise is an operator; learn the general pattern.
+- [R Function Factories](R-Function-Factories.html) — the factory pattern that underlies every memoiser.
+- [Functional Programming in R](Functional-Programming-in-R.html) — why pure functions matter for caching to work.
