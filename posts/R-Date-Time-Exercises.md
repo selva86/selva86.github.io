@@ -1,558 +1,303 @@
 ---
 title: "R Date & Time Exercises: 10 lubridate Practice Problems with Solutions"
 slug: "R-Date-Time-Exercises"
-description: "10 R date and time exercises: parse dates, calculate durations, extract components, handle time zones, and work with date sequences. Interactive solutions."
-keywords: "R date exercises, lubridate exercises, R date time practice, R as.Date, R date manipulation"
+description: "10 interactive lubridate exercises — parse, extract components, arithmetic, intervals, time zones and formatting. Every problem runs in the browser."
+keywords: "R date exercises, lubridate exercises, R time exercises, R date arithmetic, lubridate practice problems"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-11"
 curriculum_id: "E1.8"
 post_type: "EX"
-auto_link_terms: "R date exercises|lubridate exercises|R date time practice"
+sidebar_section: "Practice Exercises"
+sidebar_title: "R Date & Time (10 problems)"
+auto_link_terms: "R date exercises|lubridate exercises|R time exercises"
 auto_link_case_sensitive: false
 fr_parent: "R-Syntax-101.html"
 ---
 
 # R Date & Time Exercises: 10 lubridate Practice Problems with Solutions
 
-<p class="lead">Practice R date and time manipulation with 10 exercises: parse dates from strings, calculate age and duration, extract components, create sequences, and handle messy date formats. Uses both base R and lubridate.</p>
+<p class="lead">Ten hands-on exercises using the <code>lubridate</code> package — parse strings into real date objects, extract components, do arithmetic, compute durations, handle time zones, and format output. Every problem runs right in the browser.</p>
 
-Dates are one of the trickiest data types in any language. These exercises cover the most common date operations you'll encounter in data analysis — from basic parsing to business-day calculations.
+Date and time code is where silent bugs live. A string that *looks* like a date is not a date — and arithmetic on the wrong type gives wrong answers without any warning. These exercises cover the small set of lubridate verbs that remove almost all of that pain.
 
-## Easy (1-4): Parse and Extract
-
-### Exercise 1: Create and Inspect Dates
-
-Create Date objects from strings in different formats. Extract the year, month, and day of the week.
+## Setup
 
 ```r
-# Exercise 1: Parse dates and extract components
-# Parse these date strings into Date objects:
-# "2026-03-29", "March 15, 2024", "01/20/2025"
-# Then extract: year, month name, day of week
+library(lubridate)
+
+# A few sample values we'll reuse
+dates_raw <- c("2026-01-15", "2026/02/28", "15-Mar-2026", "2026.04.01")
+```
+
+## Section 1 — Parsing
+
+### Exercise 1. Parse ISO dates
+
+Parse `"2026-04-11"` into a real `Date` object. Confirm with `class()`.
+
+```r
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-# Base R date parsing
-d1 <- as.Date("2026-03-29")                           # ISO format (default)
-d2 <- as.Date("March 15, 2024", format = "%B %d, %Y") # Month name, day, year
-d3 <- as.Date("01/20/2025", format = "%m/%d/%Y")      # MM/DD/YYYY
+library(lubridate)
 
-dates <- c(d1, d2, d3)
-cat("Parsed dates:", format(dates), "\n\n")
-
-# Extract components
-for (d in dates) {
-  d <- as.Date(d, origin = "1970-01-01")
-  cat(sprintf("%s → Year: %d, Month: %s, Day of week: %s\n",
-    format(d), as.integer(format(d, "%Y")),
-    format(d, "%B"), format(d, "%A")))
-}
-
-# Quick reference of format codes
-cat("\nCommon format codes:\n")
-cat("  %Y = 4-digit year    %m = month number    %d = day\n")
-cat("  %B = month name      %b = abbrev month    %A = weekday name\n")
+d <- ymd("2026-04-11")
+d          # "2026-04-11"
+class(d)   # "Date"
 ```
+
+The `ymd()` family (`ymd`, `mdy`, `dmy`, `ymd_hms`, etc.) takes the format as part of the function name. This is clearer than passing a format string.
 
 </details>
 
-### Exercise 2: Date Arithmetic
+### Exercise 2. Parse mixed formats
 
-Calculate: how many days between two dates, what date is 100 days from today, and your age in days.
+Use the right function to parse each of `dates_raw` into a `Date`. Do not worry about ordering — treat each call separately.
 
 ```r
-# Exercise 2: Date math
-today <- Sys.Date()
-
-# 1. Days between Jan 1, 2026 and today
-# 2. What date is 100 days from today?
-# 3. What date was 1000 days ago?
-# 4. Days between Christmas 2025 and Christmas 2026
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-today <- Sys.Date()
-cat("Today:", format(today), "\n\n")
-
-# 1. Days since Jan 1, 2026
-jan1 <- as.Date("2026-01-01")
-diff1 <- as.integer(today - jan1)
-cat("Days since Jan 1, 2026:", diff1, "\n")
-
-# 2. 100 days from today
-future <- today + 100
-cat("100 days from now:", format(future), "(", format(future, "%A"), ")\n")
-
-# 3. 1000 days ago
-past <- today - 1000
-cat("1000 days ago:", format(past), "\n")
-
-# 4. Between Christmases
-xmas_2025 <- as.Date("2025-12-25")
-xmas_2026 <- as.Date("2026-12-25")
-cat("Days between Christmases:", as.integer(xmas_2026 - xmas_2025), "\n")
-
-# Bonus: weeks and months
-cat("\nWeeks since Jan 1:", round(diff1 / 7, 1), "\n")
-cat("Months (approx):", round(diff1 / 30.44, 1), "\n")
+ymd("2026-01-15")
+ymd("2026/02/28")
+dmy("15-Mar-2026")
+ymd("2026.04.01")
 ```
+
+`ymd()` is flexible about separators (`-`, `/`, `.`, or none) — you only need to match the *order* of year/month/day. `dmy()` is needed when the day comes first.
 
 </details>
 
-### Exercise 3: Date Sequences
+### Exercise 3. Parse a date-time
 
-Create date sequences: every day for a week, every Monday in March 2026, and the first day of each month in 2026.
+Parse `"2026-04-11 14:30:00"` and confirm the result has class `POSIXct`. Report the hour.
 
 ```r
-# Exercise 3: Generate date sequences
-# 1. Every day from March 1-7, 2026
-# 2. Every Monday in March 2026
-# 3. First day of each month in 2026
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-# 1. Daily sequence
-daily <- seq(as.Date("2026-03-01"), as.Date("2026-03-07"), by = "day")
-cat("Daily:", format(daily, "%b %d (%a)"), "\n\n")
-
-# 2. Every Monday in March 2026
-all_march <- seq(as.Date("2026-03-01"), as.Date("2026-03-31"), by = "day")
-mondays <- all_march[format(all_march, "%A") == "Monday"]
-cat("Mondays in March:", format(mondays, "%b %d"), "\n\n")
-
-# 3. First of each month
-month_starts <- seq(as.Date("2026-01-01"), as.Date("2026-12-01"), by = "month")
-cat("Month starts:\n")
-for (d in month_starts) {
-  d <- as.Date(d, origin = "1970-01-01")
-  cat(sprintf("  %s (%s)\n", format(d, "%B %d"), format(d, "%A")))
-}
+dt <- ymd_hms("2026-04-11 14:30:00")
+dt           # "2026-04-11 14:30:00 UTC"
+class(dt)    # "POSIXct" "POSIXt"
+hour(dt)     # 14
 ```
 
-**Key concept:** `seq()` works with dates. `by = "day"`, `by = "week"`, `by = "month"`, `by = "quarter"` are all valid.
+`ymd_hms()` gives you a `POSIXct` timestamp. In lubridate, `POSIXct` defaults to UTC unless you pass `tz = `.
 
 </details>
 
-### Exercise 4: Parse Messy Dates
+## Section 2 — Extracting components
 
-Clean a vector of dates in mixed formats and convert them all to proper Date objects.
+### Exercise 4. Pull apart a date
+
+Given `d <- ymd("2026-04-11")`, extract the year, month, day, and weekday (as a label).
 
 ```r
-# Exercise 4: Parse messy date formats
-messy_dates <- c("2024-01-15", "03/22/2024", "January 5, 2024",
-                 "2024.06.30", "15-Aug-2024", "12/1/24")
-
-# Parse ALL of these into Date objects
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-messy_dates <- c("2024-01-15", "03/22/2024", "January 5, 2024",
-                 "2024.06.30", "15-Aug-2024", "12/1/24")
+d <- ymd("2026-04-11")
 
-# Try multiple formats for each date
-parse_date <- function(x) {
-  formats <- c("%Y-%m-%d", "%m/%d/%Y", "%B %d, %Y",
-               "%Y.%m.%d", "%d-%b-%Y", "%m/%d/%y")
-  for (fmt in formats) {
-    result <- tryCatch(as.Date(x, format = fmt), error = function(e) NA)
-    if (!is.na(result)) return(result)
-  }
-  return(NA)
-}
-
-parsed <- as.Date(sapply(messy_dates, parse_date), origin = "1970-01-01")
-
-cat("Parsing results:\n")
-for (i in seq_along(messy_dates)) {
-  cat(sprintf("  %-20s → %s\n", messy_dates[i], format(parsed[i])))
-}
-
-cat("\nAll parsed:", format(parsed), "\n")
-cat("Any failures:", sum(is.na(parsed)), "\n")
+year(d)     # 2026
+month(d)    # 4
+day(d)      # 11
+wday(d, label = TRUE)   # Sat (an ordered factor)
 ```
 
-**Key concept:** Real data has mixed date formats. Try multiple `format` strings and use the first that succeeds. `%y` is 2-digit year, `%Y` is 4-digit.
+`wday(x, label = TRUE)` gives the abbreviated weekday as an ordered factor. Pass `abbr = FALSE` for the full label.
 
 </details>
 
-## Medium (5-7): Calculations and Grouping
+### Exercise 5. Change just the year
 
-### Exercise 5: Age Calculator
-
-Write a function that calculates exact age in years given a birth date. Test with several dates.
+Create `d2` that is the same date as `d` from Exercise 4 but in the year 2027. Do it without re-parsing.
 
 ```r
-# Exercise 5: Calculate exact age
-# Write age_years(birth_date) that returns age in decimal years
-# Account for leap years properly
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-age_years <- function(birth_date, ref_date = Sys.Date()) {
-  birth <- as.Date(birth_date)
-  ref <- as.Date(ref_date)
-
-  # Calculate year difference, adjust if birthday hasn't occurred yet
-  years <- as.integer(format(ref, "%Y")) - as.integer(format(birth, "%Y"))
-
-  # Has this year's birthday passed?
-  birth_this_year <- as.Date(paste0(format(ref, "%Y"), format(birth, "-%m-%d")))
-  if (ref < birth_this_year) years <- years - 1
-
-  # Decimal part
-  if (ref >= birth_this_year) {
-    next_birthday <- as.Date(paste0(as.integer(format(ref, "%Y")) + 1, format(birth, "-%m-%d")))
-    fraction <- as.numeric(ref - birth_this_year) / as.numeric(next_birthday - birth_this_year)
-  } else {
-    prev_birthday <- as.Date(paste0(as.integer(format(ref, "%Y")) - 1, format(birth, "-%m-%d")))
-    fraction <- as.numeric(ref - prev_birthday) / as.numeric(birth_this_year - prev_birthday)
-  }
-
-  return(round(years + fraction, 2))
-}
-
-# Test
-births <- c("1990-06-15", "2000-01-01", "1985-12-31", "2005-03-29")
-today <- Sys.Date()
-
-for (b in births) {
-  cat(sprintf("Born %s → Age: %.2f years\n", b, age_years(b, today)))
-}
+d2 <- d
+year(d2) <- 2027
+d2          # "2027-04-11"
 ```
+
+The extractor functions (`year()`, `month()`, `day()`, `hour()`, ...) can all be assigned into. This is the cleanest way to modify one component without touching the others.
 
 </details>
 
-### Exercise 6: Business Days
+## Section 3 — Arithmetic
 
-Calculate the number of business days (Mon-Fri, excluding weekends) between two dates.
+### Exercise 6. Add days, months, years
+
+Starting from `d <- ymd("2026-04-11")`, compute the date 7 days later, 1 month later, and 1 year later.
 
 ```r
-# Exercise 6: Count business days
-# How many business days between March 1 and March 31, 2026?
-# How many weekend days?
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-business_days <- function(start, end) {
-  all_days <- seq(as.Date(start), as.Date(end), by = "day")
-  weekdays <- format(all_days, "%u")  # 1=Monday, 7=Sunday
-  is_weekday <- weekdays %in% c("1", "2", "3", "4", "5")
+d <- ymd("2026-04-11")
 
-  list(
-    total_days = length(all_days),
-    business_days = sum(is_weekday),
-    weekend_days = sum(!is_weekday),
-    first_day = format(all_days[1], "%A"),
-    last_day = format(all_days[length(all_days)], "%A")
-  )
-}
-
-result <- business_days("2026-03-01", "2026-03-31")
-cat("March 2026:\n")
-cat("  Total days:", result$total_days, "\n")
-cat("  Business days:", result$business_days, "\n")
-cat("  Weekend days:", result$weekend_days, "\n")
-cat("  Starts:", result$first_day, "\n")
-cat("  Ends:", result$last_day, "\n")
-
-# Q1 2026
-q1 <- business_days("2026-01-01", "2026-03-31")
-cat("\nQ1 2026 business days:", q1$business_days, "\n")
+d + days(7)     # "2026-04-18"
+d + months(1)   # "2026-05-11"
+d + years(1)    # "2027-04-11"
 ```
 
-**Key concept:** `format(date, "%u")` gives the ISO weekday number (1=Monday, 7=Sunday). Filter for 1-5 to get business days.
+`days()`, `months()`, `years()` are *periods* — they respect the calendar, so adding one month to January 31 gives February 28 or 29, not a fixed number of days.
 
 </details>
 
-### Exercise 7: Monthly Aggregation
+### Exercise 7. Difference between two dates
 
-Given daily sales data, aggregate by month and find the best month.
+Compute the number of days between `"2026-04-11"` and `"2026-12-31"`.
 
 ```r
-# Exercise 7: Group daily data by month
-set.seed(42)
-dates <- seq(as.Date("2025-01-01"), as.Date("2025-12-31"), by = "day")
-sales <- round(runif(length(dates), 500, 2000) +
-               sin(seq_along(dates)/365 * 2 * pi) * 300, 0)
-
-# 1. Create a data frame with date and sales
-# 2. Add a month column
-# 3. Calculate monthly totals
-# 4. Find the best and worst months
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-set.seed(42)
-dates <- seq(as.Date("2025-01-01"), as.Date("2025-12-31"), by = "day")
-sales <- round(runif(length(dates), 500, 2000) +
-               sin(seq_along(dates)/365 * 2 * pi) * 300, 0)
+start <- ymd("2026-04-11")
+end   <- ymd("2026-12-31")
 
-# 1. Data frame
-df <- data.frame(date = dates, sales = sales)
-
-# 2. Add month
-df$month <- format(df$date, "%Y-%m")
-df$month_name <- format(df$date, "%B")
-
-# 3. Monthly totals
-monthly <- aggregate(sales ~ month + month_name, data = df, FUN = sum)
-monthly <- monthly[order(monthly$month), ]
-
-cat("Monthly sales:\n")
-for (i in 1:nrow(monthly)) {
-  bar <- paste(rep("#", round(monthly$sales[i] / 1000)), collapse = "")
-  cat(sprintf("  %s %-10s $%6d %s\n",
-    monthly$month[i], monthly$month_name[i], monthly$sales[i], bar))
-}
-
-# 4. Best and worst
-cat("\nBest month:", monthly$month_name[which.max(monthly$sales)],
-    "($", max(monthly$sales), ")\n")
-cat("Worst month:", monthly$month_name[which.min(monthly$sales)],
-    "($", min(monthly$sales), ")\n")
+as.numeric(end - start, units = "days")  # 264
+# Or explicitly:
+as.integer(difftime(end, start, units = "days"))  # 264
 ```
+
+Subtracting two dates returns a `difftime` object. Convert to numeric (or integer) to get a plain count.
 
 </details>
 
-## Hard (8-10): Real-World Date Challenges
+### Exercise 8. Intervals and overlap
 
-### Exercise 8: Date-Based Cohort Analysis
+Create two intervals and check whether they overlap:
 
-Assign customers to cohorts based on their signup month, then calculate retention.
+- Interval A: 2026-01-01 to 2026-06-30
+- Interval B: 2026-05-15 to 2026-12-31
 
 ```r
-# Exercise 8: Customer cohorts
-set.seed(42)
-n <- 100
-signups <- data.frame(
-  customer_id = 1:n,
-  signup_date = as.Date("2025-01-01") + sample(0:364, n, replace = TRUE),
-  last_active = as.Date("2025-01-01") + sample(0:400, n, replace = TRUE)
-)
-
-# 1. Assign each customer to a signup month cohort
-# 2. Calculate "active days" (last_active - signup_date)
-# 3. What % of each cohort was active for 90+ days?
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-set.seed(42)
-n <- 100
-signups <- data.frame(
-  customer_id = 1:n,
-  signup_date = as.Date("2025-01-01") + sample(0:364, n, replace = TRUE),
-  last_active = as.Date("2025-01-01") + sample(0:400, n, replace = TRUE)
-)
+A <- interval(ymd("2026-01-01"), ymd("2026-06-30"))
+B <- interval(ymd("2026-05-15"), ymd("2026-12-31"))
 
-# Fix: last_active must be >= signup_date
-signups$last_active <- pmax(signups$last_active, signups$signup_date)
+int_overlaps(A, B)   # TRUE
 
-# 1. Cohort = signup month
-signups$cohort <- format(signups$signup_date, "%Y-%m")
-
-# 2. Active days
-signups$active_days <- as.integer(signups$last_active - signups$signup_date)
-
-# 3. Retention by cohort
-cohort_stats <- aggregate(
-  cbind(active_days, customer_id) ~ cohort,
-  data = signups,
-  FUN = function(x) c(n = length(x), mean = round(mean(x), 0))
-)
-
-# Simpler approach
-library(dplyr)
-retention <- signups |>
-  group_by(cohort) |>
-  summarise(
-    customers = n(),
-    avg_active_days = round(mean(active_days), 0),
-    retained_90d = sum(active_days >= 90),
-    retention_pct = round(mean(active_days >= 90) * 100, 1)
-  )
-
-cat("Cohort retention analysis:\n")
-print(as.data.frame(retention))
+intersect(A, B)
+# 2026-05-15 UTC--2026-06-30 UTC
 ```
+
+`interval()` creates a real interval object. `int_overlaps()` returns a logical, and `intersect()` returns the overlapping interval (or `NA` if there is none).
 
 </details>
 
-### Exercise 9: Time Series Date Handling
+## Section 4 — Time zones and formatting
 
-Generate a complete daily time series, fill in missing dates, and identify gaps.
+### Exercise 9. Convert time zone
+
+Given `ymd_hms("2026-04-11 09:00:00", tz = "America/New_York")`, compute the same instant in `"Asia/Kolkata"`.
 
 ```r
-# Exercise 9: Fill missing dates in time series
-# This data has gaps (weekends and random missing days)
-set.seed(42)
-raw_dates <- seq(as.Date("2026-03-01"), as.Date("2026-03-31"), by = "day")
-# Remove weekends and some random days
-keep <- format(raw_dates, "%u") %in% c("1","2","3","4","5") & runif(length(raw_dates)) > 0.15
-observed <- data.frame(
-  date = raw_dates[keep],
-  value = round(rnorm(sum(keep), 100, 10), 1)
-)
-
-# 1. How many days are missing?
-# 2. Create a complete daily sequence and merge
-# 3. Fill missing values with the previous day's value
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-set.seed(42)
-raw_dates <- seq(as.Date("2026-03-01"), as.Date("2026-03-31"), by = "day")
-keep <- format(raw_dates, "%u") %in% c("1","2","3","4","5") & runif(length(raw_dates)) > 0.15
-observed <- data.frame(
-  date = raw_dates[keep],
-  value = round(rnorm(sum(keep), 100, 10), 1)
-)
+ny <- ymd_hms("2026-04-11 09:00:00", tz = "America/New_York")
+ny
+# "2026-04-11 09:00:00 EDT"
 
-cat("Observed days:", nrow(observed), "of 31\n")
-
-# 1. Missing days
-all_days <- seq(as.Date("2026-03-01"), as.Date("2026-03-31"), by = "day")
-missing <- all_days[!all_days %in% observed$date]
-cat("Missing days:", length(missing), "\n")
-cat("Missing dates:", format(missing, "%b %d"), "\n\n")
-
-# 2. Complete daily sequence
-complete <- data.frame(date = all_days)
-complete <- merge(complete, observed, by = "date", all.x = TRUE)
-
-# 3. Forward-fill NAs
-for (i in 2:nrow(complete)) {
-  if (is.na(complete$value[i])) {
-    complete$value[i] <- complete$value[i - 1]
-  }
-}
-
-cat("Complete series (first 10):\n")
-complete$filled <- ifelse(complete$date %in% observed$date, "", " (filled)")
-print(head(complete, 10))
+with_tz(ny, "Asia/Kolkata")
+# "2026-04-11 18:30:00 IST"
 ```
+
+`with_tz()` changes the displayed time zone *without* changing the absolute instant. If you want to change the instant (interpret the clock time in a new zone), use `force_tz()` instead. These do different things — pick deliberately.
 
 </details>
 
-### Exercise 10: Holiday and Event Calculator
+### Exercise 10. Format a date for display
 
-Build a function that calculates the dates of common holidays and events for any given year.
+Format `d <- ymd("2026-04-11")` as `"Saturday, 11 April 2026"`.
 
 ```r
-# Exercise 10: Holiday calculator
-# Write get_holidays(year) that returns dates for:
-# - New Year's Day (Jan 1)
-# - Valentine's Day (Feb 14)
-# - US Independence Day (Jul 4)
-# - Halloween (Oct 31)
-# - Christmas (Dec 25)
-# - Thanksgiving (4th Thursday of November)
-# - Easter (harder — use an algorithm or lookup)
-# Also: show which day of the week each falls on
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-get_holidays <- function(year) {
-  # Fixed holidays
-  holidays <- data.frame(
-    name = c("New Year's Day", "Valentine's Day", "Independence Day",
-             "Halloween", "Christmas"),
-    date = as.Date(c(
-      paste0(year, "-01-01"), paste0(year, "-02-14"),
-      paste0(year, "-07-04"), paste0(year, "-10-31"),
-      paste0(year, "-12-25")
-    )),
-    stringsAsFactors = FALSE
-  )
+d <- ymd("2026-04-11")
 
-  # Thanksgiving: 4th Thursday of November
-  nov_days <- seq(as.Date(paste0(year, "-11-01")),
-                  as.Date(paste0(year, "-11-30")), by = "day")
-  thursdays <- nov_days[format(nov_days, "%A") == "Thursday"]
-  thanksgiving <- thursdays[4]
-  holidays <- rbind(holidays,
-    data.frame(name = "Thanksgiving", date = thanksgiving))
-
-  # Sort by date
-  holidays <- holidays[order(holidays$date), ]
-  holidays$day_of_week <- format(holidays$date, "%A")
-  holidays$formatted <- format(holidays$date, "%B %d")
-
-  return(holidays)
-}
-
-# Test for 2026
-cat("=== 2026 Holidays ===\n")
-h2026 <- get_holidays(2026)
-for (i in 1:nrow(h2026)) {
-  cat(sprintf("  %-20s %s (%s)\n",
-    h2026$name[i], h2026$formatted[i], h2026$day_of_week[i]))
-}
-
-# Compare two years
-cat("\n=== Christmas Day of Week ===\n")
-for (y in 2024:2030) {
-  xmas <- as.Date(paste0(y, "-12-25"))
-  cat(sprintf("  %d: %s\n", y, format(xmas, "%A")))
-}
+format(d, "%A, %d %B %Y")
+# "Saturday, 11 April 2026"
 ```
 
-**Key concept:** Fixed holidays are easy — just construct the date string. "Nth weekday of month" holidays (like Thanksgiving) require generating all days in the month and filtering. This is a common real-world date calculation.
+The format codes come from base R's `strftime()`: `%A` full weekday, `%a` abbreviated, `%B` full month, `%b` abbreviated, `%d` day with leading zero, `%Y` four-digit year.
 
 </details>
 
-## Summary: Skills Practiced
+## Summary
 
-| Exercises | Date/Time Skills |
-|-----------|-----------------|
-| 1-4 (Easy) | `as.Date()`, `format()`, date arithmetic, `seq()`, parsing mixed formats |
-| 5-7 (Medium) | Age calculation, business days, monthly aggregation |
-| 8-10 (Hard) | Cohort analysis, time series gap filling, holiday calculation |
+- Parse with the `ymd` / `mdy` / `dmy` family — the function name encodes the order, so you never pass a format string.
+- Extract and assign components with `year()`, `month()`, `day()`, `hour()`, `wday(x, label = TRUE)`.
+- Use periods (`days()`, `months()`, `years()`) for calendar-aware arithmetic.
+- Intervals support overlap and intersection with `int_overlaps()` and `intersect()`.
+- Time zones: `with_tz()` changes the *display*, `force_tz()` changes the *instant*.
+- Format for display with `format(x, "%A, %d %B %Y")`.
+
+## References
+
+- [lubridate reference](https://lubridate.tidyverse.org/reference/index.html)
+- [R for Data Science (2e) — Dates and times](https://r4ds.hadley.nz/datetimes.html)
+- [lubridate cheat sheet](https://rstudio.github.io/cheatsheets/lubridate.pdf)
 
 ## Continue Learning
 
-One more exercise set:
-
-1. **R apply Family Exercises** — master apply, lapply, sapply, tapply
-
-Or continue learning: **Data Wrangling with dplyr** tutorial.
+- [R Syntax 101: Write Your First Working Script in 10 Minutes](R-Syntax-101.html)
+- [R String Manipulation Exercises: 10 stringr Problems](R-String-Exercises.html)
+- [R Functions Exercises: 10 Problems — Write, Debug & Optimize](R-Functions-Exercises.html)
