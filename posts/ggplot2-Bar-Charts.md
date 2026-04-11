@@ -96,12 +96,22 @@ p_col
 **Try it:** Try adding a `y` aesthetic to `geom_bar()` without `stat = "identity"`. What error does ggplot2 produce?
 
 ```r
-# This will produce an error — can you read what it says?
+# Your code here — supply both x and y to geom_bar() and observe the result
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_error <- tryCatch(
   ggplot(mpg, aes(x = class, y = hwy)) + geom_bar(),
   error = function(e) message("Error: ", e$message)
 )
+#> Error: stat_count() can only have an x or y aesthetic.
 ```
+
+`geom_bar()` defaults to `stat = "count"`, which derives the y values by counting rows in each x bin — supplying your own `y` collides with that calculation. The error tells you exactly which stat is complaining. Either drop the `y` (and use `geom_bar()` for counts) or switch to `geom_col()` / `geom_bar(stat = "identity")` to use the supplied heights.
+</details>
 
 ## How do you create stacked and dodged bar charts?
 
@@ -178,13 +188,22 @@ p_fill
 **Try it:** Change `position = "fill"` to `position = "stack"` in `p_fill`. How does the chart interpretation change?
 
 ```r
-# Switch from fill (%) to stack (counts)
+# Your code here — swap "fill" for "stack" and drop the percent y-axis
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_stack_switch <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "stack") +
   scale_fill_brewer(palette = "Set2")
 
 ex_stack_switch
 ```
+
+`position = "stack"` shows the *raw counts* per drive type, so each bar's total height tells you how many cars of that class are in the dataset — `suv` is now visibly the tallest. `position = "fill"` normalises every bar to 100%, which masks the count differences but makes the *mix* across classes directly comparable. Pick stack when totals matter, fill when proportions matter.
+</details>
 
 ## How do you reorder bars by value?
 
@@ -212,7 +231,13 @@ p_ordered
 **Try it:** Change `fct_reorder(mpg_avg$class, mpg_avg$hwy)` to `fct_reorder(mpg_avg$class, -mpg_avg$hwy)` (note the minus sign). How does the bar order change?
 
 ```r
-# Sort descending instead of ascending
+# Your code here — negate the sort key to flip the direction
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_desc <- ggplot(mpg_avg,
     aes(x = fct_reorder(class, -hwy), y = hwy)) +
   geom_col(fill = "steelblue") +
@@ -220,6 +245,9 @@ ex_desc <- ggplot(mpg_avg,
 
 ex_desc
 ```
+
+Negating the sort key (`-hwy`) reverses the ordering — bars now read left-to-right from highest to lowest mpg. This is the natural reading direction for vertical bar charts because the eye lands on the most important value first. For horizontal bars (after `coord_flip()`), the ascending version is usually better since it puts the largest bar at the *top*.
+</details>
 
 ## How do you add labels to bar charts?
 
@@ -270,13 +298,22 @@ p_label_in
 **Try it:** Change `vjust = -0.4` to `vjust = 2` in `p_label`. Does the label move inside the bar? Does it still look readable?
 
 ```r
-# Try moving labels inside with vjust = 2
+# Your code here — push vjust positive and switch the text colour
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_label_pos <- ggplot(mpg_avg, aes(x = fct_reorder(class, hwy), y = hwy)) +
   geom_col(fill = "steelblue") +
   geom_text(aes(label = hwy), vjust = 2, color = "white", size = 3.5)
 
 ex_label_pos
 ```
+
+`vjust = 2` shifts the label down by two text-line heights, planting it inside the top of the bar — and switching to `color = "white"` keeps it readable against the steelblue fill. The trick only works while every bar is tall enough to contain the text; the shortest bars in this set get crowded, which is exactly the trade-off the WARNING above mentions.
+</details>
 
 ## How do you make a horizontal bar chart?
 
@@ -302,10 +339,19 @@ Because `p_ordered` was already sorted ascending by `fct_reorder()`, after flipp
 **Try it:** Apply `coord_flip()` to `p_fill` (the percent-stacked chart). Does the horizontal layout make the proportion comparison easier?
 
 ```r
-# Flip the percent-stacked chart
+# Your code here — add coord_flip() to p_fill
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_horiz_fill <- p_fill + coord_flip()
 ex_horiz_fill
 ```
+
+After `coord_flip()` the bars run left-to-right with class names listed down the y-axis, so long names like `subcompact` no longer need to be tilted to fit. The proportion segments now read as horizontal slices, which mirrors how the eye scans rows in a table — easier than comparing vertical sub-sections at a glance.
+</details>
 
 ## Common Mistakes and How to Fix Them
 

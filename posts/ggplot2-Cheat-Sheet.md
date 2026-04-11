@@ -96,6 +96,13 @@ library(patchwork)
 **Try it:** Replace `geom_boxplot()` with `geom_violin()` in `p_box`. How does the shape of the distribution change compared to the boxplot?
 
 ```r
+# Your code here — swap geom_boxplot() for geom_violin()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_violin <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(show.legend = FALSE) +
   scale_fill_brewer(palette = "Set2") +
@@ -103,6 +110,9 @@ ex_violin <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 
 ex_violin
 ```
+
+A violin plot replaces the box's five-number summary with a mirrored density curve, so you can see *where* values cluster — not just the median and quartiles. For `mpg` you'll notice the front-wheel drive distribution is bimodal (compact econoboxes vs midsize sedans), a detail the boxplot completely hides. Trade-off: violins use more ink and require enough data per group to look stable.
+</details>
 
 ## How Do Aesthetics and aes() Work?
 
@@ -149,12 +159,23 @@ p_aes
 **Try it:** Move `size = cyl` from inside `aes()` to outside as `size = 3`. How does the chart change?
 
 ```r
+# Your code here — move size out of aes() into geom_point()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_fixed_size <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
-  geom_point(size = 3, alpha = 0.7) +  # fixed size for all points
+  geom_point(size = 3, alpha = 0.7) +
   scale_color_brewer(palette = "Set1")
 
 ex_fixed_size
 ```
+
+Moving `size` outside `aes()` turns it from a data-driven *mapping* into a fixed *setting* — every point is the same size regardless of `cyl`. The cylinder information disappears from the chart, but the points become uniform and easier to read when you don't need that extra dimension. Anything inside `aes()` is tied to a column; anything outside is a constant applied to every observation.
+</details>
+
 
 ## How Do You Customize Scales for Axes and Colors?
 
@@ -215,6 +236,13 @@ p_scales
 **Try it:** Add `scale_x_log10()` to any scatter plot. How does a log-transformed axis change the appearance of the data distribution?
 
 ```r
+# Your code here — add scale_x_log10() to a scatter plot
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_log <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.05, color = "steelblue") +
   scale_x_log10() +
@@ -222,6 +250,10 @@ ex_log <- ggplot(diamonds, aes(x = carat, y = price)) +
 
 ex_log
 ```
+
+Log scales spread out the dense low-value region and compress the long tail, so a right-skewed cloud like diamonds `carat` vs `price` straightens into a near-linear band. That makes the multiplicative relationship (each doubling of carat roughly triples price) visually obvious where a linear axis just piles everything in the bottom-left corner.
+</details>
+
 
 ## How Do You Use Facets to Create Multi-Panel Charts?
 
@@ -272,12 +304,23 @@ The `scales` argument controls axis behavior across panels:
 **Try it:** Add `scales = "free"` to `facet_wrap()` in `p_facet`. How does this change the axes across the three panels?
 
 ```r
+# Your code here — add scales = "free" to facet_wrap()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_free_scales <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.6, color = "steelblue") +
   facet_wrap(~ drv, scales = "free")
 
 ex_free_scales
 ```
+
+With `scales = "free"` each panel fits its own x and y range, so every facet uses its full plotting area even when groups differ in magnitude. The trade-off is that cross-panel comparison becomes harder — a point that looks "high" in the rear-wheel panel may actually sit at the same hwy MPG as a "low" point in the front-wheel panel. Use free scales to reveal within-group structure, fixed scales to compare across groups.
+</details>
+
 
 ## How Do You Apply Themes and Polish Your Chart?
 
@@ -353,9 +396,27 @@ p_theme
 **Try it:** Replace `theme_minimal()` with `theme_classic()`. How does the chart's overall feel change?
 
 ```r
-ex_classic <- p_theme %+% theme_classic()
+# Your code here — swap theme_minimal() for theme_classic()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_classic <- ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = "dodge") +
+  scale_fill_brewer(palette = "Set2",
+                    labels = c("4"="4WD","f"="Front","r"="Rear")) +
+  labs(title = "theme_classic() demonstration",
+       x = "Vehicle Class", y = "Count", fill = "Drive Type") +
+  theme_classic(base_size = 13)
+
 ex_classic
 ```
+
+`theme_classic()` drops the grid lines entirely and draws solid black axis lines on the left and bottom — the look of a traditional scientific publication. Compared to `theme_minimal()` (white background, faint grey grid, no axis lines) the chart feels more formal and print-ready, but you lose the grid which was helping readers estimate bar heights. Pick classic for camera-ready figures, minimal for screens and dashboards.
+</details>
+
 
 ## Common Mistakes and How to Fix Them
 

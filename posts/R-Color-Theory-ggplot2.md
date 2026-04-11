@@ -62,13 +62,22 @@ The output groups palettes into three rows: sequential (top), qualitative (middl
 **Try it:** Run `brewer.pal(n = 5, name = "Blues")` to see the 5-color sequential blue palette. Then try `brewer.pal(n = 5, name = "RdYlGn")` for a 5-color diverging palette.
 
 ```r
-# Preview specific palettes
+# Your code here — use brewer.pal() and show_col()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_blues <- brewer.pal(n = 5, name = "Blues")
 ex_rdylgn <- brewer.pal(n = 5, name = "RdYlGn")
-
-# Show as a simple visual
+ex_blues
+#> [1] "#EFF3FF" "#BDD7E7" "#6BAED6" "#3182BD" "#08519C"
 scales::show_col(ex_blues)
 ```
+
+`brewer.pal()` returns hex codes — `"Blues"` is a sequential ramp from very pale blue at the low end to deep navy at the high end, while `"RdYlGn"` is a diverging palette (red → yellow → green) suitable for above/below-zero data. `scales::show_col()` lays them out as a swatch grid so you can preview the contrast before wiring them into a chart.
+</details>
 
 ## How Do You Apply ColorBrewer Palettes in ggplot2?
 
@@ -142,6 +151,13 @@ p_qual
 **Try it:** Change `palette = "Set2"` to `palette = "Paired"` in `p_qual`. How does the chart's readability change?
 
 ```r
+# Your code here — swap Set2 for Paired
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_paired <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point(size = 2.5, alpha = 0.8) +
   scale_color_brewer(palette = "Paired") +
@@ -149,6 +165,9 @@ ex_paired <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
 
 ex_paired
 ```
+
+`"Paired"` is a 12-colour qualitative palette designed for showing related pairs (light/dark blue, light/dark green, etc.). With only 3 drive categories you end up using the first three slots — light blue, dark blue, light green — which feel less visually balanced than `"Set2"`'s muted, evenly-spaced hues. Save `"Paired"` for cases where you genuinely have paired categories like "before/after" or "predicted/observed".
+</details>
 
 ## How Does the Viridis Palette Family Work?
 
@@ -202,7 +221,13 @@ p_vir_d
 **Try it:** Change `option = "plasma"` to `option = "magma"` in `p_vir`. Then try `option = "cividis"`. Which looks best for the diamond density data?
 
 ```r
-# Test different viridis options on the same data
+# Your code here — swap the option argument and re-render
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_magma <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_bin2d(bins = 50) +
   scale_fill_viridis_c(option = "magma", trans = "log10") +
@@ -210,6 +235,9 @@ ex_magma <- ggplot(diamonds, aes(x = carat, y = price)) +
 
 ex_magma
 ```
+
+`magma` (black → red → cream) gives a warmer, more cinematic look than `plasma` and reads especially well on a dark background — high-density bins glow against the panel. `cividis` is the most colorblind-safe of the family but its blue-yellow range is narrower, so subtle density differences are harder to spot. For exploratory work `plasma`/`magma` win on contrast; for publication where deuteranopia matters, `cividis` is the safer pick.
+</details>
 
 ## How Do You Specify Custom Colors?
 
@@ -245,12 +273,22 @@ R accepts colors as hex codes (`"#2166ac"`), named colors (`"steelblue"`, `"toma
 **Try it:** Replace the three hex codes in `p_manual` with named R colors (`"navy"`, `"coral"`, `"forestgreen"`). Do the resulting colors look as distinct?
 
 ```r
+# Your code here — use scale_fill_manual() with R named colours
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_named <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "dodge") +
   scale_fill_manual(values = c("4" = "navy", "f" = "coral", "r" = "forestgreen"))
 
 ex_named
 ```
+
+R's named colours (`"navy"`, `"coral"`, `"forestgreen"`) are convenient shortcuts for hex codes, and these three remain visually distinct because they sit far apart in hue space — deep blue, warm orange-pink, and dark green. The trade-off is precision: you can't fine-tune the exact shade, so for brand work hex codes are better; for quick exploratory plots named colours are perfectly readable.
+</details>
 
 ## How Do You Design Charts for Colorblind Readers?
 
@@ -297,13 +335,22 @@ The three hex colors above (`#0072B2`, `#E69F00`, `#009E73`) are from the Okabe-
 **Try it:** Change the `scale_color_manual` colors in `p_cb` to use red (`"#CC0000"`) and green (`"#009900"`) for the `f` and `r` groups. Can you tell them apart if you squint — simulating a colorblind reader?
 
 ```r
-# Red-green combination — problematic for colorblind readers
+# Your code here — try the red/green combo and inspect the result
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_redgreen <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point(size = 3, alpha = 0.8) +
   scale_color_manual(values = c("4" = "#0072B2", "f" = "#CC0000", "r" = "#009900"))
 
 ex_redgreen
 ```
+
+For ~8% of male readers (deuteranopia/protanopia), the red and green points collapse into nearly identical muddy yellow-brown dots. Squinting roughly approximates the loss because both the red and the green sit at similar perceived brightness — and that's the trap. The fix is to either pick colours that differ in *lightness* as well as hue, or to dual-encode with `shape` so the chart still parses without colour at all.
+</details>
 
 ## Common Mistakes and How to Fix Them
 
