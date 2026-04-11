@@ -1,255 +1,188 @@
 ---
-title: "R Function Operators: Compose, Negate & Partial Application"
+title: "R Function Operators: Transform Existing Functions Without Rewriting Them"
 slug: "R-Function-Operators"
-description: "Master R function operators: compose functions with pipes, negate predicates, apply partial arguments, and memoize results. Interactive examples."
-keywords: "R function operators, compose R, Negate R, partial application R, purrr partial, function composition R"
+description: "Function operators in R take a function and return a transformed version. Compose, negate, memoise, and log function calls — all without touching the originals."
+keywords: "R function operators, compose functions R, negate function R, purrr function operators, higher-order functions"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-12"
 curriculum_id: "4.2.5"
 post_type: "C"
-auto_link_terms: "function operators|compose|Negate|partial application"
+auto_link_terms: "function operators|compose functions|negate function|function adverbs"
 auto_link_case_sensitive: false
+sidebar_section: "Learn R"
+sidebar_title: "R Function Operators"
+sidebar_order: 37
 ---
 
-# R Function Operators: Compose, Negate & Partial Application
+# R Function Operators: Transform Existing Functions Without Rewriting Them
 
-<p class="lead"><strong>Function operators</strong> take one or more functions as input and return a modified function as output. They let you compose, negate, partially apply, and otherwise transform functions without rewriting them.</p>
+<p class="lead">A function operator in R takes one or more functions and returns a new, transformed function. Unlike function factories (which take settings), operators take functions themselves — letting you compose, negate, memoise, or log any existing function.</p>
 
-A function factory creates functions from parameters. A function operator creates functions from other functions. The distinction is simple: if the input is data, it's a factory. If the input is a function, it's an operator.
+If a function factory is "settings in, function out", a function operator is "function in, function out". The distinction matters because operators let you *modify behaviour* without touching the original code — wrap a slow function to cache its results, wrap a predicate to negate it, wrap a pipeline to log every call. This guide covers the four operators you will actually use and how to build your own.
 
-## Function Composition
+## What Is a Function Operator?
 
-Function composition chains two functions together so the output of one feeds directly into the input of the next. Instead of writing `f(g(x))`, you create a single combined function.
-
-### Base R: Compose with the Pipe
-
-R 4.1+ introduced the native pipe `|>`, which passes the left side as the first argument of the right side.
+A function operator is a higher-order function whose input includes at least one function and whose output is a function. The classic example is `Negate()` — give it a predicate, get back the logical opposite.
 
 ```r
-# Without composition: nested calls (read inside-out)
-result <- round(mean(abs(c(-3, 5, -1, 8, -2))), 2)
-cat("Nested:", result, "\n")
+is_positive <- \(x) x > 0
+is_not_positive <- Negate(is_positive)
 
-# With pipe: read left to right
-result <- c(-3, 5, -1, 8, -2) |> abs() |> mean() |> round(2)
-cat("Piped:", result, "\n")
+is_positive(5)
+#> [1] TRUE
+
+is_not_positive(5)
+#> [1] FALSE
 ```
 
-### purrr::compose()
+`Negate(is_positive)` did not call `is_positive`. It returned a brand new function that calls `is_positive` internally and flips the answer. You can now pass `is_not_positive` to `Filter`, `which`, or anywhere else you need a predicate — without ever writing "not positive" by hand.
 
-`compose()` creates a new function by chaining multiple functions. The last function listed runs first (right-to-left by default).
+[KEY INSIGHT]
+**Operators separate "what to do" from "how to run it".** The original function knows how to compute a result. The operator knows how to *change* the running of any function — cache it, time it, negate it. Because the two concerns live in different functions, you can mix and match freely.
+
+## How Do You Compose Functions With `Reduce()` or `purrr::compose()`?
+
+Function composition means chaining: take the output of `g`, feed it to `f`. Mathematically this is `f ∘ g`. In R you can build a composed function once and reuse it.
+
+```r
+# Base R: compose with Reduce and Function()
+compose2 <- function(f, g) function(x) f(g(x))
+
+shout <- compose2(toupper, trimws)
+shout("  hello world  ")
+#> [1] "HELLO WORLD"
+```
+
+`shout` first trims whitespace, then uppercases. You never had to name an intermediate variable; the composed function is a single value you can pass around. For a longer pipeline, `purrr::compose()` takes any number of functions at once.
 
 ```r
 library(purrr)
 
-# compose() chains functions into one
-abs_mean <- compose(mean, abs)
-cat("abs_mean(c(-3, 5, -1)):", abs_mean(c(-3, 5, -1)), "\n")
-
-# .dir = "forward" for left-to-right order
-clean_string <- compose(trimws, tolower, .dir = "forward")
-cat("clean_string('  HELLO  '):", clean_string("  HELLO  "), "\n")
+clean_name <- compose(tolower, trimws, \(s) gsub("[^a-z ]", "", s, ignore.case = TRUE))
+clean_name("  HELLO World! 42 ")
+#> [1] "hello world "
 ```
 
+Read `compose(tolower, trimws, ...)` right to left: the rightmost function runs first, just like mathematical composition. If that reads backwards to you, pass `.dir = "forward"` to reverse the order.
+
+**Try it:** Use base R composition (nested functions or your own `compose2`) to build a function that takes a number, adds 1, then squares the result. Test on `3`.
+
 ```r
-library(purrr)
-
-# Practical: create a data cleaning pipeline as a single function
-clean_vector <- compose(
-  \(x) x[!is.na(x)],       # remove NAs
-  \(x) round(x, 2),         # round
-  sort,                       # sort
-  .dir = "forward"
-)
-
-messy <- c(3.14159, NA, 1.41421, 2.71828, NA, 0.57722)
-cat("Cleaned:", clean_vector(messy), "\n")
+# your code here
+#> Expected: 16
 ```
 
-## Negate: Flipping TRUE to FALSE
-
-`Negate()` (base R) or `negate()` (purrr) takes a predicate function and returns a new function that returns the opposite logical value.
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-# is.na returns TRUE for NAs
-x <- c(1, NA, 3, NA, 5)
-
-# Negate flips it: TRUE becomes FALSE and vice versa
-is_not_na <- Negate(is.na)
-cat("is.na:    ", is.na(x), "\n")
-cat("is_not_na:", is_not_na(x), "\n")
-
-# Use with Filter
-cat("Non-NA values:", Filter(Negate(is.na), x), "\n")
+compose2 <- function(f, g) function(x) f(g(x))
+square_after_add1 <- compose2(\(x) x^2, \(x) x + 1)
+square_after_add1(3)
+#> [1] 16
 ```
 
+**Explanation:** `compose2` fires the rightmost function first (`x + 1 = 4`), then the leftmost (`4^2 = 16`).
+
+</details>
+
+## What Does `Negate()` Give You That an `!` Does Not?
+
+`Negate` returns a *function*, not a value. You can pass that function into another higher-order function without inventing a name.
+
 ```r
-library(purrr)
+mixed <- c(-2, 0, 3, -1, 5, -4)
 
-# purrr's negate() works the same way
-is_even <- \(x) x %% 2 == 0
-is_odd <- negate(is_even)
-
-numbers <- 1:10
-cat("Even:", numbers[map_lgl(numbers, is_even)], "\n")
-cat("Odd: ", numbers[map_lgl(numbers, is_odd)], "\n")
+# With Negate
+is_positive <- \(x) x > 0
+Filter(Negate(is_positive), mixed)
+#> [1] -2  0 -1 -4
 ```
 
-## Partial Application
+`Filter(Negate(is_positive), mixed)` reads almost like English: keep everything that is not positive. The alternative — `Filter(\(x) !is_positive(x), mixed)` — works but requires you to define the inline wrapper each time.
 
-**Partial application** fixes some arguments of a function, returning a new function that takes the remaining arguments. It's like pre-filling a form — you lock in some values and leave the rest blank.
+## How Do You Time or Log Any Function With an Operator?
 
-### purrr::partial()
-
-```r
-library(purrr)
-
-# Fix the 'na.rm' argument of mean
-safe_mean <- partial(mean, na.rm = TRUE)
-
-data_with_na <- c(10, 20, NA, 40, 50)
-cat("mean (default):", mean(data_with_na), "\n")       # NA
-cat("safe_mean:     ", safe_mean(data_with_na), "\n")   # 30
-```
+Here is a useful operator — `with_timing` — that wraps any function so every call prints its duration.
 
 ```r
-library(purrr)
-
-# Fix 'base' argument of log
-log2 <- partial(log, base = 2)
-log10_custom <- partial(log, base = 10)
-
-cat("log2(8):  ", log2(8), "\n")
-cat("log10(100):", log10_custom(100), "\n")
-
-# Fix 'sep' in paste
-comma_paste <- partial(paste, sep = ", ")
-cat(comma_paste("a", "b", "c"), "\n")
-```
-
-### Base R: Creating Partial Functions Manually
-
-Without purrr, you can create partial functions using closures.
-
-```r
-# Manual partial application
-make_rounder <- function(digits) {
-  function(x) round(x, digits)
+with_timing <- function(f) {
+  function(...) {
+    t0 <- Sys.time()
+    out <- f(...)
+    cat("Elapsed:", format(Sys.time() - t0), "\n")
+    out
+  }
 }
 
-round2 <- make_rounder(2)
-round0 <- make_rounder(0)
-
-pi_val <- 3.14159265
-cat("round2(pi):", round2(pi_val), "\n")
-cat("round0(pi):", round0(pi_val), "\n")
+timed_sum <- with_timing(sum)
+timed_sum(1:1e6)
+#> Elapsed: 0.01 secs
+#> [1] 500000500000
 ```
 
-## safely() and possibly(): Error Handling Operators
+`timed_sum` is `sum` with side-effect logging bolted on. The original `sum` is unchanged — you can still use it everywhere else. Any function can be wrapped this way: `read.csv`, your custom model fitter, the whole lot. That is the power of an operator — it is a *modifier* for a behaviour, applicable to any function.
 
-These purrr operators wrap a function to handle errors gracefully.
+[TIP]
+**Stack operators for layered behaviour.** Want a memoised, timed, logging version of a function? Wrap it three times: `with_timing(memoise(with_logging(f)))`. Each layer adds one concern without touching the others.
+
+## How Does `purrr::safely()` Turn Errors Into Values?
+
+`safely()` is one of the most useful operators in `purrr`. It wraps a function so it never errors — instead, it returns a list with `$result` and `$error`, exactly one of which is `NULL`.
 
 ```r
 library(purrr)
 
-# safely() returns a list with $result and $error
 safe_log <- safely(log)
 
-cat("safe_log(10):\n")
-str(safe_log(10))
+safe_log(10)
+#> $result
+#> [1] 2.302585
+#>
+#> $error
+#> NULL
 
-cat("\nsafe_log('text'):\n")
-str(safe_log("text"))
+safe_log("not a number")
+#> $result
+#> NULL
+#>
+#> $error
+#> <simpleError in log(x): non-numeric argument to mathematical function>
 ```
+
+Once a risky function is safely-wrapped, you can `map()` it over a messy list without one bad element crashing the whole pipeline. Filter `$error`-ed results at the end.
+
+**Try it:** Use `safely(sqrt)` on the vector `c(4, -1, 9)` via `map` and print the errors count.
 
 ```r
 library(purrr)
-
-# possibly() returns a default value on error
-maybe_log <- possibly(log, otherwise = NA)
-
-inputs <- list(10, "text", 100, NULL, 1)
-results <- map_dbl(inputs, maybe_log)
-cat("Results:", results, "\n")
+# your code here
 ```
 
-> Use `safely()` when you need to inspect errors. Use `possibly()` when you just want a default fallback. Both are function operators — they take a function and return a modified function.
-
-## Combining Operators
-
-Function operators compose naturally. Chain them to build sophisticated behavior.
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
 library(purrr)
-
-# Chain operators: partial + safely + compose
-safe_divide <- safely(partial(`/`, 100))
-
-results <- map(c(5, 0, 25, "x"), safe_divide)
-cat("100/5:", results[[1]]$result, "\n")
-cat("100/0:", results[[2]]$result, "\n")
-cat("100/25:", results[[3]]$result, "\n")
-cat("100/'x' error:", results[[4]]$error$message, "\n")
+safe_sqrt <- safely(sqrt)
+results <- map(c(4, -1, 9), safe_sqrt)
+sum(sapply(results, \(r) !is.null(r$result)))
+#> [1] 3
 ```
 
-## Summary Table
+**Explanation:** `sqrt(-1)` returns `NaN` with a warning rather than an error, so all three have a `$result`. Try `safely(log)` on negatives for a real error.
 
-| Operator | Package | Input | Output | Use case |
-|----------|---------|-------|--------|----------|
-| `compose(f, g)` | purrr | 2+ functions | Combined function | Chain transformations |
-| `Negate(f)` | base | Predicate | Opposite predicate | Flip TRUE/FALSE |
-| `partial(f, ...)` | purrr | Function + args | Specialized function | Pre-fill arguments |
-| `safely(f)` | purrr | Function | Error-safe function | Capture errors |
-| `possibly(f, default)` | purrr | Function | Fallback function | Default on error |
+</details>
 
 ## Practice Exercises
 
-### Exercise 1: Compose a Text Cleaner
+### Exercise 1: Build a Retry Operator
 
-Create a single `clean_text` function by composing `trimws`, `tolower`, and a function that replaces multiple spaces with one.
-
-```r
-library(purrr)
-
-# Create clean_text using compose()
-messy <- c("  Hello   World  ", "  R   PROGRAMMING  ", "DATA   science  ")
-
-# Expected output: "hello world", "r programming", "data science"
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+Write a function operator `with_retry(f, times = 3)` that calls `f` up to `times` times and returns the first successful result. If all attempts fail, it rethrows the last error.
 
 ```r
-library(purrr)
-
-clean_text <- compose(
-  trimws,
-  tolower,
-  \(x) gsub("\\s+", " ", x),
-  .dir = "forward"
-)
-
-messy <- c("  Hello   World  ", "  R   PROGRAMMING  ", "DATA   science  ")
-cat("Cleaned:", map_chr(messy, clean_text), "\n")
-```
-
-**Explanation:** `compose(.dir = "forward")` applies functions left-to-right: trim first, then lowercase, then collapse spaces.
-
-</details>
-
-### Exercise 2: Safe Map Pipeline
-
-Use `possibly()` to safely parse a mix of valid and invalid numbers.
-
-```r
-library(purrr)
-
-raw <- c("42", "3.14", "abc", "100", "xyz", "0.5")
-
-# Convert to numbers safely, using NA for failures
-# Then calculate mean of successful conversions
+# your code here
 
 ```
 
@@ -257,36 +190,67 @@ raw <- c("42", "3.14", "abc", "100", "xyz", "0.5")
 <summary>Click to reveal solution</summary>
 
 ```r
-library(purrr)
+with_retry <- function(f, times = 3) {
+  function(...) {
+    for (i in seq_len(times)) {
+      result <- tryCatch(f(...), error = \(e) e)
+      if (!inherits(result, "error")) return(result)
+    }
+    stop(result)
+  }
+}
 
-raw <- c("42", "3.14", "abc", "100", "xyz", "0.5")
-
-safe_as_num <- possibly(as.numeric, otherwise = NA)
-nums <- map_dbl(raw, safe_as_num)
-cat("Parsed:", nums, "\n")
-cat("Mean (excluding NA):", mean(nums, na.rm = TRUE), "\n")
+my_safe_sqrt <- with_retry(sqrt, times = 3)
+my_safe_sqrt(16)
+#> [1] 4
 ```
 
-**Explanation:** `possibly(as.numeric, NA)` wraps `as.numeric` so it returns `NA` instead of throwing a warning on non-numeric input. Combine with `map_dbl` for type-safe output.
+**Explanation:** `tryCatch` captures any error; the loop retries up to `times` times and rethrows the final error.
 
 </details>
 
-## FAQ
+### Exercise 2: Chain Two Operators
 
-### What is the difference between compose() and the pipe |>?
+Use `Negate()` and `Filter()` together to keep only the strings in `c("cat", "canary", "dog", "cow")` that do NOT start with `"c"`.
 
-The pipe `|>` applies functions to data immediately: `x |> f() |> g()` runs now. `compose(g, f)` creates a new function that you can call later, pass to `map()`, or assign to a variable. Compose creates tools; pipes use them.
+```r
+# your code here
+#> Expected: "dog"
+```
 
-### When should I use partial() vs writing a wrapper function?
+<details>
+<summary>Click to reveal solution</summary>
 
-Use `partial()` for simple argument pre-filling — it's concise and self-documenting. Write a wrapper when you need conditional logic, validation, or transformation of arguments before passing them to the inner function.
+```r
+starts_with_c <- \(s) startsWith(s, "c")
+Filter(Negate(starts_with_c), c("cat", "canary", "dog", "cow"))
+#> [1] "dog"
+```
 
-### Does Negate() work with functions that return vectors?
+**Explanation:** `Negate(starts_with_c)` is the predicate "does NOT start with c"; `Filter` keeps everything that matches.
 
-Yes. `Negate(f)` applies `!` to whatever `f` returns. If `f` returns a logical vector, `Negate(f)` returns the element-wise negation.
+</details>
+
+## Summary
+
+| Operator            | Takes                 | Returns                                     |
+|---------------------|-----------------------|---------------------------------------------|
+| `Negate(f)`         | A predicate           | The opposite predicate                     |
+| `compose(f, g)`     | Two functions         | `f(g(x))` as one call                      |
+| `with_timing(f)`    | Any function          | Same function, prints elapsed time         |
+| `purrr::safely(f)`  | Any function          | Returns `$result`/`$error` instead of erroring |
+| `purrr::possibly(f)`| Function + default    | Returns default on error                   |
+
+## References
+
+1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 11: Function operators. [Link](https://adv-r.hadley.nz/function-operators.html)
+2. `purrr::safely`, `possibly`, `quietly`, `compose`. [Link](https://purrr.tidyverse.org/reference/safely.html)
+3. R Core Team — `base::Negate`. [Link](https://rdrr.io/r/base/funprog.html)
+4. `memoise` package — caching as an operator. [Link](https://memoise.r-lib.org/)
+5. Wickham, H. — *R for Data Science*, 2nd Edition. [Link](https://r4ds.hadley.nz/)
 
 ## Continue Learning
 
-- [R Function Factories](/R-Function-Factories.html) — functions that create functions from data
-- [Reduce, Filter, Map in Base R](/Reduce-Filter-Map-in-R.html) — the functional trifecta in base R
-- [purrr map() Variants](/purrr-map-Variants.html) — where function operators are used most
+- [R Function Factories](R-Function-Factories.html) — settings in, function out; the sibling pattern to operators.
+- [Memoization in R](Memoization-in-R.html) — an operator that caches results for speedups.
+- [Infix Functions in R](Infix-Functions-in-R.html) — write your own `%op%` operators for custom composition.
