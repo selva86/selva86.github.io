@@ -1,478 +1,370 @@
 ---
 title: "R Vectors Exercises: 12 Hands-On Problems with Step-by-Step Answers"
 slug: "R-Vectors-Exercises"
-description: "12 R vector exercises: create, subset, filter, modify, and combine vectors. Interactive code blocks with step-by-step solutions."
-keywords: "R vector exercises, R vector practice, R vector problems, R programming exercises, R subsetting exercises"
+description: "12 interactive R vector exercises with worked solutions: creation, coercion, indexing, logical filtering, arithmetic, recycling, named vectors, NA handling."
+keywords: "R vectors exercises, R vector practice, R indexing exercises, R logical indexing, R recycling exercises"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-11"
 curriculum_id: "E1.2"
 post_type: "EX"
-auto_link_terms: "R vector exercises|R vector practice|R vector problems"
+sidebar_section: "Practice Exercises"
+sidebar_title: "R Vectors (12 problems)"
+auto_link_terms: "R vectors exercises|R vector practice|R indexing exercises"
 auto_link_case_sensitive: false
 fr_parent: "R-Vectors.html"
 ---
 
 # R Vectors Exercises: 12 Hands-On Problems with Step-by-Step Answers
 
-<p class="lead">Practice everything about R vectors: creating, indexing, filtering, modifying, vectorized operations, and handling NAs. Each exercise includes an interactive code block and a detailed solution.</p>
+<p class="lead">Twelve focused exercises on R's most fundamental data structure. You will create vectors, coerce types, index by position, name and logical mask, do vectorised arithmetic, and avoid the two recycling traps that catch almost every beginner. Every problem is runnable right here in the page.</p>
 
-These exercises progress from Easy (1-4) to Medium (5-8) to Hard (9-12). They cover the skills from the R Vectors tutorial. Try each one before checking the solution.
+The single most important thing to understand in R is that almost everything is a vector. Scalars are length-one vectors. Data frame columns are vectors. Function arguments are often vectors. Mastering vectors is the one investment that pays off in every other part of R.
 
-## Easy (1-4): Creation and Access
+Work through the exercises in order. The code blocks share state across the whole page, so variables you create in Exercise 1 are still available in Exercise 12.
 
-### Exercise 1: Create and Inspect
+## Section 1 — Creating and inspecting vectors
 
-Create a numeric vector of the first 7 prime numbers. Find its length, sum, and mean.
+### Exercise 1. Four ways to create a vector
+
+Create the same numeric vector `1, 2, 3, 4, 5, 6, 7, 8, 9, 10` in four different ways: with `c()`, with `:`, with `seq()`, and with `seq_len()`. Confirm they are equal with `identical()`.
 
 ```r
-# Exercise 1: First 7 primes
-# Primes: 2, 3, 5, 7, 11, 13, 17
-
-# Write your code below:
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-primes <- c(2, 3, 5, 7, 11, 13, 17)
-cat("Primes:", primes, "\n")
-cat("Length:", length(primes), "\n")
-cat("Sum:", sum(primes), "\n")
-cat("Mean:", round(mean(primes), 2), "\n")
+v1 <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+v2 <- 1:10
+v3 <- seq(1, 10, by = 1)
+v4 <- seq_len(10)
+
+identical(v2, v4)   # TRUE — both are integer
+identical(v1, v3)   # TRUE — both are double
+identical(v1, v2)   # FALSE — one is double, one is integer
 ```
+
+`1:10` and `seq_len(10)` both produce *integer* vectors. `c(1, 2, ...)` and `seq(1, 10, by = 1)` produce *double* vectors. The values print the same but the type differs.
 
 </details>
 
-### Exercise 2: Sequence Shortcuts
+### Exercise 2. Type coercion in `c()`
 
-Create these four vectors without typing every number: (a) 1 to 50, (b) even numbers 2 to 30, (c) 100 down to 90, (d) 0.0, 0.1, 0.2, ..., 1.0.
+Predict the type of each of these vectors, then check with `typeof()`:
 
 ```r
-# Exercise 2: Create sequences efficiently
+c(1, 2, 3)
+c(1L, 2L, 3L)
+c(1, 2L, 3)
+c(1, "2", 3)
+c(1, TRUE, 3)
+```
 
-# Write your code below:
+```r
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-a <- 1:50
-b <- seq(2, 30, by = 2)
-c <- 100:90
-d <- seq(0, 1, by = 0.1)
-
-cat("a (1 to 50):", a, "\n\n")
-cat("b (even 2-30):", b, "\n\n")
-cat("c (100 to 90):", c, "\n\n")
-cat("d (0.0 to 1.0):", d, "\n")
+typeof(c(1, 2, 3))        # "double"
+typeof(c(1L, 2L, 3L))     # "integer"
+typeof(c(1, 2L, 3))       # "double"   — integer promoted to double
+typeof(c(1, "2", 3))      # "character" — everything becomes character
+typeof(c(1, TRUE, 3))     # "double"   — logical promoted to double
 ```
+
+The coercion hierarchy is `logical → integer → double → character`. `c()` picks the most general type present.
 
 </details>
 
-### Exercise 3: Positive Indexing
+### Exercise 3. Length, head, tail
 
-Given `cities <- c("Tokyo", "Delhi", "Shanghai", "Sao Paulo", "Mumbai", "Beijing", "Cairo")`, extract: (a) the 3rd city, (b) the first and last city, (c) cities 2 through 5.
+Create `x <- seq(5, 100, by = 5)`. Report its length, the first three values, and the last three values.
 
 ```r
-# Exercise 3: Access elements by position
-cities <- c("Tokyo", "Delhi", "Shanghai", "Sao Paulo", "Mumbai", "Beijing", "Cairo")
-
-# Write your code below:
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-cities <- c("Tokyo", "Delhi", "Shanghai", "Sao Paulo", "Mumbai", "Beijing", "Cairo")
+x <- seq(5, 100, by = 5)
 
-cat("3rd city:", cities[3], "\n")
-cat("First and last:", cities[c(1, length(cities))], "\n")
-cat("Cities 2-5:", cities[2:5], "\n")
+length(x)  # 20
+head(x, 3) # 5 10 15
+tail(x, 3) # 90 95 100
 ```
-
-**Key concept:** `c(1, length(cities))` gets first and last regardless of vector length.
 
 </details>
 
-### Exercise 4: Negative Indexing
+## Section 2 — Indexing
 
-Using the same `cities` vector, get: (a) everything except the 4th city, (b) everything except the first and last.
+### Exercise 4. Positive and range indexing
+
+From `x` (Exercise 3), extract the 1st, 5th and 10th elements in one call, and then the 11th through 15th elements as a contiguous slice.
 
 ```r
-# Exercise 4: Exclude elements
-cities <- c("Tokyo", "Delhi", "Shanghai", "Sao Paulo", "Mumbai", "Beijing", "Cairo")
-
-# Write your code below:
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-cities <- c("Tokyo", "Delhi", "Shanghai", "Sao Paulo", "Mumbai", "Beijing", "Cairo")
-
-cat("Without 4th:", cities[-4], "\n")
-cat("Without first/last:", cities[-c(1, length(cities))], "\n")
+x[c(1, 5, 10)]   # 5 25 50
+x[11:15]         # 55 60 65 70 75
 ```
 
-**Key concept:** Negative indices exclude elements. You can't mix positive and negative in the same `[]`.
+A vector of indices inside `[ ]` picks those positions in the order given. Ranges are just vectors built with `:`.
 
 </details>
 
-## Medium (5-8): Filtering and Modification
+### Exercise 5. Negative indexing
 
-### Exercise 5: Logical Filtering
-
-Given monthly rainfall in mm, find: which months had above-average rainfall, and what percentage of months were below 50mm.
+From `x`, return everything *except* the last two elements. Do it two ways: with a negative index, and with `head()`.
 
 ```r
-# Exercise 5: Rainfall analysis
-months <- c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-rainfall <- c(78, 52, 63, 41, 35, 28, 22, 25, 38, 55, 68, 82)
-
-# 1. Average rainfall
-# 2. Which months are above average?
-# 3. What % of months are below 50mm?
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-months <- c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-rainfall <- c(78, 52, 63, 41, 35, 28, 22, 25, 38, 55, 68, 82)
+x[-c(length(x) - 1, length(x))]  # everything but last two
+head(x, -2)                      # same result, cleaner
 
-avg <- mean(rainfall)
-cat("Average:", round(avg, 1), "mm\n")
-
-above_avg <- rainfall > avg
-cat("Above average:", months[above_avg], "\n")
-cat("Their rainfall:", rainfall[above_avg], "mm\n")
-
-pct_below_50 <- mean(rainfall < 50) * 100
-cat("Below 50mm:", round(pct_below_50, 1), "% of months\n")
+# head(x, -2) returns all but the last 2 elements.
+# Similarly, tail(x, -2) returns all but the first 2.
 ```
 
-**Key concept:** `mean(logical_vector)` gives the proportion of TRUEs. Use the logical vector to filter both `months` and `rainfall`.
+`head()` and `tail()` accept negative counts. This is the idiomatic way to drop trailing or leading elements.
 
 </details>
 
-### Exercise 6: Conditional Replacement
+### Exercise 6. Logical indexing
 
-Replace all negative values with 0 and all values above 100 with 100 (clamp to 0-100 range).
+Return the elements of `x` that are strictly greater than 30 *and* strictly less than 75.
 
 ```r
-# Exercise 6: Clamp values to 0-100
-scores <- c(105, 82, -3, 91, 67, 120, 45, -10, 78, 100)
-
-# Clamp: negatives → 0, above 100 → 100
-# Print before and after
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-scores <- c(105, 82, -3, 91, 67, 120, 45, -10, 78, 100)
-cat("Before:", scores, "\n")
+x[x > 30 & x < 75]
+# 35 40 45 50 55 60 65 70
 
-scores[scores < 0] <- 0
-scores[scores > 100] <- 100
-cat("After:", scores, "\n")
-
-# One-liner alternative using pmin and pmax:
-scores2 <- c(105, 82, -3, 91, 67, 120, 45, -10, 78, 100)
-clamped <- pmax(pmin(scores2, 100), 0)
-cat("pmin/pmax:", clamped, "\n")
+# Step-by-step:
+x > 30                 # logical vector
+x < 75                 # logical vector
+(x > 30) & (x < 75)    # element-wise AND
+x[(x > 30) & (x < 75)] # filter
 ```
 
-**Key concept:** `scores[condition] <- value` replaces elements that meet the condition. `pmin()`/`pmax()` are vectorized min/max — perfect for clamping.
+Use `&` for element-wise AND and `|` for element-wise OR. The double forms `&&` and `||` are for single-value logic in `if` statements and should not be used for vector filtering.
 
 </details>
 
-### Exercise 7: Named Vectors
+### Exercise 7. Named vectors
 
-Create a named vector of exchange rates (1 USD = X units of each currency), then convert $250 to each currency.
+Create a named vector of the populations (in millions) of five countries:
 
 ```r
-# Exercise 7: Currency converter
-# Create named vector: USD to EUR, GBP, JPY, INR, BRL
-# Convert $250 to each currency
+pop <- c(USA = 331, China = 1412, India = 1417, Brazil = 215, Nigeria = 223)
+```
+
+Return India's population by name, the values for USA and Nigeria in one call, and the *names* of all countries with population greater than 300 million.
+
+```r
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-rates <- c(EUR = 0.92, GBP = 0.79, JPY = 149.5, INR = 83.1, BRL = 4.97)
-amount_usd <- 250
+pop <- c(USA = 331, China = 1412, India = 1417, Brazil = 215, Nigeria = 223)
 
-converted <- amount_usd * rates
-cat("$250 USD =\n")
-for (currency in names(converted)) {
-  cat(sprintf("  %s %.2f\n", currency, converted[currency]))
-}
-
-# Which currency gives the most units?
-cat("\nBest value:", names(which.max(converted)),
-    "—", round(max(converted), 2), "units\n")
+pop["India"]                      # India: 1417
+pop[c("USA", "Nigeria")]          # USA: 331, Nigeria: 223
+names(pop)[pop > 300]             # "USA" "China" "India"
 ```
 
-**Key concept:** Multiplying a scalar by a named vector applies the operation to every element. Names are preserved in the result.
+Note the last one: you apply the logical index to `names(pop)`, not to `pop` itself, because you want the *names* back, not the values.
 
 </details>
 
-### Exercise 8: Set Operations
+## Section 3 — Arithmetic, recycling, and summaries
 
-Given two vectors of student IDs, find: students in both classes, students in Math only, students in Science only, and all unique students.
+### Exercise 8. Vectorised arithmetic
+
+Create `a <- 1:5` and `b <- 6:10`. Compute `a + b`, `a * b`, `a^b`, and the dot product.
 
 ```r
-# Exercise 8: Student enrollment
-math_students <- c(101, 103, 105, 107, 109, 111, 113)
-science_students <- c(103, 106, 107, 110, 111, 114)
-
-# 1. Students in BOTH classes
-# 2. Math only (not in Science)
-# 3. Science only (not in Math)
-# 4. All unique students
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-math_students <- c(101, 103, 105, 107, 109, 111, 113)
-science_students <- c(103, 106, 107, 110, 111, 114)
+a <- 1:5
+b <- 6:10
 
-both <- intersect(math_students, science_students)
-math_only <- setdiff(math_students, science_students)
-sci_only <- setdiff(science_students, math_students)
-all_unique <- union(math_students, science_students)
-
-cat("Both classes:", both, "\n")
-cat("Math only:", math_only, "\n")
-cat("Science only:", sci_only, "\n")
-cat("All students:", sort(all_unique), "\n")
-cat("Total unique:", length(all_unique), "\n")
+a + b          # 7 9 11 13 15
+a * b          # 6 14 24 36 50
+a^b            # 1 128 6561 262144 9765625
+sum(a * b)     # 130 — the dot product
 ```
 
-**Key concept:** `intersect()`, `setdiff()`, and `union()` are R's set operations. `%in%` checks membership: `math_students %in% science_students`.
+R has no special dot-product operator (unlike NumPy). `sum(a * b)` is idiomatic and fast.
 
 </details>
 
-## Hard (9-12): Combined Skills
+### Exercise 9. Recycling — the safe case and the trap
 
-### Exercise 9: Running Statistics
-
-Calculate the cumulative (running) sum, mean, min, and max of a vector. For position i, the running mean is the mean of elements 1 through i.
+Predict the output of each of these. Run them and read the warning on the second one.
 
 ```r
-# Exercise 9: Running statistics
-sales <- c(120, 85, 150, 95, 200, 175, 110, 220, 160, 130)
+c(1, 2, 3, 4) * c(10, 100)
+c(1, 2, 3, 4, 5) * c(10, 100)
+```
 
-# Calculate running: sum, mean, min, max
-# Hint: cumsum() exists. For others, you'll need sapply or a loop.
+```r
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-sales <- c(120, 85, 150, 95, 200, 175, 110, 220, 160, 130)
+c(1, 2, 3, 4) * c(10, 100)
+# 10 200 30 400  — clean recycling, length 2 divides length 4
 
-# Running sum (built-in)
-run_sum <- cumsum(sales)
-
-# Running mean, min, max (via sapply)
-run_mean <- sapply(seq_along(sales), function(i) round(mean(sales[1:i]), 1))
-run_min <- sapply(seq_along(sales), function(i) min(sales[1:i]))
-run_max <- sapply(seq_along(sales), function(i) max(sales[1:i]))
-
-# Also: cummin() and cummax() are built-in!
-cat("Sales:    ", sales, "\n")
-cat("Run sum:  ", run_sum, "\n")
-cat("Run mean: ", run_mean, "\n")
-cat("Run min:  ", cummin(sales), "\n")
-cat("Run max:  ", cummax(sales), "\n")
+c(1, 2, 3, 4, 5) * c(10, 100)
+# Warning message:
+# longer object length is not a multiple of shorter object length
+# 10 200 30 400 50
 ```
 
-**Key concept:** `cumsum()`, `cummin()`, `cummax()` are built-in. Running mean needs `sapply()` or the loop: mean of `sales[1:i]` for each i.
+R recycles the shorter vector to match the longer. When lengths divide cleanly, no warning. When they do not, R still recycles but warns — and that is almost always a bug in your code. Treat the warning as an error until you have investigated.
 
 </details>
 
-### Exercise 10: Handle Missing Data
+### Exercise 10. Summary functions
 
-A sensor recorded temperatures but had some failures (NAs). Find the mean ignoring NAs, count the gaps, find the longest consecutive gap, and fill NAs with the last known value.
+Using `pop` from Exercise 7, compute the total population, the mean, the median, the country with the largest population (by name), and the country with the smallest (by name).
 
 ```r
-# Exercise 10: Sensor data with gaps
-temps <- c(22.1, 22.3, NA, NA, 23.0, 23.2, NA, 22.8, 22.5, NA, NA, NA, 23.5, 23.1)
-
-# 1. Mean temperature (ignoring NAs)
-# 2. How many NAs? What percentage?
-# 3. Fill NAs with the previous non-NA value (carry forward)
-# Hint: For #3, use a loop or zoo::na.locf logic
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-temps <- c(22.1, 22.3, NA, NA, 23.0, 23.2, NA, 22.8, 22.5, NA, NA, NA, 23.5, 23.1)
+sum(pop)              # 3598 (million)
+mean(pop)             # 719.6
+median(pop)           # 331
 
-# 1. Mean
-cat("Mean (valid):", round(mean(temps, na.rm = TRUE), 2), "\n")
-
-# 2. NA count
-na_count <- sum(is.na(temps))
-cat("NAs:", na_count, "of", length(temps), "(", round(na_count/length(temps)*100, 1), "%)\n")
-
-# 3. Fill NAs forward (carry last observation forward)
-filled <- temps
-for (i in 2:length(filled)) {
-  if (is.na(filled[i])) {
-    filled[i] <- filled[i - 1]
-  }
-}
-
-cat("\nOriginal:", temps, "\n")
-cat("Filled:  ", filled, "\n")
-cat("Filled mean:", round(mean(filled, na.rm = TRUE), 2), "\n")
+names(pop)[which.max(pop)]  # "India"
+names(pop)[which.min(pop)]  # "Brazil"
 ```
 
-**Key concept:** "Last observation carried forward" (LOCF) is a common imputation method. The loop replaces each NA with the value before it. In practice, use `zoo::na.locf()` or `tidyr::fill()`.
+`which.max()` and `which.min()` return the *index* of the max/min, which you then apply to `names(pop)` to get the label.
 
 </details>
 
-### Exercise 11: Rank and Percentile
+## Section 4 — Missing values and reordering
 
-Given test scores, calculate each student's rank and percentile.
+### Exercise 11. NAs and counting
+
+Create `v <- c(5, NA, 3, 8, NA, 1, 6, NA, 9)`. Count the NAs, compute the mean ignoring NAs, and return the vector with NAs replaced by 0.
 
 ```r
-# Exercise 11: Ranking
-students <- c("Alice","Bob","Carol","David","Eve","Frank","Grace","Henry")
-scores <- c(88, 72, 95, 61, 88, 77, 95, 83)
-
-# 1. Rank each student (ties get average rank)
-# 2. Calculate percentile for each student
-# 3. Who is in the top 25%?
-# Hint: rank(), quantile()
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-students <- c("Alice","Bob","Carol","David","Eve","Frank","Grace","Henry")
-scores <- c(88, 72, 95, 61, 88, 77, 95, 83)
+v <- c(5, NA, 3, 8, NA, 1, 6, NA, 9)
 
-# 1. Rank (highest score = rank 1)
-ranks <- rank(-scores, ties.method = "average")
+sum(is.na(v))                # 3
+mean(v, na.rm = TRUE)        # 5.333333
 
-# 2. Percentile: what percentage scored at or below you
-percentiles <- round(rank(scores) / length(scores) * 100, 1)
-
-# Display
-results <- data.frame(
-  Student = students, Score = scores,
-  Rank = ranks, Percentile = percentiles
-)
-results <- results[order(results$Rank), ]
-print(results)
-
-# 3. Top 25% (75th percentile and above)
-q75 <- quantile(scores, 0.75)
-top_25 <- students[scores >= q75]
-cat("\nTop 25% (score >=", q75, "):", top_25, "\n")
+v_clean <- v
+v_clean[is.na(v_clean)] <- 0
+v_clean
+# 5 0 3 8 0 1 6 0 9
 ```
 
-**Key concept:** `rank(-scores)` ranks highest first. Percentile = `rank / n * 100`. `quantile(scores, 0.75)` gives the 75th percentile cutoff.
+`is.na(v)` returns a logical vector. You can use it to either count, filter, or assign into the NA positions.
 
 </details>
 
-### Exercise 12: Weighted Score Calculator
+### Exercise 12. Sorting and ordering
 
-Calculate weighted final grades from homework, midterm, and final exam scores with different weights.
+From `pop` (Exercise 7), return (a) the populations sorted descending, and (b) the countries listed from smallest population to largest.
 
 ```r
-# Exercise 12: Weighted grades
-students <- c("Alice", "Bob", "Carol", "David", "Eve")
-homework <- c(92, 78, 88, 65, 95)   # Weight: 30%
-midterm <- c(85, 82, 74, 90, 88)    # Weight: 30%
-final_exam <- c(78, 90, 92, 85, 82) # Weight: 40%
-
-# 1. Calculate weighted final grade for each student
-# 2. Assign letter grades (A:90+, B:80+, C:70+, D:60+, F:<60)
-# 3. Class average and highest scorer
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-students <- c("Alice", "Bob", "Carol", "David", "Eve")
-homework <- c(92, 78, 88, 65, 95)
-midterm <- c(85, 82, 74, 90, 88)
-final_exam <- c(78, 90, 92, 85, 82)
+sort(pop, decreasing = TRUE)
+# India 1417, China 1412, USA 331, Nigeria 223, Brazil 215
 
-# 1. Weighted grade (vectorized — no loop!)
-weighted <- homework * 0.30 + midterm * 0.30 + final_exam * 0.40
-weighted <- round(weighted, 1)
-
-# 2. Letter grades
-grades <- ifelse(weighted >= 90, "A",
-          ifelse(weighted >= 80, "B",
-          ifelse(weighted >= 70, "C",
-          ifelse(weighted >= 60, "D", "F"))))
-
-# Display
-for (i in seq_along(students)) {
-  cat(sprintf("%-8s HW=%d Mid=%d Fin=%d → %.1f (%s)\n",
-    students[i], homework[i], midterm[i], final_exam[i],
-    weighted[i], grades[i]))
-}
-
-# 3. Class stats
-cat("\nClass average:", round(mean(weighted), 1), "\n")
-cat("Highest:", students[which.max(weighted)], "with", max(weighted), "\n")
-cat("Grade distribution:\n")
-print(table(grades))
+pop[order(pop)]
+# Brazil 215, Nigeria 223, USA 331, China 1412, India 1417
 ```
 
-**Key concept:** `homework * 0.30 + midterm * 0.30 + final_exam * 0.40` computes weighted grades for ALL students at once — vectorized arithmetic across three parallel vectors.
+`sort()` reorders the *values* and keeps the names alongside. `order()` returns the *indices* that would produce the sorted order — use it when you need to reorder several parallel vectors (or a data frame) by one of them.
 
 </details>
 
-## Summary: Skills Practiced
+## Summary
 
-| Exercises | Vector Skills |
-|-----------|-------------|
-| 1-4 (Easy) | `c()`, `seq()`, `1:n`, positive/negative indexing |
-| 5-8 (Medium) | Logical filtering, conditional replacement, named vectors, set operations |
-| 9-12 (Hard) | `cumsum()`, NA handling, `rank()`, weighted arithmetic |
+- Vectors are R's fundamental data structure. Scalars are just length-one vectors.
+- `c()` promotes types upward: logical → integer → double → character.
+- Index with positive integers, negative integers, logicals, or names. Logical indexing is the most common in real analysis.
+- Arithmetic is vectorised element-wise. Recycling happens when lengths differ — silent when clean, warned otherwise.
+- Handle NAs with `na.rm = TRUE` or by masking with `is.na()`.
+- Use `sort()` to reorder a single vector, `order()` to produce indices for reordering multiple parallel vectors.
+
+## References
+
+- [R Language Definition — Vectors](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Vector-objects)
+- [Advanced R — Vectors chapter](https://adv-r.hadley.nz/vectors-chap.html)
+- [R for Data Science (2e)](https://r4ds.hadley.nz/)
 
 ## Continue Learning
 
-Continue practicing with more exercise sets:
-
-1. **R Data Frames Exercises** — 15 problems with tabular data
-2. **R Lists Exercises** — 10 problems with nested structures
-3. **R Control Flow Exercises** — if/else and loops practice
-
-Or learn new concepts in the next tutorial: **R Data Frames**.
+- [R Vectors: The Foundation of Everything in R (Master This First)](R-Vectors.html)
+- [R Basics Exercises: 15 Practice Problems for Beginners](R-Basics-Exercises.html)
+- [R Data Frames Exercises: 15 Practice Questions](R-Data-Frames-Exercises.html)
