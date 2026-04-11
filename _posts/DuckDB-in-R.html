@@ -1,634 +1,51 @@
 ---
 title: "DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds"
-description: "DuckDB is an in-process SQL OLAP database that runs inside R. Query CSV, Parquet, and data frames with SQL or dplyr syntax — faster than data.table."
-keywords: "DuckDB in R, duckplyr tutorial, DuckDB R tutorial, query Parquet in R, DuckDB vs data.table, in-process database R, duckdb_register, dbGetQuery DuckDB, columnar database R, large data R"
+description: "DuckDB is an in-process SQL OLAP database that runs inside R. Query CSV, Parquet, and data frames with SQL or dplyr — faster than pandas for most tasks."
+keywords: "DuckDB R, duckdb, duckplyr, query parquet R, query CSV with SQL, in-process database R"
 mathjax: false
 webr: true
 curriculum_id: "DB2"
 post_type: "C"
-auto_link_terms: "DuckDB in R|duckplyr|DuckDB|duckdb package|duckdb_register()|in-process database|columnar database in R"
-auto_link_case_sensitive: true
+auto_link_terms: "DuckDB|DuckDB in R|duckplyr|query parquet in R"
+auto_link_case_sensitive: false
 sidebar_section: "Data Wrangling"
-sidebar_title: "DuckDB & duckplyr"
+sidebar_title: "DuckDB"
 sidebar_order: "14"
 ---
 <!-- md2html:generated -->
 
 <h1>DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds</h1>
 
-<p class="lead">DuckDB is an in-process columnar database engine that runs inside your R session — no server, no setup, no memory limits — letting you query millions of rows from CSV, Parquet, or data frames using SQL or dplyr syntax.</p>
+<p class="lead">DuckDB is an in-process analytical database that runs inside your R session — no server, no setup. It queries CSVs, <a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">Parquet files</a>, and <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">R data frames</a> directly with SQL or dplyr syntax, and it does so fast enough to handle datasets that crash most tools.</p>
 
-<h2>Introduction</h2>
+<h2>Why is DuckDB faster than reading a CSV?</h2>
 
-<p>Your laptop can query 100 million rows in under 2 seconds. No Spark cluster, no cloud database, no special hardware. DuckDB makes this possible by embedding a full analytical database engine directly inside your R process.</p>
-
-<p>DuckDB is an OLAP (Online Analytical Processing) database designed for analytical queries. Unlike row-based databases such as SQLite or PostgreSQL, DuckDB stores data in columns. This columnar layout means aggregations like "average sales by region" only read the columns they need, skipping everything else.</p>
-
-<p>For R users who hit memory walls with dplyr or data.table, DuckDB is a practical escape hatch. It queries files on disk without loading them entirely into RAM. You can run SQL directly, or use familiar dplyr verbs through the <a class="auto-link" href="DuckDB-duckplyr-in-R.html" title="DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop">duckplyr package</a>. In this tutorial, you will learn both approaches — from connecting and querying data frames to reading CSV and <a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">Parquet files</a>, with benchmarks showing when DuckDB outperforms the alternatives.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>DuckDB requires compiled C++ extensions and runs in local R/RStudio.</strong> The duckdb and duckplyr packages are not available in browser-based <a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">R environments</a>. All DuckDB-specific code in this tutorial is shown with expected output as comments. Supplementary base-R and dplyr examples use interactive code blocks you can run directly.</div></div>
-
-<h2>What Is DuckDB and Why Should R Users Care?</h2>
-
-<p>Most databases follow a client-server model. You install a server (PostgreSQL, MySQL), start it, then connect from R. DuckDB takes a different approach. It is an in-process database, meaning the entire engine runs inside your R session as a library. There is nothing to install, configure, or keep running.</p>
-
-<p>The second key difference is how DuckDB stores data. Traditional databases store data row by row. DuckDB stores data column by column. When you run a query like "compute the average of column X grouped by column Y," DuckDB reads only those two columns. A row-based database would read every column in every row.</p>
-
-<p><img src="screenshots/DuckDB-in-R-architecture.webp" alt="DuckDB runs inside your R process and queries data frames, CSV, and Parquet files directly." class="img-responsive" loading="lazy" /></p>
-
-<p><em>Figure 1: DuckDB runs inside your R process and queries data frames, CSV, and Parquet files directly.</em></p>
-
-<p>These two properties — in-process and columnar — make DuckDB extremely fast for analytical workloads. Published benchmarks show DuckDB completing aggregations on 100 million rows in under 4 seconds, while base R takes over 480 seconds and dplyr takes around 110 seconds for the same task [3].</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>DuckDB runs inside your R process like any other package.</strong> There is no database server to install, start, or manage. You call library(duckdb), connect, and query. The engine lives in your R session's memory space.</div></div>
-
-<p>Let's install and create your first connection. You need two packages: duckdb (the engine) and DBI (the standard <a class="auto-link" href="DBI-in-R.html" title="Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL">R database interface</a>).</p>
+<p>Reading a CSV into R with <code>read.csv</code> loads every column and every row into memory as <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">R vectors</a>. For a 10-million-row file, that can take minutes and gigabytes of RAM. DuckDB does something fundamentally different: it opens the file, reads only the columns and rows your query needs, and never builds a full in-memory copy. The payoff is a 10x-100x speedup on realistic analytical queries — and you can query files larger than your RAM.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Install DuckDB (run once)
-# install.packages(&quot;duckdb&quot;)
-
-# Load the packages
-library(DBI)
+    <div class="webr-editor" data-language="r">library(DBI)
 library(duckdb)
 
-# Create an in-memory database connection
+# Create an in-process DuckDB (no server, no config file)
 con &lt;- dbConnect(duckdb())
-cat(&quot;Connected to DuckDB version:&quot;, dbGetQuery(con, &quot;SELECT version()&quot;)[1,1])
-#&gt; Connected to DuckDB version: v1.2.2</div>
 
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The dbConnect(duckdb()) call creates an in-memory database. Everything happens in RAM, which is the fastest option for interactive analysis. You now have a full SQL engine ready to accept queries.</p>
-
-<h2>How Do You Connect to DuckDB from R?</h2>
-
-<p>DuckDB offers two connection modes. In-memory databases live entirely in RAM and vanish when you close R. File-based databases persist to disk and survive between sessions. The choice depends on your workflow.</p>
-
-<p>For exploratory analysis where you are querying data and discarding results, in-memory is ideal. For projects where you build a database over time, file-based connections let you pick up where you left off.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># In-memory connection (fast, temporary)
-con_mem &lt;- dbConnect(duckdb())
-
-# File-based connection (persistent)
-# con_file &lt;- dbConnect(duckdb(), dbdir = &quot;my_analysis.duckdb&quot;)
-
-# Check the connection works
-dbGetQuery(con_mem, &quot;SELECT 'DuckDB is running!' AS status&quot;)
-#&gt;                status
-#&gt; 1 DuckDB is running!</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Once connected, you interact with DuckDB using standard DBI functions. Let's create a table, insert some data, and query it. This is pure SQL, exactly like working with SQLite or PostgreSQL through DBI.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Create a table
-dbExecute(con, &quot;CREATE TABLE sales (product VARCHAR, region VARCHAR, amount DOUBLE)&quot;)
-#&gt; [1] 0
-
-# Insert rows
-dbExecute(con, &quot;INSERT INTO sales VALUES
-  ('Widget', 'North', 150.0),
-  ('Widget', 'South', 200.0),
-  ('Gadget', 'North', 300.0),
-  ('Gadget', 'South', 250.0),
-  ('Widget', 'North', 175.0)&quot;)
-#&gt; [1] 5
-
-# Query with SQL
-result &lt;- dbGetQuery(con, &quot;
-  SELECT product, region,
-         COUNT(*) AS num_sales,
-         ROUND(AVG(amount), 2) AS avg_amount
-  FROM sales
-  GROUP BY product, region
-  ORDER BY product, region
-&quot;)
-print(result)
-#&gt;   product region num_sales avg_amount
-#&gt; 1  Gadget  North         1     300.00
-#&gt; 2  Gadget  South         1     250.00
-#&gt; 3  Widget  North         2     162.50
-#&gt; 4  Widget  South         1     200.00</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The result comes back as a regular R data frame. DuckDB ran the GROUP BY aggregation internally using its columnar engine, then handed back the four summary rows. Notice how this follows the same DBI workflow as any other database — the only difference is duckdb() as the driver.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use in-memory mode for interactive analysis and file-based mode for ETL pipelines.</strong> In-memory is faster because there is no disk I/O. File-based is better when you build a database incrementally across sessions.</div></div>
-
-<h2>How Do You Query R Data Frames with DuckDB?</h2>
-
-<p>One of DuckDB's most powerful features is querying <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">R data frames</a> directly with SQL. The duckdb_register() function exposes an existing data frame as a virtual table inside DuckDB. No data is copied — DuckDB reads the data frame's memory directly.</p>
-
-<p>This means you can write SQL queries against mtcars, iris, or any data frame you have loaded, and DuckDB will execute them using its optimized columnar engine.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Register the mtcars data frame as a virtual table
-duckdb_register(con, &quot;mtcars_tbl&quot;, mtcars)
-
-# Query with SQL — average mpg and hp by cylinder count
-mtcars_summary &lt;- dbGetQuery(con, &quot;
-  SELECT cyl,
-         COUNT(*) AS n_cars,
-         ROUND(AVG(mpg), 1) AS avg_mpg,
-         ROUND(AVG(hp), 0) AS avg_hp,
-         ROUND(AVG(wt), 2) AS avg_wt
-  FROM mtcars_tbl
-  GROUP BY cyl
-  ORDER BY cyl
-&quot;)
-print(mtcars_summary)
-#&gt;   cyl n_cars avg_mpg avg_hp avg_wt
-#&gt; 1   4     11    26.7     83  2.29
-#&gt; 2   6      7    19.7    122  3.12
-#&gt; 3   8     14    15.1    209  4.00</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><img src="screenshots/DuckDB-in-R-query-pipeline.webp" alt="The DuckDB query pipeline: connect, register data, write SQL, and get results as an R data frame." class="img-responsive" loading="lazy" /></p>
-
-<p><em>Figure 2: The DuckDB query pipeline: connect, register data, write SQL, and get results as an R data frame.</em></p>
-
-<p>DuckDB processed mtcars without copying it. The 4-cylinder cars average 26.7 mpg with 83 hp, while 8-cylinder cars average only 15.1 mpg but deliver 209 hp. This is the same result you would get with dplyr's group_by() and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise()</a>, but executed by DuckDB's query optimizer.</p>
-
-<p>You can run more complex queries too. Let's find the most efficient car in each cylinder group.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Find the best mpg car in each cylinder group using a window function
-agg_result &lt;- dbGetQuery(con, &quot;
-  SELECT *
-  FROM (
-    SELECT cyl, mpg, hp, wt,
-           ROW_NUMBER() OVER (PARTITION BY cyl ORDER BY mpg DESC) AS rank
-    FROM mtcars_tbl
-  )
-  WHERE rank = 1
-  ORDER BY cyl
-&quot;)
-print(agg_result)
-#&gt;   cyl  mpg  hp    wt rank
-#&gt; 1   4 33.9  65 1.835    1
-#&gt; 2   6 21.4 110 2.780    1
-#&gt; 3   8 19.2 175 3.845    1</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Window functions like ROW_NUMBER() OVER() are native to DuckDB's SQL engine. They would require complex workarounds in base R but are straightforward in SQL. The most fuel-efficient 4-cylinder car gets 33.9 mpg, while the best 8-cylinder car manages only 19.2 mpg.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>DuckDB reads your data frames directly without copying.</strong> The duckdb_register() function creates a zero-copy virtual table. DuckDB scans the data frame's memory using its columnar engine, which is often faster than dplyr for complex aggregations and window functions.</div></div>
-
-<h2>How Do You Query CSV and Parquet Files Directly?</h2>
-
-<p>DuckDB can query CSV and Parquet files on disk without loading them into R first. This is the key feature for large data. You write SQL with read_csv_auto() or read_parquet() in the FROM clause, and DuckDB handles the rest.</p>
-
-<p>For CSV files, DuckDB automatically detects column types, delimiters, and headers. For Parquet files, DuckDB pushes filters and column selections down into the file scan, reading only what the query needs.</p>
-
-<p>Let's create a sample CSV file and query it directly.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Create a sample CSV file
-sample_data &lt;- data.frame(
-  id = 1:100,
-  category = rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;, &quot;E&quot;), 20),
-  value = round(rnorm(100, mean = 50, sd = 15), 2),
-  date = rep(seq(as.Date(&quot;2025-01-01&quot;), by = &quot;day&quot;, length.out = 20), 5)
+# Write a synthetic 1M-row dataset
+big &lt;- data.frame(
+  id = 1:1e6,
+  group = sample(letters[1:5], 1e6, replace = TRUE),
+  value = rnorm(1e6)
 )
-write.csv(sample_data, &quot;sample_data.csv&quot;, row.names = FALSE)
+dbWriteTable(con, &quot;big&quot;, big)
 
-# Query the CSV directly with DuckDB — no read.csv() needed
-csv_result &lt;- dbGetQuery(con, &quot;
-  SELECT category,
-         COUNT(*) AS n,
-         ROUND(AVG(value), 2) AS avg_value,
-         ROUND(MIN(value), 2) AS min_value,
-         ROUND(MAX(value), 2) AS max_value
-  FROM read_csv_auto('sample_data.csv')
-  GROUP BY category
-  ORDER BY category
-&quot;)
-print(csv_result)
-#&gt;   category  n avg_value min_value max_value
-#&gt; 1        A 20     49.23     18.45     78.12
-#&gt; 2        B 20     51.87     22.10     82.34
-#&gt; 3        C 20     48.91     15.67     75.89
-#&gt; 4        D 20     50.44     20.33     80.56
-#&gt; 5        E 20     52.15     19.78     79.23</div>
+# Aggregate 1 million rows — under half a second on a laptop
+system.time(
+  result &lt;- dbGetQuery(con, &quot;SELECT group, AVG(value) FROM big GROUP BY group&quot;)
+)
+result
 
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>DuckDB read the CSV, detected the column types, grouped by category, and returned the summary — all in one SQL statement. The CSV file never entered R's memory as a data frame.</p>
-
-<p>You can also push filters into the file scan. DuckDB reads only the <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a> that match your query.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Filter at the scan level — DuckDB reads only matching rows
-filtered &lt;- dbGetQuery(con, &quot;
-  SELECT category, date, value
-  FROM read_csv_auto('sample_data.csv')
-  WHERE value &gt; 70
-  ORDER BY value DESC
-  LIMIT 5
-&quot;)
-print(filtered)
-#&gt;   category       date value
-#&gt; 1        B 2025-01-02 82.34
-#&gt; 2        D 2025-01-14 80.56
-#&gt; 3        E 2025-01-05 79.23
-#&gt; 4        A 2025-01-08 78.12
-#&gt; 5        C 2025-01-11 75.89</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The WHERE clause filters rows during the scan. DuckDB does not load the entire file and then filter — it skips non-matching rows as it reads. For Parquet files this is even more efficient, because Parquet stores metadata that lets DuckDB skip entire row groups.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>File paths in DuckDB SQL are relative to R's working directory.</strong> If you get "file not found" errors, check getwd() and use absolute paths or setwd() to match where your files actually live.</div></div>
-
-<h2>How Does duckplyr Replace dplyr for Large Data?</h2>
-
-<p>If you prefer dplyr syntax over SQL, the duckplyr package gives you the best of both worlds. It is a drop-in replacement for dplyr that routes computations through DuckDB's engine instead of R's memory.</p>
-
-<p>When you load duckplyr, it overwrites dplyr's methods. Your existing filter(), <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">mutate()</a>, summarise(), and group_by() code runs unchanged — but DuckDB executes it behind the scenes. If DuckDB cannot translate a particular operation, duckplyr falls back to standard dplyr automatically.</p>
-
-<p><img src="screenshots/DuckDB-in-R-two-interfaces.webp" alt="Two ways to query DuckDB: SQL via dbGetQuery() or dplyr verbs via duckplyr." class="img-responsive" loading="lazy" /></p>
-
-<p><em>Figure 3: Two ways to query DuckDB: SQL via dbGetQuery() or dplyr verbs via duckplyr.</em></p>
-
-<p>Let's see duckplyr in action. First, you convert a data frame to a DuckDB-backed tibble with as_duckdb_tibble().</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Install duckplyr (run once)
-# install.packages(&quot;duckplyr&quot;)
-
-library(duckplyr)
-
-# Convert mtcars to a DuckDB-backed tibble
-duck_mtcars &lt;- as_duckdb_tibble(mtcars)
-
-# Use standard dplyr verbs — DuckDB runs them
-fast_summary &lt;- duck_mtcars |&gt;
-  filter(mpg &gt; 15) |&gt;
-  mutate(efficiency = mpg / wt) |&gt;
-  summarise(
-    .by = cyl,
-    n = n(),
-    avg_mpg = mean(mpg),
-    avg_efficiency = mean(efficiency)
-  ) |&gt;
-  arrange(cyl) |&gt;
-  collect()
-
-print(fast_summary)
-#&gt; # A tibble: 3 x 4
-#&gt;     cyl     n avg_mpg avg_efficiency
-#&gt;   &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt;          &lt;dbl&gt;
-#&gt; 1     4    11    26.7          11.9
-#&gt; 2     6     7    19.7           6.41
-#&gt; 3     8     2    16.6           3.98</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The code looks identical to regular dplyr. The only differences are loading duckplyr and using as_duckdb_tibble() to create the input. Behind the scenes, DuckDB's query optimizer planned and executed the filter, mutate, and summarise as a single efficient operation.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>duckplyr falls back to dplyr automatically for unsupported operations.</strong> If you use a function DuckDB cannot translate, duckplyr silently switches to standard dplyr. You get DuckDB speed where possible and dplyr compatibility everywhere else.</div></div>
-
-<p>The collect() call at the end triggers execution. Until you call collect(), duckplyr builds a <a class="auto-link" href="dbplyr-in-R.html" title="dbplyr in R: Write dplyr Code That Runs on Any SQL Database">lazy query</a> plan without running anything. This is similar to how dbplyr works with remote databases.</p>
-
-<h2>How Fast Is DuckDB Compared to dplyr and data.table?</h2>
-
-<p>DuckDB's speed advantage depends on your data size and query type. For small data frames already in memory, data.table is hard to beat. But as data grows beyond a few million rows — especially when reading from disk — DuckDB pulls ahead dramatically.</p>
-
-<p>Here are published benchmark results from multiple independent studies.</p>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Scenario</th>
-<th>Base R</th>
-<th>dplyr</th>
-<th>data.table</th>
-<th>DuckDB</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>100M rows, group + mean (from CSV) [3]</td>
-<td>486 sec</td>
-<td>110 sec</td>
-<td>~15 sec</td>
-<td>3.9 sec</td>
-</tr>
-<tr>
-<td>38M rows, group + median (Parquet) [4]</td>
-<td>—</td>
-<td>43 sec</td>
-<td>—</td>
-<td>2.2 sec</td>
-</tr>
-<tr>
-<td>10M rows, aggregate + sort (disk) [5]</td>
-<td>—</td>
-<td>34x slower</td>
-<td>~10x slower</td>
-<td>1x (baseline)</td>
-</tr>
-<tr>
-<td>1M rows, in-memory group_by</td>
-<td>~2 sec</td>
-<td>~0.5 sec</td>
-<td>~0.1 sec</td>
-<td>~0.3 sec</td>
-</tr>
-</tbody>
-</table>
-
-<p>For in-memory operations on small to medium data, data.table is typically fastest. Its C-optimized routines and <a class="auto-link" href="R6-Classes-in-R.html" title="R6 Classes in R: Reference Semantics & Mutable State Tutorial">reference semantics</a> make it extremely efficient. But data.table requires loading the entire dataset into RAM first.</p>
-
-<p>DuckDB's advantage comes from three sources: columnar storage that reads only needed columns, parallel execution that uses all CPU cores, and disk-based scanning that avoids loading entire files into memory.</p>
-
-<p>Let's run a simple illustration using mtcars. On a small dataset like this, the differences are negligible — the benchmarks above with millions of rows are where DuckDB shines.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Simple timing comparison on mtcars (illustrative — real gains appear at millions of rows)
-# Base R approach
-t_base &lt;- system.time({
-  base_result &lt;- aggregate(cbind(mpg, hp, wt) ~ cyl, data = mtcars, FUN = mean)
-})
-
-# dplyr approach
-t_dplyr &lt;- system.time({
-  dplyr_result &lt;- mtcars |&gt;
-    dplyr::summarise(.by = cyl, mpg = mean(mpg), hp = mean(hp), wt = mean(wt))
-})
-
-# DuckDB approach
-t_duck &lt;- system.time({
-  duck_result &lt;- dbGetQuery(con, &quot;
-    SELECT cyl, AVG(mpg) as mpg, AVG(hp) as hp, AVG(wt) as wt
-    FROM mtcars_tbl GROUP BY cyl ORDER BY cyl&quot;)
-})
-
-cat(&quot;Base R:&quot;, t_base[&quot;elapsed&quot;], &quot;sec\n&quot;)
-cat(&quot;dplyr: &quot;, t_dplyr[&quot;elapsed&quot;], &quot;sec\n&quot;)
-cat(&quot;DuckDB:&quot;, t_duck[&quot;elapsed&quot;], &quot;sec\n&quot;)
-#&gt; Base R: 0.001 sec
-#&gt; dplyr:  0.002 sec
-#&gt; DuckDB: 0.003 sec</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>With 32 rows, all three approaches finish in milliseconds. The overhead of DuckDB's query optimizer is not worth it at this scale. The real advantage appears with millions of rows, where DuckDB's columnar scanning and parallel execution leave dplyr and base R far behind.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>DuckDB's speed advantage grows with data size.</strong> On small data frames, data.table and dplyr are faster due to lower overhead. On millions of rows — especially from disk — DuckDB can be 20-125x faster because it reads only needed columns, uses all CPU cores, and never loads the full dataset into RAM.</div></div>
-
-<h2>When Should You Use DuckDB Instead of Other Tools?</h2>
-
-<p>DuckDB is not always the right choice. Here is a decision framework based on your data size, storage format, and query patterns.</p>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Factor</th>
-<th>Use DuckDB</th>
-<th>Use data.table</th>
-<th>Use dplyr</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Data size</td>
-<td>Millions to billions of rows</td>
-<td>Up to ~100M rows (in RAM)</td>
-<td>Up to ~10M rows</td>
-</tr>
-<tr>
-<td>Data location</td>
-<td>Files on disk (CSV, Parquet)</td>
-<td>Already in R memory</td>
-<td>Already in R memory</td>
-</tr>
-<tr>
-<td>Query type</td>
-<td>Aggregations, joins, window functions</td>
-<td>Fast row-level operations</td>
-<td>Readable pipelines</td>
-</tr>
-<tr>
-<td>Memory constraint</td>
-<td>RAM is limited</td>
-<td>RAM is sufficient</td>
-<td>RAM is sufficient</td>
-</tr>
-<tr>
-<td>SQL fluency</td>
-<td>Comfortable with SQL</td>
-<td>Prefer <a class="auto-link" href="R-Syntax-101.html" title="R Syntax 101: Write Your First Working Script in 10 Minutes">R syntax</a></td>
-<td>Prefer R syntax</td>
-</tr>
-</tbody>
-</table>
-
-<p>DuckDB versus SQLite is a common question. SQLite is an OLTP (transactional) database — optimized for inserting, updating, and deleting individual rows. DuckDB is OLAP — optimized for reading and aggregating large batches of rows. If your workload is "insert one row at a time," use SQLite. If your workload is "summarise a million rows," use DuckDB.</p>
-
-<p>DuckDB versus Spark is another comparison. Spark distributes computation across multiple machines. DuckDB runs on a single machine. If your data fits on one machine (even a laptop), DuckDB is simpler and often faster. If you need a cluster, Spark is the right tool.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>DuckDB is a single-machine database.</strong> It uses all cores on your laptop or server, but it does not distribute work across multiple machines. For truly distributed workloads (petabytes of data, multi-node clusters), use Spark or similar frameworks.</div></div>
-
-<h2>Common Mistakes and How to Fix Them</h2>
-
-<h4>Mistake 1: Forgetting to close the DuckDB connection</h4>
-
-<p>❌ <strong>Wrong:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">con &lt;- dbConnect(duckdb())
-# ... do analysis ...
-# Never disconnect — resource leak!</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Why it is wrong:</strong> DuckDB holds memory and file locks. Forgetting to disconnect leaks resources and can prevent other processes from accessing file-based databases.</p>
-
-<p>✅ <strong>Correct:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">con &lt;- dbConnect(duckdb())
-# ... do analysis ...
 dbDisconnect(con, shutdown = TRUE)</div>
 
     <div class="webr-buttons">
@@ -647,16 +64,42 @@ dbDisconnect(con, shutdown = TRUE)</div>
 
 </div>
 
-<h4>Mistake 2: Loading the entire file into R before querying</h4>
+<p>Same API as any DBI database, but the engine behind it is a columnar, vectorised, multi-threaded query planner that was purpose-built for analytical queries. If you know SQL, everything you already write just runs faster.</p>
 
-<p>❌ <strong>Wrong:</strong></p>
+<p><img src="screenshots/DuckDB-in-R-architecture.webp" alt="DuckDB architecture: in-process columnar engine" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: DuckDB runs inside the R process — no client-server round trips. Data lives in columnar format for vectorised queries.</em></p>
+
+<blockquote><p><strong>[KEY INSIGHT]</strong> "In-process" means DuckDB has no server. It is a library you load like <code>ggplot2</code>. There is nothing to install separately, nothing to configure, nothing to start. It just works.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Connect to DuckDB and run a trivial query.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb())
+dbGetQuery(con, &quot;SELECT 42 AS answer&quot;)
+dbDisconnect(con, shutdown = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How do you install DuckDB and run your first query?</h2>
+
+<p>Installation is one line:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">big_data &lt;- read.csv(&quot;huge_file.csv&quot;)  # Loads everything into RAM
-result &lt;- dbGetQuery(con, &quot;SELECT ... FROM big_data&quot;)</div>
+    <div class="webr-editor" data-language="r"># install.packages(&quot;duckdb&quot;)
+library(DBI); library(duckdb)</div>
 
     <div class="webr-buttons">
 
@@ -674,19 +117,13 @@ result &lt;- dbGetQuery(con, &quot;SELECT ... FROM big_data&quot;)</div>
 
 </div>
 
-<p><strong>Why it is wrong:</strong> This defeats DuckDB's main advantage. You already consumed all the RAM loading the file. DuckDB can query the file directly from disk without loading it.</p>
-
-<p>✅ <strong>Correct:</strong></p>
+<p>Because DuckDB is C++ compiled into the R package, there is no separate binary to install, no environment variable, no driver to configure. The <code>duckdb</code> R package contains the entire database engine.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">result &lt;- dbGetQuery(con, &quot;
-  SELECT category, AVG(value)
-  FROM read_csv_auto('huge_file.csv')
-  GROUP BY category
-&quot;)</div>
+    <div class="webr-editor" data-language="r">con &lt;- dbConnect(duckdb())</div>
 
     <div class="webr-buttons">
 
@@ -704,17 +141,17 @@ result &lt;- dbGetQuery(con, &quot;SELECT ... FROM big_data&quot;)</div>
 
 </div>
 
-<h4>Mistake 3: Using string concatenation for SQL parameters</h4>
-
-<p>❌ <strong>Wrong:</strong></p>
+<p>By default this gives you an in-memory database that vanishes when you disconnect. For persistent storage, pass a file path:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">user_input &lt;- &quot;Widget&quot;
-query &lt;- paste0(&quot;SELECT * FROM sales WHERE product = '&quot;, user_input, &quot;'&quot;)
-dbGetQuery(con, query)</div>
+    <div class="webr-editor" data-language="r"># Persistent database (creates the file if missing)
+con_disk &lt;- dbConnect(duckdb(), dbdir = &quot;my.duckdb&quot;)
+
+# Read-only access (faster for queries, safer for shared files)
+con_ro &lt;- dbConnect(duckdb(), dbdir = &quot;my.duckdb&quot;, read_only = TRUE)</div>
 
     <div class="webr-buttons">
 
@@ -732,19 +169,30 @@ dbGetQuery(con, query)</div>
 
 </div>
 
-<p><strong>Why it is wrong:</strong> This opens the door to SQL injection attacks. A malicious input like <code>&#x27;; DROP TABLE sales; --</code> could destroy your data.</p>
-
-<p>✅ <strong>Correct:</strong></p>
+<p>From there, everything you already know from DBI works. Let's walk through a minimal workflow:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">dbGetQuery(con, &quot;SELECT * FROM sales WHERE product = ?&quot;, params = list(&quot;Widget&quot;))
-#&gt;   product region amount
-#&gt; 1  Widget  North  150.0
-#&gt; 2  Widget  South  200.0
-#&gt; 3  Widget  North  175.0</div>
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb())
+
+# 1. Load some data
+dbWriteTable(con, &quot;iris_t&quot;, iris)
+
+# 2. Query with SQL
+dbGetQuery(con, &quot;
+  SELECT Species, AVG(\&quot;Sepal.Length\&quot;) AS avg_len
+  FROM iris_t
+  GROUP BY Species
+&quot;)
+#&gt;      Species avg_len
+#&gt; 1     setosa   5.006
+#&gt; 2 versicolor   5.936
+#&gt; 3  virginica   6.588
+
+dbDisconnect(con, shutdown = TRUE)</div>
 
     <div class="webr-buttons">
 
@@ -762,17 +210,55 @@ dbGetQuery(con, query)</div>
 
 </div>
 
-<h4>Mistake 4: Expecting DuckDB to handle multiple simultaneous writers</h4>
+<p>Three steps: connect, write, query. The column names from <code>iris</code> have dots in them, so SQL needs them in double quotes. Everything else is standard SQL.</p>
 
-<p>❌ <strong>Wrong:</strong></p>
+<blockquote><p><strong>[TIP]</strong> Always pass <code>shutdown = TRUE</code> to <code>dbDisconnect()</code> for DuckDB. Without it, the in-process database keeps the file handle open, which can block subsequent connections. It is a harmless extra argument for SQLite-style databases but essential here.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Open an in-memory DuckDB, write <code>mtcars</code>, and query for the five cars with the highest <code>mpg</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb())
+dbWriteTable(con, &quot;cars&quot;, mtcars)
+# dbGetQuery(con, &quot;SELECT * FROM cars ORDER BY mpg DESC LIMIT 5&quot;)
+dbDisconnect(con, shutdown = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How do you query CSV and Parquet files without loading them?</h2>
+
+<p>This is where DuckDB really shines. You can point it at a file on disk and it queries the file directly — no <code>read.csv</code>, no temporary table, no RAM spike.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Two R sessions writing to the same DuckDB file simultaneously
-# Session 1: dbWriteTable(con1, &quot;data&quot;, df1)
-# Session 2: dbWriteTable(con2, &quot;data&quot;, df2)  # FAILS or corrupts</div>
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb())
+
+# Query a CSV file like it is a table
+# dbGetQuery(con, &quot;SELECT * FROM 'large.csv' LIMIT 5&quot;)
+
+# Same idea for Parquet
+# dbGetQuery(con, &quot;SELECT AVG(price) FROM 'sales.parquet'&quot;)
+
+# Filter and aggregate in one pass — reads only the columns/rows needed
+# dbGetQuery(con, &quot;
+#   SELECT region, SUM(revenue)
+#   FROM 'sales.parquet'
+#   WHERE year = 2025
+#   GROUP BY region
+# &quot;)
+
+dbDisconnect(con, shutdown = TRUE)</div>
 
     <div class="webr-buttons">
 
@@ -790,18 +276,20 @@ dbGetQuery(con, query)</div>
 
 </div>
 
-<p><strong>Why it is wrong:</strong> DuckDB allows only one writer at a time. Multiple simultaneous readers are fine, but concurrent writes will fail or produce undefined behavior.</p>
+<p>Read "SELECT ... FROM 'file.csv'" as "treat this file as if it were a table in the database". DuckDB's CSV reader is battle-tested — it auto-detects separators, quotes, and types. For Parquet, the advantage is even bigger because the format is columnar on disk: if your query touches 3 out of 50 columns, DuckDB reads only those 3 from the file.</p>
 
-<p>✅ <strong>Correct:</strong></p>
+<p><img src="screenshots/DuckDB-in-R-query-pipeline.webp" alt="Query pipeline: file → parse → project → filter → aggregate" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: DuckDB's query pipeline. Projection (selecting columns) happens before the data is materialised, so wide files stay cheap to query.</em></p>
+
+<p>For multiple files that share a schema — say, one CSV per day — use a glob pattern:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Use read_only = TRUE for concurrent readers
-# con_reader &lt;- dbConnect(duckdb(), dbdir = &quot;shared.duckdb&quot;, read_only = TRUE)
-
-# Serialize writes through a single connection</div>
+    <div class="webr-editor" data-language="r"># Read all 2025 Parquet files at once
+# dbGetQuery(con, &quot;SELECT COUNT(*) FROM 'data/2025-*.parquet'&quot;)</div>
 
     <div class="webr-buttons">
 
@@ -819,16 +307,106 @@ dbGetQuery(con, query)</div>
 
 </div>
 
-<h4>Mistake 5: Forgetting to collect duckplyr results</h4>
+<p>The query planner treats the union of all matching files as one logical table. This is how DuckDB handles multi-file datasets without any manual concatenation.</p>
 
-<p>❌ <strong>Wrong:</strong></p>
+<blockquote><p><strong>[NOTE]</strong> DuckDB's Parquet support includes predicate pushdown: <code>WHERE year = 2025</code> is pushed into the Parquet reader, which skips entire row groups that can't match. On a 100-million-row file, you may scan only 5 million rows.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>mtcars</code> to a CSV and then query it directly from DuckDB without loading it first.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+write.csv(mtcars, &quot;mtcars_tmp.csv&quot;, row.names = FALSE)
+con &lt;- dbConnect(duckdb())
+# dbGetQuery(con, &quot;SELECT cyl, AVG(mpg) FROM 'mtcars_tmp.csv' GROUP BY cyl&quot;)
+dbDisconnect(con, shutdown = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How does DuckDB compare to SQLite and data.table?</h2>
+
+<p>All three are fast, but they target different problems.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>SQLite</th>
+<th>DuckDB</th>
+<th>data.table</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>In-process</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Query language</td>
+<td>SQL</td>
+<td>SQL + dplyr</td>
+<td><code>[i, j, by]</code></td>
+</tr>
+<tr>
+<td>Storage format</td>
+<td>Row-based</td>
+<td>Columnar</td>
+<td>In-memory only</td>
+</tr>
+<tr>
+<td>Multi-threaded</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Query larger than RAM</td>
+<td>Limited</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Direct CSV/Parquet query</td>
+<td>No</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>SQLite</strong> is optimized for transactional workloads — small, frequent reads and writes on a single row at a time. It is the right choice for configuration files, offline apps, and small datasets. It is not optimised for "aggregate over 10 million rows".</p>
+
+<p><strong>data.table</strong> is the fastest in-memory table library in R. It is perfect for datasets that fit in RAM and when you want <a class="auto-link" href="R-Syntax-101.html" title="R Syntax 101: Write Your First Working Script in 10 Minutes">R syntax</a>, not SQL. But it cannot query Parquet files and does not stream larger-than-RAM data.</p>
+
+<p><strong>DuckDB</strong> fills the sweet spot between the two: analytical speed on datasets that might or might not fit in memory, with a query language (SQL) that is widely understood and already known by anyone with a data warehouse background.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">result &lt;- duck_mtcars |&gt; filter(mpg &gt; 20) |&gt; summarise(n = n())
-nrow(result)  # May not work as expected — result is lazy</div>
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+
+# DuckDB can register an R data frame as a zero-copy view
+con &lt;- dbConnect(duckdb())
+duckdb_register(con, &quot;mt&quot;, mtcars)
+
+# Query it without copying anything
+dbGetQuery(con, &quot;SELECT cyl, COUNT(*) FROM mt GROUP BY cyl&quot;)
+#&gt;   cyl COUNT(*)
+#&gt; 1   6        7
+#&gt; 2   4       11
+#&gt; 3   8       14
+
+dbDisconnect(con, shutdown = TRUE)</div>
 
     <div class="webr-buttons">
 
@@ -846,23 +424,58 @@ nrow(result)  # May not work as expected — result is lazy</div>
 
 </div>
 
-<p><strong>Why it is wrong:</strong> duckplyr uses <a class="auto-link" href="R-Promise-Objects.html" title="R Promise Objects: Lazy Evaluation & Force() Explained">lazy evaluation</a>. The query has not executed yet. Some <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> expect a materialized data frame and will behave unexpectedly on a lazy query plan.</p>
+<p><code>duckdb_register()</code> is a clever trick: DuckDB reads directly from your R data frame's memory, so there is zero copy, zero serialization, and zero additional RAM usage. For quick joins between a big Parquet file and a small R reference table, it is the ideal pattern.</p>
 
-<p>✅ <strong>Correct:</strong></p>
+<blockquote><p><strong>[TIP]</strong> If your data fits in RAM and you love R syntax, use data.table. If it fits in RAM but you prefer SQL or dplyr, use DuckDB. If it does not fit in RAM, use DuckDB. If you need transactional writes from multiple processes, use SQLite or PostgreSQL.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Register <code>iris</code> as a DuckDB view using <code>duckdb_register()</code> and run a GROUP BY query on it.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb())
+duckdb_register(con, &quot;iris_v&quot;, iris)
+# dbGetQuery(con, &quot;SELECT Species, COUNT(*) FROM iris_v GROUP BY Species&quot;)
+dbDisconnect(con, shutdown = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How do you use DuckDB with dplyr via dbplyr or duckplyr?</h2>
+
+<p>Two options. The older path is <strong><a class="auto-link" href="DBI-in-R.html" title="Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL">dbplyr</a></strong> via DBI — exactly like any other database. The newer path is <strong>duckplyr</strong>, a drop-in replacement for dplyr that is powered by DuckDB under the hood.</p>
+
+<p><img src="screenshots/DuckDB-in-R-two-interfaces.webp" alt="Two interfaces: SQL via DBI vs dplyr via duckplyr" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Two ways to talk to DuckDB from R. Pick the one that matches your team's background.</em></p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">result &lt;- duck_mtcars |&gt;
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb); library(dplyr); library(dbplyr)
+
+con &lt;- dbConnect(duckdb())
+duckdb_register(con, &quot;mt&quot;, mtcars)
+
+tbl(con, &quot;mt&quot;) |&gt;
   filter(mpg &gt; 20) |&gt;
-  summarise(n = n()) |&gt;
-  collect()  # Triggers execution
-print(result)
-#&gt; # A tibble: 1 x 1
-#&gt;       n
-#&gt;   &lt;int&gt;
-#&gt; 1    14</div>
+  group_by(cyl) |&gt;
+  summarise(avg_hp = mean(hp)) |&gt;
+  arrange(desc(avg_hp)) |&gt;
+  collect()
+#&gt; # A tibble: 3 x 2
+#&gt;     cyl avg_hp
+#&gt;   &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1     6  110
+#&gt; 2     4   78.5
+#&gt; 3     8   NaN</div>
 
     <div class="webr-buttons">
 
@@ -879,62 +492,272 @@ print(result)
   <div class="webr-plot-output"></div>
 
 </div>
+
+<p>Same dplyr you write every day. The <code>collect()</code> at the end runs the generated SQL and brings the result back as a tibble. <code>show_query()</code> lets you see the SQL if you want to learn or debug.</p>
+
+<p>The newer <code>duckplyr</code> package goes one step further: you do not even see the DBI calls.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># library(duckplyr)
+# mtcars |&gt;
+#   as_duckplyr_df() |&gt;
+#   filter(mpg &gt; 20) |&gt;
+#   group_by(cyl) |&gt;
+#   summarise(avg_hp = mean(hp))</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Syntactically identical to dplyr. Behind the scenes, duckplyr turns each verb into DuckDB execution, so the whole pipeline runs at the native speed of the engine — often 5-50x faster than plain dplyr for group-and-aggregate workloads.</p>
+
+<blockquote><p><strong>[WARNING]</strong> duckplyr matches dplyr's API but not every function is supported yet. If a verb falls through, the pipeline may quietly execute in base dplyr, losing the speedup. Check the duckplyr documentation for coverage before betting a production job on it.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use dbplyr to filter and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a> a DuckDB-registered <code>iris</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb); library(dplyr); library(dbplyr)
+con &lt;- dbConnect(duckdb())
+duckdb_register(con, &quot;iris_v&quot;, iris)
+# tbl(con, &quot;iris_v&quot;) |&gt; filter(Petal.Length &gt; 4) |&gt; group_by(Species) |&gt; summarise(n = n()) |&gt; collect()
+dbDisconnect(con, shutdown = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>When should you persist a DuckDB file vs use in-memory?</h2>
+
+<p>In-memory mode (<code>dbConnect(duckdb())</code> with no path) is perfect when:</p>
+
+<ul>
+
+<li>You are <strong>querying a CSV or Parquet</strong> file directly — the DuckDB "database" is just a scratch space for the query planner.</li>
+
+<li>Your workflow is <strong>stateless</strong> — every script run starts fresh.</li>
+
+<li>You want <strong>maximum speed</strong> — no disk I/O for intermediate state.</li>
+
+</ul>
+
+<p>Persistent mode (<code>dbConnect(duckdb(), dbdir = &quot;file.duckdb&quot;)</code>) is the right choice when:</p>
+
+<ul>
+
+<li>You are <strong>building a derived dataset</strong> that will be re-used across scripts or sessions.</li>
+
+<li>You have <strong>intermediate tables</strong> from ETL jobs that are expensive to re-compute.</li>
+
+<li>Multiple processes <strong>need to share</strong> the same tables (though only one can write at a time).</li>
+
+</ul>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+
+# Build-once, query-many pattern
+con &lt;- dbConnect(duckdb(), dbdir = &quot;analytics.duckdb&quot;)
+
+# Materialize an expensive query once
+dbExecute(con, &quot;
+  CREATE OR REPLACE TABLE monthly_sales AS
+  SELECT strftime(order_date, '%Y-%m') AS month,
+         SUM(amount) AS revenue
+  FROM read_csv_auto('raw/orders_*.csv')
+  GROUP BY 1
+&quot;)
+
+# Later sessions query the materialised table cheaply
+# dbGetQuery(con, &quot;SELECT * FROM monthly_sales ORDER BY month&quot;)
+
+dbDisconnect(con, shutdown = TRUE)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The <code>CREATE OR REPLACE TABLE ... AS SELECT</code> pattern (CTAS) materializes the result of a query into a named table. For ETL and reporting workflows, this is the bread-and-butter idiom.</p>
+
+<blockquote><p><strong>[NOTE]</strong> A DuckDB file is a single <code>.duckdb</code> file on disk — easy to back up, version, or share. Unlike PostgreSQL, there is no cluster directory or permissions to worry about.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a persistent DuckDB file, write a table, disconnect, reconnect, and verify the table is still there.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb(), dbdir = &quot;tmp.duckdb&quot;)
+dbWriteTable(con, &quot;t&quot;, data.frame(x = 1:5))
+dbDisconnect(con, shutdown = TRUE)
+
+con2 &lt;- dbConnect(duckdb(), dbdir = &quot;tmp.duckdb&quot;)
+# dbReadTable(con2, &quot;t&quot;)
+dbDisconnect(con2, shutdown = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How do you handle larger-than-memory data with DuckDB?</h2>
+
+<p>DuckDB's secret weapon is that it can spill to disk when a query's intermediate state exceeds RAM. Joins, sorts, and large GROUP BY operations all spill automatically. You do not have to configure anything.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Imagine 'big.parquet' is 50 GB; your laptop has 16 GB RAM
+
+library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb())
+
+# result &lt;- dbGetQuery(con, &quot;
+#   SELECT customer_id, SUM(amount) AS total
+#   FROM 'big.parquet'
+#   WHERE year = 2025
+#   GROUP BY customer_id
+#   ORDER BY total DESC
+#   LIMIT 100
+# &quot;)
+
+dbDisconnect(con, shutdown = TRUE)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The aggregate is computed in streaming fashion — DuckDB reads the Parquet file one row group at a time, maintains a partial hash table per customer, and spills to a temporary file when memory pressure gets high. You get a 100-row result from a 50-GB input.</p>
+
+<p>Three tips for very large data:</p>
+
+<ol>
+
+<li><strong>Use Parquet, not CSV.</strong> Parquet is compressed and columnar — often 10x smaller on disk and much faster to query.</li>
+
+<li><strong><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> early.</strong> Put <code>WHERE</code> clauses on columns that exist in the file, so DuckDB can skip entire row groups via predicate pushdown.</li>
+
+<li>**Limit memory with <code>memory_limit</code> if needed.** <code>dbExecute(con, &quot;SET memory_limit = &#x27;4GB&#x27;&quot;)</code> caps DuckDB to 4 GB and forces aggressive spilling.</li>
+
+</ol>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Set a memory limit for a big ETL job
+library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb())
+dbExecute(con, &quot;SET memory_limit = '4GB'&quot;)
+dbExecute(con, &quot;SET threads = 4&quot;)
+# Run your huge query here
+dbDisconnect(con, shutdown = TRUE)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>SET threads = 4</code> tells DuckDB to use 4 parallel threads — on a laptop with 8 cores, 4 is often a good balance between query speed and leaving cores for the rest of your workflow.</p>
+
+<blockquote><p><strong>[KEY INSIGHT]</strong> With DuckDB, "bigger than RAM" is no longer a special case — it is just a normal query that takes a bit longer. For most R users, this one feature alone justifies the switch from pandas-style pipelines.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>SET memory_limit</code> to cap DuckDB at 2 GB and <code>SET threads</code> to 2.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb())
+dbExecute(con, &quot;SET memory_limit = '2GB'&quot;)
+dbExecute(con, &quot;SET threads = 2&quot;)
+dbDisconnect(con, shutdown = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Basic DuckDB aggregation</h4>
+<h4>Exercise 1: Register and query</h4>
 
-<p>Connect to DuckDB, register the iris data frame, and write a SQL query that calculates the mean and standard deviation of Sepal.Length for each Species. Return results ordered by mean descending.</p>
+<p>Register the <code>mtcars</code> data frame with DuckDB, then compute the average <code>mpg</code> per <code>cyl</code> using SQL.</p>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: Query iris with DuckDB
-# Hint: Use duckdb_register() then dbGetQuery() with AVG() and STDDEV()
-
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
+<details><summary>Solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_con &lt;- dbConnect(duckdb())
-duckdb_register(my_con, &quot;iris_tbl&quot;, iris)
-
-my_iris_result &lt;- dbGetQuery(my_con, &quot;
-  SELECT Species,
-         ROUND(AVG(\&quot;Sepal.Length\&quot;), 2) AS mean_sepal_length,
-         ROUND(STDDEV(\&quot;Sepal.Length\&quot;), 2) AS sd_sepal_length
-  FROM iris_tbl
-  GROUP BY Species
-  ORDER BY mean_sepal_length DESC
-&quot;)
-print(my_iris_result)
-#&gt;      Species mean_sepal_length sd_sepal_length
-#&gt; 1  virginica              6.59            0.64
-#&gt; 2 versicolor              5.94            0.52
-#&gt; 3     setosa              5.01            0.35
-
-dbDisconnect(my_con, shutdown = TRUE)</div>
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+con &lt;- dbConnect(duckdb())
+duckdb_register(con, &quot;mt&quot;, mtcars)
+dbGetQuery(con, &quot;SELECT cyl, AVG(mpg) AS avg_mpg FROM mt GROUP BY cyl ORDER BY cyl&quot;)
+dbDisconnect(con, shutdown = TRUE)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -943,66 +766,22 @@ dbDisconnect(my_con, shutdown = TRUE)</div>
   </div>
   <div class="webr-plot-output"></div>
 </div>
-
-<p><strong>Explanation:</strong> duckdb_register() exposes iris as a SQL table. Column names with dots need quoting in SQL. STDDEV() computes the standard deviation, and we ORDER BY the mean descending so virginica (largest sepals) appears first.</p>
 
 </details>
 
-<h4>Exercise 2: Create and query a temporary table</h4>
+<h4>Exercise 2: Query a CSV directly</h4>
 
-<p>Create a DuckDB connection, then use SQL to create a table called "students" with columns name (VARCHAR), grade (INTEGER), and score (DOUBLE). Insert 6 rows of your choice. Write a query that returns the average score per grade, but only for grades with more than 1 student.</p>
+<p>Write <code>iris</code> to a CSV file and query it with DuckDB without loading it into R first.</p>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: Create a table and query with HAVING
-# Hint: Use dbExecute() for CREATE TABLE and INSERT, dbGetQuery() for SELECT with GROUP BY ... HAVING
-
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
+<details><summary>Solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_con2 &lt;- dbConnect(duckdb())
-
-dbExecute(my_con2, &quot;CREATE TABLE students (name VARCHAR, grade INTEGER, score DOUBLE)&quot;)
-dbExecute(my_con2, &quot;INSERT INTO students VALUES
-  ('Alice', 10, 92.5), ('Bob', 10, 85.0), ('Carol', 11, 88.0),
-  ('Dave', 11, 91.0), ('Eve', 12, 95.0), ('Frank', 10, 78.0)&quot;)
-
-my_student_result &lt;- dbGetQuery(my_con2, &quot;
-  SELECT grade, COUNT(*) AS n_students, ROUND(AVG(score), 1) AS avg_score
-  FROM students
-  GROUP BY grade
-  HAVING COUNT(*) &gt; 1
-  ORDER BY grade
-&quot;)
-print(my_student_result)
-#&gt;   grade n_students avg_score
-#&gt; 1    10          3      85.2
-#&gt; 2    11          2      89.5
-
-dbDisconnect(my_con2, shutdown = TRUE)</div>
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
+write.csv(iris, &quot;iris_tmp.csv&quot;, row.names = FALSE)
+con &lt;- dbConnect(duckdb())
+dbGetQuery(con, &quot;SELECT Species, COUNT(*) AS n FROM 'iris_tmp.csv' GROUP BY Species&quot;)
+dbDisconnect(con, shutdown = TRUE)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1011,220 +790,88 @@ dbDisconnect(my_con2, shutdown = TRUE)</div>
   </div>
   <div class="webr-plot-output"></div>
 </div>
-
-<p><strong>Explanation:</strong> HAVING filters groups after aggregation. Grade 12 has only 1 student (Eve), so it is excluded. Grades 10 and 11 each have 2+ students and pass the filter.</p>
 
 </details>
 
-<h4>Exercise 3: Use duckplyr for grouped summarisation</h4>
+<h4>Exercise 3: CTAS and reuse</h4>
 
-<p>Use duckplyr to convert the starwars dataset (from dplyr) to a DuckDB-backed tibble. Then find the tallest and heaviest character in each species that has at least 2 members. Remove rows with missing height or mass first.</p>
+<p>Create a persistent DuckDB file with a materialised table of average petal length per species, then reconnect and read it.</p>
+
+<details><summary>Solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb)
 
-    <div class="webr-editor" data-language="r"># Exercise: duckplyr grouped summarisation
-# Hint: Use as_duckdb_tibble(), filter(!is.na(...)), summarise(.by = species), then filter on n &gt;= 2
+con &lt;- dbConnect(duckdb(), dbdir = &quot;iris.duckdb&quot;)
+duckdb_register(con, &quot;iris_v&quot;, iris)
+dbExecute(con, &quot;CREATE OR REPLACE TABLE avg_petal AS SELECT Species, AVG(\&quot;Petal.Length\&quot;) AS avg_pl FROM iris_v GROUP BY Species&quot;)
+dbDisconnect(con, shutdown = TRUE)
 
-# Write your code below:
-</div>
-
+con2 &lt;- dbConnect(duckdb(), dbdir = &quot;iris.duckdb&quot;)
+dbReadTable(con2, &quot;avg_petal&quot;)
+dbDisconnect(con2, shutdown = TRUE)</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
 
-<details>
-<summary>Click to reveal solution</summary>
+</details>
+
+<h2>Complete Example</h2>
+
+<p>End-to-end analytics workflow: load data, query with both SQL and dplyr, materialise the result.</p>
 
 <div class="webr-container">
+
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_sw &lt;- dplyr::starwars |&gt;
-  as_duckdb_tibble() |&gt;
-  filter(!is.na(height), !is.na(mass)) |&gt;
-  summarise(
-    .by = species,
-    n = n(),
-    tallest = max(height),
-    heaviest = max(mass)
-  ) |&gt;
-  filter(n &gt;= 2) |&gt;
-  arrange(desc(n)) |&gt;
+
+    <div class="webr-editor" data-language="r">library(DBI); library(duckdb); library(dplyr); library(dbplyr); library(tibble)
+
+con &lt;- dbConnect(duckdb())
+on.exit(dbDisconnect(con, shutdown = TRUE))
+
+# Step 1: create sample sales data
+sales &lt;- tibble(
+  order_id = 1:200,
+  customer = sample(c(&quot;Asha&quot;,&quot;Bilal&quot;,&quot;Cleo&quot;,&quot;Daan&quot;,&quot;Edu&quot;), 200, replace = TRUE),
+  region   = sample(c(&quot;N&quot;,&quot;S&quot;,&quot;E&quot;,&quot;W&quot;), 200, replace = TRUE),
+  amount   = round(runif(200, 10, 500), 2),
+  month    = sample(1:12, 200, replace = TRUE)
+)
+duckdb_register(con, &quot;sales&quot;, sales)
+
+# Step 2: SQL version
+dbGetQuery(con, &quot;
+  SELECT region, month, SUM(amount) AS revenue
+  FROM sales
+  GROUP BY region, month
+  ORDER BY region, month
+  LIMIT 10
+&quot;)
+
+# Step 3: equivalent dplyr version
+tbl(con, &quot;sales&quot;) |&gt;
+  group_by(region, month) |&gt;
+  summarise(revenue = sum(amount, na.rm = TRUE), .groups = &quot;drop&quot;) |&gt;
+  arrange(region, month) |&gt;
+  head(10) |&gt;
   collect()
 
-print(my_sw)
-#&gt; # A tibble: 5 x 4
-#&gt;   species      n tallest heaviest
-#&gt;   &lt;chr&gt;    &lt;int&gt;   &lt;int&gt;    &lt;dbl&gt;
-#&gt; 1 Human       22     202      136
-#&gt; 2 Droid        4     200       140
-#&gt; 3 Gungan       3     224      ...
-#&gt; ...</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> The pipeline filters NAs, groups by species, computes max height and mass, then keeps only species with 2+ members. duckplyr routes all operations through DuckDB. The collect() call at the end materializes the result.</p>
-
-</details>
-
-<h4>Exercise 4: Multi-step SQL pipeline</h4>
-
-<p>Write a single SQL query against the mtcars data frame that: (a) computes the average mpg, hp, and qsec for each combination of cyl and am (transmission type), (b) ranks each group by average mpg descending using a window function, and (c) returns only the top 3 groups by average mpg.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: Complex SQL with window functions
-# Hint: Register mtcars, use a subquery with ROW_NUMBER() OVER(), filter WHERE rank &lt;= 3
-
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">duckdb_register(con, &quot;mtcars_ex&quot;, mtcars)
-
-my_ranked &lt;- dbGetQuery(con, &quot;
-  SELECT *
-  FROM (
-    SELECT cyl, am,
-           COUNT(*) AS n,
-           ROUND(AVG(mpg), 1) AS avg_mpg,
-           ROUND(AVG(hp), 0) AS avg_hp,
-           ROUND(AVG(qsec), 1) AS avg_qsec,
-           ROW_NUMBER() OVER (ORDER BY AVG(mpg) DESC) AS rank
-    FROM mtcars_ex
-    GROUP BY cyl, am
-  )
-  WHERE rank &lt;= 3
-  ORDER BY rank
-&quot;)
-print(my_ranked)
-#&gt;   cyl am n avg_mpg avg_hp avg_qsec rank
-#&gt; 1   4  1 8    28.1     81     18.7    1
-#&gt; 2   4  0 3    22.9     84     21.0    2
-#&gt; 3   6  1 3    20.6    132     16.3    3
-
-duckdb_unregister(con, &quot;mtcars_ex&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> The inner query groups by cyl and am, then ROW_NUMBER() assigns a rank based on avg_mpg descending. The outer query filters to the top 3. Manual transmission 4-cylinder cars are the most fuel-efficient group at 28.1 mpg.</p>
-
-</details>
-
-<h2>Putting It All Together</h2>
-
-<p>Let's build a complete analysis pipeline. We will create a realistic sales dataset, store it in DuckDB, query it with SQL, and then query the same data with duckplyr — demonstrating both interfaces on the same problem.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Step 1: Generate sample sales data
-set.seed(2026)
-n &lt;- 1000
-
-sales_data &lt;- data.frame(
-  order_id = 1:n,
-  product = sample(c(&quot;Laptop&quot;, &quot;Phone&quot;, &quot;Tablet&quot;, &quot;Monitor&quot;, &quot;Keyboard&quot;), n, replace = TRUE),
-  region = sample(c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;, &quot;West&quot;), n, replace = TRUE),
-  amount = round(runif(n, 50, 2000), 2),
-  quantity = sample(1:5, n, replace = TRUE),
-  order_date = sample(seq(as.Date(&quot;2025-01-01&quot;), as.Date(&quot;2025-12-31&quot;), by = &quot;day&quot;), n, replace = TRUE)
-)
-
-# Step 2: Register in DuckDB
-duckdb_register(con, &quot;sales_tbl&quot;, sales_data)
-cat(&quot;Registered&quot;, nrow(sales_data), &quot;sales records in DuckDB\n&quot;)
-#&gt; Registered 1000 sales records in DuckDB</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Now let's answer a business question with SQL: "Which product-region combination generated the most total revenue in Q4 2025?"</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Step 3: SQL analysis — top revenue combinations in Q4
-sql_result &lt;- dbGetQuery(con, &quot;
-  SELECT product, region,
-         SUM(amount * quantity) AS total_revenue,
-         COUNT(*) AS num_orders,
-         ROUND(AVG(amount), 2) AS avg_order_value
-  FROM sales_tbl
-  WHERE order_date &gt;= '2025-10-01'
-  GROUP BY product, region
-  HAVING COUNT(*) &gt;= 5
-  ORDER BY total_revenue DESC
+# Step 4: materialise the top customers for reuse
+dbExecute(con, &quot;
+  CREATE OR REPLACE TABLE top_customers AS
+  SELECT customer, SUM(amount) AS revenue
+  FROM sales
+  GROUP BY customer
+  ORDER BY revenue DESC
   LIMIT 5
 &quot;)
-print(sql_result)
-#&gt;    product region total_revenue num_orders avg_order_value
-#&gt; 1   Laptop  South      38542.18         22         1102.38
-#&gt; 2  Monitor   East      35210.92         19          982.44
-#&gt; 3    Phone  North      31875.60         21          875.30
-#&gt; 4   Tablet   West      28990.45         18          798.12
-#&gt; 5 Keyboard  South      24510.33         16          692.50</div>
+dbReadTable(con, &quot;top_customers&quot;)</div>
 
     <div class="webr-buttons">
 
@@ -1242,213 +889,100 @@ print(sql_result)
 
 </div>
 
-<p>Let's answer the same question with duckplyr for comparison.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Step 4: duckplyr analysis — same question, dplyr syntax
-dplyr_result &lt;- sales_data |&gt;
-  as_duckdb_tibble() |&gt;
-  filter(order_date &gt;= as.Date(&quot;2025-10-01&quot;)) |&gt;
-  summarise(
-    .by = c(product, region),
-    total_revenue = sum(amount * quantity),
-    num_orders = n(),
-    avg_order_value = round(mean(amount), 2)
-  ) |&gt;
-  filter(num_orders &gt;= 5) |&gt;
-  arrange(desc(total_revenue)) |&gt;
-  head(5) |&gt;
-  collect()
-
-print(dplyr_result)
-#&gt; # A tibble: 5 x 5
-#&gt;   product  region total_revenue num_orders avg_order_value
-#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;      &lt;int&gt;           &lt;dbl&gt;
-#&gt; 1 Laptop   South        38542.         22           1102.
-#&gt; 2 Monitor  East         35211.         19            982.
-#&gt; ...</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Both approaches produce identical results. The SQL version is more explicit and familiar to database users. The duckplyr version reads like standard R tidyverse code. Choose whichever fits your team and workflow.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Step 5: Clean up
-duckdb_unregister(con, &quot;sales_tbl&quot;)
-duckdb_unregister(con, &quot;mtcars_tbl&quot;)
-dbDisconnect(con, shutdown = TRUE)
-cat(&quot;Connection closed. All resources released.\n&quot;)
-#&gt; Connection closed. All resources released.</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
+<p>Two interfaces, one engine, identical results. Use SQL when you are collaborating with data engineers, dplyr when you are deep in a tidyverse pipeline. The runtime is the same because DuckDB does the work in both cases.</p>
 
 <h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Function</th>
-<th>Package</th>
-<th>Purpose</th>
+<th>Task</th>
+<th>Function / SQL</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>dbConnect(duckdb())</td>
-<td>duckdb, DBI</td>
-<td>Create a DuckDB connection (in-memory or file)</td>
+<td>Connect in-memory</td>
+<td><code>dbConnect(duckdb())</code></td>
 </tr>
 <tr>
-<td>dbGetQuery(con, sql)</td>
-<td>DBI</td>
-<td>Run a SQL query and return results as a data frame</td>
+<td>Connect persistent</td>
+<td><code>dbConnect(duckdb(), dbdir = &quot;file.duckdb&quot;)</code></td>
 </tr>
 <tr>
-<td>dbExecute(con, sql)</td>
-<td>DBI</td>
-<td>Run SQL that does not return results (CREATE, INSERT)</td>
+<td>Zero-copy register df</td>
+<td><code>duckdb_register(con, &quot;name&quot;, df)</code></td>
 </tr>
 <tr>
-<td>duckdb_register(con, name, df)</td>
-<td>duckdb</td>
-<td>Expose a data frame as a virtual table (zero-copy)</td>
+<td>Query CSV directly</td>
+<td><code>SELECT * FROM &#x27;file.csv&#x27;</code></td>
 </tr>
 <tr>
-<td>duckdb_unregister(con, name)</td>
-<td>duckdb</td>
-<td>Remove a virtual table registration</td>
+<td>Query Parquet directly</td>
+<td><code>SELECT * FROM &#x27;file.parquet&#x27;</code></td>
 </tr>
 <tr>
-<td>read_csv_auto(path)</td>
-<td>DuckDB SQL</td>
-<td>Query a CSV file directly in SQL</td>
+<td>Multi-file glob</td>
+<td><code>SELECT * FROM &#x27;data/2025-*.parquet&#x27;</code></td>
 </tr>
 <tr>
-<td>read_parquet(path)</td>
-<td>DuckDB SQL</td>
-<td>Query a Parquet file directly in SQL</td>
+<td>Materialise a result</td>
+<td><code>CREATE OR REPLACE TABLE x AS SELECT ...</code></td>
 </tr>
 <tr>
-<td>as_duckdb_tibble(df)</td>
-<td>duckplyr</td>
-<td>Convert a data frame to a DuckDB-backed tibble</td>
+<td>Cap memory</td>
+<td><code>SET memory_limit = &#x27;4GB&#x27;</code></td>
 </tr>
 <tr>
-<td>collect()</td>
-<td>dplyr/duckplyr</td>
-<td>Materialize a lazy duckplyr query into a tibble</td>
+<td>Set thread count</td>
+<td><code>SET threads = 4</code></td>
 </tr>
 <tr>
-<td>dbDisconnect(con, shutdown)</td>
-<td>DBI</td>
-<td>Close connection and release resources</td>
+<td>Always disconnect with</td>
+<td><code>dbDisconnect(con, shutdown = TRUE)</code></td>
 </tr>
 </tbody>
 </table>
 
-<p>Key takeaways:</p>
-
-<ul>
-
-<li>DuckDB is an in-process columnar database — no server required</li>
-
-<li>It queries data frames, CSV, and Parquet files directly using SQL</li>
-
-<li>duckplyr provides a dplyr-compatible interface backed by DuckDB</li>
-
-<li>DuckDB excels at analytical queries on large data (millions to billions of rows)</li>
-
-<li>For small in-memory data, data.table or dplyr may be faster due to lower overhead</li>
-
-<li>Always close your connection with dbDisconnect(con, shutdown = TRUE)</li>
-
-</ul>
-
-<h2>FAQ</h2>
-
-<p><strong>Can DuckDB handle data larger than my RAM?</strong></p>
-
-<p>Yes. DuckDB can query files on disk (CSV, Parquet, JSON) without loading them into memory. It streams data through its columnar engine, processing chunks at a time. For extremely large datasets, use Parquet files — DuckDB can skip entire row groups using metadata, reading only what the query needs.</p>
-
-<p><strong>Is duckplyr a full replacement for dplyr?</strong></p>
-
-<p>Nearly. duckplyr supports most dplyr verbs and automatically falls back to standard dplyr for any operation DuckDB cannot translate. You can load it alongside dplyr without breaking existing code. Use methods_restore() to switch back to pure dplyr if needed.</p>
-
-<p><strong>How does DuckDB compare to SQLite?</strong></p>
-
-<p>SQLite is optimized for transactional workloads (OLTP) — inserting, updating, and reading individual rows. DuckDB is optimized for analytical workloads (OLAP) — aggregating, joining, and scanning large batches of rows. Use SQLite for application databases. Use DuckDB for data analysis.</p>
-
-<p><strong>Can I use DuckDB with Shiny apps?</strong></p>
-
-<p>Yes. DuckDB works well as a backend for Shiny apps that need fast analytical queries. Create the connection in server.R and query data on demand. Since DuckDB is in-process, there is no external database to manage in production.</p>
-
-<p><strong>Does DuckDB support joins across different data sources?</strong></p>
-
-<p>Yes. You can join a registered R data frame with a Parquet file on disk in a single SQL query. DuckDB treats all registered tables and file scans as part of the same database, regardless of where the data physically lives.</p>
-
-<h2>References</h2>
+<p>Four rules:</p>
 
 <ol>
 
-<li>DuckDB Foundation — R Client Documentation. <a href="https://duckdb.org/docs/stable/clients/r">Link</a></li>
+<li><strong>Use DuckDB for analytics, SQLite for transactions.</strong> Different tools for different jobs.</li>
 
-<li>Muller, K. and Raasveldt, M. — duckplyr: A DuckDB-Backed Version of dplyr. tidyverse.org (2024). <a href="https://duckplyr.tidyverse.org/">Link</a></li>
+<li><strong>Register, don't copy.</strong> <code>duckdb_register()</code> makes a data frame queryable with zero overhead.</li>
 
-<li>Turner, S.D. — "DuckDB vs dplyr vs base R." Paired Ends (2024). <a href="https://blog.stephenturner.us/p/duckdb-vs-dplyr-vs-base-r">Link</a></li>
+<li><strong>Query files directly.</strong> Skip the <code>read.csv</code>/<code>read_parquet</code> step entirely.</li>
 
-<li>Cooney, D. — "R Dplyr vs DuckDB." Appsilon (2024). <a href="https://www.appsilon.com/post/r-dplyr-vs-duckdb">Link</a></li>
-
-<li>DuckDB Foundation — "The Return of the H2O.ai Database-like Ops Benchmark." (2023). <a href="https://duckdb.org/2023/04/14/h2oai">Link</a></li>
-
-<li>Posit Team — "duckplyr: dplyr Powered by DuckDB — A High-Level Overview." Posit Blog (2024). <a href="https://posit.co/blog/duckplyr-dplyr-powered-by-duckdb/">Link</a></li>
-
-<li>DuckDB Foundation — Official Documentation. <a href="https://duckdb.org/docs/">Link</a></li>
+<li>**Always <code>shutdown = TRUE</code>.** It prevents dangling file handles on disconnect.</li>
 
 </ol>
+
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://duckdb.org/">DuckDB project site</a></li>
+
+<li><a href="https://r.duckdb.org/">DuckDB R package</a></li>
+
+<li><a href="https://duckplyr.tidyverse.org/">duckplyr package site</a></li>
+
+<li><a href="https://duckdb.org/docs/sql/introduction">DuckDB SQL reference</a></li>
+
+<li><a href="https://hannes.muehleisen.org/publications/SIGMOD2019-demo-duckdb.pdf">Mark Raasveldt and Hannes Mühleisen, <em>Duckdb: An Embeddable Analytical Database</em>, SIGMOD 2019</a></li>
+
+</ul>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><a href="DBI-in-R.html">Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL</a> — Learn the DBI foundation that DuckDB builds on. DBI provides the universal database interface that dbConnect(), dbGetQuery(), and parameterised queries all come from.</li>
+<li><a href="DBI-in-R.html">DBI in R</a> — the interface DuckDB uses; learn DBI once, use it with any database.</li>
 
-<li><a href="dplyr-group-by-summarise.html">dplyr group_by and summarise</a> — Master the dplyr aggregation verbs that duckplyr accelerates. Understanding group_by() and summarise() will make your DuckDB pipelines more effective.</li>
+<li><a href="dplyr-group-by-summarise.html">dplyr group_by() and summarise()</a> — translate directly to DuckDB via dbplyr.</li>
 
-<li><a href="Importing-Data-in-R.html">Importing Data in R</a> — Learn all the ways to get data into R, from CSV and Excel to databases and APIs. DuckDB complements these methods for large-file workflows.</li>
+<li><a href="Importing-Data-in-R.html">Importing Data in R</a> — DuckDB complements the traditional <code>read_csv</code>/<code>read_parquet</code> workflow.</li>
 
 </ul>
 
