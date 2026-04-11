@@ -390,13 +390,32 @@ def sync_curriculum(posts, dry_run=False):
         for sp, spdata in pdata.get('sub_paths', {}).items():
             for entry in spdata.get('posts', []):
                 eid = entry.get('id', '')
-                if eid in post_by_id and entry.get('status') != 'published':
-                    post = post_by_id[eid]
+                if eid not in post_by_id:
+                    # Ensure schema has modified_date field even for posts not in this sync
+                    if 'modified_date' not in entry:
+                        entry['modified_date'] = None
+                        updated += 1
+                    continue
+
+                post = post_by_id[eid]
+                changed = False
+
+                # First publish: set status/slug/url/published_date
+                if entry.get('status') != 'published':
                     entry['status'] = 'published'
                     entry['slug'] = post['filename'].replace('.html', '')
                     entry['url'] = '/' + post['filename']
                     entry['published_date'] = post.get('published_date', today)
                     entry['in_sidebar'] = post.get('post_type') == 'C'
+                    changed = True
+
+                # Every sync (first publish OR rewrite): refresh modified_date to today.
+                # published_date is set once and never changed.
+                if entry.get('modified_date') != today:
+                    entry['modified_date'] = today
+                    changed = True
+
+                if changed:
                     updated += 1
 
     if not dry_run and updated > 0:
