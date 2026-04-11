@@ -62,6 +62,30 @@ dbWriteTable(con, "mtcars", mtcars)
 # dbGetQuery(con, "SELECT * FROM mtcars WHERE mpg > 25")
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(DBI); library(RSQLite)
+con <- dbConnect(SQLite(), ":memory:")
+dbWriteTable(con, "mtcars", mtcars)
+
+dbGetQuery(con, "SELECT * FROM mtcars WHERE mpg > 25")
+#>                 mpg cyl  disp hp drat    wt  qsec vs am gear carb
+#> Fiat 128       32.4   4  78.7 66 4.08 2.200 19.47  1  1    4    1
+#> Honda Civic    30.4   4  75.7 52 4.93 1.615 18.52  1  1    4    2
+#> Toyota Corolla 33.9   4  71.1 65 4.22 1.835 19.90  1  1    4    1
+#> Fiat X1-9      27.3   4  79.0 66 4.08 1.935 18.90  1  1    4    1
+#> Porsche 914-2  26.0   4 120.3 91 4.43 2.140 16.70  0  1    5    2
+#> Lotus Europa   30.4   4  95.1113 3.77 1.513 16.90  1  1    5    2
+
+dbDisconnect(con)
+```
+
+`dbGetQuery()` runs the SQL string and returns a data frame in one call. Always pair `dbConnect()` with `dbDisconnect()` to release the handle when you are done.
+
+</details>
+
 ## How do you connect to SQLite, PostgreSQL, and MySQL with DBI?
 
 The only thing that changes between databases is the driver package and the `dbConnect()` arguments. Everything after connection is identical.
@@ -125,6 +149,21 @@ dbWriteTable(con, "t1", data.frame(a = 1:3, b = 4:6))
 # dbListTables(con); dbListFields(con, "t1")
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dbListTables(con)
+#> [1] "t1"
+
+dbListFields(con, "t1")
+#> [1] "a" "b"
+```
+
+`dbListTables()` is the database equivalent of `ls()`, and `dbListFields()` returns the column names for a single table — both work identically across every DBI backend.
+
+</details>
+
 ## How do you run queries and read results into R?
 
 Three functions cover 95% of reading: `dbGetQuery()` for results into a data frame, `dbReadTable()` for a full table dump, and `dbSendQuery()` + `dbFetch()` for streaming large results in chunks.
@@ -178,6 +217,21 @@ con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "orders", data.frame(customer = c("A","B","A","C","B","A"), amount = c(10,20,30,40,50,60)))
 # dbGetQuery(con, "SELECT customer, COUNT(*) AS n FROM orders GROUP BY customer")
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dbGetQuery(con, "SELECT customer, COUNT(*) AS n FROM orders GROUP BY customer")
+#>   customer n
+#> 1        A 3
+#> 2        B 2
+#> 3        C 1
+```
+
+`COUNT(*)` counts rows in each group defined by `GROUP BY`. The result comes back as a regular R data frame ready for further processing.
+
+</details>
 
 ## How do you write data from R back into the database?
 
@@ -233,6 +287,26 @@ con <- dbConnect(SQLite(), ":memory:")
 df <- data.frame(x = 1:3, y = letters[1:3])
 # dbWriteTable(con, "t", df); dbAppendTable(con, "t", data.frame(x = 4:5, y = c("d","e")))
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dbWriteTable(con, "t", df)
+dbAppendTable(con, "t", data.frame(x = 4:5, y = c("d","e")))
+
+dbReadTable(con, "t")
+#>   x y
+#> 1 1 a
+#> 2 2 b
+#> 3 3 c
+#> 4 4 d
+#> 5 5 e
+```
+
+`dbWriteTable()` creates the table from the first data frame; `dbAppendTable()` adds more rows to the existing table without changing its schema.
+
+</details>
 
 ## How do you use parameterised queries to prevent SQL injection?
 
@@ -295,6 +369,20 @@ dbWriteTable(con, "users", data.frame(name = c("A","B","C"), age = c(20, 30, 40)
 # dbGetQuery(con, "SELECT * FROM users WHERE age > ?", params = list(25))
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dbGetQuery(con, "SELECT * FROM users WHERE age > ?", params = list(25))
+#>   name age
+#> 1    B  30
+#> 2    C  40
+```
+
+The `?` placeholder is filled in by the value in `params`. Because the value travels separately from the SQL text, the driver quotes it correctly and SQL injection is impossible.
+
+</details>
+
 ## How does dbplyr let you use dplyr syntax on SQL tables?
 
 `dbplyr` translates dplyr verbs into SQL and sends them to the database. You write familiar R code; the database runs the actual computation. This is the best of both worlds — dplyr's ergonomics plus the database's query planner.
@@ -347,6 +435,25 @@ dbWriteTable(con, "f", data.frame(origin = c("A","B","A","B"), delay = c(5, 10, 
 # tbl(con, "f") |> group_by(origin) |> summarise(avg = mean(delay)) |> collect()
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+tbl(con, "f") |>
+  group_by(origin) |>
+  summarise(avg = mean(delay, na.rm = TRUE)) |>
+  collect()
+#> # A tibble: 2 x 2
+#>   origin   avg
+#>   <chr>  <dbl>
+#> 1 A         10
+#> 2 B         15
+```
+
+`tbl()` returns a lazy reference; the dplyr verbs translate to SQL and only execute when `collect()` pulls the result back into R as a tibble.
+
+</details>
+
 ## How do you manage connections and transactions safely?
 
 Connections are a finite resource. Forgetting to close one slowly leaks memory and eventually breaks the database server. The defensive pattern is `on.exit(dbDisconnect(con))` immediately after opening.
@@ -398,6 +505,25 @@ con <- dbConnect(SQLite(), ":memory:")
 dbExecute(con, "CREATE TABLE log (msg TEXT)")
 # dbWithTransaction(con, { dbExecute(con, "INSERT INTO log VALUES ('a')"); dbExecute(con, "INSERT INTO log VALUES ('b')") })
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dbWithTransaction(con, {
+  dbExecute(con, "INSERT INTO log VALUES ('a')")
+  dbExecute(con, "INSERT INTO log VALUES ('b')")
+})
+
+dbReadTable(con, "log")
+#>   msg
+#> 1   a
+#> 2   b
+```
+
+`dbWithTransaction()` wraps the block in `BEGIN`/`COMMIT`. If either insert throws an error, both are rolled back, leaving the table in its original state.
+
+</details>
 
 ## Practice Exercises
 

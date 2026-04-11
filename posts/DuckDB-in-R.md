@@ -63,6 +63,24 @@ dbGetQuery(con, "SELECT 42 AS answer")
 dbDisconnect(con, shutdown = TRUE)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(DBI); library(duckdb)
+con <- dbConnect(duckdb())
+
+dbGetQuery(con, "SELECT 42 AS answer")
+#>   answer
+#> 1     42
+
+dbDisconnect(con, shutdown = TRUE)
+```
+
+This is the smallest possible DuckDB session — connect, run a single SELECT that needs no tables, disconnect. If this works, your installation is good.
+
+</details>
+
 ## How do you install DuckDB and run your first query?
 
 Installation is one line:
@@ -125,6 +143,23 @@ dbWriteTable(con, "cars", mtcars)
 dbDisconnect(con, shutdown = TRUE)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dbGetQuery(con, "SELECT * FROM cars ORDER BY mpg DESC LIMIT 5")
+#>    mpg cyl  disp hp drat    wt  qsec vs am gear carb
+#> 1 33.9   4  71.1 65 4.22 1.835 19.90  1  1    4    1
+#> 2 32.4   4  78.7 66 4.08 2.200 19.47  1  1    4    1
+#> 3 30.4   4  75.7 52 4.93 1.615 18.52  1  1    4    2
+#> 4 30.4   4  95.1113 3.77 1.513 16.90  1  1    5    2
+#> 5 27.3   4  79.0 66 4.08 1.935 18.90  1  1    4    1
+```
+
+`ORDER BY mpg DESC LIMIT 5` sorts the table descending and keeps only the top five rows — the standard SQL "top-N" pattern.
+
+</details>
+
 ## How do you query CSV and Parquet files without loading them?
 
 This is where DuckDB really shines. You can point it at a file on disk and it queries the file directly — no `read.csv`, no temporary table, no RAM spike.
@@ -176,6 +211,21 @@ con <- dbConnect(duckdb())
 dbDisconnect(con, shutdown = TRUE)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dbGetQuery(con, "SELECT cyl, AVG(mpg) AS avg_mpg FROM 'mtcars_tmp.csv' GROUP BY cyl ORDER BY cyl")
+#>   cyl  avg_mpg
+#> 1   4 26.66364
+#> 2   6 19.74286
+#> 3   8 15.10000
+```
+
+DuckDB treats `'mtcars_tmp.csv'` as if it were a table name. The CSV reader auto-detects the schema and only reads the columns the query needs — no `read.csv` step required.
+
+</details>
+
 ## How does DuckDB compare to SQLite and data.table?
 
 All three are fast, but they target different problems.
@@ -225,6 +275,21 @@ duckdb_register(con, "iris_v", iris)
 # dbGetQuery(con, "SELECT Species, COUNT(*) FROM iris_v GROUP BY Species")
 dbDisconnect(con, shutdown = TRUE)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dbGetQuery(con, "SELECT Species, COUNT(*) AS n FROM iris_v GROUP BY Species ORDER BY Species")
+#>      Species  n
+#> 1     setosa 50
+#> 2 versicolor 50
+#> 3  virginica 50
+```
+
+`duckdb_register()` exposes the R data frame as a virtual table without copying it. From DuckDB's point of view it looks just like any other table you can query, group, and join.
+
+</details>
 
 ## How do you use DuckDB with dplyr via dbplyr or duckplyr?
 
@@ -280,6 +345,26 @@ duckdb_register(con, "iris_v", iris)
 dbDisconnect(con, shutdown = TRUE)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+tbl(con, "iris_v") |>
+  filter(Petal.Length > 4) |>
+  group_by(Species) |>
+  summarise(n = n()) |>
+  collect()
+#> # A tibble: 2 x 2
+#>   Species        n
+#>   <fct>      <int>
+#> 1 versicolor    34
+#> 2 virginica     50
+```
+
+The dplyr verbs are translated to SQL by dbplyr and executed inside DuckDB. `setosa` drops out because all of its petals are shorter than 4 cm, so the group has no rows after the filter.
+
+</details>
+
 ## When should you persist a DuckDB file vs use in-memory?
 
 In-memory mode (`dbConnect(duckdb())` with no path) is perfect when:
@@ -331,6 +416,25 @@ con2 <- dbConnect(duckdb(), dbdir = "tmp.duckdb")
 # dbReadTable(con2, "t")
 dbDisconnect(con2, shutdown = TRUE)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+con2 <- dbConnect(duckdb(), dbdir = "tmp.duckdb")
+dbReadTable(con2, "t")
+#>   x
+#> 1 1
+#> 2 2
+#> 3 3
+#> 4 4
+#> 5 5
+dbDisconnect(con2, shutdown = TRUE)
+```
+
+Because the first connection wrote to a file (`dbdir = "tmp.duckdb"`) instead of memory, the table survives the disconnect. Reconnecting to the same file path gives a new session that sees all previously stored tables.
+
+</details>
 
 ## How do you handle larger-than-memory data with DuckDB?
 
@@ -385,6 +489,30 @@ dbExecute(con, "SET memory_limit = '2GB'")
 dbExecute(con, "SET threads = 2")
 dbDisconnect(con, shutdown = TRUE)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(DBI); library(duckdb)
+con <- dbConnect(duckdb())
+
+dbExecute(con, "SET memory_limit = '2GB'")
+#> [1] 0
+dbExecute(con, "SET threads = 2")
+#> [1] 0
+
+# Verify the settings took effect
+dbGetQuery(con, "SELECT current_setting('memory_limit') AS memory_limit, current_setting('threads') AS threads")
+#>   memory_limit threads
+#> 1     1.9 GiB        2
+
+dbDisconnect(con, shutdown = TRUE)
+```
+
+`SET memory_limit` and `SET threads` are session-level pragmas — they apply to the current connection. The `[1] 0` from `dbExecute()` is the affected-row count (zero, because no data rows changed).
+
+</details>
 
 ## Practice Exercises
 

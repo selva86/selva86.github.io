@@ -54,6 +54,18 @@ raw <- c("15/03/2024", "01/01/2025", "31/12/2023")
 # Hint: these are day-first
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dmy(raw)
+#> [1] "2024-03-15" "2025-01-01" "2023-12-31"
+```
+
+The components run day-month-year, so `dmy()` is the right parser. The function name maps directly to the order of the parts in the input.
+
+</details>
+
 ## How does lubridate parse date and datetime strings?
 
 Parser functions fall into three tiers: pure dates (`ymd`, `mdy`, `dmy`, `ydm`, `myd`, `dym`), date-times (`ymd_h`, `ymd_hm`, `ymd_hms`, and all permutations), and specialized parsers (`parse_date_time` for unusual formats, `fast_strptime` when performance matters).
@@ -98,6 +110,18 @@ library(lubridate)
 mixed <- c("2026-01-15 10:30", "Jan 15 2026 10:30", "15/01/2026 10:30")
 # Hint: orders = c("ymd HM", "mdy HM", "dmy HM")
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+parse_date_time(mixed, orders = c("ymd HM", "mdy HM", "dmy HM"))
+#> [1] "2026-01-15 10:30:00 UTC" "2026-01-15 10:30:00 UTC" "2026-01-15 10:30:00 UTC"
+```
+
+`parse_date_time()` tries each order in turn and picks the one that produces a valid result for each element, returning a single uniform POSIXct vector.
+
+</details>
 
 ## How do you extract components like year, month, and weekday?
 
@@ -175,6 +199,23 @@ dts <- ymd(c("2026-01-01", "2026-06-15", "2026-12-31"))
 # Use month(..., label=TRUE) and wday(..., label=TRUE)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+month(dts, label = TRUE)
+#> [1] Jan Jun Dec
+#> Levels: Jan < Feb < ... < Dec
+
+wday(dts, label = TRUE, week_start = 1)
+#> [1] Thu Mon Thu
+#> Levels: Mon < Tue < ... < Sun
+```
+
+`label = TRUE` returns ordered factors instead of integers, which is what you want for plotting and human-readable summaries.
+
+</details>
+
 ## How do you do arithmetic on dates and times?
 
 The obvious question — "how many days between these two dates?" — has a simple answer:
@@ -225,6 +266,18 @@ start + months(2) + days(3)
 library(lubridate)
 # ymd("2026-01-15") + months(6) + days(10)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ymd("2026-01-15") + months(6) + days(10)
+#> [1] "2026-07-25"
+```
+
+`months()` and `days()` are calendar-aware periods, so the answer respects month boundaries — six months after January 15 is July 15, plus ten days lands on July 25.
+
+</details>
 
 ## What are durations, periods, and intervals and when do you use each?
 
@@ -288,6 +341,23 @@ library(lubridate)
 # interval(...), %within%, / dweeks(1)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+i <- interval(ymd("2026-01-01"), ymd("2026-12-31"))
+
+ymd("2026-07-04") %within% i
+#> [1] TRUE
+
+i / dweeks(1)
+#> [1] 52
+```
+
+`%within%` tests containment and returns a logical; dividing the interval by a duration like `dweeks(1)` gives the count of weeks it spans.
+
+</details>
+
 ## How do you handle time zones without breaking everything?
 
 Time zones cause more bugs than any other part of date handling. lubridate's rule is simple: every POSIXct value carries one time zone at a time, and you convert with one of two functions.
@@ -328,6 +398,21 @@ library(lubridate)
 ts <- ymd_hms("2026-06-01 12:00:00", tz = "UTC")
 # with_tz(ts, "Asia/Tokyo"), with_tz(ts, "Europe/Paris")
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+with_tz(ts, "Asia/Tokyo")
+#> [1] "2026-06-01 21:00:00 JST"
+
+with_tz(ts, "Europe/Paris")
+#> [1] "2026-06-01 14:00:00 CEST"
+```
+
+`with_tz()` keeps the same instant in time and only changes how it is displayed — Tokyo is UTC+9 and Paris is on summer time (CEST, UTC+2) on June 1.
+
+</details>
 
 ## How do you round dates to day, week, or month?
 
@@ -387,6 +472,18 @@ library(lubridate)
 times <- ymd_hms(c("2026-04-11 14:37:00", "2026-04-11 15:02:00"))
 # floor_date(times, "hour")
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+floor_date(times, "hour")
+#> [1] "2026-04-11 14:00:00 UTC" "2026-04-11 15:00:00 UTC"
+```
+
+`floor_date()` snaps each value down to the nearest hour boundary, dropping the minute and second components in one call.
+
+</details>
 
 ## Practice Exercises
 

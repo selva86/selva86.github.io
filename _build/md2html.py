@@ -84,8 +84,10 @@ def convert(md_text):
             fixed_lines.append(m.group(2))
             i += 1
             continue
-        # Blockquote: > [TIP] (label alone) followed by > body lines
-        bq = re.match(r'^>\s*(\[(?:TIP|NOTE|WARNING|KEY INSIGHT)\])\s*(.*)$', ln)
+        # Blockquote: > [TIP] (label alone) followed by > body lines.
+        # Also handles the bolded form `> **[TIP]** body` produced by the
+        # LLM /publish-post path — strip the asterisks before matching.
+        bq = re.match(r'^>\s*(?:\*\*)?\s*(\[(?:TIP|NOTE|WARNING|KEY INSIGHT)\])\s*(?:\*\*)?\s*(.*)$', ln)
         if bq:
             print(f"  WARN: auto-fixed blockquote callout at line {i+1}: {bq.group(1)} ...")
             fixed_lines.append(bq.group(1))
