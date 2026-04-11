@@ -68,17 +68,39 @@ def convert(md_text):
     fm, body = parse_frontmatter(md_text)
     lines = body.split('\n')
 
-    # Auto-fix: inline callouts like "[TIP] body..." get split onto two lines so the
-    # parser's [TIP]-on-own-line rule matches. Warn loudly so the author learns.
+    # Auto-fix callout patterns so the parser's [TIP]-on-own-line rule matches.
+    # Handles three legacy shapes: inline "[TIP] body", blockquote "> [TIP]"
+    # followed by "> body" lines, and inline blockquote "> [TIP] body".
     fixed_lines = []
-    for lineno, ln in enumerate(lines, start=1):
+    i = 0
+    while i < len(lines):
+        ln = lines[i]
+        stripped = ln.lstrip()
+        # Inline: [TIP] body...
         m = re.match(r'^(\[(?:TIP|NOTE|WARNING|KEY INSIGHT)\])\s+(\S.*)$', ln)
         if m:
-            print(f"  WARN: auto-fixed inline callout at line {lineno}: {m.group(1)} ...")
+            print(f"  WARN: auto-fixed inline callout at line {i+1}: {m.group(1)} ...")
             fixed_lines.append(m.group(1))
             fixed_lines.append(m.group(2))
-        else:
-            fixed_lines.append(ln)
+            i += 1
+            continue
+        # Blockquote: > [TIP] (label alone) followed by > body lines
+        bq = re.match(r'^>\s*(\[(?:TIP|NOTE|WARNING|KEY INSIGHT)\])\s*(.*)$', ln)
+        if bq:
+            print(f"  WARN: auto-fixed blockquote callout at line {i+1}: {bq.group(1)} ...")
+            fixed_lines.append(bq.group(1))
+            rest = bq.group(2).strip()
+            body_parts = [rest] if rest else []
+            i += 1
+            while i < len(lines) and lines[i].lstrip().startswith('>'):
+                cont = re.sub(r'^>\s?', '', lines[i].lstrip())
+                body_parts.append(cont)
+                i += 1
+            if body_parts:
+                fixed_lines.append(' '.join(p.strip() for p in body_parts if p.strip()))
+            continue
+        fixed_lines.append(ln)
+        i += 1
     lines = fixed_lines
 
     out = []
