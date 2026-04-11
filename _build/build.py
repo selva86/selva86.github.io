@@ -1215,6 +1215,67 @@ def extract_faq_items(html_content):
     return items[:10]  # Cap at 10 FAQ items
 
 
+PROTECT_RE = re.compile(
+    r'(<pre[\s\S]*?</pre>'
+    r'|<div class="webr-editor"[\s\S]*?</div>'
+    r'|<div class="mermaid"[\s\S]*?</div>'
+    r'|<script[\s\S]*?</script>'
+    r'|<style[\s\S]*?</style>)',
+    re.IGNORECASE,
+)
+
+CALLOUT_RE = re.compile(
+    r'<blockquote>\s*<p>\s*<strong>\[(TIP|NOTE|WARNING|KEY INSIGHT)\]</strong>\s*'
+    r'([\s\S]*?)</blockquote>',
+    re.IGNORECASE,
+)
+CALLOUT_CLASS = {'TIP': 'callout-tip', 'NOTE': 'callout-note',
+                 'WARNING': 'callout-warning', 'KEY INSIGHT': 'callout-insight'}
+CALLOUT_LABEL = {'TIP': 'Tip', 'NOTE': 'Note',
+                 'WARNING': 'Warning', 'KEY INSIGHT': 'Key Insight'}
+
+
+def _heal_bold_italic(seg):
+    # Triple-star first so ***x*** → <strong><em>x</em></strong>
+    seg = re.sub(r'\*\*\*([^\n*]+?)\*\*\*',
+                 r'<strong><em>\1</em></strong>', seg)
+    # Bold: single-line, first inner char must be non-star, inner may
+    # contain inline tags (<code>, <a>, etc.) but not another **.
+    seg = re.sub(r'\*\*([^\n*](?:(?!\*\*)[^\n])*?)\*\*',
+                 r'<strong>\1</strong>', seg)
+    # Italic: strict shape — first inner char letter, not touching
+    # words/stars on either side, non-space ender. Keeps math like
+    # *2*3*, glob *.csv, pointer *ptr from matching.
+    seg = re.sub(r'(?<![*\w])\*([A-Za-z][^\n*]*?\S)\*(?!\w|\*)',
+                 r'<em>\1</em>', seg)
+    return seg
+
+
+def heal_inline_md(body):
+    parts = PROTECT_RE.split(body)
+    for i in range(0, len(parts), 2):
+        seg = parts[i]
+        if seg is None or '*' not in seg:
+            continue
+        parts[i] = _heal_bold_italic(seg)
+    return ''.join(p for p in parts if p is not None)
+
+
+def heal_callouts(body):
+    def sub(m):
+        kind = m.group(1).upper()
+        inner_body = m.group(2).strip()
+        inner_body = re.sub(r'</p>\s*$', '', inner_body)
+        return (f'<div class="callout {CALLOUT_CLASS[kind]}">'
+                f'<div class="callout-label">{CALLOUT_LABEL[kind]}</div>'
+                f'<div class="callout-body"><p>{inner_body}</p></div></div>')
+    return CALLOUT_RE.sub(sub, body)
+
+
+def heal_fragment(body):
+    return heal_inline_md(heal_callouts(body))
+
+
 def build_post(
     template, post_path, sidebar_map=None, prev_next_map=None,
     slug_to_subpath=None, subpath_to_slugs=None,
@@ -1225,6 +1286,15 @@ def build_post(
         raw = f.read()
 
     meta, content = parse_front_matter(raw)
+
+    healed = heal_fragment(content)
+    if healed != content:
+        fm_match = re.match(r'^---\s*\n.*?\n---\s*\n', raw, re.DOTALL)
+        if fm_match:
+            with open(post_path, 'w', encoding='utf-8') as f:
+                f.write(raw[:fm_match.end()] + healed)
+            print(f'  healed: {os.path.basename(post_path)}')
+        content = healed
 
     title = meta.get('title', 'Untitled')
     mathjax = meta.get('mathjax', 'true').lower() != 'false'
@@ -1529,6 +1599,19 @@ def main():
             f.write(page_html)
         print(f"Built: {post_file}")
         built.append(post_file)
+
+    # Post-build sanity check: re-run the healer across all fragments and
+    # warn on any residual drift. The healer is idempotent, so a clean
+    # build should emit zero warnings.
+    leftover = 0
+    for p in sorted(post_files):
+        with open(p, encoding='utf-8') as f:
+            body = f.read()
+        if heal_fragment(body) != body:
+            leftover += 1
+            print(f'  WARN leftover drift: {os.path.basename(p)}')
+    if leftover:
+        print(f'  WARN: {leftover} fragment(s) still drift after heal')
 
     # Sitemap and feed always regenerate from the full post_files list —
     # they are cheap and must stay in sync with what actually exists on disk.
