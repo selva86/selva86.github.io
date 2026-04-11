@@ -50,6 +50,19 @@ animals <- c("red fox", "brown bear", "arctic fox", "deer")
 # Your str_detect() call
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(stringr)
+animals <- c("red fox", "brown bear", "arctic fox", "deer")
+str_detect(animals, "fox")
+#> [1]  TRUE FALSE  TRUE FALSE
+```
+
+`str_detect()` returns one logical value per input element — TRUE where the pattern `"fox"` appears anywhere in the string and FALSE otherwise. The two fox entries match, while "brown bear" and "deer" do not.
+</details>
+
 ## How do you test if a string contains something with str_detect()?
 
 `str_detect(string, pattern)` returns a logical vector — TRUE where the pattern matches, FALSE where it does not. It is the workhorse of every filter step that touches text.
@@ -107,6 +120,26 @@ docs <- tibble(
 # Hint: wrap the pattern in regex(..., ignore_case = TRUE)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(stringr); library(dplyr); library(tibble)
+docs <- tibble(
+  id = 1:4,
+  title = c("Sales Report Q1", "invoice 2024", "REPORT-draft", "memo")
+)
+docs |> filter(str_detect(title, regex("report", ignore_case = TRUE)))
+#> # A tibble: 2 x 2
+#>      id title
+#>   <int> <chr>
+#> 1     1 Sales Report Q1
+#> 2     3 REPORT-draft
+```
+
+Wrapping the pattern in `regex(..., ignore_case = TRUE)` tells stringr to match "report" regardless of capitalization, so both `"Sales Report Q1"` and `"REPORT-draft"` pass the filter. The plain strings `"invoice 2024"` and `"memo"` are dropped because they don't contain the word at all.
+</details>
+
 ## How do str_extract() and str_match() pull out parts of a string?
 
 When you need the matched text itself — not just TRUE/FALSE — use `str_extract` for a simple capture and `str_match` when you need named groups.
@@ -161,6 +194,19 @@ contacts <- c("call 555-123-4567 anytime", "fax: 9876543210", "no phone")
 # Use str_extract with a suitable regex
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(stringr)
+contacts <- c("call 555-123-4567 anytime", "fax: 9876543210", "no phone")
+str_extract(contacts, "\\d{3}-?\\d{3}-?\\d{4}")
+#> [1] "555-123-4567" "9876543210"   NA
+```
+
+The pattern `\\d{3}-?\\d{3}-?\\d{4}` asks for three digits, an optional dash, three more digits, an optional dash, then four digits — so it matches both the dashed and undashed forms. The third string has no run of 10 digits, so `str_extract()` returns `NA` for it.
+</details>
+
 ## How does str_replace() change text inside strings?
 
 `str_replace(string, pattern, replacement)` swaps the **first** match; `str_replace_all` swaps every match. The replacement string can reference capture groups with `\\1`, `\\2`, etc.
@@ -211,6 +257,21 @@ library(stringr)
 files <- c("Sales Report Q1.pdf", "Customer List 2024.csv")
 # Hint: str_replace_all(..., " ", "-") then str_to_lower()
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(stringr)
+files <- c("Sales Report Q1.pdf", "Customer List 2024.csv")
+files |>
+  str_replace_all(" ", "-") |>
+  str_to_lower()
+#> [1] "sales-report-q1.pdf" "customer-list-2024.csv"
+```
+
+`str_replace_all(" ", "-")` swaps every space for a dash, and `str_to_lower()` then lowercases the full string including the file extension. Chaining the two in the pipe keeps the transformation readable and avoids an intermediate variable.
+</details>
 
 ## How do you split and join strings with str_split() and str_c()?
 
@@ -267,6 +328,22 @@ meta <- c("name: Asha", "age: 30", "city: Pune")
 # str_split on ": " then map to a named vector
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(stringr)
+meta <- c("name: Asha", "age: 30", "city: Pune")
+parts <- str_split(meta, ": ", simplify = TRUE)
+named <- setNames(parts[, 2], parts[, 1])
+named
+#>   name    age   city
+#> "Asha"   "30" "Pune"
+```
+
+`simplify = TRUE` turns the split list into a 3x2 character matrix — keys in column 1, values in column 2. `setNames()` then attaches the key column as names on the value column, producing a named character vector ready for lookup.
+</details>
+
 ## How do you clean whitespace, case, and padding?
 
 Most real string cleanup involves four things: trimming whitespace, changing case, padding to a fixed width, and fixing length. stringr has one-liners for each.
@@ -320,6 +397,21 @@ library(stringr)
 raw <- c("  red fox  ", "BROWN  BEAR", "arctic     fox")
 # Hint: chain str_squish then str_to_title
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(stringr)
+raw <- c("  red fox  ", "BROWN  BEAR", "arctic     fox")
+raw |>
+  str_squish() |>
+  str_to_title()
+#> [1] "Red Fox"    "Brown Bear" "Arctic Fox"
+```
+
+`str_squish()` trims leading and trailing whitespace *and* collapses any internal runs of spaces down to a single space, which handles the double and quintuple gaps in the input. `str_to_title()` then capitalizes the first letter of each word, giving you a clean, uniform vector.
+</details>
 
 ## How do you use regex with stringr effectively?
 
@@ -375,6 +467,19 @@ library(stringr)
 tweet <- "Loving the new R release! #rstats #tidyverse #coding"
 # Hint: str_extract_all with "#\\w+"
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(stringr)
+tweet <- "Loving the new R release! #rstats #tidyverse #coding"
+str_extract_all(tweet, "#\\w+")[[1]]
+#> [1] "#rstats"    "#tidyverse" "#coding"
+```
+
+`str_extract_all()` returns a list (one element per input string), so `[[1]]` unwraps the single tweet's matches into a plain character vector. The pattern `#\\w+` matches a `#` followed by one or more word characters (letters, digits, underscore), which is exactly the shape of a hashtag.
+</details>
 
 ## Practice Exercises
 

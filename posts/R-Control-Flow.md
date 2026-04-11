@@ -60,6 +60,26 @@ if (grade >= 90) {
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+grade <- 83
+if (grade >= 90) {
+  "A"
+} else if (grade >= 80) {
+  "B"
+} else if (grade >= 70) {
+  "C"
+} else {
+  "F"
+}
+#> [1] "B"
+```
+
+The chain evaluates top to bottom and runs the first branch whose condition is TRUE — `83` fails `>= 90` but passes `>= 80`, so "B" is returned and the remaining branches are skipped. The final `else` is the fallback for anything below 70.
+</details>
+
 ## How do you branch across a whole vector with ifelse() and dplyr::case_when()?
 
 For vectors, `if` is the wrong tool. Use `ifelse()` — the vectorized, element-wise version. It takes a logical vector, a value for the `TRUE` positions, and a value for the `FALSE` positions.
@@ -98,6 +118,18 @@ v <- c(-3, 5, -1, 8, 0)
 ifelse(v > 0, "pos", ifelse(v < 0, "neg", "___"))
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+v <- c(-3, 5, -1, 8, 0)
+ifelse(v > 0, "pos", ifelse(v < 0, "neg", "zero"))
+#> [1] "neg"  "pos"  "neg"  "pos"  "zero"
+```
+
+`ifelse()` only handles a two-way split, so the third category is expressed by nesting another `ifelse()` in the "FALSE" slot. The outer call catches positives, the inner call catches negatives, and anything that fails both conditions (only `0` here) falls through to "zero".
+</details>
 
 ## How do for loops work in R?
 
@@ -150,6 +182,23 @@ for (x in c(10, 20, 30)) {
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+running <- 0
+for (x in c(10, 20, 30)) {
+  running <- running + x
+  print(running)
+}
+#> [1] 10
+#> [1] 30
+#> [1] 60
+```
+
+`running` is initialized to 0 outside the loop so each iteration can read the accumulated total and add the current `x` to it. Printing inside the loop shows the running total after each step — 10, then 30, then 60.
+</details>
+
 ## When is a for loop the wrong tool?
 
 R's reputation for slow loops comes from one specific anti-pattern: **growing a result inside a loop**. Watch this:
@@ -189,6 +238,18 @@ All three give the same answer. The vectorized version is by far the fastest (an
 out <- ___
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+out <- (1:5) * 10
+out
+#> [1] 10 20 30 40 50
+```
+
+Multiplying a vector by a scalar applies the operation to every element at once — no loop, no pre-allocation, no `c()` calls. That's what "vectorized" means in R: the work happens in compiled C code with a single allocation instead of N append-and-copy steps.
+</details>
 
 ## How do while loops and break/next work?
 
@@ -231,6 +292,21 @@ n
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+n <- 1000
+while (n >= 10) {
+  n <- n / 2
+}
+n
+#> [1] 7.8125
+```
+
+The loop halves `n` each pass (1000 → 500 → 250 → 125 → 62.5 → 31.25 → 15.625 → 7.8125) and rechecks the condition at the top. Once `n` drops below 10, `n >= 10` becomes FALSE and the loop exits with the first value that fell under the threshold.
+</details>
+
 ## When should you prefer apply-family functions over loops?
 
 R has a family of functions — `lapply()`, `sapply()`, `vapply()`, `mapply()`, `apply()` — that replace many loops with a single function call. They're not magically faster than a well-written `for` loop (they use loops under the hood), but they express intent more clearly.
@@ -267,6 +343,19 @@ apply(mat, 2, sum)
 sapply(values, ___)
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+values <- list(a = 1:5, b = 10:15, c = 100:105)
+sapply(values, length)
+#>  a  b  c
+#>  5  6  6
+```
+
+`sapply()` calls `length()` on each list element and simplifies the result to a named integer vector — the names come from the list's own names. `a` has 5 elements, while `b` and `c` each have 6 (inclusive integer ranges).
+</details>
 
 ## Practice Exercises
 

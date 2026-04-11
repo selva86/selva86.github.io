@@ -83,6 +83,36 @@ grades_wide <- tibble(
 # Your pivot_longer() call here — hint: cols = math:english
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr); library(tibble)
+grades_wide <- tibble(
+  student = c("Asha", "Bilal", "Cleo"),
+  math = c(88, 72, 95),
+  science = c(81, 79, 90),
+  english = c(77, 85, 92)
+)
+grades_wide |>
+  pivot_longer(cols = math:english, names_to = "subject", values_to = "grade")
+#> # A tibble: 9 x 3
+#>   student subject grade
+#>   <chr>   <chr>   <dbl>
+#> 1 Asha    math       88
+#> 2 Asha    science    81
+#> 3 Asha    english    77
+#> 4 Bilal   math       72
+#> 5 Bilal   science    79
+#> 6 Bilal   english    85
+#> 7 Cleo    math       95
+#> 8 Cleo    science    90
+#> 9 Cleo    english    92
+```
+
+`cols = math:english` selects those three subject columns by range, and pivot_longer stacks them into two new columns: `subject` (the former headers) and `grade` (the former values). `student` wasn't named in `cols`, so it's kept as an ID — each student now spans three rows, one per subject.
+</details>
+
 ## How does pivot_longer() turn wide columns into rows?
 
 `pivot_longer()` takes four arguments you will use every day: `cols` (which columns to stack), `names_to` (what to call the new "label" column), `values_to` (what to call the new "value" column), and sometimes `values_drop_na` to skip empty cells. Let's look at each in a simple example so the anatomy is crystal clear.
@@ -140,6 +170,40 @@ expenses <- tibble(
 # pivot_longer() call — cols = Jan:Mar, drop NAs
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr); library(tibble)
+expenses <- tibble(
+  category = c("rent", "food", "travel"),
+  Jan = c(1200, 350, NA),
+  Feb = c(1200, 380, 200),
+  Mar = c(1250, 400, 150)
+)
+expenses |>
+  pivot_longer(
+    cols = Jan:Mar,
+    names_to = "month",
+    values_to = "amount",
+    values_drop_na = TRUE
+  )
+#> # A tibble: 8 x 3
+#>   category month amount
+#>   <chr>    <chr>  <dbl>
+#> 1 rent     Jan     1200
+#> 2 rent     Feb     1200
+#> 3 rent     Mar     1250
+#> 4 food     Jan      350
+#> 5 food     Feb      380
+#> 6 food     Mar      400
+#> 7 travel   Feb      200
+#> 8 travel   Mar      150
+```
+
+`cols = Jan:Mar` selects the three month columns as a range and stacks them into `month`/`amount`. `values_drop_na = TRUE` quietly removes the travel-Jan row where the original cell was NA, so you get 8 rows instead of 9.
+</details>
+
 ## How does pivot_wider() turn rows back into columns?
 
 `pivot_wider()` is the inverse. It takes a long table and spreads one column's values across new columns. You need two arguments: `names_from` (the column whose values become new headers) and `values_from` (the column whose values fill those new headers). Everything else stays as an ID.
@@ -193,6 +257,28 @@ survey <- tibble(
 
 # pivot_wider() call — names_from = question, values_from = answer
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr); library(tibble)
+survey <- tibble(
+  id = c(1,1,1,2,2,2),
+  question = c("q1","q2","q3","q1","q2","q3"),
+  answer = c(5,3,4,2,4,5)
+)
+survey |>
+  pivot_wider(names_from = question, values_from = answer)
+#> # A tibble: 2 x 4
+#>      id    q1    q2    q3
+#>   <dbl> <dbl> <dbl> <dbl>
+#> 1     1     5     3     4
+#> 2     2     2     4     5
+```
+
+`names_from = question` promotes each distinct question label to its own column; `values_from = answer` fills those columns with the matching score. `id` isn't named in either argument, so it's treated as the row identifier — one row per respondent.
+</details>
 
 ## How do you split compound column names with names_sep and names_pattern?
 
@@ -274,6 +360,39 @@ pop <- tibble(
 # pivot_longer() — cols = -region, names_sep = "_", drop NAs
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr); library(tibble)
+pop <- tibble(
+  region = c("Asia","Europe"),
+  India_2020 = c(1380, NA),
+  India_2021 = c(1393, NA),
+  Germany_2020 = c(NA, 83),
+  Germany_2021 = c(NA, 84)
+)
+pop |>
+  pivot_longer(
+    cols = -region,
+    names_to = c("country", "year"),
+    names_sep = "_",
+    names_transform = list(year = as.integer),
+    values_to = "population",
+    values_drop_na = TRUE
+  )
+#> # A tibble: 4 x 4
+#>   region country  year population
+#>   <chr>  <chr>   <int>      <dbl>
+#> 1 Asia   India    2020       1380
+#> 2 Asia   India    2021       1393
+#> 3 Europe Germany  2020         83
+#> 4 Europe Germany  2021         84
+```
+
+`cols = -region` stacks every column except `region`, and `names_sep = "_"` splits each header into the two pieces named in `names_to`. `values_drop_na = TRUE` removes the four NA cells that only existed because the wide table padded every country across both regions.
+</details>
+
 ## What happens when pivot_wider() creates missing values?
 
 Going long is always safe — every row lands somewhere. Going wide is riskier. If the long table is missing a combination of `names_from` and row-ID columns, pivot_wider fills the gap with `NA`. Sometimes that is what you want. Sometimes it is a bug.
@@ -340,6 +459,29 @@ visits <- tibble(
 # pivot_wider with values_fill = 0
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr); library(tibble)
+visits <- tibble(
+  user = c("a","a","b","c"),
+  month = c("Jan","Feb","Jan","Mar"),
+  n = c(3, 5, 2, 7)
+)
+visits |>
+  pivot_wider(names_from = month, values_from = n, values_fill = 0)
+#> # A tibble: 3 x 4
+#>   user    Jan   Feb   Mar
+#>   <chr> <dbl> <dbl> <dbl>
+#> 1 a         3     5     0
+#> 2 b         2     0     0
+#> 3 c         0     0     7
+```
+
+Without `values_fill`, users `b` and `c` would get `NA` for the months they never visited. `values_fill = 0` tells pivot_wider to treat missing user-month combinations as zero visits, which matches the intuition that "no record" means "did not visit".
+</details>
+
 ## How do you reshape multiple value columns at once?
 
 Sometimes one row of long data carries several kinds of measurement. Think: per student, per subject, both a grade and a rank. You want a wide table where each subject gets *two* columns — one for grade, one for rank. `pivot_wider()` handles this naturally.
@@ -398,6 +540,32 @@ orders <- tibble(
 # pivot_wider with values_from = c(units, revenue)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr); library(tibble)
+orders <- tibble(
+  region = c("N","N","S","S"),
+  product = c("widget","gizmo","widget","gizmo"),
+  units = c(10, 5, 8, 3),
+  revenue = c(100, 75, 80, 45)
+)
+orders |>
+  pivot_wider(
+    names_from = product,
+    values_from = c(units, revenue)
+  )
+#> # A tibble: 2 x 5
+#>   region units_widget units_gizmo revenue_widget revenue_gizmo
+#>   <chr>         <dbl>       <dbl>          <dbl>         <dbl>
+#> 1 N                10           5            100            75
+#> 2 S                 8           3             80            45
+```
+
+Passing a vector to `values_from` asks pivot_wider to spread *both* measurement columns across the product dimension at once. You end up with four new columns (`units_widget`, `units_gizmo`, `revenue_widget`, `revenue_gizmo`) and the original `region` preserved as the row identifier.
+</details>
+
 ## When should you reshape vs keep data as-is?
 
 Reshaping is not free. It changes the shape of your data, and if you pipe it through a long chain of dplyr calls you can lose track of what you have. A simple rule: reshape when a downstream function *needs* the other shape, and reshape back only if you need to present results.
@@ -441,6 +609,29 @@ temps <- tibble(
 
 # pivot_wider with names_from = c(year, kind)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr); library(tibble)
+temps <- tibble(
+  city = rep(c("Pune","Berlin"), each = 4),
+  year = rep(c(2022,2022,2023,2023), 2),
+  kind = rep(c("min","max"), 4),
+  temp = c(18, 38, 19, 39, -5, 28, -4, 30)
+)
+temps |>
+  pivot_wider(names_from = c(year, kind), values_from = temp)
+#> # A tibble: 2 x 5
+#>   city   `2022_min` `2022_max` `2023_min` `2023_max`
+#>   <chr>       <dbl>      <dbl>      <dbl>      <dbl>
+#> 1 Pune           18         38         19         39
+#> 2 Berlin         -5         28         -4         30
+```
+
+Passing two columns to `names_from` asks pivot_wider to build one new column per unique `year`/`kind` combination, joining the levels with an underscore. Each city ends up with four summary columns side by side — ideal for a compact report.
+</details>
 
 ## Practice Exercises
 
