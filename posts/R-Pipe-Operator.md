@@ -46,6 +46,17 @@ Same result. But the piped version says plainly: "take this vector, take its log
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+1:10 |> sqrt() |> sum()
+#> [1] 22.46828
+```
+
+The pipeline reads left to right: start with 1..10, take the square root of each element, then sum the resulting vector. Same answer as the nested `sum(sqrt(1:10))` but each step is explicit and reorderable.
+</details>
+
 ## What's the difference between %>% and |>?
 
 The magrittr pipe `%>%` has been around since 2014 and is used by dplyr, ggplot2, and the whole tidyverse. The native pipe `|>` was added to base R in version 4.1 (May 2021). They're almost identical for day-to-day work — but there are three real differences.
@@ -83,6 +94,18 @@ mtcars |> lm(mpg ~ hp, data = ___)
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+mtcars |> lm(mpg ~ hp, data = _) |> coef()
+#> (Intercept)          hp
+#> 30.09886054 -0.06822828
+```
+
+The native pipe's `_` placeholder plugs the left-hand side into any *named* argument on the right — here `data = _` puts `mtcars` into `lm()`'s second slot so the formula can stay first. It only works with named arguments and only once per call.
+</details>
+
 ## How does the pipe decide where to insert the value?
 
 Both pipes insert the left-hand side as the **first argument** of the function on the right-hand side. If the function expects the data somewhere else, you need a placeholder or an anonymous function.
@@ -108,6 +131,17 @@ That last one is the native pipe's universal escape hatch: `(\(x) ...)()` wraps 
 1:5 |> (\(x) ___)()
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+1:5 |> (\(x) x^2 + 1)()
+#> [1]  2  5 10 17 26
+```
+
+The lambda `\(x) x^2 + 1` is created inline and then immediately called with the piped value. The trailing `()` is what makes the pipe call the function instead of just referencing it — this is the universal escape hatch when the operation doesn't already exist as a named function.
+</details>
 
 ## When is a pipeline worth using?
 
@@ -151,6 +185,21 @@ mtcars |>
   summarise(mean_mpg = ___)
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(dplyr)
+mtcars |>
+  filter(gear == 4) |>
+  summarise(mean_mpg = mean(mpg))
+#>   mean_mpg
+#> 1    24.53
+```
+
+`filter(gear == 4)` keeps only the 12 four-gear cars, and `summarise(mean_mpg = mean(mpg))` collapses that subset to a single-row tibble with their average mpg. Because the data flows in via the pipe, neither call needs to repeat `mtcars`.
+</details>
 
 ## What are common pipe pitfalls?
 
@@ -199,6 +248,17 @@ c(1, 2, 3) |> mean()
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+c(1, 2, 3) |> mean()
+#> [1] 2
+```
+
+The native pipe strictly requires a function *call* on the right-hand side — `mean` alone is just a reference to the function object, so `c(1,2,3) |> mean` errors with "The pipe operator requires a function call as RHS". Adding `()` makes it a call and the pipe can insert the LHS as its first argument. magrittr's `%>%` is looser and accepts the bare name, which is what catches people moving between the two pipes.
+</details>
+
 ## When should you NOT use the pipe?
 
 Pipes are a tool, not a religion. Here are three cases where they hurt readability rather than help.
@@ -226,6 +286,17 @@ scaled
 sqrt(16)
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+sqrt(16)
+#> [1] 4
+```
+
+For a single function call, the nested form is already left-to-right — there's nothing to flatten. `16 |> sqrt()` adds two characters and an extra reading step for zero gain. Pipes earn their keep at three or more chained steps, not one.
+</details>
 
 ## Practice Exercises
 

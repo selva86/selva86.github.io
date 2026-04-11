@@ -48,9 +48,19 @@ rvest ships with the tidyverse. If it's not installed: `install.packages("rvest"
 **Try it:** Change the index from `[[1]]` to `[[2]]` and inspect the second GDP table. What's different about its columns?
 
 ```r-static
+# Your code here — reuse gdp_tables from above and grab [[2]]
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_gdp <- gdp_tables[[2]]
 head(ex_gdp, 3)
 ```
+
+`gdp_tables` is a list of every `<table class='wikitable'>` on the page, in document order, so `[[2]]` is the second one — usually a smaller regional or historical breakdown with fewer columns than the headline table. Swapping the index is all you need to move between tables once the page has been parsed.
+</details>
 
 ## How do read_html() and html_elements() work?
 
@@ -88,9 +98,21 @@ The pattern is always the same: **fetch → select → extract**. `read_html()` 
 **Try it:** Use `html_element()` (singular) instead of `html_elements()` and explain what changes.
 
 ```r-static
+# Your code here — try html_element() on the same html object
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_one <- html |> html_element("li.title")
 ex_one
+#> {html_node}
+#> <li class="title">Inception</li>
 ```
+
+`html_element()` (singular) returns the *first* matching node instead of a node set, so you get `Inception` only. Use it when you know there's exactly one match (or want the first), and reserve `html_elements()` for lists you plan to extract from in parallel.
+</details>
 
 ## How do you extract tables, text, and attributes?
 
@@ -138,9 +160,20 @@ Always prefer `html_text2()` over `html_text()`. The former trims whitespace and
 **Try it:** Extract just the numeric part of the prices (strip the `$`) using `readr::parse_number()`.
 
 ```r-static
+# Your code here — use readr::parse_number() on the prices vector
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_prices <- readr::parse_number(prices)
 ex_prices
+#> [1] 29.99 39.99
 ```
+
+`parse_number()` is purpose-built for exactly this: it scans each string, strips anything that isn't part of a number (currency symbols, commas, spaces), and returns a numeric vector. It's safer than a hand-rolled `gsub()` because it also handles the thousand-separator case automatically.
+</details>
 
 ## How do you use CSS selectors effectively?
 
@@ -185,9 +218,20 @@ Selectors are brittle. If a site redesigns, your scraper breaks. Keep selectors 
 **Try it:** Write a selector that grabs only the sidebar link (not the article links).
 
 ```r-static
+# Your code here — use an ID selector to scope the descendant search
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_sidebar <- page |> html_elements("#sidebar a") |> html_text2()
 ex_sidebar
+#> [1] "Sidebar link"
 ```
+
+`#sidebar a` reads as "any `<a>` descendant of the element whose id is `sidebar`" — the ID selector anchors the search inside the sidebar div, so article links elsewhere on the page are ignored. Using the ID instead of a class is appropriate here because `sidebar` is unique on the page.
+</details>
 
 ## How do you handle pagination and multiple pages?
 
@@ -226,13 +270,26 @@ Sprinkle `Sys.sleep(1)` (or `Sys.sleep(runif(1, 1, 3))`) inside the loop to thro
 **Try it:** Add a `page` column to `all_quotes` showing which page each row came from.
 
 ```r-static
+# Your code here — wrap scrape_quotes() so it tags each row with its page number
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_labeled <- map_dfr(pages, function(p) {
   df <- scrape_quotes(p)
   df$page <- p
   df
 })
 head(ex_labeled, 2)
+#>                                                        quote          author page
+#> 1 "The world as we have created it is a process of our thi..." Albert Einstein    1
+#> 2 "It is our choices, Harry, that show what we truly are, ...  J.K. Rowling       1
 ```
+
+Wrapping `scrape_quotes()` in an anonymous function lets you attach the current iteration value `p` to the data frame before returning it. `map_dfr()` then row-binds every labeled page together, and the new `page` column lets you trace any row back to its origin for debugging or deduplication.
+</details>
 
 ## How do you scrape politely (robots.txt, rate limits)?
 
@@ -266,9 +323,20 @@ Even if `robots.txt` allows scraping, a site's **Terms of Service** may forbid i
 **Try it:** Check whether you're allowed to scrape the CRAN task views page.
 
 ```r-static
+# Your code here — call paths_allowed() with the CRAN task views path
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_cran <- paths_allowed(paths = "/web/views/", domain = "cran.r-project.org")
 ex_cran
+#> [1] TRUE
 ```
+
+`paths_allowed()` fetches `cran.r-project.org/robots.txt`, parses the Disallow rules, and checks whether the given path survives them. CRAN's task views page is public and unrestricted, so the call returns `TRUE` and you can scrape without worry — always the first check you should run against any new domain.
+</details>
 
 ## What about JavaScript-rendered pages?
 

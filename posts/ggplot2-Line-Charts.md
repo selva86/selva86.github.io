@@ -71,13 +71,22 @@ p_basic
 **Try it:** Change `unemploy` to `uempmed` (median weeks unemployed). Does that variable show a different pattern from the raw count?
 
 ```r
-# Plot median duration instead of count
+# Your code here — swap the y mapping and pick a new line colour
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_median <- ggplot(econ_sm, aes(x = date, y = uempmed)) +
   geom_line(color = "tomato", linewidth = 0.8) +
   labs(x = "Date", y = "Median Weeks Unemployed")
 
 ex_median
 ```
+
+`uempmed` is the *median duration* of unemployment, not the total count, so the line spikes much higher during the 2008-2010 recession and decays slowly afterwards — duration stays elevated even once the count starts falling. Only the `y` aesthetic needs to change; the rest of the chart is identical.
+</details>
 
 ## How do you add point markers to a line chart?
 
@@ -107,13 +116,22 @@ p_points
 **Try it:** Replace `shape = 21, fill = "white"` with `shape = 16` (solid filled circle). Which looks cleaner at this data density?
 
 ```r
-# Try solid filled circles instead
+# Your code here — use shape = 16 and drop fill/stroke
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_solid_pts <- ggplot(econ_2010, aes(x = date, y = uempmed)) +
   geom_line(color = "steelblue", linewidth = 0.8) +
   geom_point(color = "steelblue", size = 2.5, shape = 16)
 
 ex_solid_pts
 ```
+
+`shape = 16` is a solid, filled-through circle that doesn't need `fill` or `stroke`, so the call gets shorter. At this density (about 60 monthly points) both forms look fine — solid circles feel more compact, while the open rim from shape 21 pops more against a dark line when you want each point to really stand out.
+</details>
 
 ## How do you draw multiple lines by group?
 
@@ -163,12 +181,21 @@ Now each tree gets its own line and color, with a legend generated automatically
 **Try it:** Remove `color = Tree` from `aes()` and instead set `color = "grey50"` directly in `geom_line()`. How does the chart look without per-tree colors?
 
 ```r
-# All grey lines, no automatic grouping from color
+# Your code here — keep group = Tree but set a single fixed colour
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_grey <- ggplot(Orange, aes(x = age, y = circumference, group = Tree)) +
   geom_line(color = "grey50", linewidth = 0.9)
 
 ex_grey
 ```
+
+`color = "grey50"` lives outside `aes()`, so it applies to *every* line as a fixed setting — no legend, no colour mapping. You still need `group = Tree` inside `aes()` because without a grouping variable ggplot2 would fall back to one zigzag line across all trees. This style is useful as a background layer to highlight one or two trees on top in a brighter colour.
+</details>
 
 ## How do you style lines with color, linetype, and linewidth?
 
@@ -214,10 +241,16 @@ p_style
 
 > **TIP:** Map `linetype` alongside `color` for the same grouping variable. This "dual encoding" means readers can distinguish lines both by color and by line pattern — essential for print, photocopies, and colorblind readers. A chart that only uses color will fail for ~8% of male readers.
 
-**Try it:** Remove `scale_linetype_manual()` and instead use `scale_linetype_brewer(palette = "Set1")`. Does ggplot2 handle the palette automatically?
+**Try it:** Remove `scale_linetype_manual()` and instead use ggplot2's default linetype scale. Does it still pick a sensible linetype for each tree?
 
 ```r
-# Let ggplot2 choose linetypes automatically
+# Your code here — map color and linetype to Tree without a manual scale
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_auto_lt <- ggplot(Orange, aes(
     x = age, y = circumference,
     color = Tree, linetype = Tree
@@ -226,6 +259,9 @@ ex_auto_lt <- ggplot(Orange, aes(
 
 ex_auto_lt
 ```
+
+When you map `linetype = Tree` without a manual scale, ggplot2 picks from its default discrete linetype palette (solid, dashed, dotted, dotdash, longdash) and merges it with the colour legend into one combined key. Note that `scale_linetype_brewer()` doesn't exist — ColorBrewer is colour-only — so the default scale is the right choice when you're happy with the automatic linetype order.
+</details>
 
 ## How do you plot dates and time series on the x-axis?
 
@@ -268,13 +304,22 @@ p_dates
 **Try it:** Change `date_breaks` to `"2 years"` and `date_labels` to `"%b %Y"`. How does the axis labeling change?
 
 ```r
-# Try 2-year breaks with Month-Year labels
+# Your code here — tweak scale_x_date() arguments only
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_dates <- ggplot(econ_sm, aes(x = date, y = unemploy)) +
   geom_line(color = "steelblue") +
   scale_x_date(date_breaks = "2 years", date_labels = "%b %Y")
 
 ex_dates
 ```
+
+`date_breaks = "2 years"` puts a tick every two years instead of every three, so you get roughly 11 ticks across the 20-year window. `date_labels = "%b %Y"` formats each tick as "Jan 1995", "Jan 1997", etc., which is more precise than the bare year but also wider — on a narrow plot the labels may start to overlap and you'd need `theme(axis.text.x = element_text(angle = 45, hjust = 1))` to tilt them.
+</details>
 
 ## When should you use geom_step() or geom_path() instead?
 
@@ -317,7 +362,13 @@ p_step
 **Try it:** Replace `geom_step()` with `geom_path()` in the code above. Do you get the same staircase appearance, or something different?
 
 ```r
-# geom_path connects in ROW order, not x-sorted order
+# Your code here — swap geom_step() for geom_path()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_path <- ggplot(
     subset(economics, date >= as.Date("2014-01-01")),
     aes(x = date, y = uempmed)
@@ -326,6 +377,9 @@ ex_path <- ggplot(
 
 ex_path
 ```
+
+`geom_path()` connects observations in *row order* with diagonal segments — no staircase. Because `economics` is already sorted by date, the visual result here is identical to `geom_line()`. The difference would only show up if you shuffled the rows: `geom_line()` would re-sort by x, while `geom_path()` would draw in whatever order the rows happened to sit.
+</details>
 
 ## Common Mistakes and How to Fix Them
 
