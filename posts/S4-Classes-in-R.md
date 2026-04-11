@@ -1,353 +1,284 @@
 ---
-title: "S4 Classes in R: setClass(), setGeneric() & Formal OOP"
+title: "S4 Classes in R: Formal Object-Oriented Programming With Type Checking"
 slug: "S4-Classes-in-R"
-description: "Master S4 classes in R with setClass(), slots, validity checking, new(), isVirtualClass, and inheritance with contains. Complete tutorial with examples."
-keywords: "S4 classes R, setClass R, setGeneric R, S4 slots, S4 validity, formal OOP R, S4 inheritance"
+description: "S4 is R's formal OOP system — typed slots, setClass(), setGeneric(), and setMethod(). Learn when to choose it over S3 and how to build a working S4 class in under 30 lines."
+keywords: "S4 classes in R, R setClass, R setGeneric, S4 method, R formal OOP"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-12"
 curriculum_id: "4.3.4"
 post_type: "C"
-auto_link_terms: "S4 classes|setClass|setGeneric|S4 OOP"
+auto_link_terms: "S4 classes|S4 class|setClass|setGeneric|setMethod"
 auto_link_case_sensitive: false
+sidebar_section: "Learn R"
+sidebar_title: "S4 Classes in R"
+sidebar_order: 44
 ---
 
-# S4 Classes in R: setClass(), setGeneric() & Formal OOP
+# S4 Classes in R: Formal Object-Oriented Programming With Type Checking
 
-<p class="lead">S4 is R's <strong>formal</strong> OOP system. Unlike S3's "just slap a class attribute on it" approach, S4 enforces class definitions with typed <strong>slots</strong>, built-in <strong>validity checking</strong>, and formal <strong>inheritance</strong>. It's the foundation of Bioconductor and many complex R packages.</p>
+<p class="lead">S4 is R's <strong>formal</strong> OOP system — every class has a declared structure (<code>setClass</code>), every method is explicitly registered (<code>setMethod</code>), and slot access is type-checked at runtime. It is slower to write than S3 but catches bugs S3 cannot.</p>
 
-S4 trades simplicity for safety. You declare your class structure up front, and R enforces it. If someone tries to put a character into a numeric slot, R throws an error. This makes S4 ideal for large, collaborative projects where you need guarantees about object structure.
+If S3 is the Python of R's class systems — duck-typed, forgiving, informal — then S4 is the Java. You declare classes up front, you name the slots and their types, and R enforces the contract. Bioconductor built its 2000+ packages on S4 for exactly this reason: when you are wrapping a genomics database with 40 fields, "informal" is not good enough. This tutorial shows the workflow from class definition to working methods.
 
-## Defining Classes with setClass()
+## How Do You Define an S4 Class?
 
-Use `setClass()` to define a class. Slots are named, typed fields.
+Use `setClass()` to declare the class name and its **slots** (named, typed fields). Once declared, `new()` creates instances.
 
 ```r
-# Define an S4 class with typed slots
-setClass("Person",
-  slots = list(
-    name = "character",
-    age  = "numeric",
-    email = "character"
+setClass("Employee",
+  representation(
+    name   = "character",
+    salary = "numeric",
+    hired  = "Date"
   )
 )
 
-# Create an instance with new()
-alice <- new("Person", name = "Alice", age = 30, email = "alice@example.com")
+alice <- new("Employee",
+  name   = "Alice",
+  salary = 75000,
+  hired  = as.Date("2020-06-15")
+)
 
-# Access slots with @
-cat("Name:", alice@name, "\n")
-cat("Age:", alice@age, "\n")
+alice@name
+#> [1] "Alice"
 
-# Or use slot()
-cat("Email:", slot(alice, "email"), "\n")
-
-# Check the class
-cat("Is S4?", isS4(alice), "\n")
-cat("Class:", class(alice), "\n")
+alice@salary
+#> [1] 75000
 ```
 
-### Slot types are enforced
+Three things to notice. First, the `representation()` block declares each slot with its R type — `"character"`, `"numeric"`, `"Date"`, etc. Second, you access slots with `@`, not `$`. Third, R type-checks the slot values on construction: if you pass `salary = "seventy-five thousand"`, `new()` throws an error. That is the whole point of S4 — invalid objects cannot exist.
+
+[KEY INSIGHT]
+**S4 enforces a contract; S3 trusts you.** With S4, once an object exists, its slots are guaranteed to have the declared types. With S3, a field can be anything at any time. For large systems and collaborative codebases, the S4 guarantee is worth the ceremony.
+
+## How Do You Add Validation?
+
+Beyond type checking, S4 lets you define a **validity function** that runs on construction and rejects invalid states. Return `TRUE` if the object is valid, or an error string if not.
 
 ```r
-setClass("Point",
-  slots = list(
-    x = "numeric",
-    y = "numeric"
-  )
-)
-
-# This works
-p1 <- new("Point", x = 3.0, y = 4.0)
-cat("Point:", p1@x, p1@y, "\n")
-
-# This would error: wrong type
-# new("Point", x = "three", y = 4.0)  # Error!
-
-# You can use "ANY" for untyped slots
-setClass("Flexible",
-  slots = list(
-    data = "ANY",
-    label = "character"
-  )
-)
-
-f1 <- new("Flexible", data = 1:10, label = "numbers")
-f2 <- new("Flexible", data = "hello", label = "text")
-cat("f1 data:", f1@data[1:3], "\n")
-cat("f2 data:", f2@data, "\n")
-```
-
-## Default Values with prototype()
-
-Use `prototype` to set default slot values. If a slot isn't provided in `new()`, it gets the prototype value.
-
-```r
-setClass("Config",
-  slots = list(
-    verbose = "logical",
-    max_iter = "numeric",
-    tolerance = "numeric"
-  ),
-  prototype = list(
-    verbose = FALSE,
-    max_iter = 100,
-    tolerance = 1e-6
-  )
-)
-
-# Create with defaults
-cfg <- new("Config")
-cat("Verbose:", cfg@verbose, "\n")
-cat("Max iterations:", cfg@max_iter, "\n")
-cat("Tolerance:", cfg@tolerance, "\n")
-
-# Override specific defaults
-cfg2 <- new("Config", verbose = TRUE, max_iter = 500)
-cat("\nCustom config:\n")
-cat("Verbose:", cfg2@verbose, "\n")
-cat("Max iterations:", cfg2@max_iter, "\n")
-```
-
-## Validity Checking
-
-The `validity` argument lets you define rules that every instance must satisfy. The function should return `TRUE` if valid, or a character string describing the problem.
-
-```r
-setClass("Probability",
-  slots = list(
-    value = "numeric",
-    label = "character"
+setClass("Employee",
+  representation(
+    name   = "character",
+    salary = "numeric",
+    hired  = "Date"
   ),
   validity = function(object) {
-    errors <- character()
-    if (length(object@value) != 1) {
-      errors <- c(errors, "value must be length 1")
-    }
-    if (object@value < 0 || object@value > 1) {
-      errors <- c(errors, "value must be between 0 and 1")
-    }
-    if (length(errors) == 0) TRUE else errors
-  }
-)
-
-# Valid object
-p <- new("Probability", value = 0.75, label = "rain")
-cat("Probability of", p@label, ":", p@value, "\n")
-
-# Invalid object -- will produce an error
-tryCatch(
-  new("Probability", value = 1.5, label = "impossible"),
-  error = function(e) cat("Error:", e$message, "\n")
-)
-
-# Manually validate an existing object
-cat("Is valid:", validObject(p), "\n")
-```
-
-## Inheritance with contains
-
-S4 supports single and multiple inheritance via `contains`.
-
-```r
-# Base class
-setClass("Shape",
-  slots = list(
-    color = "character"
-  ),
-  prototype = list(color = "black")
-)
-
-# Child class inherits Shape's slots
-setClass("Rectangle",
-  contains = "Shape",
-  slots = list(
-    width = "numeric",
-    height = "numeric"
-  )
-)
-
-# Grandchild
-setClass("Square",
-  contains = "Rectangle",
-  validity = function(object) {
-    if (object@width != object@height) {
-      "width and height must be equal for a Square"
-    } else {
-      TRUE
-    }
-  }
-)
-
-# Create objects
-rect <- new("Rectangle", color = "blue", width = 5, height = 3)
-sq <- new("Square", color = "red", width = 4, height = 4)
-
-cat("Rectangle color:", rect@color, "\n")
-cat("Rectangle dims:", rect@width, "x", rect@height, "\n")
-
-# Check inheritance
-cat("Is rect a Shape?", is(rect, "Shape"), "\n")
-cat("Is sq a Rectangle?", is(sq, "Rectangle"), "\n")
-cat("Is sq a Shape?", is(sq, "Shape"), "\n")
-
-# Show the class hierarchy
-cat("\nSquare superclasses:", paste(is(sq), collapse = ", "), "\n")
-```
-
-## Virtual Classes
-
-A virtual class cannot be instantiated directly. It serves as an abstract base class or interface.
-
-```r
-# Define a virtual class (abstract base)
-setClass("Serializable", contains = "VIRTUAL")
-
-setClass("JsonData",
-  contains = "Serializable",
-  slots = list(
-    content = "list"
-  )
-)
-
-# You cannot create a Serializable directly
-tryCatch(
-  new("Serializable"),
-  error = function(e) cat("Cannot instantiate virtual class:", e$message, "\n")
-)
-
-# But you can create subclasses
-jd <- new("JsonData", content = list(a = 1, b = "hello"))
-cat("Is Serializable?", is(jd, "Serializable"), "\n")
-cat("Content:", paste(names(jd@content), collapse = ", "), "\n")
-
-# isVirtualClass check
-cat("Serializable is virtual:", isVirtualClass("Serializable"), "\n")
-cat("JsonData is virtual:", isVirtualClass("JsonData"), "\n")
-```
-
-## Constructor Functions (Best Practice)
-
-While `new()` works, best practice is to provide a user-friendly constructor function that validates inputs and sets sensible defaults.
-
-```r
-setClass("Matrix2D",
-  slots = list(
-    data = "matrix",
-    row_names = "character",
-    col_names = "character"
-  ),
-  validity = function(object) {
-    if (nrow(object@data) != length(object@row_names)) {
-      return("row_names length must match number of rows")
-    }
-    if (ncol(object@data) != length(object@col_names)) {
-      return("col_names length must match number of columns")
-    }
+    if (length(object@name) != 1)    return("name must be length 1")
+    if (object@salary < 0)           return("salary cannot be negative")
+    if (object@hired > Sys.Date())   return("hired date cannot be in the future")
     TRUE
   }
 )
 
-# User-friendly constructor
-Matrix2D <- function(data, row_names = NULL, col_names = NULL) {
-  if (!is.matrix(data)) data <- as.matrix(data)
-  if (is.null(row_names)) row_names <- paste0("R", 1:nrow(data))
-  if (is.null(col_names)) col_names <- paste0("C", 1:ncol(data))
-  new("Matrix2D", data = data, row_names = row_names, col_names = col_names)
-}
-
-# Easy to use
-m <- Matrix2D(matrix(1:6, nrow = 2))
-cat("Dimensions:", nrow(m@data), "x", ncol(m@data), "\n")
-cat("Row names:", m@row_names, "\n")
-cat("Col names:", m@col_names, "\n")
+# This fails validity, not just type-check
+tryCatch(
+  new("Employee", name = "Bob", salary = -100, hired = as.Date("2020-01-01")),
+  error = function(e) message("Rejected: ", e$message)
+)
+#> Rejected: invalid class "Employee" object: salary cannot be negative
 ```
 
-## Summary Table
+Validity functions are where S4 shines compared to S3. You state the business rules once, and R enforces them every time an object is constructed or modified. A subclass inherits its parent's validity function automatically.
 
-| Feature | Syntax | Purpose |
-|---------|--------|---------|
-| Define class | `setClass("Name", slots=...)` | Declare class structure |
-| Create instance | `new("Name", ...)` | Instantiate an object |
-| Access slot | `object@slot` or `slot(object, "name")` | Read slot value |
-| Default values | `prototype = list(...)` | Set defaults for slots |
-| Validation | `validity = function(object) ...` | Enforce constraints |
-| Inheritance | `contains = "Parent"` | Inherit slots and methods |
-| Virtual class | `contains = "VIRTUAL"` | Abstract base class |
-| Check class | `is(obj, "Class")` | Test inheritance |
-| Check S4 | `isS4(obj)` | Is this an S4 object? |
+## How Do You Define Methods?
+
+S4 uses `setGeneric()` to declare a generic and `setMethod()` to register a method for a specific class. The generic is conceptually the same as an S3 generic — a function that delegates based on argument type — but the registration is explicit.
+
+```r
+# Declare the generic
+setGeneric("raise", function(object, pct) standardGeneric("raise"))
+#> [1] "raise"
+
+# Register a method for Employee
+setMethod("raise", "Employee", function(object, pct) {
+  object@salary <- object@salary * (1 + pct)
+  object
+})
+
+alice <- new("Employee", name = "Alice", salary = 75000,
+             hired = as.Date("2020-06-15"))
+
+alice2 <- raise(alice, 0.10)
+alice2@salary
+#> [1] 82500
+```
+
+`setGeneric()` creates the `raise` generic (and prints a confirmation). `setMethod()` says "when `raise` is called on an `Employee`, run this function". Note that S4 objects are **immutable** — `raise(alice, 0.10)` returns a new `Employee` with the updated salary, leaving `alice` unchanged. To persist the change, reassign: `alice <- raise(alice, 0.10)`.
+
+**Try it:** Define an S4 class `Rectangle` with numeric slots `width` and `height`, then write a generic `area()` that returns `width * height`.
+
+```r
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+setClass("Rectangle", representation(width = "numeric", height = "numeric"))
+
+setGeneric("area", function(shape) standardGeneric("area"))
+
+setMethod("area", "Rectangle", function(shape) shape@width * shape@height)
+
+r <- new("Rectangle", width = 3, height = 4)
+area(r)
+#> [1] 12
+```
+
+**Explanation:** `setClass` declares the slots with types, `setGeneric` creates the generic, `setMethod` registers the area formula for the `Rectangle` class.
+
+</details>
+
+## How Does S4 Inheritance Work?
+
+Inherit from a parent class using `contains =` in `setClass`. The subclass automatically gains the parent's slots, validity function, and methods — you can override methods by registering a more specific one.
+
+```r
+setClass("Manager",
+  contains = "Employee",
+  representation(reports = "character")
+)
+
+bob <- new("Manager",
+  name = "Bob", salary = 110000, hired = as.Date("2018-03-01"),
+  reports = c("Alice", "Cara")
+)
+
+bob@name
+#> [1] "Bob"
+
+bob@reports
+#> [1] "Alice" "Cara"
+
+# The raise method defined for Employee still works
+raise(bob, 0.05)@salary
+#> [1] 115500
+```
+
+`Manager` inherits from `Employee`, so it has all of Employee's slots plus its own `reports` slot. The `raise` method — registered on `Employee` — is automatically picked up by `Manager` through inheritance. If you needed a manager-specific raise rule, you would `setMethod("raise", "Manager", ...)` and it would take precedence.
+
+## How Does S4 Multiple Dispatch Work?
+
+S4's killer feature is **multiple dispatch** — a method can be chosen based on the classes of *several* arguments, not just the first. Define the method with a `signature` spanning multiple types.
+
+```r
+setGeneric("combine", function(a, b) standardGeneric("combine"))
+
+setMethod("combine", signature("numeric", "numeric"),
+  function(a, b) a + b)
+
+setMethod("combine", signature("character", "character"),
+  function(a, b) paste0(a, b))
+
+combine(2, 3)
+#> [1] 5
+
+combine("foo", "bar")
+#> [1] "foobar"
+```
+
+Two `combine` methods live under the same generic — one for `(numeric, numeric)`, another for `(character, character)`. S3 cannot do this cleanly. For the deeper dive with more examples, see the dedicated post on [S4 Methods and Multiple Dispatch](S4-Methods-in-R.html).
+
+[TIP]
+**If multiple dispatch solves your problem, use S4.** The number-one reason to prefer S4 over S3 is when you need method behaviour that depends on more than one argument's class. If that never comes up in your code, S3 is probably enough.
 
 ## Practice Exercises
 
-**Exercise 1:** Create an S4 class `BankAccount` with slots `owner` (character), `balance` (numeric), and `currency` (character, default "USD"). Add validity to ensure balance is non-negative.
+### Exercise 1: Bank Account With Validity
 
-<details><summary>Click to reveal solution</summary>
+Define an S4 class `Account` with slots `balance` (numeric) and `owner` (character). Add a validity function that rejects negative balances. Try to construct an invalid account.
 
 ```r
-setClass("BankAccount",
-  slots = list(
-    owner = "character",
-    balance = "numeric",
-    currency = "character"
-  ),
-  prototype = list(
-    currency = "USD",
-    balance = 0
-  ),
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+setClass("Account",
+  representation(balance = "numeric", owner = "character"),
   validity = function(object) {
-    if (object@balance < 0) "balance cannot be negative"
-    else TRUE
+    if (object@balance < 0) return("balance cannot be negative")
+    TRUE
   }
 )
 
-acct <- new("BankAccount", owner = "Alice", balance = 1000)
-cat(acct@owner, "has", acct@balance, acct@currency, "\n")
+acc <- new("Account", balance = 100, owner = "Ada")
+acc@balance
+#> [1] 100
 
 tryCatch(
-  new("BankAccount", owner = "Bob", balance = -50),
-  error = function(e) cat("Validation caught:", e$message, "\n")
+  new("Account", balance = -50, owner = "Ada"),
+  error = function(e) message("Rejected: ", e$message)
 )
+#> Rejected: invalid class "Account" object: balance cannot be negative
 ```
+
+**Explanation:** The validity function runs at construction; returning a non-TRUE string aborts the creation with that message.
 
 </details>
 
-**Exercise 2:** Create a class hierarchy: `Animal` (virtual) > `Mammal` > `Dog`. `Animal` has slot `name`, `Mammal` adds `legs`, `Dog` adds `breed`. Create a Dog and verify it `is` an Animal.
+### Exercise 2: Generic `describe`
 
-<details><summary>Click to reveal solution</summary>
+Write a generic `describe()` and register methods for `Rectangle` (from the earlier exercise) and `Account`. Each should print a one-line summary.
 
 ```r
-setClass("Animal", contains = "VIRTUAL",
-  slots = list(name = "character"))
-
-setClass("Mammal", contains = "Animal",
-  slots = list(legs = "numeric"),
-  prototype = list(legs = 4))
-
-setClass("Dog", contains = "Mammal",
-  slots = list(breed = "character"))
-
-rex <- new("Dog", name = "Rex", breed = "Labrador")
-cat("Name:", rex@name, "\n")
-cat("Legs:", rex@legs, "\n")
-cat("Breed:", rex@breed, "\n")
-cat("Is Animal?", is(rex, "Animal"), "\n")
-cat("Is Mammal?", is(rex, "Mammal"), "\n")
+# your code here
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+setClass("Rectangle", representation(width = "numeric", height = "numeric"))
+setClass("Account",   representation(balance = "numeric", owner = "character"))
+
+setGeneric("describe", function(x) standardGeneric("describe"))
+
+setMethod("describe", "Rectangle", function(x) {
+  cat("Rectangle:", x@width, "x", x@height, "\n")
+})
+
+setMethod("describe", "Account", function(x) {
+  cat("Account of", x@owner, "—", x@balance, "\n")
+})
+
+describe(new("Rectangle", width = 3, height = 4))
+#> Rectangle: 3 x 4
+describe(new("Account", balance = 500, owner = "Bo"))
+#> Account of Bo — 500
+```
+
+**Explanation:** One generic, two registered methods. S4 dispatches on the class of `x` exactly like S3, just with explicit registration.
 
 </details>
 
-## FAQ
+## Summary
 
-**Q: When should I use S4 instead of S3?**
-Use S4 when you need enforced structure (typed slots), validity checking, multiple dispatch, or formal inheritance hierarchies. S4 is standard in Bioconductor and academic packages. For simpler use cases, S3 is fine.
+| Step                  | Function                                  |
+|-----------------------|-------------------------------------------|
+| Declare class         | `setClass("X", representation(...))`      |
+| Add validation        | `validity = function(object) ...`         |
+| Create instance       | `new("X", slot1 = ..., slot2 = ...)`      |
+| Access slot           | `obj@slot1`                               |
+| Declare generic       | `setGeneric("f", function(x) standardGeneric("f"))` |
+| Register method       | `setMethod("f", "X", function(x) ...)`    |
+| Inherit               | `setClass("Y", contains = "X", ...)`      |
+| Multiple dispatch     | `signature("A", "B")`                     |
 
-**Q: Can I have multiple inheritance in S4?**
-Yes. Pass a character vector to `contains`: `setClass("C", contains = c("A", "B"))`. The child inherits slots from both parents. Conflicts are resolved by order.
+## References
 
-**Q: What is the difference between @ and $?**
-`@` accesses S4 slots. `$` accesses list elements (S3) or R5/R6 fields. Using `$` on an S4 object won't work for slots (unless a `$` method is defined). Always use `@` for S4.
+1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 15: S4. [Link](https://adv-r.hadley.nz/s4.html)
+2. Chambers, J. M. — *Software for Data Analysis*, S4 chapter.
+3. Bioconductor — S4 class guidelines. [Link](https://bioconductor.org/developers/how-to/commonMethodsAndClasses/)
+4. R Core Team — `methods` package documentation.
+5. Gentleman, R. et al. — *Bioconductor: open software development for computational biology and bioinformatics*. Genome Biology 5 (2004).
 
 ## Continue Learning
-- [S4 Methods & Multiple Dispatch](S4-Methods-in-R.html) -- Learn `setMethod()`, method signatures, and multiple dispatch
-- [R6 Classes in R](R6-Classes-in-R.html) -- Modern reference semantics with mutable state
-- [OOP in R Overview](OOP-in-R.html) -- Compare all four OOP systems side by side
+
+- [OOP in R](OOP-in-R.html) — where S4 fits in R's four OOP systems.
+- [S4 Multiple Dispatch in R](S4-Methods-in-R.html) — dispatch on two arguments simultaneously.
+- [S3 Classes in R](S3-Classes-in-R.html) — the informal sibling for when S4 feels like overkill.
