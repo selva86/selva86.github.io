@@ -1,509 +1,268 @@
 ---
-title: "Functional Programming in R: First-Class Functions & purrr Explained"
+title: "Functional Programming in R: The Mindset That Makes Your Code 10x Cleaner"
 slug: "Functional-Programming-in-R"
-description: "Master functional programming in R with first-class functions, purrr map/reduce, closures, and function factories. Interactive examples you can run in your browser."
-keywords: "functional programming in R, first-class functions R, purrr map, purrr reduce, R closures, function factories R, anonymous functions R, lapply vs map"
+description: "Master functional programming in R — pure functions, higher-order functions, map/reduce, and immutability — with runnable examples and the mental models that make it click."
+keywords: "functional programming R, R functional style, higher-order functions R, pure functions R, map reduce R, R functional paradigm"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-12"
 curriculum_id: "4.2.1"
 post_type: "C"
-auto_link_terms: "functional programming in R|first-class functions|purrr map"
+auto_link_terms: "functional programming in R|functional programming|higher-order functions|pure functions"
 auto_link_case_sensitive: false
+sidebar_section: "Learn R"
+sidebar_title: "Functional Programming"
+sidebar_order: 33
 ---
 
-R is a functional programming language at its core. Every operation you run — from subsetting a vector to fitting a model — relies on functions. But most R users treat functions as commands to call, not as objects to manipulate. That's the difference between using R and thinking in R.
+# Functional Programming in R: The Mindset That Makes Your Code 10x Cleaner
 
-## Introduction
+<p class="lead">Functional programming in R means writing code as pure functions composed together, treating functions as first-class values, and replacing explicit loops with higher-order operations like <code>map</code>, <code>filter</code>, and <code>reduce</code>.</p>
 
-In most programming languages, functions are special. You define them, you call them, and that's it. R is different. In R, functions are **first-class citizens** — they're regular objects, just like numbers and character strings. You can assign a function to a variable, toss it into a list, pass it as an argument, or return it from another function.
+R is, at heart, a functional language. Most R users discover this slowly, one small refactoring at a time. This tutorial gives you the five ideas that let you skip that slow discovery and write in a functional style on purpose — cleaner code, fewer bugs, and code that reads like what it does.
 
-This isn't just a language trivia fact. It's the foundation of a programming style called **functional programming** (FP) that makes your R code shorter, safer, and easier to reason about. Instead of writing loops that mutate variables step by step, you describe *what* to compute by passing functions to other functions.
+## What Does "Functional Programming" Actually Mean in R?
 
-In this tutorial, you'll learn:
+You have probably written R functions for years. Functional *programming* is not just "using functions" — it is a style choice that follows three rules.
 
-- What "first-class functions" actually means (with proof)
-- How closures and function factories work
-- How to replace loops with `lapply()`, `sapply()`, and `purrr::map()`
-- The complete purrr toolkit — `map`, `map2`, `pmap`, `walk`, `reduce`
-- Error handling, function composition, and memoization
-- When functional programming helps and when it gets in the way
+A function is **pure** when it returns the same output for the same input and changes nothing else in the world — no globals, no files, no printing. Functions are **first-class values** in R, which means you can store one in a variable, pass it into another function, or return it from another function, exactly like a number or a string. And because R copies on modify, functional code is naturally **immutable** — the input vector you pass in is never silently altered.
 
-## Functions Are First-Class Citizens
-
-What does it mean for functions to be "first-class"? It means functions are values. You can do with a function everything you can do with a number or a string.
-
-Let's prove it with five demonstrations:
+Here is a single tiny example that demonstrates all three ideas at once. We pass the function `mean` to `sapply`, which calls it once per column of `iris[, 1:4]`, without ever changing `iris`.
 
 ```r
-# 1. Assign a function to a variable
-square <- function(x) x^2
-square(5)
-#> [1] 25
-
-# 2. Store functions in a list
-math_ops <- list(
-  double = function(x) x * 2,
-  halve  = function(x) x / 2,
-  negate = function(x) -x
-)
-math_ops$double(10)
-#> [1] 20
-math_ops$negate(7)
-#> [1] -7
+sapply(iris[, 1:4], mean)
+#> Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#>     5.843333     3.057333     3.758000     1.199333
 ```
 
+Three things just happened that would feel unusual in a language like Python or Java. `mean` was treated as a *value* and passed around. `sapply` is a *higher-order function* — a function that accepts another function. And the result — a named numeric vector — is a brand new object; `iris` itself is untouched. Those three properties are the entire toolkit.
+
+[KEY INSIGHT]
+**Functional programming in R is about what you want, not how to compute it.** A `for` loop says "take this counter, do this, then do that". `sapply(cols, mean)` says "I want one mean per column". The second version is shorter and almost impossible to get wrong.
+
+## What Makes a Function "Pure" and Why Should You Care?
+
+A pure function is a vending machine. You press button B4, you get a KitKat. Same button, same KitKat — always. It does not email your grandmother, it does not write to a file, it does not check the weather. R's `sum()`, `mean()`, `sqrt()`, and `toupper()` are all pure. Your own helpers should aim for this whenever they can.
+
+Compare two versions of the same task below. The impure version relies on a counter in the global environment; the pure version takes its state in and returns its state out.
+
 ```r
-# 3. Pass a function as an argument
-apply_to_five <- function(f) f(5)
-
-apply_to_five(sqrt)
-#> [1] 2.236068
-
-apply_to_five(function(x) x^3)
-#> [1] 125
-```
-
-```r
-# 4. Return a function from a function
-make_adder <- function(n) {
-  function(x) x + n
+# Impure: reaches into the global environment
+counter <- 0
+tick_impure <- function() {
+  counter <<- counter + 1
+  counter
 }
-
-add_10 <- make_adder(10)
-add_10(3)
-#> [1] 13
-add_10(100)
-#> [1] 110
-
-# 5. Functions are objects — they have class and type
-class(sqrt)
-#> [1] "function"
-typeof(mean)
-#> [1] "closure"
-```
-
-That last line reveals something important: most R functions are **closures**, which means they carry their own environment with them. We'll explore that next.
-
-> **Key insight:** In R, there is no fundamental difference between a function and any other object. Functions can be created anywhere, passed anywhere, and stored in any data structure.
-
-## Anonymous Functions
-
-When you pass a small function as an argument, you often don't need to give it a name. These unnamed functions are called **anonymous functions**, and R has evolved three ways to write them.
-
-```r
-numbers <- 1:5
-
-# Style 1: Traditional (verbose)
-sapply(numbers, function(x) x^2)
-#> [1]  1  4  9 16 25
-
-# Style 2: Lambda shorthand (R 4.1+, recommended)
-sapply(numbers, \(x) x^2)
-#> [1]  1  4  9 16 25
-
-# Style 3: purrr formula shorthand (inside purrr only)
-library(purrr)
-map_dbl(numbers, ~ .x^2)
-#> [1]  1  4  9 16 25
-```
-
-```r
-# When to use each style:
-# \(x) — preferred everywhere in modern R (clean, universal)
-# ~ .x — only works inside purrr functions, convenient for quick transforms
-# function(x) — use when you need multiple lines or clarity for beginners
-
-# Multi-line anonymous function
-result <- sapply(1:3, \(x) {
-  squared <- x^2
-  cubed <- x^3
-  squared + cubed
-})
-result
-#> [1]  2 12 36
-```
-
-Use `\(x)` as your default. It's the modern R standard, works everywhere, and reads cleanly.
-
-## Closures: Functions That Remember
-
-A **closure** is a function that captures variables from the environment where it was created. When `make_adder(10)` returned a function, that function *remembered* that `n` was 10 — even after `make_adder` finished running.
-
-This is closures at work, and they're one of the most powerful ideas in R.
-
-```r
-make_counter <- function() {
-  count <- 0
-  list(
-    increment = function() {
-      count <<- count + 1
-      count
-    },
-    get = function() count,
-    reset = function() {
-      count <<- 0
-      invisible(NULL)
-    }
-  )
-}
-
-counter <- make_counter()
-counter$increment()
+tick_impure()
 #> [1] 1
-counter$increment()
+tick_impure()
 #> [1] 2
-counter$increment()
-#> [1] 3
-counter$get()
-#> [1] 3
-counter$reset()
-counter$get()
-#> [1] 0
-```
 
-The `count` variable lives inside `make_counter()`'s environment. The inner functions (increment, get, reset) are closures that captured that environment. The `<<-` operator modifies `count` in the enclosing scope rather than creating a local copy.
-
-```r
-# Closures in practice: creating a family of power functions
-make_power <- function(exp) {
-  function(x) x^exp
-}
-
-square <- make_power(2)
-cube <- make_power(3)
-fourth <- make_power(4)
-
-sapply(1:5, square)
-#> [1]  1  4  9 16 25
-sapply(1:5, cube)
-#> [1]   1   8  27  64 125
-sapply(1:5, fourth)
-#> [1]   1  16  81 256 625
-
-# Each function remembers its own `exp` value
-environment(square)$exp
-#> [1] 2
-environment(cube)$exp
+# Pure: the state lives inside the call
+tick_pure <- function(state) state + 1
+tick_pure(tick_pure(tick_pure(0)))
 #> [1] 3
 ```
 
-> **When to use closures:** Create closures when you need a family of similar functions that differ by one or two parameters. They're cleaner than copying and pasting code with minor variations.
+The pure version can be tested by reading only the function body — there is nothing else to check. The impure version's behaviour depends on whatever `counter` happens to be when you run it, and that value could have been changed by anything in your session. For code you expect to live a long time, prefer pure.
 
-## Function Factories
+[TIP]
+**Push side effects to the edges.** Inside the core of your program, keep functions pure. At the edge — `readr::read_csv`, `print`, `ggsave` — side effects are unavoidable and that is fine. Keeping the core pure means most of your code is trivially testable.
 
-A **function factory** is a function whose job is to create other functions. You already saw two examples: `make_adder()` and `make_power()`. Let's look at a more practical one.
+**Try it:** Write a pure function `ex_shift(x, by)` that adds `by` to every element of `x` and returns the result.
 
 ```r
-# Factory: create formatters for different decimal places
-make_formatter <- function(digits) {
-  function(x) format(round(x, digits), nsmall = digits)
-}
-
-fmt_2 <- make_formatter(2)
-fmt_4 <- make_formatter(4)
-
-pi_value <- 3.14159265
-fmt_2(pi_value)
-#> [1] "3.14"
-fmt_4(pi_value)
-#> [1] "3.1416"
+# your code here
+ex_shift(c(1, 2, 3), 10)
+#> Expected: 11 12 13
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
 ```r
-# Factory: create threshold checkers
-make_threshold <- function(cutoff, direction = "above") {
-  if (direction == "above") {
-    function(x) x > cutoff
-  } else {
-    function(x) x < cutoff
-  }
-}
-
-is_hot <- make_threshold(30, "above")
-is_freezing <- make_threshold(0, "below")
-
-temps <- c(-5, 10, 25, 35, 40)
-is_hot(temps)
-#> [1] FALSE FALSE FALSE  TRUE  TRUE
-is_freezing(temps)
-#> [1]  TRUE FALSE FALSE FALSE FALSE
+ex_shift <- function(x, by) x + by
+ex_shift(c(1, 2, 3), 10)
+#> [1] 11 12 13
 ```
 
-Function factories are especially useful in ggplot2. The `scale_*` functions like `scale_x_continuous(labels = scales::comma)` work this way — `scales::comma` is a function factory that returns a formatting function.
+**Explanation:** The function uses only its arguments and R's vectorised `+` — no globals, no side effects, same output for same input.
 
-## Replacing Loops with Functionals
+</details>
 
-A **functional** is a function that takes another function as input. The apply family (`lapply`, `sapply`, `vapply`) and purrr's `map()` are functionals. They're R's answer to `for` loops.
+## How Are Functions First-Class in R?
 
-Let's solve the same problem three ways and compare:
+"First-class" is jargon for one simple property: a function is a value you can put in a variable, a list, or an argument. Anything you can do with the number `42`, you can do with the function `mean`.
+
+The snippet below stores a function in a variable, puts several functions in a list, and passes one of them as an argument — all without the language complaining.
 
 ```r
-# Task: compute the mean of each column in mtcars (first 5 columns)
-data <- mtcars[, 1:5]
+f <- mean
+f(1:10)
+#> [1] 5.5
 
-# Way 1: for loop
-means_loop <- numeric(ncol(data))
-names(means_loop) <- names(data)
-for (i in seq_along(data)) {
-  means_loop[i] <- mean(data[[i]])
-}
-means_loop
+funs <- list(avg = mean, mid = median, spread = sd)
+funs$spread(1:10)
+#> [1] 3.02765
+
+apply_fun <- function(x, fun) fun(x)
+apply_fun(1:10, median)
+#> [1] 5.5
 ```
 
+The third idiom is the important one. `apply_fun` never has to know *which* statistic you want — you hand that in. One function serves five use cases. Once you see this, the whole of the apply family and `purrr` suddenly makes sense: those are just `apply_fun` grown up.
+
+**Try it:** Put `min`, `max`, and `sum` in a named list and call the `max` entry on `1:100`.
+
 ```r
-# Way 2: sapply (base R functional)
-means_sapply <- sapply(data, mean)
-means_sapply
+# your code here
+#> Expected: 100
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
 ```r
-# Way 3: purrr::map_dbl (tidyverse functional)
-library(purrr)
-means_purrr <- map_dbl(data, mean)
-means_purrr
+ex_funs <- list(lo = min, hi = max, total = sum)
+ex_funs$hi(1:100)
+#> [1] 100
 ```
 
-All three produce identical results. But the functional versions are:
-- **Shorter** — one line instead of four
-- **Declarative** — they say *what* to compute, not *how* to compute it
-- **Safer** — no index variable to accidentally mess up
+**Explanation:** Functions sit in list slots just like numbers; `$hi` pulls out `max` and the trailing `(1:100)` calls it.
+
+</details>
+
+## What Are Higher-Order Functions? (map, filter, reduce)
+
+A **higher-order function** takes a function as input, returns a function as output, or both. The three most useful shapes — and the three you should know by name — are map, filter, and reduce.
+
+`map` walks over a collection and applies a function to each element. In R, this is `sapply` for vector output, `lapply` for list output, or `purrr::map` for a richer typed version. `filter` keeps only the elements that satisfy a predicate — base R has `Filter()`. `reduce` combines elements with a binary function into a single value — base R has `Reduce()`. Together, these three cover the majority of data-transformation code.
 
 ```r
-# Performance comparison
-library(purrr)
-big_list <- replicate(1000, rnorm(100), simplify = FALSE)
+nums <- 1:10
 
-system.time(lapply(big_list, mean))
-system.time(map(big_list, mean))
-system.time({
-  result <- vector("list", length(big_list))
-  for (i in seq_along(big_list)) result[[i]] <- mean(big_list[[i]])
-})
-```
+sapply(nums, function(x) x^2)
+#>  [1]   1   4   9  16  25  36  49  64  81 100
 
-The three approaches have nearly identical speed. Use whichever reads clearest for your situation. Use `lapply()` when you want zero dependencies, `map()` when you want type-safe variants and a consistent API.
-
-## The purrr Toolkit
-
-The purrr package provides a complete, consistent set of functionals. Here's the toolkit organized by what you need to do.
-
-### map() — Apply a Function to Each Element
-
-```r
-library(purrr)
-
-# map() always returns a list
-map(1:4, \(x) x^2)
-
-# Type-specific variants return vectors
-map_dbl(1:4, \(x) x^2)       # double vector
-#> [1]  1  4  9 16
-
-map_chr(1:4, \(x) paste("Item", x))  # character vector
-#> [1] "Item 1" "Item 2" "Item 3" "Item 4"
-
-map_lgl(1:4, \(x) x > 2)     # logical vector
-#> [1] FALSE FALSE  TRUE  TRUE
-
-map_int(1:4, \(x) as.integer(x * 10))  # integer vector
-#> [1] 10 20 30 40
-```
-
-### map2() and pmap() — Multiple Inputs
-
-```r
-# map2: iterate over two vectors in parallel
-names <- c("Alice", "Bob", "Charlie")
-ages <- c(30, 25, 35)
-
-map2_chr(names, ages, \(n, a) paste(n, "is", a, "years old"))
-#> [1] "Alice is 30 years old"   "Bob is 25 years old"     "Charlie is 35 years old"
-```
-
-```r
-# pmap: iterate over any number of inputs (pass as list)
-params <- list(
-  n    = c(10, 20, 30),
-  mean = c(0, 5, 10),
-  sd   = c(1, 2, 3)
-)
-
-samples <- pmap(params, \(n, mean, sd) rnorm(n, mean, sd))
-map_dbl(samples, mean)  # roughly 0, 5, 10
-```
-
-### walk() — Side Effects (No Return Value)
-
-Use `walk()` when you want to do something for each element but don't need a result back — like printing, writing files, or making plots.
-
-```r
-# walk: call a function for side effects
-filenames <- c("report_Q1.csv", "report_Q2.csv", "report_Q3.csv")
-walk(filenames, \(f) cat("Processing:", f, "\n"))
-#> Processing: report_Q1.csv
-#> Processing: report_Q2.csv
-#> Processing: report_Q3.csv
-```
-
-### imap() — Indexed Mapping
-
-`imap()` passes both the element and its name (or index) to your function.
-
-```r
-# imap: access both value and name/index
-scores <- c(math = 92, science = 87, english = 95)
-
-imap_chr(scores, \(score, subject) paste(subject, ":", score, "points"))
-#> [1] "math : 92 points"    "science : 87 points" "english : 95 points"
-```
-
-### reduce() — Combine Elements
-
-`reduce()` takes a list and collapses it into a single value by repeatedly applying a two-argument function.
-
-```r
-# reduce: collapse a list to a single value
-reduce(1:5, `+`)
-#> [1] 15
-# Same as: ((((1 + 2) + 3) + 4) + 5) = 15
-
-# Practical: find the intersection of multiple vectors
-lists <- list(
-  c(1, 2, 3, 4, 5),
-  c(2, 3, 4, 6),
-  c(3, 4, 7, 8)
-)
-reduce(lists, intersect)
-#> [1] 3 4
-
-# accumulate: like reduce but keeps intermediate results
-accumulate(1:5, `+`)
-#> [1]  1  3  6 10 15
-```
-
-## Error Handling in Functional Code
-
-When you `map()` over many elements, one error stops everything. purrr provides wrappers that let you keep going.
-
-```r
-library(purrr)
-
-# A function that sometimes fails
-safe_log <- function(x) {
-  if (x <= 0) stop("x must be positive")
-  log(x)
-}
-
-inputs <- list(10, -5, 100, 0, 42)
-
-# safely() wraps each call — returns result + error
-results <- map(inputs, safely(safe_log))
-results[[1]]  # success: result has value, error is NULL
-results[[2]]  # failure: result is NULL, error has message
-```
-
-```r
-# possibly() is simpler — just returns a default on error
-library(purrr)
-
-safe_log <- function(x) {
-  if (x <= 0) stop("x must be positive")
-  log(x)
-}
-
-inputs <- list(10, -5, 100, 0, 42)
-map_dbl(inputs, possibly(safe_log, otherwise = NA_real_))
-#> [1] 2.302585       NA 4.605170       NA 3.737670
-```
-
-Use `possibly()` when you just want a default value. Use `safely()` when you need to inspect what went wrong.
-
-## Function Operators
-
-A **function operator** takes a function as input and returns a modified version. Think of them as function decorators.
-
-```r
-library(purrr)
-
-# compose(): chain functions together (right to left)
-round_sqrt <- compose(round, sqrt)
-round_sqrt(7)
-#> [1] 3
-
-# Left-to-right with the pipe-friendly approach
-library(purrr)
-add_one_then_double <- compose(\(x) x * 2, \(x) x + 1)
-add_one_then_double(5)
-#> [1] 12
-```
-
-```r
-# negate(): flip a predicate
-library(purrr)
-
-is_even <- \(x) x %% 2 == 0
-is_odd <- negate(is_even)
-
-keep(1:10, is_even)
+Filter(function(x) x %% 2 == 0, nums)
 #> [1]  2  4  6  8 10
-keep(1:10, is_odd)
-#> [1] 1 3 5 7 9
+
+Reduce(`+`, nums)
+#> [1] 55
 ```
+
+Three lines replaced three different `for` loops. More importantly, each line says exactly what it does at the level you care about — "square each", "keep even", "total them". You never asked for a counter, an index, or a running total; the higher-order function supplied those for you.
+
+**Try it:** Use `Filter()` to keep only the strings in `c("apple", "banana", "cherry", "date")` that have more than 5 characters.
 
 ```r
-# partial(): pre-fill some arguments
-library(purrr)
-
-mean_na_rm <- partial(mean, na.rm = TRUE)
-
-x <- c(1, 2, NA, 4, 5)
-mean(x)
-#> [1] NA
-mean_na_rm(x)
-#> [1] 3
+# your code here
+#> Expected: "banana" "cherry"
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-# memoise: cache expensive function results
-library(memoise)
-
-slow_square <- function(x) {
-  Sys.sleep(0.5)  # Simulate slow computation
-  x^2
-}
-
-fast_square <- memoise(slow_square)
-
-system.time(fast_square(42))  # slow: ~0.5s
-system.time(fast_square(42))  # instant: cached
+Filter(function(s) nchar(s) > 5, c("apple", "banana", "cherry", "date"))
+#> [1] "banana" "cherry"
 ```
 
-## When NOT to Use Functional Programming
+**Explanation:** The predicate `function(s) nchar(s) > 5` returns `TRUE` for longer strings; `Filter` keeps the matching positions.
 
-Functional programming isn't always the best choice. Here's when to reach for a different tool:
+</details>
 
-| Situation | Use Instead | Why |
-|-----------|-------------|-----|
-| Loop body modifies multiple variables | `for` loop | Closures with `<<-` are confusing |
-| You need early termination (`break`) | `for` or `while` loop | `map()` always processes every element |
-| Sequential dependencies (step N depends on step N-1) | `for` loop or `reduce()` | `map()` is for independent operations |
-| Deeply nested logic | Named function + loop | Anonymous functions become unreadable |
-| Performance-critical tight loop | Vectorized operation or C++ | Functional overhead matters at millions of iterations |
+## How Does Immutability Work in R?
 
-> **Rule of thumb:** Use functional programming when each element can be processed independently. Use a loop when iterations depend on each other.
+R's copy-on-modify rule means that passing a vector to a function can never corrupt the original. Unlike Python or JavaScript, you do not have to worry about a function reaching into your list and changing it. Functional code leans on this heavily — you can chain transformations knowing every step produces a brand new value.
+
+```r
+original <- c(1, 2, 3, 4, 5)
+
+double_it <- function(x) x * 2
+doubled <- double_it(original)
+
+doubled
+#> [1]  2  4  6  8 10
+
+original
+#> [1] 1 2 3 4 5
+```
+
+R made a private copy of `original` the moment `double_it` modified it inside the function body. That is the single most important reason R is safe for data analysis: mistakes inside a function cannot retroactively poison the data that was passed in.
+
+[NOTE]
+**Copy-on-modify is lazy, not eager.** R only actually duplicates memory when a value is modified. Reading a vector inside a function leaves the original in place. That is why functional code in R is fast *and* safe.
+
+**Try it:** Write a function `ex_zero_negs(x)` that replaces negative elements of `x` with zero and show that the original is unchanged.
+
+```r
+ex_v <- c(-2, 1, -5, 4)
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_zero_negs <- function(x) { x[x < 0] <- 0; x }
+ex_v <- c(-2, 1, -5, 4)
+ex_zero_negs(ex_v)
+#> [1] 0 1 0 4
+ex_v
+#> [1] -2  1 -5  4
+```
+
+**Explanation:** Assigning to `x[x < 0]` inside the function triggers a copy; the caller's `ex_v` is untouched.
+
+</details>
+
+## How Do You Compose Small Functions Into a Pipeline?
+
+The payoff of writing pure, first-class, higher-order functions shows up when you need to chain several transformations. The native pipe `|>` turns `f(g(h(x)))` into `x |> h() |> g() |> f()` — same computation, read top to bottom, no nested parentheses.
+
+```r
+iris |>
+  subset(Species == "setosa") |>
+  (\(df) df[, 1:4])() |>
+  colMeans() |>
+  round(2)
+#> Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#>         5.01         3.43         1.46         0.25
+```
+
+Read that pipeline out loud: take iris, keep only setosa, drop the Species column, take column means, round to two decimals. Each step is a small pure function; the pipe glues them together. No intermediate variables, no manual loops — and every step is independently testable.
+
+**Try it:** Use the native pipe to take `mtcars`, keep only rows with `cyl == 4`, and return the mean `mpg` rounded to one decimal.
+
+```r
+# your code here
+#> Expected: 26.7
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+mtcars |>
+  subset(cyl == 4) |>
+  (\(df) mean(df$mpg))() |>
+  round(1)
+#> [1] 26.7
+```
+
+**Explanation:** `subset()` filters rows, the anonymous `\(df)` extracts `mpg` and takes its mean, and `round(1)` is the final step.
+
+</details>
 
 ## Practice Exercises
 
-### Exercise 1: Custom Mapper
+### Exercise 1: Pure Higher-Order Pipeline
 
-Write a function `apply_all` that takes a value and a list of functions, and returns the result of applying each function to that value.
+Write a single pipeline that takes `1:20`, keeps only the even numbers, squares each remaining number, and sums the squares. Save the result to `my_result`.
 
 ```r
-# Exercise: apply_all(10, list(sqrt, log, exp)) should return c(3.162, 2.302, 22026.466)
-# Hint: use map_dbl()
-
-# Write your code below:
+# your code here
 
 ```
 
@@ -511,26 +270,30 @@ Write a function `apply_all` that takes a value and a list of functions, and ret
 <summary>Click to reveal solution</summary>
 
 ```r
-apply_all <- function(x, fns) {
-  map_dbl(fns, \(f) f(x))
-}
-apply_all(10, list(sqrt, log, exp))
-#> [1] 3.162278e+00 2.302585e+00 2.202647e+04
+my_result <- 1:20 |>
+  Filter(f = function(x) x %% 2 == 0) |>
+  sapply(function(x) x^2) |>
+  sum()
+my_result
+#> [1] 1540
 ```
 
-**Explanation:** `map_dbl()` iterates over the list of functions, applying each one to `x`. Since each function returns a single number, `map_dbl()` returns a numeric vector.
+**Explanation:** `Filter` keeps evens, `sapply` squares each one, `sum` reduces to a single total.
 
 </details>
 
-### Exercise 2: Safe Converter
+### Exercise 2: Replace a for Loop With Reduce
 
-Create a function that safely converts a vector of strings to numbers, returning `NA` for any that fail.
+Rewrite this imperative running-product loop using `Reduce()`.
 
 ```r
-# Exercise: safe_as_numeric(c("1", "abc", "3.14", "")) should return c(1, NA, 3.14, NA)
-# Hint: use map_dbl() with possibly() or tryCatch()
+# Imperative version you are replacing:
+total <- 1
+for (x in 1:5) total <- total * x
+total
+#> [1] 120
 
-# Write your code below:
+# Rewrite using Reduce:
 
 ```
 
@@ -538,209 +301,35 @@ Create a function that safely converts a vector of strings to numbers, returning
 <summary>Click to reveal solution</summary>
 
 ```r
-safe_as_numeric <- function(x) {
-  map_dbl(x, possibly(\(val) {
-    result <- as.numeric(val)
-    if (is.na(result)) stop("not a number")
-    result
-  }, otherwise = NA_real_))
-}
-safe_as_numeric(c("1", "abc", "3.14", ""))
-#> [1] 1.00   NA 3.14   NA
+my_product <- Reduce(`*`, 1:5)
+my_product
+#> [1] 120
 ```
 
-**Explanation:** `possibly()` catches errors and returns `NA_real_`. The inner function converts each string and raises an error if the result is `NA`, so both non-numeric strings and empty strings get caught.
+**Explanation:** `Reduce` with `*` repeatedly multiplies the running result by the next element — that is exactly what a running-product loop does.
 
 </details>
-
-### Exercise 3: Function Factory
-
-Create a function factory `make_validator` that takes a min and max value and returns a function that checks whether its input falls within that range.
-
-```r
-# Exercise:
-# is_valid_age <- make_validator(0, 120)
-# is_valid_age(25) should be TRUE
-# is_valid_age(-5) should be FALSE
-# Hint: the returned function should use the closure to remember min/max
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-make_validator <- function(min_val, max_val) {
-  function(x) x >= min_val & x <= max_val
-}
-
-is_valid_age <- make_validator(0, 120)
-is_valid_age(25)
-#> [1] TRUE
-is_valid_age(-5)
-#> [1] FALSE
-is_valid_age(c(0, 50, 121, -1))
-#> [1]  TRUE  TRUE FALSE FALSE
-```
-
-**Explanation:** `make_validator()` is a function factory. It returns a closure that remembers `min_val` and `max_val` from its enclosing environment. The returned function works with both single values and vectors because `>=` and `<=` are vectorized.
-
-</details>
-
-### Exercise 4: Reduce Challenge
-
-Use `reduce()` to find the union of all character vectors in a list.
-
-```r
-# Exercise:
-# word_lists <- list(c("apple", "banana"), c("banana", "cherry"), c("cherry", "date", "apple"))
-# Result should be: c("apple", "banana", "cherry", "date")
-# Hint: use reduce() with union()
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-library(purrr)
-word_lists <- list(
-  c("apple", "banana"),
-  c("banana", "cherry"),
-  c("cherry", "date", "apple")
-)
-reduce(word_lists, union)
-#> [1] "apple"  "banana" "cherry" "date"
-```
-
-**Explanation:** `reduce()` applies `union()` cumulatively: first `union(c("apple","banana"), c("banana","cherry"))` gives `c("apple","banana","cherry")`, then `union(that, c("cherry","date","apple"))` gives the final four-element vector.
-
-</details>
-
-### Exercise 5: Pipeline Builder
-
-Write a function `compose_pipeline` that takes a list of functions and returns a single function that applies them in order (left to right).
-
-```r
-# Exercise:
-# pipeline <- compose_pipeline(list(\(x) x + 1, \(x) x * 2, \(x) x - 3))
-# pipeline(5) should return 9: (5 + 1) * 2 - 3 = 9
-# Hint: use reduce() creatively
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-compose_pipeline <- function(fns) {
-  function(x) reduce(fns, \(val, f) f(val), .init = x)
-}
-
-pipeline <- compose_pipeline(list(\(x) x + 1, \(x) x * 2, \(x) x - 3))
-pipeline(5)
-#> [1] 9
-
-# Verify: (5 + 1) = 6, * 2 = 12, - 3 = 9
-```
-
-**Explanation:** `reduce()` starts with `.init = x` and applies each function in order, passing the result of each step as the input to the next. This creates left-to-right composition — the opposite of `compose()` which works right-to-left.
-
-</details>
-
-## Complete Example: Data Analysis Pipeline
-
-Let's bring everything together. We'll analyze the `mtcars` dataset using a purely functional approach — no loops, no intermediate variables.
-
-```r
-library(purrr)
-
-# Step 1: Split data by cylinder count
-by_cyl <- split(mtcars, mtcars$cyl)
-
-# Step 2: For each group, compute summary stats using map
-summaries <- imap(by_cyl, \(df, cyl_name) {
-  tibble::tibble(
-    cylinders = as.integer(cyl_name),
-    n_cars    = nrow(df),
-    avg_mpg   = round(mean(df$mpg), 1),
-    avg_hp    = round(mean(df$hp), 0),
-    avg_wt    = round(mean(df$wt), 2)
-  )
-})
-
-# Step 3: Combine all summaries into one data frame
-result <- list_rbind(summaries)
-result
-```
-
-```r
-# Step 4: Fit a linear model for each group
-library(purrr)
-by_cyl <- split(mtcars, mtcars$cyl)
-
-models <- map(by_cyl, \(df) lm(mpg ~ wt + hp, data = df))
-
-# Step 5: Extract R-squared from each model
-r_squared <- map_dbl(models, \(mod) summary(mod)$r.squared)
-r_squared
-
-# Step 6: Extract coefficients as a tidy table
-coefs <- imap(models, \(mod, cyl) {
-  cf <- coef(mod)
-  tibble::tibble(
-    cylinders = cyl,
-    intercept = round(cf[1], 2),
-    wt_effect = round(cf["wt"], 2),
-    hp_effect = round(cf["hp"], 3)
-  )
-})
-list_rbind(coefs)
-```
-
-This pipeline is readable, composable, and each step does one thing. You can swap out any step without touching the others.
 
 ## Summary
 
-| Concept | What It Does | Key Function |
-|---------|-------------|--------------|
-| First-class functions | Treat functions as values — assign, pass, return | `function()`, `\()` |
-| Anonymous functions | Unnamed functions for one-off use | `\(x) x^2` |
-| Closures | Functions that capture their creation environment | `environment()` |
-| Function factories | Functions that return new functions | `make_power(2)` |
-| Functionals | Functions that take functions as arguments | `map()`, `lapply()` |
-| map variants | Type-safe iteration | `map_dbl()`, `map_chr()`, `map_lgl()` |
-| Multi-input mapping | Iterate over 2+ inputs in parallel | `map2()`, `pmap()` |
-| Side-effect mapping | Iterate for effects, not results | `walk()`, `walk2()` |
-| Error handling | Keep going when individual calls fail | `safely()`, `possibly()` |
-| reduce | Collapse a list to a single value | `reduce()`, `accumulate()` |
-| Function operators | Modify functions | `compose()`, `negate()`, `partial()` |
-| Memoization | Cache expensive computations | `memoise::memoise()` |
+| Concept              | One-line takeaway                                                     |
+|----------------------|-----------------------------------------------------------------------|
+| Pure function        | Same input → same output, no side effects.                           |
+| First-class functions| Store, pass, and return functions like any other value.               |
+| Higher-order function| Takes or returns a function — `sapply`, `Filter`, `Reduce`, `purrr::map`. |
+| Immutability         | R copies on modify — inputs are never silently changed.              |
+| Composition          | Chain small pure functions with the pipe `|>` instead of nesting.    |
 
-## FAQ
+## References
 
-<h4>Is R a functional programming language?</h4>
+1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 10: Function factories. [Link](https://adv-r.hadley.nz/function-factories.html)
+3. `purrr` package documentation — a tidyverse toolkit for functional programming. [Link](https://purrr.tidyverse.org/)
+4. R Core Team — base R `Reduce`, `Filter`, `Map`, and `Position` reference. [Link](https://rdrr.io/r/base/funprog.html)
+5. Chambers, J. M. — *Software for Data Analysis: Programming with R*. Springer (2008).
 
-R is a multi-paradigm language with strong functional programming support. Functions are first-class citizens, and the language was heavily influenced by Scheme (a functional Lisp dialect). You can write R in a functional, imperative, or object-oriented style.
+## Continue Learning
 
-<h4>Should I use lapply() or purrr::map()?</h4>
-
-Both work well. Use `lapply()` when you want zero dependencies or you're writing a package. Use `purrr::map()` when you want type-safe variants (`map_dbl`, `map_chr`), better error handling (`safely`, `possibly`), and a consistent API. For interactive analysis, purrr is usually more convenient.
-
-<h4>What's the difference between a closure and a regular function?</h4>
-
-All user-defined functions in R are technically closures — they carry a reference to the environment where they were created. The term "closure" is most useful when a function captures variables from an enclosing function, like when a function factory returns an inner function that remembers the factory's arguments.
-
-<h4>Why use map() instead of a for loop?</h4>
-
-Readability and safety. A `map()` call says "apply this function to every element" in one line. A for loop requires initializing a container, writing the loop header, and indexing correctly. With `map()`, there's no index variable to mess up and no container to pre-allocate.
-
-<h4>Can functional programming be slower than loops in R?</h4>
-
-In most practical cases, the performance difference is negligible. Both `lapply()` and `map()` use optimized C code internally. The real performance gains come from vectorized operations (which avoid both loops and functionals) or parallelization. Use functional style for clarity, and optimize only when profiling reveals a bottleneck.
+- [purrr map() Variants](purrr-map-Variants.html) — the tidyverse's typed answer to `sapply`.
+- [R Anonymous Functions](R-Anonymous-Functions.html) — the `\(x)` shorthand that makes functional pipelines short.
+- [Memoization in R](Memoization-in-R.html) — cache pure function results for an instant speedup.
