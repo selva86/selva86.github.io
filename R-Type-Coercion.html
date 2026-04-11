@@ -3,8 +3,8 @@
   <head>
     <title>R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters</title>
     <meta charset="utf-8">
-    <meta name="Description" content="R silently converts types when you mix them. Learn the coercion hierarchy, common traps with CSV data, and how to fix type problems fast.">
-    <meta name="Keywords" content="R type coercion, R implicit conversion, as.numeric(), as.character(), R type conversion, R coercion hierarchy">
+    <meta name="Description" content="R silently converts between types and introduces NA values. Learn the coercion hierarchy, how to convert safely, and how to catch silent failures before they bite.">
+    <meta name="Keywords" content="R type coercion, as.numeric R, NAs introduced by coercion, R implicit conversion, R character to numeric, R coercion hierarchy">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -114,14 +114,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">
-    <meta property="og:description" content="R silently converts types when you mix them. Learn the coercion hierarchy, common traps with CSV data, and how to fix type problems fast.">
+    <meta property="og:description" content="R silently converts between types and introduces NA values. Learn the coercion hierarchy, how to convert safely, and how to catch silent failures before they bite.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/R-Type-Coercion.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/R-Type-Coercion.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">
-    <meta name="twitter:description" content="R silently converts types when you mix them. Learn the coercion hierarchy, common traps with CSV data, and how to fix type problems fast.">
+    <meta name="twitter:description" content="R silently converts between types and introduces NA values. Learn the coercion hierarchy, how to convert safely, and how to catch silent failures before they bite.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/R-Type-Coercion.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -129,7 +129,7 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters",
-      "description": "R silently converts types when you mix them. Learn the coercion hierarchy, common traps with CSV data, and how to fix type problems fast.",
+      "description": "R silently converts between types and introduces NA values. Learn the coercion hierarchy, how to convert safely, and how to catch silent failures before they bite.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/R-Type-Coercion.html",
@@ -152,19 +152,7 @@
       ]
     }
     </script>
-        <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-      {"@type": "Question", "name": "Why does R coerce silently instead of throwing an error?", "acceptedAnswer": {"@type": "Answer", "text": "R was designed for interactive data analysis where flexibility matters more than strictness. Automatic coercion means TRUE + 1 just works (giving 2) rather than requiring explicit conversion. The trade-off is that it can hide bugs — which is why str() after import is essential."}},
-      {"@type": "Question", "name": "How do I prevent coercion when creating vectors?", "acceptedAnswer": {"@type": "Answer", "text": "You can't — c() always coerces to a single type. If you need mixed types, use a list() instead of c()."}},
-      {"@type": "Question", "name": "Why does read.csv turn strings into factors?", "acceptedAnswer": {"@type": "Answer", "text": "Historical reasons. In older R (pre-4.0), read.csv() had stringsAsFactors = TRUE by default. Since R 4.0, the default changed to FALSE. If you're using R 4.0+, this shouldn't be an issue. If it is, add stringsAsFactors = FALSE or switch to readr::read_csv()."}},
-      {"@type": "Question", "name": "How do I convert an entire data frame's column types at once?", "acceptedAnswer": {"@type": "Answer", "text": "Use dplyr::mutate(across(...)):"}},
-      {"@type": "Question", "name": "Is there a way to see what R coerced?", "acceptedAnswer": {"@type": "Answer", "text": "Not directly for implicit coercion. But str() shows the current types, and comparing class() before and after operations reveals changes. The readr package shows column type guesses during import."}}
-      ]
-    }
-    </script>
+    
     
     <!-- WebR Interactive R Code -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
@@ -630,37 +618,36 @@
 
 <h1>R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters</h1>
 
-<p class="lead">When you mix types in R, the most flexible type wins. One character value in a numeric vector turns everything into text. Understanding this coercion hierarchy prevents the most common <a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">data import</a> bugs in R.</p>
+<p class="lead">R constantly converts values between types behind your back — logical becomes integer, integer becomes double, anything becomes character. The rule it follows is a one-way ladder, and the moment a stray string sneaks into a numeric vector, the whole column becomes character and your arithmetic silently fails.</p>
 
-<p>You read a CSV file, run <code>mean(df$price)</code>, and R gives you an error or <code>NA</code>. You check <code>class(df$price)</code> and discover it's character — even though every value looks numeric. A single "N/A" or "$" or comma in one cell turned the entire column into text. This tutorial explains why, and how to fix it.</p>
+<p>This post explains the coercion hierarchy, the two flavours of conversion (implicit vs explicit), the famous <em>"<a class="auto-link" href="R-Warning-NAs-Coercion.html" title="R Warning: NAs introduced by coercion — When as.numeric() Fails">NAs introduced by coercion</a>"</em> warning, and the five-step workflow for converting character columns to numeric safely.</p>
 
-<h2>The Coercion Hierarchy</h2>
+<h2>Why do R's types silently change on you?</h2>
 
-<p>R's type system has a strict hierarchy. When you combine values of different types, everything gets converted to the <strong>most flexible</strong> type:</p>
+<p>R has no row-by-row type — it has <em>vector</em> types. Every atomic vector is one type, top to bottom, which means the moment you mix types inside a <code>c()</code> call or read a CSV with one stray letter in an otherwise-numeric column, R has to pick <strong>one</strong> type for the whole vector. It resolves the conflict with a fixed hierarchy, always upgrading to the more general type. The ladder looks like this: <code>logical → integer → double → character</code>.</p>
 
-<p><strong>logical → integer → numeric → complex → character</strong></p>
-
-<p>Each type to the right can represent everything to its left, but not vice versa. A character can represent "TRUE" or "42", but a number can't represent "hello."</p>
+<p>Here is the hierarchy in action. Watch the <code>class()</code> output change each time we mix in a "bigger" type.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Mixing logical + integer → integer
-x1 &lt;- c(TRUE, FALSE, 42L)
-cat(&quot;logical + integer:&quot;, x1, &quot;→&quot;, class(x1), &quot;\n&quot;)
+    <div class="webr-editor" data-language="r"># The coercion ladder: mix types and R picks the most general
+class(c(TRUE, FALSE))
+#&gt; [1] &quot;logical&quot;
 
-# Mixing integer + numeric → numeric
-x2 &lt;- c(42L, 3.14)
-cat(&quot;integer + numeric:&quot;, x2, &quot;→&quot;, class(x2), &quot;\n&quot;)
+class(c(TRUE, 1L))            # logical + integer -&gt; integer
+#&gt; [1] &quot;integer&quot;
 
-# Mixing numeric + character → character (everything becomes text!)
-x3 &lt;- c(42, &quot;hello&quot;)
-cat(&quot;numeric + character:&quot;, x3, &quot;→&quot;, class(x3), &quot;\n&quot;)
+class(c(TRUE, 1L, 2.5))       # + double -&gt; double
+#&gt; [1] &quot;numeric&quot;
 
-# Mixing logical + character → character
-x4 &lt;- c(TRUE, &quot;yes&quot;)
-cat(&quot;logical + character:&quot;, x4, &quot;→&quot;, class(x4), &quot;\n&quot;)</div>
+class(c(TRUE, 1L, 2.5, &quot;x&quot;))  # + character -&gt; character (everything is now a string!)
+#&gt; [1] &quot;character&quot;
+
+# And TRUE/FALSE become 1/0 in arithmetic — this is coercion too
+sum(c(TRUE, FALSE, TRUE, TRUE))
+#&gt; [1] 3</div>
 
     <div class="webr-buttons">
 
@@ -678,29 +665,110 @@ cat(&quot;logical + character:&quot;, x4, &quot;→&quot;, class(x4), &quot;\n&q
 
 </div>
 
-<p>The key rule: <strong>character always wins</strong>. One text value in a numeric vector converts everything to text.</p>
+<p>The last two examples are where real bugs live. The moment a single <code>&quot;x&quot;</code> lands in the vector, every number is stringified: <code>&quot;1&quot;</code>, <code>&quot;2.5&quot;</code>, <code>&quot;TRUE&quot;</code>. And <code>sum()</code> on a logical vector is a hidden, <em>useful</em> coercion — it's how you count <code>TRUE</code>s without ever thinking of it as <a class="auto-link" href="R-Data-Types.html" title="R Data Types: Which Type Is Your Variable? (And Why It Matters)">type conversion</a>. R's rule is simple: when types disagree, climb the ladder until one type fits everyone.</p>
 
-<h2>Implicit Coercion (Automatic)</h2>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a vector <code>ex_mix</code> that contains <code>FALSE</code>, <code>3L</code>, and <code>1.4</code> — predict the class before running, then verify with <code>class()</code> and <code>typeof()</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: predict the class, then check
+ex_mix &lt;- c(FALSE, 3L, 1.4)   # your prediction: ?
+class(ex_mix)
+#&gt; Expected: &quot;numeric&quot;
+typeof(ex_mix)
+#&gt; Expected: &quot;double&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>R performs implicit coercion silently — without warning you. This happens in several situations:</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_mix &lt;- c(FALSE, 3L, 1.4)
+class(ex_mix)
+#&gt; [1] &quot;numeric&quot;
+typeof(ex_mix)
+#&gt; [1] &quot;double&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<h4>In c()</h4>
+<p><strong>Explanation:</strong> Logical + integer + double climbs the ladder to double. <code>class()</code> reports <code>&quot;numeric&quot;</code> (a friendly umbrella); <code>typeof()</code> reports the underlying <code>&quot;double&quot;</code>.</p>
+
+</details>
+</section>
+
+<h2>What is R's coercion hierarchy, exactly?</h2>
+
+<p>Four base atomic types, one strict ordering. <code>logical</code> sits at the bottom because it has only two values; <code>character</code> sits at the top because <em>any</em> value can be written as text. R always moves up the ladder, never down, so the presence of a single higher-type value "upgrades" the whole vector.</p>
+
+<p><img src="screenshots/R-Type-Coercion-hierarchy.webp" alt="R's coercion hierarchy: logical, integer, double, character" class="img-responsive" loading="lazy" /></p>
+
+<p>*Figure 1: R always coerces upward. A single <code>character</code> in the mix pulls the entire vector to character — which is why one typo in a CSV column can ruin your arithmetic.*</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>From → To</th>
+<th>How it converts</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>logical → integer</td>
+<td><code>FALSE</code>→<code>0L</code>, <code>TRUE</code>→<code>1L</code></td>
+<td><code>as.integer(TRUE)</code> → <code>1L</code></td>
+</tr>
+<tr>
+<td>integer → double</td>
+<td>exact, same value</td>
+<td><code>as.double(5L)</code> → <code>5</code></td>
+</tr>
+<tr>
+<td>double → character</td>
+<td>formatted via <code>format()</code></td>
+<td><code>as.character(3.14)</code> → <code>&quot;3.14&quot;</code></td>
+</tr>
+<tr>
+<td>double → integer</td>
+<td><strong>truncation, not rounding</strong></td>
+<td><code>as.integer(2.9)</code> → <code>2L</code></td>
+</tr>
+<tr>
+<td>character → numeric</td>
+<td>parses digits; non-numeric → <code>NA</code> + warning</td>
+<td><code>as.numeric(&quot;2.5&quot;)</code> → <code>2.5</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The row that causes the most accidental data loss is <code>double → integer</code>: <code>as.integer(2.9)</code> is <code>2</code>, not <code>3</code>. If you wanted rounding, use <code>round()</code> explicitly. The row that causes the most <em>silent</em> data corruption is <code>character → numeric</code>, which we'll attack next.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Numeric and character → all character
-mixed &lt;- c(1, 2, &quot;three&quot;, 4, 5)
-cat(&quot;Values:&quot;, mixed, &quot;\n&quot;)
-cat(&quot;Type:&quot;, class(mixed), &quot;\n&quot;)
-cat(&quot;They LOOK like numbers but they're text!\n&quot;)
-
-# Can't do math anymore
-tryCatch(
-  sum(mixed),
-  error = function(e) cat(&quot;Error:&quot;, e$message, &quot;\n&quot;)
-)</div>
+    <div class="webr-editor" data-language="r"># Three rows from the table you need to remember
+as.integer(TRUE)
+#&gt; [1] 1
+as.integer(2.9)         # truncates toward zero — not a round
+#&gt; [1] 2
+as.integer(-2.9)        # also toward zero, so this is -2 not -3
+#&gt; [1] -2
+round(2.9)              # this is what you probably meant
+#&gt; [1] 3</div>
 
     <div class="webr-buttons">
 
@@ -718,20 +786,75 @@ tryCatch(
 
 </div>
 
-<h4>In comparison operators</h4>
+<p><code>as.integer()</code> <em>truncates</em> — it drops the decimal part. That's the same as <code>trunc()</code>, and it surprises almost everyone coming from Python or Excel. Whenever you want a genuine rounded integer, use <code>round()</code> (or <code>ceiling()</code> / <code>floor()</code> if direction matters) and <em>then</em> coerce.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use typeof() when class() isn't specific enough.</strong> <code>class(1L)</code> and <code>class(1.5)</code> both say <code>&quot;numeric&quot;</code>, which hides whether you're working with integers or doubles. <code>typeof()</code> returns <code>&quot;integer&quot;</code> vs <code>&quot;double&quot;</code> so you can spot subtle issues like integer overflow or unexpected divisions.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You have <code>x &lt;- c(1.2, 3.7, 5.1)</code>. Write one line that produces the <em>rounded</em> integer vector <code>c(1L, 4L, 5L)</code> — not the truncated version.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: round before you coerce
+x &lt;- c(1.2, 3.7, 5.1)
+ex_rounded &lt;- NULL  # your code here
+
+ex_rounded
+#&gt; Expected: [1] 1 4 5
+typeof(ex_rounded)
+#&gt; Expected: &quot;integer&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">x &lt;- c(1.2, 3.7, 5.1)
+ex_rounded &lt;- as.integer(round(x))
+ex_rounded
+#&gt; [1] 1 4 5
+typeof(ex_rounded)
+#&gt; [1] &quot;integer&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>round()</code> gives you doubles with no fractional part. <code>as.integer()</code> then drops the (zero) decimal cleanly and returns an integer vector.</p>
+
+</details>
+</section>
+
+<h2>Why does 'NAs introduced by coercion' appear — and how do you fix it?</h2>
+
+<p>You'll meet this warning the first time you read a CSV where one cell has a stray dollar sign or a footnote marker. <code>as.numeric()</code> happily converts <code>&quot;1.5&quot;</code> to <code>1.5</code> but collapses <code>&quot;N/A&quot;</code>, <code>&quot;—&quot;</code>, or <code>&quot;$42.00&quot;</code> to <code>NA</code> and prints a warning. The warning is <strong>your friend</strong> — it's telling you a column you thought was numeric has dirty values you need to handle on purpose.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Logical to numeric (TRUE=1, FALSE=0)
-cat(&quot;TRUE + 5:&quot;, TRUE + 5, &quot;\n&quot;)   # 6
-cat(&quot;FALSE * 10:&quot;, FALSE * 10, &quot;\n&quot;) # 0
-cat(&quot;sum(c(T,T,F,T)):&quot;, sum(c(TRUE, TRUE, FALSE, TRUE)), &quot;\n&quot;)  # 3
+    <div class="webr-editor" data-language="r"># The classic scenario: a &quot;numeric&quot; column with contaminants
+raw &lt;- c(&quot;100&quot;, &quot;250&quot;, &quot;N/A&quot;, &quot;$42.00&quot;, &quot;&quot;, &quot;1,250&quot;, &quot;3.14&quot;)
 
-# This is useful! Counting TRUEs:
-scores &lt;- c(88, 72, 95, 61, 83)
-cat(&quot;Scores above 80:&quot;, sum(scores &gt; 80), &quot;\n&quot;)</div>
+# Naive conversion — silently introduces NAs
+as.numeric(raw)
+#&gt; Warning message: NAs introduced by coercion
+#&gt; [1]  100.00  250.00      NA      NA      NA      NA    3.14
+
+# The bug is obvious once you count the NAs
+sum(is.na(as.numeric(raw)))
+#&gt; Warning message: NAs introduced by coercion
+#&gt; [1] 4</div>
 
     <div class="webr-buttons">
 
@@ -749,17 +872,34 @@ cat(&quot;Scores above 80:&quot;, sum(scores &gt; 80), &quot;\n&quot;)</div>
 
 </div>
 
-<h4>In if statements</h4>
+<p>Four values failed to parse — the <code>&quot;N/A&quot;</code> text, the dollar sign, the empty string, and the comma-thousand separator. <code>&quot;3.14&quot;</code> survived. In a 10,000-row column you'd never spot this by eye, which is why the fix is not to silence the warning but to <em>clean first</em>, then convert.</p>
+
+<p>Here is the workflow in code: peek at the offenders, clean them, then coerce.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Numbers to logical in conditions
-# 0 is FALSE, anything else is TRUE
-if (1) cat(&quot;1 is TRUE\n&quot;)
-if (0) cat(&quot;0 is TRUE\n&quot;) else cat(&quot;0 is FALSE\n&quot;)
-if (-5) cat(&quot;-5 is TRUE (any nonzero is TRUE)\n&quot;)</div>
+    <div class="webr-editor" data-language="r"># Safe conversion: peek -&gt; clean -&gt; coerce -&gt; audit
+raw &lt;- c(&quot;100&quot;, &quot;250&quot;, &quot;N/A&quot;, &quot;$42.00&quot;, &quot;&quot;, &quot;1,250&quot;, &quot;3.14&quot;)
+
+# Step 1: peek at the odd values
+unique(raw[grepl(&quot;[^0-9.-]&quot;, raw)])
+#&gt; [1] &quot;N/A&quot;    &quot;$42.00&quot; &quot;&quot;       &quot;1,250&quot;
+
+# Step 2: clean — strip currency symbols, commas, trim whitespace
+cleaned &lt;- gsub(&quot;[$,]&quot;, &quot;&quot;, raw)
+cleaned &lt;- trimws(cleaned)
+cleaned[cleaned == &quot;&quot; | cleaned == &quot;N/A&quot;] &lt;- NA_character_
+
+# Step 3: convert (warning is now truly justified if it appears)
+parsed &lt;- suppressWarnings(as.numeric(cleaned))
+parsed
+#&gt; [1]   100.00   250.00       NA    42.00       NA  1250.00     3.14
+
+# Step 4: audit — which positions are still NA?
+which(is.na(parsed))
+#&gt; [1] 3 5</div>
 
     <div class="webr-buttons">
 
@@ -777,34 +917,86 @@ if (-5) cat(&quot;-5 is TRUE (any nonzero is TRUE)\n&quot;)</div>
 
 </div>
 
-<h2>Explicit Coercion (Manual Conversion)</h2>
+<p>Four clean numbers, two deliberate <code>NA</code>s for the <code>&quot;N/A&quot;</code> and the empty cell, and no silent data loss. <code>suppressWarnings()</code> is appropriate <strong>only</strong> after you've cleaned the known offenders — never as the first thing you reach for.</p>
 
-<p>When you need to convert types intentionally, use the <code>as.*()</code> functions:</p>
+<p><img src="screenshots/R-Type-Coercion-safe-convert.webp" alt="Safe coercion workflow: peek, clean, convert, audit" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: The four-step workflow that turns a "dirty" character column into a trustworthy numeric vector without hiding bugs.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never wrap as.numeric() in suppressWarnings() as your first move.</strong> The warning is the only sign you've lost data. Silence it only after you've cleaned the offending values, and always audit with <code>sum(is.na(result))</code> afterwards to catch the last stragglers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You receive <code>ex_raw &lt;- c(&quot; 12&quot;, &quot;15kg&quot;, &quot;20&quot;, &quot;n/a&quot;)</code>. Produce a numeric vector where only <code>&quot;15kg&quot;</code> and <code>&quot;n/a&quot;</code> become <code>NA</code> — <code>&quot;12&quot;</code> and <code>&quot;20&quot;</code> should come through clean.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: clean then convert
+ex_raw &lt;- c(&quot; 12&quot;, &quot;15kg&quot;, &quot;20&quot;, &quot;n/a&quot;)
+ex_clean &lt;- NULL   # your code here
+ex_num   &lt;- NULL   # your code here
+
+ex_num
+#&gt; Expected: [1] 12 NA 20 NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_raw &lt;- c(&quot; 12&quot;, &quot;15kg&quot;, &quot;20&quot;, &quot;n/a&quot;)
+ex_clean &lt;- trimws(ex_raw)
+ex_clean[tolower(ex_clean) == &quot;n/a&quot;] &lt;- NA_character_
+ex_num &lt;- suppressWarnings(as.numeric(ex_clean))
+ex_num
+#&gt; [1] 12 NA 20 NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>trimws()</code> fixes the leading space, the explicit <code>NA</code> substitution handles the sentinel, and <code>suppressWarnings(as.numeric(...))</code> is safe now because the only remaining failure (<code>&quot;15kg&quot;</code>) is genuinely non-numeric and you've accepted that.</p>
+
+</details>
+</section>
+
+<h2>How do implicit and explicit coercion differ in R?</h2>
+
+<p>Every coercion in R is one of two flavours. <strong>Implicit</strong> coercion happens automatically when an operation needs values of compatible types — for example, <code>1 + TRUE</code> works because R quietly promotes <code>TRUE</code> to <code>1</code>. <strong>Explicit</strong> coercion is when you call a conversion function like <code>as.numeric()</code>, <code>as.character()</code>, <code>as.integer()</code> yourself.</p>
+
+<p>You need both, but the rule of thumb is: <em>prefer explicit when the stakes are high</em>. Implicit coercion is convenient in interactive work (<code>sum(my_logical)</code> to count <code>TRUE</code>s), but in production code it hides intent and can paper over bugs. Explicit coercion documents what you meant to do and makes failures loud.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Character to numeric
-prices_text &lt;- c(&quot;19.99&quot;, &quot;5.50&quot;, &quot;12.00&quot;)
-prices_num &lt;- as.numeric(prices_text)
-cat(&quot;Text:&quot;, prices_text, &quot;→ type:&quot;, class(prices_text), &quot;\n&quot;)
-cat(&quot;Numeric:&quot;, prices_num, &quot;→ type:&quot;, class(prices_num), &quot;\n&quot;)
-cat(&quot;Sum:&quot;, sum(prices_num), &quot;\n&quot;)
+    <div class="webr-editor" data-language="r"># Implicit: R does the conversion for you
+TRUE + 1L               # logical promoted to integer -&gt; 2L
+#&gt; [1] 2
 
-# Numeric to character
-ids &lt;- as.character(c(1001, 1002, 1003))
-cat(&quot;IDs:&quot;, ids, &quot;→ type:&quot;, class(ids), &quot;\n&quot;)
+mean(c(TRUE, FALSE, TRUE, TRUE))   # logical -&gt; integer inside mean()
+#&gt; [1] 0.75            # (the proportion of TRUE)
 
-# Character to logical (only &quot;TRUE&quot;/&quot;FALSE&quot; work)
-cat(&quot;as.logical('TRUE'):&quot;, as.logical(&quot;TRUE&quot;), &quot;\n&quot;)
-cat(&quot;as.logical('yes'):&quot;, as.logical(&quot;yes&quot;), &quot;\n&quot;)   # NA!
-cat(&quot;as.logical('1'):&quot;, as.logical(&quot;1&quot;), &quot;\n&quot;)        # NA!
+paste(&quot;Value:&quot;, 3.14)   # 3.14 coerced to &quot;3.14&quot;
+#&gt; [1] &quot;Value: 3.14&quot;
 
-# Numeric to logical
-cat(&quot;as.logical(0):&quot;, as.logical(0), &quot;\n&quot;)    # FALSE
-cat(&quot;as.logical(1):&quot;, as.logical(1), &quot;\n&quot;)    # TRUE
-cat(&quot;as.logical(42):&quot;, as.logical(42), &quot;\n&quot;)  # TRUE (any nonzero)</div>
+# Explicit: you state the intent
+count_true &lt;- sum(as.integer(c(TRUE, FALSE, TRUE, TRUE)))  # same result, clearer intent
+count_true
+#&gt; [1] 3
+
+# Implicit can bite: NA + TRUE is NA, not 1
+NA + TRUE
+#&gt; [1] NA</div>
 
     <div class="webr-buttons">
 
@@ -822,26 +1014,91 @@ cat(&quot;as.logical(42):&quot;, as.logical(42), &quot;\n&quot;)  # TRUE (any no
 
 </div>
 
-<h4>Conversion gotchas</h4>
+<p>The <code>mean()</code> example is lovely: it silently promotes logical to integer and returns the proportion of <code>TRUE</code> values — often exactly what you want. The <code>NA + TRUE</code> example is the dark side: implicit promotion combined with <code>NA</code> propagation silently produces <code>NA</code> instead of throwing an error, and the bug only surfaces downstream.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Date/time objects use their own coercion rules.</strong> <code>as.numeric()</code> on a <code>Date</code> returns days since 1970-01-01; on a <code>POSIXct</code> it returns seconds. Neither is a bug — they're documented — but they catch people out. If you mean "parse this string as a date", use <code>as.Date()</code> or <code>lubridate</code>, not <code>as.numeric()</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given <code>ex_v &lt;- c(TRUE, FALSE, TRUE, NA, TRUE)</code>, count how many <code>TRUE</code>s it has <em>without</em> letting the <code>NA</code> ruin the answer.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: count TRUEs despite the NA
+ex_v &lt;- c(TRUE, FALSE, TRUE, NA, TRUE)
+ex_count &lt;- NULL  # your code here
+
+ex_count
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_v &lt;- c(TRUE, FALSE, TRUE, NA, TRUE)
+ex_count &lt;- sum(ex_v, na.rm = TRUE)
+ex_count
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sum()</code> implicitly coerces logical to integer (<code>TRUE</code>→1, <code>FALSE</code>→0, <code>NA</code>→<code>NA</code>). <code>na.rm = TRUE</code> drops the <code>NA</code> before summing, leaving a clean count of <code>TRUE</code> values.</p>
+
+</details>
+</section>
+
+<h2>What are the most common R coercion bugs?</h2>
+
+<p>Five patterns trip up almost every R user at some point. Each one is a silent failure: R does exactly what it was designed to do, the output looks plausible, and the answer is wrong.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># as.integer truncates, doesn't round!
-cat(&quot;as.integer(3.9):&quot;, as.integer(3.9), &quot;\n&quot;)  # 3, not 4!
-cat(&quot;as.integer(3.1):&quot;, as.integer(3.1), &quot;\n&quot;)  # 3
-cat(&quot;Use round() first if you want rounding:&quot;, round(3.9), &quot;\n&quot;)
+    <div class="webr-editor" data-language="r"># Bug 1: one stray string turns a numeric column to character
+v &lt;- c(1, 2, 3, &quot;4a&quot;)
+typeof(v)
+#&gt; [1] &quot;character&quot;
+v + 1
+#&gt; Error in v + 1 : non-numeric argument to binary operator
 
-# as.numeric on non-numeric text → NA with warning
-result &lt;- suppressWarnings(as.numeric(c(&quot;10&quot;, &quot;twenty&quot;, &quot;30&quot;)))
-cat(&quot;Mixed conversion:&quot;, result, &quot;\n&quot;)  # 10, NA, 30
+# Bug 2: as.integer truncates, doesn't round
+as.integer(0.9)
+#&gt; [1] 0
 
-# Factor to numeric — the classic trap!
+# Bug 3: reading a CSV promotes numerics to character silently
+txt &lt;- &quot;value\n10\n20\nmissing\n30\n&quot;
+df  &lt;- read.csv(text = txt, stringsAsFactors = FALSE)
+typeof(df$value)
+#&gt; [1] &quot;character&quot;
+mean(df$value)
+#&gt; Warning message: argument is not numeric or logical: returning NA
+#&gt; [1] NA
+
+# Bug 4: factor -&gt; integer gives level codes, not labels
 f &lt;- factor(c(&quot;10&quot;, &quot;20&quot;, &quot;30&quot;))
-cat(&quot;Factor:&quot;, f, &quot;\n&quot;)
-cat(&quot;Wrong (gives level codes):&quot;, as.numeric(f), &quot;\n&quot;)          # 1, 2, 3!
-cat(&quot;Right:&quot;, as.numeric(as.character(f)), &quot;\n&quot;)  # 10, 20, 30</div>
+as.integer(f)
+#&gt; [1] 1 2 3                # level codes, NOT 10,20,30
+as.integer(as.character(f))  # the correct two-step
+#&gt; [1] 10 20 30
+
+# Bug 5: large doubles lose precision when cast to integer
+big &lt;- 2^31
+as.integer(big)
+#&gt; Warning message: NAs introduced by coercion to integer range
+#&gt; [1] NA</div>
 
     <div class="webr-buttons">
 
@@ -859,349 +1116,76 @@ cat(&quot;Right:&quot;, as.numeric(as.character(f)), &quot;\n&quot;)  # 10, 20, 
 
 </div>
 
-<blockquote><p><strong>The factor trap:</strong> <code>as.numeric(factor_var)</code> gives you the internal level codes (1, 2, 3...), not the values you see! Always convert to character first: <code>as.numeric(as.character(factor_var))</code>.</p></blockquote>
+<p>Bug 4 is the subtlest and the cause of some spectacular production incidents. <code>factor(c(&quot;10&quot;,&quot;20&quot;,&quot;30&quot;))</code> stores the <em>levels</em> as a character lookup and each row as a small integer pointing into that lookup. <code>as.integer(f)</code> returns those integer positions (<code>1, 2, 3</code>) — not the numeric values the strings represent. The fix is <code>as.numeric(as.character(f))</code>: first back to characters, then to numbers.</p>
 
-<h2>The CSV Import Problem</h2>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Factor -> numeric is a two-step: character first, numeric second.</strong> <code>as.numeric(factor)</code> silently returns the level <em>codes</em>, not the underlying numbers. Always write <code>as.numeric(as.character(f))</code>, or better, fix the read step so the column never becomes a factor to begin with (<code>read.csv(..., stringsAsFactors = FALSE)</code> — now the default in R 4.0+).</div></div>
 
-<p>This is the most common real-world coercion issue. When R reads a CSV, it guesses column types based on the data. One non-numeric value forces the entire column to character:</p>
+<section class="tryit-block">
+<p><strong>Try it:</strong> You have <code>f &lt;- factor(c(&quot;100&quot;, &quot;200&quot;, &quot;300&quot;))</code>. Extract the numeric vector <code>c(100, 200, 300)</code> from it.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: factor -&gt; numeric correctly
+f &lt;- factor(c(&quot;100&quot;, &quot;200&quot;, &quot;300&quot;))
+ex_num &lt;- NULL  # your code here
+
+ex_num
+#&gt; Expected: [1] 100 200 300
+is.numeric(ex_num)
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Simulate a CSV with problems
-csv_data &lt;- data.frame(
-  product = c(&quot;Widget&quot;, &quot;Gadget&quot;, &quot;Doohickey&quot;, &quot;Thingamajig&quot;, &quot;Whatsit&quot;),
-  price = c(&quot;19.99&quot;, &quot;N/A&quot;, &quot;12.50&quot;, &quot;8.75&quot;, &quot;$25.00&quot;),  # &quot;N/A&quot; and &quot;$&quot; break it
-  quantity = c(&quot;100&quot;, &quot;50&quot;, &quot;75&quot;, &quot;1,200&quot;, &quot;80&quot;),  # Comma in &quot;1,200&quot; breaks it
-  stringsAsFactors = FALSE
-)
-
-cat(&quot;Column types:\n&quot;)
-str(csv_data)
-cat(&quot;\nPrice is character because of 'N/A' and '$25.00'\n&quot;)
-cat(&quot;Quantity is character because of '1,200'\n&quot;)</div>
-
+    <div class="webr-editor" data-language="r">f &lt;- factor(c(&quot;100&quot;, &quot;200&quot;, &quot;300&quot;))
+ex_num &lt;- as.numeric(as.character(f))
+ex_num
+#&gt; [1] 100 200 300
+is.numeric(ex_num)
+#&gt; [1] TRUE</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
 
-<h4>Fixing CSV type problems</h4>
+<p><strong>Explanation:</strong> <code>as.character(f)</code> rebuilds the strings <code>&quot;100&quot;, &quot;200&quot;, &quot;300&quot;</code>. <code>as.numeric()</code> then parses them to doubles. Skipping the <code>as.character()</code> step would have returned <code>1, 2, 3</code> — the internal level codes.</p>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># The systematic fix
-csv_data &lt;- data.frame(
-  product = c(&quot;Widget&quot;, &quot;Gadget&quot;, &quot;Doohickey&quot;, &quot;Thingamajig&quot;, &quot;Whatsit&quot;),
-  price = c(&quot;19.99&quot;, &quot;N/A&quot;, &quot;12.50&quot;, &quot;8.75&quot;, &quot;$25.00&quot;),
-  quantity = c(&quot;100&quot;, &quot;50&quot;, &quot;75&quot;, &quot;1,200&quot;, &quot;80&quot;),
-  stringsAsFactors = FALSE
-)
-
-# Step 1: Clean the price column (remove $, handle N/A)
-price_clean &lt;- gsub(&quot;\\$&quot;, &quot;&quot;, csv_data$price)  # Remove $
-price_clean &lt;- gsub(&quot;N/A&quot;, NA, price_clean)       # N/A → real NA
-csv_data$price &lt;- as.numeric(price_clean)
-
-# Step 2: Clean the quantity column (remove commas)
-qty_clean &lt;- gsub(&quot;,&quot;, &quot;&quot;, csv_data$quantity)     # Remove commas
-csv_data$quantity &lt;- as.integer(qty_clean)
-
-cat(&quot;After cleaning:\n&quot;)
-str(csv_data)
-
-# Now math works!
-csv_data$revenue &lt;- csv_data$price * csv_data$quantity
-cat(&quot;\nRevenue:\n&quot;)
-print(csv_data[, c(&quot;product&quot;, &quot;price&quot;, &quot;quantity&quot;, &quot;revenue&quot;)])</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Prevention: read correctly from the start</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># readr::read_csv() handles many issues automatically
-# It uses the first 1000 rows to guess types, handles NA strings,
-# and never converts strings to factors
-
-# Base R read.csv with explicit NA handling:
-# df &lt;- read.csv(&quot;file.csv&quot;, na.strings = c(&quot;N/A&quot;, &quot;NA&quot;, &quot;&quot;, &quot;null&quot;, &quot;#N/A&quot;))
-
-# You can also specify column types explicitly:
-# library(readr)
-# df &lt;- read_csv(&quot;file.csv&quot;, col_types = cols(
-#   price = col_double(),
-#   quantity = col_integer(),
-#   name = col_character()
-# ))
-
-cat(&quot;Best practices for CSV import:\n&quot;)
-cat(&quot;1. Use readr::read_csv() instead of base read.csv()\n&quot;)
-cat(&quot;2. Specify na.strings for common NA representations\n&quot;)
-cat(&quot;3. Check str() immediately after import\n&quot;)
-cat(&quot;4. Fix types before analysis, not during\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Type Checking: Diagnosing Problems</h2>
-
-<p>When something goes wrong, these functions help you figure out what happened:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># A data frame with type problems
-df &lt;- data.frame(
-  x = c(&quot;1&quot;, &quot;2&quot;, &quot;3&quot;),           # Looks numeric but it's character
-  y = factor(c(&quot;A&quot;, &quot;B&quot;, &quot;A&quot;)),   # Factor, not character
-  z = c(TRUE, FALSE, TRUE),       # Logical
-  w = c(1L, 2L, 3L)               # Integer
-)
-
-# str() shows everything at once
-str(df)
-
-# Check specific columns
-cat(&quot;\nClass of each column:\n&quot;)
-print(sapply(df, class))
-
-# is.* functions for specific checks
-cat(&quot;\nis.numeric(df$x):&quot;, is.numeric(df$x), &quot;\n&quot;)
-cat(&quot;is.character(df$x):&quot;, is.character(df$x), &quot;\n&quot;)
-cat(&quot;is.factor(df$y):&quot;, is.factor(df$y), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Quick diagnostic function</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># A handy function to diagnose type problems in a data frame
-type_check &lt;- function(df) {
-  data.frame(
-    column = names(df),
-    type = sapply(df, class),
-    example = sapply(df, function(x) paste(head(x, 3), collapse = &quot;, &quot;)),
-    n_na = sapply(df, function(x) sum(is.na(x))),
-    row.names = NULL
-  )
-}
-
-# Test it
-test_df &lt;- data.frame(
-  name = c(&quot;Alice&quot;, &quot;Bob&quot;, NA),
-  score = c(&quot;88&quot;, &quot;N/A&quot;, &quot;75&quot;),
-  active = c(TRUE, FALSE, TRUE),
-  stringsAsFactors = FALSE
-)
-
-print(type_check(test_df))</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Coercion in Operations</h2>
-
-<h4>Math with mixed types</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Logical + numeric = numeric (TRUE=1, FALSE=0)
-cat(&quot;TRUE + 1:&quot;, TRUE + 1, &quot;\n&quot;)     # 2
-cat(&quot;FALSE + 1:&quot;, FALSE + 1, &quot;\n&quot;)   # 1
-
-# This is why sum() and mean() work on logical vectors
-passed &lt;- c(TRUE, TRUE, FALSE, TRUE, FALSE)
-cat(&quot;sum(passed):&quot;, sum(passed), &quot;\n&quot;)     # 3 (count of TRUEs)
-cat(&quot;mean(passed):&quot;, mean(passed), &quot;\n&quot;)   # 0.6 (proportion)
-
-# Integer + double = double
-cat(&quot;class(1L + 1.5):&quot;, class(1L + 1.5), &quot;\n&quot;)  # numeric (double)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Comparison with mixed types</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Comparing numbers to strings — R converts numbers to strings first!
-cat(&quot;'2' &gt; '10':&quot;, &quot;2&quot; &gt; &quot;10&quot;, &quot;\n&quot;)  # TRUE! String comparison: &quot;2&quot; &gt; &quot;1&quot;
-cat(&quot;2 &gt; 10:&quot;, 2 &gt; 10, &quot;\n&quot;)          # FALSE (numeric comparison)
-
-# This trips people up with sorted data:
-x &lt;- c(&quot;1&quot;, &quot;2&quot;, &quot;10&quot;, &quot;20&quot;, &quot;3&quot;)
-cat(&quot;String sort:&quot;, sort(x), &quot;\n&quot;)      # &quot;1&quot;, &quot;10&quot;, &quot;2&quot;, &quot;20&quot;, &quot;3&quot;
-cat(&quot;Numeric sort:&quot;, sort(as.numeric(x)), &quot;\n&quot;)  # 1, 2, 3, 10, 20</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<blockquote><p><strong>Warning:</strong> String comparison is alphabetical, not numerical. <code>&quot;2&quot; &gt; &quot;10&quot;</code> is TRUE because "2" comes after "1" alphabetically. Always convert to numeric before numerical comparison.</p></blockquote>
-
-<h4>Coercion in data frame operations</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Adding a new column with mixed types
-df &lt;- data.frame(a = 1:3, b = 4:6)
-
-# This works — numeric stays numeric
-df$c &lt;- c(7.5, 8.5, 9.5)
-cat(&quot;Column c type:&quot;, class(df$c), &quot;\n&quot;)
-
-# This coerces the whole column to character
-df$d &lt;- c(1, &quot;two&quot;, 3)
-cat(&quot;Column d type:&quot;, class(df$d), &quot;\n&quot;)
-cat(&quot;Column d values:&quot;, df$d, &quot;\n&quot;)
-
-str(df)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
+</details>
+</section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Predict the Type</h4>
+<p>Two capstone exercises that combine the patterns above. Use distinct variable names (<code>my_*</code>) so your solutions don't overwrite tutorial values.</p>
+
+<h4>Exercise 1: Clean a messy price column</h4>
+
+<p>Given <code>my_prices &lt;- c(&quot;$1,200&quot;, &quot;$950&quot;, &quot;free&quot;, &quot;$75.50&quot;, &quot;N/A&quot;, &quot; $300 &quot;)</code>, produce <code>my_parsed</code> — a numeric vector where only <code>&quot;free&quot;</code> and <code>&quot;N/A&quot;</code> become <code>NA</code>. Print <code>sum(my_parsed, na.rm = TRUE)</code> to verify it equals <code>2525.50</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: Predict the type of each result, then verify
-# Write your prediction as a comment, then uncomment the cat() line
+    <div class="webr-editor" data-language="r"># Exercise 1: currency column -&gt; numeric
+# Hint: strip $ and commas, trim whitespace, then as.numeric with suppressWarnings
+my_prices &lt;- c(&quot;$1,200&quot;, &quot;$950&quot;, &quot;free&quot;, &quot;$75.50&quot;, &quot;N/A&quot;, &quot; $300 &quot;)
 
-a &lt;- c(1, 2, 3)
-b &lt;- c(1L, 2L, 3L)
-d &lt;- c(TRUE, 1, &quot;hello&quot;)
-e &lt;- c(1L, 3.14)
-f &lt;- c(FALSE, 0L)
+my_parsed &lt;- NULL
 
-# cat(&quot;a:&quot;, class(a), &quot;\n&quot;)  # Prediction: ?
-# cat(&quot;b:&quot;, class(b), &quot;\n&quot;)  # Prediction: ?
-# cat(&quot;d:&quot;, class(d), &quot;\n&quot;)  # Prediction: ?
-# cat(&quot;e:&quot;, class(e), &quot;\n&quot;)  # Prediction: ?
-# cat(&quot;f:&quot;, class(f), &quot;\n&quot;)  # Prediction: ?</div>
+my_parsed
+sum(my_parsed, na.rm = TRUE)
+#&gt; Expected: 2525.5</div>
 
     <div class="webr-buttons">
 
@@ -1224,18 +1208,17 @@ f &lt;- c(FALSE, 0L)
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-a &lt;- c(1, 2, 3)           # numeric (default for bare numbers)
-b &lt;- c(1L, 2L, 3L)        # integer (L suffix)
-d &lt;- c(TRUE, 1, &quot;hello&quot;)  # character (string wins over everything)
-e &lt;- c(1L, 3.14)           # numeric (double beats integer)
-f &lt;- c(FALSE, 0L)          # integer (integer beats logical)
+    <div class="webr-editor" data-language="r">my_prices &lt;- c(&quot;$1,200&quot;, &quot;$950&quot;, &quot;free&quot;, &quot;$75.50&quot;, &quot;N/A&quot;, &quot; $300 &quot;)
 
-cat(&quot;a:&quot;, class(a), &quot;\n&quot;)   # numeric
-cat(&quot;b:&quot;, class(b), &quot;\n&quot;)   # integer
-cat(&quot;d:&quot;, class(d), &quot;\n&quot;)   # character
-cat(&quot;e:&quot;, class(e), &quot;\n&quot;)   # numeric
-cat(&quot;f:&quot;, class(f), &quot;\n&quot;)   # integer</div>
+my_cleaned &lt;- gsub(&quot;[$,]&quot;, &quot;&quot;, my_prices)
+my_cleaned &lt;- trimws(my_cleaned)
+my_cleaned[my_cleaned %in% c(&quot;free&quot;, &quot;N/A&quot;)] &lt;- NA_character_
+my_parsed  &lt;- suppressWarnings(as.numeric(my_cleaned))
+
+my_parsed
+#&gt; [1] 1200.0  950.0    NA   75.5    NA  300.0
+sum(my_parsed, na.rm = TRUE)
+#&gt; [1] 2525.5</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1245,109 +1228,115 @@ cat(&quot;f:&quot;, class(f), &quot;\n&quot;)   # integer</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Remember the hierarchy: logical → integer → numeric → character. The most flexible type always wins. <code>d</code> has all three types and character wins. <code>f</code> has logical and integer, so integer wins.</p>
+<p><strong>Explanation:</strong> Four cleaning steps in order: strip symbols, trim whitespace, blank out sentinel values, then coerce. <code>suppressWarnings()</code> is safe because you know exactly which values you're dropping.</p>
 
 </details>
 
-<h4>Exercise 2: Fix the Broken Data</h4>
+<h4>Exercise 2: Safe factor round-trip</h4>
+
+<p>Given <code>my_fac &lt;- factor(c(&quot;2021&quot;, &quot;2020&quot;, &quot;2019&quot;, &quot;2020&quot;, &quot;2021&quot;))</code>, write one line that returns the <em>mean</em> of the underlying years (<code>2020.2</code>). Your solution must work even if the factor is reordered internally.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: This data has type problems. Fix all columns to their
-# correct types and calculate the total revenue.
-sales &lt;- data.frame(
-  product = c(&quot;Widget&quot;, &quot;Gadget&quot;, &quot;Doohickey&quot;),
-  price = c(&quot;$12.50&quot;, &quot;$8.99&quot;, &quot;$15.00&quot;),
-  qty = c(&quot;100&quot;, &quot;2,500&quot;, &quot;50&quot;),
-  taxable = c(&quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;),
-  stringsAsFactors = FALSE
+    <div class="webr-editor" data-language="r"># Exercise 2: mean of a year factor
+my_fac &lt;- factor(c(&quot;2021&quot;, &quot;2020&quot;, &quot;2019&quot;, &quot;2020&quot;, &quot;2021&quot;))
+
+my_mean &lt;- NULL
+
+my_mean
+#&gt; Expected: 2020.2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_fac  &lt;- factor(c(&quot;2021&quot;, &quot;2020&quot;, &quot;2019&quot;, &quot;2020&quot;, &quot;2021&quot;))
+my_mean &lt;- mean(as.numeric(as.character(my_fac)))
+my_mean
+#&gt; [1] 2020.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>as.character(my_fac)</code> rebuilds the real year strings, and <code>as.numeric()</code> turns them into doubles. The factor's internal ordering is irrelevant because you're going through the character labels, not the level codes.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is an end-to-end flow that mimics reading a real CSV export: messy numeric columns mixed with dates, currency, and a categorical. We'll clean each column with the right coercion and end up with a trustworthy data frame.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Complete example: clean a fake sales export
+txt &lt;- paste(
+  &quot;date,amount,qty,region&quot;,
+  &quot;2026-01-05,$1200.50,3,North&quot;,
+  &quot;2026-01-06,$980,2,south&quot;,
+  &quot;2026-01-07,free,1,North&quot;,
+  &quot;2026-01-08,$45.00,N/A,North&quot;,
+  sep = &quot;\n&quot;
 )
+df_raw &lt;- read.csv(text = txt, stringsAsFactors = FALSE)
+str(df_raw)
+#&gt; 'data.frame':    4 obs. of  4 variables:
+#&gt;  $ date  : chr  &quot;2026-01-05&quot; &quot;2026-01-06&quot; &quot;2026-01-07&quot; &quot;2026-01-08&quot;
+#&gt;  $ amount: chr  &quot;$1200.50&quot; &quot;$980&quot; &quot;free&quot; &quot;$45.00&quot;
+#&gt;  $ qty   : chr  &quot;3&quot; &quot;2&quot; &quot;1&quot; &quot;N/A&quot;
+#&gt;  $ region: chr  &quot;North&quot; &quot;south&quot; &quot;North&quot; &quot;North&quot;
 
-# Target types: product=character, price=numeric, qty=integer, taxable=logical
-# Then calculate: revenue = price * qty
+# Clean amount: currency -&gt; numeric
+amt &lt;- gsub(&quot;[$,]&quot;, &quot;&quot;, df_raw$amount)
+amt[amt == &quot;free&quot;] &lt;- NA_character_
+df_raw$amount &lt;- suppressWarnings(as.numeric(amt))
 
-# Write your code below:
-</div>
+# Clean qty: sentinel -&gt; NA -&gt; integer
+q &lt;- df_raw$qty
+q[q == &quot;N/A&quot;] &lt;- NA_character_
+df_raw$qty &lt;- suppressWarnings(as.integer(q))
 
-    <div class="webr-buttons">
+# Parse date
+df_raw$date &lt;- as.Date(df_raw$date)
 
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+# Normalise region (character is fine here)
+df_raw$region &lt;- tools::toTitleCase(tolower(df_raw$region))
 
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+str(df_raw)
+#&gt; 'data.frame':    4 obs. of  4 variables:
+#&gt;  $ date  : Date, format: &quot;2026-01-05&quot; ...
+#&gt;  $ amount: num  1200 980 NA 45
+#&gt;  $ qty   : int  3 2 1 NA
+#&gt;  $ region: chr  &quot;North&quot; &quot;South&quot; &quot;North&quot; &quot;North&quot;
 
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-sales &lt;- data.frame(
-  product = c(&quot;Widget&quot;, &quot;Gadget&quot;, &quot;Doohickey&quot;),
-  price = c(&quot;$12.50&quot;, &quot;$8.99&quot;, &quot;$15.00&quot;),
-  qty = c(&quot;100&quot;, &quot;2,500&quot;, &quot;50&quot;),
-  taxable = c(&quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;),
-  stringsAsFactors = FALSE
-)
-
-# Fix price: remove $ sign
-sales$price &lt;- as.numeric(gsub(&quot;\\$&quot;, &quot;&quot;, sales$price))
-
-# Fix qty: remove commas
-sales$qty &lt;- as.integer(gsub(&quot;,&quot;, &quot;&quot;, sales$qty))
-
-# Fix taxable: convert yes/no to logical
-sales$taxable &lt;- sales$taxable == &quot;yes&quot;
-
-# Calculate revenue
-sales$revenue &lt;- sales$price * sales$qty
-
-cat(&quot;Fixed types:\n&quot;)
-str(sales)
-cat(&quot;\nData:\n&quot;)
-print(sales)
-cat(&quot;\nTotal revenue:&quot;, sum(sales$revenue), &quot;\n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>gsub()</code> removes unwanted characters before conversion. <code>== &quot;yes&quot;</code> converts the string to a logical comparison result (TRUE/FALSE). This is a pattern you'll use every time you clean imported data.</p>
-
-</details>
-
-<h4>Exercise 3: The Factor Trap</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: A survey recorded satisfaction on a 1-5 scale.
-# Due to CSV import, the scores became factors.
-# Convert them to proper integers and compute the average.
-
-satisfaction &lt;- factor(c(&quot;4&quot;, &quot;5&quot;, &quot;3&quot;, &quot;5&quot;, &quot;2&quot;, &quot;4&quot;, &quot;5&quot;, &quot;3&quot;, &quot;4&quot;, &quot;1&quot;))
-
-# WARNING: as.numeric(satisfaction) gives WRONG results!
-# Show the wrong result, then the correct one.
-
-# Write your code below:
-</div>
+# Now arithmetic works
+sum(df_raw$amount * df_raw$qty, na.rm = TRUE)
+#&gt; [1] 5561.5</div>
 
     <div class="webr-buttons">
 
@@ -1365,140 +1354,86 @@ satisfaction &lt;- factor(c(&quot;4&quot;, &quot;5&quot;, &quot;3&quot;, &quot;5
 
 </div>
 
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-satisfaction &lt;- factor(c(&quot;4&quot;, &quot;5&quot;, &quot;3&quot;, &quot;5&quot;, &quot;2&quot;, &quot;4&quot;, &quot;5&quot;, &quot;3&quot;, &quot;4&quot;, &quot;1&quot;))
-
-# The WRONG way (gives internal level codes, not actual values)
-wrong &lt;- as.numeric(satisfaction)
-cat(&quot;WRONG (level codes):&quot;, wrong, &quot;\n&quot;)
-cat(&quot;WRONG mean:&quot;, mean(wrong), &quot;\n\n&quot;)
-
-# The RIGHT way (convert to character first, then numeric)
-right &lt;- as.numeric(as.character(satisfaction))
-cat(&quot;RIGHT (actual values):&quot;, right, &quot;\n&quot;)
-cat(&quot;RIGHT mean:&quot;, mean(right), &quot;\n\n&quot;)
-
-# Alternative: use levels() directly
-also_right &lt;- as.numeric(levels(satisfaction))[satisfaction]
-cat(&quot;Also right:&quot;, also_right, &quot;\n&quot;)
-cat(&quot;Mean:&quot;, mean(also_right), &quot;\n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> Factors store integers internally (level codes: 1, 2, 3...) and display text labels. <code>as.numeric()</code> gives you the internal codes. You must go through <code>as.character()</code> first to get the actual text, then convert to numeric. This is one of R's most infamous gotchas.</p>
-
-</details>
+<p>Every column is now exactly the type you want: <code>Date</code> for the date, <code>num</code> for the amount, <code>int</code> for the quantity, <code>chr</code> for the region. The final <code>sum(...)</code> silently drops rows with <code>NA</code> thanks to <code>na.rm = TRUE</code>, and the answer (<code>5561.5</code>) is trustworthy because you know where the <code>NA</code>s came from.</p>
 
 <h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Conversion</th>
-<th>Function</th>
-<th>Gotcha</th>
+<th>Rule</th>
+<th>What it means</th>
+<th>When to apply</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>To numeric</td>
-<td><code>as.numeric(x)</code></td>
-<td>Fails silently on text → returns NA</td>
+<td><strong>The ladder goes up</strong></td>
+<td>logical → integer → double → character</td>
+<td>Predict <code>c(...)</code>'s type by the highest member</td>
 </tr>
 <tr>
-<td>To integer</td>
-<td><code>as.integer(x)</code></td>
-<td>Truncates, doesn't round</td>
+<td><strong>as.integer truncates</strong></td>
+<td><code>2.9</code> → <code>2</code>, not <code>3</code></td>
+<td>Wrap in <code>round()</code> when you want rounding</td>
 </tr>
 <tr>
-<td>To character</td>
-<td><code>as.character(x)</code></td>
-<td>Always works</td>
+<td><strong>Clean before converting</strong></td>
+<td>Strip <code>$</code>, <code>,</code>, trim whitespace</td>
+<td>Always, on any external data</td>
 </tr>
 <tr>
-<td>To logical</td>
-<td><code>as.logical(x)</code></td>
-<td>Only "TRUE"/"FALSE" strings work</td>
+<td><strong>Audit with which(<a class="auto-link" href="R-Special-Values.html" title="R's Four Special Values: NA, NULL, NaN, Inf — What Each One Actually Means">is.na()</a>)</strong></td>
+<td>Count and locate failures</td>
+<td>After every <code>as.numeric()</code> call</td>
 </tr>
 <tr>
-<td>Factor to numeric</td>
-<td><code>as.numeric(as.character(x))</code></td>
-<td>Direct <code>as.numeric()</code> gives level codes!</td>
+<td><strong>Factor → numeric is two-step</strong></td>
+<td><code>as.numeric(as.character(f))</code></td>
+<td>Any time you need numeric values from a factor</td>
 </tr>
 <tr>
-<td>Check type</td>
-<td><code>class(x)</code>, <code>is.numeric(x)</code></td>
-<td><code>is.numeric()</code> is TRUE for both double and integer</td>
+<td><strong>Prefer explicit in scripts</strong></td>
+<td>Call <code>as.numeric()</code> / <code>as.character()</code> by hand</td>
+<td>Production code, shared pipelines</td>
 </tr>
 </tbody>
 </table>
 
-<p><strong>The coercion hierarchy:</strong> logical → integer → numeric → complex → character</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The warning is the feature, not the bug.</strong> <em>"NAs introduced by coercion"</em> is R telling you that it couldn't convert some values and silently replaced them with <code>NA</code>. Treat every instance as a signal to investigate <em>which</em> values failed — never as noise to suppress first and ask questions later.</div></div>
 
-<p><strong>The golden rules:</strong></p>
+<h2>References</h2>
 
 <ol>
 
-<li>Character always wins in mixed vectors</li>
+<li>Wickham, H. <em>Advanced R</em> (2nd ed.), Chapter 3: Vectors. <a href="https://adv-r.hadley.nz/vectors-chap.html">adv-r.hadley.nz/vectors-chap.html</a></li>
 
-<li>Check <code>str()</code> immediately after importing data</li>
+<li>R Core Team. <em>An Introduction to R</em>, §3.1 Vector arithmetic. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">cran.r-project.org/doc/manuals/r-release/R-intro.html</a></li>
 
-<li>Clean strings (<code>gsub</code>) before converting types</li>
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a>: <code>?as.numeric</code>, <code>?as.integer</code>, <code>?as.character</code>, <code>?as.logical</code>, <code>?warnings</code>.</li>
 
-<li>Never use <code>as.numeric()</code> directly on factors</li>
+<li>R-bloggers. <em>NAs Introduced by Coercion.</em> (2022). <a href="https://www.r-bloggers.com/2022/02/nas-introduced-by-coercion/">r-bloggers.com/2022/02/nas-introduced-by-coercion</a></li>
+
+<li>Statology. <em>How to Fix in R: NAs Introduced by Coercion.</em> <a href="https://www.statology.org/nas-introduced-by-coercion-in-r/">statology.org/nas-introduced-by-coercion-in-r</a></li>
+
+<li>Peng, R. <em>R Programming for Data Science</em>, Chapter 8: Managing Data Frames. <a href="https://bookdown.org/rdpeng/rprogdatascience/">bookdown.org/rdpeng/rprogdatascience</a></li>
+
+<li>R news item: <em>R 4.0.0 stringsAsFactors default changed to FALSE.</em> <a href="https://stat.ethz.ch/pipermail/r-announce/2020/000653.html">stat.ethz.ch/pipermail/r-announce/2020/000653.html</a></li>
 
 </ol>
-
-<h2>FAQ</h2>
-
-<h4>Why does R coerce silently instead of throwing an error?</h4>
-
-<p>R was designed for interactive data analysis where flexibility matters more than strictness. Automatic coercion means <code>TRUE + 1</code> just works (giving 2) rather than requiring explicit conversion. The trade-off is that it can hide bugs — which is why <code>str()</code> after import is essential.</p>
-
-<h4>How do I prevent coercion when creating vectors?</h4>
-
-<p>You can't — <code>c()</code> always coerces to a single type. If you need mixed types, use a <code>list()</code> instead of <code>c()</code>.</p>
-
-<h4>Why does read.csv turn strings into factors?</h4>
-
-<p>Historical reasons. In older R (pre-4.0), <code>read.csv()</code> had <code>stringsAsFactors = TRUE</code> by default. Since R 4.0, the default changed to <code>FALSE</code>. If you're using R 4.0+, this shouldn't be an issue. If it is, add <code>stringsAsFactors = FALSE</code> or switch to <code>readr::read_csv()</code>.</p>
-
-<h4>How do I convert an entire data frame's column types at once?</h4>
-
-<p>Use <code>dplyr::mutate(across(...))</code>:</p>
-
-<pre><code>library(dplyr)
-df &lt;- df |&gt; mutate(across(c(col1, col2, col3), as.numeric))</code></pre>
-
-<h4>Is there a way to see what R coerced?</h4>
-
-<p>Not directly for implicit coercion. But <code>str()</code> shows the current types, and comparing <code>class()</code> before and after operations reveals changes. The <code>readr</code> package shows column type guesses during import.</p>
 
 <h2>Continue Learning</h2>
 
-<p>Understanding coercion prevents the most frustrating R bugs. Related topics:</p>
+<ul>
 
-<ol>
+<li><strong><a href="R-Data-Types.html">R Data Types: Which Type Is Your Variable?</a></strong> — The parent post on R's four atomic types and when each one applies.</li>
 
-<li><strong><a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">R Attributes</a></strong> — metadata that coercion can preserve or destroy</li>
+<li><strong><a href="R-Special-Values.html">R's Four Special Values: NA, NULL, NaN, Inf</a></strong> — The oddballs that often appear right next to coercion bugs.</li>
 
-<li><strong><a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">R Factors</a></strong> — the data type built on top of coercion</li>
+<li><strong><a href="R-Vectors.html">R Vectors: The Foundation of Everything in R</a></strong> — Vectors are where coercion happens; the vector chapter makes the ladder click.</li>
 
-<li><strong>Data Wrangling with dplyr</strong> — type-safe data transformation</li>
-
-</ol>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Functions.html"><span class="rt-title">Write Better R Functions: Arguments, Defaults, Scope &amp; When to Vectorise</span><span class="rt-meta">Learn R &middot; 10 min read</span></a><a class="rt-card" href="R-Subsetting-Exercises.html"><span class="rt-title">R Subsetting Exercises: 10 [] vs [[]] vs $ Practice Problems — Solved</span><span class="rt-meta">Practice Exercises &middot; 3 min read</span></a><a class="rt-card" href="Install-R-and-RStudio-2026.html"><span class="rt-title">Install R &amp; RStudio in 2026: The Setup That Actually Works First Time</span><span class="rt-meta">Learn R &middot; 8 min read</span></a><a class="rt-card" href="Is-R-Worth-Learning-in-2026.html"><span class="rt-title">Is R Worth Learning in 2026? An Honest, Evidence-Based Answer</span><span class="rt-meta">Learn R &middot; 9 min read</span></a></div></section>
+</ul>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Syntax-101.html"><span class="rt-title">R Syntax 101: Write Your First Working Script in 10 Minutes</span><span class="rt-meta">Learn R &middot; 10 min read</span></a><a class="rt-card" href="R-Date-Time-Exercises.html"><span class="rt-title">R Date &amp; Time Exercises: 10 lubridate Practice Problems with Solutions</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a><a class="rt-card" href="Positron-vs-RStudio.html"><span class="rt-title">Positron vs RStudio in 2026: Should You Switch? A Feature-by-Feature Verdict</span><span class="rt-meta">4 min read</span></a><a class="rt-card" href="Install-R-and-RStudio-2026.html"><span class="rt-title">Install R &amp; RStudio in 2026: The Setup That Actually Works First Time</span><span class="rt-meta">Learn R &middot; 8 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="R-Special-Values.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">R Special Values</span></a>
 <a class="pn-link pn-next" href="R-Functions.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Writing R Functions</span></a>
