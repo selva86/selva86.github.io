@@ -1844,7 +1844,7 @@ final_plot
 <li><strong><a href="Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html">ggplot2 Tutorial Part 2: Themes</a></strong> -- Advanced theme customization and styling</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="ggplot2-Coordinate-Systems.html"><span class="rt-title">ggplot2 Coordinate Systems: coord_flip(), coord_polar(), and Beyond</span><span class="rt-meta">7 min read</span></a><a class="rt-card" href="ggplot2-Log-Scale.html"><span class="rt-title">ggplot2 Log Scale in R: When &amp; How to Transform Axes (with Examples)</span><span class="rt-meta">Visualization &middot; 9 min read</span></a><a class="rt-card" href="R-Color-Theory-ggplot2.html"><span class="rt-title">R Color Theory: Choose Palettes, Use ColorBrewer, and Design for Colorblind Readers</span><span class="rt-meta">7 min read</span></a><a class="rt-card" href="ggplot2-Cheat-Sheet.html"><span class="rt-title">ggplot2 Cheat Sheet: Quick Reference for Geoms, Scales, Themes and More</span><span class="rt-meta">6 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="ggplot2-Cheat-Sheet.html"><span class="rt-title">ggplot2 Cheat Sheet: Quick Reference for Geoms, Scales, Themes and More</span><span class="rt-meta">6 min read</span></a><a class="rt-card" href="ggplot2-Themes-in-R.html"><span class="rt-title">ggplot2 Themes: From theme_classic to Your Own Custom House Style</span><span class="rt-meta">Visualization &middot; 10 min read</span></a><a class="rt-card" href="ggplot2-Getting-Started.html"><span class="rt-title">ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes — Zero Experience Needed</span><span class="rt-meta">Visualization &middot; 9 min read</span></a><a class="rt-card" href="ggplot2-Legends-in-R.html"><span class="rt-title">ggplot2 Legends in R: Position, Remove, Rename &amp; Customize Completely</span><span class="rt-meta">Visualization &middot; 9 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="REST-APIs-in-R-with-httr2.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">REST APIs (httr2)</span></a>
 <a class="pn-link pn-next" href="ggplot2-Getting-Started.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">ggplot2 Getting Started</span></a>
@@ -1880,6 +1880,7 @@ final_plot
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1893,7 +1894,9 @@ final_plot
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -2055,29 +2058,39 @@ final_plot
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };

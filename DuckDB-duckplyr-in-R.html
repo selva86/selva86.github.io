@@ -1665,7 +1665,7 @@ print(my_bench)
 <li><strong><a href="DBI-in-R.html">Connect R to Any Database: DBI</a></strong> — Learn the <a class="auto-link" href="DBI-in-R.html" title="Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL">DBI package</a> for connecting to PostgreSQL, MySQL, SQLite, and other databases from R.</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="dbplyr-in-R.html"><span class="rt-title">dbplyr in R: Write dplyr Code That Runs on Any SQL Database</span><span class="rt-meta">6 min read</span></a><a class="rt-card" href="Web-Scraping-in-R-with-rvest.html"><span class="rt-title">Web Scraping in R with rvest: Extract Any Table or Text in 10 Minutes</span><span class="rt-meta">Data Wrangling &middot; 5 min read</span></a><a class="rt-card" href="DuckDB-in-R.html"><span class="rt-title">DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds</span><span class="rt-meta">Data Wrangling &middot; 7 min read</span></a><a class="rt-card" href="REST-APIs-in-R-with-httr2.html"><span class="rt-title">REST APIs in R with httr2: GET, POST, OAuth, and Paginated Results</span><span class="rt-meta">Data Wrangling &middot; 11 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="DuckDB-in-R.html"><span class="rt-title">DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds</span><span class="rt-meta">Data Wrangling &middot; 7 min read</span></a><a class="rt-card" href="dbplyr-in-R.html"><span class="rt-title">dbplyr in R: Write dplyr Code That Runs on Any SQL Database</span><span class="rt-meta">6 min read</span></a><a class="rt-card" href="DBI-in-R.html"><span class="rt-title">Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL</span><span class="rt-meta">Data Wrangling &middot; 5 min read</span></a><a class="rt-card" href="REST-APIs-in-R-with-httr2.html"><span class="rt-title">REST APIs in R with httr2: GET, POST, OAuth, and Paginated Results</span><span class="rt-meta">Data Wrangling &middot; 11 min read</span></a></div></section>
 
         </div>
 
@@ -1697,6 +1697,7 @@ print(my_bench)
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1710,7 +1711,9 @@ print(my_bench)
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -1872,29 +1875,39 @@ print(my_bench)
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };

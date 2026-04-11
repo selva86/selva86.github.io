@@ -970,7 +970,7 @@ for (fn in head(internal, 3)) {
 <li><strong><a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">Lexical Scoping</a></strong> — how R uses environment chains for <a class="auto-link" href="R-Lexical-Scoping.html" title="Lexical Scoping in R: How R Looks Up Variable Names (R Search Path)">variable lookup</a></li>
 
 </ol>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Internal-Functions.html"><span class="rt-title">R Internal Functions: .Internal(), .Call(), .External() — Low Level</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Closures.html"><span class="rt-title">R Closures: Functions That Remember Their Defining Environment</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="R-Lexical-Scoping.html"><span class="rt-title">Lexical Scoping in R: How R Looks Up Variable Names (R Search Path)</span><span class="rt-meta">Advanced R &middot; 3 min read</span></a><a class="rt-card" href="R-Assignment-Deep-Dive.html"><span class="rt-title">R Assignment Deep Dive: &lt;- vs = vs &lt;&lt;- vs -&gt; — Know the Difference</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Internal-Functions.html"><span class="rt-title">R Internal Functions: .Internal(), .Call(), .External() — Low Level</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Closures.html"><span class="rt-title">R Closures: Functions That Remember Their Defining Environment</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="R-Conditions-System.html"><span class="rt-title">R Conditions System: message(), warning(), stop() &amp; Custom Conditions</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="R-Promise-Objects.html"><span class="rt-title">R Promise Objects: Lazy Evaluation &amp; Force() Explained</span><span class="rt-meta">1 min read</span></a></div></section>
 
         </div>
 
@@ -1002,6 +1002,7 @@ for (fn in head(internal, 3)) {
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1015,7 +1016,9 @@ for (fn in head(internal, 3)) {
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -1177,29 +1180,39 @@ for (fn in head(internal, 3)) {
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };

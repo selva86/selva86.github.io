@@ -1288,7 +1288,7 @@ cat(&quot;df2 colnames:&quot;, names(df2), &quot;\n&quot;)  # Something like &qu
 <li><a href="R-Environments.html">R Environments and Scoping</a> -- How R looks up variables</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Names-and-Values.html"><span class="rt-title">R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)</span><span class="rt-meta">Advanced R &middot; 3 min read</span></a><a class="rt-card" href="R-Conditions-System.html"><span class="rt-title">R Conditions System: message(), warning(), stop() &amp; Custom Conditions</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="R-Namespaces.html"><span class="rt-title">R Namespaces: How Packages Export Functions &amp; Prevent Conflicts</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Promise-Objects.html"><span class="rt-title">R Promise Objects: Lazy Evaluation &amp; Force() Explained</span><span class="rt-meta">1 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Active-Bindings.html"><span class="rt-title">Active Bindings in R: makeActiveBinding() for Computed Variables</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Namespaces.html"><span class="rt-title">R Namespaces: How Packages Export Functions &amp; Prevent Conflicts</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Environments.html"><span class="rt-title">R Environments Explained: Global, Local, Package, Execution &amp; Empty</span><span class="rt-meta">Advanced R &middot; 3 min read</span></a><a class="rt-card" href="R-Execution-Stack.html"><span class="rt-title">R Execution Stack: sys.call(), parent.frame() &amp; Call Stack Internals</span><span class="rt-meta">1 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="R-Names-and-Values.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">R Names &amp; Values</span></a>
 <a class="pn-link pn-next" href="R-Memory-lobstr.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">R Memory &amp; lobstr</span></a>
@@ -1324,6 +1324,7 @@ cat(&quot;df2 colnames:&quot;, names(df2), &quot;\n&quot;)  # Something like &qu
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1337,7 +1338,9 @@ cat(&quot;df2 colnames:&quot;, names(df2), &quot;\n&quot;)  # Something like &qu
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -1499,29 +1502,39 @@ cat(&quot;df2 colnames:&quot;, names(df2), &quot;\n&quot;)  # Something like &qu
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };

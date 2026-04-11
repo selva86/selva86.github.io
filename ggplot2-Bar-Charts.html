@@ -1542,7 +1542,7 @@ p_final</div>
 </ul>
 </div>
 
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="ggplot2-Distribution-Charts.html"><span class="rt-title">ggplot2 Distribution Charts: Histograms, Density, Boxplots — When to Use Each</span><span class="rt-meta">Visualization &middot; 9 min read</span></a><a class="rt-card" href="Waffle-Chart-in-R.html"><span class="rt-title">Waffle Chart in R: Display Proportions as a Grid of Squares</span><span class="rt-meta">Visualization &middot; 4 min read</span></a><a class="rt-card" href="Bubble-Chart-in-R.html"><span class="rt-title">Bubble Chart in R: Add a Third Variable to Your Scatter Plot</span><span class="rt-meta">Visualization &middot; 5 min read</span></a><a class="rt-card" href="Sankey-Alluvial-Chart-in-R.html"><span class="rt-title">Sankey and Alluvial Charts in R with ggalluvial</span><span class="rt-meta">3 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Waffle-Chart-in-R.html"><span class="rt-title">Waffle Chart in R: Display Proportions as a Grid of Squares</span><span class="rt-meta">Visualization &middot; 4 min read</span></a><a class="rt-card" href="Lollipop-Chart-in-R.html"><span class="rt-title">Lollipop Chart in R: A Cleaner Alternative to Bar Charts</span><span class="rt-meta">Visualization &middot; 4 min read</span></a><a class="rt-card" href="UpSet-Plot-in-R.html"><span class="rt-title">UpSet Plot in R: Visualize Set Intersections Beyond Venn Diagrams</span><span class="rt-meta">5 min read</span></a><a class="rt-card" href="Heatmap-in-R.html"><span class="rt-title">Heatmap in R: Build and Customize with ggplot2 geom_tile()</span><span class="rt-meta">Visualization &middot; 6 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="ggplot2-Line-Charts.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Line Charts</span></a>
 <a class="pn-link pn-next" href="ggplot2-Distribution-Charts.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Distribution Charts</span></a>
@@ -1578,6 +1578,7 @@ p_final</div>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1591,7 +1592,9 @@ p_final</div>
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -1753,29 +1756,39 @@ p_final</div>
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };

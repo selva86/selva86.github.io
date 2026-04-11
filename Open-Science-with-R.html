@@ -1155,7 +1155,7 @@ for (phase in unique(steps$Phase)) {
 <li><a href="Reproducibility-Crisis.html">Reproducibility Crisis</a> — Why open science matters</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Data-Privacy-in-R.html"><span class="rt-title">Data Privacy in R: Anonymization, Differential Privacy &amp; GDPR Compliance</span><span class="rt-meta">Learn R &middot; 2 min read</span></a><a class="rt-card" href="Reproducibility-Crisis.html"><span class="rt-title">Reproducibility Crisis: What It Means for R Users &amp; How to Help Fix It</span><span class="rt-meta">Learn R &middot; 2 min read</span></a><a class="rt-card" href="Algorithmic-Fairness-in-R.html"><span class="rt-title">Algorithmic Fairness in R: fairml &amp; aif360 for Bias Auditing</span><span class="rt-meta">2 min read</span></a><a class="rt-card" href="Bias-in-Data-and-Models.html"><span class="rt-title">Bias in Data &amp; Models: How to Detect &amp; Reduce It in R</span><span class="rt-meta">Learn R &middot; 2 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Bias-in-Data-and-Models.html"><span class="rt-title">Bias in Data &amp; Models: How to Detect &amp; Reduce It in R</span><span class="rt-meta">Learn R &middot; 2 min read</span></a><a class="rt-card" href="Algorithmic-Fairness-in-R.html"><span class="rt-title">Algorithmic Fairness in R: fairml &amp; aif360 for Bias Auditing</span><span class="rt-meta">2 min read</span></a><a class="rt-card" href="Synthetic-Data-in-R.html"><span class="rt-title">Synthetic Data Generation in R: Protect Privacy While Testing Models</span><span class="rt-meta">2 min read</span></a><a class="rt-card" href="Reproducibility-Crisis.html"><span class="rt-title">Reproducibility Crisis: What It Means for R Users &amp; How to Help Fix It</span><span class="rt-meta">Learn R &middot; 2 min read</span></a></div></section>
 
         </div>
 
@@ -1187,6 +1187,7 @@ for (phase in unique(steps$Phase)) {
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1200,7 +1201,9 @@ for (phase in unique(steps$Phase)) {
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -1362,29 +1365,39 @@ for (phase in unique(steps$Phase)) {
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };

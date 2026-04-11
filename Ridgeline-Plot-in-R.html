@@ -1385,7 +1385,7 @@ p_complete</div>
 <li><strong>R Color Theory</strong> — apply gradient fills and colorblind-safe palettes (like viridis) to ridgeline and other charts.</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Pie-Donut-Chart-in-R.html"><span class="rt-title">Pie Chart and Donut Chart in R with ggplot2</span><span class="rt-meta">Visualization &middot; 4 min read</span></a><a class="rt-card" href="Sankey-Alluvial-Chart-in-R.html"><span class="rt-title">Sankey and Alluvial Charts in R with ggalluvial</span><span class="rt-meta">3 min read</span></a><a class="rt-card" href="ggplot2-Exercises.html"><span class="rt-title">ggplot2 Exercises: 15 Chart-Building Practice Problems (With Solutions)</span><span class="rt-meta">Practice Exercises &middot; 3 min read</span></a><a class="rt-card" href="Treemap-in-R.html"><span class="rt-title">Treemap in R with treemapify and ggplot2</span><span class="rt-meta">Visualization &middot; 4 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Pie-Donut-Chart-in-R.html"><span class="rt-title">Pie Chart and Donut Chart in R with ggplot2</span><span class="rt-meta">Visualization &middot; 4 min read</span></a><a class="rt-card" href="Correlation-Matrix-Plot-in-R.html"><span class="rt-title">Correlation Matrix Plot in R: corrplot, ggcorrplot, and ggplot2</span><span class="rt-meta">Visualization &middot; 4 min read</span></a><a class="rt-card" href="ggplot2-Distribution-Charts.html"><span class="rt-title">ggplot2 Distribution Charts: Histograms, Density, Boxplots — When to Use Each</span><span class="rt-meta">Visualization &middot; 9 min read</span></a><a class="rt-card" href="UpSet-Plot-in-R.html"><span class="rt-title">UpSet Plot in R: Visualize Set Intersections Beyond Venn Diagrams</span><span class="rt-meta">5 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="Violin-Plot-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Violin Plot</span></a>
 <a class="pn-link pn-next" href="Lollipop-Chart-in-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Lollipop Chart</span></a>
@@ -1421,6 +1421,7 @@ p_complete</div>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1434,7 +1435,9 @@ p_complete</div>
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -1596,29 +1599,39 @@ p_complete</div>
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };

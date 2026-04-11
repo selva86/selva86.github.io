@@ -1408,7 +1408,7 @@ cat(&quot;Top scorer:&quot;, valid[[best_idx]]$name,
 <li><a href="/R-Function-Factories.html">R Function Factories</a> — more on closures and factories</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Infix-Functions-in-R.html"><span class="rt-title">Infix Functions in R: Write Your Own %op% Operators</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Currying-and-Partial-Application.html"><span class="rt-title">R Currying &amp; Partial Application: purrr::partial() &amp; rlang</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="Reduce-Filter-Map-in-R.html"><span class="rt-title">Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="furrr-Package-in-R.html"><span class="rt-title">furrr Package in R: Parallel purrr with future Backend</span><span class="rt-meta">1 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Writing-Composable-R-Code.html"><span class="rt-title">Writing Composable R Code: Pipes, Functions &amp; Functional Architecture</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="R-Anonymous-Functions.html"><span class="rt-title">R Anonymous Functions: \\(x) Syntax &amp; When to Use Lambda Style</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="furrr-Package-in-R.html"><span class="rt-title">furrr Package in R: Parallel purrr with future Backend</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="purrr-map-Variants.html"><span class="rt-title">purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial</span><span class="rt-meta">Advanced R &middot; 4 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="R-Subsetting-Exercises.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">R Subsetting (10 problems)</span></a>
 <a class="pn-link pn-next" href="R-OOP-Exercises.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">OOP in R (8 problems)</span></a>
@@ -1444,6 +1444,7 @@ cat(&quot;Top scorer:&quot;, valid[[best_idx]]$name,
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1457,7 +1458,9 @@ cat(&quot;Top scorer:&quot;, valid[[best_idx]]$name,
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -1619,29 +1622,39 @@ cat(&quot;Top scorer:&quot;, valid[[best_idx]]$name,
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };

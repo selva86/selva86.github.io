@@ -1886,7 +1886,7 @@ if (nrow(deviations) == 0) {
 <li><a class="auto-link" href="Statistical-Consulting-in-R.html" title="Statistical Consulting in R: A Problem-Solving Framework That Works Every Time">Statistical Consulting in R</a> — The parent guide on approaching any client's data problem with a structured framework (coming soon).</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Which-Statistical-Test-in-R.html"><span class="rt-title">Which Statistical Test in R? A Decision Flowchart That Answers in 5 Questions</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Statistical-Consulting-in-R.html"><span class="rt-title">Statistical Consulting in R: A Problem-Solving Framework That Works Every Time</span><span class="rt-meta">Statistics &middot; 11 min read</span></a><a class="rt-card" href="Sample-Size-Planning-in-R.html"><span class="rt-title">Sample Size in R: Calculate Your N Before You Collect a Single Observation</span><span class="rt-meta">Statistics &middot; 11 min read</span></a><a class="rt-card" href="Sensitivity-Analysis-in-R.html"><span class="rt-title">Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?</span><span class="rt-meta">10 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Statistical-Report-Writing-in-R.html"><span class="rt-title">Write Statistical Reports in R That Non-Statisticians Actually Understand</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Statistical-Consulting-in-R.html"><span class="rt-title">Statistical Consulting in R: A Problem-Solving Framework That Works Every Time</span><span class="rt-meta">Statistics &middot; 11 min read</span></a><a class="rt-card" href="Which-Statistical-Test-in-R.html"><span class="rt-title">Which Statistical Test in R? A Decision Flowchart That Answers in 5 Questions</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Which-Statistical-Test-in-R.html"><span class="rt-title">Which Statistical Test in R? A Decision Flowchart That Answers in 5 Questions</span><span class="rt-meta">Statistics &middot; 12 min read</span></a></div></section>
 
         </div>
 
@@ -1918,6 +1918,7 @@ if (nrow(deviations) == 0) {
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1931,7 +1932,9 @@ if (nrow(deviations) == 0) {
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -2093,29 +2096,39 @@ if (nrow(deviations) == 0) {
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };

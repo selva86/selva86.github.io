@@ -1366,7 +1366,7 @@ cat('phtest(fe_model, re_model)  # Hausman test\n')</div>
 <li><a href="R-for-Excel-Users.html">R for Excel Users</a> — Excel-to-R translation</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Basics-Exercises.html"><span class="rt-title">R Basics Exercises: 15 Practice Problems for Beginners (With Solutions)</span><span class="rt-meta">Practice Exercises &middot; 3 min read</span></a><a class="rt-card" href="R-Apply-Exercises.html"><span class="rt-title">R apply Family Exercises: 12 apply(), lapply(), sapply() Practice Problems — Solved Step-by-Step</span><span class="rt-meta">Practice Exercises &middot; 3 min read</span></a><a class="rt-card" href="R-Functions.html"><span class="rt-title">Write Better R Functions: Arguments, Defaults, Scope &amp; When to Vectorise</span><span class="rt-meta">Learn R &middot; 6 min read</span></a><a class="rt-card" href="R-Copy-on-Modify.html"><span class="rt-title">Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)</span><span class="rt-meta">3 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Type-Coercion.html"><span class="rt-title">R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters</span><span class="rt-meta">Learn R &middot; 7 min read</span></a><a class="rt-card" href="R-Subsetting-Exercises.html"><span class="rt-title">R Subsetting Exercises: 10 [] vs [[]] vs $ Practice Problems — Solved</span><span class="rt-meta">Practice Exercises &middot; 3 min read</span></a><a class="rt-card" href="R-Data-Frames-Exercises.html"><span class="rt-title">R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced — Solved Step-by-Step)</span><span class="rt-meta">Practice Exercises &middot; 3 min read</span></a><a class="rt-card" href="Multiple-R-Versions.html"><span class="rt-title">Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)</span><span class="rt-meta">5 min read</span></a></div></section>
 
         </div>
 
@@ -1398,6 +1398,7 @@ cat('phtest(fe_model, re_model)  # Hausman test\n')</div>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module">
     let WebR = null;
     let webR = null;
@@ -1411,7 +1412,9 @@ cat('phtest(fe_model, re_model)  # Hausman test\n')</div>
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+    if (typeof CodeMirror !== 'undefined'
+        && CodeMirror.defineMode
+        && typeof CodeMirror.overlayMode === 'function') {
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -1573,29 +1576,39 @@ cat('phtest(fe_model, re_model)  # Hausman test\n')</div>
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
-      const cm = CodeMirror(el, {
-        value: code,
-        mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-        lineNumbers: true,
-        viewportMargin: Infinity,
-        tabSize: 2,
-        theme: 'default',
-        matchBrackets: true,
-        autoCloseBrackets: true,
-        styleActiveLine: true,
-        extraKeys: {
-          'Ctrl-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
-          },
-          'Shift-Enter': function(cm) {
-            const container = cm.getWrapperElement().closest('.webr-container');
-            const btn = container.querySelector('.webr-run-btn');
-            if (btn && !btn.disabled) btn.click();
+      let cm;
+      try {
+        cm = CodeMirror(el, {
+          value: code,
+          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
+          lineNumbers: true,
+          viewportMargin: Infinity,
+          tabSize: 2,
+          theme: 'default',
+          matchBrackets: true,
+          autoCloseBrackets: true,
+          styleActiveLine: true,
+          extraKeys: {
+            'Ctrl-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            },
+            'Shift-Enter': function(cm) {
+              const container = cm.getWrapperElement().closest('.webr-container');
+              const btn = container.querySelector('.webr-run-btn');
+              if (btn && !btn.disabled) btn.click();
+            }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('WebR editor init failed:', e);
+        // Recover: restore the original code text and allow a retry later.
+        el.innerHTML = '';
+        el.textContent = code;
+        delete el.dataset.cmInit;
+        return;
+      }
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };
