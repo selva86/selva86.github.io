@@ -324,7 +324,6 @@ MATHJAX_BLOCK = """
 WEBR_HEAD_BLOCK = """
     <!-- WebR Interactive R Code -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
       /* --- Loading banner: compact, collapses when ready --- */
       .webr-loading-banner {
