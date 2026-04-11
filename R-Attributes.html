@@ -3,8 +3,8 @@
   <head>
     <title>R Attributes: The Hidden Metadata That Makes R Objects Behave Differently</title>
     <meta charset="utf-8">
-    <meta name="Description" content="R attributes are hidden metadata on objects: names, dim, class, and custom tags. Learn how they control behavior and when subsetting strips them.">
-    <meta name="Keywords" content="R attributes, names() in R, dim() in R, class() attribute, attr(), attributes(), R metadata">
+    <meta name="Description" content="Attributes like names, dim, and class change how R prints, subsets, and dispatches methods. Learn what they are, how to set them, and why they explain strange R output.">
+    <meta name="Keywords" content="R attributes, attr R, attributes function R, names R, dim R, class R, structure R, R metadata, R S3 class">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -114,14 +114,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">
-    <meta property="og:description" content="R attributes are hidden metadata on objects: names, dim, class, and custom tags. Learn how they control behavior and when subsetting strips them.">
+    <meta property="og:description" content="Attributes like names, dim, and class change how R prints, subsets, and dispatches methods. Learn what they are, how to set them, and why they explain strange R output.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/R-Attributes.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/R-Attributes.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">
-    <meta name="twitter:description" content="R attributes are hidden metadata on objects: names, dim, class, and custom tags. Learn how they control behavior and when subsetting strips them.">
+    <meta name="twitter:description" content="Attributes like names, dim, and class change how R prints, subsets, and dispatches methods. Learn what they are, how to set them, and why they explain strange R output.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/R-Attributes.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -129,7 +129,7 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "R Attributes: The Hidden Metadata That Makes R Objects Behave Differently",
-      "description": "R attributes are hidden metadata on objects: names, dim, class, and custom tags. Learn how they control behavior and when subsetting strips them.",
+      "description": "Attributes like names, dim, and class change how R prints, subsets, and dispatches methods. Learn what they are, how to set them, and why they explain strange R output.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/R-Attributes.html",
@@ -151,18 +151,7 @@
       ]
     }
     </script>
-        <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-      {"@type": "Question", "name": "Why do custom attributes get stripped?", "acceptedAnswer": {"@type": "Answer", "text": "Safety. R assumes that transforming data invalidates metadata. If you add 1 to every temperature, the \"instrument\" attribute is still valid — but R can't know that in general. So it strips custom attributes conservatively. If you need persistent metadata, use a list with a \"metadata\" element instead."}},
-      {"@type": "Question", "name": "How are attributes different from comments?", "acceptedAnswer": {"@type": "Answer", "text": "Comments exist only in source code. Attributes exist on the R object itself — they travel with the data in memory and can be saved to disk with saveRDS(). Attributes are programmatically accessible; comments are not."}},
-      {"@type": "Question", "name": "Can I create my own class with custom attributes?", "acceptedAnswer": {"@type": "Answer", "text": "Yes! This is the basis of S3 classes. Set class(x) &lt;- &quot;my_class&quot;, then define methods like print.my_class &lt;- function(x, ...) { ... }. This is how R's type system works under the hood."}},
-      {"@type": "Question", "name": "Do attributes affect memory usage?", "acceptedAnswer": {"@type": "Answer", "text": "Minimally. Attributes are stored as a named list attached to the object. A few character strings and numbers add negligible memory compared to the data itself."}}
-      ]
-    }
-    </script>
+    
     
     <!-- WebR Interactive R Code -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
@@ -628,35 +617,39 @@
 
 <h1>R Attributes: The Hidden Metadata That Makes R Objects Behave Differently</h1>
 
-<p class="lead">Every R object can carry hidden metadata called attributes — names, dimensions, class labels, and custom tags. Attributes are what make a matrix different from a vector, a factor different from an integer, and a data frame different from a list.</p>
+<p class="lead">Every R object carries a dictionary of <strong>attributes</strong> — invisible name/value pairs like <code>names</code>, <code>dim</code>, and <code>class</code>. They're why the same numeric vector can print as a matrix, a data frame, or a fitted model. Learn to set, read, and strip them, and half of R's "mysterious" behaviour becomes obvious.</p>
 
-<p>You already use attributes every day without knowing it. When you name a vector with <code>names()</code>, add dimensions with <code>dim()</code>, or check <code>class()</code>, you're reading and writing attributes. Understanding them explains many of R's otherwise mysterious behaviors.</p>
+<p>This post explains what attributes actually are, how the special ones (<code>names</code>, <code>dim</code>, <code>class</code>) transform the same underlying data, how to set attributes with <code>attr()</code>, <code>structure()</code>, and <code>setNames()</code>, and the surprising gotcha where arithmetic silently drops them.</p>
 
-<h2>What Are Attributes?</h2>
+<h2>Why does the same R vector print in completely different ways?</h2>
 
-<p>An <strong>attribute</strong> is a piece of metadata attached to an R object. The object's data stays the same — the attribute adds context about how to interpret that data.</p>
+<p>Let's start with a puzzle: the exact same twelve numbers, printed three different ways, depending on one attribute. <code>1:12</code> is a plain integer vector. Attach a <code>dim</code> attribute and R prints it as a matrix. Attach a <code>class</code> of <code>&quot;Date&quot;</code> and it prints as dates. The underlying memory is identical — only the metadata changes.</p>
+
+<p>This is the single idea the post rests on: <strong>an R object is its values <em>plus</em> its attributes</strong>, and attributes are the lever you pull to change how any function (print, subset, <code>mean</code>, <code>summary</code>) treats that object.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># A plain numeric vector
+    <div class="webr-editor" data-language="r"># One vector, three faces — only the attributes differ
 x &lt;- 1:12
-cat(&quot;x:&quot;, x, &quot;\n&quot;)
-cat(&quot;Attributes:&quot;, attributes(x), &quot;\n&quot;)  # NULL — no attributes
+print(x)
+#&gt;  [1]  1  2  3  4  5  6  7  8  9 10 11 12
 
-# Add a names attribute
-names(x) &lt;- month.abb
-cat(&quot;\nNamed x:&quot;, x, &quot;\n&quot;)
-cat(&quot;Attributes:\n&quot;)
-str(attributes(x))
+# Attach a dim attribute -&gt; it's now a matrix
+dim(x) &lt;- c(3, 4)
+print(x)
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]    1    4    7   10
+#&gt; [2,]    2    5    8   11
+#&gt; [3,]    3    6    9   12
+class(x)
+#&gt; [1] &quot;matrix&quot; &quot;array&quot;
 
-# Add a dim attribute — same data, now a matrix!
-y &lt;- 1:12
-dim(y) &lt;- c(3, 4)
-cat(&quot;\nWith dim(3,4):\n&quot;)
-print(y)
-cat(&quot;Class:&quot;, class(y), &quot;\n&quot;)</div>
+# Strip dim -&gt; back to a plain vector
+dim(x) &lt;- NULL
+class(x)
+#&gt; [1] &quot;integer&quot;</div>
 
     <div class="webr-buttons">
 
@@ -674,571 +667,39 @@ cat(&quot;Class:&quot;, class(y), &quot;\n&quot;)</div>
 
 </div>
 
-<p>The data <code>1:12</code> didn't change. Adding <code>dim</code> told R to display it as a 3×4 grid and treat it as a matrix. That's the power of attributes — they change behavior without changing data.</p>
+<p>The values <code>1:12</code> never moved. Adding <code>dim(x) &lt;- c(3, 4)</code> attached a 2-element integer vector as a single attribute, and the <code>print</code> method for matrices kicked in. Setting the same attribute to <code>NULL</code> removed it, and the plain integer printer returned. This is exactly how matrices and arrays are implemented in base R — they're just vectors with a <code>dim</code> attribute.</p>
 
-<h2>The Three Special Attributes</h2>
-
-<p>Three attributes have special status in R — they're preserved across most operations and have dedicated accessor functions:</p>
-
-<h4>1. names — Label Your Elements</h4>
-
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given <code>y &lt;- 1:24</code>, turn <code>y</code> into a 2x3x4 three-dimensional array in one line, then check its class.</p>
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># names on a vector
-scores &lt;- c(88, 92, 75)
-names(scores) &lt;- c(&quot;Math&quot;, &quot;Science&quot;, &quot;English&quot;)
-cat(&quot;Named vector:&quot;, scores, &quot;\n&quot;)
-cat(&quot;Access by name:&quot;, scores[&quot;Math&quot;], &quot;\n&quot;)
-
-# names on a list
-info &lt;- list(1, &quot;hello&quot;, TRUE)
-names(info) &lt;- c(&quot;number&quot;, &quot;greeting&quot;, &quot;flag&quot;)
-cat(&quot;\nNamed list:\n&quot;)
-str(info)
-
-# names on a data frame (column names)
-df &lt;- data.frame(a = 1:3, b = 4:6)
-cat(&quot;\nColumn names:&quot;, names(df), &quot;\n&quot;)
-names(df) &lt;- c(&quot;x&quot;, &quot;y&quot;)  # Rename columns
-cat(&quot;After rename:&quot;, names(df), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>2. dim — Turn Vectors into Matrices and Arrays</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># A vector becomes a matrix with dim
-x &lt;- 1:12
-dim(x) &lt;- c(3, 4)  # 3 rows, 4 columns
-cat(&quot;Matrix:\n&quot;); print(x)
-cat(&quot;Class:&quot;, class(x), &quot;\n&quot;)
-
-# A vector becomes a 3D array
+    <div class="webr-editor" data-language="r"># Try it: reshape via the dim attribute
 y &lt;- 1:24
-dim(y) &lt;- c(2, 3, 4)  # 2 rows, 3 cols, 4 layers
-cat(&quot;\n3D Array (layer 1):\n&quot;)
-print(y[,,1])
-cat(&quot;Dimensions:&quot;, dim(y), &quot;\n&quot;)</div>
+# your code here
 
+class(y)
+#&gt; Expected: &quot;array&quot;
+dim(y)
+#&gt; Expected: [1] 2 3 4</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
-
-<p><code>dim</code> is what makes a matrix a matrix. A matrix is literally just a vector with a <code>dim</code> attribute.</p>
-
-<h4>3. class — Determine Object Behavior</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># class controls how functions treat an object
-x &lt;- 1:10
-cat(&quot;Default class:&quot;, class(x), &quot;\n&quot;)
-
-# Same data, different class = different behavior
-date_num &lt;- 20089  # Number of days since 1970-01-01
-cat(&quot;As number:&quot;, date_num, &quot;\n&quot;)
-
-class(date_num) &lt;- &quot;Date&quot;
-cat(&quot;As Date:&quot;, format(date_num), &quot;\n&quot;)
-cat(&quot;Class:&quot;, class(date_num), &quot;\n&quot;)
-
-# Factors are integers with a class and levels attribute
-f &lt;- factor(c(&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;, &quot;low&quot;))
-cat(&quot;\nFactor:&quot;, f, &quot;\n&quot;)
-cat(&quot;Underlying integers:&quot;, unclass(f), &quot;\n&quot;)
-cat(&quot;Class:&quot;, class(f), &quot;\n&quot;)
-cat(&quot;Levels:&quot;, levels(f), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>class</code> is the most important attribute — it determines which methods R calls when you use <code>print()</code>, <code>summary()</code>, <code>plot()</code>, and nearly every other generic function.</p>
-
-<h2>Reading and Writing Attributes</h2>
-
-<h4>attributes() — See All Attributes</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># A matrix has dim and dimnames attributes
-m &lt;- matrix(1:6, nrow = 2, dimnames = list(c(&quot;r1&quot;, &quot;r2&quot;), c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)))
-cat(&quot;Matrix:\n&quot;); print(m)
-cat(&quot;\nAll attributes:\n&quot;)
-str(attributes(m))</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>attr() — Get or Set a Single Attribute</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">x &lt;- 1:5
-
-# Set a custom attribute
-attr(x, &quot;source&quot;) &lt;- &quot;experiment_42&quot;
-attr(x, &quot;units&quot;) &lt;- &quot;meters&quot;
-
-cat(&quot;Values:&quot;, x, &quot;\n&quot;)
-cat(&quot;Source:&quot;, attr(x, &quot;source&quot;), &quot;\n&quot;)
-cat(&quot;Units:&quot;, attr(x, &quot;units&quot;), &quot;\n&quot;)
-cat(&quot;\nAll attributes:\n&quot;)
-str(attributes(x))</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Custom attributes let you attach metadata to any object — data source, measurement units, creation timestamp, author notes. They travel with the object.</p>
-
-<h4>structure() — Create an Object with Attributes</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Create a named, annotated vector in one call
-x &lt;- structure(
-  c(72, 68, 75, 80, 77),
-  names = c(&quot;Mon&quot;, &quot;Tue&quot;, &quot;Wed&quot;, &quot;Thu&quot;, &quot;Fri&quot;),
-  units = &quot;Fahrenheit&quot;,
-  source = &quot;weather_station_3&quot;
-)
-
-cat(&quot;Values:&quot;, x, &quot;\n&quot;)
-cat(&quot;Units:&quot;, attr(x, &quot;units&quot;), &quot;\n&quot;)
-cat(&quot;Source:&quot;, attr(x, &quot;source&quot;), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>When Attributes Are Stripped</h2>
-
-<p>Most operations <strong>strip custom attributes</strong>. This is the source of many confusing behaviors:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">x &lt;- structure(1:5, names = letters[1:5], custom = &quot;important!&quot;)
-cat(&quot;Original attributes:\n&quot;)
-str(attributes(x))
-
-# Subsetting preserves names but strips custom attributes
-y &lt;- x[1:3]
-cat(&quot;\nAfter subsetting [1:3]:\n&quot;)
-str(attributes(y))
-cat(&quot;Custom survived?&quot;, !is.null(attr(y, &quot;custom&quot;)), &quot;\n&quot;)
-
-# Math strips names AND custom attributes
-z &lt;- x + 10
-cat(&quot;\nAfter x + 10:\n&quot;)
-str(attributes(z))</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The rules:</p>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Operation</th>
-<th>names</th>
-<th>dim</th>
-<th>class</th>
-<th>Custom attrs</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Subsetting <code>[</code></td>
-<td>Preserved</td>
-<td>Preserved*</td>
-<td>Preserved</td>
-<td><strong>Stripped</strong></td>
-</tr>
-<tr>
-<td>Math <code>+</code>, <code>*</code>, etc.</td>
-<td>Sometimes</td>
-<td>Preserved</td>
-<td>Sometimes</td>
-<td><strong>Stripped</strong></td>
-</tr>
-<tr>
-<td><code>c()</code> combine</td>
-<td>Preserved</td>
-<td><strong>Stripped</strong></td>
-<td><strong>Stripped</strong></td>
-<td><strong>Stripped</strong></td>
-</tr>
-<tr>
-<td><code>unname()</code></td>
-<td><strong>Stripped</strong></td>
-<td>Preserved</td>
-<td>Preserved</td>
-<td>Preserved</td>
-</tr>
-</tbody>
-</table>
-
-<p>*dim is dropped when the result has only one row or column (the "drop" behavior).</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># c() strips dim — matrix becomes vector
-m &lt;- matrix(1:6, nrow = 2)
-cat(&quot;Matrix:\n&quot;); print(m)
-cat(&quot;Class:&quot;, class(m), &quot;\n&quot;)
-
-v &lt;- c(m)
-cat(&quot;\nAfter c():&quot;, v, &quot;\n&quot;)
-cat(&quot;Class:&quot;, class(v), &quot;\n&quot;)  # Just &quot;integer&quot; now</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>How class Controls Behavior (S3 Dispatch)</h2>
-
-<p>The <code>class</code> attribute determines which version of a function gets called. This is R's object-oriented system:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># print() behaves differently based on class
-x &lt;- 1:5
-cat(&quot;print(integer):\n&quot;); print(x)
-
-m &lt;- matrix(1:6, nrow = 2)
-cat(&quot;\nprint(matrix):\n&quot;); print(m)
-
-d &lt;- Sys.Date()
-cat(&quot;\nprint(Date):\n&quot;); print(d)
-
-# Behind the scenes: R looks for print.integer, print.matrix, print.Date
-cat(&quot;\nMethods for print:\n&quot;)
-cat(&quot;print.Date exists:&quot;, exists(&quot;print.Date&quot;), &quot;\n&quot;)
-cat(&quot;print.data.frame exists:&quot;, exists(&quot;print.data.frame&quot;), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>When you call <code>print(x)</code>, R checks <code>class(x)</code>, finds it's "Date", and calls <code>print.Date(x)</code>. This is called <strong><a class="auto-link" href="S3-Method-Dispatch-in-R.html" title="S3 Method Dispatch in R: UseMethod(), NextMethod() & Inheritance">S3 method dispatch</a></strong>, and it's how <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> "know" how to handle different types.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># You can see which methods exist for a generic function
-methods(summary)[1:10]  # First 10 summary methods</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Real-World Examples</h2>
-
-<h4>Data frames are lists with attributes</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># A data frame is a list + class + row.names attributes
-df &lt;- data.frame(x = 1:3, y = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
-
-cat(&quot;Is it a list?&quot;, is.list(df), &quot;\n&quot;)
-cat(&quot;\nAttributes:\n&quot;)
-str(attributes(df))
-
-# Strip the class — it becomes a plain list
-plain &lt;- unclass(df)
-cat(&quot;\nUnclassed:\n&quot;)
-str(plain)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Factors are integers with levels</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># A factor is an integer vector with class and levels attributes
-f &lt;- factor(c(&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;, &quot;low&quot;, &quot;high&quot;))
-cat(&quot;Factor:&quot;, f, &quot;\n&quot;)
-cat(&quot;Storage:&quot;, typeof(f), &quot;\n&quot;)  # integer!
-cat(&quot;\nAttributes:\n&quot;)
-str(attributes(f))
-
-# Remove the class — reveals the underlying integers
-cat(&quot;\nUnderlying data:&quot;, unclass(f), &quot;\n&quot;)
-cat(&quot;Level mapping:&quot;, levels(f), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Dates are numbers with a class</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># A Date is a numeric value (days since 1970-01-01) with class = &quot;Date&quot;
-today &lt;- Sys.Date()
-cat(&quot;As Date:&quot;, format(today), &quot;\n&quot;)
-cat(&quot;As number:&quot;, unclass(today), &quot;\n&quot;)
-cat(&quot;Class:&quot;, class(today), &quot;\n&quot;)
-
-# Create a date manually
-my_date &lt;- structure(20000, class = &quot;Date&quot;)
-cat(&quot;\nDay 20000:&quot;, format(my_date), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Practice Exercises</h2>
-
-<h4>Exercise 1: Explore Attributes</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: Create each of these objects and examine their attributes:
-# 1. A named numeric vector
-# 2. A 3x3 matrix
-# 3. A factor with 3 levels
-# 4. A data frame with 2 columns
-# For each: print attributes() and identify what makes it &quot;special&quot;
-
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
 <details>
 <summary>Click to reveal solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-
-# 1. Named vector: has &quot;names&quot; attribute
-v &lt;- c(a = 1, b = 2, c = 3)
-cat(&quot;1. Named vector attributes:\n&quot;)
-str(attributes(v))
-
-# 2. Matrix: has &quot;dim&quot; (and optionally &quot;dimnames&quot;)
-m &lt;- matrix(1:9, nrow = 3, dimnames = list(c(&quot;r1&quot;,&quot;r2&quot;,&quot;r3&quot;), c(&quot;c1&quot;,&quot;c2&quot;,&quot;c3&quot;)))
-cat(&quot;\n2. Matrix attributes:\n&quot;)
-str(attributes(m))
-
-# 3. Factor: has &quot;levels&quot; and &quot;class&quot;
-f &lt;- factor(c(&quot;red&quot;, &quot;blue&quot;, &quot;green&quot;, &quot;red&quot;))
-cat(&quot;\n3. Factor attributes:\n&quot;)
-str(attributes(f))
-
-# 4. Data frame: has &quot;names&quot;, &quot;class&quot;, and &quot;row.names&quot;
-df &lt;- data.frame(x = 1:3, y = letters[1:3])
-cat(&quot;\n4. Data frame attributes:\n&quot;)
-str(attributes(df))</div>
+    <div class="webr-editor" data-language="r">y &lt;- 1:24
+dim(y) &lt;- c(2, 3, 4)
+class(y)
+#&gt; [1] &quot;array&quot;
+dim(y)
+#&gt; [1] 2 3 4</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1248,22 +709,50 @@ str(attributes(df))</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> A vector becomes "named" by adding a names attribute. A vector becomes a "matrix" by adding a dim attribute. A vector becomes a "factor" by adding class and levels. A list becomes a "data frame" by adding class, names, and row.names.</p>
+<p><strong>Explanation:</strong> Any length-24 vector can become a 2×3×4 array because <code>2 * 3 * 4 == 24</code>. The <code>dim&lt;-</code> assignment is just shorthand for <code>attr(y, &quot;dim&quot;) &lt;- c(2, 3, 4)</code>.</p>
 
 </details>
+</section>
 
-<h4>Exercise 2: Custom Metadata</h4>
+<h2>How do you read, set, and strip attributes in R?</h2>
+
+<p>There are four functions you'll use every day: <code>attr()</code> for one specific attribute, <code>attributes()</code> for the full list, <code>structure()</code> for setting several at once, and the specialised wrappers <code>names()</code>, <code>dim()</code>, <code>class()</code>, <code>dimnames()</code> for the attributes R gives extra-special treatment.</p>
+
+<p><img src="screenshots/R-Attributes-anatomy.webp" alt="Anatomy of an R object: values plus attributes" class="img-responsive" loading="lazy" /></p>
+
+<p>*Figure 1: Every R object has a values payload plus an attribute dictionary. The three most common attributes (<code>names</code>, <code>dim</code>, <code>class</code>) are what most print/subset methods key off.*</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: Create a &quot;measurement&quot; object — a numeric vector with
-# custom attributes: units, instrument, date_recorded, operator
-# Then write a function that prints it nicely, including the metadata
+    <div class="webr-editor" data-language="r"># Four ways to work with attributes
+v &lt;- c(a = 1, b = 2, c = 3)            # names set at creation time
 
-# Write your code below:
-</div>
+# 1. Read one attribute
+attr(v, &quot;names&quot;)
+#&gt; [1] &quot;a&quot; &quot;b&quot; &quot;c&quot;
+names(v)                               # shortcut for the above
+#&gt; [1] &quot;a&quot; &quot;b&quot; &quot;c&quot;
+
+# 2. Read them all
+attributes(v)
+#&gt; $names
+#&gt; [1] &quot;a&quot; &quot;b&quot; &quot;c&quot;
+
+# 3. Set a single attribute
+attr(v, &quot;units&quot;) &lt;- &quot;cm&quot;
+attributes(v)
+#&gt; $names
+#&gt; [1] &quot;a&quot; &quot;b&quot; &quot;c&quot;
+#&gt;
+#&gt; $units
+#&gt; [1] &quot;cm&quot;
+
+# 4. Strip everything with attributes(x) &lt;- NULL
+attributes(v) &lt;- NULL
+v
+#&gt; [1] 1 2 3</div>
 
     <div class="webr-buttons">
 
@@ -1281,33 +770,82 @@ str(attributes(df))</div>
 
 </div>
 
+<p>The cleanest way to build an object with several attributes at once is <code>structure()</code>, which wraps value-plus-attributes into one call — the idiom you'll see in most package source code.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># structure() = create a value and attach attributes in one call
+m &lt;- structure(1:6,
+               dim = c(2, 3),
+               dimnames = list(c(&quot;r1&quot;, &quot;r2&quot;), c(&quot;c1&quot;, &quot;c2&quot;, &quot;c3&quot;)))
+m
+#&gt;    c1 c2 c3
+#&gt; r1  1  3  5
+#&gt; r2  2  4  6
+attributes(m)
+#&gt; $dim
+#&gt; [1] 2 3
+#&gt;
+#&gt; $dimnames
+#&gt; $dimnames[[1]]
+#&gt; [1] &quot;r1&quot; &quot;r2&quot;
+#&gt; $dimnames[[2]]
+#&gt; [1] &quot;c1&quot; &quot;c2&quot; &quot;c3&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>structure()</code> builds an object, attaches a <code>dim</code> attribute (so it prints as a matrix) and a <code>dimnames</code> attribute (so <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a> are labelled), all in a single expression. Any function that accepts <code>.Data</code> and <code>...</code> attribute pairs is a clean way to document what an object "is" at the point where it's created.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An R object is data + attributes, nothing more.</strong> Matrices, arrays, factors, data frames, Dates, and S3 objects of every kind are all ordinary <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">atomic vectors</a> or lists with the right attributes attached. Once you see through the wrapper you can build any of them by hand — and debug them when they break.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a 2x3 matrix <code>ex_m</code> whose values are <code>1:6</code> and which has row names <code>&quot;row1&quot;, &quot;row2&quot;</code> and column names <code>&quot;A&quot;, &quot;B&quot;, &quot;C&quot;</code> — all via a single <code>structure()</code> call.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: one-shot matrix with dimnames
+ex_m &lt;- NULL  # your code here
+
+ex_m
+#&gt; Expected:
+#&gt;      A B C
+#&gt; row1 1 3 5
+#&gt; row2 2 4 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 <details>
 <summary>Click to reveal solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-measurement &lt;- structure(
-  c(23.4, 23.8, 22.9, 24.1, 23.5),
-  units = &quot;Celsius&quot;,
-  instrument = &quot;Thermocouple-7&quot;,
-  date_recorded = &quot;2026-03-29&quot;,
-  operator = &quot;Dr. Smith&quot;
-)
-
-# Print function using attributes
-print_measurement &lt;- function(m) {
-  cat(&quot;=== Measurement Report ===\n&quot;)
-  cat(&quot;Instrument:&quot;, attr(m, &quot;instrument&quot;), &quot;\n&quot;)
-  cat(&quot;Operator:&quot;, attr(m, &quot;operator&quot;), &quot;\n&quot;)
-  cat(&quot;Date:&quot;, attr(m, &quot;date_recorded&quot;), &quot;\n&quot;)
-  cat(&quot;Units:&quot;, attr(m, &quot;units&quot;), &quot;\n&quot;)
-  cat(&quot;Values:&quot;, m, &quot;\n&quot;)
-  cat(&quot;Mean:&quot;, round(mean(m), 2), attr(m, &quot;units&quot;), &quot;\n&quot;)
-  cat(&quot;SD:&quot;, round(sd(m), 2), attr(m, &quot;units&quot;), &quot;\n&quot;)
-}
-
-print_measurement(measurement)</div>
+    <div class="webr-editor" data-language="r">ex_m &lt;- structure(1:6,
+                  dim = c(2, 3),
+                  dimnames = list(c(&quot;row1&quot;, &quot;row2&quot;), c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;)))
+ex_m
+#&gt;      A B C
+#&gt; row1 1 3 5
+#&gt; row2 2 4 6</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1317,81 +855,14 @@ print_measurement(measurement)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Custom attributes attach metadata directly to the data object. The metadata travels with the data — no separate "metadata file" needed. The downside: custom attributes are stripped by most operations, so you'd need to re-attach them after transformations.</p>
+<p><strong>Explanation:</strong> <code>structure()</code> creates the integer vector, attaches both attributes, and R's matrix printer takes it from there. Using the two-step <code>m &lt;- 1:6; dim(m) &lt;- c(2,3); ...</code> approach is equally valid but noisier.</p>
 
 </details>
+</section>
 
-<h4>Exercise 3: Attribute Survival</h4>
+<h2>What makes names, dim, and class so special?</h2>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: Given a named vector with a custom attribute,
-# test which operations preserve vs strip the attribute.
-# Try: subsetting, math, c(), sort(), rev()
-
-x &lt;- structure(c(a=10, b=20, c=30), source=&quot;test_data&quot;)
-
-# Test each operation and report: did &quot;source&quot; survive?
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-x &lt;- structure(c(a=10, b=20, c=30), source=&quot;test_data&quot;)
-
-check &lt;- function(label, obj) {
-  survived &lt;- !is.null(attr(obj, &quot;source&quot;))
-  names_ok &lt;- !is.null(names(obj))
-  cat(sprintf(&quot;%-15s source: %-5s  names: %-5s\n&quot;,
-    label, survived, names_ok))
-}
-
-cat(&quot;Operation       source  names\n&quot;)
-cat(&quot;----------      ------  -----\n&quot;)
-check(&quot;original&quot;, x)
-check(&quot;x[1:2]&quot;, x[1:2])
-check(&quot;x + 1&quot;, x + 1)
-check(&quot;c(x, d=40)&quot;, c(x, d = 40))
-check(&quot;sort(x)&quot;, sort(x))
-check(&quot;rev(x)&quot;, rev(x))
-check(&quot;x * 2&quot;, x * 2)
-check(&quot;sum(x)&quot;, structure(sum(x), source = attr(x, &quot;source&quot;)))</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>names</code> survives most operations but gets stripped by some. The custom <code>source</code> attribute is stripped by nearly everything. This is why R's built-in "special" attributes (names, dim, class) are treated differently from custom ones — they get special preservation logic.</p>
-
-</details>
-
-<h2>Summary</h2>
+<p>Any attribute can carry any R value — <code>attr(x, &quot;author&quot;) &lt;- &quot;Selva&quot;</code> is perfectly legal. But R treats a small set of attributes as <strong>special</strong>: they come with dedicated accessor functions, they're preserved or rebuilt by many operations, and setting them triggers downstream behaviour (like switching which <code>print</code> method runs). The big three are <code>names</code>, <code>dim</code>, and <code>class</code>.</p>
 
 <table class="table table-striped">
 <thead>
@@ -1404,90 +875,614 @@ check(&quot;sum(x)&quot;, structure(sum(x), source = attr(x, &quot;source&quot;)
 <tbody>
 <tr>
 <td><code>names</code></td>
-<td><code>names()</code></td>
-<td>Labels elements for named access</td>
+<td><code>names(x)</code>, <code>setNames()</code></td>
+<td>Labels each element; enables name-based subsetting (<code>x[&quot;alice&quot;]</code>)</td>
 </tr>
 <tr>
 <td><code>dim</code></td>
-<td><code>dim()</code></td>
-<td>Turns vector into matrix/array</td>
+<td><code>dim(x)</code></td>
+<td>Reshapes a vector into a matrix or higher-dimensional array</td>
 </tr>
 <tr>
 <td><code>dimnames</code></td>
-<td><code>dimnames()</code></td>
-<td>Row/column names for matrices</td>
+<td><code>dimnames(x)</code>, <code>rownames()</code>, <code>colnames()</code></td>
+<td>Row/column labels for matrices and arrays</td>
 </tr>
 <tr>
 <td><code>class</code></td>
-<td><code>class()</code></td>
-<td>Controls method dispatch (print, summary, etc.)</td>
+<td><code>class(x)</code>, <code>class(x) &lt;- ...</code></td>
+<td>Drives <a class="auto-link" href="S3-Method-Dispatch-in-R.html" title="S3 Method Dispatch in R: UseMethod(), NextMethod() & Inheritance">S3 method dispatch</a> (which <code>print</code>, <code>summary</code>, <code>[</code> runs)</td>
 </tr>
 <tr>
 <td><code>levels</code></td>
-<td><code>levels()</code></td>
-<td>Defines categories for factors</td>
+<td><code>levels(x)</code></td>
+<td>The string lookup for factors</td>
 </tr>
 <tr>
 <td><code>row.names</code></td>
-<td><code>row.names()</code></td>
-<td>Row labels for data frames</td>
-</tr>
-<tr>
-<td>Custom</td>
-<td><code>attr(x, &quot;name&quot;)</code></td>
-<td>Any metadata you want to attach</td>
+<td><code>row.names(x)</code></td>
+<td>Row identifiers for data frames (legacy name)</td>
 </tr>
 </tbody>
 </table>
 
-<p><strong>Key insights:</strong></p>
+<p><img src="screenshots/R-Attributes-dim-transform.webp" alt="dim turning a vector into a matrix then an array" class="img-responsive" loading="lazy" /></p>
 
-<ul>
+<p>*Figure 2: A length-12 vector becomes a 3x4 matrix, then a 2x2x3 array, purely by changing the <code>dim</code> attribute. Nothing in memory moves.*</p>
 
-<li>A matrix is a vector + <code>dim</code> attribute</li>
+<div class="webr-container">
 
-<li>A factor is an integer + <code>class</code> + <code>levels</code> attributes</li>
+  <div class="webr-code-block">
 
-<li>A data frame is a list + <code>class</code> + <code>names</code> + <code>row.names</code> attributes</li>
+    <div class="webr-editor" data-language="r"># Flipping class to trigger different behaviour
+d &lt;- 19000                  # ordinary number
+class(d) &lt;- &quot;Date&quot;          # set the class attribute
+d
+#&gt; [1] &quot;2022-01-08&quot;         # now the Date print method runs
+unclass(d)                  # peek at the underlying value
+#&gt; [1] 19000
+typeof(d)
+#&gt; [1] &quot;double&quot;
 
-<li>Custom attributes are stripped by most operations</li>
+# Factor = integer vector + class + levels
+f &lt;- structure(c(1L, 2L, 1L, 3L),
+               levels = c(&quot;red&quot;, &quot;green&quot;, &quot;blue&quot;),
+               class  = &quot;factor&quot;)
+f
+#&gt; [1] red   green red   blue
+#&gt; Levels: red green blue
+typeof(f)
+#&gt; [1] &quot;integer&quot;</div>
 
-<li><code>class</code> determines which functions get called on your object</li>
+    <div class="webr-buttons">
 
-</ul>
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
 
-<h2>FAQ</h2>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
 
-<h4>Why do custom attributes get stripped?</h4>
+    </div>
 
-<p>Safety. R assumes that transforming data invalidates metadata. If you add 1 to every temperature, the "instrument" attribute is still valid — but R can't know that in general. So it strips custom attributes conservatively. If you need persistent metadata, use a list with a "metadata" element instead.</p>
+    <pre class="webr-output"></pre>
 
-<h4>How are attributes different from comments?</h4>
+  </div>
 
-<p>Comments exist only in source code. Attributes exist on the R object itself — they travel with the data in memory and can be saved to disk with <code>saveRDS()</code>. Attributes are programmatically accessible; comments are not.</p>
+  <div class="webr-plot-output"></div>
 
-<h4>Can I create my own class with custom attributes?</h4>
+</div>
 
-<p>Yes! This is the basis of <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 classes</a>. Set <code>class(x) &lt;- &quot;my_class&quot;</code>, then define methods like <code>print.my_class &lt;- function(x, ...) { ... }</code>. This is how R's type system works under the hood.</p>
+<p>The <code>Date</code> example is the classic revelation: a <code>Date</code> is just a double counting days since 1970-01-01, plus a <code>class</code> attribute that tells <code>print</code>, <code>format</code>, and friends to interpret it as a calendar date. The factor example is similar: an integer vector plus <code>levels</code> (the lookup) plus <code>class = &quot;factor&quot;</code>. Once you see this, S3 stops feeling magical.</p>
 
-<h4>Do attributes affect memory usage?</h4>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Setting class to a bogus value breaks method dispatch.</strong> <code>class(x) &lt;- &quot;banana&quot;</code> is syntactically legal but now every generic (<code>print</code>, <code>summary</code>, <code>[</code>) will fail to find a method and fall back to the default. If you're inventing a class, implement at least <code>print.banana()</code> first, or use <code>oldClass(x) &lt;- NULL</code> to reset.</div></div>
 
-<p>Minimally. Attributes are stored as a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> attached to the object. A few character strings and numbers add negligible memory compared to the data itself.</p>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a three-element factor <code>ex_f</code> with values <code>&quot;S&quot;, &quot;M&quot;, &quot;L&quot;</code> in that order — but do it by hand with <code>structure()</code>, not with <code>factor()</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: build a factor from scratch
+ex_f &lt;- NULL  # your code here — use structure()
 
-<h2>Continue Learning</h2>
+ex_f
+#&gt; Expected:
+#&gt; [1] S M L
+#&gt; Levels: S M L
+class(ex_f)
+#&gt; Expected: &quot;factor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>Attributes unlock understanding of R's type system. Related topics:</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_f &lt;- structure(c(1L, 2L, 3L),
+                  levels = c(&quot;S&quot;, &quot;M&quot;, &quot;L&quot;),
+                  class  = &quot;factor&quot;)
+ex_f
+#&gt; [1] S M L
+#&gt; Levels: S M L
+class(ex_f)
+#&gt; [1] &quot;factor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> An integer vector whose values are positions into <code>levels</code>, with <code>class = &quot;factor&quot;</code> to trigger the factor print method. This is exactly what <code>factor(c(&quot;S&quot;,&quot;M&quot;,&quot;L&quot;))</code> produces internally.</p>
+
+</details>
+</section>
+
+<h2>Why do attributes silently disappear after arithmetic?</h2>
+
+<p>Here is the foot-gun that catches almost everyone: most arithmetic and coercion operations <strong>drop</strong> attributes. If you attach a <code>units</code> attribute to a numeric vector and then multiply it by 2, the attribute is gone. R's rule is that only "structural" attributes (the special ones: <code>names</code>, <code>dim</code>, <code>dimnames</code>) are preserved — everything else is discarded unless an operation has been written to carry it through.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Custom attributes get dropped by arithmetic
+v &lt;- c(10, 20, 30)
+attr(v, &quot;units&quot;)  &lt;- &quot;kg&quot;
+attr(v, &quot;source&quot;) &lt;- &quot;scale-A&quot;
+attributes(v)
+#&gt; $units
+#&gt; [1] &quot;kg&quot;
+#&gt; $source
+#&gt; [1] &quot;scale-A&quot;
+
+v2 &lt;- v * 2
+attributes(v2)
+#&gt; NULL
+v2
+#&gt; [1] 20 40 60
+
+# But names (a special attribute) survive
+w &lt;- c(a = 1, b = 2, c = 3)
+w * 10
+#&gt;  a  b  c
+#&gt; 10 20 30</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>v</code> loses both <code>units</code> and <code>source</code> the moment it's multiplied. <code>w</code>, whose only attribute is <code>names</code>, keeps them because <code>names</code> is on the "special" list that R deliberately preserves through vectorised arithmetic. This is why rolling your own attribute-carrying types usually means wrapping them in an S3 class and writing arithmetic methods yourself — or living with manual re-attachment.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>If you need attributes to survive arithmetic, wrap them in an S3 class.</strong> Add a <code>class</code> attribute (e.g. <code>&quot;measurement&quot;</code>) and define <code>Ops.measurement</code> (the S3 group generic for arithmetic). That's exactly what packages like <code>units</code>, <code>hms</code>, and <code>Matrix</code> do.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create <code>ex_w &lt;- c(x = 1, y = 2, z = 3)</code> with an extra <code>attr(ex_w, &quot;source&quot;) &lt;- &quot;test&quot;</code>. After running <code>ex_w + 1</code>, check which attributes survived.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: which attributes survive + 1?
+ex_w &lt;- c(x = 1, y = 2, z = 3)
+attr(ex_w, &quot;source&quot;) &lt;- &quot;test&quot;
+
+ex_after &lt;- ex_w + 1
+attributes(ex_after)
+#&gt; Expected: only the names attribute survives</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_w &lt;- c(x = 1, y = 2, z = 3)
+attr(ex_w, &quot;source&quot;) &lt;- &quot;test&quot;
+ex_after &lt;- ex_w + 1
+attributes(ex_after)
+#&gt; $names
+#&gt; [1] &quot;x&quot; &quot;y&quot; &quot;z&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>names</code> is a structural attribute and is preserved by arithmetic. <code>source</code> is a custom attribute and is silently dropped. The value vector <code>c(2, 3, 4)</code> is unchanged — only the metadata differs.</p>
+
+</details>
+</section>
+
+<h2>What are the most common R attribute pitfalls?</h2>
+
+<p>Five patterns cause most of the "why is my object behaving like that?" moments. Each has a one-line fix once you know the shape of the problem.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Pitfall 1: using attr() for names/dim/class instead of the accessor
+x &lt;- 1:5
+attr(x, &quot;names&quot;) &lt;- c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;,&quot;d&quot;,&quot;e&quot;)    # works, but discouraged
+names(x) &lt;- c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;,&quot;d&quot;,&quot;e&quot;)            # preferred — validates input
+
+# Pitfall 2: dim length doesn't match object length
+y &lt;- 1:10
+# dim(y) &lt;- c(3, 4)          # would error: dims [3,4] != length 10
+
+# Pitfall 3: forgetting that as.vector() strips attributes
+m &lt;- matrix(1:6, 2, 3)
+as.vector(m)                 # drops dim
+#&gt; [1] 1 2 3 4 5 6
+dim(m)
+#&gt; [1] 2 3
+
+# Pitfall 4: unname() strips names but keeps dim
+m2 &lt;- structure(1:6, dim = c(2,3), dimnames = list(c(&quot;a&quot;,&quot;b&quot;), c(&quot;x&quot;,&quot;y&quot;,&quot;z&quot;)))
+unname(m2)                   # dim stays, dimnames go
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    3    5
+#&gt; [2,]    2    4    6
+
+# Pitfall 5: setattr-style updates that look identical but aren't
+a &lt;- 1:5
+b &lt;- a                       # copy-on-modify: b is a reference
+attr(b, &quot;label&quot;) &lt;- &quot;cloned&quot; # modifying b doesn't touch a
+attributes(a)
+#&gt; NULL
+attributes(b)
+#&gt; $label
+#&gt; [1] &quot;cloned&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Pitfalls 1 and 2 are about using the right accessor and validating length. Pitfalls 3 and 4 are about knowing which attribute each stripping helper removes (<code>as.vector</code> removes everything; <code>unname</code> removes only names/dimnames). Pitfall 5 is a reminder that R's <a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">copy-on-modify</a> semantics mean attaching an attribute to one variable never affects another — a feature when you understand it, a puzzle when you don't.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">**<code>as.vector()</code> removes all attributes except <code>names</code>.** If you want to really flatten an object including names, call <code>unname(as.vector(x))</code>. Conversely, <code>unlist()</code> preserves names by prefixing them with the parent list name — useful for flattening <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">nested lists</a> into labelled vectors.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You have <code>m &lt;- matrix(1:6, 2, 3, dimnames = list(c(&quot;r1&quot;,&quot;r2&quot;), c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)))</code>. Strip the <code>dimnames</code> but keep the <code>dim</code>, so it still prints as a 2x3 matrix but without row/column labels.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: drop dimnames, keep dim
+m &lt;- matrix(1:6, 2, 3, dimnames = list(c(&quot;r1&quot;,&quot;r2&quot;), c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)))
+ex_plain &lt;- NULL  # your code here
+
+ex_plain
+#&gt; Expected:
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    3    5
+#&gt; [2,]    2    4    6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">m &lt;- matrix(1:6, 2, 3, dimnames = list(c(&quot;r1&quot;,&quot;r2&quot;), c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)))
+ex_plain &lt;- m
+dimnames(ex_plain) &lt;- NULL
+ex_plain
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    3    5
+#&gt; [2,]    2    4    6
+dim(ex_plain)
+#&gt; [1] 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>dimnames(x) &lt;- NULL</code> removes that one attribute and nothing else. <code>dim</code> is untouched, so R still prints the object as a matrix.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Two capstone exercises that combine attribute handling with real vector work.</p>
+
+<h4>Exercise 1: Build a labelled 3x3 matrix from scratch</h4>
+
+<p>Starting from <code>1:9</code>, build <code>my_mat</code> — a 3x3 matrix whose rows are labelled <code>&quot;r1&quot;,&quot;r2&quot;,&quot;r3&quot;</code>, whose columns are labelled <code>&quot;c1&quot;,&quot;c2&quot;,&quot;c3&quot;</code>, and which has an extra custom attribute <code>experiment = &quot;batch-01&quot;</code>. All of it in a single <code>structure()</code> call.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: labelled matrix + custom attribute
+my_mat &lt;- NULL
+
+my_mat
+attributes(my_mat)
+#&gt; Expected:
+#&gt;   $dim [1] 3 3
+#&gt;   $dimnames (...)
+#&gt;   $experiment [1] &quot;batch-01&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_mat &lt;- structure(
+  1:9,
+  dim = c(3, 3),
+  dimnames = list(c(&quot;r1&quot;,&quot;r2&quot;,&quot;r3&quot;), c(&quot;c1&quot;,&quot;c2&quot;,&quot;c3&quot;)),
+  experiment = &quot;batch-01&quot;
+)
+
+my_mat
+#&gt;    c1 c2 c3
+#&gt; r1  1  4  7
+#&gt; r2  2  5  8
+#&gt; r3  3  6  9
+attributes(my_mat)
+#&gt; $dim
+#&gt; [1] 3 3
+#&gt;
+#&gt; $dimnames
+#&gt; $dimnames[[1]]
+#&gt; [1] &quot;r1&quot; &quot;r2&quot; &quot;r3&quot;
+#&gt; $dimnames[[2]]
+#&gt; [1] &quot;c1&quot; &quot;c2&quot; &quot;c3&quot;
+#&gt;
+#&gt; $experiment
+#&gt; [1] &quot;batch-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>structure()</code> takes any number of <code>attribute = value</code> pairs. <code>dim</code> and <code>dimnames</code> are specials and change how the object prints; <code>experiment</code> is a custom attribute that will be dropped by arithmetic but is visible to <code>attributes()</code>.</p>
+
+</details>
+
+<h4>Exercise 2: Peek inside a Date</h4>
+
+<p>R Dates are secretly doubles. Without converting with <code>as.numeric()</code>, use attribute manipulation to show that <code>as.Date(&quot;2026-04-11&quot;)</code> is just the number of days since 1970-01-01 wearing a <code>class</code> hat. Save the raw number to <code>my_days</code> and confirm with <code>class()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: unmask a Date
+d &lt;- as.Date(&quot;2026-04-11&quot;)
+
+my_days &lt;- NULL  # your code here — use class()&lt;- or unclass()
+
+my_days
+#&gt; Expected: [1] 20555
+class(my_days)
+#&gt; Expected: &quot;numeric&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">d &lt;- as.Date(&quot;2026-04-11&quot;)
+my_days &lt;- unclass(d)
+my_days
+#&gt; [1] 20555
+class(my_days)
+#&gt; [1] &quot;numeric&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>unclass()</code> removes the <code>class</code> attribute but touches nothing else. What's left is the underlying double — the number of days since 1970-01-01. Setting <code>class(d) &lt;- NULL</code> would also work and is equivalent.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A small end-to-end flow that uses attributes to turn a numeric summary into a self-describing labelled object — the kind of pattern real R packages use to return results.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Complete example: a self-describing summary object
+obs &lt;- c(52.1, 49.7, 55.3, 48.8, 51.5, 50.0)
+
+# Build a bare summary vector
+stats &lt;- c(mean(obs), sd(obs), min(obs), max(obs))
+
+# Attach names + a custom class + metadata via structure()
+summary_obj &lt;- structure(
+  stats,
+  names       = c(&quot;mean&quot;, &quot;sd&quot;, &quot;min&quot;, &quot;max&quot;),
+  class       = c(&quot;lab_summary&quot;, &quot;numeric&quot;),
+  unit        = &quot;g&quot;,
+  n           = length(obs),
+  generated   = Sys.Date()
+)
+
+# With names attached, the object prints nicely
+summary_obj
+#&gt;      mean        sd       min       max
+#&gt; attr(...)  omitted
+#&gt; 51.2333333  2.3266215 48.8000000 55.3000000
+
+# Full attribute list documents what this is
+attributes(summary_obj)
+#&gt; $names
+#&gt; [1] &quot;mean&quot; &quot;sd&quot;   &quot;min&quot;  &quot;max&quot;
+#&gt; $class
+#&gt; [1] &quot;lab_summary&quot; &quot;numeric&quot;
+#&gt; $unit
+#&gt; [1] &quot;g&quot;
+#&gt; $n
+#&gt; [1] 6
+#&gt; $generated
+#&gt; [1] &quot;2026-04-11&quot;
+
+# Reach in to use the metadata
+paste0(&quot;n=&quot;, attr(summary_obj, &quot;n&quot;), &quot; (&quot;, attr(summary_obj, &quot;unit&quot;), &quot;)&quot;)
+#&gt; [1] &quot;n=6 (g)&quot;
+
+# Arithmetic strips custom attributes but keeps names
+(summary_obj + 1)[c(&quot;mean&quot;,&quot;sd&quot;)]
+#&gt;      mean        sd
+#&gt; 52.2333333  3.3266215</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The <code>summary_obj</code> carries four pieces of metadata — unit, sample size, generation date, and a custom class — right next to its values. That's enough to make downstream code robust: <code>if (!inherits(x, &quot;lab_summary&quot;)) stop(...)</code>, <code>attr(x, &quot;unit&quot;)</code>, <code>attr(x, &quot;n&quot;)</code>. And because arithmetic still works (R ignores the class for <code>+</code>), you can treat it as a plain numeric vector when convenient.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>One-line takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Anatomy</strong></td>
+<td>An R object = values + attribute dictionary</td>
+</tr>
+<tr>
+<td><strong>Special attributes</strong></td>
+<td><code>names</code>, <code>dim</code>, <code>dimnames</code>, <code>class</code>, <code>levels</code> get dedicated accessors and preserve behaviour</td>
+</tr>
+<tr>
+<td><strong>Access</strong></td>
+<td><code>attr(x, &quot;name&quot;)</code>, <code>attributes(x)</code>, <code>names()</code>, <code>dim()</code>, <code>class()</code></td>
+</tr>
+<tr>
+<td><strong>Create with metadata</strong></td>
+<td><code>structure(value, name1 = v1, name2 = v2)</code> in one call</td>
+</tr>
+<tr>
+<td><strong>Arithmetic drops</strong></td>
+<td>Custom attributes vanish on <code>x * 2</code>; <code>names</code>/<code>dim</code> survive</td>
+</tr>
+<tr>
+<td><strong>Strip</strong></td>
+<td><code>attributes(x) &lt;- NULL</code> removes everything; <code>unname()</code> only names; <code>as.vector()</code> everything except names</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Seeing through to attributes demystifies half of R.</strong> Matrices, arrays, factors, dates, data frames, and every S3 object are vectors or lists with the right attributes. Once you can read <code>attributes(x)</code> and interpret it, the "how does this work?" moment for any unfamiliar object is usually one function call away.</div></div>
+
+<h2>References</h2>
 
 <ol>
 
-<li><strong><a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">R Factors</a></strong> — the most attribute-dependent data type</li>
+<li>Wickham, H. <em>Advanced R</em> (2nd ed.), Chapter 3: Vectors — §3.3 Attributes. <a href="https://adv-r.hadley.nz/vectors-chap.html#attributes">adv-r.hadley.nz/vectors-chap.html#attributes</a></li>
 
-<li><strong><a class="auto-link" href="R-Data-Types.html" title="R Data Types: Which Type Is Your Variable? (And Why It Matters)">R Type Coercion</a></strong> — how coercion interacts with attributes</li>
+<li>R Core Team. <em>R Language Definition</em>, §2.1 Basic types and attributes. <a href="https://cran.r-project.org/doc/manuals/r-release/R-lang.html">cran.r-project.org/doc/manuals/r-release/R-lang.html</a></li>
 
-<li><strong>R OOP Systems</strong> — S3/S4/R5/<a class="auto-link" href="OOP-in-R.html" title="OOP in R: S3 vs S4 vs R5 vs R6 — When to Use Each System">R6 classes</a> built on the class attribute</li>
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a>: <code>?attr</code>, <code>?attributes</code>, <code>?structure</code>, <code>?setNames</code>, <code>?class</code>, <code>?oldClass</code>.</li>
+
+<li>StatisticsGlobe. <em>attr, attributes & structure Functions in R.</em> <a href="https://statisticsglobe.com/attr-attributes-structure">statisticsglobe.com/attr-attributes-structure</a></li>
+
+<li>R Manual. <em>3 Objects, their modes and attributes.</em> <a href="https://rstudio.github.io/r-manuals/r-intro/Objects.html">rstudio.github.io/r-manuals/r-intro/Objects.html</a></li>
+
+<li>ETH Zurich R mirror. <em>Object Attribute Lists (base::attributes).</em> <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/attributes.html">stat.ethz.ch/R-manual/R-devel/library/base/html/attributes.html</a></li>
 
 </ol>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-String-Exercises.html"><span class="rt-title">R String Manipulation Exercises: 10 stringr Practice Problems Solved</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a><a class="rt-card" href="R-Special-Values.html"><span class="rt-title">R's Four Special Values: NA, NULL, NaN, Inf</span><span class="rt-meta">Learn R &middot; 4 min read</span></a><a class="rt-card" href="R-Matrices.html"><span class="rt-title">R Matrices: Fast Linear Algebra Data Frames Can't Do</span><span class="rt-meta">Learn R &middot; 3 min read</span></a><a class="rt-card" href="R-Type-Coercion.html"><span class="rt-title">R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters</span><span class="rt-meta">Learn R &middot; 3 min read</span></a></div></section>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="R-Data-Types.html">R Data Types: Which Type Is Your Variable?</a></strong> — The parent post explaining R's four base atomic types, which attributes then decorate.</li>
+
+<li><strong><a href="R-Vectors.html">R Vectors: The Foundation of Everything in R</a></strong> — Vectors are the chassis that attributes attach to.</li>
+
+<li><strong><a href="R-Lists.html">R Lists Explained</a></strong> — Lists carry attributes too, and are the internal representation of every data frame.</li>
+
+</ul>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Project-Structure.html"><span class="rt-title">R Project Structure: The Setup That Eliminates setwd() Forever</span><span class="rt-meta">Learn R &middot; 3 min read</span></a><a class="rt-card" href="R-Functions-Exercises.html"><span class="rt-title">R Functions Exercises: 10 Problems — Write, Debug &amp; Optimize Functions — Solved Step-by-Step</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a><a class="rt-card" href="R-Data-Types.html"><span class="rt-title">R Data Types: Which Type Is Your Variable? (And Why It Matters)</span><span class="rt-meta">Learn R &middot; 8 min read</span></a><a class="rt-card" href="Install-R-and-RStudio-2026.html"><span class="rt-title">Install R &amp; RStudio in 2026: The Setup That Actually Works First Time</span><span class="rt-meta">Learn R &middot; 8 min read</span></a></div></section>
 
         </div>
 
