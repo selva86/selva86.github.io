@@ -71,12 +71,22 @@ The negative slope is immediately visible — bigger engines get fewer miles per
 **Try it:** Change the y-axis to city mpg (`cty`) instead of `hwy`. Does the negative relationship with displacement hold?
 
 ```r
-# Change hwy to cty and see how the pattern compares
+# Your code here — plot displ vs cty
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_city <- ggplot(mpg_sm, aes(x = displ, y = cty)) +
-  geom_point()
+  geom_point() +
+  labs(x = "Engine Displacement (litres)", y = "City MPG")
 
 ex_city
 ```
+
+The negative slope is still clearly there — bigger engines also hurt city fuel economy. The `cty` values sit a few mpg lower than `hwy` across the board (city driving is less efficient), but the shape of the relationship is virtually identical because highway and city MPG are driven by the same underlying engine physics.
+</details>
 
 ## How do you map color, size, and shape to variables?
 
@@ -123,12 +133,22 @@ A few things to notice:
 **Try it:** Map only `class` (vehicle class) to color. How many distinct colors appear in the legend?
 
 ```r
-# Map class to color - how many categories?
+# Your code here — map class to color
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_class <- ggplot(mpg_sm, aes(x = displ, y = hwy, color = class)) +
-  geom_point()
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_brewer(palette = "Set2")
 
 ex_class
 ```
+
+Seven distinct colors appear — one per vehicle class (compact, midsize, SUV, pickup, 2seater, minivan, subcompact). That's right at the upper limit of what's comfortably readable with a qualitative palette; any more categories and the colors start to look similar. When you have more than ~8 groups, consider faceting or collapsing rare levels with `forcats::fct_lump()`.
+</details>
 
 ## How do you add trend lines with geom_smooth()?
 
@@ -181,12 +201,21 @@ Notice how the loess curve follows the dip around displacement = 3. The linear f
 **Try it:** Add `geom_smooth(method = "lm", se = FALSE)` to `p_basic` (from the first block). Does removing the confidence band make the chart cleaner?
 
 ```r
-# Add a clean linear trend with no ribbon
+# Your code here — add geom_smooth with se = FALSE to p_basic
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_smooth <- p_basic +
   geom_smooth(method = "lm", se = FALSE, color = "tomato")
 
 ex_smooth
 ```
+
+Yes — removing the confidence ribbon (`se = FALSE`) gives you just the trend line, which is much cleaner when the exact uncertainty isn't the story. Use `se = TRUE` when you want to communicate how confident the fit is (a wide ribbon warns the reader); use `se = FALSE` for presentations where the line itself is the message.
+</details>
 
 ## How do you handle overplotting in large datasets?
 
@@ -252,14 +281,24 @@ The color scale now reveals that most diamonds cluster below 1.5 carats and belo
 **Try it:** Try `geom_hex()` (from the `hexbin` package) as an alternative to `geom_bin2d()`. Hexagonal bins often look cleaner than rectangular ones.
 
 ```r
-# geom_hex uses hexagonal bins instead of rectangular
+# Your code here — try geom_hex() on diamonds
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 # install.packages("hexbin")  # run once if needed
 ex_hex <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_hex(bins = 50) +
-  scale_fill_viridis_c(option = "magma")
+  scale_fill_viridis_c(option = "magma") +
+  labs(x = "Carat", y = "Price (USD)")
 
 ex_hex
 ```
+
+Hexagonal bins tile the plane more evenly than rectangles — each cell has the same distance to its neighbors in every direction, so gradients in density look smoother and less "blocky." The note about requiring the `hexbin` package is important: `geom_hex()` depends on it for the tessellation math, and ggplot2 will error out if it isn't installed.
+</details>
 
 ## How do you annotate and label points in a scatter plot?
 
@@ -297,17 +336,29 @@ The trick here is passing a filtered dataset (`worst_mpg`) to the label layers v
 **Try it:** Change the label from `model` to `paste(model, hwy)` to show both the car model and its mpg value in each label.
 
 ```r
-# Show model name and its highway mpg together
+# Your code here — change the label to paste(model, hwy)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_label <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.4) +
+  geom_point(alpha = 0.4, color = "steelblue") +
+  geom_point(data = worst_mpg, color = "firebrick", size = 3) +
   geom_label_repel(
     data  = worst_mpg,
     aes(label = paste(model, hwy)),
-    size  = 3
-  )
+    size  = 3,
+    color = "firebrick"
+  ) +
+  labs(x = "Engine Displacement (litres)", y = "Highway MPG")
 
 ex_label
 ```
+
+`paste(model, hwy)` concatenates the car model with its highway mpg, so each label now reads something like "k1500 pickup 4wd 14". You get the identifier *and* the value in one glance without having to eyeball the y-coordinate. For more control over separators or formatting, `sprintf("%s (%d mpg)", model, hwy)` produces labels like "k1500 pickup 4wd (14 mpg)".
+</details>
 
 ## Common Mistakes and How to Fix Them
 

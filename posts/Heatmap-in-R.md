@@ -78,12 +78,22 @@ Each tile's color encodes the value at that (Month, Variable) intersection. The 
 **Try it:** Remove `color = "white"` from `geom_tile()`. How does the heatmap look without tile borders?
 
 ```r
+# Your code here — drop the white tile borders
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_no_border <- ggplot(aq_long, aes(x = Month, y = Variable, fill = Value)) +
-  geom_tile(linewidth = 0) +
-  labs(x = NULL, y = NULL)
+  geom_tile() +
+  labs(x = NULL, y = NULL, fill = "Value")
 
 ex_no_border
 ```
+
+Without the `color = "white"` border, adjacent tiles blur into each other visually — especially when neighbours share similar values. For a small grid like this one the effect is subtle, but on a dense heatmap (50+ tiles per row) removing borders produces a smoother gradient-like look. The trade-off: you lose the clear sense of "individual cells" that borders provide.
+</details>
 
 ## How Do You Reshape Wide Data to Long Format?
 
@@ -119,12 +129,29 @@ head(cor_long)
 **Try it:** Compute the correlation matrix of just the numeric columns in `iris` (exclude `Species`). Convert it to long format using `as.data.frame(as.table(cor(...)))`.
 
 ```r
+# Your code here — compute the iris correlation matrix and pivot to long format
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 iris_num  <- iris[, -5]  # remove Species column
 cor_iris  <- round(cor(iris_num), 2)
 ex_iris_long <- as.data.frame(as.table(cor_iris))
 names(ex_iris_long) <- c("Var1", "Var2", "Corr")
 head(ex_iris_long)
+#>           Var1         Var2  Corr
+#> 1 Sepal.Length Sepal.Length  1.00
+#> 2  Sepal.Width Sepal.Length -0.12
+#> 3 Petal.Length Sepal.Length  0.87
+#> 4  Petal.Width Sepal.Length  0.82
+#> 5 Sepal.Length  Sepal.Width -0.12
+#> 6  Sepal.Width  Sepal.Width  1.00
 ```
+
+Dropping `Species` leaves four numeric columns, so the correlation matrix is 4×4 and the long-format version has 16 rows (one per cell, including the diagonal). The `as.data.frame(as.table(...))` trick is a shortcut that only works for square matrices — it flattens the table's dimnames into factor columns automatically, which is exactly what `geom_tile()` needs.
+</details>
 
 ## How Do You Choose the Right Color Scale for a Heatmap?
 
@@ -190,16 +217,27 @@ p_corr
 **Try it:** Change the `low` and `high` colors in `scale_fill_gradient2()` to `"#1a9850"` (green) and `"#d73027"` (red). Does the correlation matrix still read clearly?
 
 ```r
+# Your code here — swap the diverging palette to green-white-red
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_green_red <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
   geom_tile(color = "white", linewidth = 0.5) +
   scale_fill_gradient2(low = "#1a9850", mid = "white",
-                        high = "#d73027", midpoint = 0, limits = c(-1, 1)) +
+                        high = "#d73027", midpoint = 0, limits = c(-1, 1),
+                        name = "Corr") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         panel.grid = element_blank())
 
 ex_green_red
 ```
+
+The chart still reads clearly because you've preserved the *diverging structure* — a neutral midpoint with two distinct hues on either side — but the green-red combination is a classic accessibility pitfall: the most common form of colorblindness (red-green, ~8% of men) will flatten the two ends into a single muddy color. Blue-white-red is safer for publication; if you need green-red for a specific brand guideline, pair it with a colorblind simulator check.
+</details>
 
 ## How Do You Add Text Labels Inside Heatmap Tiles?
 
@@ -244,15 +282,33 @@ The `color = abs(Correlation) > 0.5` trick switches label color from dark grey (
 **Try it:** Change `size = 2.8` to `size = 4`. Do the labels fit inside the tiles, or do they overflow?
 
 ```r
-ex_larger_labels <- p_label +
+# Your code here — rebuild p_label with size = 4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_larger_labels <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = "white", linewidth = 0.5) +
   geom_text(
-    data = cor_long,
-    aes(x = Var1, y = Var2, label = sprintf("%.2f", Correlation)),
-    size = 4, color = "grey20"
-  )
-# Note: this will overplot - just to see the size effect
+    aes(label = sprintf("%.2f", Correlation),
+        color = abs(Correlation) > 0.5),
+    size = 4
+  ) +
+  scale_fill_gradient2(low = "#4393c3", mid = "white", high = "#d6604d",
+                        midpoint = 0, limits = c(-1, 1), name = "Corr") +
+  scale_color_manual(values = c("FALSE" = "grey20", "TRUE" = "white"),
+                      guide = "none") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank())
+
 ex_larger_labels
 ```
+
+At `size = 4` the labels just about fit the mtcars tiles because the grid is 11×11 and each tile is reasonably large. Bump it to `size = 6` and the numbers start overflowing tile boundaries, especially for values like `-0.85` that take four characters. Rule of thumb: shrink `size` as the grid grows — at 20×20 you'll want `size = 2` or drop labels entirely.
+</details>
 
 ## Common Mistakes and How to Fix Them
 

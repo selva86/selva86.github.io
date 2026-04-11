@@ -52,6 +52,22 @@ If you've loaded multiple packages and two export the same function name, use `h
 # read the Usage and Arguments sections
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+?round
+#> Usage: round(x, digits = 0)
+#> Arguments:
+#>   x      — a numeric vector
+#>   digits — integer indicating number of decimal places (default 0)
+args(round)
+#> function (x, digits = 0)
+```
+
+`round()` takes two arguments and `digits` defaults to `0`, which is why `round(3.7)` returns `4` — no decimals kept. You can read this straight off the **Usage** line of the help page, which is always the fastest way to answer "what arguments does this take and what do they default to?"
+</details>
+
 ## How do you find a function when you only remember what it does?
 
 This is the harder case — you want to reshape a data frame but can't remember if it's `pivot_longer`, `melt`, `reshape`, or something else. Two tools cover it: `apropos()` for partial name matching and `help.search()` (shortcut `??`) for full-text search across help pages.
@@ -85,9 +101,26 @@ The `^` anchor is a regex — `apropos()` accepts regular expressions, so you ca
 **Try it:** Use `apropos()` to find everything in base R with "lm" in its name. Then use `??"logistic regression"` to find functions for logistic regression.
 
 ```r
-# apropos("lm")
-# ??"logistic regression"
+# Your code here — use apropos() and ?? to hunt for names and topics
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+apropos("lm")
+#>  [1] "colMeans" "dlmultinom" "glm" "glm.control" "glm.fit"
+#>  [6] "KalmanForecast" "KalmanLike" "KalmanRun" "KalmanSmooth" "lm"
+#> [11] "lm.fit" "lm.influence" "lm.wfit" "model.frame.lm" "predict.glm"
+#> [16] "predict.lm" "residuals.glm" "residuals.lm" "summary.glm" "summary.lm"
+
+??"logistic regression"
+# opens the help search page — top hits include stats::glm (with family = binomial),
+# stats::predict.glm, and MASS::polr for ordered logistic regression
+```
+
+`apropos("lm")` matches any loaded object whose name contains "lm" as a substring — so you get `lm` itself plus its helpers (`lm.fit`, `summary.lm`, `predict.lm`) and also unrelated hits like `colMeans`. The `??` search is description-based: it finds `glm` because its help page *describes* logistic regression, even though the word "logistic" doesn't appear in the name.
+</details>
 
 ## Why is example() the most underused help command?
 
@@ -113,9 +146,26 @@ For functions with plotting examples (like `lm`, `ggplot`, `hist`), `example()` 
 **Try it:** Run `example(plot)` and watch what comes up. Then try `example(strsplit)` to see string-splitting in action.
 
 ```r
-# example(plot)
-# example(strsplit)
+# Your code here — run example() on plot and strsplit
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+example(plot)
+# draws a sequence of scatter plots from the ?plot help page,
+# showing different type= options and factor behavior
+
+example(strsplit)
+#> strsplit> noquote(strsplit("A text I want to display with spaces", NULL)[[1]])
+#>  [1] A     t e x t     I     w a n t     t o     d i s p l a y     w i t h     s p a c e s
+#> strsplit> x <- c(as = "asfef", qu = "qwerty", "yuiop[", "b", "stuff.blah.yech")
+#> strsplit> strsplit(x, "e")
+```
+
+`example(plot)` runs every snippet from the `?plot` help page live, including the plotting ones — so you get a free visual tour of what `type = "l"`, `"b"`, `"s"` and friends look like without copy-pasting anything. `example(strsplit)` is great for text functions: it shows the `split = NULL` trick for splitting into individual characters, which is rarely mentioned in tutorials but documented right there in the examples.
+</details>
 
 ## When should you read a vignette instead of a help page?
 
@@ -135,8 +185,31 @@ Not every package ships vignettes, and which ones are available depends on how y
 **Try it:** List the vignettes available in your `stats` package with `vignette(package = "stats")`. (Base packages often have few or none, which is why you go to tutorials for the core language.)
 
 ```r
-# vignette(package = "stats")
+# Your code here — list vignettes in the stats package
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+vignette(package = "stats")
+#> no vignettes found
+
+# Compare with a package that ships vignettes:
+vignette(package = "dplyr")
+#> Vignettes in package 'dplyr':
+#>   base          Base R and dplyr
+#>   colwise       Column-wise operations
+#>   dplyr         Introduction to dplyr
+#>   grouping      Grouped data
+#>   programming   Programming with dplyr
+#>   rowwise       Row-wise operations
+#>   two-table     Two-table verbs
+#>   window-functions  Window functions
+```
+
+The `stats` package — home to `lm()`, `glm()`, `t.test()` and the rest of base R's statistics — ships with zero vignettes because base R packages predate the vignette system. That's why R's core statistical functions are documented function-by-function via `?lm` etc., and why books like *Modern Applied Statistics with S* fill the tutorial gap. Contrast with `dplyr`, where the package authors wrote eight long-form tutorials specifically to stop users from having to Google.
+</details>
 
 ## How do you read an R error message without panicking?
 
