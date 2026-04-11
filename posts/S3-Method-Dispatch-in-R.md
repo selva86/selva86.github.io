@@ -1,351 +1,274 @@
 ---
-title: "S3 Method Dispatch in R: UseMethod(), NextMethod() & Inheritance"
+title: "S3 Method Dispatch: Exactly How R Finds the Right Function for Your Object"
 slug: "S3-Method-Dispatch-in-R"
-description: "Learn how S3 method dispatch works in R. Covers UseMethod(), NextMethod(), method resolution order, group generics, and internal generics."
-keywords: "S3 method dispatch, UseMethod R, NextMethod R, S3 inheritance, group generics R, method resolution order R"
+description: "Walk through the exact algorithm R uses to match an S3 object to the right method, step by step. Learn UseMethod(), NextMethod(), and how the class vector drives everything."
+keywords: "S3 method dispatch R, UseMethod R, NextMethod R, S3 class vector, R method resolution"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-12"
 curriculum_id: "4.3.3"
 post_type: "C"
-auto_link_terms: "S3 method dispatch|UseMethod|NextMethod|group generics"
+auto_link_terms: "S3 method dispatch|UseMethod|NextMethod|method dispatch R"
 auto_link_case_sensitive: false
+sidebar_section: "Learn R"
+sidebar_title: "S3 Method Dispatch"
+sidebar_order: 43
 ---
 
-# S3 Method Dispatch in R: UseMethod(), NextMethod() & Inheritance
+# S3 Method Dispatch: Exactly How R Finds the Right Function for Your Object
 
-<p class="lead">When you call <code>print(x)</code>, R looks at the class of <code>x</code> and finds the right <code>print</code> method to run. This process is called <strong>S3 method dispatch</strong>. Understanding it lets you write classes that behave correctly with inheritance, custom generics, and group generics.</p>
+<p class="lead">When you call <code>print(x)</code>, R does not look at <code>print</code> — it looks at <code>x</code>. It reads <code>class(x)</code>, walks the class vector from left to right, and calls the first function it finds named <code>print.&lt;class&gt;</code>. That walk is <strong>S3 method dispatch</strong>, and this post traces it step by step.</p>
 
-S3 is the most widely used OOP system in R. Every time you call `summary()`, `plot()`, or `print()`, the dispatch mechanism silently routes your call to the right method. This tutorial dives into the machinery behind it.
+Most R programmers use S3 every day without knowing how dispatch works. That is fine until you hit a bug — a method that refuses to fire, or worse, the wrong method firing. Understanding the dispatch algorithm turns those mysteries into five-second fixes. By the end of this post you will be able to predict exactly which method R will call for any object.
 
-## How UseMethod() Works
+## What Happens When You Call a Generic?
 
-Every S3 generic function contains a call to `UseMethod()`. When invoked, R inspects the class of the first argument and searches for a matching method.
+A **generic** is a function whose body contains a single call to `UseMethod()`. When you invoke it, `UseMethod()` takes over and runs the dispatch algorithm.
 
 ```r
-# A simple generic function
-speak <- function(animal, ...) {
-  UseMethod("speak")
-}
+# `print` is a generic
+print
+#> function (x, ...) 
+#> UseMethod("print")
+#> <bytecode: 0x...>
+#> <environment: namespace:base>
 
-# Methods for specific classes
-speak.Dog <- function(animal, ...) cat(animal$name, "says: Woof!\n")
-speak.Cat <- function(animal, ...) cat(animal$name, "says: Meow!\n")
+x <- 1:3
+class(x)
+#> [1] "integer"
 
-# The default method (fallback)
-speak.default <- function(animal, ...) cat("Unknown animal sound\n")
-
-# Test dispatch
-dog <- structure(list(name = "Rex"), class = "Dog")
-cat <- structure(list(name = "Whiskers"), class = "Cat")
-fish <- structure(list(name = "Nemo"), class = "Fish")
-
-speak(dog)       # Dispatches to speak.Dog
-speak(cat)       # Dispatches to speak.Cat
-speak(fish)      # No speak.Fish -> falls to speak.default
+print(x)
+#> [1] 1 2 3
 ```
 
-The dispatch algorithm is straightforward:
+When you called `print(x)`:
+1. R entered the `print` function body.
+2. It hit `UseMethod("print")`.
+3. It read `class(x)`, which was `"integer"`.
+4. It searched for `print.integer` — not found.
+5. It searched for `print.default` — found.
+6. It called `print.default(x)`.
 
-1. Look at the class of the first argument
-2. Search for `generic.class` (e.g., `speak.Dog`)
-3. If not found and the object has multiple classes, try the next class
-4. If nothing matches, try `generic.default`
-5. If no default exists, throw an error
+Every S3 generic follows this same pattern. The generic itself is a five-character function whose only job is to delegate.
 
-## Method Resolution Order with Multiple Classes
+[KEY INSIGHT]
+**`UseMethod` reads the class of the *first argument* and searches top-down through the class vector.** The rest of the search is a straightforward linear scan. There is no class hierarchy lookup, no method resolution order — just one vector, read in order.
 
-An S3 object can have multiple classes (a class vector). R tries each class in order, left to right, until it finds a matching method.
+## How Does the Class Vector Drive Dispatch?
+
+An S3 object's `class` attribute can be a **vector**, not just a string. When the vector has multiple elements, dispatch tries each in order.
 
 ```r
-# Create an object with multiple classes
-golden <- structure(
-  list(name = "Buddy", breed = "Golden Retriever", is_service = TRUE),
-  class = c("ServiceDog", "Dog", "Pet")
-)
+x <- structure(list(name = "Ada"), class = c("scientist", "person"))
 
-# Define methods at different levels
-describe <- function(x, ...) UseMethod("describe")
-describe.Pet <- function(x, ...) cat(x$name, "is a pet\n")
-describe.Dog <- function(x, ...) cat(x$name, "is a dog (breed:", x$breed, ")\n")
-describe.ServiceDog <- function(x, ...) cat(x$name, "is a service dog\n")
+print.scientist <- function(x, ...) cat("Scientist:", x$name, "\n")
+print.person    <- function(x, ...) cat("Person:",    x$name, "\n")
 
-# Dispatches to describe.ServiceDog (first class in vector)
-describe(golden)
-
-# Check the class vector
-cat("Class vector:", class(golden), "\n")
-
-# If we remove ServiceDog method, it falls through to Dog
-rm(describe.ServiceDog)
-describe(golden)
+print(x)
+#> Scientist: Ada
 ```
 
-## NextMethod(): Calling the Parent Method
+Dispatch walked the class vector `c("scientist", "person")`:
+1. Searched for `print.scientist` — **found, called, done.**
+2. `print.person` was never considered.
 
-`NextMethod()` tells R to continue dispatching to the next class in the inheritance chain. This is how you implement inheritance behavior (calling the parent's method from the child).
+If you delete `print.scientist`, dispatch continues to the next class:
 
 ```r
-# A base "Shape" class
-area <- function(shape, ...) UseMethod("area")
-describe_shape <- function(shape, ...) UseMethod("describe_shape")
-
-describe_shape.Shape <- function(shape, ...) {
-  cat("Shape with color:", shape$color, "\n")
-}
-
-describe_shape.Circle <- function(shape, ...) {
-  cat("Circle with radius:", shape$radius, "\n")
-  NextMethod()  # Call describe_shape.Shape
-}
-
-describe_shape.ColoredCircle <- function(shape, ...) {
-  cat("A fancy colored circle!\n")
-  NextMethod()  # Call describe_shape.Circle
-}
-
-# Create a multi-class object
-cc <- structure(
-  list(radius = 5, color = "blue"),
-  class = c("ColoredCircle", "Circle", "Shape")
-)
-
-# Watch the chain: ColoredCircle -> Circle -> Shape
-describe_shape(cc)
+rm(print.scientist)
+print(x)
+#> Person: Ada
 ```
 
-`NextMethod()` passes along the same arguments automatically. You rarely need to pass arguments explicitly.
+Now the walk skips the missing `print.scientist` and lands on `print.person`. This left-to-right search is S3's entire inheritance mechanism. The leftmost class is the most specific; the rightmost is the most general.
+
+## How Does `NextMethod()` Continue the Chain?
+
+A subclass method can explicitly delegate to the parent class with `NextMethod()`. This resumes the dispatch walk *starting from the next class in the vector*.
 
 ```r
-# NextMethod passes arguments automatically
-format_output <- function(x, ...) UseMethod("format_output")
+x <- structure(list(name = "Ada"), class = c("scientist", "person"))
 
-format_output.Base <- function(x, prefix = "", ...) {
-  cat(prefix, "Value:", x$value, "\n")
+print.scientist <- function(x, ...) {
+  cat("[SCI] ")
+  NextMethod()                    # resume at print.person
+}
+print.person <- function(x, ...) {
+  cat("Person:", x$name, "\n")
 }
 
-format_output.Extended <- function(x, prefix = "", ...) {
-  cat(prefix, "Extended object\n")
-  NextMethod()  # prefix is passed along automatically
-}
-
-obj <- structure(list(value = 42), class = c("Extended", "Base"))
-format_output(obj, prefix = ">>>")
+print(x)
+#> [SCI] Person: Ada
 ```
 
-## Group Generics
+Without `NextMethod()`, `print.scientist` alone would run and `print.person` would be skipped. With it, both run — subclass first, superclass second. This is the S3 equivalent of Java's `super.method()`.
 
-R has four **group generics** that let you define behavior for a whole group of operations at once. Instead of defining `+.MyClass`, `-.MyClass`, `*.MyClass` individually, you define `Ops.MyClass` to cover them all.
+[WARNING]
+**`NextMethod()` can only be called from inside a dispatched method.** Calling it elsewhere raises an error or returns unexpected results. And it must be called inside the method body — not inside a helper function the method delegates to.
 
-| Group | Functions covered |
-|-------|-------------------|
-| `Ops` | `+`, `-`, `*`, `/`, `^`, `%%`, `%/%`, `&`, `|`, `!`, `==`, `!=`, `<`, `<=`, `>=`, `>` |
-| `Math` | `abs`, `sqrt`, `ceiling`, `floor`, `log`, `exp`, `sin`, `cos`, etc. |
-| `Complex` | `Re`, `Im`, `Mod`, `Arg`, `Conj` |
-| `Summary` | `all`, `any`, `sum`, `prod`, `min`, `max`, `range` |
+## How Do You Inspect Which Method Will Be Called?
+
+Use `sloop::s3_dispatch()` to print the full dispatch walk — every method R *would* try, with a check mark beside the one it actually calls.
 
 ```r
-# Create a "Celsius" class
-celsius <- function(temp) {
-  structure(list(value = temp), class = "Celsius")
-}
+library(sloop)
+x <- structure(list(name = "Ada"), class = c("scientist", "person"))
 
-print.Celsius <- function(x, ...) cat(x$value, "C\n")
+print.scientist <- function(x, ...) { cat("SCI\n"); NextMethod() }
+print.person    <- function(x, ...) cat("Person:", x$name, "\n")
 
-# Define Ops for all arithmetic operators at once
-Ops.Celsius <- function(e1, e2) {
-  # .Generic contains the operator being used (+, -, etc.)
-  v1 <- if (inherits(e1, "Celsius")) e1$value else e1
-  v2 <- if (inherits(e2, "Celsius")) e2$value else e2
-  result <- get(.Generic)(v1, v2)
-
-  # Comparison operators return logical, not Celsius
-  if (.Generic %in% c("==", "!=", "<", "<=", ">", ">=")) {
-    return(result)
-  }
-  celsius(result)
-}
-
-a <- celsius(100)
-b <- celsius(37)
-
-print(a)
-result <- celsius(100)
-result_val <- a$value - b$value
-cat("100 C - 37 C =", result_val, "C\n")
-cat("100 C > 37 C:", a$value > b$value, "\n")
+s3_dispatch(print(x))
+#> => print.scientist
+#>  * print.person
+#>    print.default
 ```
 
-## Internal Generics
+The `=>` marks the first method found and called. The `*` marks methods later in the chain that `NextMethod()` will delegate to. Methods with no marker (like `print.default`) are in the chain but never reached. Running this on any mysterious dispatch is the fastest way to debug "why did it call that?".
 
-Some R functions are **internal generics** — they perform dispatch inside C code rather than through `UseMethod()`. Examples include `[`, `[[`, `$`, `length`, `dim`, `c`, and `unlist`.
+**Try it:** Create `obj <- structure(1, class = c("a", "b", "c"))` and write three methods `print.a`, `print.b`, `print.c`. Call `s3_dispatch(print(obj))` and observe the output.
 
 ```r
-# The [ operator is an internal generic
-# You can still write methods for it
-
-my_vec <- structure(1:10, class = "LabeledVec", labels = letters[1:10])
-
-`[.LabeledVec` <- function(x, i, ...) {
-  result <- unclass(x)[i]
-  labels <- attr(x, "labels")[i]
-  structure(result, class = "LabeledVec", labels = labels)
-}
-
-print.LabeledVec <- function(x, ...) {
-  labels <- attr(x, "labels")
-  for (j in seq_along(x)) {
-    cat(labels[j], "=", unclass(x)[j], " ")
-  }
-  cat("\n")
-}
-
-print(my_vec)
-print(my_vec[3:5])
+library(sloop)
+# your code here
 ```
 
-Internal generics are tricky because they don't always follow the exact same dispatch rules as `UseMethod()`. Some check the class attribute directly in C code.
-
-## Inspecting Dispatch with sloop
-
-The `sloop` package (if available) or manual inspection can help you understand what R dispatches to.
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-# Manual dispatch inspection
-find_method <- function(generic, class_vec) {
-  for (cls in class_vec) {
-    method_name <- paste0(generic, ".", cls)
-    if (exists(method_name, mode = "function")) {
-      return(method_name)
-    }
-  }
-  default_name <- paste0(generic, ".default")
-  if (exists(default_name, mode = "function")) {
-    return(default_name)
-  }
-  return("No method found")
-}
+library(sloop)
+obj <- structure(1, class = c("a", "b", "c"))
 
-# Test it
+print.a <- function(x, ...) { cat("A\n"); NextMethod() }
+print.b <- function(x, ...) { cat("B\n"); NextMethod() }
+print.c <- function(x, ...) { cat("C\n") }
+
+s3_dispatch(print(obj))
+#> => print.a
+#>  * print.b
+#>  * print.c
+#>    print.default
+print(obj)
+#> A
+#> B
+#> C
+```
+
+**Explanation:** `print.a` is dispatched first; each method calls `NextMethod()` to resume the walk, so all three fire in order.
+
+</details>
+
+## When Does Dispatch Fall Back to `.default`?
+
+If no method matches any class in the vector, R tries `<generic>.default`. If that does not exist either, R raises an error.
+
+```r
+x <- structure(list(), class = "mystery")
+
+# No print.mystery, but print.default exists → fallback
+print(x)
+#> list()
+#> attr(,"class")
+#> [1] "mystery"
+
+# No method at all → error
 greet <- function(x, ...) UseMethod("greet")
-greet.Person <- function(x, ...) cat("Hello,", x$name, "\n")
-greet.default <- function(x, ...) cat("Hello, stranger\n")
-
-obj <- structure(list(name = "Alice"), class = c("Student", "Person"))
-cat("Dispatches to:", find_method("greet", class(obj)), "\n")
-greet(obj)
-
-# Check which methods exist for a generic
-cat("\nAll greet methods:\n")
-print(methods("greet"))
+greet(x)
+#> Error in UseMethod("greet") : 
+#>   no applicable method for 'greet' applied to an object of class "mystery"
 ```
 
-## Summary Table
+The `print.default` method is R's safety net — it knows how to print any object by inspecting its structure. When you write your own generics, provide a `.default` method whenever it makes sense to handle unknown inputs gracefully.
 
-| Concept | Description | Key Function |
-|---------|-------------|--------------|
-| Generic function | Function that dispatches based on class | Contains `UseMethod()` |
-| Method | Implementation for a specific class | Named `generic.class()` |
-| Default method | Fallback when no class matches | Named `generic.default()` |
-| Dispatch order | Left to right through class vector | `class(x)` determines order |
-| `NextMethod()` | Continue to next class in chain | Called inside a method |
-| Group generics | One method covers many operators | `Ops`, `Math`, `Summary`, `Complex` |
-| Internal generics | Dispatch in C code | `[`, `[[`, `c`, `length`, etc. |
+## What Is the Exact Algorithm?
+
+Here is the full S3 dispatch algorithm, step by step. Memorising this answers every "why did that happen?" question.
+
+```
+Given: generic G, first argument x
+1. Let classes ← class(x)
+2. For each class C in classes (left to right):
+     If G.C exists → call it with x; stop
+3. If G.default exists → call it with x; stop
+4. Otherwise → error "no applicable method"
+```
+
+`NextMethod()` inside step 2 resumes at the *next* class in the loop. That is the entire system. Notice what is *not* in the algorithm: no class hierarchy lookup, no method inheritance tree, no "find the most specific method" calculation. Just a linear scan through the class vector.
 
 ## Practice Exercises
 
-**Exercise 1:** Create a class hierarchy `Vehicle > Car > ElectricCar`. Define a `describe()` generic where each level adds information and calls `NextMethod()`.
+### Exercise 1: Predict the Output
 
-<details><summary>Click to reveal solution</summary>
+Without running the code, predict what `print(x)` prints:
+
+```r
+x <- structure(list(n = 1), class = c("child", "parent"))
+print.parent <- function(x, ...) cat("PARENT", x$n, "\n")
+print.child  <- function(x, ...) { cat("CHILD "); NextMethod() }
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```
+CHILD PARENT 1 
+```
+
+**Explanation:** Dispatch finds `print.child` first. It prints `"CHILD "`, then calls `NextMethod()` which resumes at `print.parent`. That prints `"PARENT 1"`.
+
+</details>
+
+### Exercise 2: Add a `default` Fallback
+
+Write a generic `describe(x)` with methods `describe.numeric`, `describe.character`, and `describe.default`. Test on `42`, `"hi"`, and `TRUE` (which triggers default).
+
+```r
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
 describe <- function(x, ...) UseMethod("describe")
 
-describe.Vehicle <- function(x, ...) {
-  cat("Vehicle: seats =", x$seats, "\n")
-}
+describe.numeric   <- function(x, ...) cat("Number:", x, "\n")
+describe.character <- function(x, ...) cat("String:", x, "\n")
+describe.default   <- function(x, ...) cat("Unknown type:", class(x), "\n")
 
-describe.Car <- function(x, ...) {
-  cat("Car: make =", x$make, "\n")
-  NextMethod()
-}
-
-describe.ElectricCar <- function(x, ...) {
-  cat("Electric Car: battery =", x$battery_kwh, "kWh\n")
-  NextMethod()
-}
-
-tesla <- structure(
-  list(make = "Tesla", seats = 5, battery_kwh = 75),
-  class = c("ElectricCar", "Car", "Vehicle")
-)
-describe(tesla)
+describe(42)
+#> Number: 42
+describe("hi")
+#> String: hi
+describe(TRUE)
+#> Unknown type: logical
 ```
+
+**Explanation:** `TRUE` has class `"logical"`, which has no specific method — dispatch falls back to `describe.default`.
 
 </details>
 
-**Exercise 2:** Define a `Ops.Percent` group generic so that `Percent(50) + Percent(30)` returns `Percent(80)` and `Percent(50) > Percent(30)` returns `TRUE`.
+## Summary
 
-<details><summary>Click to reveal solution</summary>
+| Step                   | What happens                                         |
+|------------------------|------------------------------------------------------|
+| `UseMethod("f")`       | Reads `class(x)` and starts the walk                |
+| Walk class vector      | Looks for `f.<class>` in order, left to right       |
+| Method found           | Calls it, ignores remaining classes                  |
+| `NextMethod()` inside  | Resumes at the next class in the vector             |
+| Exhausted vector       | Tries `f.default`                                    |
+| No `f.default`         | Raises "no applicable method"                        |
 
-```r
-Percent <- function(x) structure(list(value = x), class = "Percent")
-print.Percent <- function(x, ...) cat(x$value, "%\n")
+## References
 
-Ops.Percent <- function(e1, e2) {
-  v1 <- if (inherits(e1, "Percent")) e1$value else e1
-  v2 <- if (inherits(e2, "Percent")) e2$value else e2
-  result <- get(.Generic)(v1, v2)
-  if (.Generic %in% c("==", "!=", "<", "<=", ">", ">=")) return(result)
-  Percent(result)
-}
-
-print(Percent(50))
-r <- Percent(50)
-cat("50% + 30% =", Percent(50)$value + Percent(30)$value, "%\n")
-cat("50% > 30%:", Percent(50)$value > Percent(30)$value, "\n")
-```
-
-</details>
-
-**Exercise 3:** Write a `[.TimeSeries` method that preserves the class and a `"start_date"` attribute when subsetting.
-
-<details><summary>Click to reveal solution</summary>
-
-```r
-new_ts <- function(values, start_date) {
-  structure(values, class = "TimeSeries", start_date = start_date)
-}
-
-`[.TimeSeries` <- function(x, i, ...) {
-  result <- unclass(x)[i]
-  structure(result, class = "TimeSeries", start_date = attr(x, "start_date"))
-}
-
-print.TimeSeries <- function(x, ...) {
-  cat("TimeSeries (start:", attr(x, "start_date"), ")\n")
-  cat("Values:", unclass(x), "\n")
-}
-
-ts_data <- new_ts(c(10, 20, 30, 40, 50), "2026-01-01")
-print(ts_data)
-print(ts_data[2:4])
-```
-
-</details>
-
-## FAQ
-
-**Q: What happens if UseMethod() finds no matching method and no default?**
-R throws an error: `"no applicable method for 'generic' applied to an object of class 'class'"`. Always provide a `generic.default` method to handle unexpected classes gracefully.
-
-**Q: Can I call UseMethod() with a different class than the first argument's class?**
-Yes. `UseMethod("generic", object)` lets you dispatch on a different object. However, this is rarely used and can be confusing. Stick to dispatching on the first argument.
-
-**Q: Does NextMethod() work with group generics?**
-Yes. Inside an `Ops.MyClass` method, calling `NextMethod()` will look for the next class's Ops method or the specific operator method (e.g., `+.ParentClass`).
+1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 13: S3. [Link](https://adv-r.hadley.nz/s3.html)
+2. R Core Team — *R Language Definition*, Methods section. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Object_002doriented-programming)
+3. `sloop::s3_dispatch`. [Link](https://sloop.r-lib.org/reference/s3_dispatch.html)
+4. Chambers, J. M. — *Software for Data Analysis*, OOP chapter.
+5. `base::UseMethod` help page. [Link](https://rdrr.io/r/base/UseMethod.html)
 
 ## Continue Learning
-- [S4 Classes in R](S4-Classes-in-R.html) -- Learn formal class definitions with `setClass()` and typed slots
-- [Operator Overloading in R](Operator-Overloading-in-R.html) -- Define custom `+`, `-`, `==`, `[` and `print` methods
-- [sloop Package in R](sloop-Package-in-R.html) -- Inspect any object's OOP system with `otype()` and `ftype()`
+
+- [S3 Classes in R](S3-Classes-in-R.html) — build classes; this post shows how R finds their methods.
+- [OOP in R](OOP-in-R.html) — where S3 dispatch fits in the bigger picture.
+- [S4 Classes in R](S4-Classes-in-R.html) — the formal system with multi-argument dispatch.
