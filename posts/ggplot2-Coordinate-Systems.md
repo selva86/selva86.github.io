@@ -89,6 +89,13 @@ p_box_flipped
 **Try it:** Apply `coord_flip()` to a bar chart of `cut` frequency in the `diamonds` dataset. Use `fct_infreq()` to sort bars by count before flipping.
 
 ```r
+# Your code here — horizontal bar chart of diamonds cut with fct_infreq()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 library(forcats)
 ex_flip <- ggplot(diamonds, aes(x = fct_infreq(cut))) +
   geom_bar(fill = "tomato") +
@@ -97,6 +104,9 @@ ex_flip <- ggplot(diamonds, aes(x = fct_infreq(cut))) +
 
 ex_flip
 ```
+
+`fct_infreq()` sorts the cut levels by their frequency count *before* plotting, so the bar chart reads from most-common to least-common automatically. Because `coord_flip()` keeps the underlying data axes oriented the same way internally, `Ideal` (the most common cut) ends up at the *bottom* of the flipped chart — readers scan bottom-to-top. To flip the reading order, wrap the factor in `fct_rev(fct_infreq(cut))` so the top bar is the most common.
+</details>
 
 ## How Does coord_polar() Create Pie Charts and Radial Plots?
 
@@ -148,14 +158,25 @@ p_rose
 **Try it:** Turn `p_rose` into a standard pie chart by changing `theta = "x"` to `theta = "y"` and adding `x = ""` to the aesthetic mapping. What changes?
 
 ```r
+# Your code here — change theta = "x" to "y" and set x = ""
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_rose_to_pie <- ggplot(df_pie, aes(x = "", y = count, fill = category)) +
   geom_col(width = 1, color = "white") +
   coord_polar(theta = "y") +
   scale_fill_brewer(palette = "Set2") +
-  theme_void()
+  theme_void() +
+  labs(fill = "Class")
 
 ex_rose_to_pie
 ```
+
+Switching to `theta = "y"` moves the mapping from "radius = count" to "angle = count" — so instead of bars fanning out from the center with different radii, you get slices of a filled disc with different angular widths. Setting `x = ""` collapses what was an axis of distinct categories into a single stacked column, which is exactly the starting shape you need for a pie. The result: a classic pie chart where the category with the largest count takes up the widest wedge.
+</details>
 
 ## How Does coord_fixed() Control Aspect Ratios?
 
@@ -197,10 +218,19 @@ The fixed version immediately shows that sepal length varies across a wider rang
 **Try it:** Add `coord_fixed(ratio = 0.5)` to `p_scatter`. How does the chart shape change compared to `ratio = 1`?
 
 ```r
-# ratio = 0.5: one y-unit is half the height of one x-unit
+# Your code here — apply coord_fixed(ratio = 0.5) to p_scatter
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_fixed_half <- p_scatter + coord_fixed(ratio = 0.5)
 ex_fixed_half
 ```
+
+`ratio = 0.5` means one y-unit takes half the physical height that one x-unit takes — so the y-axis gets compressed vertically compared to `ratio = 1`. The cloud of sepal points looks flatter and wider because the y-range (sepal width) is squashed relative to the x-range (sepal length). You'd pick a ratio less than 1 when the y-variable has a smaller range than x and you want the plot to occupy a wider-than-tall rectangle; greater than 1 does the opposite.
+</details>
 
 ## How Does coord_cartesian() Zoom In Without Dropping Data?
 
@@ -240,14 +270,24 @@ The regression lines will look different — and the `coord_cartesian` version i
 **Try it:** Add `coord_cartesian(ylim = c(0, 10000))` to `p_zoom_coord` to also limit the y view. Does the regression line position change?
 
 ```r
-# Zoom both x and y with coord_cartesian
+# Your code here — add ylim to coord_cartesian as well
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_zoom_xy <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.05, color = "steelblue") +
   geom_smooth(method = "lm", color = "firebrick") +
-  coord_cartesian(xlim = c(1, 2), ylim = c(0, 10000))
+  coord_cartesian(xlim = c(1, 2), ylim = c(0, 10000)) +
+  labs(x = "Carat", y = "Price (USD)")
 
 ex_zoom_xy
 ```
+
+The regression line's *position and slope* don't change because `coord_cartesian()` still fits the model on all 53,940 diamonds — it only clips the final view. What changes is what you *see*: points above $10,000 disappear off the top of the window, but they still contribute to the fit. Compare this to `scale_y_continuous(limits = c(0, 10000))`, which would drop those high-price diamonds before fitting and produce a visibly different (and wrong) line.
+</details>
 
 ## Common Mistakes and How to Fix Them
 

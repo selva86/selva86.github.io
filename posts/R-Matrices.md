@@ -92,11 +92,24 @@ Row and column names are optional. Set them with `rownames(m)` and `colnames(m)`
 **Try it:** Create a 2x3 matrix `ex_m` from `c(10, 20, 30, 40, 50, 60)`, row-major. Give it rownames `"r1", "r2"` and colnames `"a", "b", "c"`.
 
 ```r
-ex_m <- matrix(c(10, 20, 30, 40, 50, 60), nrow = 2, byrow = TRUE)
-# rownames(ex_m) <- c("r1", "r2")
-# colnames(ex_m) <- c("a", "b", "c")
-# ex_m
+# Your code here — build ex_m and set row/column names
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_m <- matrix(c(10, 20, 30, 40, 50, 60), nrow = 2, byrow = TRUE)
+rownames(ex_m) <- c("r1", "r2")
+colnames(ex_m) <- c("a", "b", "c")
+ex_m
+#>     a  b  c
+#> r1 10 20 30
+#> r2 40 50 60
+```
+
+`byrow = TRUE` fills the values left-to-right, top-to-bottom — so `10, 20, 30` become the first row exactly as you read them. Without it, R would default to column-major order and put `10, 20` in column 1 instead, which is rarely what you want when transcribing tabular data by hand. Assigning to `rownames()` and `colnames()` after construction is equivalent to passing `dimnames = list(c("r1","r2"), c("a","b","c"))` to `matrix()` — use whichever reads more clearly in your code.
+</details>
 
 ## How do you index a matrix by row, column, or both?
 
@@ -154,9 +167,23 @@ m[, -c(2, 4)]             # all columns except 2 and 4
 **Try it:** From `ex_m2 <- matrix(1:20, nrow = 4)`, extract the 2x2 block at rows 3-4, columns 4-5.
 
 ```r
-ex_m2 <- matrix(1:20, nrow = 4)
-# ex_block <- ex_m2[...]
+# Your code here — extract rows 3-4, cols 4-5
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_m2 <- matrix(1:20, nrow = 4)
+ex_block <- ex_m2[3:4, 4:5]
+ex_block
+#>      [,1] [,2]
+#> [1,]   15   19
+#> [2,]   16   20
+```
+
+`ex_m2[3:4, 4:5]` reads as "rows 3 and 4, columns 4 and 5" — R's two-argument bracket syntax is position-based and sequences work naturally on both sides. The result is still a matrix (2×2) because you asked for more than one row *and* more than one column; R only auto-drops to a vector when one dimension collapses to length 1. If you'd written `ex_m2[3, 4:5]` you'd get a length-2 vector back; add `drop = FALSE` to keep it as a 1×2 matrix.
+</details>
 
 ## Why is matrix multiplication written with %*% instead of *?
 
@@ -210,10 +237,26 @@ A %*% solve(A)    # should be identity
 **Try it:** Solve $Ax = b$ for $A = \begin{pmatrix}3 & 1\\1 & 2\end{pmatrix}$ and $b = \begin{pmatrix}9\\8\end{pmatrix}$ using `solve(A, b)`.
 
 ```r
+# Your code here — solve Ax = b
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_A <- matrix(c(3, 1, 1, 2), nrow = 2)
 ex_b <- c(9, 8)
-# ex_x <- solve(ex_A, ex_b)
+ex_x <- solve(ex_A, ex_b)
+ex_x
+#> [1] 2 3
+ex_A %*% ex_x   # should recover ex_b
+#>      [,1]
+#> [1,]    9
+#> [2,]    8
 ```
+
+`solve(A, b)` returns the vector `x` that satisfies `A %*% x == b` — here that's `c(2, 3)`. Verifying with `A %*% ex_x` recovers the original `b`, which is always worth doing when you're double-checking a linear-algebra result. Note that `solve(A, b)` is both faster and more numerically stable than computing `solve(A) %*% b` — skip the explicit inverse whenever you can, especially for larger systems where round-off error accumulates.
+</details>
 
 ## When should you reach for a matrix instead of a data frame?
 
