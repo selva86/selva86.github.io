@@ -81,6 +81,13 @@ p_overlap
 **Try it:** Change `FUN = median` to `FUN = mean`. Does the group ordering change significantly?
 
 ```r
+# Your code here — sort the y-axis by mean instead of median
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_mean_sort <- ggplot(mpg, aes(x = hwy, y = reorder(class, hwy, FUN = mean))) +
   geom_density_ridges(scale = 1.5, rel_min_height = 0.01) +
   labs(x = "Highway MPG", y = NULL) +
@@ -88,6 +95,9 @@ ex_mean_sort <- ggplot(mpg, aes(x = hwy, y = reorder(class, hwy, FUN = mean))) +
 
 ex_mean_sort
 ```
+
+The ordering barely shifts — median and mean track closely here because most vehicle-class distributions are only mildly skewed. Differences appear only when a class has an extreme outlier that pulls its mean away from its median (pickup, for instance, has a couple of high-efficiency trucks that nudge the mean up). As a rule, use median when distributions are skewed or have outliers, and mean when they're roughly symmetric.
+</details>
 
 ## How Do You Color Ridges by Group or Apply Gradient Fills?
 
@@ -142,6 +152,13 @@ p_gradient
 **Try it:** Change `option = "plasma"` to `option = "magma"` in `scale_fill_viridis_c()`. How does the color temperature change?
 
 ```r
+# Your code here — swap the gradient to option = "magma"
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_magma_ridges <- ggplot(mpg,
     aes(x = hwy, y = reorder(class, hwy, FUN = median),
         fill = after_stat(x))) +
@@ -151,6 +168,9 @@ ex_magma_ridges <- ggplot(mpg,
 
 ex_magma_ridges
 ```
+
+`magma` runs from near-black at the low end through deep purple and red to pale yellow at the top — moodier and warmer overall than `plasma`'s blue-to-yellow ramp. The visual contrast is slightly lower because magma spends more of its range in dark hues, which can be an advantage for print where dark colors reproduce more consistently. Both are perceptually uniform and colorblind-safe, so the choice is mostly aesthetic.
+</details>
 
 ## How Do You Add Quantile Lines and Jitter Points?
 
@@ -218,6 +238,13 @@ p_jitter
 **Try it:** Remove `position = position_raincloud(...)` from `p_jitter`. How does the position of the jitter points change?
 
 ```r
+# Your code here — drop position_raincloud() and see where points land
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_no_raincloud <- ggplot(iris,
     aes(x = Sepal.Length, y = Species, fill = Species)) +
   geom_density_ridges(
@@ -230,6 +257,9 @@ ex_no_raincloud <- ggplot(iris,
 
 ex_no_raincloud
 ```
+
+Without `position_raincloud()`, the jittered points sit on the *baseline* of each ridge — right under the density curve — rather than in a separate band below it. That's fine when you have a small amount of data like `iris`, but on denser groups the points get hidden behind the filled curve. The raincloud layout trades a little extra vertical space for a cleaner separation between "the distribution" and "the raw observations."
+</details>
 
 ## When Should You Use a Ridgeline Plot Instead of a Violin Plot?
 
@@ -287,6 +317,13 @@ The seasonal pattern jumps out immediately: cold, narrow distributions in winter
 **Try it:** Replace `scale_y_discrete(limits = rev)` with its removal (delete the line). Does January or December now appear at the top?
 
 ```r
+# Your code here — drop scale_y_discrete(limits = rev) and see what happens
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_no_rev <- ggplot(lincoln_weather,
     aes(x = `Mean Temperature [F]`, y = Month,
         fill = after_stat(x))) +
@@ -296,6 +333,9 @@ ex_no_rev <- ggplot(lincoln_weather,
 
 ex_no_rev
 ```
+
+Without the reversal, ggplot2 draws discrete factor levels bottom-up by default — so January lands at the **bottom** and December at the top. That feels backwards for a calendar view because humans read top-to-bottom and expect the earliest month first. `scale_y_discrete(limits = rev)` flips the order so January appears at the top, matching the left-to-right reading flow on a standard calendar page.
+</details>
 
 ## Common Mistakes and How to Fix Them
 

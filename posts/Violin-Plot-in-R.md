@@ -85,13 +85,24 @@ p_fill
 **Try it:** Change `palette = "Set2"` to `palette = "Dark2"`. How does the visual impact change?
 
 ```r
+# Your code here — switch the palette to Dark2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_dark <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.8) +
   scale_fill_brewer(palette = "Dark2") +
-  scale_x_discrete(labels = c("4" = "4WD", "f" = "Front", "r" = "Rear"))
+  scale_x_discrete(labels = c("4" = "4WD", "f" = "Front", "r" = "Rear")) +
+  labs(x = "Drive Type", y = "Highway MPG")
 
 ex_dark
 ```
+
+`Dark2` uses saturated, darker hues (forest green, orange, purple) where `Set2` uses pastel versions of similar colors. The visual impact is more assertive — Dark2 violins read as "foregrounded" and hold attention on a white background, while Set2 is better for embedding violins inside larger dashboards where they shouldn't compete with other elements. Both palettes are colorblind-safe, so it's a tone-of-voice choice rather than an accessibility one.
+</details>
 
 ## How Do You Embed a Boxplot Inside a Violin Plot?
 
@@ -127,14 +138,25 @@ p_combined
 **Try it:** Remove `outlier.shape = NA` from the boxplot. Do the outlier points add useful information, or do they clutter the violin?
 
 ```r
+# Your code here — drop outlier.shape = NA and see the boxplot outliers
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_outliers <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.7, color = "white") +
   geom_boxplot(width = 0.12, fill = "white", color = "grey30") +
   scale_fill_brewer(palette = "Set2") +
-  scale_x_discrete(labels = c("4" = "4WD", "f" = "Front", "r" = "Rear"))
+  scale_x_discrete(labels = c("4" = "4WD", "f" = "Front", "r" = "Rear")) +
+  labs(x = "Drive Type", y = "Highway MPG")
 
 ex_outliers
 ```
+
+The outlier dots appear as small black circles outside the boxplot whiskers — and you'll notice they clutter the chart because the violin *already* shows those outliers as thin tails of density. The information is duplicated: the narrow violin spike and the boxplot dot both say "one point way up here." That's why `outlier.shape = NA` is the standard pattern for embedded boxplots — the violin is the richer encoding, so let it carry the outlier story.
+</details>
 
 ## How Do You Add Raw Data Points to a Violin Plot?
 
@@ -175,14 +197,25 @@ The three layers now communicate:
 **Try it:** Set `width = 0.25` in `geom_jitter()`. Do the points still sit inside the violin, or do they spill outside?
 
 ```r
+# Your code here — try width = 0.25 and see where the points land
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_wide_jitter <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.6) +
   geom_jitter(width = 0.25, height = 0, size = 1.5, alpha = 0.5) +
   scale_fill_brewer(palette = "Set2") +
-  scale_x_discrete(labels = c("4" = "4WD", "f" = "Front", "r" = "Rear"))
+  scale_x_discrete(labels = c("4" = "4WD", "f" = "Front", "r" = "Rear")) +
+  labs(x = "Drive Type", y = "Highway MPG")
 
 ex_wide_jitter
 ```
+
+At `width = 0.25` the jitter spans half a category width on each side, so a fair number of points end up *outside* the violin — especially where the violin is narrow (the tails). That breaks the visual contract: readers expect jittered points to represent observations *within* the density shown by the violin, so points floating in empty space look like either errors or outliers even though they're neither. Keep jitter width in the 0.05–0.1 range so the spread stays inside the widest part of the violin.
+</details>
 
 ## How Do the Bandwidth and Scale Parameters Work?
 
@@ -246,13 +279,24 @@ p_scale
 **Try it:** Change `scale = "count"` to `scale = "width"`. Do the three violins now have the same maximum width?
 
 ```r
+# Your code here — swap scale = "count" for scale = "width"
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 ex_width_scale <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
-  geom_violin(scale = "width", alpha = 0.8) +
+  geom_violin(scale = "width", alpha = 0.8, color = "white") +
   scale_fill_brewer(palette = "Set2") +
-  scale_x_discrete(labels = c("4" = "4WD", "f" = "Front", "r" = "Rear"))
+  scale_x_discrete(labels = c("4" = "4WD", "f" = "Front", "r" = "Rear")) +
+  labs(x = "Drive Type", y = "Highway MPG")
 
 ex_width_scale
 ```
+
+Yes — with `scale = "width"` every violin hits the same maximum width regardless of how many observations back it. The 25-row rear-wheel group now looks just as prominent as the 106-row front-wheel group, which is a problem if readers interpret "bigger violin = more data." `scale = "width"` is only appropriate when you explicitly *don't* want sample size to be visible (e.g., comparing shape independent of n). Otherwise `scale = "count"` is the honest default.
+</details>
 
 ## Common Mistakes and How to Fix Them
 

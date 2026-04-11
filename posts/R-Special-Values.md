@@ -102,6 +102,18 @@ ex_vals <- c(1, NA, NaN, Inf, -Inf, 2)
 # your one-liner here
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_vals <- c(1, NA, NaN, Inf, -Inf, 2)
+ex_vals[is.finite(ex_vals)]
+#> [1] 1 2
+```
+
+`is.finite()` is the Swiss-army test that returns `FALSE` for `NA`, `NaN`, `Inf`, and `-Inf` all at once — exactly the four values you'd want to exclude when you ask "give me just the real, usable numbers." Chaining three separate tests (`!is.na(x) & !is.nan(x) & !is.infinite(x)`) works but is noisier and slower.
+</details>
+
 ## Why does NA poison calculations — and how do you stop it?
 
 Any arithmetic touching `NA` returns `NA`. This is deliberate: R refuses to guess what a missing value "should" be. So `sum()`, `mean()`, `sd()`, `max()` on a vector with even one `NA` return `NA` — until you tell them to skip it with `na.rm = TRUE`.
@@ -183,10 +195,23 @@ If you'd used `rep(NA, 5)` you'd have a logical vector and assigning `3.14` into
 **Try it:** Pre-allocate `ex_names` as a length-3 character vector of `NA_character_`, then assign `"Ada"` to position 1.
 
 ```r
-ex_names <- rep(NA_character_, 3)
-# ex_names[1] <- "Ada"
-# ex_names
+# Your code here — pre-allocate and assign
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_names <- rep(NA_character_, 3)
+ex_names[1] <- "Ada"
+ex_names
+#> [1] "Ada" NA    NA
+typeof(ex_names)
+#> [1] "character"
+```
+
+Using `NA_character_` keeps the vector's type as `"character"` from the start, so assigning `"Ada"` into position 1 is a pure type-preserving operation. If you'd started with `rep(NA, 3)` you'd have a `logical` vector and the assignment would silently coerce the whole thing to `character` — harmless in a one-liner but a source of surprising bugs in pre-allocation loops where the type is supposed to stay fixed.
+</details>
 
 ## Where does NULL belong (and where it doesn't)?
 
@@ -270,10 +295,24 @@ mean(rate, na.rm = TRUE)
 **Try it:** Given `ex_x <- c(1, 2, 0, 4, 0, 6)`, compute `1 / ex_x`, then replace any `Inf` with `NA_real_`.
 
 ```r
-ex_x <- c(1, 2, 0, 4, 0, 6)
-# ex_inv <- 1 / ex_x
-# ex_inv[...] <- NA_real_
+# Your code here — invert ex_x and replace Inf with NA_real_
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_x <- c(1, 2, 0, 4, 0, 6)
+ex_inv <- 1 / ex_x
+ex_inv
+#> [1] 1.0000000 0.5000000       Inf 0.2500000       Inf 0.1666667
+ex_inv[is.infinite(ex_inv)] <- NA_real_
+ex_inv
+#> [1] 1.0000000 0.5000000        NA 0.2500000        NA 0.1666667
+```
+
+Dividing by zero produces `Inf` (positive, since both operands are positive), so positions 3 and 5 become `Inf`. `is.infinite()` catches both `Inf` and `-Inf` in one test — exactly what you want here. Assigning `NA_real_` (not plain `NA`) keeps the vector's type as `double`; plain `NA` is logical and would force an unnecessary coercion step.
+</details>
 
 ## How do you clean special values before modeling?
 
@@ -329,9 +368,24 @@ There is no "just clean the data" function that's right for every project. Which
 **Try it:** Given `ex_df` with a `score` column `c(1, NA, 3, Inf, 5)`, keep only rows where score is finite. Use `is.finite()`.
 
 ```r
-ex_df <- data.frame(score = c(1, NA, 3, Inf, 5))
-# ex_df_clean <- ex_df[is.finite(ex_df$score), ]
+# Your code here — keep only rows where score is finite
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_df <- data.frame(score = c(1, NA, 3, Inf, 5))
+ex_df_clean <- ex_df[is.finite(ex_df$score), ]
+ex_df_clean
+#>   score
+#> 1     1
+#> 3     3
+#> 5     5
+```
+
+`is.finite(ex_df$score)` returns `c(TRUE, FALSE, TRUE, FALSE, TRUE)`, and using it to subset rows drops the `NA` at position 2 and the `Inf` at position 4 in one shot. The row numbers in the output (1, 3, 5) are preserved from the original data frame — a useful trace of which observations survived, though you can reset them with `rownames(ex_df_clean) <- NULL` if you need a clean sequence.
+</details>
 
 ## Practice Exercises
 
