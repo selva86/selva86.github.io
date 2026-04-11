@@ -1,366 +1,592 @@
 ---
-title: "R Joins Explained: inner_join, left_join, full_join — With Visual Diagrams"
+title: "R Joins With Visual Diagrams: Pick the Right Join Every Time"
 slug: "R-Joins"
-description: "Master R joins with dplyr: inner_join, left_join, right_join, full_join, semi_join, anti_join. Visual diagrams, multiple keys, and suffix handling."
-keywords: "R joins, inner_join, left_join, right_join, full_join, dplyr joins, merge R, semi_join, anti_join, join by multiple keys"
+description: "Inner, left, right, full, semi, and anti joins in dplyr with working examples. Learn when each join is correct and how to handle duplicate keys."
+keywords: "R joins, dplyr joins, inner_join, left_join, full_join, semi_join, anti_join, R merge, join tables in R, combine data frames R"
+auto_link_terms: "R joins|dplyr joins|inner_join()|left_join()|full_join()|semi_join()|anti_join()|join tables in R"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-03-30"
+date: 2026-04-11
 curriculum_id: "1.2.7"
-post_type: "C"
-sidebar_text: "R Joins"
-curriculum_path: "/data-wrangling/dplyr/"
-auto_link_terms: "R joins|inner_join|left_join|right_join|full_join|semi_join|anti_join|dplyr joins"
-auto_link_case_sensitive: false
+post_type: C
+sidebar_section: "Data Wrangling"
+sidebar_title: "R Joins"
+sidebar_order: 7
 ---
 
-# R Joins Explained: inner_join, left_join, full_join — With Visual Diagrams
+# R Joins With Visual Diagrams: Pick the Right Join Every Time
 
-<p class="lead">Joins combine two data frames by matching rows on shared columns. dplyr provides six join types: <code>inner_join</code> (only matches), <code>left_join</code> (all left rows), <code>right_join</code> (all right rows), <code>full_join</code> (everything), plus <code>semi_join</code> and <code>anti_join</code> for filtering.</p>
+<p class="lead">A join combines two tables into one by matching rows on a shared key column — dplyr's six join verbs (<code>inner_join</code>, <code>left_join</code>, <code>right_join</code>, <code>full_join</code>, <code>semi_join</code>, <code>anti_join</code>) differ only in which unmatched rows they keep. Pick the right one and your analysis snaps into place.</p>
 
-Joins are how you combine information from different tables — employees with departments, orders with products, students with grades. The join type determines what happens to rows that don't have a match.
+## What does joining two tables actually do?
 
-## Setup: Two Example Tables
+Real-world data rarely lives in one table. Customer names sit in one file, orders in another, products in a third — and the only way to answer "what did Alice buy?" is to combine them. A join does exactly that: it takes two tables, finds rows that share a key value, and glues matching rows side-by-side into one wider table. Here's the idea with two tiny tibbles — musicians and the instruments they play:
 
 ```r
 library(dplyr)
 
-employees <- data.frame(
-  id      = c(1, 2, 3, 4, 5),
-  name    = c("Alice", "Bob", "Carol", "David", "Eve"),
-  dept_id = c(10, 20, 10, 30, 20)
+band <- tibble(
+  name = c("John", "Paul", "George", "Ringo"),
+  band = c("Beatles", "Beatles", "Beatles", "Beatles")
 )
 
-departments <- data.frame(
-  dept_id   = c(10, 20, 40),
-  dept_name = c("Engineering", "Marketing", "Sales")
+instruments <- tibble(
+  name  = c("John", "Paul", "Keith"),
+  plays = c("guitar", "bass", "guitar")
 )
 
-cat("Employees:\n"); print(employees)
-cat("\nDepartments:\n"); print(departments)
-cat("\nNote: David has dept_id=30 (no match). Sales has dept_id=40 (no employees).\n")
+band |> inner_join(instruments, by = "name")
+#> # A tibble: 2 × 3
+#>   name  band    plays
+#>   <chr> <chr>   <chr>
+#> 1 John  Beatles guitar
+#> 2 Paul  Beatles bass
 ```
 
-## inner_join: Only Matching Rows
+Two rows survive — John and Paul — because they appear in both tables. George and Ringo are in `band` but not in `instruments`, so they're dropped. Keith is in `instruments` but not in `band`, so he's dropped too. That "keep only the matches" behavior is what `inner_join()` does, and it's the strictest of the six joins. The `by = "name"` argument tells dplyr which column to match on.
 
-Keeps rows that have a match in BOTH tables. David (dept 30) and Sales (dept 40) are both dropped.
+![Join type decision overview](screenshots/R-Joins-types-overview.webp)
+*Figure 1: Choosing a join comes down to which unmatched rows you want to keep.*
 
-```r
-library(dplyr)
+[KEY INSIGHT]
+**All joins answer the same question: which rows match, and what do you do with the ones that don't?** Every dplyr join verb matches rows identically — the only difference is whether unmatched rows from the left, right, both, or neither side survive the operation.
 
-employees <- data.frame(id=1:5, name=c("Alice","Bob","Carol","David","Eve"), dept_id=c(10,20,10,30,20))
-departments <- data.frame(dept_id=c(10,20,40), dept_name=c("Engineering","Marketing","Sales"))
-
-inner_join(employees, departments, by = "dept_id")
-```
-
-## left_join: All Left Rows + Matches
-
-Keeps ALL rows from the left table. Unmatched right values become NA. This is the most common join type.
+**Try it:** Create two tibbles — one with employee names and departments, one with names and salaries. Join them on `name` with `inner_join()`. Save to `ex_inner`.
 
 ```r
-library(dplyr)
-
-employees <- data.frame(id=1:5, name=c("Alice","Bob","Carol","David","Eve"), dept_id=c(10,20,10,30,20))
-departments <- data.frame(dept_id=c(10,20,40), dept_name=c("Engineering","Marketing","Sales"))
-
-left_join(employees, departments, by = "dept_id")
-# David (dept 30) has NA for dept_name — no matching department
-```
-
-## right_join: All Right Rows + Matches
-
-```r
-library(dplyr)
-
-employees <- data.frame(id=1:5, name=c("Alice","Bob","Carol","David","Eve"), dept_id=c(10,20,10,30,20))
-departments <- data.frame(dept_id=c(10,20,40), dept_name=c("Engineering","Marketing","Sales"))
-
-right_join(employees, departments, by = "dept_id")
-# Sales (dept 40) appears with NA for id, name — no matching employee
-```
-
-## full_join: Keep Everything
-
-Keeps ALL rows from BOTH tables. Missing matches become NA on either side.
-
-```r
-library(dplyr)
-
-employees <- data.frame(id=1:5, name=c("Alice","Bob","Carol","David","Eve"), dept_id=c(10,20,10,30,20))
-departments <- data.frame(dept_id=c(10,20,40), dept_name=c("Engineering","Marketing","Sales"))
-
-full_join(employees, departments, by = "dept_id")
-# Both David (no dept match) AND Sales (no employee match) kept
-```
-
-## Join Type Summary
-
-| Join | Left rows kept | Right rows kept | Adds columns? |
-|------|---------------|----------------|---------------|
-| `inner_join` | Matched only | Matched only | Yes |
-| `left_join` | All | Matched only | Yes |
-| `right_join` | Matched only | All | Yes |
-| `full_join` | All | All | Yes |
-| `semi_join` | Matched only | — | No |
-| `anti_join` | Unmatched only | — | No |
-
-## semi_join and anti_join: Filtering Joins
-
-These don't add columns — they filter the left table based on whether matches exist in the right table.
-
-```r
-library(dplyr)
-
-employees <- data.frame(id=1:5, name=c("Alice","Bob","Carol","David","Eve"), dept_id=c(10,20,10,30,20))
-departments <- data.frame(dept_id=c(10,20,40), dept_name=c("Engineering","Marketing","Sales"))
-
-# semi_join: employees who HAVE a matching department
-cat("Employees with matching dept:\n")
-semi_join(employees, departments, by = "dept_id")
-```
-
-```r
-library(dplyr)
-
-employees <- data.frame(id=1:5, name=c("Alice","Bob","Carol","David","Eve"), dept_id=c(10,20,10,30,20))
-departments <- data.frame(dept_id=c(10,20,40), dept_name=c("Engineering","Marketing","Sales"))
-
-# anti_join: employees who DON'T have a matching department
-cat("Employees without matching dept:\n")
-anti_join(employees, departments, by = "dept_id")
-```
-
-> Use `semi_join` when you want "give me rows from A that exist in B" without adding B's columns. Use `anti_join` for "give me rows from A that DON'T exist in B" — perfect for finding orphan records.
-
-## Joining on Multiple Keys
-
-When a single column isn't enough to identify a match, join on multiple columns.
-
-```r
-library(dplyr)
-
-midterms <- data.frame(
-  student = c("Alice","Alice","Bob","Bob"),
-  subject = c("Math","English","Math","English"),
-  midterm = c(88, 92, 76, 81)
+# Try it: inner_join two tibbles
+ex_employees <- tibble(
+  name = c("Alice", "Bob", "Carol"),
+  dept = c("Eng", "Sales", "Eng")
 )
 
-finals <- data.frame(
-  student = c("Alice","Alice","Bob"),
-  subject = c("Math","English","Math"),
-  final   = c(91, 88, 82)
+ex_salaries <- tibble(
+  name   = c("Alice", "Bob", "Dan"),
+  salary = c(90000, 75000, 80000)
 )
 
-# Join on BOTH student AND subject
-left_join(midterms, finals, by = c("student", "subject"))
-# Bob's English final is NA — no match for that combination
+ex_inner <- # your code here
+
+ex_inner
+#> Expected: 2 rows (Alice and Bob, both in both tables)
 ```
 
-## Different Column Names
-
-When the key columns have different names in each table, use a named vector.
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-library(dplyr)
-
-orders <- data.frame(order_id = 1:3, customer_id = c(101, 102, 101))
-customers <- data.frame(cust_id = c(101, 102, 103), name = c("Alice", "Bob", "Carol"))
-
-# Key is customer_id in orders, cust_id in customers
-left_join(orders, customers, by = c("customer_id" = "cust_id"))
+ex_inner <- ex_employees |> inner_join(ex_salaries, by = "name")
+ex_inner
+#> # A tibble: 2 × 3
+#>   name  dept  salary
+#>   <chr> <chr>  <dbl>
+#> 1 Alice Eng    90000
+#> 2 Bob   Sales  75000
 ```
 
-## Handling Column Name Conflicts
+**Explanation:** Carol (in employees only) and Dan (in salaries only) are both dropped because `inner_join()` keeps only the rows that appear in both tables.
 
-When both tables have a non-key column with the same name, dplyr adds suffixes.
+</details>
 
-```r
-library(dplyr)
+## How does inner_join() decide which rows match?
 
-df1 <- data.frame(id = 1:3, value = c(10, 20, 30))
-df2 <- data.frame(id = 1:3, value = c(100, 200, 300))
+Under the hood, a join is a lookup. For each row in the left table, dplyr takes the key value, scans the right table for rows with the same key, and pastes the matching right-row columns onto the left row. If there's no match, `inner_join()` drops the left row entirely. If there are multiple matches, it returns one output row per match — so the result can actually be *bigger* than the left table.
 
-left_join(df1, df2, by = "id", suffix = c("_old", "_new"))
-```
-
-## Join + Summarise Pipeline
-
-A common pattern: join tables, then aggregate.
+![How dplyr matches rows](screenshots/R-Joins-matching-process.webp)
+*Figure 2: For each left row, dplyr looks up the key in the right table and decides whether to keep or drop.*
 
 ```r
-library(dplyr)
-
-products <- data.frame(
-  prod_id = 1:4,
-  name    = c("Widget", "Gadget", "Doohickey", "Thingamajig"),
-  price   = c(10, 25, 5, 50)
+purchases <- tibble(
+  customer_id = c(1, 2, 1, 3),
+  product     = c("Pen", "Book", "Mug", "Pen")
 )
 
-orders <- data.frame(
-  order_id = 1:6,
-  prod_id  = c(1, 2, 1, 3, 2, 1),
-  qty      = c(5, 2, 3, 10, 1, 4)
+customers <- tibble(
+  customer_id = c(1, 2),
+  name        = c("Alice", "Bob")
 )
 
-orders |>
-  left_join(products, by = "prod_id") |>
-  mutate(revenue = qty * price) |>
-  group_by(name) |>
-  summarise(
-    total_qty = sum(qty),
-    total_rev = sum(revenue),
-    .groups = "drop"
-  ) |>
-  arrange(desc(total_rev))
+purchases |> inner_join(customers, by = "customer_id")
+#> # A tibble: 3 × 3
+#>   customer_id product name
+#>         <dbl> <chr>   <chr>
+#> 1           1 Pen     Alice
+#> 2           2 Book    Bob
+#> 3           1 Mug     Alice
 ```
 
-## dplyr Joins vs base R merge()
+Three rows out of four survive. Customer 3's purchase is dropped because customer 3 doesn't exist in the `customers` table. Notice how customer 1 appears twice in the result — once for the Pen and once for the Mug — because Alice made two purchases. That's a key property of joins: one left row can become many output rows if the key has multiple matches.
 
-| Feature | dplyr joins | `merge()` |
-|---------|------------|-----------|
-| Syntax | `left_join(a, b, by=)` | `merge(a, b, by=, all.x=TRUE)` |
-| Speed | Faster | Slower |
-| Row order | Preserved | Shuffled |
-| Filtering joins | `semi_join`, `anti_join` | Not available |
-| Pipe-friendly | Yes | Awkward |
-| Error messages | Clear | Cryptic |
+**Try it:** Inner-join two small tibbles where one key has 2 matches on the right side. Save to `ex_multi`.
+
+```r
+ex_left <- tibble(id = 1:2, letter = c("A", "B"))
+ex_right <- tibble(id = c(1, 1, 2), score = c(10, 20, 30))
+
+ex_multi <- # your code here
+
+nrow(ex_multi)
+#> Expected: 3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_multi <- ex_left |> inner_join(ex_right, by = "id")
+ex_multi
+#> # A tibble: 3 × 3
+#>      id letter score
+#>   <int> <chr>  <dbl>
+#> 1     1 A         10
+#> 2     1 A         20
+#> 3     2 B         30
+```
+
+**Explanation:** The row with `id = 1` from `ex_left` matches 2 rows on the right, so it's duplicated in the output — each copy paired with one matching right row.
+
+</details>
+
+## When should you use left_join() vs right_join()?
+
+`inner_join()` drops unmatched rows, which is sometimes what you want and sometimes a disaster. If you're building a sales report with one row per customer, you don't want customers with zero purchases to silently vanish. `left_join()` keeps every row from the left table — if the right side has no match, the new columns fill with `NA`. `right_join()` does the mirror: keep everything on the right, fill left with `NA`. In practice, analysts almost always use `left_join()` and flip their arguments instead of reaching for `right_join()`.
+
+```r
+band |> left_join(instruments, by = "name")
+#> # A tibble: 4 × 3
+#>   name   band    plays
+#>   <chr>  <chr>   <chr>
+#> 1 John   Beatles guitar
+#> 2 Paul   Beatles bass
+#> 3 George Beatles NA
+#> 4 Ringo  Beatles NA
+```
+
+Four rows — every member of `band` survives. George and Ringo get `NA` in the `plays` column because they don't appear in `instruments`. This is exactly what you want for reports: "show every band member, and their instrument if we know it." The presence of `NA` is often meaningful in itself — it tells you which left rows lack a match.
+
+[TIP]
+**Treat left_join() as your default.** If most of your analysis flows "left-to-right" (start with a primary table, enrich it with lookups), `left_join()` preserves your row count and prevents silent data loss. Reach for `inner_join()` only when you explicitly want to drop unmatched rows.
+
+**Try it:** Left-join `ex_employees` with `ex_salaries` so Carol appears with `NA` salary. Save to `ex_left`.
+
+```r
+ex_left_result <- ex_employees |>
+  # your code here
+
+ex_left_result
+#> Expected: 3 rows, Carol's salary is NA
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_left_result <- ex_employees |> left_join(ex_salaries, by = "name")
+ex_left_result
+#> # A tibble: 3 × 3
+#>   name  dept  salary
+#>   <chr> <chr>  <dbl>
+#> 1 Alice Eng    90000
+#> 2 Bob   Sales  75000
+#> 3 Carol Eng       NA
+```
+
+**Explanation:** Carol appears because she's in the left table; her salary is `NA` because she's missing from the right table.
+
+</details>
+
+## How does full_join() keep rows from both sides?
+
+Sometimes you want *everything* — every row from both tables, with `NA` wherever one side lacks a match. That's `full_join()`. It's the union of left and right join: rows that match get combined, rows unique to either side come through unchanged, and unmatched cells fill with `NA`. Use it when you're merging two partial datasets and need to know what each one contributed.
+
+```r
+band |> full_join(instruments, by = "name")
+#> # A tibble: 5 × 3
+#>   name   band    plays
+#>   <chr>  <chr>   <chr>
+#> 1 John   Beatles guitar
+#> 2 Paul   Beatles bass
+#> 3 George Beatles NA
+#> 4 Ringo  Beatles NA
+#> 5 Keith  NA      guitar
+```
+
+Five rows — every unique name from either table. John and Paul get combined columns, George and Ringo get `NA` in `plays`, and Keith (only in `instruments`) gets `NA` in `band`. The result shows exactly which rows came from which side, making `full_join()` useful for auditing data sources.
+
+**Try it:** Full-join `ex_employees` with `ex_salaries`. Save to `ex_full`. Confirm the row count equals the union of unique names from both tables.
+
+```r
+ex_full <- ex_employees |>
+  # your code here
+
+nrow(ex_full)
+#> Expected: 4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_full <- ex_employees |> full_join(ex_salaries, by = "name")
+ex_full
+#> # A tibble: 4 × 3
+#>   name  dept  salary
+#>   <chr> <chr>  <dbl>
+#> 1 Alice Eng    90000
+#> 2 Bob   Sales  75000
+#> 3 Carol Eng       NA
+#> 4 Dan   NA     80000
+```
+
+**Explanation:** Four unique names across both tables: Alice, Bob, Carol, Dan. Each appears exactly once, with `NA` wherever one source lacked the row.
+
+</details>
+
+## What do semi_join() and anti_join() do?
+
+`semi_join()` and `anti_join()` are the odd ones out — they're called "filtering joins" because they don't add columns, they just filter rows. `semi_join(x, y)` keeps rows in `x` that have *a match* in `y`, but adds no columns from `y`. `anti_join(x, y)` is the opposite — it keeps rows in `x` that have *no match* in `y`. Think of them as `filter()` statements that use another table as the condition.
+
+```r
+# Who in the band has a known instrument?
+band |> semi_join(instruments, by = "name")
+#> # A tibble: 2 × 2
+#>   name  band
+#>   <chr> <chr>
+#> 1 John  Beatles
+#> 2 Paul  Beatles
+
+# Who in the band has an unknown instrument?
+band |> anti_join(instruments, by = "name")
+#> # A tibble: 2 × 2
+#>   name   band
+#>   <chr>  <chr>
+#> 1 George Beatles
+#> 2 Ringo  Beatles
+```
+
+`semi_join()` returns John and Paul (the matched rows), but you'll notice the `plays` column is absent — filtering joins never add columns. `anti_join()` returns George and Ringo (the unmatched rows). These two verbs together express "rows in X that are/aren't in Y" — a surprisingly common need when you're hunting missing data or checking which records failed a lookup.
+
+[TIP]
+**Use anti_join() to find data-quality problems.** Running `orders |> anti_join(customers, by = "customer_id")` tells you exactly which orders reference customers that don't exist — invaluable when cleaning up ETL pipelines.
+
+**Try it:** Use `anti_join()` to find employees with no salary record. Save to `ex_missing`.
+
+```r
+ex_missing <- ex_employees |>
+  # your code here
+
+ex_missing
+#> Expected: 1 row (Carol)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_missing <- ex_employees |> anti_join(ex_salaries, by = "name")
+ex_missing
+#> # A tibble: 1 × 2
+#>   name  dept
+#>   <chr> <chr>
+#> 1 Carol Eng
+```
+
+**Explanation:** `anti_join()` keeps only rows from the left that have no match on the right. Carol is in `ex_employees` but absent from `ex_salaries`, so she's the only result.
+
+</details>
+
+## How do you join when the key columns have different names?
+
+Real datasets rarely have matching column names. One table calls it `customer_id`, another calls it `cust_id` or just `id`. Pass a named vector to `by` — `by = c("left_col" = "right_col")` — and dplyr will match on those differently-named columns. The left name ends up in the result.
+
+```r
+orders <- tibble(
+  order_id    = 1:3,
+  customer_id = c(1, 2, 1)
+)
+
+people <- tibble(
+  id   = c(1, 2),
+  name = c("Alice", "Bob")
+)
+
+orders |> left_join(people, by = c("customer_id" = "id"))
+#> # A tibble: 3 × 3
+#>   order_id customer_id name
+#>      <int>       <dbl> <chr>
+#> 1        1           1 Alice
+#> 2        2           2 Bob
+#> 3        3           1 Alice
+```
+
+The `customer_id` column on the left matches the `id` column on the right, and the merged result uses the left name (`customer_id`). If multiple columns need to match (say, `date` and `region`), pass a longer vector: `by = c("date", "region")` for same-name keys, or `by = c("date" = "dt", "region" = "r")` for different-name keys.
+
+[WARNING]
+**Always check what dplyr matched on.** Since dplyr 1.1.0, if you omit the `by` argument, a message warns you which columns were auto-matched. Never rely on auto-matching in production code — typos and silent column drift can cause joins on unintended keys. Always specify `by` explicitly.
+
+**Try it:** Left-join `orders` with a new tibble `shipping` keyed on `order_id` vs `ord_id`. Save to `ex_shipping`.
+
+```r
+ex_shipping_info <- tibble(
+  ord_id = c(1, 3),
+  status = c("shipped", "pending")
+)
+
+ex_shipping <- orders |>
+  # your code here
+
+ex_shipping
+#> Expected: 3 rows with status for orders 1, 3 (NA for order 2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_shipping <- orders |>
+  left_join(ex_shipping_info, by = c("order_id" = "ord_id"))
+
+ex_shipping
+#> # A tibble: 3 × 3
+#>   order_id customer_id status
+#>      <int>       <dbl> <chr>
+#> 1        1           1 shipped
+#> 2        2           2 NA
+#> 3        3           1 pending
+```
+
+**Explanation:** The named-vector `by` tells dplyr which column on each side to match, and the left-side name (`order_id`) is preserved in the result.
+
+</details>
+
+## What happens when keys are duplicated on one or both sides?
+
+Here's where joins get tricky. If the left key has one row and the right key has two matches, you get two output rows (as we saw earlier). But what if *both* sides have duplicates? Then you get a Cartesian explosion — every left duplicate paired with every right duplicate. A 2×3 match produces 6 output rows, and this is almost always a bug.
+
+```r
+left_dup <- tibble(
+  id  = c(1, 1),
+  val = c("A", "B")
+)
+
+right_dup <- tibble(
+  id    = c(1, 1, 1),
+  score = c(10, 20, 30)
+)
+
+# 2 x 3 = 6 rows
+left_dup |> inner_join(right_dup, by = "id", relationship = "many-to-many")
+#> # A tibble: 6 × 3
+#>      id val   score
+#>   <dbl> <chr> <dbl>
+#> 1     1 A        10
+#> 2     1 A        20
+#> 3     1 A        30
+#> 4     1 B        10
+#> 5     1 B        20
+#> 6     1 B        30
+```
+
+Six rows from a 2×3 key collision. Since dplyr 1.1.0, you must explicitly declare `relationship = "many-to-many"` to allow this — otherwise dplyr raises an error, on the grounds that many-to-many joins are usually accidents. The safer relationship types are `"one-to-one"`, `"one-to-many"`, and `"many-to-one"`, each of which dplyr will verify and error on if violated.
+
+[WARNING]
+**Unintentional many-to-many joins are the #1 join bug.** If you see your row count explode after a join, you almost certainly have duplicates in a key you thought was unique. Declare the expected `relationship` on every production join so dplyr catches violations for you.
+
+**Try it:** Try joining `left_dup` and `right_dup` with `relationship = "one-to-one"`. What happens? Save the error message (or success) to `ex_rel`.
+
+```r
+# Try it: enforce one-to-one
+# Expect: error because the relationship is violated
+ex_rel <- try(
+  left_dup |> inner_join(right_dup, by = "id", relationship = "one-to-one"),
+  silent = TRUE
+)
+class(ex_rel)
+#> Expected: "try-error"
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_rel <- try(
+  left_dup |> inner_join(right_dup, by = "id", relationship = "one-to-one"),
+  silent = TRUE
+)
+class(ex_rel)
+#> [1] "try-error"
+```
+
+**Explanation:** Both sides have duplicates, so the relationship isn't one-to-one. dplyr raises an error — which is exactly what you want in production code to catch data issues early.
+
+</details>
 
 ## Practice Exercises
 
-### Exercise 1: Customer Orders
+Use `my_*` variables to avoid clobbering earlier tutorial state.
 
-Join customers with orders, then find customers who have never ordered.
+### Exercise 1: Customer lifetime value
+
+You have a `customers` table and an `orders` table. Compute each customer's total spend (sum of `amount` over all their orders). Include customers with zero orders (they should show `NA` or 0). Save to `my_ltv`.
 
 ```r
-library(dplyr)
+cust <- tibble(
+  customer_id = 1:4,
+  name        = c("Alice", "Bob", "Carol", "Dan")
+)
+ord <- tibble(
+  customer_id = c(1, 1, 2, 4, 4, 4),
+  amount      = c(50, 30, 75, 100, 20, 60)
+)
 
-customers <- data.frame(id = 1:5, name = c("Alice","Bob","Carol","David","Eve"))
-orders <- data.frame(order_id = 1:4, cust_id = c(1,1,3,5), amount = c(50,30,75,20))
+my_ltv <- # your code here
 
-# 1. Show all customers with their orders (keep all customers)
-# 2. Find customers who have zero orders
-
+my_ltv
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-library(dplyr)
+my_ltv <- cust |>
+  left_join(ord, by = "customer_id") |>
+  group_by(customer_id, name) |>
+  summarise(total = sum(amount, na.rm = TRUE), .groups = "drop")
 
-customers <- data.frame(id = 1:5, name = c("Alice","Bob","Carol","David","Eve"))
-orders <- data.frame(order_id = 1:4, cust_id = c(1,1,3,5), amount = c(50,30,75,20))
-
-cat("All customers with orders:\n")
-left_join(customers, orders, by = c("id" = "cust_id"))
-
-cat("\nCustomers with no orders:\n")
-anti_join(customers, orders, by = c("id" = "cust_id"))
+my_ltv
+#> # A tibble: 4 × 3
+#>   customer_id name  total
+#>         <int> <chr> <dbl>
+#> 1           1 Alice    80
+#> 2           2 Bob      75
+#> 3           3 Carol     0
+#> 4           4 Dan     180
 ```
 
-**Explanation:** `left_join` keeps all customers; those without orders have NA in order columns. `anti_join` returns only customers with no match in the orders table.
+**Explanation:** `left_join()` preserves every customer; `sum(..., na.rm = TRUE)` handles Carol's missing-orders case by summing nothing to 0.
 
 </details>
 
-### Exercise 2: Three-Table Join
+### Exercise 2: Orphan detection
 
-Join students → enrollments → courses to get a complete picture.
+Find orders that reference non-existent customers (an `anti_join` use case). Save to `my_orphans`.
 
 ```r
-library(dplyr)
+cust_v2 <- tibble(customer_id = 1:3, name = c("A", "B", "C"))
+ord_v2  <- tibble(order_id = 1:5, customer_id = c(1, 2, 5, 3, 7))
 
-students    <- data.frame(student_id = 1:4, name = c("Alice","Bob","Carol","David"))
-enrollments <- data.frame(student_id = c(1,1,2,3), course_id = c("CS101","MATH201","CS101","MATH201"))
-courses     <- data.frame(course_id = c("CS101","MATH201","ENG101"), title = c("Intro CS","Calculus","English"))
+my_orphans <- # your code here
 
-# Chain two joins to get: student name + course title
-
+my_orphans
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-library(dplyr)
+my_orphans <- ord_v2 |> anti_join(cust_v2, by = "customer_id")
 
-students    <- data.frame(student_id = 1:4, name = c("Alice","Bob","Carol","David"))
-enrollments <- data.frame(student_id = c(1,1,2,3), course_id = c("CS101","MATH201","CS101","MATH201"))
-courses     <- data.frame(course_id = c("CS101","MATH201","ENG101"), title = c("Intro CS","Calculus","English"))
-
-students |>
-  left_join(enrollments, by = "student_id") |>
-  left_join(courses, by = "course_id") |>
-  select(name, title)
+my_orphans
+#> # A tibble: 2 × 2
+#>   order_id customer_id
+#>      <int>       <dbl>
+#> 1        3           5
+#> 2        5           7
 ```
 
-**Explanation:** Chain joins with the pipe. David has no enrollment → NA for course_id and title. ENG101 has no students → doesn't appear (it's not in the left tables).
+**Explanation:** Orders 3 and 5 reference customer IDs not in `cust_v2`. `anti_join()` keeps left rows that don't match on the right — exactly the orphan-finding pattern.
 
 </details>
 
-### Exercise 3: Find Mismatches Both Ways
+### Exercise 3: Join with renamed keys and filter
 
-Find employees without valid departments AND departments without any employees.
+Join `orders` with `people` from earlier (keys are named differently), then keep only rows where the customer name starts with "A". Save to `my_a_orders`.
 
 ```r
-library(dplyr)
+my_a_orders <- orders |>
+  # your code here
 
-emps  <- data.frame(name = c("Alice","Bob","Carol","David"), dept_id = c(1,2,1,4))
-depts <- data.frame(dept_id = c(1,2,3), dept_name = c("Eng","Mkt","Sales"))
-
+my_a_orders
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-library(dplyr)
+my_a_orders <- orders |>
+  left_join(people, by = c("customer_id" = "id")) |>
+  filter(startsWith(name, "A"))
 
-emps  <- data.frame(name = c("Alice","Bob","Carol","David"), dept_id = c(1,2,1,4))
-depts <- data.frame(dept_id = c(1,2,3), dept_name = c("Eng","Mkt","Sales"))
-
-cat("Employees without valid dept:\n")
-anti_join(emps, depts, by = "dept_id")
-
-cat("\nDepartments with no employees:\n")
-anti_join(depts, emps, by = "dept_id")
+my_a_orders
+#> # A tibble: 2 × 3
+#>   order_id customer_id name
+#>      <int>       <dbl> <chr>
+#> 1        1           1 Alice
+#> 2        3           1 Alice
 ```
 
-**Explanation:** `anti_join(A, B)` returns rows in A with no match in B. Swap the arguments to find the opposite direction's mismatches.
+**Explanation:** The named-vector `by` handles the key-name mismatch, and `startsWith()` is a base R helper that works neatly inside `filter()`.
 
 </details>
+
+## Complete Example
+
+Here's a three-table rollup: customers, orders, and products. Question: *for each customer, what's the total spent on "premium" products?*
+
+```r
+cust3 <- tibble(customer_id = 1:3, name = c("Alice", "Bob", "Carol"))
+ord3  <- tibble(
+  order_id    = 1:5,
+  customer_id = c(1, 1, 2, 3, 3),
+  product_id  = c(10, 20, 10, 30, 20),
+  amount      = c(50, 100, 50, 200, 100)
+)
+prod3 <- tibble(
+  product_id = c(10, 20, 30),
+  tier       = c("standard", "premium", "premium")
+)
+
+customer_premium_spend <- cust3 |>
+  left_join(ord3, by = "customer_id") |>
+  left_join(prod3, by = "product_id") |>
+  filter(tier == "premium") |>
+  group_by(customer_id, name) |>
+  summarise(premium_total = sum(amount), .groups = "drop")
+
+customer_premium_spend
+#> # A tibble: 2 × 3
+#>   customer_id name  premium_total
+#>         <int> <chr>         <dbl>
+#> 1           1 Alice           100
+#> 2           3 Carol           300
+```
+
+Three joins, one filter, one group-summarise. Alice spent 100 on premium products, Carol spent 300, and Bob drops out of the result entirely because he only bought standard items. That's the whole game: chain joins to enrich, filter to scope, group_by+summarise to aggregate.
 
 ## Summary
 
-| Join | Keeps | Use case |
-|------|-------|----------|
-| `inner_join(a, b)` | Only matching rows | "Give me rows that exist in both" |
-| `left_join(a, b)` | All from a + matches from b | "Keep all of a, add b's info" (most common) |
-| `right_join(a, b)` | Matches from a + all from b | Same as left_join with arguments swapped |
-| `full_join(a, b)` | Everything from both | "Keep everything, fill gaps with NA" |
-| `semi_join(a, b)` | a rows that match b | "Filter a to things that exist in b" |
-| `anti_join(a, b)` | a rows that DON'T match b | "Find orphans — what's in a but not b" |
+| Verb | Keeps rows from... | Adds columns from right? | Typical use |
+|---|---|---|---|
+| `inner_join()` | Both sides (matches only) | Yes | Strict "only rows with matches" |
+| `left_join()` | Left side (all rows) | Yes (NA where no match) | Default enrichment pattern |
+| `right_join()` | Right side (all rows) | Yes | Rare — usually flip args + left_join |
+| `full_join()` | Both sides (all unique keys) | Yes (NA where no match) | Union of two partial datasets |
+| `semi_join()` | Left side (matches only) | **No** | "Which left rows exist in right?" |
+| `anti_join()` | Left side (non-matches only) | **No** | "Which left rows are missing from right?" |
 
-## FAQ
+## References
 
-### What happens with duplicate keys?
-
-If a key matches multiple rows in the other table, you get all combinations. For a one-to-many join (one customer, many orders), this is correct — each order gets the customer info. For accidental many-to-many joins, rows multiply unexpectedly.
-
-### Should I use dplyr joins or merge()?
-
-Use dplyr joins. They preserve row order, offer semi/anti joins, produce clear error messages, and work naturally with the pipe. Use `merge()` only when dplyr isn't available.
-
-### What if the key columns have different names?
-
-Use a named vector: `left_join(a, b, by = c("emp_id" = "employee_id"))`. The left side is the column name in `a`, the right side in `b`.
-
-### How do I join on ALL shared column names?
-
-Omit `by =` — dplyr will auto-detect shared column names and join on all of them. But being explicit is safer to avoid accidental joins on unintended columns.
+1. dplyr reference — Mutating joins (`inner_join`, `left_join`, etc.). [Link](https://dplyr.tidyverse.org/reference/mutate-joins.html)
+2. dplyr reference — Filtering joins (`semi_join`, `anti_join`). [Link](https://dplyr.tidyverse.org/reference/filter-joins.html)
+3. Posit tidyverse blog — dplyr 1.1.0 joins overhaul (`relationship` argument). [Link](https://www.tidyverse.org/blog/2023/01/dplyr-1-1-0-joins/)
+4. Wickham, H., & Grolemund, G. — *R for Data Science*, Chapter 19: Joins. [Link](https://r4ds.hadley.nz/joins.html)
+5. R documentation — base `merge()` function. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/merge.html)
+6. dplyr two-table verbs vignette. [Link](https://dplyr.tidyverse.org/articles/two-table.html)
+7. SQL join types explained (cross-reference for SQL users). [Link](https://www.postgresql.org/docs/current/tutorial-join.html)
 
 ## Continue Learning
 
-- [dplyr filter & select](/dplyr-filter-select.html) — filter before joining
-- [dplyr group_by & summarise](/dplyr-group-by-summarise.html) — summarise after joining
-- [Tidy Data](/Tidy-Data-in-R.html) — reshape joined data into tidy format
+1. **[dplyr filter() and select()](dplyr-filter-select.html)** — Row and column subsetting, the verbs you'll pair with joins for enrichment pipelines.
+2. **[dplyr group_by() and summarise()](dplyr-group-by-summarise.html)** — Aggregate joined data by category, the natural next step after joining.
+3. **[pivot_longer() and pivot_wider()](pivot_longer-pivot_wider-Reshape-Data-in-R.html)** — Reshape data before or after joins when your tables are in different shapes.
