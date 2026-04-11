@@ -52,6 +52,20 @@ vals <- c(5, 10, NA, 15, NA, 20)
 # Your code
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+vals <- c(5, 10, NA, 15, NA, 20)
+mean(vals, na.rm = TRUE)
+#> [1] 12.5
+sum(vals, na.rm = TRUE)
+#> [1] 50
+```
+
+`na.rm = TRUE` drops the NA entries *before* the reduction runs, so the mean is computed over the four observed values `(5+10+15+20)/4 = 12.5`. Leave `na.rm` off and you'd get `NA` back, because R refuses to guess what the missing values are.
+</details>
+
 ## How do you detect missing values with is.na() and complete.cases()?
 
 The three workhorse functions are `is.na()`, `complete.cases()`, and `anyNA()`. Each answers a slightly different question.
@@ -103,6 +117,22 @@ df <- data.frame(
 )
 # Hint: sum(!complete.cases(df))
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+df <- data.frame(
+  a = c(1, 2, NA, 4),
+  b = c(NA, 20, 30, 40),
+  c = c(100, 200, 300, NA)
+)
+sum(!complete.cases(df))
+#> [1] 3
+```
+
+`complete.cases(df)` returns `TRUE` only for rows that are complete across every column, so negating it flips it to "has at least one NA". Summing the logical counts those rows — here rows 1, 3, and 4 each contain exactly one NA, so 3 rows are incomplete.
+</details>
 
 ## How do you count and visualize missingness?
 
@@ -160,6 +190,19 @@ Statisticians distinguish three mechanisms:
 # colMeans(is.na(airquality)) * 100
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+data(airquality)
+round(colMeans(is.na(airquality)) * 100, 1)
+#>   Ozone Solar.R    Wind    Temp   Month     Day
+#>    24.2     4.6     0.0     0.0     0.0     0.0
+```
+
+`is.na(airquality)` returns a logical matrix with `TRUE` wherever a value is missing. `colMeans()` averages each column — for a logical vector, the mean is the proportion of `TRUE`s, so multiplying by 100 gives the percent missing per variable. Here `Ozone` is missing 24% of the time and `Solar.R` under 5%.
+</details>
+
 ## When should you remove rows with NA?
 
 Removal — "listwise deletion" in stats jargon — is the simplest option. It works when NAs are rare, when the missingness is MCAR, and when you can afford to lose some sample size. The three main tools are `na.omit`, `complete.cases`, and `drop_na` from tidyr.
@@ -214,6 +257,23 @@ df <- data.frame(name = c("A","B","C"), age = c(30, NA, 25), score = c(NA, 70, 8
 # drop_na(df, score)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(tidyr)
+df <- data.frame(name  = c("A","B","C"),
+                 age   = c(30, NA, 25),
+                 score = c(NA, 70, 85))
+drop_na(df, score)
+#>   name age score
+#> 1    B  NA    70
+#> 2    C  25    85
+```
+
+Passing `score` as a bare column name to `drop_na()` scopes the NA check to that column only — row "A" is dropped because its score is missing, but row "B" survives even though its age is NA. This surgical pattern is how you preserve rows that still hold useful information in unaffected columns.
+</details>
+
 ## When should you impute instead of remove?
 
 Imputation replaces missing values with plausible estimates. You impute when:
@@ -262,6 +322,19 @@ Simple imputation has one big drawback: it **underestimates variance**. Every im
 df <- data.frame(x = c(10, NA, 20, NA, 30))
 # df$x <- ifelse(is.na(df$x), mean(df$x, na.rm = TRUE), df$x)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+df <- data.frame(x = c(10, NA, 20, NA, 30))
+df$x <- ifelse(is.na(df$x), mean(df$x, na.rm = TRUE), df$x)
+df$x
+#> [1] 10 20 20 20 30
+```
+
+`mean(df$x, na.rm = TRUE)` is `(10+20+30)/3 = 20`, and `ifelse()` substitutes that value wherever `is.na(df$x)` is TRUE while leaving observed values unchanged. Simple and fast — just remember that filling with the mean shrinks variance, which matters once you start computing standard errors.
+</details>
 
 ## What imputation strategies are available in R?
 
@@ -320,6 +393,19 @@ library(zoo)
 ts <- c(5, NA, NA, 20, 25, NA, 35)
 # na.approx(ts)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(zoo)
+ts <- c(5, NA, NA, 20, 25, NA, 35)
+na.approx(ts)
+#> [1]  5 10 15 20 25 30 35
+```
+
+`na.approx()` draws a straight line between each pair of observed values and fills the gap with the intermediate points. Between 5 and 20 the two missing slots become 10 and 15 (evenly spaced), and between 25 and 35 the single gap becomes 30 — use this whenever the underlying process looks locally linear.
+</details>
 
 ## How do you avoid creating NAs accidentally?
 
@@ -382,6 +468,20 @@ These produce `-Inf`, `Inf`, or `NaN` — not NA. But they behave similarly in d
 vals <- c(1, NA, 2, NaN, Inf, -Inf, 5)
 # is.na(vals); is.finite(vals)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+vals <- c(1, NA, 2, NaN, Inf, -Inf, 5)
+is.na(vals)
+#> [1] FALSE  TRUE FALSE  TRUE FALSE FALSE FALSE
+is.finite(vals)
+#> [1]  TRUE FALSE  TRUE FALSE FALSE FALSE  TRUE
+```
+
+`is.na()` returns `TRUE` for both `NA` *and* `NaN` (R treats NaN as a kind of missing), but `FALSE` for `Inf` and `-Inf`. `is.finite()` is stricter: only real, non-infinite numbers pass — this is the check you want before feeding a vector to a model that will choke on infinities.
+</details>
 
 ## Practice Exercises
 

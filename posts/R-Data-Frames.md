@@ -59,6 +59,25 @@ ex_cities <- data.frame(
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_cities <- data.frame(
+  city       = c("Mumbai", "Bengaluru", "Chennai"),
+  population = c(20411000, 12765000, 11324000),
+  coastal    = c(TRUE, FALSE, TRUE)
+)
+ex_cities
+#>        city population coastal
+#> 1    Mumbai   20411000    TRUE
+#> 2 Bengaluru   12765000   FALSE
+#> 3   Chennai   11324000    TRUE
+```
+
+Each argument to `data.frame()` becomes one column, and the three input vectors all have length 3 so the rows line up automatically. Because each column can hold a different type — character, numeric, logical — you get a small mixed-type table in one call.
+</details>
+
 ## How do you inspect a data frame?
 
 Before you touch a new data frame, you want a quick profile: how big is it, what types are the columns, what's in the first few rows? R gives you a handful of inspection functions that together answer every "what am I looking at?" question.
@@ -99,6 +118,17 @@ names(employees)
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+names(employees)
+#> [1] "name"   "age"    "salary" "remote"
+```
+
+`names()` returns the column names of a data frame as a character vector — which is the same thing `colnames()` gives you. Prefer `names()` in base R because it's shorter and works on lists too.
+</details>
+
 ## How do you select columns?
 
 There are four ways to pull a column out of a data frame, and you'll see all of them in real code. Let's work through them, because the differences matter — especially when one returns a vector and another returns a one-column data frame.
@@ -134,6 +164,18 @@ ex_mean_age <- mean(employees$___)
 ex_mean_age
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_mean_age <- mean(employees$age)
+ex_mean_age
+#> [1] 39
+```
+
+`employees$age` returns the `age` column as a plain numeric vector, which is exactly what `mean()` expects. The mean of `c(29, 42, 31, 55, 38)` is `195/5 = 39`.
+</details>
 
 ## How do you filter rows?
 
@@ -171,6 +213,19 @@ employees[employees$salary < 75000, ]
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+employees[employees$salary < 75000, ]
+#>    name age salary remote
+#> 1 Alice  29  65000   TRUE
+#> 3 Carol  31  70000   TRUE
+```
+
+`employees$salary < 75000` is a logical vector aligned with the rows, and using it in the row position of `[ , ]` keeps only the rows that match. Remember the trailing comma — it tells R "all columns" and is the difference between filtering rows and accidentally picking columns.
+</details>
+
 ## How do you add or modify columns?
 
 Adding a column is the same syntax as selecting one — just assign into it. This works whether the column already exists (modify) or doesn't (create). The new column can be a constant, a vector, or a vectorized computation on existing columns.
@@ -203,6 +258,23 @@ employees$high_earner <- employees$salary > ___
 employees
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+employees$high_earner <- employees$salary > 80000
+employees
+#>    name age salary remote high_earner
+#> 1 Alice  29  65000   TRUE       FALSE
+#> 2   Bob  42  82000  FALSE        TRUE
+#> 3 Carol  31  70000   TRUE       FALSE
+#> 4 David  55  95000  FALSE        TRUE
+#> 5   Eve  38  78000   TRUE       FALSE
+```
+
+Assigning into a new name — `employees$high_earner` — appends a column because the name doesn't exist yet. The right-hand side is a vectorized comparison, so R broadcasts `> 80000` across every salary and stores the logical result as the new column.
+</details>
 
 ## How do you sort and rank rows?
 
@@ -243,6 +315,22 @@ employees[order(employees$___), ]
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+employees[order(employees$age), ]
+#>    name age salary remote
+#> 1 Alice  29  65000   TRUE
+#> 3 Carol  31  70000   TRUE
+#> 5   Eve  38  78000   TRUE
+#> 2   Bob  42  82000  FALSE
+#> 4 David  55  95000  FALSE
+```
+
+`order(employees$age)` returns the row positions that would sort `age` ascending — `c(1, 3, 5, 2, 4)` — and indexing with them reorders the data frame. Notice the row numbers on the left: they carry over from the original, which is how you can tell sorting rearranged rows rather than rebuilding the data frame.
+</details>
+
 ## How do you summarize by group with `aggregate()`?
 
 The "split-apply-combine" pattern — group rows by a column, compute something on each group, combine the results — is the core of most analyses. Base R's `aggregate()` does it in one call.
@@ -275,6 +363,19 @@ The `~` is formula syntax: "compute this on the left, grouped by that on the rig
 aggregate(salary ~ remote, data = employees, FUN = ___)
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+aggregate(salary ~ remote, data = employees, FUN = max)
+#>   remote salary
+#> 1  FALSE  95000
+#> 2   TRUE  78000
+```
+
+The formula `salary ~ remote` says "compute on salary, split by remote", and passing `max` as `FUN` applies it to each group. David (non-remote) has the highest overall salary at 95000, while Eve tops the remote group at 78000.
+</details>
 
 ## Practice Exercises
 

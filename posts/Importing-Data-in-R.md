@@ -54,6 +54,24 @@ spec(ex_df)
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(readr)
+ex_text <- "id,name,score\n1,Alice,92\n2,Bob,87"
+ex_df <- read_csv(ex_text)
+spec(ex_df)
+#> cols(
+#>   id = col_double(),
+#>   name = col_character(),
+#>   score = col_double()
+#> )
+```
+
+`read_csv()` accepts a literal string as input when it contains a newline, so you can test parsing without writing a file. `spec()` returns the column specification `read_csv()` inferred — use it to verify types before pointing at a large file.
+</details>
+
 ## What arguments fix broken CSV imports?
 
 Real-world CSVs are rarely clean. These five arguments solve 90% of import headaches.
@@ -106,6 +124,25 @@ read_csv("id,score\n1,85\n2,NA\n3,NULL\n4,-", na = c("NA", "NULL", "-"))
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(readr)
+read_csv("id,score\n1,85\n2,NA\n3,NULL\n4,-",
+         na = c("NA", "NULL", "-"))
+#> # A tibble: 4 x 2
+#>      id score
+#>   <dbl> <dbl>
+#> 1     1    85
+#> 2     2    NA
+#> 3     3    NA
+#> 4     4    NA
+```
+
+Passing a character vector to `na` tells `read_csv()` to treat every one of those tokens as a missing value. Because all three sentinels resolve to `NA`, the `score` column ends up as a clean numeric — without the `na` argument the column would have been read as character.
+</details>
+
 ## How do you read Excel files?
 
 Excel files (.xlsx, .xls) need the `readxl` package — installed with tidyverse, but you call it directly. It handles multi-sheet workbooks and preserves cell types better than any CSV export would.
@@ -138,6 +175,22 @@ No external dependencies (no Java, no libreoffice) — `readxl` is pure C++ unde
 # returns a character vector of sheet names
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(readxl)
+# Write a two-sheet workbook to a temp file so we can read it back
+tmp <- tempfile(fileext = ".xlsx")
+writexl::write_xlsx(list(Products = head(iris, 2),
+                         Orders   = head(mtcars, 2)), tmp)
+excel_sheets(tmp)
+#> [1] "Products" "Orders"
+```
+
+`excel_sheets()` opens the workbook and returns a character vector of sheet names in their stored order — call this before `read_excel()` whenever you don't control the file, so you can pass the right `sheet =` argument instead of guessing.
+</details>
 
 ## How do you import JSON into R?
 
@@ -179,6 +232,25 @@ class(fromJSON(ex_json))
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(jsonlite)
+ex_json <- '[{"a":1},{"a":2},{"a":3}]'
+result <- fromJSON(ex_json)
+class(result)
+#> [1] "data.frame"
+result
+#>   a
+#> 1 1
+#> 2 2
+#> 3 3
+```
+
+`fromJSON()` auto-simplifies a JSON array of flat objects into a `data.frame` because every element shares the same keys. If any object had a different shape or a nested value, the result would fall back to a list — which is why you should always `class()` the result before piping it downstream.
+</details>
+
 ## How do you read data from other statistical software (SPSS, Stata, SAS)?
 
 Migrants from other stats software can keep their existing files. The `haven` package reads (and writes) SPSS `.sav`, Stata `.dta`, and SAS `.sas7bdat` files directly.
@@ -207,6 +279,21 @@ sas_df <- read_sas("registry.sas7bdat")
 # typically: c("tbl_df", "tbl", "data.frame")
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(haven)
+# Write an SPSS file from a built-in dataset, then read it back
+tmp <- tempfile(fileext = ".sav")
+write_sav(head(iris), tmp)
+class(read_sav(tmp))
+#> [1] "tbl_df"     "tbl"        "data.frame"
+```
+
+`read_sav()` returns a tibble (`tbl_df`) so `dplyr` verbs work directly on it. Individual columns that carried SPSS value labels gain an extra `haven_labelled` class — check them with `class(df$col)` and convert with `haven::as_factor()` when you need plain R factors.
+</details>
 
 ## How do you handle big files with data.table::fread()?
 
@@ -242,6 +329,21 @@ fread(text = "x,y\n1,10\n2,20\n3,30")
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(data.table)
+fread(text = "x,y\n1,10\n2,20\n3,30")
+#>    x  y
+#> 1: 1 10
+#> 2: 2 20
+#> 3: 3 30
+```
+
+The `text =` argument lets `fread()` parse a literal string just like it would a file path, which is the fastest way to prototype a call without touching disk. The result is a `data.table` — the leading `1:`, `2:`, `3:` on each row are the data.table row index, not a real column.
+</details>
+
 ## How do you save and load R-native formats (RDS, RData)?
 
 When the source of data is another R session, use R-native formats. `saveRDS()`/`readRDS()` save *one object* and let the caller name it on load. `save()`/`load()` save *multiple named objects* and restore them under their original names.
@@ -275,6 +377,19 @@ saveRDS(c(1, 2, 3), tempfile(fileext = ".rds"))
 # readRDS(path) returns c(1, 2, 3)
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+path <- tempfile(fileext = ".rds")
+saveRDS(c(1, 2, 3), path)
+readRDS(path)
+#> [1] 1 2 3
+```
+
+Capturing the `tempfile()` path in a variable is the key move — otherwise you write the RDS to one random path and try to read from a different one. `saveRDS()` serializes exactly one object and `readRDS()` returns it so the caller can bind it to any variable name they like.
+</details>
 
 ## Practice Exercises
 
