@@ -71,6 +71,29 @@ ex_me <- list(
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_me <- list(
+  name    = "Selva",
+  numbers = c(3, 7, 42),
+  r_user  = TRUE
+)
+ex_me
+#> $name
+#> [1] "Selva"
+#>
+#> $numbers
+#> [1]  3  7 42
+#>
+#> $r_user
+#> [1] TRUE
+```
+
+Each `list()` slot takes whatever you hand it — a single character, a three-element numeric vector, and a scalar logical coexist without forcing any type coercion. That's the whole point of a list over a vector: no common type is required.
+</details>
+
 ## How do you access list elements with `$`, `[`, and `[[`?
 
 This is the single biggest confusion in R for beginners. Lists have three access operators, and they return different things. Let's disentangle them.
@@ -114,6 +137,18 @@ ex_sum
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_sum <- sum(result[["residuals"]])
+ex_sum
+#> [1] 0
+```
+
+Double brackets pull the numeric vector straight out of the list, so `sum()` operates on `c(-0.3, 0.1, -0.2, 0.4, 0.0)` and returns a scalar. If you'd used single brackets — `result["residuals"]` — you would have handed `sum()` a length-1 *list*, which fails with the classic "non-numeric argument" error.
+</details>
+
 ## How do you add, modify, and remove list elements?
 
 Modifying a list works like a data frame column: assign into a named slot. If the slot exists, you update it; if it doesn't, you create it. To remove, assign `NULL`.
@@ -146,6 +181,18 @@ result$notes <- "___"
 result$notes
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+result$notes <- "looks good"
+result$notes
+#> [1] "looks good"
+```
+
+Assigning into a name the list doesn't have (`notes`) appends a new slot at the end — the same syntax that *modifies* an existing slot *creates* one when it's missing. There's no separate "add" call in base R; assignment handles both cases.
+</details>
 
 ## How do you work with nested lists?
 
@@ -184,6 +231,18 @@ ex_sd <- experiment$groups$___$___
 ex_sd
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_sd <- experiment$groups$treatment$sd
+ex_sd
+#> [1] 0.9
+```
+
+Chaining `$` descends one level at a time: first into the top-level `groups` list, then into the `treatment` sub-list, then to the scalar `sd` slot. Each step hands the next step a list until the final extraction pulls out the numeric value.
+</details>
 
 ## How do you iterate over a list with lapply() and sapply()?
 
@@ -228,6 +287,18 @@ sapply(numbers, ___)
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+sapply(numbers, length)
+#> a b c
+#> 5 6 3
+```
+
+`sapply()` walks each slot of `numbers`, calls `length()` on it, and then simplifies the three scalar results into a named numeric vector. The names come straight from the list — which is why naming your list slots pays off the moment you start iterating.
+</details>
+
 ## How do you flatten a list into a vector?
 
 Sometimes you just want all the values from a list as a single flat vector. `unlist()` does it — walking the list recursively and concatenating everything into one vector of the most flexible type.
@@ -256,6 +327,17 @@ Notice the second example: `unlist()` still obeys the coercion hierarchy — mix
 sum(unlist(___))
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+sum(unlist(numbers))
+#> [1] 690
+```
+
+`unlist(numbers)` collapses the three slots — `1:5`, `10:15`, `c(100, 200, 300)` — into a single numeric vector of length 14, and `sum()` adds them: `15 + 75 + 600 = 690`. The flatten-then-reduce pattern is handy when you don't care about the slot structure.
+</details>
 
 ## How do you convert between lists and data frames?
 
@@ -309,6 +391,17 @@ do.call(rbind, lapply(rows, as.data.frame))
 dim(as.data.frame(columns))
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+dim(as.data.frame(columns))
+#> [1] 4 3
+```
+
+All three list elements in `columns` have length 4, so `as.data.frame()` lines them up as columns of a 4-row, 3-column data frame. `dim()` returns rows first, then columns — if the list elements had unequal lengths the call would have errored instead.
+</details>
 
 ## Practice Exercises
 

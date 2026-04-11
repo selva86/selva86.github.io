@@ -49,6 +49,18 @@ ex_cities <- c("___", "___", "___")
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_cities <- c("Mumbai", "Bengaluru", "Chennai")
+length(ex_cities)
+#> [1] 3
+```
+
+`c()` takes any number of arguments and glues them into a vector — here, three strings, so the result is a character vector of length 3. `length()` reports element count, not character count, which is why it returns 3 and not the total number of letters.
+</details>
+
 ## How does R decide a vector's type?
 
 A vector can only hold one type at a time — all numeric, all character, all logical, and so on. What happens if you mix types? R silently coerces every element to the most flexible type in the group. This rule trips up beginners constantly, so let's see it in action.
@@ -76,6 +88,17 @@ Watch the third example carefully. The number `1` and `3` got converted to the s
 typeof(c(FALSE, 2L))
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+typeof(c(FALSE, 2L))
+#> [1] "integer"
+```
+
+The coercion hierarchy is `logical < integer < double < character`, so when a logical meets an integer, R upgrades the logical to integer (`FALSE → 0L`) and returns an integer vector. If you added a double literal like `2` instead of `2L`, the result would move one step up the hierarchy to `"double"`.
+</details>
 
 ## How do you index vectors with `[`?
 
@@ -134,6 +157,18 @@ ex_prices <- c(19.99, 24.50, 9.75, 32.00, 15.25)
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_prices <- c(19.99, 24.50, 9.75, 32.00, 15.25)
+ex_prices[ex_prices >= 15.25]
+#> [1] 19.99 24.50 32.00 15.25
+```
+
+`ex_prices >= 15.25` evaluates to a length-5 logical vector, and using it inside `[` keeps only the positions where it's `TRUE`. Three values meet the cutoff outright and the trailing `15.25` is kept because `>=` is inclusive — swap it for `>` and you'd lose that element.
+</details>
+
 ## How do vectorized operations work?
 
 In most languages, if you want to add 10 to every element of a list, you write a loop. In R, you just write `x + 10`. R applies arithmetic element-by-element across the entire vector. This isn't just shorter — it's typically 10 to 100 times faster than a loop because the work happens in compiled C code under the hood.
@@ -160,6 +195,18 @@ ex_temps <- c(18, 22, 15, 27, 30)
 # compute scaled values
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_temps <- c(18, 22, 15, 27, 30)
+(ex_temps - min(ex_temps)) / (max(ex_temps) - min(ex_temps))
+#> [1] 0.2000000 0.4666667 0.0000000 0.8000000 1.0000000
+```
+
+`min(ex_temps)` is 15 and `max(ex_temps)` is 30, so the denominator is 15. Each element gets recentred to 0-based distances (`3, 7, 0, 12, 15`) and divided element-wise by 15 — min-max scaling in one vectorised line with no loop.
+</details>
 
 ## What is recycling and when does it bite?
 
@@ -199,6 +246,17 @@ c(1, 2, 3, 4) * c(10, 100)
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+c(1, 2, 3, 4) * c(10, 100)
+#> [1]  10 200  30 400
+```
+
+The length-2 vector `c(10, 100)` recycles twice to become `c(10, 100, 10, 100)` and is then multiplied element-wise against `c(1, 2, 3, 4)`. Because the longer length (4) is a clean multiple of the shorter length (2), R does the recycling silently — no warning.
+</details>
+
 ## How do you create sequences and repeat vectors?
 
 Typing out long vectors by hand is painful. R gives you three tools to generate them: the `:` operator for integer ranges, `seq()` for custom spacing, and `rep()` for repetition. These three cover 95% of the "I need a vector of N things" cases.
@@ -236,6 +294,17 @@ seq(-1, 1, length.out = 7)
 
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+seq(-1, 1, length.out = 7)
+#> [1] -1.0000000 -0.6666667 -0.3333333  0.0000000  0.3333333  0.6666667  1.0000000
+```
+
+`length.out = 7` tells `seq()` how many points you want and lets it compute the spacing — here `2 / 6 ≈ 0.333`. Use `length.out` when you care about the count (plotting grids, bins), and `by =` when you care about the step size.
+</details>
+
 ## How do you modify vectors in place?
 
 You can update any element — or a whole slice — by assigning into an index. The same four indexing modes from earlier all work on the left-hand side of `<-`.
@@ -264,6 +333,19 @@ ex_v <- c(3, -1, 4, -2, 5)
 # replace negatives with 0
 
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_v <- c(3, -1, 4, -2, 5)
+ex_v[ex_v < 0] <- 0
+ex_v
+#> [1] 3 0 4 0 5
+```
+
+Putting the logical expression on the left of `<-` targets only the positions where it's `TRUE`, and the scalar `0` is recycled into each selected slot. That's the idiomatic way to floor values — no loop, no `ifelse`, just a single assignment.
+</details>
 
 ## Practice Exercises
 

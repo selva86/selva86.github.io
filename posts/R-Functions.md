@@ -47,6 +47,20 @@ ex_celsius_to_f <- function(c) {
 # ex_celsius_to_f(c(0, 20, 100))
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_celsius_to_f <- function(c) {
+  c * 9 / 5 + 32
+}
+ex_celsius_to_f(c(0, 20, 100))
+#> [1]  32  68 212
+```
+
+The body is a single expression, so there's no need for `return()` — the last (and only) expression is returned automatically. The formula is vectorised, so `c(0, 20, 100)` is converted element-by-element to `c(32, 68, 212)` in one call.
+</details>
+
 ## How do you declare a function and what's in the signature?
 
 Every R function has three parts: a **name** (how you'll call it), a **signature** (the arguments it accepts), and a **body** (the code that runs). You bind all three with `function()` and save it to a variable.
@@ -83,6 +97,28 @@ ex_summarise_v2 <- function(x, digits = 2) {
 }
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_summarise_v2 <- function(x, digits = 2) {
+  result <- c(
+    mean = mean(x),
+    sd   = sd(x),
+    n    = length(x),
+    min  = min(x),
+    max  = max(x)
+  )
+  round(result, digits)
+}
+ex_summarise_v2(c(4, 7, 9, 12, 15, 18))
+#>  mean    sd     n   min   max
+#> 10.83  5.19  6.00  4.00 18.00
+```
+
+Appending `min = min(x)` and `max = max(x)` to the named vector extends the return value without changing the rest of the function — the `round()` call then applies uniformly to all five entries. A named numeric vector is a fine lightweight return when every field is the same type; reach for a `list()` only when the pieces have different shapes.
+</details>
+
 ## How do default arguments and positional/named matching really work?
 
 When you call a function, R matches your arguments in three passes: **exact name match first**, then **partial name match**, then **positional match**. Defaults fill in anything the caller didn't supply. Understanding this order prevents most "why did my function get the wrong value?" bugs.
@@ -116,6 +152,18 @@ Partial matching feels convenient but breaks when someone adds a new argument wi
 ```r
 # ex_msg <- greet(...)
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_msg <- greet(name = "Lin", greeting = "Hey")
+ex_msg
+#> [1] "Hey, Lin!"
+```
+
+Passing `name` and `greeting` by name lets R skip the positional order and leaves `punctuation` to fall back to its default of `"!"`. Named arguments like this are how you communicate intent to the reader and stay safe if the function author ever reorders the signature.
+</details>
 
 ## Should you use return() explicitly or rely on implicit return?
 
@@ -175,6 +223,31 @@ ex_range_info <- function(x) {
 }
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_range_info <- function(x) {
+  list(
+    min  = min(x),
+    max  = max(x),
+    span = max(x) - min(x)
+  )
+}
+ex_range_info(c(4, 9, 2, 7))
+#> $min
+#> [1] 2
+#>
+#> $max
+#> [1] 9
+#>
+#> $span
+#> [1] 7
+```
+
+Wrapping the three values in `list()` lets the single return carry heterogeneous pieces — if you used `c()` the elements would all collapse to one numeric vector and you'd lose the names' semantic distinction. Callers pull individual fields back out with `$min`, `$max`, `$span`.
+</details>
+
 ## How does R find variables inside a function (lexical scoping)?
 
 When a function needs a variable, R first looks **inside the function**, then in the **environment where the function was defined**, then up the chain to the global environment, and finally in attached packages. This is **lexical scoping** — "lexical" because the lookup follows the code's written structure, not its call order.
@@ -229,6 +302,24 @@ ex_shift <- function(x) {
 # ex_shift(5)
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_g <- 100
+ex_shift <- function(x) {
+  x + ex_g
+}
+ex_shift(5)
+#> [1] 105
+ex_g <- 200
+ex_shift(5)
+#> [1] 205
+```
+
+`ex_shift()` has no `ex_g` in its own environment, so R walks outward and picks up the current value from the global environment *at call time* — not at definition time. That's why changing `ex_g` to 200 between the two calls changes the result. It's also why leaning on globals inside functions is fragile: a caller can silently alter the result without touching the arguments.
+</details>
+
 ## When should you vectorise vs loop inside a function?
 
 R's built-in operators and most functions are already **vectorised** — they apply element-wise to whole vectors in a single, fast C call. A for-loop in R is dramatically slower because each iteration pays interpreter overhead. The rule: if a vectorised version exists, use it.
@@ -271,6 +362,20 @@ ex_standardise <- function(x) {
 }
 ```
 
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_standardise <- function(x) {
+  (x - mean(x)) / sd(x)
+}
+ex_standardise(c(1, 2, 3, 4, 5))
+#> [1] -1.2649111 -0.6324555  0.0000000  0.6324555  1.2649111
+```
+
+`mean(x)` and `sd(x)` each collapse the vector to a scalar, and the surrounding arithmetic is recycled across every element of `x` in a single C call. The result is a vector with mean 0 and standard deviation 1 — the same thing `scale()` does, minus the matrix wrapper.
+</details>
+
 ## How do you validate inputs and fail loudly, not silently?
 
 A function that accepts garbage and returns garbage is worse than one that crashes — the silent failure shows up three steps later with no trace of where it started. Validate at the top with `stopifnot()` or explicit `stop()` calls, so bad input fails immediately with a clear message.
@@ -312,6 +417,24 @@ ex_mean_positive <- function(x) {
   # validate then compute
 }
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_mean_positive <- function(x) {
+  stopifnot(
+    "x must be numeric" = is.numeric(x),
+    "x must be all positive" = all(x > 0)
+  )
+  mean(x)
+}
+ex_mean_positive(c(2, 4, 6, 8))
+#> [1] 5
+```
+
+The two `stopifnot()` conditions run before the body, so a character vector or any value `<= 0` raises the matching error immediately instead of silently flowing into `mean()`. Named strings on the left-hand side of each assertion become the error message — make them explicit enough that the caller understands the contract without reading the function body.
+</details>
 
 ## Practice Exercises
 
