@@ -1,66 +1,44 @@
 ---
 title: "lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever"
-description: "lubridate parses dates from any format, extracts components like month() and wday(), and handles durations and intervals. Replace base R date handling."
-keywords: "lubridate, lubridate in R, R date parsing, ymd(), mdy(), dmy(), R time zones, duration vs period R, date arithmetic R, lubridate tutorial"
+description: "Parse, extract, and compute with dates and times in R using lubridate. ymd(), hms(), month(), wday(), durations, periods, and time zones explained."
+keywords: "lubridate, lubridate R, ymd, hms, date parsing R, time zones R, durations periods intervals R"
 mathjax: false
 webr: true
 curriculum_id: "1.2.11"
 post_type: "C"
-auto_link_terms: "lubridate|lubridate in R|ymd()|mdy()|dmy()|date parsing in R|R date arithmetic|duration vs period"
+auto_link_terms: "lubridate|ymd()|ymd_hms()|date parsing in R|time zones in R|durations and periods"
 auto_link_case_sensitive: false
 sidebar_section: "Data Wrangling"
 sidebar_title: "lubridate"
-sidebar_order: "12"
+sidebar_order: "10"
 ---
 <!-- md2html:generated -->
 
 <h1>lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever</h1>
 
-<p class="lead">lubridate is a tidyverse package that parses date strings from any format, extracts components like year, month, and weekday, and performs arithmetic with durations, periods, and intervals.</p>
+<p class="lead">lubridate is the tidyverse package for dates and times. It parses any common date format with a single function name, extracts components like month and weekday without string surgery, and handles arithmetic and time zones with rules that actually match the calendar.</p>
 
-<h2>Introduction</h2>
+<h2>Why does R need lubridate for dates?</h2>
 
-<p>Dates in R are painful. Base R parsing with <code>as.Date()</code> and <code>strptime()</code> requires memorizing cryptic format codes like <code>%Y-%m-%d</code> and <code>%d/%b/%Y</code>. One wrong <code>%</code> code and you get NA with no explanation.</p>
-
-<p>lubridate fixes this. Instead of format codes, you pick a function whose name matches the order of your date components. Year-month-day? Use <code>ymd()</code>. Month-day-year? Use <code>mdy()</code>. That is the entire mental model.</p>
-
-<p>Beyond parsing, lubridate gives you accessor functions like <code>year()</code>, <code>month()</code>, and <code>wday()</code> that extract and modify date components. It also provides three time-span classes — durations, periods, and intervals — that handle date arithmetic correctly, even across leap years and daylight saving boundaries.</p>
-
-<p>In this tutorial, you will learn how to parse any date format, extract and modify components, round dates, compute time differences, and handle time zones. Every code block runs directly in your browser, so you can experiment as you read.</p>
-
-<p><img src="screenshots/lubridate-in-R-parsing-family.webp" alt="lubridate parsing functions" class="img-responsive" loading="lazy" /></p>
-
-<p><em>Figure 1: How lubridate parsing functions map date component order to the right function.</em></p>
-
-<h2>How Does lubridate Parse Dates from Any Format?</h2>
-
-<p>The key insight behind lubridate parsing is simple: the function name tells R the order of your date components. If your date reads year-month-day, use <code>ymd()</code>. If it reads month-day-year, use <code>mdy()</code>. If it reads day-month-year, use <code>dmy()</code>.</p>
-
-<p>lubridate auto-detects separators. Dashes, slashes, spaces, or no separator at all — it handles them without extra arguments.</p>
-
-<p>Let's load lubridate and parse dates in three different formats.</p>
+<p>Base R has <code>as.Date()</code> and <code>as.POSIXct()</code>, but both force you to specify the input format with an obscure <code>%Y-%m-%d</code> string. Get one character wrong and you silently parse nothing. Worse, base R is inconsistent about what "month" returns, how to add a month, and how time zones interact. lubridate replaces all of that with a family of parsers named after the order of their components. Let's start with the payoff — parsing five messy date strings with zero format strings.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Load lubridate
-library(lubridate)
+    <div class="webr-editor" data-language="r">library(lubridate)
 
-# Year-Month-Day formats
-date1 &lt;- ymd(&quot;2026-04-06&quot;)
-print(date1)
-#&gt; [1] &quot;2026-04-06&quot;
-
-# Month-Day-Year formats
-date2 &lt;- mdy(&quot;April 6, 2026&quot;)
-print(date2)
-#&gt; [1] &quot;2026-04-06&quot;
-
-# Day-Month-Year formats
-date3 &lt;- dmy(&quot;06/04/2026&quot;)
-print(date3)
-#&gt; [1] &quot;2026-04-06&quot;</div>
+dates &lt;- c(&quot;2026-04-11&quot;, &quot;11/04/2026&quot;, &quot;April 11, 2026&quot;, &quot;20260411&quot;, &quot;11-Apr-2026&quot;)
+ymd(dates[1])
+#&gt; [1] &quot;2026-04-11&quot;
+dmy(dates[2])
+#&gt; [1] &quot;2026-04-11&quot;
+mdy(dates[3])
+#&gt; [1] &quot;2026-04-11&quot;
+ymd(dates[4])
+#&gt; [1] &quot;2026-04-11&quot;
+dmy(dates[5])
+#&gt; [1] &quot;2026-04-11&quot;</div>
 
     <div class="webr-buttons">
 
@@ -78,23 +56,57 @@ print(date3)
 
 </div>
 
-<p>All three functions returned the same date object. <code>ymd()</code> parsed the ISO format, <code>mdy()</code> handled the spelled-out month, and <code>dmy()</code> interpreted slashes in European order. No format codes needed.</p>
+<p>Five formats, zero <code>%Y-%m-%d</code> strings. The function name tells lubridate the order of the components and it figures out the separators, month names, and padding automatically. <code>ymd</code> means "year-month-day", <code>dmy</code> means "day-month-year", <code>mdy</code> means "month-day-year". For datetimes, append <code>_h</code>, <code>_hm</code>, or <code>_hms</code>: <code>ymd_hms(&quot;2026-04-11 14:30:00&quot;)</code>.</p>
 
-<p>When your data includes time information, append <code>_hms</code> or <code>_hm</code> to the function name. The pattern stays the same: the name describes what appears in the string.</p>
+<p><img src="screenshots/lubridate-in-R-parsing-family.webp" alt="lubridate parser family" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: The lubridate parser family. Pick the function whose name matches the order of components in your input, and lubridate handles the rest.</em></p>
+
+<blockquote><p><strong>[TIP]</strong> If your dates come from Excel or a CSV with mixed formats, lubridate's parsers are vectorized — <code>ymd(c(&quot;2026-01-01&quot;, &quot;2026-01-02&quot;, &quot;bad&quot;))</code> returns a Date vector with NA for the bad element and a warning telling you which one failed.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Parse the vector below with the correct lubridate function.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(lubridate)
+raw &lt;- c(&quot;15/03/2024&quot;, &quot;01/01/2025&quot;, &quot;31/12/2023&quot;)
+# Hint: these are day-first</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How does lubridate parse date and datetime strings?</h2>
+
+<p>Parser functions fall into three tiers: pure dates (<code>ymd</code>, <code>mdy</code>, <code>dmy</code>, <code>ydm</code>, <code>myd</code>, <code>dym</code>), date-times (<code>ymd_h</code>, <code>ymd_hm</code>, <code>ymd_hms</code>, and all permutations), and specialized parsers (<code>parse_date_time</code> for unusual formats, <code>fast_strptime</code> when performance matters).</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Parse date-time with hours, minutes, seconds
-dt1 &lt;- ymd_hms(&quot;2026-04-06 14:30:45&quot;)
-print(dt1)
-#&gt; [1] &quot;2026-04-06 14:30:45 UTC&quot;
+    <div class="webr-editor" data-language="r">library(lubridate)
 
-# Parse date-time with hours and minutes only
-dt2 &lt;- mdy_hm(&quot;04/06/2026 2:30 PM&quot;)
-print(dt2)
-#&gt; [1] &quot;2026-04-06 14:30:00 UTC&quot;</div>
+# Pure dates → Date class
+d1 &lt;- ymd(&quot;2026-04-11&quot;)
+class(d1)
+#&gt; [1] &quot;Date&quot;
+
+# Datetimes → POSIXct class, default UTC
+dt1 &lt;- ymd_hms(&quot;2026-04-11 14:30:00&quot;)
+class(dt1)
+#&gt; [1] &quot;POSIXct&quot; &quot;POSIXt&quot;
+dt1
+#&gt; [1] &quot;2026-04-11 14:30:00 UTC&quot;
+
+# Specify a time zone on parse
+dt2 &lt;- ymd_hms(&quot;2026-04-11 14:30:00&quot;, tz = &quot;Asia/Kolkata&quot;)
+dt2
+#&gt; [1] &quot;2026-04-11 14:30:00 IST&quot;</div>
 
     <div class="webr-buttons">
 
@@ -112,19 +124,15 @@ print(dt2)
 
 </div>
 
-<p><code>ymd_hms()</code> parsed the 24-hour time. <code>mdy_hm()</code> handled 12-hour AM/PM notation. Both return POSIXct objects in UTC by default.</p>
-
-<p>Sometimes real data contains dates in inconsistent formats. A single column might have "2026-04-06", "04/06/2026", and "April 6, 2026" mixed together. <code>parse_date_time()</code> handles this by accepting multiple format orders.</p>
+<p>When the format is irregular, <code>parse_date_time</code> accepts an orders vector and tries each in order:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Mixed-format dates in one vector
-mixed_dates &lt;- c(&quot;2026-04-06&quot;, &quot;04/06/2026&quot;, &quot;6-Apr-2026&quot;)
-parsed &lt;- parse_date_time(mixed_dates, orders = c(&quot;ymd&quot;, &quot;mdy&quot;, &quot;dmy&quot;))
-print(parsed)
-#&gt; [1] &quot;2026-04-06 UTC&quot; &quot;2026-04-06 UTC&quot; &quot;2026-04-06 UTC&quot;</div>
+    <div class="webr-editor" data-language="r">messy &lt;- c(&quot;2026-04-11&quot;, &quot;April 11 2026&quot;, &quot;11/04/2026&quot;)
+parse_date_time(messy, orders = c(&quot;ymd&quot;, &quot;mdy&quot;, &quot;dmy&quot;))
+#&gt; [1] &quot;2026-04-11 UTC&quot; &quot;2026-04-11 UTC&quot; &quot;2026-04-11 UTC&quot;</div>
 
     <div class="webr-buttons">
 
@@ -142,123 +150,65 @@ print(parsed)
 
 </div>
 
-<p><code>parse_date_time()</code> tried each format order and picked the one that worked for each string. This is invaluable when you inherit messy spreadsheet data.</p>
+<p>This is the rescue function for real-world data where the source export mixes formats. It tries each order and picks the one that gives a valid date per element.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use parse_date_time() when a column contains dates in multiple formats.</strong> Pass a vector of format orders like <code>c(&quot;ymd&quot;, &quot;mdy&quot;, &quot;dmy&quot;)</code> and lubridate tries each one until it finds a match. This saves you from splitting and parsing subsets manually.</div></div>
+<blockquote><p><strong>[WARNING]</strong> <code>dmy(&quot;01/02/2026&quot;)</code> parses as Feb 1st; <code>mdy(&quot;01/02/2026&quot;)</code> parses as Jan 2nd. Always confirm the source convention before choosing a parser. For US data, <code>mdy</code> is the default; for almost everywhere else, <code>dmy</code>.</p></blockquote>
 
-<h2>How Do You Extract and Modify Date Components?</h2>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Parse this mixed vector with <code>parse_date_time</code> using an orders vector.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(lubridate)
+mixed &lt;- c(&quot;2026-01-15 10:30&quot;, &quot;Jan 15 2026 10:30&quot;, &quot;15/01/2026 10:30&quot;)
+# Hint: orders = c(&quot;ymd HM&quot;, &quot;mdy HM&quot;, &quot;dmy HM&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
 
-<p>Once you have a parsed date, you often need to pull out a specific piece — the year for grouping, the month for seasonal analysis, or the weekday for scheduling patterns. lubridate provides accessor functions that read like English.</p>
+<h2>How do you extract components like year, month, and weekday?</h2>
 
-<p><img src="screenshots/lubridate-in-R-component-extraction.webp" alt="Date-time component extraction" class="img-responsive" loading="lazy" /></p>
-
-<p><em>Figure 2: Extracting individual components from a date-time object.</em></p>
-
-<p>Each accessor function matches the component it extracts: <code>year()</code>, <code>month()</code>, <code>day()</code>, <code>hour()</code>, <code>minute()</code>, <code>second()</code>, <code>wday()</code> (weekday), and <code>yday()</code> (day of year).</p>
+<p>Once a value is a Date or POSIXct, lubridate gives you an accessor for every meaningful piece. Each accessor has a consistent name and returns the natural type — an integer for numeric parts and an ordered factor for labeled parts.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Create a date-time to examine
-today &lt;- ymd_hms(&quot;2026-04-06 14:30:45&quot;)
+    <div class="webr-editor" data-language="r">library(lubridate)
 
-# Extract components
-year(today)
+x &lt;- ymd_hms(&quot;2026-04-11 14:30:45&quot;)
+
+year(x)
 #&gt; [1] 2026
-
-month(today)
+month(x)
 #&gt; [1] 4
-
-day(today)
-#&gt; [1] 6
-
-wday(today)
-#&gt; [1] 2
-
-hour(today)
-#&gt; [1] 14</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>year()</code> returned 2026, <code>month()</code> returned 4 (April), <code>day()</code> returned 6, and <code>wday()</code> returned 2. By default, <code>wday()</code> uses 1 for Sunday and 7 for Saturday, so 2 means Monday.</p>
-
-<p>The numeric values are useful for computation, but sometimes you want the name. Add <code>label = TRUE</code> to get ordered factor labels.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Get month and weekday names
-month(today, label = TRUE)
+month(x, label = TRUE)
 #&gt; [1] Apr
-#&gt; 12 Levels: Jan &lt; Feb &lt; Mar &lt; Apr &lt; May &lt; Jun &lt; Jul &lt; Aug &lt; ... &lt; Dec
-
-wday(today, label = TRUE)
-#&gt; [1] Mon
-#&gt; 7 Levels: Sun &lt; Mon &lt; Tue &lt; Wed &lt; Thu &lt; Fri &lt; Sat
-
-# Week of the year and day of the year
-week(today)
+#&gt; Levels: Jan &lt; Feb &lt; ... &lt; Dec
+day(x)
+#&gt; [1] 11
+wday(x)
+#&gt; [1] 7   (Saturday — weeks start on Sunday by default)
+wday(x, label = TRUE, week_start = 1)
+#&gt; [1] Sat
+#&gt; Levels: Mon &lt; Tue &lt; ... &lt; Sun
+hour(x)
 #&gt; [1] 14
-
-yday(today)
-#&gt; [1] 96</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>month(today, label = TRUE)</code> returned "Apr" as an ordered factor. <code>wday(today, label = TRUE)</code> returned "Mon". These <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factors</a> sort correctly in plots and tables.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>lubridate accessor functions are both getters and setters.</strong> Call <code>month(date)</code> to read the month. Call <code>month(date) &lt;- 12</code> to change it. This two-way design means you can modify date components in place without rebuilding the entire date from scratch.</div></div>
-
-<p>Here is the setter in action.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Modify a component in place
-my_date &lt;- ymd(&quot;2026-04-06&quot;)
-print(my_date)
-#&gt; [1] &quot;2026-04-06&quot;
-
-# Change the month to December
-month(my_date) &lt;- 12
-print(my_date)
-#&gt; [1] &quot;2026-12-06&quot;
-
-# Change the year to 2025
-year(my_date) &lt;- 2025
-print(my_date)
-#&gt; [1] &quot;2025-12-06&quot;</div>
+minute(x)
+#&gt; [1] 30
+second(x)
+#&gt; [1] 45
+yday(x)
+#&gt; [1] 101
+quarter(x)
+#&gt; [1] 2
+week(x)
+#&gt; [1] 15</div>
 
     <div class="webr-buttons">
 
@@ -276,128 +226,37 @@ print(my_date)
 
 </div>
 
-<p>After setting <code>month(my_date) &lt;- 12</code>, the date jumped from April to December. Then <code>year(my_date) &lt;- 2025</code> moved it back one year. The day stayed at 6 throughout.</p>
+<p><img src="screenshots/lubridate-in-R-component-extraction.webp" alt="lubridate component extraction" class="img-responsive" loading="lazy" /></p>
 
-<h2>How Do You Round Dates to Useful Boundaries?</h2>
+<p><em>Figure 2: The component accessors form a hierarchy — year, quarter, month, week, day, hour, minute, second. Each returns a plain integer you can use in dplyr summaries.</em></p>
 
-<p>When you aggregate data — monthly sales, weekly active users, quarterly revenue — you need to snap each date to the start of its time period. lubridate provides three rounding functions: <code>floor_date()</code> rounds down, <code>ceiling_date()</code> rounds up, and <code>round_date()</code> rounds to the nearest unit.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Create sample timestamps
-timestamps &lt;- ymd_hms(c(
-  &quot;2026-03-15 09:45:00&quot;,
-  &quot;2026-03-22 14:20:00&quot;,
-  &quot;2026-04-03 08:10:00&quot;,
-  &quot;2026-04-18 17:55:00&quot;
-))
-
-# Round down to month
-floor_date(timestamps, &quot;month&quot;)
-#&gt; [1] &quot;2026-03-01 UTC&quot; &quot;2026-03-01 UTC&quot; &quot;2026-04-01 UTC&quot; &quot;2026-04-01 UTC&quot;
-
-# Round down to week (starts Monday)
-floor_date(timestamps, &quot;week&quot;, week_start = 1)
-#&gt; [1] &quot;2026-03-09 UTC&quot; &quot;2026-03-16 UTC&quot; &quot;2026-03-30 UTC&quot; &quot;2026-04-13 UTC&quot;
-
-# Round to nearest quarter
-round_date(timestamps, &quot;quarter&quot;)
-#&gt; [1] &quot;2026-04-01 UTC&quot; &quot;2026-04-01 UTC&quot; &quot;2026-04-01 UTC&quot; &quot;2026-04-01 UTC&quot;</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>floor_date(timestamps, &quot;month&quot;)</code> snapped every date to the first of its month. The two March dates became March 1, and the two April dates became April 1. This is exactly what you need for monthly grouping.</p>
-
-<p>Let's combine rounding with dplyr for a practical aggregation.</p>
+<p>The real power comes when you combine these inside a dplyr pipeline. Want average sales by weekday? One mutate and one group_by.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Practical: monthly sales summary
-library(dplyr)
+    <div class="webr-editor" data-language="r">library(dplyr); library(lubridate)
 
-sales &lt;- tibble(
-  date = ymd(c(&quot;2026-01-05&quot;, &quot;2026-01-22&quot;, &quot;2026-02-10&quot;,
-               &quot;2026-02-18&quot;, &quot;2026-03-03&quot;, &quot;2026-03-25&quot;)),
-  amount = c(150, 230, 180, 310, 275, 190)
+transactions &lt;- tibble(
+  timestamp = ymd_hms(c(
+    &quot;2026-04-06 09:15:00&quot;, &quot;2026-04-06 11:30:00&quot;, &quot;2026-04-07 14:00:00&quot;,
+    &quot;2026-04-08 10:00:00&quot;, &quot;2026-04-10 16:45:00&quot;, &quot;2026-04-11 12:20:00&quot;
+  )),
+  amount = c(45, 88, 120, 65, 200, 75)
 )
 
-monthly_sales &lt;- sales |&gt;
-  mutate(month = floor_date(date, &quot;month&quot;)) |&gt;
-  group_by(month) |&gt;
-  summarise(total = sum(amount), n_orders = n())
-
-print(monthly_sales)
-#&gt; # A tibble: 3 x 3
-#&gt;   month      total n_orders
-#&gt;   &lt;date&gt;     &lt;dbl&gt;    &lt;int&gt;
-#&gt; 1 2026-01-01   380        2
-#&gt; 2 2026-02-01   490        2
-#&gt; 3 2026-03-01   465        2</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>floor_date(date, &quot;month&quot;)</code> created a grouping column that <code>group_by()</code> could use. January's two orders totaled 380, February's totaled 490, and March's totaled 465.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Combine floor_date() with dplyr's group_by() for instant time-based aggregation.</strong> This pattern works for any granularity: replace "month" with "week", "quarter", "year", or even "2 weeks" for biweekly grouping.</div></div>
-
-<h2>What Is the Difference Between Durations, Periods, and Intervals?</h2>
-
-<p>This is the most important conceptual distinction in lubridate. When you say "one year from now," do you mean exactly 365 days (31,536,000 seconds) or the same calendar date next year? The answer depends on which time-span class you use.</p>
-
-<p><img src="screenshots/lubridate-in-R-duration-period-interval.webp" alt="Duration vs Period vs Interval" class="img-responsive" loading="lazy" /></p>
-
-<p><em>Figure 3: Duration measures exact seconds, Period tracks clock units, Interval bounds a specific span.</em></p>
-
-<p><strong>Durations</strong> measure exact physical time in seconds. One duration year always equals exactly 365 days (31,536,000 seconds), regardless of leap years.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Create durations (exact seconds)
-dur1 &lt;- dyears(1)
-print(dur1)
-#&gt; [1] &quot;31536000s (~365 days)&quot;
-
-dur2 &lt;- ddays(30) + dhours(6)
-print(dur2)
-#&gt; [1] &quot;2613600s (~30.25 days)&quot;
-
-# Duration in seconds
-as.numeric(dur1)
-#&gt; [1] 31536000</div>
+transactions |&gt;
+  mutate(weekday = wday(timestamp, label = TRUE, week_start = 1)) |&gt;
+  group_by(weekday) |&gt;
+  summarise(total = sum(amount), n = n())
+#&gt; # A tibble: 4 x 3
+#&gt;   weekday total     n
+#&gt;   &lt;ord&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 Mon        65     1
+#&gt; 2 Tue       200     1
+#&gt; 3 Wed        75     1
+#&gt; 4 Fri       253     2</div>
 
     <div class="webr-buttons">
 
@@ -415,106 +274,42 @@ as.numeric(dur1)
 
 </div>
 
-<p><code>dyears(1)</code> created a duration of exactly 31,536,000 seconds. <code>ddays(30) + dhours(6)</code> combined 30 days and 6 hours into a single duration. Durations always store their value in seconds internally.</p>
+<blockquote><p><strong>[NOTE]</strong> The <code>label = TRUE</code> variant of <code>wday</code>, <code>month</code>, and <code>quarter</code> returns an <strong>ordered factor</strong>, which is what you want for plotting — ggplot will display days in Mon, Tue, Wed order instead of alphabetical.</p></blockquote>
 
-<p><strong>Periods</strong> measure human clock time. One period year means "same date next year," which could be 365 or 366 days depending on leap years.</p>
-
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the vector below, compute the month and the weekday name for each date.</p>
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Create periods (clock time)
-per1 &lt;- years(1)
-print(per1)
-#&gt; [1] &quot;1y 0m 0d 0H 0M 0S&quot;
-
-per2 &lt;- months(3) + days(15)
-print(per2)
-#&gt; [1] &quot;3m 15d 0H 0M 0S&quot;</div>
-
+    <div class="webr-editor" data-language="r">library(lubridate)
+dts &lt;- ymd(c(&quot;2026-01-01&quot;, &quot;2026-06-15&quot;, &quot;2026-12-31&quot;))
+# Use month(..., label=TRUE) and wday(..., label=TRUE)</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
+</section>
 
-<p><code>years(1)</code> created a period of 1 year. Unlike durations, periods don't convert to seconds — they track the calendar units directly. <code>months(3) + days(15)</code> means "3 months and 15 days," which varies in actual seconds depending on which months.</p>
+<h2>How do you do arithmetic on dates and times?</h2>
 
-<p>The difference matters when you cross a leap year boundary.</p>
+<p>The obvious question — "how many days between these two dates?" — has a simple answer:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Duration vs Period across a leap year
-leap_date &lt;- ymd(&quot;2024-03-01&quot;)
+    <div class="webr-editor" data-language="r">library(lubridate)
 
-# Add 1 duration year (exactly 365 days)
-dur_result &lt;- leap_date + dyears(1)
-print(dur_result)
-#&gt; [1] &quot;2025-02-28 06:00:00 UTC&quot;
-
-# Add 1 period year (same calendar date next year)
-per_result &lt;- leap_date + years(1)
-print(per_result)
-#&gt; [1] &quot;2025-03-01&quot;</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Adding <code>dyears(1)</code> to March 1, 2024, moved exactly 365 days forward — landing on February 28 at 6 AM (because 2024 was a leap year with 366 days, so 365 days from March 1 doesn't reach March 1). Adding <code>years(1)</code> landed on March 1, 2025, which is what most people mean by "one year later."</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Duration arithmetic can shift your dates unexpectedly across leap years and DST boundaries.</strong> Use periods (<code>years()</code>, <code>months()</code>, <code>days()</code>) when you want calendar-intuitive results. Use durations (<code>dyears()</code>, <code>ddays()</code>) when you need exact elapsed time for scientific or financial calculations.</div></div>
-
-<p><strong>Intervals</strong> represent a specific span of time with a defined start and end point. They retain the full context of exactly when the span occurred.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Create an interval
 start &lt;- ymd(&quot;2026-01-01&quot;)
-end &lt;- ymd(&quot;2026-06-30&quot;)
-my_interval &lt;- start %--% end
+end   &lt;- ymd(&quot;2026-04-11&quot;)
 
-print(my_interval)
-#&gt; [1] 2026-01-01 UTC--2026-06-30 UTC
-
-# Check if a date falls within the interval
-check_date &lt;- ymd(&quot;2026-04-15&quot;)
-check_date %within% my_interval
-#&gt; [1] TRUE
-
-# Get interval length in seconds
-int_length(my_interval)
-#&gt; [1] 15552000
-
-# Convert to periods or durations
-as.period(my_interval)
-#&gt; [1] &quot;5m 29d 0H 0M 0S&quot;</div>
+end - start
+#&gt; Time difference of 100 days
+as.numeric(end - start)
+#&gt; [1] 100</div>
 
     <div class="webr-buttons">
 
@@ -532,35 +327,25 @@ as.period(my_interval)
 
 </div>
 
-<p>The <code>%--%</code> operator created an interval from January 1 to June 30. <code>%within%</code> confirmed that April 15 falls inside it. <code>int_length()</code> returned the exact seconds, and <code>as.period()</code> converted it to 5 months and 29 days.</p>
+<p>Subtracting two Dates returns a <code>difftime</code> object. Wrap it in <code>as.numeric</code> for a plain number, or cast to <code>as.numeric(..., units = &quot;weeks&quot;)</code> if you need different units.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Choose your time-span class based on your question.</strong> Need exact elapsed seconds? Use durations. Need "same date next month"? Use periods. Need to check if events overlap or if a date falls in a range? Use intervals.</div></div>
-
-<h2>How Do You Handle Time Zones Without Losing Your Mind?</h2>
-
-<p>Time zones trip up even experienced programmers. lubridate provides two functions that do opposite things, and confusing them is one of the most common date-handling bugs.</p>
-
-<p><code>with_tz()</code> changes the <strong>display</strong> of a moment. The underlying instant stays the same — you are just looking at the same clock from a different city.</p>
+<p>Adding time to a date is where lubridate's design really shines. You do not write <code>&quot;2026-04-11&quot; + 30</code>; you say what kind of unit you are adding.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Create a time in UTC
-utc_time &lt;- ymd_hms(&quot;2026-04-06 14:30:00&quot;, tz = &quot;UTC&quot;)
+    <div class="webr-editor" data-language="r">start + days(10)
+#&gt; [1] &quot;2026-01-11&quot;
 
-# View the same moment in New York and Tokyo
-ny_time &lt;- with_tz(utc_time, &quot;America/New_York&quot;)
-tokyo_time &lt;- with_tz(utc_time, &quot;Asia/Tokyo&quot;)
+start + weeks(2)
+#&gt; [1] &quot;2026-01-15&quot;
 
-print(utc_time)
-#&gt; [1] &quot;2026-04-06 14:30:00 UTC&quot;
+start + months(3)
+#&gt; [1] &quot;2026-04-01&quot;
 
-print(ny_time)
-#&gt; [1] &quot;2026-04-06 10:30:00 EDT&quot;
-
-print(tokyo_time)
-#&gt; [1] &quot;2026-04-06 23:30:00 JST&quot;</div>
+start + years(1)
+#&gt; [1] &quot;2027-01-01&quot;</div>
 
     <div class="webr-buttons">
 
@@ -578,27 +363,15 @@ print(tokyo_time)
 
 </div>
 
-<p>All three variables represent the same instant in time. When it is 14:30 in UTC, it is 10:30 in New York (EDT, UTC-4) and 23:30 in Tokyo (JST, UTC+9). <code>with_tz()</code> never changes the moment — only the label.</p>
-
-<p><code>force_tz()</code> does the opposite. It keeps the clock reading the same but changes which time zone that reading belongs to. This changes the actual moment in time.</p>
+<p><code>days</code>, <code>weeks</code>, <code>months</code>, <code>years</code>, <code>hours</code>, <code>minutes</code>, <code>seconds</code> — each returns a period that lubridate adds according to calendar rules. "Three months after January 1st" means April 1st, not "90 days later". That distinction matters for billing cycles, subscriptions, and anything month-aware.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># A time recorded without timezone info (assumed UTC)
-local_time &lt;- ymd_hms(&quot;2026-04-06 09:00:00&quot;)
-print(local_time)
-#&gt; [1] &quot;2026-04-06 09:00:00 UTC&quot;
-
-# The data was actually recorded in Chicago — fix the label
-forced &lt;- force_tz(local_time, &quot;America/Chicago&quot;)
-print(forced)
-#&gt; [1] &quot;2026-04-06 09:00:00 CDT&quot;
-
-# These are now different moments
-with_tz(forced, &quot;UTC&quot;)
-#&gt; [1] &quot;2026-04-06 14:00:00 UTC&quot;</div>
+    <div class="webr-editor" data-language="r"># Chained: two months and three days after
+start + months(2) + days(3)
+#&gt; [1] &quot;2026-03-04&quot;</div>
 
     <div class="webr-buttons">
 
@@ -616,24 +389,45 @@ with_tz(forced, &quot;UTC&quot;)
 
 </div>
 
-<p>The original time said 9:00 AM UTC. After <code>force_tz()</code>, it says 9:00 AM Chicago time — which is actually 2:00 PM UTC. The clock reading stayed at 9:00, but the moment shifted by 5 hours.</p>
+<blockquote><p><strong>[TIP]</strong> To go backwards in time, just <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">negate</a>: <code>start - months(2)</code>. Or use <code>%m-%</code> to handle edge cases at month ends: <code>ymd(&quot;2026-03-31&quot;) %m-% months(1)</code> returns <code>&quot;2026-02-28&quot;</code> instead of NA.</p></blockquote>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>force_tz() changes the actual moment in time, not just the display.</strong> Use it only when you know the original time zone label was wrong. Use <code>with_tz()</code> when you want to see the same moment from a different city.</div></div>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the date exactly 6 months and 10 days after January 15, 2026.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(lubridate)
+# ymd(&quot;2026-01-15&quot;) + months(6) + days(10)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
 
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use OlsonNames() to find valid time zone strings.</strong> R accepts IANA time zone names like "America/New_York" and "Europe/London". Run <code>OlsonNames()</code> to see all 600+ valid options, or <code>grep(&quot;America&quot;, OlsonNames(), value = TRUE)</code> to filter by region.</div></div>
+<h2>What are durations, periods, and intervals and when do you use each?</h2>
 
-<h2>Common Mistakes and How to Fix Them</h2>
+<p>lubridate distinguishes three things that all feel like "some amount of time" but behave differently. Understanding the difference prevents subtle bugs.</p>
 
-<h4>Mistake 1: Using strptime format codes with lubridate</h4>
+<p><img src="screenshots/lubridate-in-R-duration-period-interval.webp" alt="duration vs period vs interval" class="img-responsive" loading="lazy" /></p>
 
-<p>❌ <strong>Wrong:</strong></p>
+<p><em>Figure 3: Durations measure exact seconds. Periods respect calendar boundaries. Intervals are a specific start and end pair. Choose based on what "correct" means for your problem.</em></p>
+
+<p><strong>Duration</strong> — an exact number of seconds, regardless of the calendar:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">ymd(&quot;2026-04-06&quot;, format = &quot;%Y-%m-%d&quot;)
-#&gt; Error or unexpected behavior</div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+d &lt;- ddays(30)
+d
+#&gt; [1] &quot;2592000s (~4.29 weeks)&quot;
+ymd(&quot;2026-01-01&quot;) + d
+#&gt; [1] &quot;2026-01-31&quot;</div>
 
     <div class="webr-buttons">
 
@@ -651,137 +445,20 @@ with_tz(forced, &quot;UTC&quot;)
 
 </div>
 
-<p><strong>Why it is wrong:</strong> lubridate's <code>ymd()</code> family does not accept <code>format</code> arguments. The function name IS the format specification. Adding <code>format = &quot;%Y-%m-%d&quot;</code> either gets silently ignored or causes an error.</p>
+<p><code>ddays(30)</code> is literally 30 × 86400 seconds. A leap second or DST jump changes the result slightly. Use durations for physics-y questions like "how long was the reactor at full power?".</p>
 
-<p>✅ <strong>Correct:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Just use ymd() — no format argument needed
-ymd(&quot;2026-04-06&quot;)
-#&gt; [1] &quot;2026-04-06&quot;</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Mistake 2: Confusing with_tz() and force_tz()</h4>
-
-<p>❌ <strong>Wrong:</strong></p>
+<p><strong>Period</strong> — calendar-aware, variable length:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># You have a UTC time and want to display it in London
-utc_event &lt;- ymd_hms(&quot;2026-06-15 18:00:00&quot;, tz = &quot;UTC&quot;)
-force_tz(utc_event, &quot;Europe/London&quot;)
-#&gt; [1] &quot;2026-06-15 18:00:00 BST&quot;
-# This changed the moment! 18:00 BST != 18:00 UTC</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Why it is wrong:</strong> <code>force_tz()</code> relabels the clock reading to a new zone, changing the underlying instant. You wanted to display the same moment in London time, which requires <code>with_tz()</code>.</p>
-
-<p>✅ <strong>Correct:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">utc_event &lt;- ymd_hms(&quot;2026-06-15 18:00:00&quot;, tz = &quot;UTC&quot;)
-with_tz(utc_event, &quot;Europe/London&quot;)
-#&gt; [1] &quot;2026-06-15 19:00:00 BST&quot;
-# Same moment, displayed as London time (UTC+1 in summer)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Mistake 3: Using durations for calendar arithmetic</h4>
-
-<p>❌ <strong>Wrong:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Add &quot;one month&quot; using duration
-start_date &lt;- ymd(&quot;2026-01-31&quot;)
-start_date + ddays(30)
-#&gt; [1] &quot;2026-03-02&quot;
-# Wanted February 28, got March 2</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Why it is wrong:</strong> <code>ddays(30)</code> adds exactly 30 days. But "one month from January 31" should be February 28 (or 27 in non-leap years). Durations don't understand calendar months.</p>
-
-<p>✅ <strong>Correct:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">start_date &lt;- ymd(&quot;2026-01-31&quot;)
-start_date + months(1)
+    <div class="webr-editor" data-language="r">p &lt;- months(1)
+p
+#&gt; [1] &quot;1m 0d 0H 0M 0S&quot;
+ymd(&quot;2026-01-31&quot;) + p
 #&gt; [1] NA
-# months(1) returns NA because Feb 31 doesn't exist!
-# Use %m+% for safe month arithmetic
-start_date %m+% months(1)
+ymd(&quot;2026-01-31&quot;) %m+% p   # safe version
 #&gt; [1] &quot;2026-02-28&quot;</div>
 
     <div class="webr-buttons">
@@ -800,18 +477,25 @@ start_date %m+% months(1)
 
 </div>
 
-<h4>Mistake 4: Expecting month() to return a name instead of a number</h4>
+<p>A period of one month can be 28, 29, 30, or 31 days. Periods are what you want for subscription renewals, legal deadlines, "birthday next year", and anything humans would describe in calendar terms.</p>
 
-<p>❌ <strong>Wrong:</strong></p>
+<p><strong>Interval</strong> — a specific pair <code>(start, end)</code>:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">my_date &lt;- ymd(&quot;2026-04-06&quot;)
-month(my_date)
-#&gt; [1] 4
-# Expected &quot;April&quot; but got 4</div>
+    <div class="webr-editor" data-language="r">i &lt;- interval(ymd(&quot;2026-01-01&quot;), ymd(&quot;2026-04-11&quot;))
+i
+#&gt; [1] 2026-01-01 UTC--2026-04-11 UTC
+
+# How many days does this interval cover?
+i / ddays(1)
+#&gt; [1] 100
+
+# Does a date fall inside the interval?
+ymd(&quot;2026-02-14&quot;) %within% i
+#&gt; [1] TRUE</div>
 
     <div class="webr-buttons">
 
@@ -829,18 +513,51 @@ month(my_date)
 
 </div>
 
-<p><strong>Why it is wrong:</strong> By default, <code>month()</code> returns an integer. You need the <code>label</code> argument to get the name.</p>
+<p>Intervals are perfect for "was this transaction in Q1?" or "how long did the experiment actually run?". Divide an interval by a duration or period to get a count.</p>
 
-<p>✅ <strong>Correct:</strong></p>
+<blockquote><p><strong>[KEY INSIGHT]</strong> If you are computing "when will this expire?" use <strong>periods</strong>. If you are computing "how long did this run?" use <strong>durations</strong>. If you are checking "did X happen during Y?" use <strong>intervals</strong>. Picking the wrong one silently works in most cases and breaks at month ends.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build an interval from Jan 1 to Dec 31 2026. Check whether <code>ymd(&quot;2026-07-04&quot;)</code> falls inside. Compute the interval's length in weeks.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(lubridate)
+# interval(...), %within%, / dweeks(1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How do you handle time zones without breaking everything?</h2>
+
+<p>Time zones cause more bugs than any other part of date handling. lubridate's rule is simple: every POSIXct value carries one time zone at a time, and you convert with one of two functions.</p>
+
+<ul>
+
+<li><code>with_tz(x, tz)</code> — <strong>same moment</strong>, displayed in a new zone. The underlying instant does not change; only how you render it does.</li>
+
+<li><code>force_tz(x, tz)</code> — <strong>same wall clock</strong>, reinterpreted as a different zone. The underlying instant shifts.</li>
+
+</ul>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">my_date &lt;- ymd(&quot;2026-04-06&quot;)
-month(my_date, label = TRUE, abbr = FALSE)
-#&gt; [1] April
-#&gt; 12 Levels: January &lt; February &lt; March &lt; ... &lt; December</div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+utc &lt;- ymd_hms(&quot;2026-04-11 14:30:00&quot;, tz = &quot;UTC&quot;)
+
+with_tz(utc, &quot;Asia/Kolkata&quot;)
+#&gt; [1] &quot;2026-04-11 20:00:00 IST&quot;
+
+force_tz(utc, &quot;Asia/Kolkata&quot;)
+#&gt; [1] &quot;2026-04-11 14:30:00 IST&quot;</div>
 
     <div class="webr-buttons">
 
@@ -857,22 +574,173 @@ month(my_date, label = TRUE, abbr = FALSE)
   <div class="webr-plot-output"></div>
 
 </div>
+
+<p><code>with_tz</code> is for display — "what time is it in Tokyo right now?". <code>force_tz</code> is for correcting a parse mistake — "this timestamp is actually India time but got labeled UTC on import".</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Arithmetic across zones is correct automatically
+flight_depart &lt;- ymd_hms(&quot;2026-05-01 22:00:00&quot;, tz = &quot;America/New_York&quot;)
+flight_arrive &lt;- ymd_hms(&quot;2026-05-02 11:00:00&quot;, tz = &quot;Europe/London&quot;)
+flight_arrive - flight_depart
+#&gt; Time difference of 8 hours</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Both times are converted to UTC internally for the subtraction, so the answer is right regardless of DST, offset, or zone. A full list of valid zone strings lives in <code>OlsonNames()</code> — over 600 names, always in <code>Continent/City</code> format.</p>
+
+<blockquote><p><strong>[WARNING]</strong> Never store "US/Pacific" or "EST" — those are legacy abbreviations and <code>EST</code> in particular means something different in different operating systems. Use <code>America/Los_Angeles</code> and <code>America/New_York</code>.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert a UTC datetime to Tokyo time for display, then to Paris time.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(lubridate)
+ts &lt;- ymd_hms(&quot;2026-06-01 12:00:00&quot;, tz = &quot;UTC&quot;)
+# with_tz(ts, &quot;Asia/Tokyo&quot;), with_tz(ts, &quot;Europe/Paris&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How do you round dates to day, week, or month?</h2>
+
+<p>Rounding is the operation hidden inside almost every time-series aggregation. "Sales per week", "users per month", "errors per hour" — all three are a round-then-group. lubridate gives you <code>floor_date</code>, <code>ceiling_date</code>, and <code>round_date</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+x &lt;- ymd_hms(&quot;2026-04-11 14:37:15&quot;)
+
+floor_date(x, unit = &quot;day&quot;)
+#&gt; [1] &quot;2026-04-11 UTC&quot;
+
+floor_date(x, unit = &quot;hour&quot;)
+#&gt; [1] &quot;2026-04-11 14:00:00 UTC&quot;
+
+floor_date(x, unit = &quot;week&quot;)
+#&gt; [1] &quot;2026-04-05 UTC&quot;
+
+ceiling_date(x, unit = &quot;month&quot;)
+#&gt; [1] &quot;2026-05-01 UTC&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>floor_date</code> snaps down to the unit boundary; <code>ceiling_date</code> snaps up. <code>round_date</code> goes to the nearest. Paired with dplyr, this is the cleanest way to build a weekly sales summary:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(dplyr); library(lubridate)
+
+sales &lt;- tibble(
+  ts = ymd_hms(c(
+    &quot;2026-03-30 10:00:00&quot;, &quot;2026-04-02 15:00:00&quot;, &quot;2026-04-05 09:00:00&quot;,
+    &quot;2026-04-08 14:00:00&quot;, &quot;2026-04-11 11:00:00&quot;, &quot;2026-04-15 16:00:00&quot;
+  )),
+  revenue = c(120, 80, 200, 150, 90, 175)
+)
+
+sales |&gt;
+  mutate(week_start = floor_date(ts, &quot;week&quot;, week_start = 1)) |&gt;
+  group_by(week_start) |&gt;
+  summarise(revenue = sum(revenue), n = n())
+#&gt; # A tibble: 3 x 3
+#&gt;   week_start          revenue     n
+#&gt;   &lt;dttm&gt;                &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 2026-03-30 00:00:00     400     3
+#&gt; 2 2026-04-06 00:00:00     240     2
+#&gt; 3 2026-04-13 00:00:00     175     1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>week_start = 1</code> means weeks start on Monday. Change to <code>7</code> for Sunday-start weeks (US convention). This single argument prevents endless off-by-one bugs when reports are expected to align with business weeks.</p>
+
+<blockquote><p><strong>[NOTE]</strong> <code>floor_date</code> is idempotent on values already aligned to the unit: flooring a Monday midnight to "week" returns the same Monday midnight. Safe to apply even when your values are already rounded.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Round each datetime in the vector down to the nearest hour.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(lubridate)
+times &lt;- ymd_hms(c(&quot;2026-04-11 14:37:00&quot;, &quot;2026-04-11 15:02:00&quot;))
+# floor_date(times, &quot;hour&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Parse three date formats</h4>
+<h4>Exercise 1: Parse a messy date column</h4>
 
-<p>Parse the following three strings into R date objects: "2026-12-25", "July 4, 2026", and "15/08/2026". Print all three.</p>
+<p>You get a vector of dates in three different formats. Produce a clean Date vector, with NA for unparseable values.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: parse these three dates
-# Hint: match the function name to the order of year, month, day
-
-# Write your code below:
-</div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+raw &lt;- c(&quot;2026-04-11&quot;, &quot;11/04/2026&quot;, &quot;April 11 2026&quot;, &quot;not a date&quot;, &quot;20260411&quot;)
+# Hint: use parse_date_time with an orders vector of length 4</div>
 
     <div class="webr-buttons">
 
@@ -890,21 +758,11 @@ month(my_date, label = TRUE, abbr = FALSE)
 
 </div>
 
-<details>
-<summary>Click to reveal solution</summary>
+<details><summary>Solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex1_a &lt;- ymd(&quot;2026-12-25&quot;)
-ex1_b &lt;- mdy(&quot;July 4, 2026&quot;)
-ex1_c &lt;- dmy(&quot;15/08/2026&quot;)
-
-print(ex1_a)
-#&gt; [1] &quot;2026-12-25&quot;
-print(ex1_b)
-#&gt; [1] &quot;2026-07-04&quot;
-print(ex1_c)
-#&gt; [1] &quot;2026-08-15&quot;</div>
+    <div class="webr-editor" data-language="r">parse_date_time(raw, orders = c(&quot;ymd&quot;, &quot;dmy&quot;, &quot;mdy&quot;, &quot;Ymd&quot;))</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -913,24 +771,22 @@ print(ex1_c)
   </div>
   <div class="webr-plot-output"></div>
 </div>
-
-<p><strong>Explanation:</strong> "2026-12-25" is year-month-day, so <code>ymd()</code>. "July 4, 2026" is month-day-year, so <code>mdy()</code>. "15/08/2026" is day-month-year, so <code>dmy()</code>.</p>
 
 </details>
 
-<h4>Exercise 2: Extract weekday and month names</h4>
+<h4>Exercise 2: Monthly rollup with names</h4>
 
-<p>Get today's date using <code>today()</code>, then extract the full weekday name and the full month name. Print both.</p>
+<p>Given the sales tibble below, compute total revenue per month, with the month name (not number) as the label. Sort chronologically.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: extract weekday and month names from today's date
-# Hint: use label = TRUE and abbr = FALSE
-
-# Write your code below:
-</div>
+    <div class="webr-editor" data-language="r">library(lubridate); library(dplyr)
+sales &lt;- tibble(
+  ts = ymd(c(&quot;2026-01-15&quot;,&quot;2026-01-28&quot;,&quot;2026-02-05&quot;,&quot;2026-03-12&quot;,&quot;2026-03-25&quot;,&quot;2026-04-01&quot;)),
+  revenue = c(100, 150, 80, 200, 250, 90)
+)</div>
 
     <div class="webr-buttons">
 
@@ -948,22 +804,19 @@ print(ex1_c)
 
 </div>
 
-<details>
-<summary>Click to reveal solution</summary>
+<details><summary>Solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex2_date &lt;- today()
-ex2_weekday &lt;- wday(ex2_date, label = TRUE, abbr = FALSE)
-ex2_month &lt;- month(ex2_date, label = TRUE, abbr = FALSE)
-
-print(ex2_weekday)
-#&gt; [1] Monday
-#&gt; 7 Levels: Sunday &lt; Monday &lt; Tuesday &lt; ... &lt; Saturday
-
-print(ex2_month)
-#&gt; [1] April
-#&gt; 12 Levels: January &lt; February &lt; March &lt; ... &lt; December</div>
+    <div class="webr-editor" data-language="r">sales |&gt;
+  mutate(
+    month_num = month(ts),
+    month = month(ts, label = TRUE, abbr = FALSE)
+  ) |&gt;
+  group_by(month_num, month) |&gt;
+  summarise(total = sum(revenue), .groups = &quot;drop&quot;) |&gt;
+  arrange(month_num) |&gt;
+  select(month, total)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -972,52 +825,21 @@ print(ex2_month)
   </div>
   <div class="webr-plot-output"></div>
 </div>
-
-<p><strong>Explanation:</strong> <code>wday()</code> with <code>label = TRUE, abbr = FALSE</code> returns the full weekday name. <code>month()</code> with the same arguments returns the full month name. Both return ordered factors.</p>
 
 </details>
 
-<h4>Exercise 3: Calculate age from a birthdate</h4>
+<h4>Exercise 3: Subscription expiry</h4>
 
-<p>Given the birthdate "1990-07-15", calculate the person's age in complete years as of today using an interval.</p>
+<p>A user signed up on <code>ymd(&quot;2026-01-31&quot;)</code> for a 1-month subscription that renews on the same day each month. Compute the next 6 renewal dates safely (even at month ends).</p>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: calculate age in years from a birthdate
-# Hint: create an interval with %--%, then divide by years(1)
-
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
+<details><summary>Solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex3_birth &lt;- ymd(&quot;1990-07-15&quot;)
-ex3_today &lt;- today()
-ex3_age &lt;- as.numeric(as.period(ex3_birth %--% ex3_today)$year)
-
-print(ex3_age)
-#&gt; [1] 35</div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+start &lt;- ymd(&quot;2026-01-31&quot;)
+start %m+% months(1:6)
+#&gt; [1] &quot;2026-02-28&quot; &quot;2026-03-31&quot; &quot;2026-04-30&quot; &quot;2026-05-31&quot; &quot;2026-06-30&quot; &quot;2026-07-31&quot;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1027,204 +849,55 @@ print(ex3_age)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>ex3_birth %--% ex3_today</code> creates an interval from birth to today. <code>as.period()</code> converts it to years, months, and days. Extracting <code>$year</code> gives the complete years. Alternatively, use <code>interval(ex3_birth, ex3_today) %/% years(1)</code>.</p>
+<p>The <code>%m+%</code> operator rolls invalid end-of-month dates down to the last valid day of the target month.</p>
 
 </details>
 
-<h4>Exercise 4: Floor timestamps and count by hour</h4>
+<h2>Complete Example</h2>
 
-<p>Given the vector of timestamps below, floor each to the nearest hour and count how many events occurred in each hour.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: group timestamps by hour
-# Hint: use floor_date() with &quot;hour&quot;, then table()
-
-ex4_times &lt;- ymd_hms(c(
-  &quot;2026-04-06 09:15:00&quot;, &quot;2026-04-06 09:45:00&quot;,
-  &quot;2026-04-06 10:05:00&quot;, &quot;2026-04-06 10:30:00&quot;,
-  &quot;2026-04-06 10:55:00&quot;, &quot;2026-04-06 11:20:00&quot;
-))
-
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex4_times &lt;- ymd_hms(c(
-  &quot;2026-04-06 09:15:00&quot;, &quot;2026-04-06 09:45:00&quot;,
-  &quot;2026-04-06 10:05:00&quot;, &quot;2026-04-06 10:30:00&quot;,
-  &quot;2026-04-06 10:55:00&quot;, &quot;2026-04-06 11:20:00&quot;
-))
-
-ex4_hourly &lt;- floor_date(ex4_times, &quot;hour&quot;)
-ex4_counts &lt;- table(ex4_hourly)
-print(ex4_counts)
-#&gt; ex4_hourly
-#&gt; 2026-04-06 09:00:00 2026-04-06 10:00:00 2026-04-06 11:00:00
-#&gt;                   2                   3                   1</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>floor_date(ex4_times, &quot;hour&quot;)</code> snapped each timestamp to the start of its hour. <code>table()</code> counted how many timestamps fell in each hour: 2 in the 9 AM hour, 3 in the 10 AM hour, and 1 in the 11 AM hour.</p>
-
-</details>
-
-<h4>Exercise 5: Compare duration vs period across a leap year</h4>
-
-<p>Start with "2024-02-29" (a leap year date). Add <code>years(1)</code> and <code>dyears(1)</code> separately. Print both results and explain why they differ.</p>
+<p>Here is an end-to-end pipeline: parse a messy CSV-like input, extract components, aggregate, and convert time zones for a final report.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: duration vs period across a leap year
-# Hint: 2024 is a leap year, 2025 is not
+    <div class="webr-editor" data-language="r">library(lubridate); library(dplyr); library(tibble)
 
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex5_leap &lt;- ymd(&quot;2024-02-29&quot;)
-
-# Period: &quot;same date next year&quot; — but Feb 29 doesn't exist in 2025
-ex5_period &lt;- ex5_leap + years(1)
-print(ex5_period)
-#&gt; [1] NA
-
-# Duration: exactly 365 days of seconds
-ex5_duration &lt;- ex5_leap + dyears(1)
-print(ex5_duration)
-#&gt; [1] &quot;2025-02-28 06:00:00 UTC&quot;
-
-# Safe month arithmetic with %m+%
-ex5_safe &lt;- ex5_leap %m+% years(1)
-print(ex5_safe)
-#&gt; [1] &quot;2025-02-28&quot;</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>years(1)</code> tried to create February 29, 2025, which does not exist, so it returned NA. <code>dyears(1)</code> added exactly 365 days of seconds (365 * 86400 = 31,536,000), landing on February 28 at 6 AM. The <code>%m+%</code> operator handles this gracefully by rolling back to the last valid day of the month.</p>
-
-</details>
-
-<h2>Putting It All Together</h2>
-
-<p>Let's work through a complete real-world scenario. You receive a character vector of event timestamps in mixed formats. You need to parse them, extract components, compute durations, and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): Aggregate Data by Group (10 Examples)">summarize</a> by month.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Raw event data with inconsistent date formats
-raw_dates &lt;- c(
-  &quot;2026-01-15 08:30:00&quot;,
-  &quot;02/20/2026 14:00&quot;,
-  &quot;15-Mar-2026 09:45:00&quot;,
-  &quot;2026-04-01 16:20:00&quot;,
-  &quot;05/10/2026 11:00&quot;,
-  &quot;20-Jun-2026 13:30:00&quot;
+events &lt;- tibble(
+  raw_time = c(
+    &quot;2026-04-06 09:15:22 UTC&quot;,
+    &quot;2026-04-06 11:30:10 UTC&quot;,
+    &quot;2026-04-07 14:00:55 UTC&quot;,
+    &quot;2026-04-10 16:45:30 UTC&quot;,
+    &quot;2026-04-11 12:20:05 UTC&quot;,
+    &quot;2026-04-11 22:55:00 UTC&quot;
+  ),
+  event = c(&quot;login&quot;, &quot;purchase&quot;, &quot;login&quot;, &quot;purchase&quot;, &quot;login&quot;, &quot;purchase&quot;),
+  amount = c(0, 45.50, 0, 120.00, 0, 75.25)
 )
 
-# Step 1: Parse all dates with parse_date_time()
-clean_dates &lt;- parse_date_time(raw_dates, orders = c(&quot;ymd HMS&quot;, &quot;mdy HM&quot;, &quot;dmy HMS&quot;))
-print(clean_dates)
-#&gt; [1] &quot;2026-01-15 08:30:00 UTC&quot; &quot;2026-02-20 14:00:00 UTC&quot;
-#&gt; [3] &quot;2026-03-15 09:45:00 UTC&quot; &quot;2026-04-01 16:20:00 UTC&quot;
-#&gt; [5] &quot;2026-05-10 11:00:00 UTC&quot; &quot;2026-06-20 13:30:00 UTC&quot;
-
-# Step 2: Build a data frame with extracted components
-clean_df &lt;- tibble(
-  timestamp = clean_dates,
-  year = year(clean_dates),
-  month_name = month(clean_dates, label = TRUE),
-  weekday = wday(clean_dates, label = TRUE),
-  hour = hour(clean_dates)
-)
-print(clean_df)
-#&gt; # A tibble: 6 x 5
-#&gt;   timestamp            year month_name weekday  hour
-#&gt;   &lt;dttm&gt;              &lt;dbl&gt; &lt;ord&gt;      &lt;ord&gt;   &lt;int&gt;
-#&gt; 1 2026-01-15 08:30:00  2026 Jan        Thu         8
-#&gt; 2 2026-02-20 14:00:00  2026 Feb        Fri        14
-#&gt; 3 2026-03-15 09:45:00  2026 Mar        Sun         9
-#&gt; 4 2026-04-01 16:20:00  2026 Apr        Wed        16
-#&gt; 5 2026-05-10 11:00:00  2026 May        Sun        11
-#&gt; 6 2026-06-20 13:30:00  2026 Jun        Sat        13
-
-# Step 3: Time elapsed since the first event
-first_event &lt;- min(clean_dates)
-elapsed &lt;- as.period(first_event %--% max(clean_dates))
-print(elapsed)
-#&gt; [1] &quot;5m 5d 5H 0M 0S&quot;
-
-# Step 4: Monthly event counts
-monthly_counts &lt;- clean_df |&gt;
-  mutate(month_start = floor_date(timestamp, &quot;month&quot;)) |&gt;
-  count(month_start)
-print(monthly_counts)
-#&gt; # A tibble: 6 x 2
-#&gt;   month_start             n
-#&gt;   &lt;dttm&gt;              &lt;int&gt;
-#&gt; 1 2026-01-01 00:00:00     1
-#&gt; 2 2026-02-01 00:00:00     1
-#&gt; 3 2026-03-01 00:00:00     1
-#&gt; 4 2026-04-01 00:00:00     1
-#&gt; 5 2026-05-01 00:00:00     1
-#&gt; 6 2026-06-01 00:00:00     1</div>
+summary &lt;- events |&gt;
+  mutate(
+    ts_utc   = ymd_hms(raw_time),
+    ts_local = with_tz(ts_utc, &quot;Asia/Kolkata&quot;),
+    day      = as_date(ts_local),
+    weekday  = wday(ts_local, label = TRUE, week_start = 1),
+    hour     = hour(ts_local)
+  ) |&gt;
+  filter(event == &quot;purchase&quot;) |&gt;
+  group_by(weekday) |&gt;
+  summarise(
+    transactions = n(),
+    revenue      = sum(amount),
+    avg_hour     = mean(hour)
+  )
+summary
+#&gt; # A tibble: 3 x 4
+#&gt;   weekday transactions revenue avg_hour
+#&gt;   &lt;ord&gt;          &lt;int&gt;   &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 Mon                1   120        22
+#&gt; 2 Sat                1    75.2      18
+#&gt; 3 Tue                1    45.5      17</div>
 
     <div class="webr-buttons">
 
@@ -1242,7 +915,7 @@ print(monthly_counts)
 
 </div>
 
-<p>This example demonstrates the full lubridate workflow: parse messy strings with <code>parse_date_time()</code>, extract components for analysis, compute time spans with intervals and periods, and aggregate with <code>floor_date()</code>.</p>
+<p>Four lubridate calls — <code>ymd_hms</code>, <code>with_tz</code>, <code>wday</code>, <code>hour</code> — replace what would otherwise be a painful stack of <code>as.POSIXct</code>, <code>format</code>, <code>strftime</code>, and manual offset math. Parse once at the boundary, transform freely in the middle, render for humans at the end.</p>
 
 <h2>Summary</h2>
 
@@ -1250,134 +923,118 @@ print(monthly_counts)
 <thead>
 <tr>
 <th>Task</th>
-<th>Function(s)</th>
-<th>Example</th>
+<th>Function</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Parse year-month-day</td>
-<td><code>ymd()</code>, <code>ymd_hms()</code></td>
-<td><code>ymd(&quot;2026-04-06&quot;)</code></td>
+<td>Parse Y-M-D</td>
+<td><code>ymd()</code></td>
 </tr>
 <tr>
-<td>Parse month-day-year</td>
-<td><code>mdy()</code>, <code>mdy_hm()</code></td>
-<td><code>mdy(&quot;April 6, 2026&quot;)</code></td>
+<td>Parse D-M-Y</td>
+<td><code>dmy()</code></td>
 </tr>
 <tr>
-<td>Parse day-month-year</td>
-<td><code>dmy()</code>, <code>dmy_hms()</code></td>
-<td><code>dmy(&quot;06/04/2026&quot;)</code></td>
+<td>Parse M-D-Y</td>
+<td><code>mdy()</code></td>
 </tr>
 <tr>
-<td>Parse mixed formats</td>
+<td>Parse with time</td>
+<td><code>ymd_hms()</code> / <code>dmy_hms()</code> / <code>mdy_hms()</code></td>
+</tr>
+<tr>
+<td>Unusual format</td>
 <td><code>parse_date_time()</code></td>
-<td><code>parse_date_time(x, orders = c(&quot;ymd&quot;, &quot;mdy&quot;))</code></td>
 </tr>
 <tr>
-<td>Extract components</td>
-<td><code>year()</code>, <code>month()</code>, <code>day()</code>, <code>wday()</code></td>
-<td><code>month(date, label = TRUE)</code></td>
+<td>Extract year/month/day</td>
+<td><code>year()</code> / <code>month()</code> / <code>day()</code></td>
 </tr>
 <tr>
-<td>Modify components</td>
-<td><code>year()&lt;-</code>, <code>month()&lt;-</code>, <code>day()&lt;-</code></td>
-<td><code>month(date) &lt;- 12</code></td>
+<td>Extract weekday</td>
+<td><code>wday()</code> (use <code>label=TRUE</code>)</td>
 </tr>
 <tr>
-<td>Round dates</td>
-<td><code>floor_date()</code>, <code>ceiling_date()</code>, <code>round_date()</code></td>
-<td><code>floor_date(date, &quot;month&quot;)</code></td>
+<td>Extract hour/min/sec</td>
+<td><code>hour()</code> / <code>minute()</code> / <code>second()</code></td>
 </tr>
 <tr>
-<td>Exact elapsed time</td>
-<td><code>dyears()</code>, <code>ddays()</code>, <code>dhours()</code></td>
-<td><code>ddays(30) + dhours(6)</code></td>
+<td>Add calendar time</td>
+<td><code>+ months(n)</code> / <code>+ days(n)</code></td>
 </tr>
 <tr>
-<td>Calendar arithmetic</td>
-<td><code>years()</code>, <code>months()</code>, <code>days()</code></td>
-<td><code>date + months(3)</code></td>
+<td>Add exact seconds</td>
+<td><code>+ ddays(n)</code> / <code>+ dweeks(n)</code></td>
 </tr>
 <tr>
-<td>Safe month addition</td>
-<td><code>%m+%</code>, <code>%m-%</code></td>
-<td><code>date %m+% months(1)</code></td>
+<td>Month-safe add</td>
+<td><code>%m+%</code> / <code>%m-%</code></td>
 </tr>
 <tr>
-<td>Bounded time span</td>
-<td><code>%--%</code>, <code>%within%</code></td>
-<td><code>start %--% end</code></td>
+<td>Build interval</td>
+<td><code>interval(start, end)</code></td>
 </tr>
 <tr>
-<td>Display in new zone</td>
+<td>Test containment</td>
+<td><code>%within%</code></td>
+</tr>
+<tr>
+<td>Convert display tz</td>
 <td><code>with_tz()</code></td>
-<td><code>with_tz(time, &quot;America/New_York&quot;)</code></td>
 </tr>
 <tr>
-<td>Fix zone label</td>
+<td>Fix wrong tz</td>
 <td><code>force_tz()</code></td>
-<td><code>force_tz(time, &quot;America/Chicago&quot;)</code></td>
+</tr>
+<tr>
+<td>Round to unit</td>
+<td><code>floor_date()</code> / <code>ceiling_date()</code> / <code>round_date()</code></td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<p>Four rules:</p>
 
-<p><strong>Is lubridate part of the tidyverse?</strong></p>
+<ol>
 
-<p>Yes, lubridate is a tidyverse package, but it is not loaded by <code>library(tidyverse)</code>. You need to call <code>library(lubridate)</code> explicitly. This is because date manipulation is not needed in every analysis.</p>
+<li><strong>Parse at the boundary.</strong> Convert once, work with Date/POSIXct for the rest of the pipeline.</li>
 
-<p><strong>Can lubridate handle dates before 1970?</strong></p>
+<li><strong>Periods vs durations.</strong> Calendar questions → periods; elapsed-time questions → durations.</li>
 
-<p>Yes. lubridate uses POSIXct internally, which stores dates as seconds since 1970-01-01 UTC. Dates before 1970 are stored as negative numbers. <code>ymd(&quot;1900-01-01&quot;)</code> works without issue.</p>
+<li><strong>Time zones are metadata.</strong> <code>with_tz</code> changes display; <code>force_tz</code> changes meaning.</li>
 
-<p><strong>When should I use base R as.Date() instead of lubridate?</strong></p>
+<li>**Use <code>week_start</code>.** Always specify it so "week 15" means the same thing to everyone.</li>
 
-<p>Use <code>as.Date()</code> when your dates are already in ISO 8601 format ("YYYY-MM-DD") and you only need date-only objects without time components. For anything more complex — multiple formats, time zones, date arithmetic — lubridate is the better choice.</p>
-
-<p><strong>How do I parse dates with non-English month names?</strong></p>
-
-<p>Use <code>parse_date_time()</code> with the <code>locale</code> argument. For example, <code>parse_date_time(&quot;15 avril 2026&quot;, &quot;dmy&quot;, locale = &quot;fr_FR.UTF-8&quot;)</code> parses a French date. The locale must be installed on your system.</p>
-
-<p><strong>What is the difference between mday() and day()?</strong></p>
-
-<p>They are aliases that do exactly the same thing. Both return the day of the month. <code>mday()</code> is more explicit (month-day), while <code>day()</code> is shorter. Use whichever you find more readable.</p>
+</ol>
 
 <h2>References</h2>
 
-<ol>
+<ul>
 
-<li>Grolemund, G. & Wickham, H. — Dates and Times Made Easy with lubridate. <em>Journal of Statistical Software</em>, 40(3), 1-25 (2011). <a href="https://www.jstatsoft.org/article/view/v040i03">Link</a></li>
+<li><a href="https://lubridate.tidyverse.org/reference/index.html">lubridate official reference</a></li>
 
-<li>lubridate documentation — tidyverse.org. <a href="https://lubridate.tidyverse.org/">Link</a></li>
+<li><a href="https://rstudio.github.io/cheatsheets/lubridate.pdf">lubridate cheatsheet</a></li>
 
-<li>CRAN vignette — Do more with dates and times in R. <a href="https://cran.r-project.org/web/packages/lubridate/vignettes/lubridate.html">Link</a></li>
+<li><a href="https://www.jstatsoft.org/article/view/v040i03">Garrett Grolemund and Hadley Wickham, <em>Dates and Times Made Easy with lubridate</em>, JSS 2011</a></li>
 
-<li>Wickham, H. & Grolemund, G. — <em>R for Data Science</em>, 2nd ed. Chapter 17: Dates and Times. <a href="https://r4ds.hadley.nz/datetimes">Link</a></li>
+<li><a href="https://r4ds.hadley.nz/datetimes.html">R for Data Science, 2e — Dates and Times chapter</a></li>
 
-<li>R Core Team — DateTimeClasses documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html">Link</a></li>
+<li><a href="https://www.iana.org/time-zones">IANA Time Zone Database</a> — canonical list of <code>Continent/City</code> names.</li>
 
-<li>RStudio — lubridate Cheatsheet. <a href="https://rstudio.github.io/cheatsheets/html/lubridate.html">Link</a></li>
-
-<li>Spinu, V., Grolemund, G., & Wickham, H. — lubridate: Make Dealing with Dates a Little Easier. CRAN. <a href="https://cran.r-project.org/package=lubridate">Link</a></li>
-
-</ol>
+</ul>
 
 <h2>Continue Learning</h2>
 
-<p>Now that you can handle dates and times confidently, here are related tutorials to continue your learning:</p>
+<ul>
 
-<ol>
+<li><a href="stringr-in-R.html">stringr in R</a> — often used alongside lubridate to clean messy date strings before parsing.</li>
 
-<li><strong><a href="/stringr-in-R.html">stringr in R</a></strong> — Learn consistent, pipe-friendly string manipulation with the same tidyverse philosophy lubridate follows.</li>
+<li><a href="dplyr-group-by-summarise.html">dplyr group_by() and summarise()</a> — the natural next step after rounding timestamps.</li>
 
-<li><strong><a href="/dplyr-filter-select.html">dplyr filter & select</a></strong> — Combine date extraction with filtering to subset your data by date ranges, weekdays, or time windows.</li>
+<li><a href="pivot_longer-pivot_wider-Reshape-Data-in-R.html">pivot_longer() and pivot_wider()</a> — reshape time-series data before or after a date rollup.</li>
 
-<li><strong><a href="/Tidy-Data-in-R.html">Tidy Data in R</a></strong> — Reshape messy date columns into analysis-ready long or wide format using pivot_longer and pivot_wider.</li>
-
-</ol>
+</ul>
 
 <div id="auto-further-reading">
 <h2>Further Reading</h2>
