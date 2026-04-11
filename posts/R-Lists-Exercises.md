@@ -1,518 +1,336 @@
 ---
 title: "R Lists Exercises: 10 Practice Problems with Full Solutions"
 slug: "R-Lists-Exercises"
-description: "10 R list exercises: create, access with $ and [[]], modify, nest, iterate with lapply/sapply, and extract model results. Interactive solutions."
-keywords: "R list exercises, R list practice problems, R list access, R lapply exercises, R nested list"
+description: "10 interactive R list exercises with worked solutions — create, subset with [ vs [[, nest, modify, iterate with lapply/sapply, flatten and convert to data frames."
+keywords: "R lists exercises, R list practice, R lapply exercises, R nested list, R list subsetting"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-11"
 curriculum_id: "E1.4"
 post_type: "EX"
-auto_link_terms: "R list exercises|R list practice problems"
+sidebar_section: "Practice Exercises"
+sidebar_title: "R Lists (10 problems)"
+auto_link_terms: "R lists exercises|R list practice|R list subsetting"
 auto_link_case_sensitive: false
 fr_parent: "R-Lists.html"
 ---
 
 # R Lists Exercises: 10 Practice Problems with Full Solutions
 
-<p class="lead">Practice R lists with 10 exercises covering creation, access (<code>$</code> vs <code>[[]]</code> vs <code>[]</code>), modification, nested lists, <code>lapply</code>/<code>sapply</code>, and extracting model results. Each problem has interactive code and a solution.</p>
+<p class="lead">Ten hands-on exercises on R lists — the most flexible data structure in the language. You will build, nest, subset with the tricky <code>[</code> vs <code>[[</code> rule, iterate with <code>lapply</code>/<code>sapply</code>, and convert between lists and data frames. Every problem runs in the browser.</p>
 
-Lists are R's most flexible structure. These exercises test your understanding of how they differ from vectors and data frames, how to navigate nested structures, and how to iterate over list elements.
+A list in R can hold anything: numbers, strings, data frames, other lists, even functions. That flexibility makes lists both indispensable (every `lm()` result is a list) and confusing (two different subsetting operators that return different things). These exercises fix the confusion by forcing you to use both operators deliberately.
 
-## Easy (1-4): Create and Access
+## Setup
 
-### Exercise 1: Build a Student Record
+The code blocks share state across the whole page. We will build one list in Exercise 1 and keep using it.
 
-Create a list representing a student: name, age, courses (a character vector of 3 courses), grades (a named numeric vector), and graduated (logical). Print the student's name and their Math grade.
+## Section 1 — Create and inspect
+
+### Exercise 1. Build a heterogeneous list
+
+Create a list called `profile` with four elements: `name = "Ada"`, `age = 37`, `skills = c("R", "Python", "SQL")`, and `employed = TRUE`. Confirm its length and print its `str()`.
 
 ```r
-# Exercise 1: Student record as a list
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-student <- list(
-  name = "Alice Chen",
-  age = 21,
-  courses = c("Math", "Statistics", "Computer Science"),
-  grades = c(Math = 92, Statistics = 88, CS = 95),
-  graduated = FALSE
+profile <- list(
+  name     = "Ada",
+  age      = 37,
+  skills   = c("R", "Python", "SQL"),
+  employed = TRUE
 )
 
-cat("Name:", student$name, "\n")
-cat("Math grade:", student$grades["Math"], "\n")
-cat("Courses:", student$courses, "\n")
-str(student)
+length(profile)  # 4
+str(profile)
+# List of 4
+#  $ name    : chr "Ada"
+#  $ age     : num 37
+#  $ skills  : chr [1:3] "R" "Python" "SQL"
+#  $ employed: logi TRUE
 ```
+
+Unlike a vector, a list does not coerce its elements to a common type. Each element keeps its own type.
 
 </details>
 
-### Exercise 2: [] vs [[]] vs $
+### Exercise 2. Inspect a built-in list (a linear model)
 
-Given a list, extract the `scores` element three ways and show what type each returns. Then demonstrate why `[]` fails with `mean()` but `[[]]` works.
+Fit `m <- lm(mpg ~ wt, data = mtcars)`. Confirm that `m` is a list, report its class and its names.
 
 ```r
-# Exercise 2: Show the difference between [], [[]], and $
-data <- list(scores = c(88, 92, 75, 95), name = "Test Results")
-
-# Extract scores using all three methods
-# Show the type of each result
-# Demonstrate: mean works with [[]] but not []
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-data <- list(scores = c(88, 92, 75, 95), name = "Test Results")
+m <- lm(mpg ~ wt, data = mtcars)
 
-# Three extraction methods
-with_single <- data["scores"]     # Returns a LIST
-with_double <- data[["scores"]]   # Returns the VECTOR
-with_dollar <- data$scores         # Returns the VECTOR
-
-cat("data['scores'] type:", class(with_single), "\n")
-cat("data[['scores']] type:", class(with_double), "\n")
-cat("data$scores type:", class(with_dollar), "\n\n")
-
-# mean works with [[ ]] and $ but not [ ]
-cat("mean(data[['scores']]):", mean(with_double), "\n")
-cat("mean(data$scores):", mean(with_dollar), "\n")
-
-# This would fail:
-tryCatch(
-  mean(data["scores"]),
-  warning = function(w) cat("mean(data['scores']) WARNING:", w$message, "\n")
-)
+is.list(m)  # TRUE
+class(m)    # "lm"
+names(m)
+# "coefficients" "residuals" "effects" "rank" ...
 ```
 
-**Key concept:** `[]` returns a sub-list. `[[]]` and `$` return the element itself. You can't compute `mean()` on a list — you need the vector inside.
+Almost every model object in R is a list with a class attribute. Knowing this is why you can write `m$coefficients` or `m$residuals` directly.
 
 </details>
 
-### Exercise 3: Add and Remove Elements
+## Section 2 — The `[` vs `[[` rule
 
-Start with `config <- list(host = "localhost", port = 8080)`. Add a `database` element, change `port` to 5432, and remove `host`. Show the list after each step.
+### Exercise 3. Predict the type
+
+For the `profile` list, predict the class and length of each of the following *before* running them:
 
 ```r
-# Exercise 3: Modify a list step by step
-config <- list(host = "localhost", port = 8080)
+profile["age"]
+profile[["age"]]
+profile$age
+profile[c("name", "age")]
+```
+
+```r
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-config <- list(host = "localhost", port = 8080)
-cat("Start:", str(config))
+class(profile["age"])        # "list"
+length(profile["age"])       # 1
 
-# Add database
-config$database <- "production"
-cat("\nAfter adding database:\n"); str(config)
+class(profile[["age"]])      # "numeric"
+length(profile[["age"]])     # 1
 
-# Change port
-config$port <- 5432
-cat("After changing port:\n"); str(config)
+class(profile$age)           # "numeric"   — same as [[ ]]
+length(profile$age)          # 1
 
-# Remove host
-config$host <- NULL
-cat("After removing host:\n"); str(config)
+class(profile[c("name", "age")])   # "list"
+length(profile[c("name", "age")])  # 2
 ```
 
-**Key concept:** `$name <- value` adds or modifies. `$name <- NULL` removes. Lists grow and shrink dynamically.
+The rule: **`[` keeps the container (always returns a list), `[[` extracts the contents (returns whatever is inside)**. `$` is a shortcut for `[[` that only accepts literal names.
 
 </details>
 
-### Exercise 4: Nested List Access
+### Exercise 4. Modify an element
 
-Navigate this nested list to extract specific values.
+Change `profile$age` to 38, and append a new element `city = "Brisbane"` to the list.
 
 ```r
-# Exercise 4: Navigate nested lists
-company <- list(
-  name = "TechCorp",
-  departments = list(
-    engineering = list(head = "Alice", size = 50, budget = 2000000),
-    marketing = list(head = "Bob", size = 20, budget = 500000),
-    sales = list(head = "Carol", size = 30, budget = 800000)
-  ),
-  founded = 2015
-)
-
-# Extract:
-# 1. The engineering department head
-# 2. The marketing budget
-# 3. The total headcount (sum of all department sizes)
-# 4. All department heads as a vector
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-company <- list(
-  name = "TechCorp",
-  departments = list(
-    engineering = list(head = "Alice", size = 50, budget = 2000000),
-    marketing = list(head = "Bob", size = 20, budget = 500000),
-    sales = list(head = "Carol", size = 30, budget = 800000)
-  ),
-  founded = 2015
-)
+profile$age <- 38
+profile[["city"]] <- "Brisbane"
 
-# 1. Engineering head
-cat("Eng head:", company$departments$engineering$head, "\n")
-
-# 2. Marketing budget
-cat("Marketing budget:", company$departments$marketing$budget, "\n")
-
-# 3. Total headcount
-total <- sapply(company$departments, function(d) d$size)
-cat("Department sizes:", total, "\n")
-cat("Total headcount:", sum(total), "\n")
-
-# 4. All department heads
-heads <- sapply(company$departments, function(d) d$head)
-cat("Department heads:", heads, "\n")
+names(profile)
+# "name" "age" "skills" "employed" "city"
+profile$city     # "Brisbane"
 ```
 
-**Key concept:** Chain `$` to drill into nested lists. `sapply()` iterates over list elements and simplifies the result to a vector.
+Assigning to an index that does not exist creates the element. Setting it to `NULL` removes it: `profile$city <- NULL`.
 
 </details>
 
-## Medium (5-7): Iteration
+## Section 3 — Nested lists
 
-### Exercise 5: lapply vs sapply
+### Exercise 5. Create a nested list
 
-Given a list of numeric vectors (different lengths), compute the mean of each using lapply and sapply. Show how the results differ.
+Create `team` as a list of three members. Each member is itself a list with `name`, `role` and `years`. Use any made-up values.
 
 ```r
-# Exercise 5: lapply vs sapply
-datasets <- list(
-  exam1 = c(88, 72, 95, 61, 83),
-  exam2 = c(90, 85, 78, 92),
-  exam3 = c(67, 73, 81, 77, 88, 92, 65)
-)
-
-# Compute means using both lapply and sapply
-# Show the type and structure of each result
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-datasets <- list(
-  exam1 = c(88, 72, 95, 61, 83),
-  exam2 = c(90, 85, 78, 92),
-  exam3 = c(67, 73, 81, 77, 88, 92, 65)
+team <- list(
+  list(name = "Ava",  role = "analyst",  years = 3),
+  list(name = "Ben",  role = "engineer", years = 5),
+  list(name = "Cho",  role = "manager",  years = 8)
 )
 
-# lapply returns a LIST
-means_list <- lapply(datasets, mean)
-cat("lapply result type:", class(means_list), "\n")
-str(means_list)
-
-# sapply returns a VECTOR (when possible)
-means_vec <- sapply(datasets, mean)
-cat("\nsapply result type:", class(means_vec), "\n")
-cat("Values:", means_vec, "\n")
-
-# sapply with a function that returns multiple values → matrix
-stats <- sapply(datasets, function(x) c(mean = mean(x), sd = round(sd(x), 1), n = length(x)))
-cat("\nMultiple values → matrix:\n")
-print(stats)
+length(team)            # 3
+team[[1]]$name          # "Ava"
+team[[2]]$role          # "engineer"
 ```
 
-**Key concept:** `lapply()` always returns a list (predictable). `sapply()` simplifies: single values → vector, multiple values → matrix. Use `lapply()` in functions for safety.
+Each element of `team` is itself a list. `team[[1]]` extracts the first member (a list), then `$name` drills into it.
 
 </details>
 
-### Exercise 6: Build a List in a Loop
+### Exercise 6. Drill down two levels
 
-Run 5 simulations, each generating 100 random numbers with a different mean (10, 20, 30, 40, 50). Store each result in a named list, then summarize.
+From `team`, return (a) the name of the third member, (b) the role of the second member, and (c) a vector of *all three* members' years of experience.
 
 ```r
-# Exercise 6: Simulation results in a list
-# 5 simulations, different means, store in a list
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-set.seed(42)
-results <- list()
+team[[3]]$name       # "Cho"
+team[[2]]$role       # "engineer"
 
-for (i in 1:5) {
-  sim_mean <- i * 10
-  data <- rnorm(100, mean = sim_mean, sd = 5)
-  results[[paste0("sim_", i)]] <- list(
-    target_mean = sim_mean,
-    actual_mean = round(mean(data), 2),
-    sd = round(sd(data), 2),
-    data = data
-  )
-}
-
-# Summarize
-cat("Simulation results:\n")
-for (name in names(results)) {
-  r <- results[[name]]
-  cat(sprintf("  %s: target=%d, actual=%.2f, sd=%.2f\n",
-    name, r$target_mean, r$actual_mean, r$sd))
-}
-
-# Compare target vs actual means
-targets <- sapply(results, function(r) r$target_mean)
-actuals <- sapply(results, function(r) r$actual_mean)
-cat("\nMax deviation:", round(max(abs(targets - actuals)), 2), "\n")
+sapply(team, function(m) m$years)
+# 3 5 8
 ```
 
-**Key concept:** Use `results[[name]] <- value` to add named elements in a loop. Each element can be a complex sub-list.
+`sapply()` walks the top-level list and applies a function to each element, simplifying the result to a vector. This is how you extract parallel columns from a list of lists.
 
 </details>
 
-### Exercise 7: Transform a List of Data Frames
+## Section 4 — Iteration
 
-Given a list of data frames (one per city), add a `city` column to each and combine them into one data frame.
+### Exercise 7. lapply on a list of numbers
+
+Create `nums <- list(a = 1:5, b = 6:10, c = 11:20)`. Use `lapply()` to compute the mean of each element, and `sapply()` to do the same thing and get a named vector.
 
 ```r
-# Exercise 7: Combine list of data frames
-city_data <- list(
-  NYC = data.frame(month = 1:3, temp = c(32, 35, 45), rain = c(3.5, 3.0, 4.2)),
-  LA = data.frame(month = 1:3, temp = c(58, 60, 63), rain = c(3.1, 3.5, 2.4)),
-  Chicago = data.frame(month = 1:3, temp = c(25, 29, 40), rain = c(1.8, 1.5, 2.7))
-)
-
-# 1. Add a 'city' column to each data frame
-# 2. Combine into one data frame
-# 3. Find the coldest city in month 1
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-city_data <- list(
-  NYC = data.frame(month = 1:3, temp = c(32, 35, 45), rain = c(3.5, 3.0, 4.2)),
-  LA = data.frame(month = 1:3, temp = c(58, 60, 63), rain = c(3.1, 3.5, 2.4)),
-  Chicago = data.frame(month = 1:3, temp = c(25, 29, 40), rain = c(1.8, 1.5, 2.7))
-)
+nums <- list(a = 1:5, b = 6:10, c = 11:20)
 
-# 1. Add city column using lapply
-city_data <- lapply(names(city_data), function(city) {
-  df <- city_data[[city]]
-  df$city <- city
-  df
-})
+lapply(nums, mean)
+# $a: 3
+# $b: 8
+# $c: 15.5
 
-# 2. Combine into one data frame
-combined <- do.call(rbind, city_data)
-cat("Combined data:\n")
-print(combined)
-
-# 3. Coldest city in month 1
-month1 <- combined[combined$month == 1, ]
-coldest <- month1[which.min(month1$temp), ]
-cat("\nColdest in month 1:", coldest$city, "at", coldest$temp, "°F\n")
+sapply(nums, mean)
+#    a    b    c
+#  3.0  8.0 15.5
 ```
 
-**Key concept:** `lapply()` over `names()` lets you modify each data frame while keeping track of its name. `do.call(rbind, list_of_dfs)` stacks them into one data frame.
+`lapply()` always returns a list with the same length as its input. `sapply()` tries to simplify the list to a vector or matrix when every element has the same shape. When the shapes differ, `sapply()` quietly falls back to a list — so read your output.
 
 </details>
 
-## Hard (8-10): Real-World Patterns
+### Exercise 8. Apply with extra arguments
 
-### Exercise 8: Extract Model Results
-
-Fit linear models for each cylinder group in mtcars and extract key results.
+Using `nums`, use `sapply()` to compute the mean of each element *ignoring* the first value. Hint: you can pass extra arguments to the applied function.
 
 ```r
-# Exercise 8: Model results from a list
-# Split mtcars by cyl, fit lm(mpg ~ wt) for each group
-# Extract R-squared and wt coefficient from each model
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-# Split data by cylinders
-groups <- split(mtcars, mtcars$cyl)
-cat("Groups:", names(groups), "\n\n")
+sapply(nums, function(x) mean(x[-1]))
+#    a    b    c
+#  3.5  8.5 16.0
 
-# Fit a model for each group
-models <- lapply(groups, function(df) lm(mpg ~ wt, data = df))
-
-# Extract results
-results <- sapply(names(models), function(name) {
-  s <- summary(models[[name]])
-  c(n = nrow(groups[[name]]),
-    r_squared = round(s$r.squared, 3),
-    wt_coef = round(coef(models[[name]])["wt"], 2),
-    p_value = round(s$coefficients["wt", "Pr(>|t|)"], 4))
-})
-
-cat("Model results by cylinder group:\n")
-print(results)
+# Or with a formula-style anonymous function (base R 4.1+):
+sapply(nums, \(x) mean(x[-1]))
 ```
 
-**Key concept:** `split()` creates a list of data frames by group. `lapply()` fits a model to each. `sapply()` extracts results into a matrix. This split-apply-combine pattern is fundamental to data analysis.
+The anonymous function gives you full control over what happens to each element. The `\(x)` form is the modern shorthand for `function(x)`.
 
 </details>
 
-### Exercise 9: JSON-like Nested Structure
+## Section 5 — Conversion and flattening
 
-Parse and analyze a nested list representing API response data.
+### Exercise 9. Flatten to a vector
+
+Convert `nums` (a list of numeric vectors) into a single flat numeric vector, then into a character vector with every element joined by ", ".
 
 ```r
-# Exercise 9: Work with API-style nested data
-api_response <- list(
-  status = "success",
-  data = list(
-    users = list(
-      list(id = 1, name = "Alice", scores = c(88, 92, 75)),
-      list(id = 2, name = "Bob", scores = c(95, 80, 85)),
-      list(id = 3, name = "Carol", scores = c(72, 68, 90))
-    ),
-    total = 3
-  )
-)
-
-# 1. Extract all user names into a vector
-# 2. Calculate each user's average score
-# 3. Find the user with the highest average
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-api_response <- list(
-  status = "success",
-  data = list(
-    users = list(
-      list(id = 1, name = "Alice", scores = c(88, 92, 75)),
-      list(id = 2, name = "Bob", scores = c(95, 80, 85)),
-      list(id = 3, name = "Carol", scores = c(72, 68, 90))
-    ),
-    total = 3
-  )
-)
+flat <- unlist(nums)
+flat
+#  a1  a2  a3  a4  a5  b1  b2  ... c10
+#   1   2   3   4   5   6   7  ...  20
 
-users <- api_response$data$users
-
-# 1. All names
-names_vec <- sapply(users, function(u) u$name)
-cat("Users:", names_vec, "\n")
-
-# 2. Average scores
-avg_scores <- sapply(users, function(u) round(mean(u$scores), 1))
-names(avg_scores) <- names_vec
-cat("Averages:", avg_scores, "\n")
-
-# 3. Highest average
-best <- names_vec[which.max(avg_scores)]
-cat("Top performer:", best, "with", max(avg_scores), "\n")
+paste(flat, collapse = ", ")
+# "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20"
 ```
 
-**Key concept:** API responses and JSON data are naturally represented as nested lists in R. `sapply()` with anonymous functions extracts values from each nested element.
+`unlist()` recursively flattens the list and attaches sensible names combining the list name and vector position. Use `unlist(x, use.names = FALSE)` if you do not want the names.
 
 </details>
 
-### Exercise 10: Configuration Manager
+### Exercise 10. Convert a list of records to a data frame
 
-Write a function that merges two configuration lists, where the second list overrides values from the first (like merging default + user config).
+Convert `team` (a list of three lists with the same fields) into a data frame with one row per team member.
 
 ```r
-# Exercise 10: Merge configuration lists
-defaults <- list(
-  host = "localhost",
-  port = 8080,
-  debug = FALSE,
-  timeout = 30,
-  database = list(name = "mydb", pool_size = 5)
-)
-
-user_config <- list(
-  port = 5432,
-  debug = TRUE,
-  database = list(name = "production")
-)
-
-# Write merge_config(defaults, overrides) that:
-# - Keeps all defaults
-# - Overrides with user_config values where they exist
-# - Result should have: host=localhost, port=5432, debug=TRUE, timeout=30,
-#   database=list(name="production", pool_size=5)
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-merge_config <- function(defaults, overrides) {
-  result <- defaults
-  for (key in names(overrides)) {
-    if (is.list(defaults[[key]]) && is.list(overrides[[key]])) {
-      # Recursively merge nested lists
-      result[[key]] <- merge_config(defaults[[key]], overrides[[key]])
-    } else {
-      result[[key]] <- overrides[[key]]
-    }
-  }
-  return(result)
-}
+team_df <- do.call(rbind.data.frame, team)
+team_df
+#   name     role years
+# 1  Ava  analyst     3
+# 2  Ben engineer     5
+# 3  Cho  manager     8
 
-defaults <- list(
-  host = "localhost", port = 8080, debug = FALSE,
-  timeout = 30, database = list(name = "mydb", pool_size = 5)
-)
-user_config <- list(
-  port = 5432, debug = TRUE,
-  database = list(name = "production")
-)
-
-final <- merge_config(defaults, user_config)
-cat("Final config:\n")
-str(final)
-
-# Verify: database should have BOTH name (overridden) and pool_size (from default)
-cat("\nDB name:", final$database$name, "(overridden)\n")
-cat("DB pool:", final$database$pool_size, "(from default)\n")
+# Or with a more modern idiom:
+# do.call(rbind, lapply(team, as.data.frame))
 ```
 
-**Key concept:** Recursive functions can process nested lists. The function checks if both the default and override values are lists — if so, it merges recursively. Otherwise, the override replaces the default.
+`do.call(rbind.data.frame, team)` is the base R one-liner for converting a list of equally shaped records into a data frame. For anything larger or messier, `dplyr::bind_rows(team)` handles mismatched fields gracefully.
 
 </details>
 
-## Summary: Skills Practiced
+## Summary
 
-| Exercises | List Skills |
-|-----------|------------|
-| 1-4 (Easy) | Create, `$`/`[[]]`/`[]` access, modify, nested access |
-| 5-7 (Medium) | `lapply`/`sapply`, loops with lists, `do.call(rbind)` |
-| 8-10 (Hard) | Model results, API-like data, recursive merge |
+- A list can hold elements of any type, including other lists, data frames and functions.
+- `[` returns a list (the container). `[[` and `$` return the element inside. This is the single most important rule about lists.
+- Build nested lists by passing lists as list elements. Drill down with chained `[[` and `$`.
+- `lapply()` always returns a list; `sapply()` simplifies when it can.
+- Flatten with `unlist()`. Convert a list of records to a data frame with `do.call(rbind.data.frame, x)` or `dplyr::bind_rows(x)`.
+
+## References
+
+- [Advanced R — Subsetting](https://adv-r.hadley.nz/subsetting.html)
+- [R for Data Science (2e) — Iteration](https://r4ds.hadley.nz/iteration.html)
+- [R Language Definition — Lists](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#List-objects)
 
 ## Continue Learning
 
-More exercise sets:
-
-1. **R Control Flow Exercises** — if/else and loop practice
-2. **R Functions Exercises** — write, debug, and optimize
-3. **R apply Family Exercises** — master `apply`, `lapply`, `sapply`, `tapply`
-
-Or continue learning: **R Control Flow** tutorial.
+- [R Lists: The Most Flexible Data Structure in R](R-Lists.html)
+- [R Data Frames Exercises: 15 Practice Questions](R-Data-Frames-Exercises.html)
+- [R Control Flow Exercises: 12 if/else, Loop & Function Practice Problems](R-Control-Flow-Exercises.html)
