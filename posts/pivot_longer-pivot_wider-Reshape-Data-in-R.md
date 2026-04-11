@@ -1,531 +1,638 @@
 ---
 title: "pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind"
 slug: "pivot_longer-pivot_wider-Reshape-Data-in-R"
-description: "Reshape wide-to-long and long-to-wide in R using tidyr pivot_longer() and pivot_wider(). Learn every key argument with five before-and-after examples."
+description: "Reshape wide-to-long and long-to-wide in R with tidyr pivot_longer() and pivot_wider(). Every key argument explained with before-and-after examples."
 keywords: "pivot_longer, pivot_wider, tidyr, reshape data R, wide to long R, long to wide R, names_to, values_to, names_from, values_from"
 auto_link_terms: "pivot_longer()|pivot_wider()|pivot longer|pivot wider|reshape data in R|wide to long format|long to wide format"
 auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-06"
+date: "2026-04-11"
 curriculum_id: "1.2.8"
 post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "pivot_longer & pivot_wider"
-sidebar_order: 9
+sidebar_order: 8
 ---
-
 
 # pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind
 
-<p class="lead"><code>pivot_longer()</code> stacks several columns into a single name-value pair, moving data from wide to long. <code>pivot_wider()</code> does the opposite, spreading one column's values across new columns. They are inverses of each other.</p>
+<p class="lead"><code>pivot_longer()</code> stacks several columns into one name-value pair, moving data from wide to long. <code>pivot_wider()</code> does the opposite — it spreads one column's values across new columns. They are inverses of each other, and together they cover almost every reshape job you will ever meet in R.</p>
 
-Reshaping data is one of those R skills that feels hard until you see it once. Then it clicks forever. Most real datasets arrive in a shape that does not match what you need for plotting or modeling. This post teaches the two tidyr functions that handle every reshape job you will meet.
+## What does wide vs long data actually look like?
 
-## Introduction
-
-The core problem is simple. Humans like wide tables because they are compact and easy to read. Software likes long tables because each row is a single observation. You will spend a real fraction of your analysis time moving between the two shapes.
-
-The tidyr package ships `pivot_longer()` and `pivot_wider()` as the modern tools for this job. They replaced the older `gather()` and `spread()` in 2019 with clearer argument names and better handling of edge cases. If you still see `gather()` in old tutorials, update the syntax; the tidyverse team has retired it.
-
-You do not need to install anything to follow along. Every code block on this page runs directly in your browser. Click Run on the first block to load the libraries, then work through the rest top to bottom. Variables carry over between blocks, just like a notebook.
-
-## What is the difference between wide and long format?
-
-Wide and long are two shapes that can hold the exact same information. The shape you pick depends on what you want to do next. Here is the same student-test-score dataset shown both ways.
-
-![Wide and long are two shapes for the same data.](screenshots/pivot_longer-pivot_wider-wide-vs-long.webp)
-*Figure 1: Wide and long are two shapes for the same data.*
-
-Wide format puts one row per subject, with measurements spread across columns. Long format puts one row per measurement, with a key column saying what was measured. Let's build a small wide table and see it live.
+Most datasets arrive "wide" because humans like compact tables that fit on a screen. Sales by quarter, scores by subject, sensor readings by hour — the label sits in a column header and the number sits in a cell. Analysis tools, however, prefer "long" data where each row is a single observation. Let's see the same data in both shapes so the payoff is obvious before we touch arguments.
 
 ```r
 library(tidyr)
 library(dplyr)
 
-wide_scores <- tibble(
-  student = c("Ava", "Ben", "Cora"),
-  math    = c(90, 78, 85),
-  english = c(82, 88, 91),
-  science = c(75, 92, 80)
-)
-wide_scores
-#> # A tibble: 3 x 4
-#>   student  math english science
-#>   <chr>   <dbl>   <dbl>   <dbl>
-#> 1 Ava        90      82      75
-#> 2 Ben        78      88      80
-#> 3 Cora       85      91      80
-```
-
-Three students, three subjects, nine numbers. The wide table has 3 rows and 4 columns. The same nine numbers in long format would need 9 rows and only 3 columns: `student`, `subject`, `score`. Same data, different shape.
-
-[KEY INSIGHT]
-**Long format is the language of ggplot2 and group_by().** Almost every tidyverse tool assumes one row equals one observation. If a plot or summary fights you, the answer is usually to go long first.
-
-## How does pivot_longer() turn wide data into long?
-
-`pivot_longer()` needs you to answer three questions: which columns should be stacked, what should the new name column be called, and what should the new value column be called. That is the whole function.
-
-![pivot_longer() needs three answers: which columns, a name column, a value column.](screenshots/pivot_longer-pivot_wider-longer-anatomy.webp)
-*Figure 2: pivot_longer() needs three answers: which columns, a name column, a value column.*
-
-Let's stack the three subject columns into one `subject` column and one `score` column.
-
-```r
-long_scores <- wide_scores |>
-  pivot_longer(
-    cols = c(math, english, science),
-    names_to  = "subject",
-    values_to = "score"
-  )
-long_scores
-#> # A tibble: 9 x 3
-#>   student subject score
-#>   <chr>   <chr>   <dbl>
-#> 1 Ava     math       90
-#> 2 Ava     english    82
-#> 3 Ava     science    75
-#> 4 Ben     math       78
-#> 5 Ben     english    88
-#> 6 Ben     science    92
-#> 7 Cora    math       85
-#> 8 Cora    english    91
-#> 9 Cora    science    80
-```
-
-The table went from 3 rows to 9, exactly one row per student-subject pair. The column headers `math`, `english`, and `science` became values inside the new `subject` column. The cell numbers became values inside the new `score` column. The `student` column was untouched because we did not list it in `cols`.
-
-### Selecting cols with helpers
-
-Listing every column by name gets tiresome fast. You can use tidyselect helpers inside `cols`, just like inside `select()`.
-
-```r
-# Everything except student
-wide_scores |>
-  pivot_longer(cols = -student, names_to = "subject", values_to = "score") |>
-  head(4)
-#> # A tibble: 4 x 3
-#>   student subject score
-#>   <chr>   <chr>   <dbl>
-#> 1 Ava     math       90
-#> 2 Ava     english    82
-#> 3 Ava     science    75
-#> 4 Ben     math       78
-```
-
-`-student` is the cleanest idiom for "stack everything except the id column". You can also use `starts_with("score_")`, `ends_with("_2024")`, `matches("^q\\d+$")`, or `where(is.numeric)` to pick columns by pattern or type.
-
-[TIP]
-**Use tidyselect helpers to avoid typing every column.** cols accepts anything select() accepts, including starts_with(), ends_with(), matches(), and where(is.numeric). This matters when your dataset has 50 measurement columns.
-
-## How does pivot_wider() turn long data into wide?
-
-`pivot_wider()` is the inverse. It takes one column full of names and spreads those names across new columns, filling each new column with values from a second column. Two arguments do the work.
-
-![pivot_wider() needs to know the identifier, the name source, and the value source.](screenshots/pivot_longer-pivot_wider-wider-anatomy.webp)
-*Figure 3: pivot_wider() needs to know the identifier, the name source, and the value source.*
-
-Let's take the `long_scores` we just built and spread it back out.
-
-```r
-wide_again <- long_scores |>
-  pivot_wider(
-    names_from  = subject,
-    values_from = score
-  )
-wide_again
-#> # A tibble: 3 x 4
-#>   student  math english science
-#>   <chr>   <dbl>   <dbl>   <dbl>
-#> 1 Ava        90      82      75
-#> 2 Ben        78      88      92
-#> 3 Cora       85      91      80
-```
-
-Same shape as the original `wide_scores`. `pivot_wider()` read the distinct values in `subject` ("math", "english", "science") and created one column per value. Then it read `score` and dropped each number into the correct cell.
-
-You did not need to say which columns identify each row. `pivot_wider()` assumes any column not mentioned in `names_from` or `values_from` is an identifier. Here that means `student`. If you want to be explicit, pass `id_cols = student`.
-
-[NOTE]
-**gather() and spread() are retired.** If you see them in older code, translate to pivot_longer() and pivot_wider(). The tidyverse team no longer adds features to the old functions, and the new ones handle multi-column pivots the old ones could not.
-
-## How do you pivot multiple value columns at once?
-
-Real column names often pack two pieces of information together, like `avg_math_2023` or `billboard_wk1`. `pivot_longer()` can split those names into two columns in one step with `names_sep` or `names_pattern`.
-
-Imagine a quarterly sales file. Each column name is `region_Q<n>`.
-
-```r
 sales_wide <- tibble(
-  product = c("Widget", "Gadget"),
-  north_Q1 = c(120, 85),
-  north_Q2 = c(135, 90),
-  south_Q1 = c(100, 70),
-  south_Q2 = c(115, 78)
+  store = c("North", "South", "East"),
+  Q1 = c(120, 90, 150),
+  Q2 = c(140, 110, 160),
+  Q3 = c(135, 125, 155)
 )
+sales_wide
+#> # A tibble: 3 x 4
+#>   store    Q1    Q2    Q3
+#>   <chr> <dbl> <dbl> <dbl>
+#> 1 North   120   140   135
+#> 2 South    90   110   125
+#> 3 East    150   160   155
 
 sales_long <- sales_wide |>
-  pivot_longer(
-    cols = -product,
-    names_to  = c("region", "quarter"),
-    names_sep = "_",
-    values_to = "sales"
-  )
+  pivot_longer(cols = Q1:Q3, names_to = "quarter", values_to = "sales")
 sales_long
-#> # A tibble: 8 x 4
-#>   product region quarter sales
-#>   <chr>   <chr>  <chr>   <dbl>
-#> 1 Widget  north  Q1        120
-#> 2 Widget  north  Q2        135
-#> 3 Widget  south  Q1        100
-#> 4 Widget  south  Q2        115
-#> 5 Gadget  north  Q1         85
-#> 6 Gadget  north  Q2         90
-#> 7 Gadget  south  Q1         70
-#> 8 Gadget  south  Q2         78
-#> # ...
+#> # A tibble: 9 x 3
+#>   store quarter sales
+#>   <chr> <chr>   <dbl>
+#> 1 North Q1        120
+#> 2 North Q2        140
+#> 3 North Q3        135
+#> 4 South Q1         90
+#> 5 South Q2        110
+#> 6 South Q3        125
+#> 7 East  Q1        150
+#> 8 East  Q2        160
+#> 9 East  Q3        155
 ```
 
-Passing a character vector to `names_to` tells `pivot_longer()` to split each old column name into that many parts. `names_sep = "_"` does the split. You went from 4 value columns to 2 tidy key columns (`region`, `quarter`) plus one value column (`sales`), all in a single call.
+The wide version has 3 rows × 4 columns. The long version has 9 rows × 3 columns. Same information, different shape. Notice how every row in the long table now describes exactly one sales figure at one store in one quarter — that is what "tidy" means.
 
-If the separator is not a fixed character, use `names_pattern` with a regex. For something like `sales2023q1`, you would write `names_pattern = "sales(\\d{4})q(\\d)"`.
+![Wide vs long shape of the same dataset](screenshots/pivot_longer-pivot_wider-wide-vs-long.webp)
+*Figure 1: The same sales data in wide and long form. Wide stores values in column headers; long stores them in a single column.*
 
-## How do you control the pivot with names_prefix, names_sep, and values_fill?
+Why prefer long? Because ggplot2, dplyr's `group_by()`, and most statistical functions expect each observation on its own row. Try to plot the wide table with ggplot — you cannot map "quarter" to the x-axis because it does not exist as a column. Reshape first, plot second.
 
-A few extra arguments clean up messy real-world pivots. Here are the three you will reach for the most.
+> **[TIP]** A quick test: if you find yourself writing `Q1 + Q2 + Q3` or `mean(c(col1, col2, col3))` to compute something across columns, your data is wide and you probably want it long.
 
-**`names_prefix`** strips a common prefix from column names during `pivot_longer()`. **`values_fill`** plugs holes during `pivot_wider()`. **`names_sep`** glues parts together during `pivot_wider()` when you have multiple name sources.
+**Try it:** Build a wide tibble with `student` and three grade columns `math`, `science`, `english`, then pivot it to a long form with columns `student`, `subject`, `grade`.
 
 ```r
-# values_fill example: sparse sales with missing rows
-sparse <- tibble(
-  store = c("A", "A", "B"),
-  month = c("Jan", "Feb", "Jan"),
-  sales = c(100, 120, 80)
+# Starter code
+library(tidyr)
+
+grades_wide <- tibble(
+  student = c("Asha", "Bilal", "Cleo"),
+  math = c(88, 72, 95),
+  science = c(81, 79, 90),
+  english = c(77, 85, 92)
 )
 
-sparse |>
-  pivot_wider(
-    names_from  = month,
-    values_from = sales,
-    values_fill = 0
+# Your pivot_longer() call here — hint: cols = math:english
+```
+
+## How does pivot_longer() turn wide columns into rows?
+
+`pivot_longer()` takes four arguments you will use every day: `cols` (which columns to stack), `names_to` (what to call the new "label" column), `values_to` (what to call the new "value" column), and sometimes `values_drop_na` to skip empty cells. Let's look at each in a simple example so the anatomy is crystal clear.
+
+![pivot_longer argument anatomy](screenshots/pivot_longer-pivot_wider-longer-anatomy.webp)
+*Figure 2: How pivot_longer() maps wide columns into a name column and a value column.*
+
+```r
+library(tidyr)
+
+weather <- tibble(
+  city = c("Pune", "Berlin", "Lima"),
+  `2021` = c(34, 22, 25),
+  `2022` = c(36, 24, 26),
+  `2023` = c(35, 25, 27)
+)
+
+weather_long <- weather |>
+  pivot_longer(
+    cols = `2021`:`2023`,
+    names_to = "year",
+    values_to = "avg_temp",
+    names_transform = list(year = as.integer)
   )
-#> # A tibble: 2 x 3
-#>   store   Jan   Feb
-#>   <chr> <dbl> <dbl>
-#> 1 A       100   120
-#> 2 B        80     0
+weather_long
+#> # A tibble: 9 x 3
+#>   city    year avg_temp
+#>   <chr>  <int>    <dbl>
+#> 1 Pune    2021       34
+#> 2 Pune    2022       36
+#> 3 Pune    2023       35
+#> 4 Berlin  2021       22
+#> 5 Berlin  2022       24
+#> 6 Berlin  2023       25
+#> 7 Lima    2021       25
+#> 8 Lima    2022       26
+#> 9 Lima    2023       27
 ```
 
-Store B has no February row in the long input, so `pivot_wider()` would return `NA` by default. `values_fill = 0` replaces every missing cell with zero, which is what you want for count data. Use `values_fill = list(sales = 0, visits = 0)` when you have several value columns and want different fills per column.
+Three things worth noticing. First, `cols = 2021:2023` selects a range of columns using the same tidyselect helpers as `select()` — you can also write `cols = starts_with("20")` or `cols = -city` to say "everything except city". Second, `names_transform` turns the text `"2021"` into an integer, which matters because column headers are always strings even when they look like numbers. Third, the `city` column is preserved without being named anywhere — pivot_longer keeps every column not listed in `cols`.
 
-[TIP]
-**Use values_fill to close holes in panel data.** Sparse long data often becomes full of NAs when made wide. values_fill = 0 (or whatever makes sense) prevents downstream NA propagation bugs.
+> **[NOTE]** If your wide table has holes (NA values where a measurement is missing), add `values_drop_na = TRUE` to drop those rows automatically. Without it you get explicit NA rows in the long output.
 
-[WARNING]
-**Duplicate key combinations become list-columns.** If two rows in your long data share the same names_from value AND the same id columns, pivot_wider() cannot decide which value to keep. It packs both into a list-column and prints a warning. Aggregate with group_by() and summarise() first, or set values_fn = sum.
+**Try it:** Pivot this expense table so each row is one month-category pair. Drop NA values.
 
-## Common Mistakes and How to Fix Them
-
-### Mistake 1: Forgetting to quote names_to and values_to
-
-**Wrong:**
 ```r
-wide_scores |> pivot_longer(cols = -student, names_to = subject, values_to = score)
-# Error: object 'subject' not found
+# Starter code
+expenses <- tibble(
+  category = c("rent", "food", "travel"),
+  Jan = c(1200, 350, NA),
+  Feb = c(1200, 380, 200),
+  Mar = c(1250, 400, 150)
+)
+
+# pivot_longer() call — cols = Jan:Mar, drop NAs
 ```
 
-**Why it is wrong:** `names_to` and `values_to` create brand-new columns. The new names do not exist yet, so R cannot evaluate `subject` as a symbol. They must be passed as strings.
+## How does pivot_wider() turn rows back into columns?
 
-**Correct:**
+`pivot_wider()` is the inverse. It takes a long table and spreads one column's values across new columns. You need two arguments: `names_from` (the column whose values become new headers) and `values_from` (the column whose values fill those new headers). Everything else stays as an ID.
+
+![pivot_wider argument anatomy](screenshots/pivot_longer-pivot_wider-wider-anatomy.webp)
+*Figure 3: How pivot_wider() maps a name column and a value column into new wide columns.*
+
 ```r
-wide_scores |> pivot_longer(cols = -student, names_to = "subject", values_to = "score")
+# Reuse sales_long from section 1
+sales_back <- sales_long |>
+  pivot_wider(names_from = quarter, values_from = sales)
+sales_back
+#> # A tibble: 3 x 4
+#>   store    Q1    Q2    Q3
+#>   <chr> <dbl> <dbl> <dbl>
+#> 1 North   120   140   135
+#> 2 South    90   110   125
+#> 3 East    150   160   155
 ```
 
-### Mistake 2: Duplicate keys silently create list-columns
+That is the same shape as the original `sales_wide`. Round-trip confirmed — pivot_longer and pivot_wider undo each other exactly. When would you actually *want* to go long→wide? The classic case is preparing a report table for humans: a row per customer, a column per month, ready to paste into a slide. Another is computing differences across groups, like churn rate between Q1 and Q2, which is easier when each quarter is its own column.
 
-**Wrong:**
 ```r
-dupes <- tibble(id = c(1, 1, 2), key = c("a", "a", "b"), val = c(10, 20, 30))
-dupes |> pivot_wider(names_from = key, values_from = val)
-# Warning: Values from `val` are not uniquely identified; output will contain list-cols.
+# A report-ready table: students as rows, subjects as columns
+scores_long <- tibble(
+  student = c("Asha","Asha","Asha","Bilal","Bilal","Bilal"),
+  subject = c("math","science","english","math","science","english"),
+  grade   = c(88, 81, 77, 72, 79, 85)
+)
+
+scores_long |>
+  pivot_wider(names_from = subject, values_from = grade)
+#> # A tibble: 2 x 4
+#>   student  math science english
+#>   <chr>   <dbl>   <dbl>   <dbl>
+#> 1 Asha       88      81      77
+#> 2 Bilal      72      79      85
 ```
 
-**Why it is wrong:** Two rows have `id = 1, key = "a"`, so `pivot_wider()` does not know whether cell `[1, "a"]` should be 10 or 20. It keeps both in a list.
+> **[TIP]** Use a `names_prefix` to prepend text to the new column names, like `names_prefix = "score_"`. Handy when the resulting headers would otherwise start with a number or collide with an existing column.
 
-**Correct:** Decide how to combine duplicates first.
+**Try it:** Spread this long survey table into wide form, one row per respondent.
+
 ```r
-dupes |>
-  group_by(id, key) |>
-  summarise(val = sum(val), .groups = "drop") |>
-  pivot_wider(names_from = key, values_from = val)
-#> # A tibble: 2 x 3
-#>      id     a     b
-#>   <dbl> <dbl> <dbl>
-#> 1     1    30    NA
-#> 2     2    NA    30
+# Starter code
+survey <- tibble(
+  id = c(1,1,1,2,2,2),
+  question = c("q1","q2","q3","q1","q2","q3"),
+  answer = c(5,3,4,2,4,5)
+)
+
+# pivot_wider() call — names_from = question, values_from = answer
 ```
 
-### Mistake 3: Pivoting columns with mixed types
+## How do you split compound column names with names_sep and names_pattern?
 
-**Wrong:** Stacking numeric and character columns into one value column.
+Real datasets often pack two pieces of information into a single column name. Think `sales_2022_Q1`, `temp_min`, or `height_cm`. `pivot_longer()` can split these into separate columns during the reshape — no extra `separate()` step needed.
+
 ```r
-mixed <- tibble(id = 1, name = "Ava", score = 90)
-mixed |> pivot_longer(cols = c(name, score))
-# value column becomes character; 90 is now "90"
+library(tidyr)
+
+stocks <- tibble(
+  date = as.Date(c("2026-01-01","2026-02-01","2026-03-01")),
+  AAPL_open = c(180, 185, 190),
+  AAPL_close = c(182, 188, 192),
+  GOOG_open = c(140, 145, 148),
+  GOOG_close = c(142, 147, 149)
+)
+
+stocks_long <- stocks |>
+  pivot_longer(
+    cols = -date,
+    names_to = c("ticker", "price_type"),
+    names_sep = "_",
+    values_to = "price"
+  )
+stocks_long
+#> # A tibble: 12 x 4
+#>   date       ticker price_type price
+#>   <date>     <chr>  <chr>      <dbl>
+#> 1 2026-01-01 AAPL   open         180
+#> 2 2026-01-01 AAPL   close        182
+#> 3 2026-01-01 GOOG   open         140
+#> 4 2026-01-01 GOOG   close        142
+#> ...
 ```
 
-**Why it is wrong:** A single column can hold only one type. `pivot_longer()` coerces everything to the broadest type, which is character if any column is text. You lose numeric operations on the score.
+`names_to` now takes a character vector — one name per chunk of the original header. `names_sep = "_"` splits on underscore. The result gives us a clean `ticker` and `price_type` pair that you can filter, group, or plot directly.
 
-**Correct:** Pivot numeric columns and character columns separately, or keep the identifier columns out of the pivot.
+When your headers follow a more complex pattern — say `sales_q1_2022` where a regex would help — use `names_pattern` with capture groups:
+
 ```r
-mixed |> pivot_longer(cols = score, names_to = "metric", values_to = "value")
+messy <- tibble(
+  id = 1:2,
+  sales_q1_2022 = c(100, 200),
+  sales_q2_2022 = c(110, 210),
+  sales_q1_2023 = c(120, 220),
+  sales_q2_2023 = c(130, 230)
+)
+
+messy |>
+  pivot_longer(
+    cols = -id,
+    names_to = c("metric", "quarter", "year"),
+    names_pattern = "(.*)_(q[0-9])_(\\d{4})",
+    values_to = "value"
+  )
+#> # A tibble: 8 x 5
+#>    id metric quarter year  value
+#> <int> <chr>  <chr>   <chr> <dbl>
+#>   1 sales  q1      2022    100
+#>   1 sales  q2      2022    110
+#> ...
 ```
 
-### Mistake 4: Using cols = everything() and losing id columns
+Three capture groups → three destination columns. No nested `mutate()` or `substr()` dance.
 
-**Wrong:**
+> **[WARNING]** `names_pattern` uses regex. If your column names contain characters like dots or parentheses, escape them in the pattern or they will match unintended text.
+
+**Try it:** Pivot this table so `country` and `year` become separate columns.
+
 ```r
-wide_scores |> pivot_longer(cols = everything(), names_to = "k", values_to = "v")
-# student gets stacked too, so you lose the link to the subject
+# Starter code
+pop <- tibble(
+  region = c("Asia","Europe"),
+  India_2020 = c(1380, NA),
+  India_2021 = c(1393, NA),
+  Germany_2020 = c(NA, 83),
+  Germany_2021 = c(NA, 84)
+)
+
+# pivot_longer() — cols = -region, names_sep = "_", drop NAs
 ```
 
-**Why it is wrong:** `everything()` includes the identifier column. You cannot tell which score came from which student anymore.
+## What happens when pivot_wider() creates missing values?
 
-**Correct:** Always exclude the id columns.
+Going long is always safe — every row lands somewhere. Going wide is riskier. If the long table is missing a combination of `names_from` and row-ID columns, pivot_wider fills the gap with `NA`. Sometimes that is what you want. Sometimes it is a bug.
+
 ```r
-wide_scores |> pivot_longer(cols = -student, names_to = "subject", values_to = "score")
+attendance <- tibble(
+  student = c("Asha","Asha","Bilal","Cleo","Cleo"),
+  day = c("Mon","Tue","Mon","Mon","Wed"),
+  present = c(1,1,1,1,0)
+)
+
+attendance |>
+  pivot_wider(names_from = day, values_from = present)
+#> # A tibble: 3 x 4
+#>   student   Mon   Tue   Wed
+#>   <chr>   <dbl> <dbl> <dbl>
+#> 1 Asha        1     1    NA
+#> 2 Bilal       1    NA    NA
+#> 3 Cleo        1    NA     0
+```
+
+Bilal has no Tuesday record, so pivot_wider inserts NA. Often you would rather see a 0 — absence means "not present", not "unknown". Use `values_fill`:
+
+```r
+attendance |>
+  pivot_wider(names_from = day, values_from = present, values_fill = 0)
+#> # A tibble: 3 x 4
+#>   student   Mon   Tue   Wed
+#>   <chr>   <dbl> <dbl> <dbl>
+#> 1 Asha        1     1     0
+#> 2 Bilal       1     0     0
+#> 3 Cleo        1     0     0
+```
+
+The other trap is duplicate keys. If more than one row shares the same `student`/`day` pair, pivot_wider cannot decide which `present` value to use and produces list-columns (with a warning). The fix is either to deduplicate first or pass `values_fn = sum` (or `mean`, `max`, etc.) to aggregate.
+
+```r
+log <- tibble(
+  student = c("Asha","Asha","Asha"),
+  day = c("Mon","Mon","Tue"),
+  minutes = c(30, 15, 45)
+)
+
+log |>
+  pivot_wider(names_from = day, values_from = minutes, values_fn = sum)
+#> # A tibble: 1 x 3
+#>   student   Mon   Tue
+#>   <chr>   <dbl> <dbl>
+#> 1 Asha       45    45
+```
+
+> **[KEY INSIGHT]** `values_fill` handles missing combinations; `values_fn` handles duplicate combinations. Memorize this pair — between them they fix 95% of real pivot_wider headaches.
+
+**Try it:** Fix this pivot so missing months become 0 instead of NA.
+
+```r
+# Starter code
+visits <- tibble(
+  user = c("a","a","b","c"),
+  month = c("Jan","Feb","Jan","Mar"),
+  n = c(3, 5, 2, 7)
+)
+
+# pivot_wider with values_fill = 0
+```
+
+## How do you reshape multiple value columns at once?
+
+Sometimes one row of long data carries several kinds of measurement. Think: per student, per subject, both a grade and a rank. You want a wide table where each subject gets *two* columns — one for grade, one for rank. `pivot_wider()` handles this naturally.
+
+```r
+exam <- tibble(
+  student = c("Asha","Asha","Bilal","Bilal"),
+  subject = c("math","science","math","science"),
+  grade = c(88, 81, 72, 79),
+  rank = c(1, 2, 2, 1)
+)
+
+exam |>
+  pivot_wider(
+    names_from = subject,
+    values_from = c(grade, rank)
+  )
+#> # A tibble: 2 x 5
+#>   student grade_math grade_science rank_math rank_science
+#>   <chr>        <dbl>         <dbl>     <dbl>        <dbl>
+#> 1 Asha            88            81         1            2
+#> 2 Bilal           72            79         2            1
+```
+
+With `values_from = c(grade, rank)`, pivot_wider produces column names by concatenating the value name and the subject. You control the order and glue character with `names_sep` or `names_glue`:
+
+```r
+exam |>
+  pivot_wider(
+    names_from = subject,
+    values_from = c(grade, rank),
+    names_glue = "{subject}_{.value}"
+  )
+#> # A tibble: 2 x 5
+#>   student math_grade science_grade math_rank science_rank
+#>   <chr>        <dbl>         <dbl>     <dbl>        <dbl>
+#> 1 Asha            88            81         1            2
+#> 2 Bilal           72            79         2            1
+```
+
+`{.value}` is a placeholder for the name of the value column being spread. `{subject}` is the current value from `names_from`. This templating is a huge time-saver when you need the resulting columns in a specific order for a report.
+
+> **[TIP]** The same trick works in reverse with `pivot_longer()` — pass `names_to = c(".value", "year")` with `names_sep = "_"` and a header like `grade_2022` becomes a `grade` column with a `year` side column. The `.value` token tells pivot_longer "this chunk is the value column's new name".
+
+**Try it:** Widen this long table so each product becomes two columns, `units` and `revenue`.
+
+```r
+# Starter code
+orders <- tibble(
+  region = c("N","N","S","S"),
+  product = c("widget","gizmo","widget","gizmo"),
+  units = c(10, 5, 8, 3),
+  revenue = c(100, 75, 80, 45)
+)
+
+# pivot_wider with values_from = c(units, revenue)
+```
+
+## When should you reshape vs keep data as-is?
+
+Reshaping is not free. It changes the shape of your data, and if you pipe it through a long chain of dplyr calls you can lose track of what you have. A simple rule: reshape when a downstream function *needs* the other shape, and reshape back only if you need to present results.
+
+Here are the common triggers for going long:
+
+- **You are about to plot with ggplot2.** Every aesthetic (`x`, `y`, `color`, `facet`) needs a column. If the thing you want on the x-axis is a column header, pivot first.
+- **You are grouping with `group_by()`.** dplyr groups by column values, not by column names. If your grouping variable is in the headers, pivot first.
+- **You are computing summaries across variables.** `summarise()` and `across()` work on columns, but pivoting to long form makes many "mean per group" jobs a one-liner.
+
+Triggers for going wide:
+
+- **You are building a report table** where humans will read rows and columns side by side.
+- **You are computing ratios or differences** between specific columns — for example Q2 revenue divided by Q1 revenue is trivial when they are two columns and awkward when they share one.
+- **You are exporting to a spreadsheet** where analysts expect the wide layout.
+
+```r
+# Long-first workflow: pivot, compute, then pivot back for the final table
+sales_long |>
+  group_by(quarter) |>
+  summarise(total = sum(sales), avg = mean(sales)) |>
+  pivot_wider(names_from = quarter, values_from = c(total, avg))
+#> # A tibble: 1 x 6
+#>   total_Q1 total_Q2 total_Q3 avg_Q1 avg_Q2 avg_Q3
+#>      <dbl>    <dbl>    <dbl>  <dbl>  <dbl>  <dbl>
+#> 1      360      410      415    120 136.67 138.33
+```
+
+> **[NOTE]** If you never plot and never export, you probably do not need to reshape at all. Shape is a means, not an end — do not pivot for fun.
+
+**Try it:** Given this long table of temperatures, produce a wide report showing min and max temperature per city per year.
+
+```r
+# Starter code
+temps <- tibble(
+  city = rep(c("Pune","Berlin"), each = 4),
+  year = rep(c(2022,2022,2023,2023), 2),
+  kind = rep(c("min","max"), 4),
+  temp = c(18, 38, 19, 39, -5, 28, -4, 30)
+)
+
+# pivot_wider with names_from = c(year, kind)
 ```
 
 ## Practice Exercises
 
-### Exercise 1: Stack year columns
+These exercises combine multiple ideas from the post. Work through them in order — each builds on the previous.
 
-The `billboard` dataset (built into tidyr) holds weekly chart ranks. Pivot the `wk1` through `wk76` columns into one `week` column and one `rank` column, then drop missing ranks.
+### Exercise 1: Clean up a messy survey
 
-```r
-# Your turn: pivot billboard wide-to-long
-# Hint: use starts_with("wk") and values_drop_na = TRUE
-
-# Save the result to my_long
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+You receive this survey export. Reshape it so each row is one respondent-question pair, then compute the mean score per question.
 
 ```r
-my_long <- billboard |>
-  pivot_longer(
-    cols = starts_with("wk"),
-    names_to  = "week",
-    values_to = "rank",
-    values_drop_na = TRUE
-  )
-head(my_long, 3)
-#> # A tibble: 3 x 5
-#>   artist  track                   date.entered week   rank
-#>   <chr>   <chr>                   <date>       <chr> <dbl>
-#> 1 2 Pac   Baby Don't Cry (Keep... 2000-02-26   wk1      87
-#> 2 2 Pac   Baby Don't Cry (Keep... 2000-02-26   wk2      82
-#> 3 2 Pac   Baby Don't Cry (Keep... 2000-02-26   wk3      72
-```
+library(tidyr); library(dplyr)
 
-**Explanation:** `starts_with("wk")` picks all 76 week columns in one go. `values_drop_na = TRUE` strips rows where the song had dropped off the chart (most rows, actually).
-
-</details>
-
-### Exercise 2: Spread a summary table
-
-Start from the `long_scores` you made earlier. Compute the average score per subject across all students, then pivot to one row per subject-with-average into a single-row wide table where each subject is a column.
-
-```r
-# Your turn: avg score per subject, then pivot to wide
-# Hint: group_by + summarise, then pivot_wider
-
-# Save to my_wide
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-my_wide <- long_scores |>
-  group_by(subject) |>
-  summarise(avg = mean(score)) |>
-  pivot_wider(names_from = subject, values_from = avg)
-my_wide
-#> # A tibble: 1 x 3
-#>   math english science
-#>   <dbl>   <dbl>   <dbl>
-#> 1  84.3    87      82.3
-```
-
-**Explanation:** Summarise first to collapse each subject to one row, then pivot to spread the subject names across columns. The result is a one-row tibble where each column is a subject's class average.
-
-</details>
-
-### Exercise 3: Split packed column names
-
-Build this wide tibble and pivot it so that the `region` and `year` pieces of each column name become their own columns, alongside a `temp` value column.
-
-```r
-temps <- tibble(
-  city = c("Delhi", "Mumbai"),
-  north_2022 = c(32, 30),
-  north_2023 = c(33, 31),
-  south_2022 = c(29, 28),
-  south_2023 = c(30, 29)
+survey_wide <- tibble(
+  respondent = 1:5,
+  q1_score = c(4, 5, 3, 4, 5),
+  q2_score = c(3, 4, 5, 4, 2),
+  q3_score = c(5, 5, 4, 3, 4)
 )
 
-# Your turn: split names into region + year
-# Hint: names_to takes a character vector with names_sep
-
-# Save to my_clean
+# 1. pivot_longer to one row per (respondent, question)
+# 2. group_by(question) |> summarise(mean_score = mean(score))
 ```
 
-<details>
-<summary>Click to reveal solution</summary>
+<details><summary>Solution</summary>
 
 ```r
-my_clean <- temps |>
+survey_wide |>
   pivot_longer(
-    cols = -city,
-    names_to  = c("region", "year"),
-    names_sep = "_",
-    values_to = "temp"
-  )
-my_clean
-#> # A tibble: 8 x 4
-#>   city   region year   temp
-#>   <chr>  <chr>  <chr> <dbl>
-#> 1 Delhi  north  2022     32
-#> 2 Delhi  north  2023     33
-#> 3 Delhi  south  2022     29
-#> 4 Delhi  south  2023     30
-#> 5 Mumbai north  2022     30
-#> # ...
+    cols = -respondent,
+    names_to = "question",
+    values_to = "score",
+    names_pattern = "(q[0-9])_score"
+  ) |>
+  group_by(question) |>
+  summarise(mean_score = mean(score))
 ```
-
-**Explanation:** A two-element `names_to` plus `names_sep = "_"` tells pivot_longer() to split each old name into two parts at the underscore. One call turned four packed columns into three clean ones.
 
 </details>
 
-### Exercise 4: Round trip
+### Exercise 2: Build a pivot-table report
 
-Take `wide_scores`, pivot to long, round every score down to the nearest 10, pivot back to wide, and confirm you get the rounded version of the original.
-
-```r
-# Your turn: longer -> mutate -> wider
-
-# Save to my_summary
-```
-
-<details>
-<summary>Click to reveal solution</summary>
+Turn this sales log into a wide report: one row per store, one column per product, and a final column with the store total. Fill missing combinations with 0.
 
 ```r
-my_summary <- wide_scores |>
-  pivot_longer(-student, names_to = "subject", values_to = "score") |>
-  mutate(score = floor(score / 10) * 10) |>
-  pivot_wider(names_from = subject, values_from = score)
-my_summary
-#> # A tibble: 3 x 4
-#>   student  math english science
-#>   <chr>   <dbl>   <dbl>   <dbl>
-#> 1 Ava        90      80      70
-#> 2 Ben        70      80      90
-#> 3 Cora       80      90      80
+sales_log <- tibble(
+  store = c("N","N","N","S","S","E"),
+  product = c("A","B","C","A","C","B"),
+  units = c(10, 5, 7, 12, 4, 9)
+)
+
+# 1. pivot_wider with values_fill = 0
+# 2. mutate a total column using rowSums(across(where(is.numeric)))
 ```
 
-**Explanation:** The long shape makes the rounding operation trivial; one `mutate()` hits every score. Without the pivot, you would have to repeat the rounding for each of the three subject columns. This go-long-then-go-wide pattern is the most common reason you will reach for these functions.
+<details><summary>Solution</summary>
+
+```r
+sales_log |>
+  pivot_wider(names_from = product, values_from = units, values_fill = 0) |>
+  mutate(total = rowSums(across(A:C)))
+```
+
+</details>
+
+### Exercise 3: Round-trip a dataset with multiple values
+
+Take this exam table, go wide with two value columns, then long again to recover the original shape.
+
+```r
+exam_long <- tibble(
+  student = rep(c("Asha","Bilal"), each = 3),
+  subject = rep(c("math","sci","eng"), 2),
+  score = c(88, 81, 77, 72, 79, 85),
+  rank = c(1, 2, 3, 3, 2, 1)
+)
+
+# Wide: pivot_wider with values_from = c(score, rank)
+# Long again: pivot_longer with names_to = c(".value","subject"), names_sep = "_"
+```
+
+<details><summary>Solution</summary>
+
+```r
+wide <- exam_long |>
+  pivot_wider(
+    names_from = subject,
+    values_from = c(score, rank),
+    names_glue = "{.value}_{subject}"
+  )
+
+wide |>
+  pivot_longer(
+    cols = -student,
+    names_to = c(".value", "subject"),
+    names_sep = "_"
+  )
+```
 
 </details>
 
 ## Complete Example
 
-Here is a realistic end-to-end flow. A school has test scores in wide format, you want per-student averages and per-subject averages, and a wide-format report at the end.
+Here is an end-to-end pipeline on a messy fake dataset. We start wide, reshape to long for analysis, then widen again for the final report.
 
 ```r
-class_scores <- tibble(
-  student = c("Ava", "Ben", "Cora", "Dev"),
-  math    = c(90, 78, 85, 92),
-  english = c(82, 88, 91, 79),
-  science = c(75, 92, 80, 88)
+library(tidyr); library(dplyr)
+
+# Step 1: raw wide data as it arrives from a spreadsheet
+raw <- tibble(
+  country = c("India","Brazil","Kenya"),
+  gdp_2021 = c(3.18, 1.61, 0.11),
+  gdp_2022 = c(3.39, 1.92, 0.12),
+  pop_2021 = c(1408, 214, 53),
+  pop_2022 = c(1417, 215, 54)
 )
 
-# Step 1: go long for any math we need
-long <- class_scores |>
-  pivot_longer(-student, names_to = "subject", values_to = "score")
+# Step 2: pivot to long with TWO values columns in one go
+long <- raw |>
+  pivot_longer(
+    cols = -country,
+    names_to = c(".value", "year"),
+    names_sep = "_",
+    names_transform = list(year = as.integer)
+  )
+long
+#> # A tibble: 6 x 4
+#>   country  year   gdp   pop
+#>   <chr>   <int> <dbl> <dbl>
+#> 1 India    2021  3.18  1408
+#> 2 India    2022  3.39  1417
+#> 3 Brazil   2021  1.61   214
+#> 4 Brazil   2022  1.92   215
+#> 5 Kenya    2021  0.11    53
+#> 6 Kenya    2022  0.12    54
 
-# Step 2: per-student average
-student_avg <- long |>
-  group_by(student) |>
-  summarise(avg = mean(score))
-student_avg
-#> # A tibble: 4 x 2
-#>   student   avg
-#>   <chr>   <dbl>
-#> 1 Ava      82.3
-#> 2 Ben      86
-#> 3 Cora     85.3
-#> 4 Dev      86.3
+# Step 3: analysis in long form is one line
+long |>
+  mutate(gdp_per_capita = gdp * 1000 / pop) |>
+  arrange(desc(gdp_per_capita))
+#> # A tibble: 6 x 5
+#>   country  year   gdp   pop gdp_per_capita
+#>   <chr>   <int> <dbl> <dbl>          <dbl>
+#> 1 Brazil   2022  1.92   215           8.93
+#> 2 Brazil   2021  1.61   214           7.52
+#> 3 India    2022  3.39  1417           2.39
+#> 4 India    2021  3.18  1408           2.26
+#> 5 Kenya    2022  0.12    54           2.22
+#> 6 Kenya    2021  0.11    53           2.08
 
-# Step 3: pivot back to wide, attach the averages
-summary_tbl <- class_scores |>
-  left_join(student_avg, by = "student")
-summary_tbl
-#> # A tibble: 4 x 5
-#>   student  math english science   avg
-#>   <chr>   <dbl>   <dbl>   <dbl> <dbl>
-#> 1 Ava        90      82      75  82.3
-#> 2 Ben        78      88      92  86
-#> 3 Cora       85      91      80  85.3
-#> 4 Dev        92      79      88  86.3
+# Step 4: wide report, one column per year per metric, for the PDF
+long |>
+  mutate(gdp_per_capita = round(gdp * 1000 / pop, 2)) |>
+  pivot_wider(
+    names_from = year,
+    values_from = c(gdp, pop, gdp_per_capita),
+    names_glue = "{.value}_{year}"
+  )
 ```
 
-The pivot_longer step did the real work. Once the data was long, `group_by() |> summarise()` became a one-liner. A `left_join()` glued the averages back onto the original wide table, giving a report-ready output with one row per student.
+The `.value` token does the heavy lifting in both directions. In step 2 it captures the prefix (`gdp` or `pop`) as a destination column name. In step 4 it plugs those names back into the new wide headers. Once you have that token in your head, the rest of tidyr feels obvious.
 
 ## Summary
 
-| Function | Direction | Key arguments | Result |
-|---|---|---|---|
-| pivot_longer() | Wide to long | cols, names_to, values_to | More rows, fewer columns |
-| pivot_wider() | Long to wide | names_from, values_from, id_cols | Fewer rows, more columns |
-| names_sep | Split old names | character or regex | Multiple new name columns |
-| values_fill | Plug holes | value or named list | No NA cells after widening |
-| values_drop_na | Prune empties | TRUE/FALSE | Drop NA rows after longer |
+| Concept | pivot_longer() | pivot_wider() |
+|---|---|---|
+| Direction | wide → long | long → wide |
+| Main args | cols, names_to, values_to | names_from, values_from |
+| Splits names | names_sep, names_pattern | — |
+| Combines values | — | values_from = c(a, b) |
+| Missing combos | values_drop_na | values_fill |
+| Duplicate keys | — | values_fn |
+| Templated names | — | names_glue |
+| Special token | `.value` (inverse) | `.value` |
 
-- Long format is what ggplot2 and group_by() expect; go long first when in doubt.
-- `names_to` and `values_to` must be quoted strings because they name new columns.
-- `cols` accepts every tidyselect helper you know from `select()`.
-- Duplicate keys during `pivot_wider()` create list-columns; aggregate first.
+Four rules to remember:
 
-## FAQ
-
-**When should I use pivot_longer() instead of pivot_wider()?**
-Use `pivot_longer()` before any group-wise calculation, plot, or model fit. Most tidyverse tools need one-row-per-observation. Use `pivot_wider()` only at the end, when you need a human-readable report or a matrix for linear algebra.
-
-**What replaced gather() and spread()?**
-`pivot_longer()` replaced `gather()` and `pivot_wider()` replaced `spread()` in tidyr 1.0 (2019). The new functions have clearer argument names and handle multi-column names that the old functions could not.
-
-**Can I pivot multiple value columns at once?**
-Yes. Pass `values_from = c(col1, col2)` to `pivot_wider()` to create paired output columns like `col1_X`, `col2_X`, and so on. For `pivot_longer()`, use a `.value` placeholder in `names_to` together with `names_sep` to split column names into a stub and a suffix.
-
-**Why did my values column turn into a list-column?**
-Your long data had duplicate keys: two or more rows share the same `names_from` value and the same id columns. `pivot_wider()` packs all candidates into a list for you to inspect. Aggregate with `group_by() |> summarise()` or pass `values_fn = sum` to `pivot_wider()` to collapse them first.
+1. **Plot long, report wide.** Long form for analysis and ggplot; wide form for human-readable tables.
+2. **`cols` uses tidyselect.** Same helpers as `select()` — `starts_with()`, `-col`, ranges, etc.
+3. **Missing vs duplicate are different fixes.** `values_fill` for holes, `values_fn` for collisions.
+4. **`.value` is the round-trip token.** Use it when headers encode both a variable name and a group.
 
 ## References
 
-1. tidyr documentation - pivot_longer() reference. [Link](https://tidyr.tidyverse.org/reference/pivot_longer.html)
-2. tidyr documentation - pivot_wider() reference. [Link](https://tidyr.tidyverse.org/reference/pivot_wider.html)
-3. tidyr Pivoting vignette. [Link](https://tidyr.tidyverse.org/articles/pivot.html)
-4. Wickham, H., Cetinkaya-Rundel, M., Grolemund, G. - *R for Data Science*, 2nd Edition. Chapter 6: Data Tidying. [Link](https://r4ds.hadley.nz/data-tidy.html)
-5. Wickham, H. - "Tidy Data" - Journal of Statistical Software (2014). [Link](https://www.jstatsoft.org/article/view/v059i10)
-6. tidyr 1.0.0 release notes. [Link](https://www.tidyverse.org/blog/2019/09/tidyr-1-0-0/)
+- [tidyr pivoting vignette](https://tidyr.tidyverse.org/articles/pivot.html) — the authoritative reference from the package authors.
+- [pivot_longer() reference](https://tidyr.tidyverse.org/reference/pivot_longer.html)
+- [pivot_wider() reference](https://tidyr.tidyverse.org/reference/pivot_wider.html)
+- [Hadley Wickham, *Tidy Data*, JSS 2014](https://www.jstatsoft.org/article/view/v059i10) — the paper that started it all.
+- [R for Data Science, 2e — Data Tidying chapter](https://r4ds.hadley.nz/data-tidy.html)
+- [tidyselect reference](https://tidyselect.r-lib.org/reference/language.html) — for the helpers `cols` accepts.
 
 ## Continue Learning
 
-- **[Tidy Data in R](Tidy-Data-in-R.html)** - understand the three rules of tidy data that make reshaping meaningful.
-- **[dplyr group_by() and summarise()](dplyr-group-by-summarise.html)** - the next step after going long: collapse long data into summaries.
-- **[R Joins with dplyr](R-Joins.html)** - join the reshaped output back onto lookup tables with inner_join() and left_join().
+- [dplyr filter() and select()](dplyr-filter-select.html) — the row and column basics that pair with every pivot.
+- [dplyr group_by() and summarise()](dplyr-group-by-summarise.html) — long data shines here; pivot first, group second.
+- [R Joins With Visual Diagrams](R-Joins.html) — combine reshaped data with other tables.

@@ -1,6 +1,6 @@
 ---
 title: "pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind"
-description: "Reshape wide-to-long and long-to-wide in R using tidyr pivot_longer() and pivot_wider(). Learn every key argument with five before-and-after examples."
+description: "Reshape wide-to-long and long-to-wide in R with tidyr pivot_longer() and pivot_wider(). Every key argument explained with before-and-after examples."
 keywords: "pivot_longer, pivot_wider, tidyr, reshape data R, wide to long R, long to wide R, names_to, values_to, names_from, values_from"
 mathjax: false
 webr: true
@@ -10,33 +10,17 @@ auto_link_terms: "pivot_longer()|pivot_wider()|pivot longer|pivot wider|reshape 
 auto_link_case_sensitive: false
 sidebar_section: "Data Wrangling"
 sidebar_title: "pivot_longer & pivot_wider"
-sidebar_order: "9"
+sidebar_order: "8"
 ---
 <!-- md2html:generated -->
 
 <h1>pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind</h1>
 
-<p class="lead"><code>pivot_longer()</code> stacks several columns into a single name-value pair, moving data from <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data in R: What It Is & Why Every Analysis Depends on Getting It Right">wide to long</a>. <code>pivot_wider()</code> does the opposite, spreading one column's values across new columns. They are inverses of each other.</p>
+<p class="lead"><code>pivot_longer()</code> stacks several columns into one name-value pair, moving data from <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data in R: What It Is & Why Every Analysis Depends on Getting It Right">wide to long</a>. <code>pivot_wider()</code> does the opposite — it spreads one column's values across new columns. They are inverses of each other, and together they cover almost every reshape job you will ever meet in R.</p>
 
-<p>Reshaping data is one of those R skills that feels hard until you see it once. Then it clicks forever. Most real datasets arrive in a shape that does not match what you need for plotting or modeling. This post teaches the two tidyr functions that handle every reshape job you will meet.</p>
+<h2>What does wide vs long data actually look like?</h2>
 
-<h2>Introduction</h2>
-
-<p>The core problem is simple. Humans like wide tables because they are compact and easy to read. Software likes long tables because each row is a single observation. You will spend a real fraction of your analysis time moving between the two shapes.</p>
-
-<p>The tidyr package ships <code>pivot_longer()</code> and <code>pivot_wider()</code> as the modern tools for this job. They replaced the older <code>gather()</code> and <code>spread()</code> in 2019 with clearer argument names and better handling of edge cases. If you still see <code>gather()</code> in old tutorials, update the syntax; the tidyverse team has retired it.</p>
-
-<p>You do not need to install anything to follow along. Every code block on this page runs directly in your browser. Click Run on the first block to load the libraries, then work through the rest top to bottom. Variables carry over between blocks, just like a notebook.</p>
-
-<h2>What is the difference between wide and long format?</h2>
-
-<p>Wide and long are two shapes that can hold the exact same information. The shape you pick depends on what you want to do next. Here is the same student-test-score dataset shown both ways.</p>
-
-<p><img src="screenshots/pivot_longer-pivot_wider-wide-vs-long.webp" alt="Wide and long are two shapes for the same data." class="img-responsive" loading="lazy" /></p>
-
-<p><em>Figure 1: Wide and long are two shapes for the same data.</em></p>
-
-<p>Wide format puts one row per subject, with measurements spread across columns. Long format puts one row per measurement, with a key column saying what was measured. Let's build a small wide table and see it live.</p>
+<p>Most datasets arrive "wide" because humans like compact tables that fit on a screen. Sales by quarter, scores by subject, sensor readings by hour — the label sits in a column header and the number sits in a cell. Analysis tools, however, prefer "long" data where each row is a single observation. Let's see the same data in both shapes so the payoff is obvious before we touch arguments.</p>
 
 <div class="webr-container">
 
@@ -45,219 +29,35 @@ sidebar_order: "9"
     <div class="webr-editor" data-language="r">library(tidyr)
 library(dplyr)
 
-wide_scores &lt;- tibble(
-  student = c(&quot;Ava&quot;, &quot;Ben&quot;, &quot;Cora&quot;),
-  math    = c(90, 78, 85),
-  english = c(82, 88, 91),
-  science = c(75, 92, 80)
+sales_wide &lt;- tibble(
+  store = c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;),
+  Q1 = c(120, 90, 150),
+  Q2 = c(140, 110, 160),
+  Q3 = c(135, 125, 155)
 )
-wide_scores
+sales_wide
 #&gt; # A tibble: 3 x 4
-#&gt;   student  math english science
-#&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
-#&gt; 1 Ava        90      82      75
-#&gt; 2 Ben        78      88      80
-#&gt; 3 Cora       85      91      80</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Three students, three subjects, nine numbers. The wide table has 3 rows and 4 columns. The same nine numbers in long format would need 9 rows and only 3 columns: <code>student</code>, <code>subject</code>, <code>score</code>. Same data, different shape.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Long format is the language of <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> and group_by().</strong> Almost every tidyverse tool assumes one row equals one observation. If a plot or summary fights you, the answer is usually to go long first.</div></div>
-
-<h2>How does pivot_longer() turn wide data into long?</h2>
-
-<p><code>pivot_longer()</code> needs you to answer three questions: which columns should be stacked, what should the new name column be called, and what should the new value column be called. That is the whole function.</p>
-
-<p><img src="screenshots/pivot_longer-pivot_wider-longer-anatomy.webp" alt="pivot_longer() needs three answers: which columns, a name column, a value column." class="img-responsive" loading="lazy" /></p>
-
-<p><em>Figure 2: pivot_longer() needs three answers: which columns, a name column, a value column.</em></p>
-
-<p>Let's stack the three subject columns into one <code>subject</code> column and one <code>score</code> column.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">long_scores &lt;- wide_scores |&gt;
-  pivot_longer(
-    cols = c(math, english, science),
-    names_to  = &quot;subject&quot;,
-    values_to = &quot;score&quot;
-  )
-long_scores
-#&gt; # A tibble: 9 x 3
-#&gt;   student subject score
-#&gt;   &lt;chr&gt;   &lt;chr&gt;   &lt;dbl&gt;
-#&gt; 1 Ava     math       90
-#&gt; 2 Ava     english    82
-#&gt; 3 Ava     science    75
-#&gt; 4 Ben     math       78
-#&gt; 5 Ben     english    88
-#&gt; 6 Ben     science    92
-#&gt; 7 Cora    math       85
-#&gt; 8 Cora    english    91
-#&gt; 9 Cora    science    80</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The table went from 3 rows to 9, exactly one row per student-subject pair. The column headers <code>math</code>, <code>english</code>, and <code>science</code> became values inside the new <code>subject</code> column. The cell numbers became values inside the new <code>score</code> column. The <code>student</code> column was untouched because we did not list it in <code>cols</code>.</p>
-
-<h4>Selecting cols with helpers</h4>
-
-<p>Listing every column by name gets tiresome fast. You can use tidyselect helpers inside <code>cols</code>, just like inside <code>select()</code>.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Everything except student
-wide_scores |&gt;
-  pivot_longer(cols = -student, names_to = &quot;subject&quot;, values_to = &quot;score&quot;) |&gt;
-  head(4)
-#&gt; # A tibble: 4 x 3
-#&gt;   student subject score
-#&gt;   &lt;chr&gt;   &lt;chr&gt;   &lt;dbl&gt;
-#&gt; 1 Ava     math       90
-#&gt; 2 Ava     english    82
-#&gt; 3 Ava     science    75
-#&gt; 4 Ben     math       78</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>-student</code> is the cleanest idiom for "stack everything except the id column". You can also use <code>starts_with(&quot;score_&quot;)</code>, <code>ends_with(&quot;_2024&quot;)</code>, <code>matches(&quot;^q\\d+$&quot;)</code>, or <code>where(is.numeric)</code> to pick columns by pattern or type.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use tidyselect helpers to avoid typing every column.</strong> cols accepts anything <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select()</a> accepts, including starts_with(), ends_with(), matches(), and where(is.numeric). This matters when your dataset has 50 measurement columns.</div></div>
-
-<h2>How does pivot_wider() turn long data into wide?</h2>
-
-<p><code>pivot_wider()</code> is the inverse. It takes one column full of names and spreads those names across new columns, filling each new column with values from a second column. Two arguments do the work.</p>
-
-<p><img src="screenshots/pivot_longer-pivot_wider-wider-anatomy.webp" alt="pivot_wider() needs to know the identifier, the name source, and the value source." class="img-responsive" loading="lazy" /></p>
-
-<p><em>Figure 3: pivot_wider() needs to know the identifier, the name source, and the value source.</em></p>
-
-<p>Let's take the <code>long_scores</code> we just built and spread it back out.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">wide_again &lt;- long_scores |&gt;
-  pivot_wider(
-    names_from  = subject,
-    values_from = score
-  )
-wide_again
-#&gt; # A tibble: 3 x 4
-#&gt;   student  math english science
-#&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
-#&gt; 1 Ava        90      82      75
-#&gt; 2 Ben        78      88      92
-#&gt; 3 Cora       85      91      80</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Same shape as the original <code>wide_scores</code>. <code>pivot_wider()</code> read the distinct values in <code>subject</code> ("math", "english", "science") and created one column per value. Then it read <code>score</code> and dropped each number into the correct cell.</p>
-
-<p>You did not need to say which columns identify each row. <code>pivot_wider()</code> assumes any column not mentioned in <code>names_from</code> or <code>values_from</code> is an identifier. Here that means <code>student</code>. If you want to be explicit, pass <code>id_cols = student</code>.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>gather() and spread() are retired.</strong> If you see them in older code, translate to pivot_longer() and pivot_wider(). The tidyverse team no longer adds features to the old functions, and the new ones handle multi-column pivots the old ones could not.</div></div>
-
-<h2>How do you pivot multiple value columns at once?</h2>
-
-<p>Real column names often pack two pieces of information together, like <code>avg_math_2023</code> or <code>billboard_wk1</code>. <code>pivot_longer()</code> can split those names into two columns in one step with <code>names_sep</code> or <code>names_pattern</code>.</p>
-
-<p>Imagine a quarterly sales file. Each column name is <code>region_Q&lt;n&gt;</code>.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">sales_wide &lt;- tibble(
-  product = c(&quot;Widget&quot;, &quot;Gadget&quot;),
-  north_Q1 = c(120, 85),
-  north_Q2 = c(135, 90),
-  south_Q1 = c(100, 70),
-  south_Q2 = c(115, 78)
-)
+#&gt;   store    Q1    Q2    Q3
+#&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 North   120   140   135
+#&gt; 2 South    90   110   125
+#&gt; 3 East    150   160   155
 
 sales_long &lt;- sales_wide |&gt;
-  pivot_longer(
-    cols = -product,
-    names_to  = c(&quot;region&quot;, &quot;quarter&quot;),
-    names_sep = &quot;_&quot;,
-    values_to = &quot;sales&quot;
-  )
+  pivot_longer(cols = Q1:Q3, names_to = &quot;quarter&quot;, values_to = &quot;sales&quot;)
 sales_long
-#&gt; # A tibble: 8 x 4
-#&gt;   product region quarter sales
-#&gt;   &lt;chr&gt;   &lt;chr&gt;  &lt;chr&gt;   &lt;dbl&gt;
-#&gt; 1 Widget  north  Q1        120
-#&gt; 2 Widget  north  Q2        135
-#&gt; 3 Widget  south  Q1        100
-#&gt; 4 Widget  south  Q2        115
-#&gt; 5 Gadget  north  Q1         85
-#&gt; 6 Gadget  north  Q2         90
-#&gt; 7 Gadget  south  Q1         70
-#&gt; 8 Gadget  south  Q2         78
-#&gt; # ...</div>
+#&gt; # A tibble: 9 x 3
+#&gt;   store quarter sales
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 North Q1        120
+#&gt; 2 North Q2        140
+#&gt; 3 North Q3        135
+#&gt; 4 South Q1         90
+#&gt; 5 South Q2        110
+#&gt; 6 South Q3        125
+#&gt; 7 East  Q1        150
+#&gt; 8 East  Q2        160
+#&gt; 9 East  Q3        155</div>
 
     <div class="webr-buttons">
 
@@ -275,38 +75,82 @@ sales_long
 
 </div>
 
-<p>Passing a character vector to <code>names_to</code> tells <code>pivot_longer()</code> to split each old column name into that many parts. <code>names_sep = &quot;_&quot;</code> does the split. You went from 4 value columns to 2 tidy key columns (<code>region</code>, <code>quarter</code>) plus one value column (<code>sales</code>), all in a single call.</p>
+<p>The wide version has 3 rows × 4 columns. The long version has 9 rows × 3 columns. Same information, different shape. Notice how every row in the long table now describes exactly one sales figure at one store in one quarter — that is what "tidy" means.</p>
 
-<p>If the separator is not a fixed character, use <code>names_pattern</code> with a regex. For something like <code>sales2023q1</code>, you would write <code>names_pattern = &quot;sales(\\d{4})q(\\d)&quot;</code>.</p>
+<p><img src="screenshots/pivot_longer-pivot_wider-wide-vs-long.webp" alt="Wide vs long shape of the same dataset" class="img-responsive" loading="lazy" /></p>
 
-<h2>How do you control the pivot with names_prefix, names_sep, and values_fill?</h2>
+<p><em>Figure 1: The same sales data in wide and long form. Wide stores values in column headers; long stores them in a single column.</em></p>
 
-<p>A few extra arguments clean up messy real-world pivots. Here are the three you will reach for the most.</p>
+<p>Why prefer long? Because <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>, dplyr's <code>group_by()</code>, and most statistical functions expect each observation on its own row. Try to plot the wide table with ggplot — you cannot map "quarter" to the x-axis because it does not exist as a column. Reshape first, plot second.</p>
 
-<p>**<code>names_prefix</code>** strips a common prefix from column names during <code>pivot_longer()</code>. **<code>values_fill</code>** plugs holes during <code>pivot_wider()</code>. **<code>names_sep</code>** glues parts together during <code>pivot_wider()</code> when you have multiple name sources.</p>
+<blockquote><p><strong>[TIP]</strong> A quick test: if you find yourself writing <code>Q1 + Q2 + Q3</code> or <code>mean(c(col1, col2, col3))</code> to compute something across columns, your data is wide and you probably want it long.</p></blockquote>
 
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a wide tibble with <code>student</code> and three grade columns <code>math</code>, <code>science</code>, <code>english</code>, then pivot it to a long form with columns <code>student</code>, <code>subject</code>, <code>grade</code>.</p>
 <div class="webr-container">
-
   <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Starter code
+library(tidyr)
 
-    <div class="webr-editor" data-language="r"># values_fill example: sparse sales with missing rows
-sparse &lt;- tibble(
-  store = c(&quot;A&quot;, &quot;A&quot;, &quot;B&quot;),
-  month = c(&quot;Jan&quot;, &quot;Feb&quot;, &quot;Jan&quot;),
-  sales = c(100, 120, 80)
+grades_wide &lt;- tibble(
+  student = c(&quot;Asha&quot;, &quot;Bilal&quot;, &quot;Cleo&quot;),
+  math = c(88, 72, 95),
+  science = c(81, 79, 90),
+  english = c(77, 85, 92)
 )
 
-sparse |&gt;
-  pivot_wider(
-    names_from  = month,
-    values_from = sales,
-    values_fill = 0
+# Your pivot_longer() call here — hint: cols = math:english</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How does pivot_longer() turn wide columns into rows?</h2>
+
+<p><code>pivot_longer()</code> takes four arguments you will use every day: <code>cols</code> (which columns to stack), <code>names_to</code> (what to call the new "label" column), <code>values_to</code> (what to call the new "value" column), and sometimes <code>values_drop_na</code> to skip empty cells. Let's look at each in a simple example so the anatomy is crystal clear.</p>
+
+<p><img src="screenshots/pivot_longer-pivot_wider-longer-anatomy.webp" alt="pivot_longer argument anatomy" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: How pivot_longer() maps wide columns into a name column and a value column.</em></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+weather &lt;- tibble(
+  city = c(&quot;Pune&quot;, &quot;Berlin&quot;, &quot;Lima&quot;),
+  `2021` = c(34, 22, 25),
+  `2022` = c(36, 24, 26),
+  `2023` = c(35, 25, 27)
+)
+
+weather_long &lt;- weather |&gt;
+  pivot_longer(
+    cols = `2021`:`2023`,
+    names_to = &quot;year&quot;,
+    values_to = &quot;avg_temp&quot;,
+    names_transform = list(year = as.integer)
   )
-#&gt; # A tibble: 2 x 3
-#&gt;   store   Jan   Feb
-#&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;
-#&gt; 1 A       100   120
-#&gt; 2 B        80     0</div>
+weather_long
+#&gt; # A tibble: 9 x 3
+#&gt;   city    year avg_temp
+#&gt;   &lt;chr&gt;  &lt;int&gt;    &lt;dbl&gt;
+#&gt; 1 Pune    2021       34
+#&gt; 2 Pune    2022       36
+#&gt; 3 Pune    2023       35
+#&gt; 4 Berlin  2021       22
+#&gt; 5 Berlin  2022       24
+#&gt; 6 Berlin  2023       25
+#&gt; 7 Lima    2021       25
+#&gt; 8 Lima    2022       26
+#&gt; 9 Lima    2023       27</div>
 
     <div class="webr-buttons">
 
@@ -324,24 +168,55 @@ sparse |&gt;
 
 </div>
 
-<p>Store B has no February row in the long input, so <code>pivot_wider()</code> would return <code>NA</code> by default. <code>values_fill = 0</code> replaces every missing cell with zero, which is what you want for <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">count data</a>. Use <code>values_fill = list(sales = 0, visits = 0)</code> when you have several value columns and want different fills per column.</p>
+<p>Three things worth noticing. First, <code>cols = 2021:2023</code> selects a range of columns using the same tidyselect helpers as <code>select()</code> — you can also write <code>cols = starts_with(&quot;20&quot;)</code> or <code>cols = -city</code> to say "everything except city". Second, <code>names_transform</code> turns the text <code>&quot;2021&quot;</code> into an integer, which matters because column headers are always strings even when they look like numbers. Third, the <code>city</code> column is preserved without being named anywhere — pivot_longer keeps every column not listed in <code>cols</code>.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use values_fill to close holes in panel data.</strong> Sparse long data often becomes full of NAs when made wide. values_fill = 0 (or whatever makes sense) prevents downstream NA propagation bugs.</div></div>
+<blockquote><p><strong>[NOTE]</strong> If your wide table has holes (<a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a> where a measurement is missing), add <code>values_drop_na = TRUE</code> to drop those rows automatically. Without it you get explicit NA rows in the long output.</p></blockquote>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Duplicate key combinations become list-columns.</strong> If two rows in your long data share the same names_from value AND the same id columns, pivot_wider() cannot decide which value to keep. It packs both into a list-column and prints a warning. Aggregate with group_by() and summarise() first, or set values_fn = sum.</div></div>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pivot this expense table so each row is one month-category pair. Drop NA values.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Starter code
+expenses &lt;- tibble(
+  category = c(&quot;rent&quot;, &quot;food&quot;, &quot;travel&quot;),
+  Jan = c(1200, 350, NA),
+  Feb = c(1200, 380, 200),
+  Mar = c(1250, 400, 150)
+)
 
-<h2>Common Mistakes and How to Fix Them</h2>
+# pivot_longer() call — cols = Jan:Mar, drop NAs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
 
-<h4>Mistake 1: Forgetting to quote names_to and values_to</h4>
+<h2>How does pivot_wider() turn rows back into columns?</h2>
 
-<p><strong>Wrong:</strong></p>
+<p><code>pivot_wider()</code> is the inverse. It takes a long table and spreads one column's values across new columns. You need two arguments: <code>names_from</code> (the column whose values become new headers) and <code>values_from</code> (the column whose values fill those new headers). Everything else stays as an ID.</p>
+
+<p><img src="screenshots/pivot_longer-pivot_wider-wider-anatomy.webp" alt="pivot_wider argument anatomy" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: How pivot_wider() maps a name column and a value column into new wide columns.</em></p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">wide_scores |&gt; pivot_longer(cols = -student, names_to = subject, values_to = score)
-# Error: object 'subject' not found</div>
+    <div class="webr-editor" data-language="r"># Reuse sales_long from section 1
+sales_back &lt;- sales_long |&gt;
+  pivot_wider(names_from = quarter, values_from = sales)
+sales_back
+#&gt; # A tibble: 3 x 4
+#&gt;   store    Q1    Q2    Q3
+#&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 North   120   140   135
+#&gt; 2 South    90   110   125
+#&gt; 3 East    150   160   155</div>
 
     <div class="webr-buttons">
 
@@ -359,15 +234,26 @@ sparse |&gt;
 
 </div>
 
-<p><strong>Why it is wrong:</strong> <code>names_to</code> and <code>values_to</code> create brand-new columns. The new names do not exist yet, so R cannot evaluate <code>subject</code> as a symbol. They must be passed as strings.</p>
-
-<p><strong>Correct:</strong></p>
+<p>That is the same shape as the original <code>sales_wide</code>. Round-trip confirmed — pivot_longer and pivot_wider undo each other exactly. When would you actually <em>want</em> to go long→wide? The classic case is preparing a report table for humans: a row per customer, a column per month, ready to paste into a slide. Another is computing differences across groups, like churn rate between Q1 and Q2, which is easier when each quarter is its own column.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">wide_scores |&gt; pivot_longer(cols = -student, names_to = &quot;subject&quot;, values_to = &quot;score&quot;)</div>
+    <div class="webr-editor" data-language="r"># A report-ready table: students as rows, subjects as columns
+scores_long &lt;- tibble(
+  student = c(&quot;Asha&quot;,&quot;Asha&quot;,&quot;Asha&quot;,&quot;Bilal&quot;,&quot;Bilal&quot;,&quot;Bilal&quot;),
+  subject = c(&quot;math&quot;,&quot;science&quot;,&quot;english&quot;,&quot;math&quot;,&quot;science&quot;,&quot;english&quot;),
+  grade   = c(88, 81, 77, 72, 79, 85)
+)
+
+scores_long |&gt;
+  pivot_wider(names_from = subject, values_from = grade)
+#&gt; # A tibble: 2 x 4
+#&gt;   student  math science english
+#&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 Asha       88      81      77
+#&gt; 2 Bilal      72      79      85</div>
 
     <div class="webr-buttons">
 
@@ -385,17 +271,64 @@ sparse |&gt;
 
 </div>
 
-<h4>Mistake 2: Duplicate keys silently create list-columns</h4>
+<blockquote><p><strong>[TIP]</strong> Use a <code>names_prefix</code> to prepend text to the new column names, like <code>names_prefix = &quot;score_&quot;</code>. Handy when the resulting headers would otherwise start with a number or collide with an existing column.</p></blockquote>
 
-<p><strong>Wrong:</strong></p>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Spread this long survey table into wide form, one row per respondent.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Starter code
+survey &lt;- tibble(
+  id = c(1,1,1,2,2,2),
+  question = c(&quot;q1&quot;,&quot;q2&quot;,&quot;q3&quot;,&quot;q1&quot;,&quot;q2&quot;,&quot;q3&quot;),
+  answer = c(5,3,4,2,4,5)
+)
+
+# pivot_wider() call — names_from = question, values_from = answer</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How do you split compound column names with names_sep and names_pattern?</h2>
+
+<p>Real datasets often pack two pieces of information into a single column name. Think <code>sales_2022_Q1</code>, <code>temp_min</code>, or <code>height_cm</code>. <code>pivot_longer()</code> can split these into separate columns during the reshape — no extra <code>separate()</code> step needed.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">dupes &lt;- tibble(id = c(1, 1, 2), key = c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;), val = c(10, 20, 30))
-dupes |&gt; pivot_wider(names_from = key, values_from = val)
-# Warning: Values from `val` are not uniquely identified; output will contain list-cols.</div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+stocks &lt;- tibble(
+  date = as.Date(c(&quot;2026-01-01&quot;,&quot;2026-02-01&quot;,&quot;2026-03-01&quot;)),
+  AAPL_open = c(180, 185, 190),
+  AAPL_close = c(182, 188, 192),
+  GOOG_open = c(140, 145, 148),
+  GOOG_close = c(142, 147, 149)
+)
+
+stocks_long &lt;- stocks |&gt;
+  pivot_longer(
+    cols = -date,
+    names_to = c(&quot;ticker&quot;, &quot;price_type&quot;),
+    names_sep = &quot;_&quot;,
+    values_to = &quot;price&quot;
+  )
+stocks_long
+#&gt; # A tibble: 12 x 4
+#&gt;   date       ticker price_type price
+#&gt;   &lt;date&gt;     &lt;chr&gt;  &lt;chr&gt;      &lt;dbl&gt;
+#&gt; 1 2026-01-01 AAPL   open         180
+#&gt; 2 2026-01-01 AAPL   close        182
+#&gt; 3 2026-01-01 GOOG   open         140
+#&gt; 4 2026-01-01 GOOG   close        142
+#&gt; ...</div>
 
     <div class="webr-buttons">
 
@@ -413,23 +346,35 @@ dupes |&gt; pivot_wider(names_from = key, values_from = val)
 
 </div>
 
-<p><strong>Why it is wrong:</strong> Two rows have <code>id = 1, key = &quot;a&quot;</code>, so <code>pivot_wider()</code> does not know whether cell <code>[1, &quot;a&quot;]</code> should be 10 or 20. It keeps both in a list.</p>
+<p><code>names_to</code> now takes a character vector — one name per chunk of the original header. <code>names_sep = &quot;_&quot;</code> splits on underscore. The result gives us a clean <code>ticker</code> and <code>price_type</code> pair that you can filter, group, or plot directly.</p>
 
-<p><strong>Correct:</strong> Decide how to combine duplicates first.</p>
+<p>When your headers follow a more complex pattern — say <code>sales_q1_2022</code> where a regex would help — use <code>names_pattern</code> with capture groups:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">dupes |&gt;
-  group_by(id, key) |&gt;
-  summarise(val = sum(val), .groups = &quot;drop&quot;) |&gt;
-  pivot_wider(names_from = key, values_from = val)
-#&gt; # A tibble: 2 x 3
-#&gt;      id     a     b
-#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
-#&gt; 1     1    30    NA
-#&gt; 2     2    NA    30</div>
+    <div class="webr-editor" data-language="r">messy &lt;- tibble(
+  id = 1:2,
+  sales_q1_2022 = c(100, 200),
+  sales_q2_2022 = c(110, 210),
+  sales_q1_2023 = c(120, 220),
+  sales_q2_2023 = c(130, 230)
+)
+
+messy |&gt;
+  pivot_longer(
+    cols = -id,
+    names_to = c(&quot;metric&quot;, &quot;quarter&quot;, &quot;year&quot;),
+    names_pattern = &quot;(.*)_(q[0-9])_(\\d{4})&quot;,
+    values_to = &quot;value&quot;
+  )
+#&gt; # A tibble: 8 x 5
+#&gt;    id metric quarter year  value
+#&gt; &lt;int&gt; &lt;chr&gt;  &lt;chr&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt;   1 sales  q1      2022    100
+#&gt;   1 sales  q2      2022    110
+#&gt; ...</div>
 
     <div class="webr-buttons">
 
@@ -447,17 +392,56 @@ dupes |&gt; pivot_wider(names_from = key, values_from = val)
 
 </div>
 
-<h4>Mistake 3: Pivoting columns with mixed types</h4>
+<p>Three capture groups → three destination columns. No nested <code>mutate()</code> or <code>substr()</code> dance.</p>
 
-<p><strong>Wrong:</strong> Stacking numeric and character columns into one value column.</p>
+<blockquote><p><strong>[WARNING]</strong> <code>names_pattern</code> uses regex. If your column names contain characters like dots or parentheses, escape them in the pattern or they will match unintended text.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pivot this table so <code>country</code> and <code>year</code> become separate columns.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Starter code
+pop &lt;- tibble(
+  region = c(&quot;Asia&quot;,&quot;Europe&quot;),
+  India_2020 = c(1380, NA),
+  India_2021 = c(1393, NA),
+  Germany_2020 = c(NA, 83),
+  Germany_2021 = c(NA, 84)
+)
+
+# pivot_longer() — cols = -region, names_sep = &quot;_&quot;, drop NAs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>What happens when pivot_wider() creates missing values?</h2>
+
+<p>Going long is always safe — every row lands somewhere. Going wide is riskier. If the long table is missing a combination of <code>names_from</code> and row-ID columns, pivot_wider fills the gap with <code>NA</code>. Sometimes that is what you want. Sometimes it is a bug.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">mixed &lt;- tibble(id = 1, name = &quot;Ava&quot;, score = 90)
-mixed |&gt; pivot_longer(cols = c(name, score))
-# value column becomes character; 90 is now &quot;90&quot;</div>
+    <div class="webr-editor" data-language="r">attendance &lt;- tibble(
+  student = c(&quot;Asha&quot;,&quot;Asha&quot;,&quot;Bilal&quot;,&quot;Cleo&quot;,&quot;Cleo&quot;),
+  day = c(&quot;Mon&quot;,&quot;Tue&quot;,&quot;Mon&quot;,&quot;Mon&quot;,&quot;Wed&quot;),
+  present = c(1,1,1,1,0)
+)
+
+attendance |&gt;
+  pivot_wider(names_from = day, values_from = present)
+#&gt; # A tibble: 3 x 4
+#&gt;   student   Mon   Tue   Wed
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Asha        1     1    NA
+#&gt; 2 Bilal       1    NA    NA
+#&gt; 3 Cleo        1    NA     0</div>
 
     <div class="webr-buttons">
 
@@ -475,15 +459,20 @@ mixed |&gt; pivot_longer(cols = c(name, score))
 
 </div>
 
-<p><strong>Why it is wrong:</strong> A single column can hold only one type. <code>pivot_longer()</code> coerces everything to the broadest type, which is character if any column is text. You lose numeric operations on the score.</p>
-
-<p><strong>Correct:</strong> Pivot numeric columns and character columns separately, or keep the identifier columns out of the pivot.</p>
+<p>Bilal has no Tuesday record, so pivot_wider inserts NA. Often you would rather see a 0 — absence means "not present", not "unknown". Use <code>values_fill</code>:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">mixed |&gt; pivot_longer(cols = score, names_to = &quot;metric&quot;, values_to = &quot;value&quot;)</div>
+    <div class="webr-editor" data-language="r">attendance |&gt;
+  pivot_wider(names_from = day, values_from = present, values_fill = 0)
+#&gt; # A tibble: 3 x 4
+#&gt;   student   Mon   Tue   Wed
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Asha        1     1     0
+#&gt; 2 Bilal       1     0     0
+#&gt; 3 Cleo        1     0     0</div>
 
     <div class="webr-buttons">
 
@@ -501,16 +490,24 @@ mixed |&gt; pivot_longer(cols = c(name, score))
 
 </div>
 
-<h4>Mistake 4: Using cols = everything() and losing id columns</h4>
-
-<p><strong>Wrong:</strong></p>
+<p>The other trap is duplicate keys. If more than one row shares the same <code>student</code>/<code>day</code> pair, pivot_wider cannot decide which <code>present</code> value to use and produces list-columns (with a warning). The fix is either to deduplicate first or pass <code>values_fn = sum</code> (or <code>mean</code>, <code>max</code>, etc.) to aggregate.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">wide_scores |&gt; pivot_longer(cols = everything(), names_to = &quot;k&quot;, values_to = &quot;v&quot;)
-# student gets stacked too, so you lose the link to the subject</div>
+    <div class="webr-editor" data-language="r">log &lt;- tibble(
+  student = c(&quot;Asha&quot;,&quot;Asha&quot;,&quot;Asha&quot;),
+  day = c(&quot;Mon&quot;,&quot;Mon&quot;,&quot;Tue&quot;),
+  minutes = c(30, 15, 45)
+)
+
+log |&gt;
+  pivot_wider(names_from = day, values_from = minutes, values_fn = sum)
+#&gt; # A tibble: 1 x 3
+#&gt;   student   Mon   Tue
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Asha       45    45</div>
 
     <div class="webr-buttons">
 
@@ -528,15 +525,55 @@ mixed |&gt; pivot_longer(cols = c(name, score))
 
 </div>
 
-<p><strong>Why it is wrong:</strong> <code>everything()</code> includes the identifier column. You cannot tell which score came from which student anymore.</p>
+<blockquote><p><strong>[KEY INSIGHT]</strong> <code>values_fill</code> handles missing combinations; <code>values_fn</code> handles duplicate combinations. Memorize this pair — between them they fix 95% of real pivot_wider headaches.</p></blockquote>
 
-<p><strong>Correct:</strong> Always exclude the id columns.</p>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fix this pivot so missing months become 0 instead of NA.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Starter code
+visits &lt;- tibble(
+  user = c(&quot;a&quot;,&quot;a&quot;,&quot;b&quot;,&quot;c&quot;),
+  month = c(&quot;Jan&quot;,&quot;Feb&quot;,&quot;Jan&quot;,&quot;Mar&quot;),
+  n = c(3, 5, 2, 7)
+)
+
+# pivot_wider with values_fill = 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>How do you reshape multiple value columns at once?</h2>
+
+<p>Sometimes one row of long data carries several kinds of measurement. Think: per student, per subject, both a grade and a rank. You want a wide table where each subject gets <em>two</em> columns — one for grade, one for rank. <code>pivot_wider()</code> handles this naturally.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">wide_scores |&gt; pivot_longer(cols = -student, names_to = &quot;subject&quot;, values_to = &quot;score&quot;)</div>
+    <div class="webr-editor" data-language="r">exam &lt;- tibble(
+  student = c(&quot;Asha&quot;,&quot;Asha&quot;,&quot;Bilal&quot;,&quot;Bilal&quot;),
+  subject = c(&quot;math&quot;,&quot;science&quot;,&quot;math&quot;,&quot;science&quot;),
+  grade = c(88, 81, 72, 79),
+  rank = c(1, 2, 2, 1)
+)
+
+exam |&gt;
+  pivot_wider(
+    names_from = subject,
+    values_from = c(grade, rank)
+  )
+#&gt; # A tibble: 2 x 5
+#&gt;   student grade_math grade_science rank_math rank_science
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;         &lt;dbl&gt;     &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1 Asha            88            81         1            2
+#&gt; 2 Bilal           72            79         2            1</div>
 
     <div class="webr-buttons">
 
@@ -553,146 +590,174 @@ mixed |&gt; pivot_longer(cols = c(name, score))
   <div class="webr-plot-output"></div>
 
 </div>
+
+<p>With <code>values_from = c(grade, rank)</code>, pivot_wider produces column names by concatenating the value name and the subject. You control the order and glue character with <code>names_sep</code> or <code>names_glue</code>:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">exam |&gt;
+  pivot_wider(
+    names_from = subject,
+    values_from = c(grade, rank),
+    names_glue = &quot;{subject}_{.value}&quot;
+  )
+#&gt; # A tibble: 2 x 5
+#&gt;   student math_grade science_grade math_rank science_rank
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;         &lt;dbl&gt;     &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1 Asha            88            81         1            2
+#&gt; 2 Bilal           72            79         2            1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>{.value}</code> is a placeholder for the name of the value column being spread. <code>{subject}</code> is the current value from <code>names_from</code>. This templating is a huge time-saver when you need the resulting columns in a specific order for a report.</p>
+
+<blockquote><p><strong>[TIP]</strong> The same trick works in reverse with <code>pivot_longer()</code> — pass <code>names_to = c(&quot;.value&quot;, &quot;year&quot;)</code> with <code>names_sep = &quot;_&quot;</code> and a header like <code>grade_2022</code> becomes a <code>grade</code> column with a <code>year</code> side column. The <code>.value</code> token tells pivot_longer "this chunk is the value column's new name".</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Widen this long table so each product becomes two columns, <code>units</code> and <code>revenue</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Starter code
+orders &lt;- tibble(
+  region = c(&quot;N&quot;,&quot;N&quot;,&quot;S&quot;,&quot;S&quot;),
+  product = c(&quot;widget&quot;,&quot;gizmo&quot;,&quot;widget&quot;,&quot;gizmo&quot;),
+  units = c(10, 5, 8, 3),
+  revenue = c(100, 75, 80, 45)
+)
+
+# pivot_wider with values_from = c(units, revenue)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<h2>When should you reshape vs keep data as-is?</h2>
+
+<p>Reshaping is not free. It changes the shape of your data, and if you pipe it through a long chain of dplyr calls you can lose track of what you have. A simple rule: reshape when a downstream function <em>needs</em> the other shape, and reshape back only if you need to present results.</p>
+
+<p>Here are the common triggers for going long:</p>
+
+<ul>
+
+<li><strong>You are about to plot with ggplot2.</strong> Every aesthetic (<code>x</code>, <code>y</code>, <code>color</code>, <code>facet</code>) needs a column. If the thing you want on the x-axis is a column header, pivot first.</li>
+
+<li>**You are grouping with <code>group_by()</code>.** dplyr groups by column values, not by column names. If your grouping variable is in the headers, pivot first.</li>
+
+<li><strong>You are computing summaries across variables.</strong> <code>summarise()</code> and <code>across()</code> work on columns, but pivoting to long form makes many "mean per group" jobs a one-liner.</li>
+
+</ul>
+
+<p>Triggers for going wide:</p>
+
+<ul>
+
+<li><strong>You are building a report table</strong> where humans will read <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a> side by side.</li>
+
+<li><strong>You are computing ratios or differences</strong> between specific columns — for example Q2 revenue divided by Q1 revenue is trivial when they are two columns and awkward when they share one.</li>
+
+<li><strong>You are exporting to a spreadsheet</strong> where analysts expect the wide layout.</li>
+
+</ul>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Long-first workflow: pivot, compute, then pivot back for the final table
+sales_long |&gt;
+  group_by(quarter) |&gt;
+  summarise(total = sum(sales), avg = mean(sales)) |&gt;
+  pivot_wider(names_from = quarter, values_from = c(total, avg))
+#&gt; # A tibble: 1 x 6
+#&gt;   total_Q1 total_Q2 total_Q3 avg_Q1 avg_Q2 avg_Q3
+#&gt;      &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1      360      410      415    120 136.67 138.33</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<blockquote><p><strong>[NOTE]</strong> If you never plot and never export, you probably do not need to reshape at all. Shape is a means, not an end — do not pivot for fun.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given this long table of temperatures, produce a wide report showing min and max temperature per city per year.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Starter code
+temps &lt;- tibble(
+  city = rep(c(&quot;Pune&quot;,&quot;Berlin&quot;), each = 4),
+  year = rep(c(2022,2022,2023,2023), 2),
+  kind = rep(c(&quot;min&quot;,&quot;max&quot;), 4),
+  temp = c(18, 38, 19, 39, -5, 28, -4, 30)
+)
+
+# pivot_wider with names_from = c(year, kind)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Stack year columns</h4>
+<p>These exercises combine multiple ideas from the post. Work through them in order — each builds on the previous.</p>
 
-<p>The <code>billboard</code> dataset (built into tidyr) holds weekly chart ranks. Pivot the <code>wk1</code> through <code>wk76</code> columns into one <code>week</code> column and one <code>rank</code> column, then drop missing ranks.</p>
+<h4>Exercise 1: Clean up a messy survey</h4>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Your turn: pivot billboard wide-to-long
-# Hint: use starts_with(&quot;wk&quot;) and values_drop_na = TRUE
-
-# Save the result to my_long</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_long &lt;- billboard |&gt;
-  pivot_longer(
-    cols = starts_with(&quot;wk&quot;),
-    names_to  = &quot;week&quot;,
-    values_to = &quot;rank&quot;,
-    values_drop_na = TRUE
-  )
-head(my_long, 3)
-#&gt; # A tibble: 3 x 5
-#&gt;   artist  track                   date.entered week   rank
-#&gt;   &lt;chr&gt;   &lt;chr&gt;                   &lt;date&gt;       &lt;chr&gt; &lt;dbl&gt;
-#&gt; 1 2 Pac   Baby Don't Cry (Keep... 2000-02-26   wk1      87
-#&gt; 2 2 Pac   Baby Don't Cry (Keep... 2000-02-26   wk2      82
-#&gt; 3 2 Pac   Baby Don't Cry (Keep... 2000-02-26   wk3      72</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>starts_with(&quot;wk&quot;)</code> picks all 76 week columns in one go. <code>values_drop_na = TRUE</code> strips rows where the song had dropped off the chart (most rows, actually).</p>
-
-</details>
-
-<h4>Exercise 2: Spread a summary table</h4>
-
-<p>Start from the <code>long_scores</code> you made earlier. Compute the average score per subject across all students, then pivot to one row per subject-with-average into a single-row wide table where each subject is a column.</p>
+<p>You receive this survey export. Reshape it so each row is one respondent-question pair, then compute the mean score per question.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Your turn: avg score per subject, then pivot to wide
-# Hint: group_by + summarise, then pivot_wider
+    <div class="webr-editor" data-language="r">library(tidyr); library(dplyr)
 
-# Save to my_wide</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_wide &lt;- long_scores |&gt;
-  group_by(subject) |&gt;
-  summarise(avg = mean(score)) |&gt;
-  pivot_wider(names_from = subject, values_from = avg)
-my_wide
-#&gt; # A tibble: 1 x 3
-#&gt;   math english science
-#&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
-#&gt; 1  84.3    87      82.3</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> Summarise first to collapse each subject to one row, then pivot to spread the subject names across columns. The result is a one-row tibble where each column is a subject's class average.</p>
-
-</details>
-
-<h4>Exercise 3: Split packed column names</h4>
-
-<p>Build this wide tibble and pivot it so that the <code>region</code> and <code>year</code> pieces of each column name become their own columns, alongside a <code>temp</code> value column.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">temps &lt;- tibble(
-  city = c(&quot;Delhi&quot;, &quot;Mumbai&quot;),
-  north_2022 = c(32, 30),
-  north_2023 = c(33, 31),
-  south_2022 = c(29, 28),
-  south_2023 = c(30, 29)
+survey_wide &lt;- tibble(
+  respondent = 1:5,
+  q1_score = c(4, 5, 3, 4, 5),
+  q2_score = c(3, 4, 5, 4, 2),
+  q3_score = c(5, 5, 4, 3, 4)
 )
 
-# Your turn: split names into region + year
-# Hint: names_to takes a character vector with names_sep
-
-# Save to my_clean</div>
+# 1. pivot_longer to one row per (respondent, question)
+# 2. group_by(question) |&gt; summarise(mean_score = mean(score))</div>
 
     <div class="webr-buttons">
 
@@ -710,28 +775,19 @@ my_wide
 
 </div>
 
-<details>
-<summary>Click to reveal solution</summary>
+<details><summary>Solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_clean &lt;- temps |&gt;
+    <div class="webr-editor" data-language="r">survey_wide |&gt;
   pivot_longer(
-    cols = -city,
-    names_to  = c(&quot;region&quot;, &quot;year&quot;),
-    names_sep = &quot;_&quot;,
-    values_to = &quot;temp&quot;
-  )
-my_clean
-#&gt; # A tibble: 8 x 4
-#&gt;   city   region year   temp
-#&gt;   &lt;chr&gt;  &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt;
-#&gt; 1 Delhi  north  2022     32
-#&gt; 2 Delhi  north  2023     33
-#&gt; 3 Delhi  south  2022     29
-#&gt; 4 Delhi  south  2023     30
-#&gt; 5 Mumbai north  2022     30
-#&gt; # ...</div>
+    cols = -respondent,
+    names_to = &quot;question&quot;,
+    values_to = &quot;score&quot;,
+    names_pattern = &quot;(q[0-9])_score&quot;
+  ) |&gt;
+  group_by(question) |&gt;
+  summarise(mean_score = mean(score))</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -740,22 +796,25 @@ my_clean
   </div>
   <div class="webr-plot-output"></div>
 </div>
-
-<p><strong>Explanation:</strong> A two-element <code>names_to</code> plus <code>names_sep = &quot;_&quot;</code> tells pivot_longer() to split each old name into two parts at the underscore. One call turned four packed columns into three clean ones.</p>
 
 </details>
 
-<h4>Exercise 4: Round trip</h4>
+<h4>Exercise 2: Build a pivot-table report</h4>
 
-<p>Take <code>wide_scores</code>, pivot to long, round every score down to the nearest 10, pivot back to wide, and confirm you get the rounded version of the original.</p>
+<p>Turn this sales log into a wide report: one row per store, one column per product, and a final column with the store total. Fill missing combinations with 0.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Your turn: longer -&gt; mutate -&gt; wider
+    <div class="webr-editor" data-language="r">sales_log &lt;- tibble(
+  store = c(&quot;N&quot;,&quot;N&quot;,&quot;N&quot;,&quot;S&quot;,&quot;S&quot;,&quot;E&quot;),
+  product = c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;,&quot;A&quot;,&quot;C&quot;,&quot;B&quot;),
+  units = c(10, 5, 7, 12, 4, 9)
+)
 
-# Save to my_summary</div>
+# 1. pivot_wider with values_fill = 0
+# 2. mutate a total column using rowSums(across(where(is.numeric)))</div>
 
     <div class="webr-buttons">
 
@@ -773,22 +832,13 @@ my_clean
 
 </div>
 
-<details>
-<summary>Click to reveal solution</summary>
+<details><summary>Solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_summary &lt;- wide_scores |&gt;
-  pivot_longer(-student, names_to = &quot;subject&quot;, values_to = &quot;score&quot;) |&gt;
-  mutate(score = floor(score / 10) * 10) |&gt;
-  pivot_wider(names_from = subject, values_from = score)
-my_summary
-#&gt; # A tibble: 3 x 4
-#&gt;   student  math english science
-#&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
-#&gt; 1 Ava        90      80      70
-#&gt; 2 Ben        70      80      90
-#&gt; 3 Cora       80      90      80</div>
+    <div class="webr-editor" data-language="r">sales_log |&gt;
+  pivot_wider(names_from = product, values_from = units, values_fill = 0) |&gt;
+  mutate(total = rowSums(across(A:C)))</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -798,53 +848,130 @@ my_summary
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The long shape makes the rounding operation trivial; one <code>mutate()</code> hits every score. Without the pivot, you would have to repeat the rounding for each of the three subject columns. This go-long-then-go-wide pattern is the most common reason you will reach for these functions.</p>
+</details>
+
+<h4>Exercise 3: Round-trip a dataset with multiple values</h4>
+
+<p>Take this exam table, go wide with two value columns, then long again to recover the original shape.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">exam_long &lt;- tibble(
+  student = rep(c(&quot;Asha&quot;,&quot;Bilal&quot;), each = 3),
+  subject = rep(c(&quot;math&quot;,&quot;sci&quot;,&quot;eng&quot;), 2),
+  score = c(88, 81, 77, 72, 79, 85),
+  rank = c(1, 2, 3, 3, 2, 1)
+)
+
+# Wide: pivot_wider with values_from = c(score, rank)
+# Long again: pivot_longer with names_to = c(&quot;.value&quot;,&quot;subject&quot;), names_sep = &quot;_&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details><summary>Solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">wide &lt;- exam_long |&gt;
+  pivot_wider(
+    names_from = subject,
+    values_from = c(score, rank),
+    names_glue = &quot;{.value}_{subject}&quot;
+  )
+
+wide |&gt;
+  pivot_longer(
+    cols = -student,
+    names_to = c(&quot;.value&quot;, &quot;subject&quot;),
+    names_sep = &quot;_&quot;
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
 </details>
 
 <h2>Complete Example</h2>
 
-<p>Here is a realistic end-to-end flow. A school has test scores in wide format, you want per-student averages and per-subject averages, and a wide-format report at the end.</p>
+<p>Here is an end-to-end pipeline on a messy fake dataset. We start wide, reshape to long for analysis, then widen again for the final report.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">class_scores &lt;- tibble(
-  student = c(&quot;Ava&quot;, &quot;Ben&quot;, &quot;Cora&quot;, &quot;Dev&quot;),
-  math    = c(90, 78, 85, 92),
-  english = c(82, 88, 91, 79),
-  science = c(75, 92, 80, 88)
+    <div class="webr-editor" data-language="r">library(tidyr); library(dplyr)
+
+# Step 1: raw wide data as it arrives from a spreadsheet
+raw &lt;- tibble(
+  country = c(&quot;India&quot;,&quot;Brazil&quot;,&quot;Kenya&quot;),
+  gdp_2021 = c(3.18, 1.61, 0.11),
+  gdp_2022 = c(3.39, 1.92, 0.12),
+  pop_2021 = c(1408, 214, 53),
+  pop_2022 = c(1417, 215, 54)
 )
 
-# Step 1: go long for any math we need
-long &lt;- class_scores |&gt;
-  pivot_longer(-student, names_to = &quot;subject&quot;, values_to = &quot;score&quot;)
+# Step 2: pivot to long with TWO values columns in one go
+long &lt;- raw |&gt;
+  pivot_longer(
+    cols = -country,
+    names_to = c(&quot;.value&quot;, &quot;year&quot;),
+    names_sep = &quot;_&quot;,
+    names_transform = list(year = as.integer)
+  )
+long
+#&gt; # A tibble: 6 x 4
+#&gt;   country  year   gdp   pop
+#&gt;   &lt;chr&gt;   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 India    2021  3.18  1408
+#&gt; 2 India    2022  3.39  1417
+#&gt; 3 Brazil   2021  1.61   214
+#&gt; 4 Brazil   2022  1.92   215
+#&gt; 5 Kenya    2021  0.11    53
+#&gt; 6 Kenya    2022  0.12    54
 
-# Step 2: per-student average
-student_avg &lt;- long |&gt;
-  group_by(student) |&gt;
-  summarise(avg = mean(score))
-student_avg
-#&gt; # A tibble: 4 x 2
-#&gt;   student   avg
-#&gt;   &lt;chr&gt;   &lt;dbl&gt;
-#&gt; 1 Ava      82.3
-#&gt; 2 Ben      86
-#&gt; 3 Cora     85.3
-#&gt; 4 Dev      86.3
+# Step 3: analysis in long form is one line
+long |&gt;
+  mutate(gdp_per_capita = gdp * 1000 / pop) |&gt;
+  arrange(desc(gdp_per_capita))
+#&gt; # A tibble: 6 x 5
+#&gt;   country  year   gdp   pop gdp_per_capita
+#&gt;   &lt;chr&gt;   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;          &lt;dbl&gt;
+#&gt; 1 Brazil   2022  1.92   215           8.93
+#&gt; 2 Brazil   2021  1.61   214           7.52
+#&gt; 3 India    2022  3.39  1417           2.39
+#&gt; 4 India    2021  3.18  1408           2.26
+#&gt; 5 Kenya    2022  0.12    54           2.22
+#&gt; 6 Kenya    2021  0.11    53           2.08
 
-# Step 3: pivot back to wide, attach the averages
-summary_tbl &lt;- class_scores |&gt;
-  left_join(student_avg, by = &quot;student&quot;)
-summary_tbl
-#&gt; # A tibble: 4 x 5
-#&gt;   student  math english science   avg
-#&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt;
-#&gt; 1 Ava        90      82      75  82.3
-#&gt; 2 Ben        78      88      92  86
-#&gt; 3 Cora       85      91      80  85.3
-#&gt; 4 Dev        92      79      88  86.3</div>
+# Step 4: wide report, one column per year per metric, for the PDF
+long |&gt;
+  mutate(gdp_per_capita = round(gdp * 1000 / pop, 2)) |&gt;
+  pivot_wider(
+    names_from = year,
+    values_from = c(gdp, pop, gdp_per_capita),
+    names_glue = &quot;{.value}_{year}&quot;
+  )</div>
 
     <div class="webr-buttons">
 
@@ -862,102 +989,103 @@ summary_tbl
 
 </div>
 
-<p>The pivot_longer step did the real work. Once the data was long, <code>group_by() |&gt; summarise()</code> became a one-liner. A <code>left_join()</code> glued the averages back onto the original wide table, giving a report-ready output with one row per student.</p>
+<p>The <code>.value</code> token does the heavy lifting in both directions. In step 2 it captures the prefix (<code>gdp</code> or <code>pop</code>) as a destination column name. In step 4 it plugs those names back into the new wide headers. Once you have that token in your head, the rest of tidyr feels obvious.</p>
 
 <h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Function</th>
-<th>Direction</th>
-<th>Key arguments</th>
-<th>Result</th>
+<th>Concept</th>
+<th>pivot_longer()</th>
+<th>pivot_wider()</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>pivot_longer()</td>
-<td>Wide to long</td>
+<td>Direction</td>
+<td>wide → long</td>
+<td>long → wide</td>
+</tr>
+<tr>
+<td>Main args</td>
 <td>cols, names_to, values_to</td>
-<td>More rows, fewer columns</td>
+<td>names_from, values_from</td>
 </tr>
 <tr>
-<td>pivot_wider()</td>
-<td>Long to wide</td>
-<td>names_from, values_from, id_cols</td>
-<td>Fewer rows, more columns</td>
+<td>Splits names</td>
+<td>names_sep, names_pattern</td>
+<td>—</td>
 </tr>
 <tr>
-<td>names_sep</td>
-<td>Split old names</td>
-<td>character or regex</td>
-<td>Multiple new name columns</td>
+<td>Combines values</td>
+<td>—</td>
+<td>values_from = c(a, b)</td>
 </tr>
 <tr>
-<td>values_fill</td>
-<td>Plug holes</td>
-<td>value or <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a></td>
-<td>No NA cells after widening</td>
-</tr>
-<tr>
+<td>Missing combos</td>
 <td>values_drop_na</td>
-<td>Prune empties</td>
-<td>TRUE/FALSE</td>
-<td>Drop NA rows after longer</td>
+<td>values_fill</td>
+</tr>
+<tr>
+<td>Duplicate keys</td>
+<td>—</td>
+<td>values_fn</td>
+</tr>
+<tr>
+<td>Templated names</td>
+<td>—</td>
+<td>names_glue</td>
+</tr>
+<tr>
+<td>Special token</td>
+<td><code>.value</code> (inverse)</td>
+<td><code>.value</code></td>
 </tr>
 </tbody>
 </table>
 
-<ul>
-
-<li>Long format is what ggplot2 and group_by() expect; go long first when in doubt.</li>
-
-<li><code>names_to</code> and <code>values_to</code> must be quoted strings because they name new columns.</li>
-
-<li><code>cols</code> accepts every tidyselect helper you know from <code>select()</code>.</li>
-
-<li>Duplicate keys during <code>pivot_wider()</code> create list-columns; aggregate first.</li>
-
-</ul>
-
-<h2>FAQ</h2>
-
-<p><strong>When should I use pivot_longer() instead of pivot_wider()?</strong> Use <code>pivot_longer()</code> before any group-wise calculation, plot, or model fit. Most tidyverse tools need one-row-per-observation. Use <code>pivot_wider()</code> only at the end, when you need a human-readable report or a matrix for linear algebra.</p>
-
-<p><strong>What replaced gather() and spread()?</strong> <code>pivot_longer()</code> replaced <code>gather()</code> and <code>pivot_wider()</code> replaced <code>spread()</code> in tidyr 1.0 (2019). The new functions have clearer argument names and handle multi-column names that the old functions could not.</p>
-
-<p><strong>Can I pivot multiple value columns at once?</strong> Yes. Pass <code>values_from = c(col1, col2)</code> to <code>pivot_wider()</code> to create paired output columns like <code>col1_X</code>, <code>col2_X</code>, and so on. For <code>pivot_longer()</code>, use a <code>.value</code> placeholder in <code>names_to</code> together with <code>names_sep</code> to split column names into a stub and a suffix.</p>
-
-<p><strong>Why did my values column turn into a list-column?</strong> Your long data had duplicate keys: two or more rows share the same <code>names_from</code> value and the same id columns. <code>pivot_wider()</code> packs all candidates into a list for you to inspect. Aggregate with <code>group_by() |&gt; summarise()</code> or pass <code>values_fn = sum</code> to <code>pivot_wider()</code> to collapse them first.</p>
-
-<h2>References</h2>
+<p>Four rules to remember:</p>
 
 <ol>
 
-<li>tidyr documentation - pivot_longer() reference. <a href="https://tidyr.tidyverse.org/reference/pivot_longer.html">Link</a></li>
+<li><strong>Plot long, report wide.</strong> Long form for analysis and ggplot; wide form for human-readable tables.</li>
 
-<li>tidyr documentation - pivot_wider() reference. <a href="https://tidyr.tidyverse.org/reference/pivot_wider.html">Link</a></li>
+<li>**<code>cols</code> uses tidyselect.** Same helpers as <code>select()</code> — <code>starts_with()</code>, <code>-col</code>, ranges, etc.</li>
 
-<li>tidyr Pivoting vignette. <a href="https://tidyr.tidyverse.org/articles/pivot.html">Link</a></li>
+<li><strong>Missing vs duplicate are different fixes.</strong> <code>values_fill</code> for holes, <code>values_fn</code> for collisions.</li>
 
-<li>Wickham, H., Cetinkaya-Rundel, M., Grolemund, G. - <em>R for Data Science</em>, 2nd Edition. Chapter 6: Data Tidying. <a href="https://r4ds.hadley.nz/data-tidy.html">Link</a></li>
-
-<li>Wickham, H. - "Tidy Data" - Journal of Statistical Software (2014). <a href="https://www.jstatsoft.org/article/view/v059i10">Link</a></li>
-
-<li>tidyr 1.0.0 release notes. <a href="https://www.tidyverse.org/blog/2019/09/tidyr-1-0-0/">Link</a></li>
+<li>**<code>.value</code> is the round-trip token.** Use it when headers encode both a variable name and a group.</li>
 
 </ol>
+
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://tidyr.tidyverse.org/articles/pivot.html">tidyr pivoting vignette</a> — the authoritative reference from the package authors.</li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html">pivot_longer() reference</a></li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/pivot_wider.html">pivot_wider() reference</a></li>
+
+<li><a href="https://www.jstatsoft.org/article/view/v059i10">Hadley Wickham, <em>Tidy Data</em>, JSS 2014</a> — the paper that started it all.</li>
+
+<li><a href="https://r4ds.hadley.nz/data-tidy.html">R for Data Science, 2e — Data Tidying chapter</a></li>
+
+<li><a href="https://tidyselect.r-lib.org/reference/language.html">tidyselect reference</a> — for the helpers <code>cols</code> accepts.</li>
+
+</ul>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><strong><a href="Tidy-Data-in-R.html">Tidy Data in R</a></strong> - understand the three rules of tidy data that make reshaping meaningful.</li>
+<li><a href="dplyr-filter-select.html">dplyr filter() and select()</a> — the row and column basics that pair with every pivot.</li>
 
-<li><strong><a href="dplyr-group-by-summarise.html">dplyr group_by() and summarise()</a></strong> - the next step after going long: collapse long data into summaries.</li>
+<li><a href="dplyr-group-by-summarise.html">dplyr group_by() and summarise()</a> — long data shines here; pivot first, group second.</li>
 
-<li><strong><a href="R-Joins.html">R Joins with dplyr</a></strong> - join the reshaped output back onto lookup tables with <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">inner_join</a>() and left_join().</li>
+<li><a href="R-Joins.html">R Joins With Visual Diagrams</a> — combine reshaped data with other tables.</li>
 
 </ul>
 
