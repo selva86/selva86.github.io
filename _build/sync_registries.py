@@ -391,8 +391,12 @@ def sync_curriculum(posts, dry_run=False):
             for entry in spdata.get('posts', []):
                 eid = entry.get('id', '')
                 if eid not in post_by_id:
-                    # Ensure schema has modified_date field even for posts not in this sync
-                    if 'modified_date' not in entry:
+                    # Entry has no matching _posts/*.html → never published or
+                    # not rewritten. modified_date must be null.
+                    if entry.get('modified_date') is not None:
+                        entry['modified_date'] = None
+                        updated += 1
+                    elif 'modified_date' not in entry:
                         entry['modified_date'] = None
                         updated += 1
                     continue
@@ -409,11 +413,11 @@ def sync_curriculum(posts, dry_run=False):
                     entry['in_sidebar'] = post.get('post_type') == 'C'
                     changed = True
 
-                # modified_date reflects the fragment file's mtime — bumped
-                # only when the post is actually rewritten, not every sync run.
-                frag_mtime = post.get('fragment_mtime')
-                if frag_mtime and entry.get('modified_date') != frag_mtime:
-                    entry['modified_date'] = frag_mtime
+                # modified_date = date of last "Add tutorial:" commit on
+                # posts/<slug>.md. Null if the post has never been rewritten.
+                rewrite_date = post.get('rewrite_date')
+                if entry.get('modified_date') != rewrite_date:
+                    entry['modified_date'] = rewrite_date
                     changed = True
 
                 if changed:
@@ -507,7 +511,24 @@ def main():
             fpath = os.path.join(POSTS_DIR, f)
             meta = parse_front_matter(fpath)
             meta['filename'] = f
-            meta['fragment_mtime'] = datetime.date.fromtimestamp(os.path.getmtime(fpath)).isoformat()
+            # modified_date tracks the most recent "Add tutorial:" commit
+            # that touched posts/<slug>.md — i.e. actual rewrites via
+            # /write-and-publish-v2. Bulk formatting commits don't count.
+            slug = f[:-5]
+            md_path = os.path.join('posts', slug + '.md')
+            meta['rewrite_date'] = None
+            if os.path.exists(md_path):
+                try:
+                    import subprocess
+                    out = subprocess.check_output(
+                        ['git', 'log', '--grep=^Add tutorial:', '-1',
+                         '--format=%ad', '--date=short', '--', md_path],
+                        stderr=subprocess.DEVNULL
+                    ).decode('utf-8').strip()
+                    if out:
+                        meta['rewrite_date'] = out
+                except Exception:
+                    pass
             posts.append(meta)
 
     print(f'Found {len(posts)} posts in _posts/')
