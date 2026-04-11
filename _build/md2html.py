@@ -67,6 +67,20 @@ def convert_table(lines):
 def convert(md_text):
     fm, body = parse_frontmatter(md_text)
     lines = body.split('\n')
+
+    # Auto-fix: inline callouts like "[TIP] body..." get split onto two lines so the
+    # parser's [TIP]-on-own-line rule matches. Warn loudly so the author learns.
+    fixed_lines = []
+    for lineno, ln in enumerate(lines, start=1):
+        m = re.match(r'^(\[(?:TIP|NOTE|WARNING|KEY INSIGHT)\])\s+(\S.*)$', ln)
+        if m:
+            print(f"  WARN: auto-fixed inline callout at line {lineno}: {m.group(1)} ...")
+            fixed_lines.append(m.group(1))
+            fixed_lines.append(m.group(2))
+        else:
+            fixed_lines.append(ln)
+    lines = fixed_lines
+
     out = []
     i = 0
     webr_enabled = str(fm.get('webr', 'true')).lower() == 'true'
@@ -401,7 +415,24 @@ def convert(md_text):
     fm_out.append('---')
     fm_out.append('<!-- md2html:generated -->')
 
-    return '\n'.join(fm_out) + '\n\n' + '\n\n'.join(out)
+    rendered = '\n'.join(fm_out) + '\n\n' + '\n\n'.join(out)
+
+    # Sanity check: any surviving raw callout token means a callout didn't render.
+    # Abort the build — publishing a broken callout is worse than failing loudly.
+    stray = re.findall(r'\[(?:TIP|NOTE|WARNING|KEY INSIGHT)\]', rendered)
+    if stray:
+        # Allow literal tokens inside <pre>/<code> blocks (documentation of the syntax).
+        rendered_no_code = re.sub(r'<pre[^>]*>.*?</pre>', '', rendered, flags=re.DOTALL)
+        rendered_no_code = re.sub(r'<code[^>]*>.*?</code>', '', rendered_no_code, flags=re.DOTALL)
+        real_stray = re.findall(r'\[(?:TIP|NOTE|WARNING|KEY INSIGHT)\]', rendered_no_code)
+        if real_stray:
+            raise ValueError(
+                f"md2html sanity check FAILED: {len(real_stray)} unrendered callout token(s) "
+                f"found in output ({', '.join(sorted(set(real_stray)))}). "
+                f"Fix the markdown — callouts must be [TYPE] on its own line followed by the body."
+            )
+
+    return rendered
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
