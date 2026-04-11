@@ -1,196 +1,120 @@
 ---
-title: "furrr Package in R: Parallel purrr with future Backend"
+title: "furrr Package in R: Parallel purrr With the future Backend"
 slug: "furrr-Package-in-R"
-description: "Run purrr's map functions in parallel using furrr and the future package. Drop-in replacements: future_map(), future_map2(), future_pmap() with examples."
-keywords: "furrr R, parallel purrr, future_map, parallel map R, future package R, parallel iteration R"
+description: "The furrr package gives you parallel versions of purrr's map() family with a one-line switch. Same API, same results, multicore speed. Here is how to use it safely."
+keywords: "furrr package R, parallel purrr, future_map, R parallel processing, future R package"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-12"
 curriculum_id: "FR-func-4"
 post_type: "FR"
-auto_link_terms: "furrr|future_map|parallel purrr"
+auto_link_terms: "furrr|future_map|parallel purrr|parallel R"
 auto_link_case_sensitive: false
-fr_parent: "Functional-Programming-in-R.html"
+fr_parent: "purrr-map-Variants.html"
 ---
 
-# furrr Package in R: Parallel purrr with future Backend
+# furrr Package in R: Parallel purrr With the future Backend
 
-<p class="lead"><code>furrr</code> provides drop-in parallel replacements for every <code>purrr</code> map function. Change <code>map()</code> to <code>future_map()</code> and your code runs across multiple CPU cores — no other changes needed.</p>
+<p class="lead">The <code>furrr</code> package provides <code>future_map()</code>, <code>future_map_dbl()</code>, <code>future_map2()</code>, and friends — parallel drop-in replacements for <code>purrr::map()</code>. Set a plan with <code>future::plan(multisession)</code> and switch <code>map</code> to <code>future_map</code>; everything else stays the same.</p>
 
-If your `map()` call takes minutes because each iteration is slow (API calls, model fitting, file processing), furrr can cut that time proportionally to the number of cores available.
+Parallel programming is often oversold — most R code is not CPU-bound, and the setup cost of spawning workers can exceed the savings. But when you genuinely need parallelism (fitting 500 models, hitting 200 APIs, bootstrapping 10000 times), `furrr` is the cleanest way to get it. You keep purrr's API; you gain multiple cores.
 
-## Setup
+## What Is furrr and How Does It Differ From purrr?
+
+`furrr` is a bridge between [purrr](purrr-map-Variants.html) and the `future` parallel-processing framework. Every function in `furrr` mirrors a purrr function, prefixed with `future_`. The API is identical; the execution happens across multiple workers.
 
 ```r
-# Install if needed
-# install.packages(c("furrr", "future"))
-
-library(furrr)
 library(purrr)
+library(furrr)
 
-# Tell future to use multiple cores
-plan(multisession, workers = 2)  # Use 2 workers
-cat("Parallel plan active:", nbrOfWorkers(), "workers\n")
+# Sequential (purrr): one worker, one task at a time
+slow_square <- function(x) { Sys.sleep(0.1); x^2 }
+
+system.time(map_dbl(1:8, slow_square))
+#>    user  system elapsed
+#>   0.010   0.000   0.812
+
+# Parallel (furrr): 4 workers, 4 tasks at a time
+plan(multisession, workers = 4)
+system.time(future_map_dbl(1:8, slow_square))
+#>    user  system elapsed
+#>   0.150   0.020   0.231
 ```
 
-## Basic Usage: future_map()
+Same inputs, same results, 3-4x faster on a 4-core machine. The `plan(multisession, workers = 4)` line tells `future` to spawn four background R sessions; `future_map_dbl` distributes the eight elements across them. When the call finishes, the workers stay alive for future calls — you pay the spawn cost once per session, not once per `future_map`.
 
-The API mirrors purrr exactly. Replace `map` with `future_map`.
+[KEY INSIGHT]
+**furrr parallelises *across elements*, not within a single call.** Each element of your input runs on one worker. This means `future_map_dbl(x, f)` helps when you have many elements and `f` is slow; it does nothing when you have one element and `f` is internally serial.
 
-```r
-library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
+## How Do You Set Up `future::plan()`?
 
-# Simulate slow computation
-slow_square <- function(x) {
-  Sys.sleep(0.5)
-  x^2
-}
+`future::plan()` tells the `future` package how to run the parallel tasks. The common plans are:
 
-# Sequential (purrr)
-t_seq <- system.time(
-  results_seq <- map_dbl(1:4, slow_square)
-)
-
-# Parallel (furrr)
-t_par <- system.time(
-  results_par <- future_map_dbl(1:4, slow_square)
-)
-
-cat("Sequential:", t_seq["elapsed"], "sec\n")
-cat("Parallel:  ", t_par["elapsed"], "sec\n")
-cat("Results match:", identical(results_seq, results_par), "\n")
-
-plan(sequential)  # Reset
-```
-
-## All furrr Functions
-
-| purrr | furrr (parallel) |
-|-------|-----------------|
-| `map()` | `future_map()` |
-| `map_dbl()` | `future_map_dbl()` |
-| `map_chr()` | `future_map_chr()` |
-| `map_lgl()` | `future_map_lgl()` |
-| `map2()` | `future_map2()` |
-| `imap()` | `future_imap()` |
-| `pmap()` | `future_pmap()` |
-| `walk()` | `future_walk()` |
-
-## Execution Plans
-
-The `plan()` function controls how futures are resolved.
+| Plan | Meaning |
+|---|---|
+| `sequential` | Run serially (default; useful for debugging) |
+| `multisession` | Spawn background R sessions on the same machine |
+| `multicore` | Fork the R process (Unix/macOS only; unsafe in RStudio) |
+| `cluster` | Run on a remote cluster with specified nodes |
 
 ```r
+library(future)
 library(furrr)
 
-# Sequential (no parallelism — same as purrr)
-plan(sequential)
+# 4 workers on local machine
+plan(multisession, workers = 4)
 
-# Multisession (separate R processes — works everywhere)
-plan(multisession, workers = 2)
-
-# Multicore (forked processes — faster, Unix/Mac only)
-# plan(multicore, workers = 4)
-
-# Check current plan
-cat("Current plan:", class(plan())[1], "\n")
-cat("Workers:", nbrOfWorkers(), "\n")
-
-plan(sequential)  # Reset when done
-```
-
-## Practical: Parallel Model Fitting
-
-```r
-library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
-
-# Fit models with different formulas in parallel
-formulas <- list(
-  mpg ~ wt,
-  mpg ~ wt + hp,
-  mpg ~ wt + hp + cyl,
-  mpg ~ wt * hp
-)
-
-models <- future_map(formulas, \(f) {
-  lm(f, data = mtcars)
-})
-
-# Extract R-squared from each model
-r_squared <- map_dbl(models, \(m) summary(m)$r.squared)
-cat("R-squared values:", round(r_squared, 3), "\n")
-
+# Back to serial
 plan(sequential)
 ```
 
-## Progress Bars
+For day-to-day work on a laptop, `multisession` is the right choice — safe on all platforms, RStudio-compatible, and easy to configure. `multicore` is marginally faster on Unix because it forks instead of spawning, but it does not play well with RStudio.
 
-furrr supports progress tracking with the `progressr` package.
+## What Does `.options = furrr_options()` Do?
 
-```r
-library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
-
-# Enable progress reporting
-results <- future_map(1:10, \(x) {
-  Sys.sleep(0.2)
-  x^2
-}, .progress = TRUE)
-
-cat("Results:", unlist(results), "\n")
-plan(sequential)
-```
-
-## When to Use furrr
-
-| Situation | Use furrr? |
-|-----------|-----------|
-| Each iteration takes > 1 second | Yes |
-| Many quick iterations (microseconds each) | No (overhead > gain) |
-| Each iteration is independent | Yes |
-| Iterations share mutable state | No |
-| Need reproducible random numbers | Yes (with `furrr_options(seed = TRUE)`) |
-
-## Seed Control for Reproducibility
+By default, `furrr` sends everything visible in your current environment to each worker. If your function uses a 500 MB data frame you loaded earlier, that frame is serialised and copied to every worker — possibly tanking the gains. `furrr_options()` lets you control what travels to workers and how random seeds are managed.
 
 ```r
 library(furrr)
-plan(multisession, workers = 2)
+plan(multisession, workers = 4)
 
-# Without seed: different results each run
-# With seed: reproducible parallel random numbers
+# Safe random numbers: each element gets a distinct, reproducible seed
 results <- future_map_dbl(
-  1:5,
+  1:8,
   \(x) rnorm(1),
-  .options = furrr_options(seed = 123)
+  .options = furrr_options(seed = TRUE)
 )
-cat("Reproducible results:", round(results, 3), "\n")
-
-plan(sequential)
 ```
 
-## Practice Exercises
+Setting `seed = TRUE` is the single most important option. Without it, parallel random number generation is either non-reproducible or uses the same stream on every worker — both bad. `seed = TRUE` tells `furrr` to use the L'Ecuyer-CMRG RNG, which produces distinct reproducible streams per element.
 
-### Exercise 1: Parallel Simulation
+[WARNING]
+**Forgetting `seed = TRUE` on a parallel RNG task is a silent bug.** Your output will look plausible but cannot be reproduced and may be statistically wrong. If your function calls `rnorm`, `sample`, `runif`, or any random draw, always pass `seed = TRUE` to `future_map`.
 
-Run 100 bootstrap iterations in parallel.
+## When Does Parallelism Actually Pay Off?
+
+The break-even point is roughly: **each task should take at least 100 ms**. Below that, the overhead of serialising the task, sending it to a worker, and collecting the result dominates.
 
 ```r
 library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
+plan(multisession, workers = 4)
 
-# Bootstrap the mean of mtcars$mpg
-# 1. Create a function that takes an index, samples mtcars with replacement, returns mean(mpg)
-# 2. Run it 100 times in parallel with future_map_dbl
-# 3. Report the bootstrap confidence interval
+# Fast task: parallel is SLOWER because of overhead
+system.time(map_dbl(1:1000, \(x) x^2))
+#>    elapsed: 0.003
 
-plan(sequential)
+system.time(future_map_dbl(1:1000, \(x) x^2))
+#>    elapsed: 0.650
+```
+
+`x^2` runs in microseconds. `future_map_dbl` wastes time serialising a thousand trivial tasks to workers. The fix is to batch: parallelise coarse-grained work (whole models, whole files, whole APIs), not fine-grained work (individual arithmetic operations).
+
+**Try it:** Measure `future_map` vs `map` for `Sys.sleep(0.1)` on `1:4` with 4 workers. You should see ~0.1s vs ~0.4s.
+
+```r
+library(furrr)
+plan(multisession, workers = 4)
+# your code here
 ```
 
 <details>
@@ -198,54 +122,125 @@ plan(sequential)
 
 ```r
 library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
+plan(multisession, workers = 4)
 
-boot_mean <- function(i) {
-  sample_data <- mtcars[sample(nrow(mtcars), replace = TRUE), ]
-  mean(sample_data$mpg)
-}
+system.time(map(1:4, \(x) Sys.sleep(0.1)))
+#> elapsed ~0.40
 
-boot_results <- future_map_dbl(1:100, boot_mean,
-  .options = furrr_options(seed = 42))
-
-cat("Bootstrap mean:", round(mean(boot_results), 2), "\n")
-cat("95% CI:", round(quantile(boot_results, c(0.025, 0.975)), 2), "\n")
-
-plan(sequential)
+system.time(future_map(1:4, \(x) Sys.sleep(0.1)))
+#> elapsed ~0.10 (plus first-call overhead)
 ```
 
-**Explanation:** Each bootstrap iteration is independent — perfect for parallelization. The seed option ensures reproducible results across parallel workers.
+**Explanation:** Four workers sleep simultaneously; total wall time drops to the duration of a single sleep. First call pays a one-time ~1s spawn cost.
+
+</details>
+
+## Can You Show a Progress Bar?
+
+Yes — pass `.progress = TRUE` to any `future_map*` call. `furrr` then prints a progress bar as tasks complete.
+
+```r
+library(furrr)
+plan(multisession, workers = 4)
+
+results <- future_map_dbl(
+  1:20,
+  \(x) { Sys.sleep(0.1); x^2 },
+  .progress = TRUE
+)
+#> Progress: [====================] 100% eta: 0s
+```
+
+For long-running parallel jobs — fitting models, scraping sites — the bar is invaluable. You can see whether it will finish in 10 seconds or 10 hours.
+
+## Practice Exercises
+
+### Exercise 1: Parallel Bootstrap of the Mean
+
+Use `future_map_dbl` with `seed = TRUE` to compute 100 bootstrap estimates of `mean(mtcars$mpg)`. Compare timing to sequential `map_dbl`.
+
+```r
+library(furrr)
+plan(multisession, workers = 4)
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(furrr)
+plan(multisession, workers = 4)
+
+boot_mean <- function(i) mean(sample(mtcars$mpg, replace = TRUE))
+
+boot_results <- future_map_dbl(
+  1:100,
+  boot_mean,
+  .options = furrr_options(seed = TRUE)
+)
+
+quantile(boot_results, c(0.025, 0.975))
+```
+
+**Explanation:** Each element `i` is a bootstrap replicate. `seed = TRUE` gives each replicate a reproducible, independent random stream. The quantiles form a 95% bootstrap confidence interval.
+
+</details>
+
+### Exercise 2: Convert a purrr Chain to furrr
+
+Given `map_dfr(1:5, \(i) data.frame(i = i, v = i * 10))`, convert to a parallel version with a progress bar.
+
+```r
+library(furrr)
+plan(multisession, workers = 4)
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(furrr)
+plan(multisession, workers = 4)
+
+future_map_dfr(
+  1:5,
+  \(i) data.frame(i = i, v = i * 10),
+  .progress = TRUE
+)
+#>   i  v
+#> 1 1 10
+#> 2 2 20
+#> 3 3 30
+#> 4 4 40
+#> 5 5 50
+```
+
+**Explanation:** `future_map_dfr` is the parallel twin of `map_dfr`. For trivially fast tasks like this one, the sequential version is still faster — but the pattern is what matters.
 
 </details>
 
 ## Summary
 
-| Feature | Detail |
-|---------|--------|
-| Install | `install.packages("furrr")` |
-| Setup | `plan(multisession, workers = N)` |
-| Usage | Replace `map` with `future_map` |
-| Cleanup | `plan(sequential)` when done |
-| Seeds | `furrr_options(seed = TRUE)` |
-| Progress | `.progress = TRUE` argument |
+| Question                         | Answer                                               |
+|----------------------------------|------------------------------------------------------|
+| What does furrr provide?         | Parallel drop-ins for every `purrr::map*` function.  |
+| How do I enable parallelism?     | `future::plan(multisession, workers = N)`            |
+| What plan should I use?          | `multisession` for laptops; `cluster` for HPC        |
+| How do I make RNG reproducible?  | `.options = furrr_options(seed = TRUE)`              |
+| When is it worth it?             | Tasks >100 ms each, many elements                    |
 
-## FAQ
+## References
 
-### How many workers should I use?
-
-Start with `parallel::detectCores() - 1` to leave one core free for your OS. More workers isn't always faster — there's overhead for each worker process.
-
-### Does furrr work on Windows?
-
-Yes. `plan(multisession)` works on all platforms. `plan(multicore)` only works on Unix/macOS (it uses forking, which Windows doesn't support).
-
-### Why is my parallel code slower than sequential?
-
-Parallel overhead (starting workers, sending data, collecting results) exceeds the computation time. This happens when individual iterations are very fast. Parallelism helps when each iteration takes at least a few hundred milliseconds.
+1. `furrr` package documentation. [Link](https://furrr.futureverse.org/)
+2. `future` package — the parallel backend. [Link](https://future.futureverse.org/)
+3. Bengtsson, H. — *A Unifying Framework for Parallel and Distributed Processing in R using Futures*. [Link](https://journal.r-project.org/archive/2021/RJ-2021-048/)
+4. `purrr` package. [Link](https://purrr.tidyverse.org/)
+5. L'Ecuyer, P. et al. — *RngStreams: A C++ RNG library*. (The algorithm behind `seed = TRUE`.)
 
 ## Continue Learning
 
-- [purrr map() Variants](/purrr-map-Variants.html) — the sequential versions furrr parallelizes
-- [Functional Programming in R](/Functional-Programming-in-R.html) — the parent tutorial
-- [Writing Composable R Code](/Writing-Composable-R-Code.html) — build pipelines that can be parallelized
+- [purrr map() Variants](purrr-map-Variants.html) — the parent topic; furrr mirrors its API.
+- [Functional Programming in R](Functional-Programming-in-R.html) — why map-based parallelism is easy to reason about.
+- [Writing Composable R Code](Writing-Composable-R-Code.html) — composable functions parallelise for free.

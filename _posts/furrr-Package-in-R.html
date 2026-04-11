@@ -1,88 +1,46 @@
 ---
-title: "furrr Package in R: Parallel purrr with future Backend"
-description: "Run purrr's map functions in parallel using furrr and the future package. Drop-in replacements: future_map(), future_map2(), future_pmap() with examples."
-keywords: "furrr R, parallel purrr, future_map, parallel map R, future package R, parallel iteration R"
+title: "furrr Package in R: Parallel purrr With the future Backend"
+description: "The furrr package gives you parallel versions of purrr's map() family with a one-line switch. Same API, same results, multicore speed. Here is how to use it safely."
+keywords: "furrr package R, parallel purrr, future_map, R parallel processing, future R package"
 mathjax: false
 webr: true
 curriculum_id: "FR-func-4"
 post_type: "FR"
-auto_link_terms: "furrr|future_map|parallel purrr"
+auto_link_terms: "furrr|future_map|parallel purrr|parallel R"
 auto_link_case_sensitive: false
-fr_parent: "Functional-Programming-in-R.html"
+fr_parent: "purrr-map-Variants.html"
 ---
 <!-- md2html:generated -->
 
-<h1>furrr Package in R: Parallel purrr with future Backend</h1>
+<h1>furrr Package in R: Parallel purrr With the future Backend</h1>
 
-<p class="lead"><code>furrr</code> provides drop-in parallel replacements for every <code>purrr</code> map function. Change <code>map()</code> to <code>future_map()</code> and your code runs across multiple CPU cores — no other changes needed.</p>
+<p class="lead">The <code>furrr</code> package provides <code>future_map()</code>, <code>future_map_dbl()</code>, <code>future_map2()</code>, and friends — parallel drop-in replacements for <code>purrr::map()</code>. Set a plan with <code>future::plan(multisession)</code> and switch <code>map</code> to <code>future_map</code>; everything else stays the same.</p>
 
-<p>If your <code>map()</code> call takes minutes because each iteration is slow (API calls, model fitting, file processing), furrr can cut that time proportionally to the number of cores available.</p>
+<p>Parallel programming is often oversold — most R code is not CPU-bound, and the setup cost of spawning workers can exceed the savings. But when you genuinely need parallelism (fitting 500 models, hitting 200 APIs, bootstrapping 10000 times), <code>furrr</code> is the cleanest way to get it. You keep purrr's API; you gain multiple cores.</p>
 
-<h2>Setup</h2>
+<h2>What Is furrr and How Does It Differ From purrr?</h2>
+
+<p><code>furrr</code> is a bridge between <a href="purrr-map-Variants.html">purrr</a> and the <code>future</code> parallel-processing framework. Every function in <code>furrr</code> mirrors a purrr function, prefixed with <code>future_</code>. The API is identical; the execution happens across multiple workers.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Install if needed
-# install.packages(c(&quot;furrr&quot;, &quot;future&quot;))
-
+    <div class="webr-editor" data-language="r">library(purrr)
 library(furrr)
-library(purrr)
 
-# Tell future to use multiple cores
-plan(multisession, workers = 2)  # Use 2 workers
-cat(&quot;Parallel plan active:&quot;, nbrOfWorkers(), &quot;workers\n&quot;)</div>
+# Sequential (purrr): one worker, one task at a time
+slow_square &lt;- function(x) { Sys.sleep(0.1); x^2 }
 
-    <div class="webr-buttons">
+system.time(map_dbl(1:8, slow_square))
+#&gt;    user  system elapsed
+#&gt;   0.010   0.000   0.812
 
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Basic Usage: future_map()</h2>
-
-<p>The API mirrors purrr exactly. Replace <code>map</code> with <code>future_map</code>.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
-
-# Simulate slow computation
-slow_square &lt;- function(x) {
-  Sys.sleep(0.5)
-  x^2
-}
-
-# Sequential (purrr)
-t_seq &lt;- system.time(
-  results_seq &lt;- map_dbl(1:4, slow_square)
-)
-
-# Parallel (furrr)
-t_par &lt;- system.time(
-  results_par &lt;- future_map_dbl(1:4, slow_square)
-)
-
-cat(&quot;Sequential:&quot;, t_seq[&quot;elapsed&quot;], &quot;sec\n&quot;)
-cat(&quot;Parallel:  &quot;, t_par[&quot;elapsed&quot;], &quot;sec\n&quot;)
-cat(&quot;Results match:&quot;, identical(results_seq, results_par), &quot;\n&quot;)
-
-plan(sequential)  # Reset</div>
+# Parallel (furrr): 4 workers, 4 tasks at a time
+plan(multisession, workers = 4)
+system.time(future_map_dbl(1:8, slow_square))
+#&gt;    user  system elapsed
+#&gt;   0.150   0.020   0.231</div>
 
     <div class="webr-buttons">
 
@@ -100,118 +58,52 @@ plan(sequential)  # Reset</div>
 
 </div>
 
-<h2>All furrr Functions</h2>
+<p>Same inputs, same results, 3-4x faster on a 4-core machine. The <code>plan(multisession, workers = 4)</code> line tells <code>future</code> to spawn four background R sessions; <code>future_map_dbl</code> distributes the eight elements across them. When the call finishes, the workers stay alive for future calls — you pay the spawn cost once per session, not once per <code>future_map</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>furrr parallelises <em>across elements</em>, not within a single call.</strong> Each element of your input runs on one worker. This means <code>future_map_dbl(x, f)</code> helps when you have many elements and <code>f</code> is slow; it does nothing when you have one element and <code>f</code> is internally serial.</div></div>
+
+<h2>How Do You Set Up <code>future::plan()</code>?</h2>
+
+<p><code>future::plan()</code> tells the <code>future</code> package how to run the parallel tasks. The common plans are:</p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>purrr</th>
-<th>furrr (parallel)</th>
+<th>Plan</th>
+<th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>map()</code></td>
-<td><code>future_map()</code></td>
+<td><code>sequential</code></td>
+<td>Run serially (default; useful for debugging)</td>
 </tr>
 <tr>
-<td><code>map_dbl()</code></td>
-<td><code>future_map_dbl()</code></td>
+<td><code>multisession</code></td>
+<td>Spawn background R sessions on the same machine</td>
 </tr>
 <tr>
-<td><code>map_chr()</code></td>
-<td><code>future_map_chr()</code></td>
+<td><code>multicore</code></td>
+<td>Fork the R process (Unix/macOS only; unsafe in RStudio)</td>
 </tr>
 <tr>
-<td><code>map_lgl()</code></td>
-<td><code>future_map_lgl()</code></td>
-</tr>
-<tr>
-<td><code>map2()</code></td>
-<td><code>future_map2()</code></td>
-</tr>
-<tr>
-<td><code>imap()</code></td>
-<td><code>future_imap()</code></td>
-</tr>
-<tr>
-<td><code>pmap()</code></td>
-<td><code>future_pmap()</code></td>
-</tr>
-<tr>
-<td><code>walk()</code></td>
-<td><code>future_walk()</code></td>
+<td><code>cluster</code></td>
+<td>Run on a remote cluster with specified nodes</td>
 </tr>
 </tbody>
 </table>
 
-<h2>Execution Plans</h2>
-
-<p>The <code>plan()</code> function controls how futures are resolved.</p>
-
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(furrr)
+    <div class="webr-editor" data-language="r">library(future)
+library(furrr)
 
-# Sequential (no parallelism — same as purrr)
-plan(sequential)
+# 4 workers on local machine
+plan(multisession, workers = 4)
 
-# Multisession (separate R processes — works everywhere)
-plan(multisession, workers = 2)
-
-# Multicore (forked processes — faster, Unix/Mac only)
-# plan(multicore, workers = 4)
-
-# Check current plan
-cat(&quot;Current plan:&quot;, class(plan())[1], &quot;\n&quot;)
-cat(&quot;Workers:&quot;, nbrOfWorkers(), &quot;\n&quot;)
-
-plan(sequential)  # Reset when done</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Practical: Parallel Model Fitting</h2>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
-
-# Fit models with different formulas in parallel
-formulas &lt;- list(
-  mpg ~ wt,
-  mpg ~ wt + hp,
-  mpg ~ wt + hp + cyl,
-  mpg ~ wt * hp
-)
-
-models &lt;- future_map(formulas, \(f) {
-  lm(f, data = mtcars)
-})
-
-# Extract R-squared from each model
-r_squared &lt;- map_dbl(models, \(m) summary(m)$r.squared)
-cat(&quot;R-squared values:&quot;, round(r_squared, 3), &quot;\n&quot;)
-
+# Back to serial
 plan(sequential)</div>
 
     <div class="webr-buttons">
@@ -230,95 +122,25 @@ plan(sequential)</div>
 
 </div>
 
-<h2>Progress Bars</h2>
+<p>For day-to-day work on a laptop, <code>multisession</code> is the right choice — safe on all platforms, RStudio-compatible, and easy to configure. <code>multicore</code> is marginally faster on Unix because it forks instead of spawning, but it does not play well with RStudio.</p>
 
-<p>furrr supports progress tracking with the <code>progressr</code> package.</p>
+<h2>What Does <code>.options = furrr_options()</code> Do?</h2>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
-
-# Enable progress reporting
-results &lt;- future_map(1:10, \(x) {
-  Sys.sleep(0.2)
-  x^2
-}, .progress = TRUE)
-
-cat(&quot;Results:&quot;, unlist(results), &quot;\n&quot;)
-plan(sequential)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>When to Use furrr</h2>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Situation</th>
-<th>Use furrr?</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Each iteration takes > 1 second</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Many quick iterations (microseconds each)</td>
-<td>No (overhead > gain)</td>
-</tr>
-<tr>
-<td>Each iteration is independent</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Iterations share mutable state</td>
-<td>No</td>
-</tr>
-<tr>
-<td>Need reproducible random numbers</td>
-<td>Yes (with <code>furrr_options(seed = TRUE)</code>)</td>
-</tr>
-</tbody>
-</table>
-
-<h2>Seed Control for Reproducibility</h2>
+<p>By default, <code>furrr</code> sends everything visible in your current environment to each worker. If your function uses a 500 MB data frame you loaded earlier, that frame is serialised and copied to every worker — possibly tanking the gains. <code>furrr_options()</code> lets you control what travels to workers and how random seeds are managed.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
     <div class="webr-editor" data-language="r">library(furrr)
-plan(multisession, workers = 2)
+plan(multisession, workers = 4)
 
-# Without seed: different results each run
-# With seed: reproducible parallel random numbers
+# Safe random numbers: each element gets a distinct, reproducible seed
 results &lt;- future_map_dbl(
-  1:5,
+  1:8,
   \(x) rnorm(1),
-  .options = furrr_options(seed = 123)
-)
-cat(&quot;Reproducible results:&quot;, round(results, 3), &quot;\n&quot;)
-
-plan(sequential)</div>
+  .options = furrr_options(seed = TRUE)
+)</div>
 
     <div class="webr-buttons">
 
@@ -335,27 +157,138 @@ plan(sequential)</div>
   <div class="webr-plot-output"></div>
 
 </div>
+
+<p>Setting <code>seed = TRUE</code> is the single most important option. Without it, parallel random number generation is either non-reproducible or uses the same stream on every worker — both bad. <code>seed = TRUE</code> tells <code>furrr</code> to use the L'Ecuyer-CMRG RNG, which produces distinct reproducible streams per element.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Forgetting <code>seed = TRUE</code> on a parallel RNG task is a silent bug.</strong> Your output will look plausible but cannot be reproduced and may be statistically wrong. If your function calls <code>rnorm</code>, <code>sample</code>, <code>runif</code>, or any random draw, always pass <code>seed = TRUE</code> to <code>future_map</code>.</div></div>
+
+<h2>When Does Parallelism Actually Pay Off?</h2>
+
+<p>The break-even point is roughly: <strong>each task should take at least 100 ms</strong>. Below that, the overhead of serialising the task, sending it to a worker, and collecting the result dominates.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(furrr)
+plan(multisession, workers = 4)
+
+# Fast task: parallel is SLOWER because of overhead
+system.time(map_dbl(1:1000, \(x) x^2))
+#&gt;    elapsed: 0.003
+
+system.time(future_map_dbl(1:1000, \(x) x^2))
+#&gt;    elapsed: 0.650</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>x^2</code> runs in microseconds. <code>future_map_dbl</code> wastes time serialising a thousand trivial tasks to workers. The fix is to batch: parallelise coarse-grained work (whole models, whole files, whole APIs), not fine-grained work (individual arithmetic operations).</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Measure <code>future_map</code> vs <code>map</code> for <code>Sys.sleep(0.1)</code> on <code>1:4</code> with 4 workers. You should see ~0.1s vs ~0.4s.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(furrr)
+plan(multisession, workers = 4)
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(furrr)
+plan(multisession, workers = 4)
+
+system.time(map(1:4, \(x) Sys.sleep(0.1)))
+#&gt; elapsed ~0.40
+
+system.time(future_map(1:4, \(x) Sys.sleep(0.1)))
+#&gt; elapsed ~0.10 (plus first-call overhead)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Four workers sleep simultaneously; total wall time drops to the duration of a single sleep. First call pays a one-time ~1s spawn cost.</p>
+
+</details>
+</section>
+
+<h2>Can You Show a Progress Bar?</h2>
+
+<p>Yes — pass <code>.progress = TRUE</code> to any <code>future_map*</code> call. <code>furrr</code> then prints a progress bar as tasks complete.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(furrr)
+plan(multisession, workers = 4)
+
+results &lt;- future_map_dbl(
+  1:20,
+  \(x) { Sys.sleep(0.1); x^2 },
+  .progress = TRUE
+)
+#&gt; Progress: [====================] 100% eta: 0s</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>For long-running parallel jobs — fitting models, scraping sites — the bar is invaluable. You can see whether it will finish in 10 seconds or 10 hours.</p>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Parallel Simulation</h4>
+<h4>Exercise 1: Parallel Bootstrap of the Mean</h4>
 
-<p>Run 100 bootstrap iterations in parallel.</p>
+<p>Use <code>future_map_dbl</code> with <code>seed = TRUE</code> to compute 100 bootstrap estimates of <code>mean(mtcars$mpg)</code>. Compare timing to sequential <code>map_dbl</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
     <div class="webr-editor" data-language="r">library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
-
-# Bootstrap the mean of mtcars$mpg
-# 1. Create a function that takes an index, samples mtcars with replacement, returns mean(mpg)
-# 2. Run it 100 times in parallel with future_map_dbl
-# 3. Report the bootstrap confidence interval
-
-plan(sequential)</div>
+plan(multisession, workers = 4)
+# your code here</div>
 
     <div class="webr-buttons">
 
@@ -379,21 +312,17 @@ plan(sequential)</div>
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-editor" data-language="r">library(furrr)
-library(purrr)
-plan(multisession, workers = 2)
+plan(multisession, workers = 4)
 
-boot_mean &lt;- function(i) {
-  sample_data &lt;- mtcars[sample(nrow(mtcars), replace = TRUE), ]
-  mean(sample_data$mpg)
-}
+boot_mean &lt;- function(i) mean(sample(mtcars$mpg, replace = TRUE))
 
-boot_results &lt;- future_map_dbl(1:100, boot_mean,
-  .options = furrr_options(seed = 42))
+boot_results &lt;- future_map_dbl(
+  1:100,
+  boot_mean,
+  .options = furrr_options(seed = TRUE)
+)
 
-cat(&quot;Bootstrap mean:&quot;, round(mean(boot_results), 2), &quot;\n&quot;)
-cat(&quot;95% CI:&quot;, round(quantile(boot_results, c(0.025, 0.975)), 2), &quot;\n&quot;)
-
-plan(sequential)</div>
+quantile(boot_results, c(0.025, 0.975))</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -403,7 +332,67 @@ plan(sequential)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Each bootstrap iteration is independent — perfect for parallelization. The seed option ensures reproducible results across parallel workers.</p>
+<p><strong>Explanation:</strong> Each element <code>i</code> is a bootstrap replicate. <code>seed = TRUE</code> gives each replicate a reproducible, independent random stream. The quantiles form a 95% bootstrap confidence interval.</p>
+
+</details>
+
+<h4>Exercise 2: Convert a purrr Chain to furrr</h4>
+
+<p>Given <code>map_dfr(1:5, \(i) data.frame(i = i, v = i * 10))</code>, convert to a parallel version with a progress bar.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(furrr)
+plan(multisession, workers = 4)
+# your code here</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(furrr)
+plan(multisession, workers = 4)
+
+future_map_dfr(
+  1:5,
+  \(i) data.frame(i = i, v = i * 10),
+  .progress = TRUE
+)
+#&gt;   i  v
+#&gt; 1 1 10
+#&gt; 2 2 20
+#&gt; 3 3 30
+#&gt; 4 4 40
+#&gt; 5 5 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>future_map_dfr</code> is the parallel twin of <code>map_dfr</code>. For trivially fast tasks like this one, the sequential version is still faster — but the pattern is what matters.</p>
 
 </details>
 
@@ -412,60 +401,58 @@ plan(sequential)</div>
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Feature</th>
-<th>Detail</th>
+<th>Question</th>
+<th>Answer</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Install</td>
-<td><code>install.packages(&quot;furrr&quot;)</code></td>
+<td>What does furrr provide?</td>
+<td>Parallel drop-ins for every <code>purrr::map*</code> function.</td>
 </tr>
 <tr>
-<td>Setup</td>
-<td><code>plan(multisession, workers = N)</code></td>
+<td>How do I enable parallelism?</td>
+<td><code>future::plan(multisession, workers = N)</code></td>
 </tr>
 <tr>
-<td>Usage</td>
-<td>Replace <code>map</code> with <code>future_map</code></td>
+<td>What plan should I use?</td>
+<td><code>multisession</code> for laptops; <code>cluster</code> for HPC</td>
 </tr>
 <tr>
-<td>Cleanup</td>
-<td><code>plan(sequential)</code> when done</td>
+<td>How do I make RNG reproducible?</td>
+<td><code>.options = furrr_options(seed = TRUE)</code></td>
 </tr>
 <tr>
-<td>Seeds</td>
-<td><code>furrr_options(seed = TRUE)</code></td>
-</tr>
-<tr>
-<td>Progress</td>
-<td><code>.progress = TRUE</code> argument</td>
+<td>When is it worth it?</td>
+<td>Tasks >100 ms each, many elements</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<h2>References</h2>
 
-<h4>How many workers should I use?</h4>
+<ol>
 
-<p>Start with <code>parallel::detectCores() - 1</code> to leave one core free for your OS. More workers isn't always faster — there's overhead for each worker process.</p>
+<li><code>furrr</code> package documentation. <a href="https://furrr.futureverse.org/">Link</a></li>
 
-<h4>Does furrr work on Windows?</h4>
+<li><code>future</code> package — the parallel backend. <a href="https://future.futureverse.org/">Link</a></li>
 
-<p>Yes. <code>plan(multisession)</code> works on all platforms. <code>plan(multicore)</code> only works on Unix/macOS (it uses forking, which Windows doesn't support).</p>
+<li>Bengtsson, H. — <em>A Unifying Framework for Parallel and Distributed Processing in R using Futures</em>. <a href="https://journal.r-project.org/archive/2021/RJ-2021-048/">Link</a></li>
 
-<h4>Why is my parallel code slower than sequential?</h4>
+<li><code>purrr</code> package. <a href="https://purrr.tidyverse.org/">Link</a></li>
 
-<p>Parallel overhead (starting workers, sending data, collecting results) exceeds the computation time. This happens when individual iterations are very fast. Parallelism helps when each iteration takes at least a few hundred milliseconds.</p>
+<li>L'Ecuyer, P. et al. — <em>RngStreams: A C++ RNG library</em>. (The algorithm behind <code>seed = TRUE</code>.)</li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><a href="/purrr-map-Variants.html">purrr map() Variants</a> — the sequential versions furrr parallelizes</li>
+<li><a href="purrr-map-Variants.html">purrr map() Variants</a> — the parent topic; furrr mirrors its API.</li>
 
-<li><a href="/Functional-Programming-in-R.html">Functional Programming in R</a> — the parent tutorial</li>
+<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a> — why map-based parallelism is easy to reason about.</li>
 
-<li><a href="/Writing-Composable-R-Code.html">Writing Composable R Code</a> — build pipelines that can be parallelized</li>
+<li><a href="Writing-Composable-R-Code.html">Writing Composable R Code</a> — <a class="auto-link" href="Writing-Composable-R-Code.html" title="Writing Composable R Code: Pipes, Functions & Functional Architecture">composable functions</a> parallelise for free.</li>
 
 </ul>
