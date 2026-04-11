@@ -3,8 +3,8 @@
   <head>
     <title>Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Install and switch between multiple R versions on Windows, Mac, and Linux. Keep old projects working while using the latest R for new work.">
-    <meta name="Keywords" content="multiple R versions, R version manager, switch R versions, rig, installr, R side by side, R upgrade">
+    <meta name="Description" content="Install multiple R versions on one machine and switch between them cleanly using rig and renv. Keep projects isolated so old code and new code both keep working.">
+    <meta name="Keywords" content="multiple R versions, rig R, R version manager, switch R version, renv R version, install old R, R version management">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -114,14 +114,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)">
-    <meta property="og:description" content="Install and switch between multiple R versions on Windows, Mac, and Linux. Keep old projects working while using the latest R for new work.">
+    <meta property="og:description" content="Install multiple R versions on one machine and switch between them cleanly using rig and renv. Keep projects isolated so old code and new code both keep working.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Multiple-R-Versions.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Multiple-R-Versions.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)">
-    <meta name="twitter:description" content="Install and switch between multiple R versions on Windows, Mac, and Linux. Keep old projects working while using the latest R for new work.">
+    <meta name="twitter:description" content="Install multiple R versions on one machine and switch between them cleanly using rig and renv. Keep projects isolated so old code and new code both keep working.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Multiple-R-Versions.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -129,7 +129,7 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)",
-      "description": "Install and switch between multiple R versions on Windows, Mac, and Linux. Keep old projects working while using the latest R for new work.",
+      "description": "Install multiple R versions on one machine and switch between them cleanly using rig and renv. Keep projects isolated so old code and new code both keep working.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Multiple-R-Versions.html",
@@ -151,19 +151,7 @@
       ]
     }
     </script>
-        <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-      {"@type": "Question", "name": "Do I need to reinstall all packages when I upgrade R?", "acceptedAnswer": {"@type": "Answer", "text": "For minor upgrades (4.3.2 → 4.3.3): no, packages are compatible. For major upgrades (4.3 → 4.4): usually yes, especially packages that contain compiled C/C++ code. The safest approach is to save your package list, upgrade, and reinstall."}},
-      {"@type": "Question", "name": "Can RStudio use different R versions for different projects?", "acceptedAnswer": {"@type": "Answer", "text": "Not natively per-project, but with rig you can run rig rstudio 4.3 to open RStudio with a specific R version. Or use RStudio's global setting: Tools → Global Options → General → R version."}},
-      {"@type": "Question", "name": "What's the difference between rig and renv?", "acceptedAnswer": {"@type": "Answer", "text": "rig manages R versions (the engine). renv manages packages (the libraries). They work together: rig switches R versions, renv ensures each project has the right packages for its R version."}},
-      {"@type": "Question", "name": "Will my old scripts break on a new R version?", "acceptedAnswer": {"@type": "Answer", "text": "Usually no. R is very backwards-compatible. The most common breaking changes involve: (1) stringsAsFactors defaulting to FALSE in R 4.0, (2) new pipe |&gt; syntax in R 4.1, (3) changes in default random number generation. Check the R NEWS file for specific version changes."}},
-      {"@type": "Question", "name": "How do I check which R version a project was built with?", "acceptedAnswer": {"@type": "Answer", "text": "If the project uses renv, check renv.lock — it records the R version. Otherwise, look for sessionInfo() output in reports or README files."}}
-      ]
-    }
-    </script>
+    
     
     <!-- WebR Interactive R Code -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
@@ -629,32 +617,46 @@
 
 <h1>Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)</h1>
 
-<p class="lead">You can install multiple R versions on the same computer and switch between them. This lets you use the latest R for new projects while keeping an older version for existing work that depends on it.</p>
+<p class="lead">Installing a new R release should never break a project that depends on an old one. This guide shows you how to keep several R versions installed at the same time, switch between them per project, and avoid the three mistakes that usually cause silent breakage.</p>
 
-<p>A new R version comes out every April. You want the new features, but updating might break packages your current project relies on. The solution: install both versions and switch as needed.</p>
+<p>One day a collaborator sends a project that needs R 4.2 because a key package has not been rebuilt for R 4.4 yet. Your machine has R 4.4 as the default. You install R 4.2 next to it and, without a plan, you now have two R versions fighting over <code>PATH</code>, two library folders, and unpredictable package loading. The fix is to stop treating R as one installation and start treating it as a managed set of versions, with each project pinned to exactly one of them.</p>
 
-<h2>Why You'd Need Multiple R Versions</h2>
+<p><img src="screenshots/Multiple-R-Versions-rig.webp" alt="How rig manages multiple R versions" class="img-responsive" loading="lazy" /></p>
+
+<h2>Why do you need more than one R version installed?</h2>
+
+<p>There are three realistic reasons, and none of them are optional once you hit them.</p>
+
+<p><strong>Reproducibility.</strong> A paper, report or production pipeline that ran on R 4.1.3 last year should produce the same output this year. If you overwrite R 4.1.3 with 4.4.0, package loading can still succeed while numerical output subtly changes. A pinned R version removes that entire failure mode.</p>
+
+<p><strong>Package compatibility.</strong> <code>rstan</code>, some Bioconductor packages, and several niche GIS packages often lag behind the latest R release by months. A project that depends on them needs the last R version the binary was built for — not whatever is current.</p>
+
+<p><strong>Client and team constraints.</strong> A consulting client running R 4.2 on their server wants code you developed locally to behave identically. Matching their version locally prevents the "works on my machine" conversation.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The goal is not to run every R version. It is to be able to <em>match</em> any R version a project requires, without reinstalling your whole setup.</div></div>
+
+<h2>What is the easiest way to install and switch R versions?</h2>
+
+<p>The answer on Windows, macOS and Linux is the same tool: <strong>rig</strong>, the <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a> manager built by Posit. It installs multiple R versions into separate locations, exposes a single <code>rig</code> command to list, add, remove and set the default, and integrates with RStudio so each session knows which R it picked.</p>
+
+<p>Install rig once, then use it for every future R install.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">cat(&quot;Common scenarios:\n\n&quot;)
-cat(&quot;1. UPGRADE SAFETY\n&quot;)
-cat(&quot;   New R version released, but your thesis depends on R 4.3\n&quot;)
-cat(&quot;   → Keep 4.3 for the thesis, install 4.4 for new work\n\n&quot;)
+    <div class="webr-editor" data-language="r"># rig is a command-line tool installed OUTSIDE R.
+# Windows:  winget install Posit.rig
+# macOS:    brew install --cask rig
+# Linux:    see https://github.com/r-lib/rig for the .deb / .rpm
 
-cat(&quot;2. PACKAGE COMPATIBILITY\n&quot;)
-cat(&quot;   A critical package hasn't been updated for the latest R\n&quot;)
-cat(&quot;   → Run that package on the old R, everything else on new\n\n&quot;)
-
-cat(&quot;3. REPRODUCIBILITY\n&quot;)
-cat(&quot;   Reviewer asks you to verify results with the exact R version\n&quot;)
-cat(&quot;   → Install that specific version and re-run\n\n&quot;)
-
-cat(&quot;4. TEAM ALIGNMENT\n&quot;)
-cat(&quot;   Your team uses R 4.3, you have R 4.4\n&quot;)
-cat(&quot;   → Match their version to avoid 'works on my machine' bugs\n&quot;)</div>
+# From the terminal (not inside R):
+#   rig list            # show installed and available versions
+#   rig add release     # install the latest release
+#   rig add 4.2         # install the latest 4.2.x
+#   rig add oldrel/1    # install previous major
+#   rig default 4.4     # make 4.4 the default
+#   rig rm 4.1          # remove an old version</div>
 
     <div class="webr-buttons">
 
@@ -672,32 +674,17 @@ cat(&quot;   → Match their version to avoid 'works on my machine' bugs\n&quot;
 
 </div>
 
-<h2>How R Versions Coexist</h2>
-
-<p>On all operating systems, each R version installs to its own directory. They don't overwrite each other:</p>
+<p>Once rig is managing your installs, opening a new terminal and typing <code>R</code> launches the <em>default</em> version. To check which one is active from inside R:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">cat(&quot;=== Installation paths ===\n\n&quot;)
+    <div class="webr-editor" data-language="r">R.version.string
+#&gt; [1] &quot;R version 4.4.1 (2024-06-14 ucrt)&quot;
 
-cat(&quot;Windows:\n&quot;)
-cat(&quot;  C:/Program Files/R/R-4.3.3/\n&quot;)
-cat(&quot;  C:/Program Files/R/R-4.4.2/\n\n&quot;)
-
-cat(&quot;Mac:\n&quot;)
-cat(&quot;  /Library/Frameworks/R.framework/Versions/4.3-arm64/\n&quot;)
-cat(&quot;  /Library/Frameworks/R.framework/Versions/4.4-arm64/\n\n&quot;)
-
-cat(&quot;Linux (Ubuntu, with rig):\n&quot;)
-cat(&quot;  /opt/R/4.3.3/\n&quot;)
-cat(&quot;  /opt/R/4.4.2/\n\n&quot;)
-
-cat(&quot;Each version has its own:\n&quot;)
-cat(&quot;  - R executable\n&quot;)
-cat(&quot;  - Package library\n&quot;)
-cat(&quot;  - Configuration files\n&quot;)</div>
+# The path to the active R executable
+R.home()</div>
 
     <div class="webr-buttons">
 
@@ -715,54 +702,25 @@ cat(&quot;  - Configuration files\n&quot;)</div>
 
 </div>
 
-<h2>Method 1: rig — The Best Tool (All Platforms)</h2>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">On Windows, do not install R with the standard installer after installing rig. Always use <code>rig add</code>. Mixing the two creates parallel registries and rig will stop seeing some installs.</div></div>
 
-<p><strong>rig</strong> (<a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R Installation</a> Manager) is the modern way to manage R versions. It works on Windows, Mac, and Linux:</p>
+<h2>How do you switch R versions inside RStudio and VS Code?</h2>
 
-<pre><code># Install rig (one-time setup)
+<p>Switching globally with <code>rig default</code> is fine for a quick test. The version you actually care about is the one a specific <em>project</em> uses — and both RStudio and Positron/VS Code let you set that per project.</p>
 
-# Windows (PowerShell as admin):
-# winget install posit.rig
+<p><strong>RStudio.</strong> After running <code>rig add</code>, RStudio's launcher detects every installed R version on startup. In RStudio, go to <code>Tools → Global Options → General → Basic → R version</code> and pick the one you want. Hold Ctrl (or Cmd on macOS) while launching RStudio to get a version picker each time. The chosen version is remembered per project inside <code>.Rproj</code>.</p>
 
-# Mac (Homebrew):
-# brew tap r-lib/rig
-# brew install --cask rig
+<p><strong>Positron / VS Code.</strong> Open the command palette and search for <code>R: Select Interpreter</code>. Positron lists every R installation it can find, including the ones rig manages. Pick one, and the choice is saved in <code>.vscode/settings.json</code> for that project.</p>
 
-# Ubuntu/Debian:
-# curl -Ls https://github.com/r-lib/rig/releases/download/latest/rig-linux-latest.tar.gz |
-#   sudo tar xz -C /usr/local
-
-# After installing rig:
-rig list              # Show installed R versions
-rig add 4.3           # Install R 4.3.x
-rig add 4.4           # Install R 4.4.x
-rig default 4.4       # Set default version
-rig resolve 4.3       # Find exact version number</code></pre>
-
-<h4>Switching versions with rig</h4>
+<p><strong>From the terminal.</strong> If you just want a one-off session with a specific R version without changing the default:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">cat(&quot;=== rig commands ===\n\n&quot;)
-
-cat(&quot;rig list\n&quot;)
-cat(&quot;  Shows all installed R versions\n&quot;)
-cat(&quot;  * marks the default\n\n&quot;)
-
-cat(&quot;rig default 4.3\n&quot;)
-cat(&quot;  Sets R 4.3 as the default for new terminals\n\n&quot;)
-
-cat(&quot;rig rstudio 4.3\n&quot;)
-cat(&quot;  Opens RStudio using R 4.3 (instead of default)\n&quot;)
-cat(&quot;  This is the killer feature — project-specific R versions!\n\n&quot;)
-
-cat(&quot;rig add release\n&quot;)
-cat(&quot;  Installs the latest stable R release\n\n&quot;)
-
-cat(&quot;rig add devel\n&quot;)
-cat(&quot;  Installs the development version of R\n&quot;)</div>
+    <div class="webr-editor" data-language="r"># Terminal (not R):
+#   rig run 4.2 -- R        # launch R 4.2 interactively
+#   rig run 4.2 -- Rscript analysis.R</div>
 
     <div class="webr-buttons">
 
@@ -780,32 +738,28 @@ cat(&quot;  Installs the development version of R\n&quot;)</div>
 
 </div>
 
-<h2>Method 2: Windows — Side-by-Side Installation</h2>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The <code>rig default</code> command changes what <code>R</code> means in a fresh terminal. It does not retroactively change a running RStudio session. Close and reopen the IDE after switching defaults.</div></div>
 
-<p>On Windows, you can install multiple R versions without any special tools:</p>
+<h2>How does renv lock each project to its R version?</h2>
+
+<p>rig handles the <em>install</em> side. <code>renv</code> handles the <em>project</em> side. Together they give you a setup where opening any project puts you on exactly the R version and exactly the package versions that project was built with.</p>
+
+<p><img src="screenshots/Multiple-R-Versions-project.webp" alt="Per-project R version isolation" class="img-responsive" loading="lazy" /></p>
+
+<p>When you call <code>renv::init()</code> inside a project, renv records the current R version in <code>renv.lock</code> and writes a project-local library under <code>renv/library/</code>. Every time you open that project, renv's activation script checks that the running R matches the lockfile and warns you if it does not.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">cat(&quot;=== Windows: Manual side-by-side ===\n\n&quot;)
+    <div class="webr-editor" data-language="r"># Inside a fresh project, with the R version you want to pin already active:
+install.packages(&quot;renv&quot;)
+renv::init()
 
-cat(&quot;Step 1: Install R 4.3.3\n&quot;)
-cat(&quot;  Download from CRAN, install to default path\n&quot;)
-cat(&quot;  → C:/Program Files/R/R-4.3.3/\n\n&quot;)
-
-cat(&quot;Step 2: Install R 4.4.2\n&quot;)
-cat(&quot;  Download from CRAN, install to default path\n&quot;)
-cat(&quot;  → C:/Program Files/R/R-4.4.2/\n&quot;)
-cat(&quot;  Both versions now exist in C:/Program Files/R/\n\n&quot;)
-
-cat(&quot;Step 3: Switch in RStudio\n&quot;)
-cat(&quot;  Tools → Global Options → General → R version → Change\n&quot;)
-cat(&quot;  Select the version you want → Restart RStudio\n\n&quot;)
-
-cat(&quot;The installr package can automate upgrades:\n&quot;)
-cat(&quot;  install.packages('installr')\n&quot;)
-cat(&quot;  installr::updateR()  # Downloads and installs latest R\n&quot;)</div>
+# renv creates:
+#   renv.lock          JSON recording R version + every installed package
+#   renv/activate.R    auto-sourced by .Rprofile
+#   .Rprofile          one line: source(&quot;renv/activate.R&quot;)</div>
 
     <div class="webr-buttons">
 
@@ -823,29 +777,17 @@ cat(&quot;  installr::updateR()  # Downloads and installs latest R\n&quot;)</div
 
 </div>
 
-<h2>Method 3: Mac — Framework Versions</h2>
-
-<p>Mac's R installer places each version in a separate framework directory:</p>
+<p>Open <code>renv.lock</code> after init and you will see an <code>R</code> section near the top:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">cat(&quot;=== Mac: Side-by-side ===\n\n&quot;)
-
-cat(&quot;Step 1: Download both .pkg installers from CRAN\n&quot;)
-cat(&quot;Step 2: Install both — they go to separate directories\n\n&quot;)
-
-cat(&quot;Step 3: Switch in RStudio\n&quot;)
-cat(&quot;  RStudio → Preferences → General → R version → Change\n&quot;)
-cat(&quot;  Select the version you want → Restart RStudio\n\n&quot;)
-
-cat(&quot;Step 4: Switch on command line (optional)\n&quot;)
-cat(&quot;  # Create a symbolic link to switch the default:\n&quot;)
-cat(&quot;  sudo ln -sf /Library/Frameworks/R.framework/Versions/4.3-arm64 \\\n&quot;)
-cat(&quot;    /Library/Frameworks/R.framework/Versions/Current\n\n&quot;)
-
-cat(&quot;Recommended: Use rig instead — it handles all this automatically.\n&quot;)</div>
+    <div class="webr-editor" data-language="r"># Excerpt from renv.lock (this is JSON, not R):
+#   &quot;R&quot;: {
+#     &quot;Version&quot;: &quot;4.4.1&quot;,
+#     &quot;Repositories&quot;: [ { &quot;Name&quot;: &quot;CRAN&quot;, &quot;URL&quot;: &quot;https://cran.rstudio.com&quot; } ]
+#   }</div>
 
     <div class="webr-buttons">
 
@@ -863,30 +805,17 @@ cat(&quot;Recommended: Use rig instead — it handles all this automatically.\n&
 
 </div>
 
-<h2>Method 4: Linux — Multiple Installs with rig</h2>
-
-<p>On Linux, managing multiple R versions without rig requires manual compilation. With rig, it's simple:</p>
+<p>If you later open this project under R 4.2, renv prints a warning at session start telling you the R version does not match. That warning is your cue to <code>rig default 4.4</code> (or pick 4.4 in the IDE) and relaunch. To sync a collaborator's machine to your exact state:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">cat(&quot;=== Linux: rig is essential ===\n\n&quot;)
-
-cat(&quot;# Install multiple versions\n&quot;)
-cat(&quot;sudo rig add 4.3\n&quot;)
-cat(&quot;sudo rig add 4.4\n\n&quot;)
-
-cat(&quot;# Each version gets its own directory:\n&quot;)
-cat(&quot;# /opt/R/4.3.3/bin/R\n&quot;)
-cat(&quot;# /opt/R/4.4.2/bin/R\n\n&quot;)
-
-cat(&quot;# Switch default\n&quot;)
-cat(&quot;sudo rig default 4.4\n\n&quot;)
-
-cat(&quot;# Run a specific version directly\n&quot;)
-cat(&quot;R-4.3    # Runs R 4.3\n&quot;)
-cat(&quot;R-4.4    # Runs R 4.4\n&quot;)</div>
+    <div class="webr-editor" data-language="r"># A teammate clones the repo and opens the project:
+renv::restore()
+# renv reads renv.lock and installs every package at the recorded version
+# into the project-local library. It does NOT downgrade R itself —
+# that is rig's job, and renv only warns if the mismatch matters.</div>
 
     <div class="webr-buttons">
 
@@ -904,22 +833,26 @@ cat(&quot;R-4.4    # Runs R 4.4\n&quot;)</div>
 
 </div>
 
-<h2>Managing Package Libraries</h2>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Commit <code>renv.lock</code> and <code>.Rprofile</code> to git. Do not commit <code>renv/library/</code> — it is big, platform specific, and rebuildable from the lockfile with one <code>renv::restore()</code> call.</div></div>
 
-<p>Each R version has its own package library. When you switch versions, packages from one version aren't automatically available in the other:</p>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><code>renv::restore()</code> does not install R. It installs <em>packages</em> into the project library using whatever R is currently running. If you need a different R version, switch it with rig first, then run restore.</div></div>
+
+<h2>What are the biggest mistakes when switching R versions?</h2>
+
+<p>These are the ones that bite almost every person the first time they try to run multiple versions.</p>
+
+<p><strong>Mistake 1: Sharing one library folder across versions.</strong> R cannot load a package compiled against R 4.2 in an R 4.4 session — you will see <code>package &#x27;xyz&#x27; was installed before R 4.0.0: please re-install it</code> or segfaults. Every R version needs its own library. rig and renv both handle this for you *as long as you do not override <code>.libPaths()</code> manually in your <code>.Rprofile</code>*.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Check your current R version and library path
-cat(&quot;R version:&quot;, R.version.string, &quot;\n&quot;)
-cat(&quot;Library path:&quot;, .libPaths(), &quot;\n&quot;)
+    <div class="webr-editor" data-language="r"># Check where your current R is looking for packages:
+.libPaths()
 
-# See installed packages
-pkgs &lt;- installed.packages()
-cat(&quot;Installed packages:&quot;, nrow(pkgs), &quot;\n&quot;)
-cat(&quot;First 10:&quot;, head(rownames(pkgs), 10), &quot;\n&quot;)</div>
+# You should see a version-specific path like
+#   &quot;C:/Users/you/AppData/Local/R/win-library/4.4&quot;
+# NOT a generic path that is the same for every R version.</div>
 
     <div class="webr-buttons">
 
@@ -937,257 +870,30 @@ cat(&quot;First 10:&quot;, head(rownames(pkgs), 10), &quot;\n&quot;)</div>
 
 </div>
 
-<h4>Reinstalling packages after upgrading</h4>
+<p>**Mistake 2: Forgetting that <code>install.packages()</code> compiles for the <em>running</em> R.<em>* If you accidentally install a package under R 4.4, you cannot use that installed binary in R 4.2. Always launch the R version you intend to target </em>first*, then install.</p>
 
-<div class="webr-container">
+<p><strong>Mistake 3: Keeping too many old versions.</strong> Every extra R install is several hundred megabytes and another thing that can get out of date. Remove versions you no longer need with <code>rig rm 4.1</code>. You can always reinstall later.</p>
 
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">cat(&quot;=== Package migration strategies ===\n\n&quot;)
-
-cat(&quot;Strategy 1: Reinstall everything (cleanest)\n&quot;)
-cat(&quot;  # On the OLD version, save package list:\n&quot;)
-cat(&quot;  old_pkgs &lt;- installed.packages()[, 'Package']\n&quot;)
-cat(&quot;  saveRDS(old_pkgs, 'my_packages.rds')\n\n&quot;)
-cat(&quot;  # On the NEW version, reinstall:\n&quot;)
-cat(&quot;  old_pkgs &lt;- readRDS('my_packages.rds')\n&quot;)
-cat(&quot;  install.packages(old_pkgs)\n\n&quot;)
-
-cat(&quot;Strategy 2: Shared library (risky)\n&quot;)
-cat(&quot;  # Point both versions to the same library\n&quot;)
-cat(&quot;  # .libPaths('/path/to/shared/library')\n&quot;)
-cat(&quot;  # Warning: can cause compatibility issues\n\n&quot;)
-
-cat(&quot;Strategy 3: renv per project (recommended)\n&quot;)
-cat(&quot;  # Each project has its own package library\n&quot;)
-cat(&quot;  # renv::init() in each project\n&quot;)
-cat(&quot;  # Completely isolated — version switches are safe\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>renv: The Best Solution for Projects</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">cat(&quot;=== renv: Project-level package management ===\n\n&quot;)
-
-cat(&quot;# Initialize renv in a project:\n&quot;)
-cat(&quot;# renv::init()\n\n&quot;)
-
-cat(&quot;# renv creates a project-local library:\n&quot;)
-cat(&quot;# project/renv/library/R-4.3/...\n\n&quot;)
-
-cat(&quot;# Snapshot your packages:\n&quot;)
-cat(&quot;# renv::snapshot()  → saves to renv.lock\n\n&quot;)
-
-cat(&quot;# Restore on another machine (or after R upgrade):\n&quot;)
-cat(&quot;# renv::restore()   → installs exact package versions from renv.lock\n\n&quot;)
-
-cat(&quot;Benefits:\n&quot;)
-cat(&quot;  - Each project is isolated\n&quot;)
-cat(&quot;  - Switching R versions doesn't affect projects\n&quot;)
-cat(&quot;  - renv.lock is a reproducible recipe\n&quot;)
-cat(&quot;  - Collaborators get the exact same packages\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Checking Your R Version</h2>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Multiple ways to check which R you're running
-cat(&quot;R.version.string:&quot;, R.version.string, &quot;\n&quot;)
-cat(&quot;R.version$major:&quot;, R.version$major, &quot;\n&quot;)
-cat(&quot;R.version$minor:&quot;, R.version$minor, &quot;\n&quot;)
-
-# Check if a minimum version is met
-required &lt;- &quot;4.1.0&quot;
-current &lt;- paste(R.version$major, R.version$minor, sep = &quot;.&quot;)
-cat(&quot;\nCurrent version:&quot;, current, &quot;\n&quot;)
-cat(&quot;Required:&quot;, required, &quot;\n&quot;)
-cat(&quot;Meets requirement:&quot;, compareVersion(current, required) &gt;= 0, &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Useful for scripts that need a specific version
-check_r_version &lt;- function(min_version = &quot;4.1.0&quot;) {
-  current &lt;- paste(R.version$major, R.version$minor, sep = &quot;.&quot;)
-  if (compareVersion(current, min_version) &lt; 0) {
-    stop(paste(&quot;This script requires R &gt;=&quot;, min_version,
-               &quot;but you have R&quot;, current))
-  }
-  cat(&quot;R version check passed:&quot;, current, &quot;&gt;=&quot;, min_version, &quot;\n&quot;)
-}
-
-check_r_version(&quot;4.0.0&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>When to Upgrade R</h2>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">cat(&quot;=== R release cycle ===\n\n&quot;)
-
-cat(&quot;Major releases (4.x.0): Every April\n&quot;)
-cat(&quot;  - May contain breaking changes\n&quot;)
-cat(&quot;  - Packages may need updates\n&quot;)
-cat(&quot;  - Wait 2-4 weeks for package ecosystem to catch up\n\n&quot;)
-
-cat(&quot;Patch releases (4.x.y): Throughout the year\n&quot;)
-cat(&quot;  - Bug fixes only\n&quot;)
-cat(&quot;  - Safe to update immediately\n&quot;)
-cat(&quot;  - Packages remain compatible\n\n&quot;)
-
-cat(&quot;Recommendation:\n&quot;)
-cat(&quot;  1. Update patch releases immediately\n&quot;)
-cat(&quot;  2. Wait 2-4 weeks after major releases\n&quot;)
-cat(&quot;  3. Keep the old version until your key packages work on the new one\n&quot;)
-cat(&quot;  4. Use renv for projects that must be reproducible\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Treat R versions the way you treat branches in git: keep a small set that matches real work, and delete the rest without ceremony.</div></div>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Version Check Script</h4>
+<p>Work through these in a fresh terminal. Each one should take less than five minutes.</p>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: Write a function that:
-# 1. Prints the current R version
-# 2. Checks if the native pipe |&gt; is available (requires R &gt;= 4.1)
-# 3. Checks if the lambda syntax \(x) is available (requires R &gt;= 4.1)
-# 4. Reports which features are available
-
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
+<p><strong>Exercise 1.</strong> Install rig on your system and list every R version it currently sees. If the list is empty, add the latest release and the latest previous major.</p>
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-check_features &lt;- function() {
-  ver &lt;- paste(R.version$major, R.version$minor, sep = &quot;.&quot;)
-  cat(&quot;R version:&quot;, ver, &quot;\n\n&quot;)
-
-  # Native pipe |&gt; (R 4.1+)
-  has_pipe &lt;- compareVersion(ver, &quot;4.1.0&quot;) &gt;= 0
-  cat(&quot;Native pipe |&gt;:&quot;, if (has_pipe) &quot;Available&quot; else &quot;Not available&quot;, &quot;\n&quot;)
-
-  # Lambda \(x) syntax (R 4.1+)
-  has_lambda &lt;- compareVersion(ver, &quot;4.1.0&quot;) &gt;= 0
-  cat(&quot;Lambda \\(x):&quot;, if (has_lambda) &quot;Available&quot; else &quot;Not available&quot;, &quot;\n&quot;)
-
-  # Underscore placeholder _ (R 4.2+)
-  has_placeholder &lt;- compareVersion(ver, &quot;4.2.0&quot;) &gt;= 0
-  cat(&quot;Pipe placeholder _:&quot;, if (has_placeholder) &quot;Available&quot; else &quot;Not available&quot;, &quot;\n&quot;)
-
-  # Raw string literals r&quot;(...)&quot; (R 4.0+)
-  has_raw_string &lt;- compareVersion(ver, &quot;4.0.0&quot;) &gt;= 0
-  cat(&quot;Raw strings r\&quot;(...)\&quot;:&quot;, if (has_raw_string) &quot;Available&quot; else &quot;Not available&quot;, &quot;\n&quot;)
-}
-
-check_features()</div>
+    <div class="webr-editor" data-language="r"># Terminal:
+#   rig list
+#   rig add release
+#   rig add oldrel/1
+#   rig list
+#
+# After this, `rig list` should show two entries, one marked (default).</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1196,73 +902,23 @@ check_features()</div>
   </div>
   <div class="webr-plot-output"></div>
 </div>
-
-<p><strong>Explanation:</strong> <code>compareVersion()</code> compares version strings correctly (it knows "4.10" > "4.9"). Each R feature was introduced in a specific version — this function checks which ones are available in your current installation.</p>
 
 </details>
 
-<h4>Exercise 2: Package Inventory</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: Write a script that creates a &quot;package backup&quot; — a data frame
-# listing all installed packages with their versions and source (CRAN/other).
-# This is what you'd save before upgrading R.
-
-# Write your code below:
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
+<p><strong>Exercise 2.</strong> Create a throwaway project, switch to your non-default R version for that project only, and verify inside R that <code>R.version.string</code> reports the version you expect.</p>
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution
-pkg_info &lt;- installed.packages()
+    <div class="webr-editor" data-language="r"># Terminal:
+#   mkdir r-version-test &amp;&amp; cd r-version-test
+#   rig run oldrel/1 -- R
 
-backup &lt;- data.frame(
-  package = pkg_info[, &quot;Package&quot;],
-  version = pkg_info[, &quot;Version&quot;],
-  priority = pkg_info[, &quot;Priority&quot;],
-  stringsAsFactors = FALSE
-)
-
-# Separate base/recommended from user-installed
-backup$type &lt;- ifelse(
-  is.na(backup$priority), &quot;user-installed&quot;,
-  backup$priority
-)
-
-cat(&quot;Package inventory:\n&quot;)
-cat(&quot;  Base packages:&quot;, sum(backup$type == &quot;base&quot;), &quot;\n&quot;)
-cat(&quot;  Recommended:&quot;, sum(backup$type == &quot;recommended&quot;), &quot;\n&quot;)
-cat(&quot;  User-installed:&quot;, sum(backup$type == &quot;user-installed&quot;), &quot;\n&quot;)
-cat(&quot;  Total:&quot;, nrow(backup), &quot;\n\n&quot;)
-
-# Show user-installed packages (these need reinstalling after upgrade)
-user_pkgs &lt;- backup[backup$type == &quot;user-installed&quot;, ]
-cat(&quot;User-installed packages (first 15):\n&quot;)
-print(head(user_pkgs[, c(&quot;package&quot;, &quot;version&quot;)], 15))
-
-# To save: saveRDS(user_pkgs$package, &quot;my_packages.rds&quot;)</div>
+# Inside that R session:
+R.version.string
+# Should report the oldrel version, not your default.</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1272,94 +928,121 @@ print(head(user_pkgs[, c(&quot;package&quot;, &quot;version&quot;)], 15))
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>installed.packages()</code> returns a matrix with all package metadata. Base and recommended packages come with R — you only need to reinstall "user-installed" ones after upgrading. Saving this list before upgrading lets you restore your setup quickly.</p>
+</details>
+
+<p><strong>Exercise 3.</strong> Inside a new project on your default R version, run <code>renv::init()</code>, then open <code>renv.lock</code> in a text editor and locate the <code>R.Version</code> field. Confirm it matches <code>R.version.string</code> from the same session.</p>
+
+<details>
+<summary>Solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">install.packages(&quot;renv&quot;)
+renv::init()
+R.version.string
+
+# Open renv.lock — the &quot;R&quot; -&gt; &quot;Version&quot; field at the top should
+# match the major.minor.patch from R.version.string.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
 </details>
+
+<h2>Complete example: pinning a real project to an older R version</h2>
+
+<p>Here is the end-to-end workflow for a project that must run on R 4.2 even though your default is R 4.4.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Step 1 (terminal): make sure R 4.2 is installed.
+#   rig list
+#   rig add 4.2     # if not already present
+
+# Step 2 (terminal): launch RStudio with R 4.2 active,
+# or open Positron and use &quot;R: Select Interpreter&quot; to pick 4.2.
+
+# Step 3 (inside that R 4.2 session): create the project.
+setwd(&quot;~/projects/legacy-report&quot;)
+install.packages(&quot;renv&quot;)
+renv::init()
+
+# renv records R 4.2.x in renv.lock.
+
+# Step 4: install the packages the project actually needs.
+install.packages(c(&quot;dplyr&quot;, &quot;ggplot2&quot;))
+
+# Step 5: snapshot so the lockfile reflects the exact versions installed.
+renv::snapshot()
+
+# Step 6: commit renv.lock, .Rprofile, and renv/activate.R to git.
+# Do NOT commit renv/library/.
+
+# Result: on any machine with rig + R 4.2 installed,
+# `renv::restore()` will rebuild the exact environment —
+# and renv will warn loudly if someone opens the project under a different R.</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
 
 <h2>Summary</h2>
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Method</th>
-<th>Platform</th>
-<th>Best for</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>rig</strong></td>
-<td>All</td>
-<td>Modern, recommended approach</td>
-</tr>
-<tr>
-<td>Manual side-by-side</td>
-<td>Windows</td>
-<td>Simple, no extra tools</td>
-</tr>
-<tr>
-<td>RStudio version selector</td>
-<td>All</td>
-<td>Quick switching without terminal</td>
-</tr>
-<tr>
-<td><strong>renv</strong></td>
-<td>All</td>
-<td>Project-level package isolation</td>
-</tr>
-</tbody>
-</table>
+<ul>
 
-<p><strong>The recommended workflow:</strong></p>
+<li>Use <strong>rig</strong> as your only installer for R. It handles multiple versions cleanly on Windows, macOS and Linux.</li>
 
-<ol>
+<li><code>rig default &lt;ver&gt;</code> switches the global default; RStudio and Positron let you override per project.</li>
 
-<li>Install <strong>rig</strong> for managing R versions</li>
+<li>Use <strong>renv</strong> inside each project to lock the R version and package versions into <code>renv.lock</code>.</li>
 
-<li>Use <strong>renv</strong> for project-level package isolation</li>
+<li>Never share a library folder across R versions — let rig and renv manage library paths.</li>
 
-<li>Keep one version behind for critical projects</li>
+<li>Remove unused R versions with <code>rig rm</code>. You can always reinstall with <code>rig add</code>.</li>
 
-<li>Wait 2-4 weeks after major releases before upgrading</li>
+</ul>
 
-</ol>
+<h2>References</h2>
 
-<h2>FAQ</h2>
+<ul>
 
-<h4>Do I need to reinstall all packages when I upgrade R?</h4>
+<li><a href="https://github.com/r-lib/rig">rig on GitHub</a> — official documentation</li>
 
-<p>For <strong>minor</strong> upgrades (4.3.2 → 4.3.3): no, packages are compatible. For <strong>major</strong> upgrades (4.3 → 4.4): usually yes, especially packages that contain compiled C/C++ code. The safest approach is to save your package list, upgrade, and reinstall.</p>
+<li><a href="https://rstudio.github.io/renv/">renv package site</a></li>
 
-<h4>Can RStudio use different R versions for different projects?</h4>
+<li><a href="https://posit.co/blog/rig-the-r-installation-manager/">Posit support: Using rig</a></li>
 
-<p>Not natively per-project, but with <strong>rig</strong> you can run <code>rig rstudio 4.3</code> to open RStudio with a specific R version. Or use RStudio's global setting: <strong>Tools → Global Options → General → R version</strong>.</p>
-
-<h4>What's the difference between rig and renv?</h4>
-
-<p><strong>rig</strong> manages R versions (the engine). <strong>renv</strong> manages packages (the libraries). They work together: rig switches R versions, renv ensures each project has the right packages for its R version.</p>
-
-<h4>Will my old scripts break on a new R version?</h4>
-
-<p>Usually no. R is very backwards-compatible. The most common breaking changes involve: (1) <code>stringsAsFactors</code> defaulting to FALSE in R 4.0, (2) new pipe <code>|&gt;</code> syntax in R 4.1, (3) changes in default random number generation. Check the R NEWS file for specific version changes.</p>
-
-<h4>How do I check which R version a project was built with?</h4>
-
-<p>If the project uses renv, check <code>renv.lock</code> — it records the R version. Otherwise, look for <code>sessionInfo()</code> output in reports or README files.</p>
+</ul>
 
 <h2>Continue Learning</h2>
 
-<p>Version management is part of the broader reproducibility toolkit:</p>
+<ul>
 
-<ol>
+<li><a href="Install-R-and-RStudio-2026.html">Install R and RStudio — The Setup That Actually Works First Time</a></li>
 
-<li><strong><a class="auto-link" href="Positron-vs-RStudio.html" title="Positron vs RStudio in 2026: Should You Switch? A Feature-by-Feature Verdict">Positron vs RStudio</a></strong> — the new IDE alternative</li>
+<li><a href="R-Project-Structure.html">R Project Structure: The Setup That Eliminates setwd() Forever</a></li>
 
-<li><strong><a class="auto-link" href="R-Project-Structure.html" title="R Project Structure: The Setup That Eliminates setwd() Forever">R Project</a> Structure</strong> — organize your R projects properly</li>
-
-<li><strong>renv and Reproducibility</strong> — lock down package versions for <a class="auto-link" href="Reproducibility-Crisis.html" title="Reproducibility Crisis: What It Means for R Users & How to Help Fix It">reproducible research</a></li>
-
-</ol>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Functions-Exercises.html"><span class="rt-title">R Functions Exercises: 10 Problems — Write, Debug &amp; Optimize Functions — Solved Step-by-Step</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a><a class="rt-card" href="R-Copy-on-Modify.html"><span class="rt-title">Why R Copies Your Data: Copy-on-Modify Explained</span><span class="rt-meta">3 min read</span></a><a class="rt-card" href="R-Matrices.html"><span class="rt-title">R Matrices: Fast Linear Algebra Data Frames Can't Do</span><span class="rt-meta">Learn R &middot; 3 min read</span></a><a class="rt-card" href="Install-R-and-RStudio-2026.html"><span class="rt-title">Install R &amp; RStudio in 2026: The Setup That Actually Works First Time</span><span class="rt-meta">Learn R &middot; 8 min read</span></a></div></section>
+</ul>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Vectors-Exercises.html"><span class="rt-title">R Vectors Exercises: 12 Hands-On Problems with Step-by-Step Answers</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a><a class="rt-card" href="R-Syntax-101.html"><span class="rt-title">R Syntax 101: Write Your First Working Script in 10 Minutes</span><span class="rt-meta">Learn R &middot; 10 min read</span></a><a class="rt-card" href="Getting-Help-in-R.html"><span class="rt-title">Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours</span><span class="rt-meta">Learn R &middot; 6 min read</span></a><a class="rt-card" href="R-Data-Frames-Exercises.html"><span class="rt-title">R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced — Solved Step-by-Step)</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a></div></section>
 
         </div>
 

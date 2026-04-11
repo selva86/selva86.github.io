@@ -1,442 +1,261 @@
 ---
 title: "Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)"
-slug: "Multiple-R-Versions"
-description: "Install and switch between multiple R versions on Windows, Mac, and Linux. Keep old projects working while using the latest R for new work."
-keywords: "multiple R versions, R version manager, switch R versions, rig, installr, R side by side, R upgrade"
+slug: Multiple-R-Versions
+description: "Install multiple R versions on one machine and switch between them cleanly using rig and renv. Keep projects isolated so old code and new code both keep working."
+keywords: "multiple R versions, rig R, R version manager, switch R version, renv R version, install old R, R version management"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-11"
 curriculum_id: "FR-fund-8"
 post_type: "FR"
-auto_link_terms: "multiple R versions|R version manager|switch R versions"
-auto_link_case_sensitive: false
 fr_parent: "Install-R-and-RStudio-2026.html"
+auto_link_terms: "rig|R version manager|renv|multiple R versions"
+auto_link_case_sensitive: false
 ---
 
 # Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)
 
-<p class="lead">You can install multiple R versions on the same computer and switch between them. This lets you use the latest R for new projects while keeping an older version for existing work that depends on it.</p>
+<p class="lead">Installing a new R release should never break a project that depends on an old one. This guide shows you how to keep several R versions installed at the same time, switch between them per project, and avoid the three mistakes that usually cause silent breakage.</p>
 
-A new R version comes out every April. You want the new features, but updating might break packages your current project relies on. The solution: install both versions and switch as needed.
+One day a collaborator sends a project that needs R 4.2 because a key package has not been rebuilt for R 4.4 yet. Your machine has R 4.4 as the default. You install R 4.2 next to it and, without a plan, you now have two R versions fighting over `PATH`, two library folders, and unpredictable package loading. The fix is to stop treating R as one installation and start treating it as a managed set of versions, with each project pinned to exactly one of them.
 
-## Why You'd Need Multiple R Versions
+![How rig manages multiple R versions](screenshots/Multiple-R-Versions-rig.webp)
 
-```r
-cat("Common scenarios:\n\n")
-cat("1. UPGRADE SAFETY\n")
-cat("   New R version released, but your thesis depends on R 4.3\n")
-cat("   → Keep 4.3 for the thesis, install 4.4 for new work\n\n")
+## Why do you need more than one R version installed?
 
-cat("2. PACKAGE COMPATIBILITY\n")
-cat("   A critical package hasn't been updated for the latest R\n")
-cat("   → Run that package on the old R, everything else on new\n\n")
+There are three realistic reasons, and none of them are optional once you hit them.
 
-cat("3. REPRODUCIBILITY\n")
-cat("   Reviewer asks you to verify results with the exact R version\n")
-cat("   → Install that specific version and re-run\n\n")
+**Reproducibility.** A paper, report or production pipeline that ran on R 4.1.3 last year should produce the same output this year. If you overwrite R 4.1.3 with 4.4.0, package loading can still succeed while numerical output subtly changes. A pinned R version removes that entire failure mode.
 
-cat("4. TEAM ALIGNMENT\n")
-cat("   Your team uses R 4.3, you have R 4.4\n")
-cat("   → Match their version to avoid 'works on my machine' bugs\n")
-```
+**Package compatibility.** `rstan`, some Bioconductor packages, and several niche GIS packages often lag behind the latest R release by months. A project that depends on them needs the last R version the binary was built for — not whatever is current.
 
-## How R Versions Coexist
+**Client and team constraints.** A consulting client running R 4.2 on their server wants code you developed locally to behave identically. Matching their version locally prevents the "works on my machine" conversation.
 
-On all operating systems, each R version installs to its own directory. They don't overwrite each other:
+[KEY INSIGHT]
+The goal is not to run every R version. It is to be able to *match* any R version a project requires, without reinstalling your whole setup.
+
+## What is the easiest way to install and switch R versions?
+
+The answer on Windows, macOS and Linux is the same tool: **rig**, the R installation manager built by Posit. It installs multiple R versions into separate locations, exposes a single `rig` command to list, add, remove and set the default, and integrates with RStudio so each session knows which R it picked.
+
+Install rig once, then use it for every future R install.
 
 ```r
-cat("=== Installation paths ===\n\n")
+# rig is a command-line tool installed OUTSIDE R.
+# Windows:  winget install Posit.rig
+# macOS:    brew install --cask rig
+# Linux:    see https://github.com/r-lib/rig for the .deb / .rpm
 
-cat("Windows:\n")
-cat("  C:/Program Files/R/R-4.3.3/\n")
-cat("  C:/Program Files/R/R-4.4.2/\n\n")
-
-cat("Mac:\n")
-cat("  /Library/Frameworks/R.framework/Versions/4.3-arm64/\n")
-cat("  /Library/Frameworks/R.framework/Versions/4.4-arm64/\n\n")
-
-cat("Linux (Ubuntu, with rig):\n")
-cat("  /opt/R/4.3.3/\n")
-cat("  /opt/R/4.4.2/\n\n")
-
-cat("Each version has its own:\n")
-cat("  - R executable\n")
-cat("  - Package library\n")
-cat("  - Configuration files\n")
+# From the terminal (not inside R):
+#   rig list            # show installed and available versions
+#   rig add release     # install the latest release
+#   rig add 4.2         # install the latest 4.2.x
+#   rig add oldrel/1    # install previous major
+#   rig default 4.4     # make 4.4 the default
+#   rig rm 4.1          # remove an old version
 ```
 
-## Method 1: rig — The Best Tool (All Platforms)
-
-**rig** (R Installation Manager) is the modern way to manage R versions. It works on Windows, Mac, and Linux:
-
-```
-# Install rig (one-time setup)
-
-# Windows (PowerShell as admin):
-# winget install posit.rig
-
-# Mac (Homebrew):
-# brew tap r-lib/rig
-# brew install --cask rig
-
-# Ubuntu/Debian:
-# curl -Ls https://github.com/r-lib/rig/releases/download/latest/rig-linux-latest.tar.gz |
-#   sudo tar xz -C /usr/local
-
-# After installing rig:
-rig list              # Show installed R versions
-rig add 4.3           # Install R 4.3.x
-rig add 4.4           # Install R 4.4.x
-rig default 4.4       # Set default version
-rig resolve 4.3       # Find exact version number
-```
-
-### Switching versions with rig
+Once rig is managing your installs, opening a new terminal and typing `R` launches the *default* version. To check which one is active from inside R:
 
 ```r
-cat("=== rig commands ===\n\n")
+R.version.string
+#> [1] "R version 4.4.1 (2024-06-14 ucrt)"
 
-cat("rig list\n")
-cat("  Shows all installed R versions\n")
-cat("  * marks the default\n\n")
-
-cat("rig default 4.3\n")
-cat("  Sets R 4.3 as the default for new terminals\n\n")
-
-cat("rig rstudio 4.3\n")
-cat("  Opens RStudio using R 4.3 (instead of default)\n")
-cat("  This is the killer feature — project-specific R versions!\n\n")
-
-cat("rig add release\n")
-cat("  Installs the latest stable R release\n\n")
-
-cat("rig add devel\n")
-cat("  Installs the development version of R\n")
+# The path to the active R executable
+R.home()
 ```
 
-## Method 2: Windows — Side-by-Side Installation
+[TIP]
+On Windows, do not install R with the standard installer after installing rig. Always use `rig add`. Mixing the two creates parallel registries and rig will stop seeing some installs.
 
-On Windows, you can install multiple R versions without any special tools:
+## How do you switch R versions inside RStudio and VS Code?
+
+Switching globally with `rig default` is fine for a quick test. The version you actually care about is the one a specific *project* uses — and both RStudio and Positron/VS Code let you set that per project.
+
+**RStudio.** After running `rig add`, RStudio's launcher detects every installed R version on startup. In RStudio, go to `Tools → Global Options → General → Basic → R version` and pick the one you want. Hold Ctrl (or Cmd on macOS) while launching RStudio to get a version picker each time. The chosen version is remembered per project inside `.Rproj`.
+
+**Positron / VS Code.** Open the command palette and search for `R: Select Interpreter`. Positron lists every R installation it can find, including the ones rig manages. Pick one, and the choice is saved in `.vscode/settings.json` for that project.
+
+**From the terminal.** If you just want a one-off session with a specific R version without changing the default:
 
 ```r
-cat("=== Windows: Manual side-by-side ===\n\n")
-
-cat("Step 1: Install R 4.3.3\n")
-cat("  Download from CRAN, install to default path\n")
-cat("  → C:/Program Files/R/R-4.3.3/\n\n")
-
-cat("Step 2: Install R 4.4.2\n")
-cat("  Download from CRAN, install to default path\n")
-cat("  → C:/Program Files/R/R-4.4.2/\n")
-cat("  Both versions now exist in C:/Program Files/R/\n\n")
-
-cat("Step 3: Switch in RStudio\n")
-cat("  Tools → Global Options → General → R version → Change\n")
-cat("  Select the version you want → Restart RStudio\n\n")
-
-cat("The installr package can automate upgrades:\n")
-cat("  install.packages('installr')\n")
-cat("  installr::updateR()  # Downloads and installs latest R\n")
+# Terminal (not R):
+#   rig run 4.2 -- R        # launch R 4.2 interactively
+#   rig run 4.2 -- Rscript analysis.R
 ```
 
-## Method 3: Mac — Framework Versions
+[NOTE]
+The `rig default` command changes what `R` means in a fresh terminal. It does not retroactively change a running RStudio session. Close and reopen the IDE after switching defaults.
 
-Mac's R installer places each version in a separate framework directory:
+## How does renv lock each project to its R version?
+
+rig handles the *install* side. `renv` handles the *project* side. Together they give you a setup where opening any project puts you on exactly the R version and exactly the package versions that project was built with.
+
+![Per-project R version isolation](screenshots/Multiple-R-Versions-project.webp)
+
+When you call `renv::init()` inside a project, renv records the current R version in `renv.lock` and writes a project-local library under `renv/library/`. Every time you open that project, renv's activation script checks that the running R matches the lockfile and warns you if it does not.
 
 ```r
-cat("=== Mac: Side-by-side ===\n\n")
+# Inside a fresh project, with the R version you want to pin already active:
+install.packages("renv")
+renv::init()
 
-cat("Step 1: Download both .pkg installers from CRAN\n")
-cat("Step 2: Install both — they go to separate directories\n\n")
-
-cat("Step 3: Switch in RStudio\n")
-cat("  RStudio → Preferences → General → R version → Change\n")
-cat("  Select the version you want → Restart RStudio\n\n")
-
-cat("Step 4: Switch on command line (optional)\n")
-cat("  # Create a symbolic link to switch the default:\n")
-cat("  sudo ln -sf /Library/Frameworks/R.framework/Versions/4.3-arm64 \\\n")
-cat("    /Library/Frameworks/R.framework/Versions/Current\n\n")
-
-cat("Recommended: Use rig instead — it handles all this automatically.\n")
+# renv creates:
+#   renv.lock          JSON recording R version + every installed package
+#   renv/activate.R    auto-sourced by .Rprofile
+#   .Rprofile          one line: source("renv/activate.R")
 ```
 
-## Method 4: Linux — Multiple Installs with rig
-
-On Linux, managing multiple R versions without rig requires manual compilation. With rig, it's simple:
+Open `renv.lock` after init and you will see an `R` section near the top:
 
 ```r
-cat("=== Linux: rig is essential ===\n\n")
-
-cat("# Install multiple versions\n")
-cat("sudo rig add 4.3\n")
-cat("sudo rig add 4.4\n\n")
-
-cat("# Each version gets its own directory:\n")
-cat("# /opt/R/4.3.3/bin/R\n")
-cat("# /opt/R/4.4.2/bin/R\n\n")
-
-cat("# Switch default\n")
-cat("sudo rig default 4.4\n\n")
-
-cat("# Run a specific version directly\n")
-cat("R-4.3    # Runs R 4.3\n")
-cat("R-4.4    # Runs R 4.4\n")
+# Excerpt from renv.lock (this is JSON, not R):
+#   "R": {
+#     "Version": "4.4.1",
+#     "Repositories": [ { "Name": "CRAN", "URL": "https://cran.rstudio.com" } ]
+#   }
 ```
 
-## Managing Package Libraries
-
-Each R version has its own package library. When you switch versions, packages from one version aren't automatically available in the other:
+If you later open this project under R 4.2, renv prints a warning at session start telling you the R version does not match. That warning is your cue to `rig default 4.4` (or pick 4.4 in the IDE) and relaunch. To sync a collaborator's machine to your exact state:
 
 ```r
-# Check your current R version and library path
-cat("R version:", R.version.string, "\n")
-cat("Library path:", .libPaths(), "\n")
-
-# See installed packages
-pkgs <- installed.packages()
-cat("Installed packages:", nrow(pkgs), "\n")
-cat("First 10:", head(rownames(pkgs), 10), "\n")
+# A teammate clones the repo and opens the project:
+renv::restore()
+# renv reads renv.lock and installs every package at the recorded version
+# into the project-local library. It does NOT downgrade R itself —
+# that is rig's job, and renv only warns if the mismatch matters.
 ```
 
-### Reinstalling packages after upgrading
+[TIP]
+Commit `renv.lock` and `.Rprofile` to git. Do not commit `renv/library/` — it is big, platform specific, and rebuildable from the lockfile with one `renv::restore()` call.
+
+[WARNING]
+`renv::restore()` does not install R. It installs *packages* into the project library using whatever R is currently running. If you need a different R version, switch it with rig first, then run restore.
+
+## What are the biggest mistakes when switching R versions?
+
+These are the ones that bite almost every person the first time they try to run multiple versions.
+
+**Mistake 1: Sharing one library folder across versions.** R cannot load a package compiled against R 4.2 in an R 4.4 session — you will see `package 'xyz' was installed before R 4.0.0: please re-install it` or segfaults. Every R version needs its own library. rig and renv both handle this for you *as long as you do not override `.libPaths()` manually in your `.Rprofile`*.
 
 ```r
-cat("=== Package migration strategies ===\n\n")
+# Check where your current R is looking for packages:
+.libPaths()
 
-cat("Strategy 1: Reinstall everything (cleanest)\n")
-cat("  # On the OLD version, save package list:\n")
-cat("  old_pkgs <- installed.packages()[, 'Package']\n")
-cat("  saveRDS(old_pkgs, 'my_packages.rds')\n\n")
-cat("  # On the NEW version, reinstall:\n")
-cat("  old_pkgs <- readRDS('my_packages.rds')\n")
-cat("  install.packages(old_pkgs)\n\n")
-
-cat("Strategy 2: Shared library (risky)\n")
-cat("  # Point both versions to the same library\n")
-cat("  # .libPaths('/path/to/shared/library')\n")
-cat("  # Warning: can cause compatibility issues\n\n")
-
-cat("Strategy 3: renv per project (recommended)\n")
-cat("  # Each project has its own package library\n")
-cat("  # renv::init() in each project\n")
-cat("  # Completely isolated — version switches are safe\n")
+# You should see a version-specific path like
+#   "C:/Users/you/AppData/Local/R/win-library/4.4"
+# NOT a generic path that is the same for every R version.
 ```
 
-### renv: The Best Solution for Projects
+**Mistake 2: Forgetting that `install.packages()` compiles for the *running* R.** If you accidentally install a package under R 4.4, you cannot use that installed binary in R 4.2. Always launch the R version you intend to target *first*, then install.
 
-```r
-cat("=== renv: Project-level package management ===\n\n")
+**Mistake 3: Keeping too many old versions.** Every extra R install is several hundred megabytes and another thing that can get out of date. Remove versions you no longer need with `rig rm 4.1`. You can always reinstall later.
 
-cat("# Initialize renv in a project:\n")
-cat("# renv::init()\n\n")
-
-cat("# renv creates a project-local library:\n")
-cat("# project/renv/library/R-4.3/...\n\n")
-
-cat("# Snapshot your packages:\n")
-cat("# renv::snapshot()  → saves to renv.lock\n\n")
-
-cat("# Restore on another machine (or after R upgrade):\n")
-cat("# renv::restore()   → installs exact package versions from renv.lock\n\n")
-
-cat("Benefits:\n")
-cat("  - Each project is isolated\n")
-cat("  - Switching R versions doesn't affect projects\n")
-cat("  - renv.lock is a reproducible recipe\n")
-cat("  - Collaborators get the exact same packages\n")
-```
-
-## Checking Your R Version
-
-```r
-# Multiple ways to check which R you're running
-cat("R.version.string:", R.version.string, "\n")
-cat("R.version$major:", R.version$major, "\n")
-cat("R.version$minor:", R.version$minor, "\n")
-
-# Check if a minimum version is met
-required <- "4.1.0"
-current <- paste(R.version$major, R.version$minor, sep = ".")
-cat("\nCurrent version:", current, "\n")
-cat("Required:", required, "\n")
-cat("Meets requirement:", compareVersion(current, required) >= 0, "\n")
-```
-
-```r
-# Useful for scripts that need a specific version
-check_r_version <- function(min_version = "4.1.0") {
-  current <- paste(R.version$major, R.version$minor, sep = ".")
-  if (compareVersion(current, min_version) < 0) {
-    stop(paste("This script requires R >=", min_version,
-               "but you have R", current))
-  }
-  cat("R version check passed:", current, ">=", min_version, "\n")
-}
-
-check_r_version("4.0.0")
-```
-
-## When to Upgrade R
-
-```r
-cat("=== R release cycle ===\n\n")
-
-cat("Major releases (4.x.0): Every April\n")
-cat("  - May contain breaking changes\n")
-cat("  - Packages may need updates\n")
-cat("  - Wait 2-4 weeks for package ecosystem to catch up\n\n")
-
-cat("Patch releases (4.x.y): Throughout the year\n")
-cat("  - Bug fixes only\n")
-cat("  - Safe to update immediately\n")
-cat("  - Packages remain compatible\n\n")
-
-cat("Recommendation:\n")
-cat("  1. Update patch releases immediately\n")
-cat("  2. Wait 2-4 weeks after major releases\n")
-cat("  3. Keep the old version until your key packages work on the new one\n")
-cat("  4. Use renv for projects that must be reproducible\n")
-```
+[KEY INSIGHT]
+Treat R versions the way you treat branches in git: keep a small set that matches real work, and delete the rest without ceremony.
 
 ## Practice Exercises
 
-### Exercise 1: Version Check Script
+Work through these in a fresh terminal. Each one should take less than five minutes.
 
-```r
-# Exercise: Write a function that:
-# 1. Prints the current R version
-# 2. Checks if the native pipe |> is available (requires R >= 4.1)
-# 3. Checks if the lambda syntax \(x) is available (requires R >= 4.1)
-# 4. Reports which features are available
-
-# Write your code below:
-
-```
+**Exercise 1.** Install rig on your system and list every R version it currently sees. If the list is empty, add the latest release and the latest previous major.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-# Solution
-check_features <- function() {
-  ver <- paste(R.version$major, R.version$minor, sep = ".")
-  cat("R version:", ver, "\n\n")
-
-  # Native pipe |> (R 4.1+)
-  has_pipe <- compareVersion(ver, "4.1.0") >= 0
-  cat("Native pipe |>:", if (has_pipe) "Available" else "Not available", "\n")
-
-  # Lambda \(x) syntax (R 4.1+)
-  has_lambda <- compareVersion(ver, "4.1.0") >= 0
-  cat("Lambda \\(x):", if (has_lambda) "Available" else "Not available", "\n")
-
-  # Underscore placeholder _ (R 4.2+)
-  has_placeholder <- compareVersion(ver, "4.2.0") >= 0
-  cat("Pipe placeholder _:", if (has_placeholder) "Available" else "Not available", "\n")
-
-  # Raw string literals r"(...)" (R 4.0+)
-  has_raw_string <- compareVersion(ver, "4.0.0") >= 0
-  cat("Raw strings r\"(...)\":", if (has_raw_string) "Available" else "Not available", "\n")
-}
-
-check_features()
+# Terminal:
+#   rig list
+#   rig add release
+#   rig add oldrel/1
+#   rig list
+#
+# After this, `rig list` should show two entries, one marked (default).
 ```
-
-**Explanation:** `compareVersion()` compares version strings correctly (it knows "4.10" > "4.9"). Each R feature was introduced in a specific version — this function checks which ones are available in your current installation.
 
 </details>
 
-### Exercise 2: Package Inventory
-
-```r
-# Exercise: Write a script that creates a "package backup" — a data frame
-# listing all installed packages with their versions and source (CRAN/other).
-# This is what you'd save before upgrading R.
-
-# Write your code below:
-
-```
+**Exercise 2.** Create a throwaway project, switch to your non-default R version for that project only, and verify inside R that `R.version.string` reports the version you expect.
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-# Solution
-pkg_info <- installed.packages()
+# Terminal:
+#   mkdir r-version-test && cd r-version-test
+#   rig run oldrel/1 -- R
 
-backup <- data.frame(
-  package = pkg_info[, "Package"],
-  version = pkg_info[, "Version"],
-  priority = pkg_info[, "Priority"],
-  stringsAsFactors = FALSE
-)
-
-# Separate base/recommended from user-installed
-backup$type <- ifelse(
-  is.na(backup$priority), "user-installed",
-  backup$priority
-)
-
-cat("Package inventory:\n")
-cat("  Base packages:", sum(backup$type == "base"), "\n")
-cat("  Recommended:", sum(backup$type == "recommended"), "\n")
-cat("  User-installed:", sum(backup$type == "user-installed"), "\n")
-cat("  Total:", nrow(backup), "\n\n")
-
-# Show user-installed packages (these need reinstalling after upgrade)
-user_pkgs <- backup[backup$type == "user-installed", ]
-cat("User-installed packages (first 15):\n")
-print(head(user_pkgs[, c("package", "version")], 15))
-
-# To save: saveRDS(user_pkgs$package, "my_packages.rds")
+# Inside that R session:
+R.version.string
+# Should report the oldrel version, not your default.
 ```
 
-**Explanation:** `installed.packages()` returns a matrix with all package metadata. Base and recommended packages come with R — you only need to reinstall "user-installed" ones after upgrading. Saving this list before upgrading lets you restore your setup quickly.
+</details>
+
+**Exercise 3.** Inside a new project on your default R version, run `renv::init()`, then open `renv.lock` in a text editor and locate the `R.Version` field. Confirm it matches `R.version.string` from the same session.
+
+<details>
+<summary>Solution</summary>
+
+```r
+install.packages("renv")
+renv::init()
+R.version.string
+
+# Open renv.lock — the "R" -> "Version" field at the top should
+# match the major.minor.patch from R.version.string.
+```
 
 </details>
+
+## Complete example: pinning a real project to an older R version
+
+Here is the end-to-end workflow for a project that must run on R 4.2 even though your default is R 4.4.
+
+```r
+# Step 1 (terminal): make sure R 4.2 is installed.
+#   rig list
+#   rig add 4.2     # if not already present
+
+# Step 2 (terminal): launch RStudio with R 4.2 active,
+# or open Positron and use "R: Select Interpreter" to pick 4.2.
+
+# Step 3 (inside that R 4.2 session): create the project.
+setwd("~/projects/legacy-report")
+install.packages("renv")
+renv::init()
+
+# renv records R 4.2.x in renv.lock.
+
+# Step 4: install the packages the project actually needs.
+install.packages(c("dplyr", "ggplot2"))
+
+# Step 5: snapshot so the lockfile reflects the exact versions installed.
+renv::snapshot()
+
+# Step 6: commit renv.lock, .Rprofile, and renv/activate.R to git.
+# Do NOT commit renv/library/.
+
+# Result: on any machine with rig + R 4.2 installed,
+# `renv::restore()` will rebuild the exact environment —
+# and renv will warn loudly if someone opens the project under a different R.
+```
 
 ## Summary
 
-| Method | Platform | Best for |
-|--------|----------|----------|
-| **rig** | All | Modern, recommended approach |
-| Manual side-by-side | Windows | Simple, no extra tools |
-| RStudio version selector | All | Quick switching without terminal |
-| **renv** | All | Project-level package isolation |
+- Use **rig** as your only installer for R. It handles multiple versions cleanly on Windows, macOS and Linux.
+- `rig default <ver>` switches the global default; RStudio and Positron let you override per project.
+- Use **renv** inside each project to lock the R version and package versions into `renv.lock`.
+- Never share a library folder across R versions — let rig and renv manage library paths.
+- Remove unused R versions with `rig rm`. You can always reinstall with `rig add`.
 
-**The recommended workflow:**
-1. Install **rig** for managing R versions
-2. Use **renv** for project-level package isolation
-3. Keep one version behind for critical projects
-4. Wait 2-4 weeks after major releases before upgrading
+## References
 
-## FAQ
-
-### Do I need to reinstall all packages when I upgrade R?
-
-For **minor** upgrades (4.3.2 → 4.3.3): no, packages are compatible. For **major** upgrades (4.3 → 4.4): usually yes, especially packages that contain compiled C/C++ code. The safest approach is to save your package list, upgrade, and reinstall.
-
-### Can RStudio use different R versions for different projects?
-
-Not natively per-project, but with **rig** you can run `rig rstudio 4.3` to open RStudio with a specific R version. Or use RStudio's global setting: **Tools → Global Options → General → R version**.
-
-### What's the difference between rig and renv?
-
-**rig** manages R versions (the engine). **renv** manages packages (the libraries). They work together: rig switches R versions, renv ensures each project has the right packages for its R version.
-
-### Will my old scripts break on a new R version?
-
-Usually no. R is very backwards-compatible. The most common breaking changes involve: (1) `stringsAsFactors` defaulting to FALSE in R 4.0, (2) new pipe `|>` syntax in R 4.1, (3) changes in default random number generation. Check the R NEWS file for specific version changes.
-
-### How do I check which R version a project was built with?
-
-If the project uses renv, check `renv.lock` — it records the R version. Otherwise, look for `sessionInfo()` output in reports or README files.
+- [rig on GitHub](https://github.com/r-lib/rig) — official documentation
+- [renv package site](https://rstudio.github.io/renv/)
+- [Posit support: Using rig](https://posit.co/blog/rig-the-r-installation-manager/)
 
 ## Continue Learning
 
-Version management is part of the broader reproducibility toolkit:
-
-1. **Positron vs RStudio** — the new IDE alternative
-2. **R Project Structure** — organize your R projects properly
-3. **renv and Reproducibility** — lock down package versions for reproducible research
+- [Install R and RStudio — The Setup That Actually Works First Time](Install-R-and-RStudio-2026.html)
+- [R Project Structure: The Setup That Eliminates setwd() Forever](R-Project-Structure.html)
