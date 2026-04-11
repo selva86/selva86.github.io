@@ -1,596 +1,433 @@
 ---
 title: "R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced — Solved Step-by-Step)"
 slug: "R-Data-Frames-Exercises"
-description: "15 R data frame exercises: create, filter, modify, group, summarize, and merge. Beginner to advanced with interactive solutions."
-keywords: "R data frame exercises, R data frame practice, R data frame problems, R dplyr exercises, R filter exercises"
+description: "15 interactive R data frame exercises with worked solutions — create, subset, filter, add columns, group, merge and reshape. Runnable right in the page."
+keywords: "R data frames exercises, R data frame practice, R subset exercises, R data frame filtering, R data frame practice problems"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-11"
 curriculum_id: "E1.3"
 post_type: "EX"
-auto_link_terms: "R data frame exercises|R data frame practice|R data frame problems"
+sidebar_section: "Practice Exercises"
+sidebar_title: "R Data Frames (15 problems)"
+auto_link_terms: "R data frames exercises|R data frame practice|R subset exercises"
 auto_link_case_sensitive: false
 fr_parent: "R-Data-Frames.html"
 ---
 
 # R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced — Solved Step-by-Step)
 
-<p class="lead">Practice R data frames with 15 progressively harder exercises. Create, explore, filter, modify, group, summarize, and merge — using both base R and dplyr. Each problem has interactive code and a detailed solution.</p>
+<p class="lead">Fifteen focused exercises that take you from creating a data frame from scratch to filtering, grouping, merging and reshaping. Every problem runs in the browser with an expandable worked solution. No downloads, no setup — just code and check.</p>
 
-These exercises use built-in datasets (`mtcars`, `iris`) and small custom data frames so you can run everything in your browser. Try each one before checking the solution.
+Data frames are the workhorse of R. Almost every analysis you will ever write consumes or produces one. These exercises use only base R so they work in any R session, including the one embedded in this page. Once you are fluent here, the `dplyr` version of the same operations will feel obvious.
 
-## Easy (1-5): Create and Explore
+## Setup
 
-### Exercise 1: Build a Data Frame
-
-Create a data frame of 5 books with columns: title, author, pages, rating (1-5), and fiction (TRUE/FALSE).
+Every exercise uses the built-in `mtcars` and `iris` datasets, plus one small data frame we construct in the first exercise. The code blocks share state, so what you create in Exercise 1 is available in Exercise 15.
 
 ```r
-# Exercise 1: Create a books data frame
-# Then print it and show its structure with str()
+data("mtcars")
+data("iris")
+
+dim(mtcars)   # 32 11
+dim(iris)     # 150 5
+head(mtcars, 3)
+```
+
+## Section 1 — Creating and inspecting data frames
+
+### Exercise 1. Build a data frame from vectors
+
+Create a data frame `students` with three columns — `name` (character), `age` (integer), `score` (double) — and five rows of your own made-up data. Confirm the types with `str()`.
+
+```r
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-books <- data.frame(
-  title = c("Dune", "1984", "Sapiens", "The Hobbit", "Thinking Fast and Slow"),
-  author = c("Herbert", "Orwell", "Harari", "Tolkien", "Kahneman"),
-  pages = c(412, 328, 443, 310, 499),
-  rating = c(4.5, 4.7, 4.3, 4.8, 4.2),
-  fiction = c(TRUE, TRUE, FALSE, TRUE, FALSE),
+students <- data.frame(
+  name  = c("Ava", "Ben", "Cho", "Dee", "Eli"),
+  age   = c(21L, 24L, 19L, 22L, 25L),
+  score = c(87.5, 72.0, 91.2, 68.4, 79.9),
   stringsAsFactors = FALSE
 )
 
-print(books)
-cat("\n")
-str(books)
+str(students)
+# 'data.frame': 5 obs. of  3 variables:
+#  $ name : chr  "Ava" "Ben" "Cho" "Dee" "Eli"
+#  $ age  : int  21 24 19 22 25
+#  $ score: num  87.5 72 91.2 68.4 79.9
 ```
+
+In R 4.0 and later, `stringsAsFactors = FALSE` is the default — the argument is only needed for compatibility with older code.
 
 </details>
 
-### Exercise 2: Explore mtcars
+### Exercise 2. Inspect a data frame
 
-Using `mtcars`, find: number of rows, column names, first 3 rows, and summary statistics for mpg and hp.
+Using `mtcars`, report: its dimensions, the column names, the class of every column, and a compact summary with `summary()`.
 
 ```r
-# Exercise 2: Explore mtcars
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-cat("Rows:", nrow(mtcars), "\n")
-cat("Columns:", ncol(mtcars), "\n")
-cat("Column names:", names(mtcars), "\n\n")
-
-cat("First 3 rows:\n")
-print(head(mtcars, 3))
-
-cat("\nMPG summary:\n")
-print(summary(mtcars$mpg))
-
-cat("\nHP summary:\n")
-print(summary(mtcars$hp))
+dim(mtcars)           # 32 11
+names(mtcars)         # "mpg" "cyl" ... "carb"
+sapply(mtcars, class) # all numeric
+summary(mtcars)
 ```
+
+`sapply(df, class)` is the cleanest way to see the type of every column at once. For big data frames where that is too noisy, use `str(df)` instead.
 
 </details>
 
-### Exercise 3: Column Access
+### Exercise 3. Access one column, four ways
 
-From `iris`, extract the Sepal.Length column three different ways ($, [[]], and [,]). Verify they're identical.
+From `students`, extract the `score` column using: `$`, `[[`, `[, "score"]`, and `[, 3]`. Confirm all four return the same numeric vector.
 
 ```r
-# Exercise 3: Three ways to access a column
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-# Three ways
-method1 <- iris$Sepal.Length
-method2 <- iris[["Sepal.Length"]]
-method3 <- iris[, "Sepal.Length"]
+students$score
+students[["score"]]
+students[, "score"]
+students[, 3]
 
-cat("$ method (first 5):", head(method1, 5), "\n")
-cat("[[]]] method (first 5):", head(method2, 5), "\n")
-cat("[,] method (first 5):", head(method3, 5), "\n")
-
-cat("\nAll identical:", identical(method1, method2) & identical(method2, method3), "\n")
-cat("Length:", length(method1), "\n")
-cat("Type:", class(method1), "\n")
+identical(students$score, students[["score"]])   # TRUE
+identical(students$score, students[, "score"])   # TRUE
+identical(students$score, students[, 3])         # TRUE
 ```
+
+All four return an *atomic vector*. Note that `students["score"]` (without the comma) returns a *one-column data frame*, not a vector — a surprising but consistent rule.
 
 </details>
 
-### Exercise 4: Add Columns
+## Section 2 — Subsetting rows and columns
 
-Using mtcars, add two new columns: `kpl` (kilometers per liter = mpg * 0.425) and `power_class` ("High" if hp > 150, else "Normal").
+### Exercise 4. Select specific columns
+
+From `mtcars`, return a new data frame with only `mpg`, `cyl` and `hp`.
 
 ```r
-# Exercise 4: Add calculated columns to mtcars
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-df <- mtcars
-df$kpl <- round(df$mpg * 0.425, 2)
-df$power_class <- ifelse(df$hp > 150, "High", "Normal")
+mtcars[, c("mpg", "cyl", "hp")] |> head()
 
-# Show a few columns
-print(df[1:6, c("mpg", "kpl", "hp", "power_class")])
-
-cat("\nPower class distribution:\n")
-print(table(df$power_class))
+# Or equivalently:
+mtcars[c("mpg", "cyl", "hp")] |> head()
 ```
+
+When you use character names instead of integer positions, the code keeps working even if columns are reordered or renamed.
 
 </details>
 
-### Exercise 5: Sort
+### Exercise 5. Drop specific columns
 
-Sort mtcars by mpg (best first), then show the top 5 most fuel-efficient cars.
+From `mtcars`, return a data frame with everything *except* `qsec` and `vs`.
 
 ```r
-# Exercise 5: Sort by mpg descending, show top 5
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-sorted <- mtcars[order(-mtcars$mpg), ]
-top5 <- head(sorted, 5)
-cat("Top 5 most fuel-efficient cars:\n")
-print(top5[, c("mpg", "cyl", "hp", "wt")])
+mtcars[, !(names(mtcars) %in% c("qsec", "vs"))] |> head()
+
+# Or, set those columns to NULL on a copy:
+m2 <- mtcars
+m2$qsec <- NULL
+m2$vs   <- NULL
+head(m2)
 ```
 
-**Key concept:** `order(-mtcars$mpg)` sorts descending. `head()` takes the first n rows.
+Both idioms are common. The first is safer inside a pipeline; the second is clearer for ad-hoc exploration.
 
 </details>
 
-## Medium (6-10): Filter and Transform
+### Exercise 6. Filter rows with one condition
 
-### Exercise 6: Filter Rows
-
-From mtcars, find all 4-cylinder cars with mpg > 25. How many are there? What's their average horsepower?
+Return the rows of `mtcars` where `mpg > 25`.
 
 ```r
-# Exercise 6: Filter 4-cylinder, mpg > 25
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-efficient_4cyl <- mtcars[mtcars$cyl == 4 & mtcars$mpg > 25, ]
-cat("Count:", nrow(efficient_4cyl), "\n")
-cat("Average HP:", round(mean(efficient_4cyl$hp), 1), "\n\n")
-cat("Cars:\n")
-print(efficient_4cyl[, c("mpg", "cyl", "hp", "wt")])
+mtcars[mtcars$mpg > 25, ]
 ```
+
+Note the trailing comma — `mtcars[mtcars$mpg > 25]` (no comma) tries to index columns, not rows, and will give you something unexpected.
 
 </details>
 
-### Exercise 7: dplyr Pipeline
+### Exercise 7. Filter with multiple conditions
 
-Using dplyr, take mtcars, filter for automatic transmission (am == 0), select mpg, hp, and wt, add a column for hp_per_ton (hp / wt), and sort by hp_per_ton descending.
+Return the rows of `mtcars` where `mpg > 20` AND `cyl == 4`, keeping only the columns `mpg`, `cyl`, `hp`.
 
 ```r
-# Exercise 7: dplyr pipeline
-library(dplyr)
-
-# Filter am == 0, select columns, add hp_per_ton, sort
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-library(dplyr)
-
-result <- mtcars |>
-  mutate(car = rownames(mtcars)) |>
-  filter(am == 0) |>
-  select(car, mpg, hp, wt) |>
-  mutate(hp_per_ton = round(hp / wt, 1)) |>
-  arrange(desc(hp_per_ton))
-
-print(result)
+mtcars[mtcars$mpg > 20 & mtcars$cyl == 4, c("mpg", "cyl", "hp")]
 ```
 
-**Key concept:** The pipe `|>` chains operations left-to-right. Each step takes the result of the previous step as input.
+Combine the row filter with column selection in a single `[ , ]` call. Use `&` for element-wise AND, never `&&`.
 
 </details>
 
-### Exercise 8: Group and Summarize
+## Section 3 — Adding and transforming columns
 
-Group mtcars by number of cylinders and calculate: count, average mpg, average hp, and the car with the best mpg in each group.
+### Exercise 8. Add a computed column
+
+Add a column `kpl` to a copy of `mtcars` that converts `mpg` (US miles per US gallon) to kilometres per litre. The conversion is `kpl = mpg * 0.425`.
 
 ```r
-# Exercise 8: Group by cyl, summarize
-library(dplyr)
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-library(dplyr)
-
-mtcars |>
-  mutate(car = rownames(mtcars)) |>
-  group_by(cyl) |>
-  summarise(
-    count = n(),
-    avg_mpg = round(mean(mpg), 1),
-    avg_hp = round(mean(hp), 0),
-    best_car = car[which.max(mpg)],
-    best_mpg = max(mpg)
-  )
+mt <- mtcars
+mt$kpl <- mt$mpg * 0.425
+head(mt[, c("mpg", "kpl")])
 ```
+
+Assigning to `mt$kpl` creates the column if it does not exist, otherwise overwrites it.
 
 </details>
 
-### Exercise 9: Handle Missing Data
+### Exercise 9. Conditional column with ifelse
 
-Create a data frame with NAs, then: count NAs per column, find complete rows, and fill numeric NAs with column means.
+Add a column `efficiency` to `mt` with value `"high"` when `mpg > 25`, `"medium"` when `mpg` is between 15 and 25 inclusive, and `"low"` otherwise.
 
 ```r
-# Exercise 9: Missing data handling
-df <- data.frame(
-  name = c("Alice", "Bob", "Carol", "David", "Eve", "Frank"),
-  age = c(25, NA, 42, 31, NA, 55),
-  score = c(88, 72, NA, 95, 81, NA),
-  dept = c("Sales", "Eng", "Sales", NA, "Eng", "Sales")
+# Your attempt here
+
+```
+
+<details>
+<summary>Solution</summary>
+
+```r
+mt$efficiency <- ifelse(mt$mpg > 25, "high",
+                 ifelse(mt$mpg >= 15, "medium", "low"))
+
+table(mt$efficiency)
+#  high   low medium
+#     6     3    23
+```
+
+`ifelse()` is vectorised — it walks the condition element by element. Nest calls to build more than two branches, or switch to `dplyr::case_when()` for many branches.
+
+</details>
+
+### Exercise 10. Rename a column
+
+Rename the column `wt` to `weight_1000lbs` in `mt`.
+
+```r
+# Your attempt here
+
+```
+
+<details>
+<summary>Solution</summary>
+
+```r
+names(mt)[names(mt) == "wt"] <- "weight_1000lbs"
+head(mt)
+```
+
+You assign into `names(mt)` at the position where the current name matches. This leaves every other column name untouched.
+
+</details>
+
+## Section 4 — Aggregation, merging and reshaping
+
+### Exercise 11. Group and summarise with aggregate
+
+Use `aggregate()` on `mtcars` to compute the mean `mpg` for each number of cylinders.
+
+```r
+# Your attempt here
+
+```
+
+<details>
+<summary>Solution</summary>
+
+```r
+aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
+#   cyl      mpg
+# 1   4 26.66364
+# 2   6 19.74286
+# 3   8 15.10000
+```
+
+The formula syntax `mpg ~ cyl` reads as "mpg by cyl". You can group by multiple variables with `mpg ~ cyl + gear`.
+
+</details>
+
+### Exercise 12. Count rows per group
+
+Count how many cars in `mtcars` have each combination of `cyl` and `gear`.
+
+```r
+# Your attempt here
+
+```
+
+<details>
+<summary>Solution</summary>
+
+```r
+table(mtcars$cyl, mtcars$gear)
+#      3  4  5
+#   4  1  8  2
+#   6  2  4  1
+#   8 12  0  2
+
+# Or as a data frame:
+as.data.frame(table(cyl = mtcars$cyl, gear = mtcars$gear))
+```
+
+`table()` returns a contingency table. Wrapping in `as.data.frame()` gives you a tidy long-format version with one row per combination.
+
+</details>
+
+### Exercise 13. Merge two data frames
+
+Create a small data frame `cyl_info` with columns `cyl` (4, 6, 8) and `fuel_type` ("economy", "mid", "performance"). Merge it onto `mtcars` so every car gets a `fuel_type` label.
+
+```r
+# Your attempt here
+
+```
+
+<details>
+<summary>Solution</summary>
+
+```r
+cyl_info <- data.frame(
+  cyl       = c(4, 6, 8),
+  fuel_type = c("economy", "mid", "performance")
 )
 
-# 1. Count NAs per column
-# 2. Show complete cases
-# 3. Fill numeric NAs with column means
+m3 <- merge(mtcars, cyl_info, by = "cyl")
+head(m3[, c("mpg", "cyl", "fuel_type")])
+```
+
+`merge()` is base R's SQL-like join. By default it does an inner join on the common column(s). Use `all.x = TRUE` for a left join, `all.y = TRUE` for right, and `all = TRUE` for a full outer join.
+
+</details>
+
+### Exercise 14. Wide to long with stack
+
+Create a small wide data frame of quarterly sales and reshape it to long format with one row per (quarter, sales) combination.
+
+```r
+wide <- data.frame(q1 = 100, q2 = 150, q3 = 200, q4 = 175)
+```
+
+```r
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-df <- data.frame(
-  name = c("Alice", "Bob", "Carol", "David", "Eve", "Frank"),
-  age = c(25, NA, 42, 31, NA, 55),
-  score = c(88, 72, NA, 95, 81, NA),
-  dept = c("Sales", "Eng", "Sales", NA, "Eng", "Sales"),
-  stringsAsFactors = FALSE
-)
+wide <- data.frame(q1 = 100, q2 = 150, q3 = 200, q4 = 175)
 
-# 1. NAs per column
-cat("NAs per column:\n")
-print(colSums(is.na(df)))
-
-# 2. Complete cases
-cat("\nComplete cases:\n")
-print(df[complete.cases(df), ])
-
-# 3. Fill numeric NAs with column means
-df$age[is.na(df$age)] <- round(mean(df$age, na.rm = TRUE))
-df$score[is.na(df$score)] <- round(mean(df$score, na.rm = TRUE))
-
-cat("\nAfter imputation:\n")
-print(df)
+long <- stack(wide)
+names(long) <- c("sales", "quarter")
+long <- long[, c("quarter", "sales")]
+long
+#   quarter sales
+# 1      q1   100
+# 2      q2   150
+# 3      q3   200
+# 4      q4   175
 ```
+
+`stack()` is base R's minimal reshape tool. For anything bigger than this, reach for `tidyr::pivot_longer()` — but `stack()` is fine for toy examples and quick work.
 
 </details>
 
-### Exercise 10: Conditional Columns with case_when
+### Exercise 15. Sort by multiple columns
 
-Add a fuel_efficiency category to mtcars: "Excellent" (mpg > 25), "Good" (20-25), "Average" (15-20), "Poor" (< 15). Count cars in each category.
+Sort `mtcars` by `cyl` ascending and then by `mpg` descending within each cylinder group. Return the first 10 rows.
 
 ```r
-# Exercise 10: Categorize with case_when
-library(dplyr)
+# Your attempt here
 
 ```
 
 <details>
-<summary>Click to reveal solution</summary>
+<summary>Solution</summary>
 
 ```r
-library(dplyr)
-
-result <- mtcars |>
-  mutate(
-    car = rownames(mtcars),
-    efficiency = case_when(
-      mpg > 25 ~ "Excellent",
-      mpg > 20 ~ "Good",
-      mpg > 15 ~ "Average",
-      TRUE ~ "Poor"
-    )
-  )
-
-# Category counts
-cat("Fuel efficiency distribution:\n")
-print(table(result$efficiency))
-
-# Show examples from each category
-cat("\nExamples:\n")
-result |>
-  group_by(efficiency) |>
-  slice_max(mpg, n = 1) |>
-  select(car, mpg, cyl, efficiency) |>
-  arrange(desc(mpg)) |>
-  print()
+mtcars[order(mtcars$cyl, -mtcars$mpg), ][1:10, ]
 ```
+
+`order()` accepts multiple keys and returns the row indices. A minus sign in front of a numeric column reverses the sort direction for that column only.
 
 </details>
 
-## Hard (11-15): Merge, Reshape, and Analysis
+## Summary
 
-### Exercise 11: Merge Two Data Frames
+- Build data frames with `data.frame()` and inspect with `dim()`, `str()`, `summary()`, `head()`.
+- Subset with `df[row_condition, column_selector]`. Always include the comma.
+- Add columns by assigning into `df$new_col` — vectorised arithmetic applies automatically.
+- Conditional columns: `ifelse()` for binary, nested `ifelse()` or `dplyr::case_when()` for more branches.
+- Aggregation: `aggregate(y ~ g, data, FUN)`. Counts: `table()`. Joins: `merge()`.
+- Sorting: `df[order(...), ]` — a minus sign reverses a numeric column.
 
-Merge employee info with department budgets. Show each employee's department budget.
+## References
 
-```r
-# Exercise 11: Merge
-employees <- data.frame(
-  name = c("Alice", "Bob", "Carol", "David", "Eve"),
-  dept = c("Eng", "Sales", "Eng", "HR", "Sales")
-)
-budgets <- data.frame(
-  department = c("Eng", "Sales", "Marketing", "HR"),
-  budget = c(500000, 300000, 200000, 150000)
-)
-
-# Merge employees with their department budgets
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-employees <- data.frame(
-  name = c("Alice", "Bob", "Carol", "David", "Eve"),
-  dept = c("Eng", "Sales", "Eng", "HR", "Sales")
-)
-budgets <- data.frame(
-  department = c("Eng", "Sales", "Marketing", "HR"),
-  budget = c(500000, 300000, 200000, 150000)
-)
-
-merged <- merge(employees, budgets, by.x = "dept", by.y = "department")
-merged <- merged[order(merged$name), ]
-print(merged)
-
-cat("\nNote: Marketing has no employees — excluded from inner join\n")
-
-# Left join to keep all budgets:
-all_depts <- merge(employees, budgets, by.x = "dept", by.y = "department", all.y = TRUE)
-print(all_depts)
-```
-
-</details>
-
-### Exercise 12: Pivot/Reshape
-
-Given wide-format quarterly data, calculate the annual total and find the best quarter for each product.
-
-```r
-# Exercise 12: Wide format analysis
-sales <- data.frame(
-  product = c("Widget", "Gadget", "Doohickey"),
-  Q1 = c(100, 200, 150),
-  Q2 = c(120, 180, 160),
-  Q3 = c(140, 220, 130),
-  Q4 = c(110, 250, 170)
-)
-
-# 1. Add an 'annual' total column
-# 2. Which quarter was best for each product?
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-sales <- data.frame(
-  product = c("Widget", "Gadget", "Doohickey"),
-  Q1 = c(100, 200, 150),
-  Q2 = c(120, 180, 160),
-  Q3 = c(140, 220, 130),
-  Q4 = c(110, 250, 170)
-)
-
-# 1. Annual total
-quarter_cols <- c("Q1", "Q2", "Q3", "Q4")
-sales$annual <- rowSums(sales[, quarter_cols])
-
-# 2. Best quarter
-sales$best_quarter <- apply(sales[, quarter_cols], 1, function(row) {
-  quarter_cols[which.max(row)]
-})
-
-sales$best_value <- apply(sales[, quarter_cols], 1, max)
-
-print(sales)
-```
-
-**Key concept:** `rowSums()` adds across columns. `apply(df, 1, func)` applies a function to each row (MARGIN=1).
-
-</details>
-
-### Exercise 13: Multi-step Analysis
-
-Using iris, find the species with the largest average petal area (Petal.Length * Petal.Width) and the individual flower with the largest petal area.
-
-```r
-# Exercise 13: Iris petal area analysis
-library(dplyr)
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-library(dplyr)
-
-result <- iris |>
-  mutate(petal_area = Petal.Length * Petal.Width) |>
-  group_by(Species) |>
-  summarise(
-    avg_area = round(mean(petal_area), 2),
-    max_area = round(max(petal_area), 2),
-    min_area = round(min(petal_area), 2),
-    count = n()
-  ) |>
-  arrange(desc(avg_area))
-
-cat("Average petal area by species:\n")
-print(result)
-
-# Individual flower with largest petal area
-biggest <- iris |>
-  mutate(petal_area = Petal.Length * Petal.Width) |>
-  slice_max(petal_area, n = 1)
-
-cat("\nLargest individual petal:\n")
-print(biggest)
-```
-
-</details>
-
-### Exercise 14: Cross-tabulation
-
-From mtcars, create a cross-tabulation of cylinders vs transmission type. Show both counts and proportions.
-
-```r
-# Exercise 14: Cross-tabulation (cyl vs am)
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-df <- mtcars
-df$transmission <- ifelse(df$am == 0, "Automatic", "Manual")
-df$cylinders <- paste0(df$cyl, "-cyl")
-
-# Count table
-cat("Counts:\n")
-count_tab <- table(df$cylinders, df$transmission)
-print(count_tab)
-
-# Proportions (by row — within each cylinder group)
-cat("\nRow proportions (% within cylinder group):\n")
-print(round(prop.table(count_tab, margin = 1) * 100, 1))
-
-# Proportions (of total)
-cat("\nOverall proportions:\n")
-print(round(prop.table(count_tab) * 100, 1))
-```
-
-**Key concept:** `table()` creates a contingency table. `prop.table(tab, margin)` converts to proportions: margin=1 for rows, margin=2 for columns, no margin for overall.
-
-</details>
-
-### Exercise 15: Complete Analysis Report
-
-Build a complete analysis of mtcars: summary by groups, top/bottom performers, correlation, and a final insight.
-
-```r
-# Exercise 15: Full mtcars analysis
-library(dplyr)
-
-# 1. Summary by cyl: count, avg mpg, avg hp, avg wt
-# 2. Top 3 most efficient cars overall
-# 3. Bottom 3 least efficient
-# 4. Correlation between mpg and wt
-# 5. Which is the most efficient car that has 8 cylinders?
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-library(dplyr)
-
-# 1. Summary by cylinders
-cat("=== Performance by Cylinder Count ===\n")
-mtcars |>
-  group_by(cyl) |>
-  summarise(
-    count = n(),
-    avg_mpg = round(mean(mpg), 1),
-    avg_hp = round(mean(hp), 0),
-    avg_wt = round(mean(wt), 2)
-  ) |>
-  print()
-
-# 2. Top 3 most efficient
-cat("\n=== Top 3 Most Efficient ===\n")
-top3 <- mtcars |>
-  mutate(car = rownames(mtcars)) |>
-  arrange(desc(mpg)) |>
-  head(3) |>
-  select(car, mpg, cyl, hp, wt)
-print(top3)
-
-# 3. Bottom 3
-cat("\n=== Bottom 3 Least Efficient ===\n")
-bottom3 <- mtcars |>
-  mutate(car = rownames(mtcars)) |>
-  arrange(mpg) |>
-  head(3) |>
-  select(car, mpg, cyl, hp, wt)
-print(bottom3)
-
-# 4. Correlation
-cat("\n=== MPG vs Weight Correlation ===\n")
-cat("Correlation:", round(cor(mtcars$mpg, mtcars$wt), 3), "\n")
-cat("Interpretation: Strong negative — heavier cars get worse MPG\n")
-
-# 5. Best 8-cylinder car
-cat("\n=== Most Efficient 8-Cylinder ===\n")
-best_v8 <- mtcars |>
-  mutate(car = rownames(mtcars)) |>
-  filter(cyl == 8) |>
-  slice_max(mpg, n = 1) |>
-  select(car, mpg, hp, wt)
-print(best_v8)
-```
-
-</details>
-
-## Summary: Skills Practiced
-
-| Exercises | Data Frame Skills |
-|-----------|------------------|
-| 1-5 (Easy) | Create, explore, `str()`, add columns, sort |
-| 6-10 (Medium) | Filter, dplyr pipes, `group_by`/`summarise`, NAs, `case_when` |
-| 11-15 (Hard) | Merge, reshape, cross-tabulation, complete analysis |
+- [R Language Definition — data frames](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Data-frames)
+- [Advanced R — Data frames and tibbles](https://adv-r.hadley.nz/vectors-chap.html#tibble)
+- [R for Data Science (2e)](https://r4ds.hadley.nz/)
 
 ## Continue Learning
 
-More exercise sets:
-
-1. **R Lists Exercises** — 10 problems with nested structures
-2. **R Control Flow Exercises** — if/else and loop practice
-3. **R Functions Exercises** — write, debug, and optimize functions
-
-Or continue learning: **R Lists** tutorial.
+- [R Data Frames: The Data Structure You'll Use in Every Analysis](R-Data-Frames.html)
+- [R Vectors Exercises: 12 Hands-On Problems](R-Vectors-Exercises.html)
+- [R Lists Exercises: 10 Practice Problems with Full Solutions](R-Lists-Exercises.html)
