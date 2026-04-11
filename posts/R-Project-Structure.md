@@ -1,422 +1,531 @@
 ---
 title: "R Project Structure: The Setup That Eliminates setwd() Forever"
-slug: "R-Project-Structure"
-description: "Stop using setwd(). RStudio Projects set your working directory automatically. Learn the folder structure pros use for portable R work."
-keywords: "R project, RStudio project, R working directory, setwd() alternative, R project structure, here package, R folder structure"
+slug: R-Project-Structure
+description: "A proper RStudio Project with the right folders makes file paths reliable, collaboration easy, and analysis reproducible. Learn the layout professional R devs use."
+keywords: "R project structure, RStudio Project, here package R, setwd R, reproducible R, renv R, R folder layout, R directory structure"
+auto_link_terms: "R project structure|RStudio Project|here()|setwd()|renv"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-03-29"
-curriculum_id: "FR-fund-7"
-post_type: "C"
-auto_link_terms: "R project|RStudio project|R working directory|setwd() alternative"
-auto_link_case_sensitive: false
-fr_parent: "Install-R-and-RStudio-2026.html"
-sidebar_section: "Learn R"
-sidebar_title: "R Project Structure"
+date: 2026-04-11
+curriculum_id: FR-fund-7
+post_type: FR
+fr_parent: Install-R-and-RStudio-2026.html
 ---
 
 # R Project Structure: The Setup That Eliminates setwd() Forever
 
-<p class="lead">An RStudio Project is a folder with a <code>.Rproj</code> file that automatically sets your working directory when you open it. No more <code>setwd()</code>, no more broken file paths, no more "file not found" errors when sharing code.</p>
+<p class="lead">A well-organised R project uses an RStudio <code>.Rproj</code> file as its anchor, the <code>here</code> package for file paths, and a predictable folder layout — no <code>setwd()</code>, no broken paths when a collaborator opens your code, no "it works on my machine." Get this right once and every future analysis starts on firm ground.</p>
 
-Every R beginner starts their scripts with `setwd("C:/Users/MyName/Documents/...")`. Every experienced R programmer cringes at that line. It breaks on every other computer, it's fragile, and RStudio Projects make it completely unnecessary.
+This guide shows the folder layout used by professional R developers, why `setwd()` is a bug in disguise, how `here()` replaces it, and how `renv` locks package versions so reruns actually reproduce.
 
-## The Problem with setwd()
+## Why is setwd() considered an anti-pattern in R?
 
-```r
-# The beginner's script — looks fine on YOUR computer
-# setwd("C:/Users/Alice/Documents/my_analysis")
-# data <- read.csv("data/sales.csv")
+The first line of most R tutorial scripts looks like `setwd("C:/Users/selva/project")`, and the first thing that line does is guarantee the script won't run on anyone else's machine. The path is hard-coded to one laptop, one operating system, and one user account. Email the script to a colleague and they get `Error: cannot change working directory`. That's the whole anti-pattern in one sentence.
 
-# But on Bob's computer:
-# setwd("C:/Users/Alice/Documents/my_analysis")
-# Error: cannot change working directory
-
-# Or on a Mac:
-# setwd("C:/Users/Alice/Documents/my_analysis")
-# Error: cannot change working directory
-
-cat("setwd() problems:\n")
-cat("1. Hardcoded paths break on other computers\n")
-cat("2. Paths differ between Windows/Mac/Linux\n")
-cat("3. Moving the folder breaks the script\n")
-cat("4. Collaborators can't run your code without editing it\n")
-```
-
-The fix isn't better paths — it's eliminating the need for `setwd()` entirely.
-
-## Creating an RStudio Project
-
-### Step-by-step
-
-1. In RStudio: **File → New Project...**
-2. Choose **"New Directory"** → **"New Project"**
-3. Name your project (e.g., "sales_analysis")
-4. Choose where to put it
-5. Click **"Create Project"**
-
-RStudio creates a folder with your project name, puts a `.Rproj` file inside, and opens the project. The working directory is now automatically set to that folder.
-
-### What the .Rproj file does
-
-The `.Rproj` file is a small text file that tells RStudio: "this folder is a project." When you double-click it (or open it via **File → Open Project**), RStudio:
-
-1. Sets the working directory to the project folder
-2. Opens any files you had open last time
-3. Restores your R session (if configured)
-4. Shows only project files in the Files pane
+The fix is not a smarter path — it's to use a project *anchor* and ask R to resolve paths relative to it. RStudio's `.Rproj` file is that anchor. Create one, and the working directory is automatically set to the project folder whenever you open the project, with no `setwd()` line in sight.
 
 ```r
-# Inside a project, the working directory is always the project root
-cat("Working directory:", getwd(), "\n")
+# Inside a proper .Rproj-anchored project, these two are equivalent
+# and both work on every collaborator's machine:
+library(here)
+here()                          # the project root (auto-detected)
+#> [1] "C:/Users/selva/projects/sales-analysis"
 
-# File paths are relative to the project root — portable!
-# read.csv("data/sales.csv")     # Works for everyone
-# NOT: read.csv("C:/Users/Alice/Documents/project/data/sales.csv")
+here("data-raw", "orders.csv")  # absolute path, built relative to root
+#> [1] "C:/Users/selva/projects/sales-analysis/data-raw/orders.csv"
+
+file.exists(here("data-raw", "orders.csv"))
+#> [1] TRUE
 ```
 
-## The Recommended Folder Structure
+`here()` walks upward from the current file until it finds a project marker (`.Rproj`, `.here`, `.git`, or a few others), then returns that directory. Every path you build with `here("subfolder", "file")` is absolute and stable no matter where the calling script lives inside the project tree — the second-biggest productivity win in R after the pipe.
 
-Professional R projects follow a consistent folder structure:
+[WARNING]
+**Never commit `setwd()` to a shared repository.** If your script starts with `setwd("C:/Users/selva/...")`, it will silently break on anyone else's machine and on CI runners. Use `here::here()` or `fs::path_abs()` instead — both resolve against a project anchor that travels with the code.
 
-```
-my_project/
-├── my_project.Rproj    # RStudio project file
-├── R/                   # R scripts (functions, analysis code)
-│   ├── 01_clean.R
-│   ├── 02_analyze.R
-│   └── 03_visualize.R
-├── data/                # Raw data (never modify these files)
-│   ├── raw/
-│   │   └── sales_2024.csv
-│   └── processed/
-│       └── sales_clean.rds
-├── output/              # Generated files (plots, tables, reports)
-│   ├── figures/
-│   └── tables/
-├── docs/                # Documentation, notes
-├── tests/               # Test scripts
-└── README.md            # Project description
-```
-
-### Why this structure works
+**Try it:** Assume the project root is `~/demo`. Write one call using `here::here()` that resolves to `~/demo/scripts/plot.R`.
 
 ```r
-# With this structure, all paths are short and portable:
-cat("Read raw data:    read.csv('data/raw/sales_2024.csv')\n")
-cat("Save processed:   saveRDS(df, 'data/processed/sales_clean.rds')\n")
-cat("Save a plot:      ggsave('output/figures/sales_trend.png')\n")
-cat("Source a script:  source('R/01_clean.R')\n")
-cat("\nAll paths are relative — they work on ANY computer\n")
-cat("that has this project folder.\n")
+# Try it: build a path with here()
+library(here)
+ex_path <- NULL  # your code here
+
+ex_path
+#> Expected: ".../demo/scripts/plot.R"
 ```
 
-| Folder | Contains | Key rule |
-|--------|----------|----------|
-| `R/` | Analysis scripts | Numbered for run order (01_, 02_, ...) |
-| `data/raw/` | Original data files | **Never modify** raw data |
-| `data/processed/` | Cleaned/transformed data | Created by your scripts |
-| `output/` | Generated plots, tables, reports | Can be regenerated from code |
-| `docs/` | Notes, documentation | Human-written context |
-| `tests/` | Test scripts | Verify your code works |
-
-> **Golden rule:** Keep raw data sacred. Never edit `data/raw/` files. Your scripts should read from `data/raw/`, transform it, and save to `data/processed/`. This makes your analysis reproducible — anyone can re-run the scripts from scratch.
-
-## The here Package: Bulletproof Paths
-
-Even with projects, nested paths can get tricky. The `here` package builds paths that always work:
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-# The here package always finds the project root
-# library(here)
-
-# Instead of:
-# read.csv("data/raw/sales.csv")
-
-# Use:
-# read.csv(here("data", "raw", "sales.csv"))
-
-# Why? here() works correctly even when:
-# - You source() a script from a subfolder
-# - You knit an R Markdown from a different directory
-# - Your working directory somehow changed
-
-# Demonstration of path building:
-cat("Project root might be: /home/alice/projects/sales_analysis\n")
-cat("here('data', 'raw', 'sales.csv') would give:\n")
-cat("  /home/alice/projects/sales_analysis/data/raw/sales.csv\n")
-cat("\nOn Windows:\n")
-cat("  C:/Users/Alice/projects/sales_analysis/data/raw/sales.csv\n")
-cat("\nSame code, any OS, any working directory.\n")
+library(here)
+ex_path <- here::here("scripts", "plot.R")
+ex_path
+#> [1] "C:/Users/selva/demo/scripts/plot.R"
 ```
 
-### When here() matters
+**Explanation:** `here()` accepts path segments as comma-separated strings, joins them with the correct separator for the OS, and prepends the project root. No leading slash, no `..`, no platform-specific backslashes.
+
+</details>
+
+## What does a professional R project folder look like?
+
+There is no single "official" layout, but a few patterns have converged across Hadley Wickham, rOpenSci, and the broader tidyverse community. The skeleton below handles 90% of day-to-day analyses and scales cleanly from a one-off report to a full analysis pipeline.
+
+![Standard R project layout](screenshots/R-Project-Structure-layout.webp)
+
+*Figure 1: A minimal-but-complete R project: an `.Rproj` anchor, separated folders for raw data / scripts / outputs, an `renv` lockfile for reproducibility, and a `.gitignore` that keeps secrets out of version control.*
+
+| Folder | Contents | Commit? |
+|---|---|---|
+| `project.Rproj` | RStudio project file — the anchor | Yes |
+| `data-raw/` | Immutable raw inputs (CSV, parquet, JSON) | Usually yes (small) / LFS (big) |
+| `data/` | Cleaned/processed .rds or .parquet ready for analysis | Often gitignored if regeneratable |
+| `R/` | Reusable functions sourced from scripts | Yes |
+| `scripts/` | Numbered analysis scripts (`01_clean.R`, `02_model.R`) | Yes |
+| `output/` | Plots, tables, rendered reports | Usually gitignored |
+| `reports/` | Rmd/Quarto docs | Yes |
+| `renv/` | Package lockfile (via `renv::init()`) | Partial (`renv.lock` yes, `renv/library/` no) |
+| `.gitignore` | What to exclude from git | Yes |
+| `README.md` | How to run the project | Yes |
 
 ```r
-# Scenario: you have this structure:
-# project/
-#   R/
-#     analysis.R      <- your script is here
-#   data/
-#     input.csv       <- your data is here
+# Creating the skeleton in one go (base R + fs)
+library(fs)
 
-# In analysis.R, a relative path might break:
-# read.csv("data/input.csv")         # Works if wd is project/
-# read.csv("../data/input.csv")      # Works if wd is project/R/
-# Which one? Depends on how you run the script!
+dir_create("data-raw")
+dir_create("data")
+dir_create("R")
+dir_create("scripts")
+dir_create("output")
+dir_create("reports")
 
-# here() always works regardless of working directory:
-# read.csv(here("data", "input.csv"))  # Always correct
+file_create(c(".gitignore", "README.md"))
 
-cat("here() finds the project root by looking for .Rproj\n")
-cat("It works from any subfolder, any context.\n")
-```
-
-## Multiple Scripts: The Workflow
-
-Real analyses span multiple scripts. Number them for clarity:
-
-```r
-# A typical multi-script workflow
-cat("=== Project: Sales Analysis ===\n\n")
-
-cat("R/01_import.R\n")
-cat("  - Reads raw CSV from data/raw/\n")
-cat("  - Fixes column types, handles NAs\n")
-cat("  - Saves clean data to data/processed/sales_clean.rds\n\n")
-
-cat("R/02_analyze.R\n")
-cat("  - Reads data/processed/sales_clean.rds\n")
-cat("  - Computes summary statistics\n")
-cat("  - Runs statistical models\n")
-cat("  - Saves results to data/processed/model_results.rds\n\n")
-
-cat("R/03_visualize.R\n")
-cat("  - Reads processed data and model results\n")
-cat("  - Creates plots\n")
-cat("  - Saves to output/figures/\n\n")
-
-cat("R/04_report.R (or report.Rmd)\n")
-cat("  - Combines everything into a report\n")
-cat("  - Saves to output/report.html or .pdf\n")
-```
-
-### Why .rds instead of .csv for intermediate data?
-
-```r
-# .rds preserves R types (factors, dates, column types)
-# .csv loses type information
-
-# Save processed data
-df <- data.frame(
-  date = as.Date(c("2024-01-01", "2024-02-01")),
-  category = factor(c("A", "B"), levels = c("B", "A")),
-  value = c(100.5, 200.3)
+writeLines(
+  c("data/", "output/", ".Rhistory", ".RData", "renv/library/"),
+  ".gitignore"
 )
 
-# saveRDS(df, "data/processed/clean.rds")
-# df2 <- readRDS("data/processed/clean.rds")
-# All types preserved: dates are dates, factors keep their levels
-
-# write.csv loses type info:
-# write.csv(df, "data/processed/clean.csv")
-# df3 <- read.csv("data/processed/clean.csv")
-# Dates become character, factors become character
-
-cat("Use .rds for intermediate R data (preserves types)\n")
-cat("Use .csv only for sharing with non-R tools\n")
+dir_tree(".")
+#> .
+#> |-- .gitignore
+#> |-- README.md
+#> |-- R/
+#> |-- data/
+#> |-- data-raw/
+#> |-- output/
+#> |-- reports/
+#> '-- scripts/
 ```
 
-## Git Integration
+`fs::dir_tree()` prints a portable directory listing that works on Windows, macOS, and Linux. Once the skeleton exists, running `usethis::use_rstudio()` in the project root creates the `.Rproj` file and `usethis::use_git()` initialises the git repository — two commands that set up everything RStudio and git need to treat this folder as a proper project.
 
-RStudio Projects integrate with Git for version control:
+[TIP]
+**Number your scripts so execution order is obvious.** `01_import.R` → `02_clean.R` → `03_model.R` → `04_report.R` is worth its weight in gold when a colleague opens the project six months later. Even better, wire the whole pipeline through `targets` so each step only reruns when its inputs change.
+
+**Try it:** Without creating folders, write one call using `fs::path_rel()` that reports `"scripts/01_import.R"` when the project root is `~/demo` and the absolute path is `~/demo/scripts/01_import.R`.
 
 ```r
-cat("=== Git + RStudio Projects ===\n\n")
+# Try it: turn an absolute path into a project-relative one
+library(fs)
+root     <- "~/demo"
+abs_path <- "~/demo/scripts/01_import.R"
 
-cat("Initialize Git when creating a project:\n")
-cat("  File → New Project → check 'Create git repository'\n\n")
+ex_rel <- NULL  # your code here
 
-cat("Or add Git later:\n")
-cat("  Open terminal in RStudio → git init\n\n")
-
-cat(".gitignore should include:\n")
-cat("  .Rhistory\n")
-cat("  .RData\n")
-cat("  .Rproj.user\n")
-cat("  data/raw/*.csv     # if data is large/sensitive\n")
-cat("  output/            # generated files\n")
+ex_rel
+#> Expected: "scripts/01_import.R"
 ```
 
-### What to commit and what to ignore
-
-| Commit (track changes) | Ignore (don't commit) |
-|------------------------|----------------------|
-| R scripts (R/*.R) | .Rhistory, .RData |
-| R Markdown (*.Rmd) | .Rproj.user/ |
-| README.md | Large data files |
-| Small data files | output/ (can regenerate) |
-| .Rproj file | Secrets (.env, API keys) |
-
-## Switching Between Projects
-
-RStudio makes it easy to work on multiple projects:
-
-- **File → Open Project** — opens a different project
-- **File → Recent Projects** — quick access to recent work
-- Each project opens in its own RStudio window (if configured)
-- Each project has its own R session, history, and open files
-
-This isolation prevents the classic bug where variables from one analysis leak into another.
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-cat("Tips for managing multiple projects:\n\n")
-cat("1. One project per analysis/paper/client\n")
-cat("2. Keep project names short and descriptive:\n")
-cat("   sales-2024, thesis-chapter3, client-acme\n")
-cat("3. Never nest projects inside each other\n")
-cat("4. Use a consistent top-level folder:\n")
-cat("   ~/projects/ or ~/R/ for all your work\n")
+library(fs)
+root     <- "~/demo"
+abs_path <- "~/demo/scripts/01_import.R"
+
+ex_rel <- path_rel(abs_path, start = root)
+ex_rel
+#> scripts/01_import.R
 ```
+
+**Explanation:** `path_rel()` computes the path of `abs_path` *relative* to `start`. It's the inverse of `path_abs()` / `here()` and useful when you need to print or log a project-relative path for readability.
+
+</details>
+
+## How does the here package replace setwd()?
+
+The `here` package is a 300-line solution to the single problem `setwd()` pretended to solve: where are my files? Its one function, `here()`, walks up from the current working directory looking for a project root marker. The search stops at the first match, and every subsequent path-building call uses that location.
+
+![here() walks up to find the project root](screenshots/R-Project-Structure-here.webp)
+
+*Figure 2: `here()` walks upward from any file until it hits a marker file (`.Rproj`, `.here`, `.git`, `DESCRIPTION`, and a few more), then returns that directory. Every `here("data", "x.csv")` call builds from that anchor.*
+
+```r
+# here() in a normal project
+library(here)
+
+# The one call that makes everything else work
+here()
+#> [1] "C:/Users/selva/projects/sales-analysis"
+
+# Build paths for reading
+orders <- read.csv(here("data-raw", "orders.csv"))
+
+# And for writing
+saveRDS(orders, here("data", "orders.rds"))
+
+# Works from any working directory — even a nested notebook
+# (try setwd("reports") then call here() — same answer)
+```
+
+One call per path, resolved against the project root. `read.csv(here("data-raw", "orders.csv"))` does the same thing whether you run it from the project root, from inside a `reports/` subfolder, or from a Quarto render that silently changes directories. `setwd()` can't compete with that — it only works when you're lucky enough to be in the right folder at the right time.
+
+If you're in a folder that doesn't contain an `.Rproj`, drop a sentinel file called `.here` in the root and `here()` will latch onto it. That's the official escape hatch for script-only projects that aren't RStudio-managed.
+
+```r
+# For projects without an .Rproj, create a .here sentinel
+library(here)
+
+# Run once, from the folder you want to anchor:
+set_here()                    # creates an empty .here file
+#> Created file .here in C:/Users/selva/my-script-project .
+#> Please start a new R session in the new project directory.
+
+here()
+#> [1] "C:/Users/selva/my-script-project"
+```
+
+`set_here()` creates an empty file named `.here` in the current directory, and from that point forward `here()` uses it as the anchor. Works in plain R-script projects, inside Docker containers, and anywhere else RStudio isn't around.
+
+[NOTE]
+**`here` is not the only option.** `rprojroot` is the lower-level package `here` is built on, and `fs::path_abs()` works if you pass it a known-absolute root. Most R developers pick `here` because its single-function API is easier to teach new team members — but the principle (use a project anchor, never `setwd()`) is what matters, not the specific package.
+
+**Try it:** You have `root <- here::here()`. Write a one-line call that reads `data-raw/products.csv` from the project root using `here`, assuming the file exists.
+
+```r
+# Try it: one-line read from project-relative path
+library(here)
+ex_read_call <- NULL  # write the expression you would use
+
+ex_read_call
+#> Expected: read.csv(here::here("data-raw", "products.csv"))
+# (don't actually run it — the file may not exist)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+library(here)
+# The expression you'd write in a real script
+# (not executed here because there's no file in WebR)
+expr <- quote(read.csv(here::here("data-raw", "products.csv")))
+expr
+#> read.csv(here::here("data-raw", "products.csv"))
+```
+
+**Explanation:** `here::here("data-raw", "products.csv")` builds the absolute path; wrapping it in `read.csv()` is the idiomatic read call. The `quote()` here just lets us *display* the expression in a WebR-safe way without actually hitting the disk.
+
+</details>
+
+## How does renv make your project reproducible?
+
+`here` solves location. `renv` solves package versions. Without it, re-running your analysis six months later is a coin flip: if any package updated and introduced a breaking change, your old script is broken and you won't always know which package or which version caused it.
+
+`renv` creates a project-local package library and a lockfile (`renv.lock`) that records exact versions. When a collaborator clones the repo and runs `renv::restore()`, they get the same versions you had — including the same version of R, where possible.
+
+```r
+# The three commands that set renv up and keep it in sync
+library(renv)
+
+# 1. Initialise the lockfile in your project
+# renv::init()                   # creates renv/, renv.lock, activates snapshot
+
+# 2. After installing a new package, snapshot
+# renv::snapshot()               # records the current state in renv.lock
+
+# 3. On a collaborator's machine
+# renv::restore()                # installs exactly the versions in renv.lock
+
+# Check the current status (this IS safe to run)
+# renv::status()
+#> The following package(s) are installed but not recorded in the lockfile:
+#>   - somepkg [1.2.3]
+
+# Read the lockfile as plain JSON if you want to audit it
+# jsonlite::fromJSON("renv.lock", simplifyVector = FALSE)$Packages$dplyr
+#> $Source      [1] "Repository"
+#> $Repository  [1] "CRAN"
+#> $Hash        [1] "..."
+#> $Version     [1] "1.1.4"
+```
+
+The four commands — `init`, `snapshot`, `restore`, `status` — cover the whole workflow. The `renv.lock` file is human-readable JSON, which means your code review process can inspect package upgrades the same way you review any other change. Pair `renv` with a `.Rproj` and `here`, and your project is reproducible, portable, and safe to hand to a collaborator.
+
+[TIP]
+**Commit `renv.lock` but gitignore `renv/library/`.** The lockfile is the source of truth for which versions to install; the `renv/library/` folder is the actual installed copy on *your* machine and should not be in version control. `usethis::use_git_ignore("renv/library/")` sets this up in one line.
+
+**Try it:** Name the three `renv` commands — one to set it up in a fresh project, one to update the lockfile after installing a new package, and one for a collaborator to recreate the environment.
+
+```r
+# Try it: name the three commands
+# 1. Set up:    ________
+# 2. Record:    ________
+# 3. Recreate:  ________
+
+# Just write them as quoted strings in a vector
+ex_cmds <- c("", "", "")  # your answers here
+ex_cmds
+#> Expected: "renv::init()" "renv::snapshot()" "renv::restore()"
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_cmds <- c("renv::init()", "renv::snapshot()", "renv::restore()")
+ex_cmds
+#> [1] "renv::init()"     "renv::snapshot()" "renv::restore()"
+```
+
+**Explanation:** `init()` creates the lockfile and the project library. `snapshot()` updates the lockfile to match the currently-installed packages. `restore()` installs exactly what's in the lockfile — the command your collaborator runs after `git clone`.
+
+</details>
+
+## What are the biggest R project setup mistakes?
+
+Five patterns cause most "this project worked yesterday" incidents. Each has a one-line fix.
+
+```r
+# Mistake 1: hard-coded absolute paths
+# bad
+#   setwd("C:/Users/selva/project"); read.csv("data.csv")
+# good
+#   library(here); read.csv(here("data-raw", "data.csv"))
+
+# Mistake 2: mixing raw and cleaned data in one folder
+# bad
+#   project/data/orders.csv          # raw
+#   project/data/orders_clean.csv    # processed — looks the same, scary to delete
+# good
+#   project/data-raw/orders.csv       # immutable
+#   project/data/orders.rds           # regeneratable; gitignored
+
+# Mistake 3: committing secrets
+# bad
+#   api_key <- "sk-abc123..."         # in a script, in the repo
+# good
+#   api_key <- Sys.getenv("API_KEY")  # read from env; secret lives in .Renviron (gitignored)
+
+# Mistake 4: no lockfile
+# bad
+#   library(dplyr); library(ggplot2)  # whatever versions are on your machine right now
+# good
+#   renv::init()                       # later: renv::snapshot() / renv::restore()
+
+# Mistake 5: one mega-script doing everything
+# bad
+#   analysis.R                          # 800 lines, no clear boundaries
+# good
+#   scripts/01_import.R  -> data/clean.rds
+#   scripts/02_model.R   -> output/model.rds
+#   scripts/03_report.R  -> reports/final.html
+```
+
+Mistakes 1 and 2 are about paths and naming. Mistake 3 is the one that ends up on Twitter — committing an API key to a public repo is expensive and avoidable. Mistake 4 is reproducibility; mistake 5 is maintainability. All five are the same underlying lesson: make your project boring and predictable so future-you doesn't have to reverse-engineer it.
+
+[WARNING]
+**Never commit a file containing credentials, tokens, or passwords.** Use `.Renviron` (gitignored) or a secrets manager, read values with `Sys.getenv("NAME")`, and add `.Renviron` to your `.gitignore` on day one. Run `usethis::edit_r_environ("project")` to create a project-specific one.
+
+**Try it:** You want to read `API_KEY` from an environment variable, falling back to `"unset"` if it's missing. Write one line that does this.
+
+```r
+# Try it: read env var with a fallback
+ex_key <- NULL  # your code here
+
+# (we're not setting API_KEY in WebR, so the fallback should fire)
+ex_key
+#> Expected: "unset"
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_key <- Sys.getenv("API_KEY", unset = "unset")
+ex_key
+#> [1] "unset"
+```
+
+**Explanation:** `Sys.getenv()` accepts an `unset =` argument that returns a fallback value when the variable isn't defined. This is the right way to read secrets — the key stays in `.Renviron` (gitignored), and the code depends on a name, not a value.
+
+</details>
 
 ## Practice Exercises
 
-### Exercise 1: Plan a Project Structure
+Two capstone exercises that combine path handling and project structure.
+
+### Exercise 1: Build a project-relative read call
+
+Given that your project root contains a `data-raw/` folder with a CSV called `customers.csv`, write an R expression that reads it using `here` — the expression must work regardless of which subfolder the script is being run from. Capture the *expression* (not its execution) in `my_expr` using `quote()` so we can verify the shape.
 
 ```r
-# Exercise: You're starting a project to analyze weather data for 5 cities.
-# Design the folder structure. What folders do you need?
-# What files go in each folder?
-# Write your plan as comments:
+# Exercise 1: portable read expression
+library(here)
 
-# my_weather_project/
-# ├── ???
-# ├── ???
-# └── ???
+my_expr <- NULL  # your code here — use quote() to capture
 
-# Hint: Think about raw data, cleaned data, scripts, and outputs
+my_expr
+#> Expected: read.csv(here::here("data-raw", "customers.csv"))
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution
-cat("weather_analysis/\n")
-cat("├── weather_analysis.Rproj\n")
-cat("├── README.md\n")
-cat("├── R/\n")
-cat("│   ├── 01_import_weather.R      # Read raw CSVs, fix types\n")
-cat("│   ├── 02_clean_combine.R       # Clean, combine 5 cities\n")
-cat("│   ├── 03_analyze_trends.R      # Temperature trends, anomalies\n")
-cat("│   ├── 04_visualize.R           # Maps, time series plots\n")
-cat("│   └── utils.R                  # Helper functions\n")
-cat("├── data/\n")
-cat("│   ├── raw/                     # Original CSVs (never modify)\n")
-cat("│   │   ├── nyc_weather.csv\n")
-cat("│   │   ├── la_weather.csv\n")
-cat("│   │   └── ... (3 more)\n")
-cat("│   └── processed/\n")
-cat("│       ├── all_cities_clean.rds  # Combined, cleaned dataset\n")
-cat("│       └── model_results.rds\n")
-cat("├── output/\n")
-cat("│   ├── figures/                  # Generated plots\n")
-cat("│   └── tables/                   # Generated summary tables\n")
-cat("├── docs/\n")
-cat("│   └── data_dictionary.md        # What each column means\n")
-cat("└── .gitignore\n")
+library(here)
+
+my_expr <- quote(read.csv(here::here("data-raw", "customers.csv")))
+
+my_expr
+#> read.csv(here::here("data-raw", "customers.csv"))
 ```
 
-**Explanation:** Raw data stays untouched in `data/raw/`. Scripts are numbered for run order. Processed data uses `.rds` for type preservation. Output can always be regenerated by re-running the scripts. The `utils.R` file holds shared helper functions.
+**Explanation:** `quote()` captures the expression without evaluating it — useful for demonstrations and for meta-programming. In a real script you'd drop the `quote()` and just run the read.
 
 </details>
 
-### Exercise 2: Fix the File Paths
+### Exercise 2: Sketch a project skeleton
+
+Write a vector `my_dirs` listing the five folders a minimal analysis project should have (in any sensible order), and a vector `my_files` listing the three top-level files every project should contain.
 
 ```r
-# Exercise: This script uses absolute paths. Convert to project-relative paths.
-# Assume the project root is the working directory.
+# Exercise 2: name the pieces
+my_dirs  <- NULL  # your code here
+my_files <- NULL  # your code here
 
-# Original (broken on other computers):
-# setwd("C:/Users/Alice/Documents/thesis")
-# data <- read.csv("C:/Users/Alice/Documents/thesis/data/raw/experiment.csv")
-# source("C:/Users/Alice/Documents/thesis/R/helpers.R")
-# ggsave("C:/Users/Alice/Documents/thesis/output/figures/fig1.png")
-
-# Fix these paths (write the corrected versions):
-
+my_dirs
+#> Expected: five of "data-raw","data","R","scripts","output","reports"
+my_files
+#> Expected: ".gitignore", "README.md", "project.Rproj" (or similar)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-# Solution — all relative to project root (no setwd needed!)
+my_dirs  <- c("data-raw", "data", "R", "scripts", "output")
+my_files <- c(".gitignore", "README.md", "project.Rproj")
 
-cat("# Remove setwd() entirely — the .Rproj file handles it\n\n")
-
-cat("# Original: read.csv('C:/Users/Alice/Documents/thesis/data/raw/experiment.csv')\n")
-cat("# Fixed:    read.csv('data/raw/experiment.csv')\n\n")
-
-cat("# Original: source('C:/Users/Alice/Documents/thesis/R/helpers.R')\n")
-cat("# Fixed:    source('R/helpers.R')\n\n")
-
-cat("# Original: ggsave('C:/Users/Alice/.../output/figures/fig1.png')\n")
-cat("# Fixed:    ggsave('output/figures/fig1.png')\n\n")
-
-cat("# Even better with here():\n")
-cat("# read.csv(here('data', 'raw', 'experiment.csv'))\n")
-cat("# source(here('R', 'helpers.R'))\n")
-cat("# ggsave(here('output', 'figures', 'fig1.png'))\n")
+my_dirs
+#> [1] "data-raw" "data"     "R"        "scripts"  "output"
+my_files
+#> [1] ".gitignore"    "README.md"     "project.Rproj"
 ```
 
-**Explanation:** With an RStudio Project, the working directory is always the project root. All paths become short, relative, and portable. The `here()` version is the most robust because it works even if your working directory accidentally changes.
+**Explanation:** `data-raw` for immutable input, `data` for cleaned/processed output, `R` for reusable functions, `scripts` for numbered pipeline steps, `output` for artefacts. The three files are your git ignore rules, human-readable onboarding, and the RStudio project anchor.
 
 </details>
+
+## Complete Example
+
+A complete "day one" setup for a new analysis project, entirely in R. Run these blocks top-to-bottom in a fresh project folder and you'll end up with a clean, reproducible, portable skeleton.
+
+```r
+# Complete example: one-shot project bootstrap
+library(fs)
+library(usethis)
+library(here)
+
+# 1. Create the folder layout
+dir_create(c("data-raw", "data", "R", "scripts", "output", "reports"))
+
+# 2. Create entry-point files
+file_create(c("README.md", ".gitignore"))
+
+# 3. Write a sensible .gitignore
+writeLines(
+  c(
+    "# R artefacts",
+    ".Rhistory",
+    ".RData",
+    ".Ruserdata",
+    "",
+    "# Project artefacts",
+    "data/",
+    "output/",
+    "",
+    "# Secrets",
+    ".Renviron",
+    "",
+    "# renv: commit renv.lock, ignore the library",
+    "renv/library/",
+    "renv/local/",
+    "renv/staging/"
+  ),
+  ".gitignore"
+)
+
+# 4. Create the RStudio project file (empty is fine; RStudio will populate)
+# usethis::use_rstudio()
+
+# 5. Initialise git and renv — one call each (commented to keep example runnable)
+# usethis::use_git()
+# renv::init()
+
+# 6. Stub the main pipeline scripts
+file_create(c(
+  "scripts/01_import.R",
+  "scripts/02_clean.R",
+  "scripts/03_analyse.R",
+  "scripts/04_report.R"
+))
+
+# 7. Print the tree to confirm
+dir_tree(".", recurse = FALSE)
+#> .
+#> |-- .gitignore
+#> |-- README.md
+#> |-- R
+#> |-- data
+#> |-- data-raw
+#> |-- output
+#> |-- reports
+#> '-- scripts
+```
+
+Seven steps, all scripted: folder layout, ignore rules, project file, numbered scripts. The only "real" choices you made were which scripts to include — everything else is mechanical. Commit this as the first commit of every new analysis project and you've saved your future self a dozen small paper cuts.
 
 ## Summary
 
-| Concept | The wrong way | The right way |
-|---------|--------------|---------------|
-| Working directory | `setwd("C:/Users/...")` | Open the .Rproj file |
-| File paths | `"C:/Users/Alice/project/data.csv"` | `"data/data.csv"` |
-| Bulletproof paths | Hardcoded absolute paths | `here("data", "data.csv")` |
-| Raw data | Edit original files | Keep raw data untouched |
-| Intermediate data | Save as CSV | Save as `.rds` (preserves types) |
-| Multiple analyses | One big script | Numbered scripts in R/ folder |
-| Sharing | "Change the path on line 1" | "Open the .Rproj file and run" |
+| Rule | Why |
+|---|---|
+| **Use `.Rproj` as the project anchor** | Working directory is set correctly every time you open the project |
+| **Use `here::here()` for paths** | Paths resolve relative to the project root, not the current script |
+| **Separate `data-raw/` and `data/`** | Raw is immutable; processed is regeneratable and gitignored |
+| **Number pipeline scripts** | Execution order is obvious six months later |
+| **Commit `renv.lock`** | Packages match across machines and time |
+| **Keep secrets in `.Renviron`** | Read with `Sys.getenv()`; never commit a key |
 
-**The three rules:**
-1. Always use RStudio Projects (never `setwd()`)
-2. Keep raw data untouched in `data/raw/`
-3. Use relative paths (or `here()`) for all file operations
+[KEY INSIGHT]
+**A project is a contract with your future self and your collaborators.** An `.Rproj` anchor, `here()` paths, and a `renv` lockfile cover 95% of the reproducibility pain points. The ten minutes you spend setting this up on day one pay back every single day for the lifetime of the project.
 
-## FAQ
+## References
 
-### Do I need to install anything for RStudio Projects?
-
-No. RStudio Projects are built into RStudio — no packages needed. The `here` package is optional but recommended: `install.packages("here")`.
-
-### Can I convert an existing folder into a project?
-
-Yes. In RStudio: **File → New Project → Existing Directory → Browse** to your folder → **Create Project**. RStudio adds a `.Rproj` file and you're done. Nothing else changes.
-
-### What about R Markdown / Quarto documents?
-
-R Markdown sets the working directory to the folder containing the `.Rmd` file, which might differ from the project root. This is where `here()` is essential — it always resolves to the project root regardless of where the `.Rmd` lives.
-
-### Should I put the .Rproj file in version control?
-
-Yes. The `.Rproj` file is small (a few lines of settings) and ensures everyone uses the same project settings. The `.Rproj.user/` *folder*, however, should be gitignored — it contains user-specific session data.
-
-### What if my data is too large for the project folder?
-
-Use a `data/` folder with a README explaining where to download the data, or use a symbolic link to an external data directory. Never hardcode paths to external data — use environment variables or a config file.
+1. Wickham, H. and Bryan, J. *R Packages* (2nd ed.), Chapter 4: Package structure. [r-pkgs.org/structure.html](https://r-pkgs.org/structure.html)
+2. Bryan, J. *Ode to the here package.* [github.com/jennybc/here_here](https://github.com/jennybc/here_here)
+3. here package documentation. [here.r-lib.org](https://here.r-lib.org/)
+4. renv package documentation. [rstudio.github.io/renv](https://rstudio.github.io/renv/)
+5. usethis package documentation. [usethis.r-lib.org](https://usethis.r-lib.org/)
+6. rOpenSci Packages Guide, Chapter 1: Package development. [devguide.ropensci.org](https://devguide.ropensci.org/)
+7. Wickham, H. *What They Forgot to Teach You About R.* [rstats.wtf](https://rstats.wtf/)
 
 ## Continue Learning
 
-A well-structured project makes everything easier. Related topics:
-
-1. **Multiple R Versions** — manage R versions side by side
-2. **R Markdown / Quarto** — reproducible reports within your project
-3. **Git for R Users** — version control for your project files
+- **[Install R and RStudio 2026](Install-R-and-RStudio-2026.html)** — The parent post: get R and RStudio installed before setting up your first project.
+- **[RStudio IDE Tour](RStudio-IDE-Tour.html)** — A walkthrough of the four-pane RStudio interface you'll use inside every R project.
+- **[Run Multiple R Versions Side-by-Side](Multiple-R-Versions.html)** — When one project needs R 4.3 and another needs R 4.4, `renv` plus a version manager keeps them honest.
