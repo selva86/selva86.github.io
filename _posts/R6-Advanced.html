@@ -1,25 +1,26 @@
 ---
-title: "R6 Inheritance, Private Methods & Active Bindings: Advanced R6"
-description: "Advanced R6 patterns in R: inheritance with inherit, super$, private methods, active bindings, finalize for cleanup, and portable vs non-portable classes."
-keywords: "R6 inheritance, R6 active bindings, R6 super, R6 finalize, R6 private methods, advanced R6 R"
+title: "Advanced R6 in R: Inheritance, Private Fields, and Computed Properties"
+description: "Go beyond basic R6 with inheritance chains, private methods, and active bindings that compute values on the fly. Includes a complete data pipeline class hierarchy."
+keywords: "R6 inheritance, R6 active bindings, R6 private methods, R6 super, R6 finalize, advanced R6 R, R6 computed properties, R6 class hierarchy, R OOP inheritance, active fields R6"
 mathjax: false
 webr: true
 curriculum_id: "4.3.7"
 post_type: "C"
-auto_link_terms: "R6 inheritance|active bindings|R6 advanced|R6 finalize"
+auto_link_terms: "R6 inheritance|R6 active bindings|R6 private methods|super$|R6 finalize|computed properties R6|R6 advanced"
 auto_link_case_sensitive: false
+sidebar_section: "Advanced R"
+sidebar_title: "R6 Advanced"
+sidebar_order: "16"
 ---
 <!-- md2html:generated -->
 
-<h1>R6 Inheritance, Private Methods & Active Bindings: Advanced R6</h1>
+<h1>Advanced R6 in R: Inheritance, Private Fields, and Computed Properties</h1>
 
-<p class="lead">R6 supports <strong>single inheritance</strong> with <code>inherit</code>, <strong>private methods</strong> for internal logic, <strong><a class="auto-link" href="R-Active-Bindings.html" title="Active Bindings in R: makeActiveBinding() for Computed Variables">active bindings</a></strong> that look like fields but run code, and a <strong>finalize</strong> method for cleanup. These features make R6 suitable for production-grade R packages.</p>
+<p class="lead">R6 inheritance lets a child class reuse and extend a parent's methods, private fields hide internal state from outside code, and <a class="auto-link" href="R-Active-Bindings.html" title="Active Bindings in R: makeActiveBinding() for Computed Variables">active bindings</a> (computed properties) run a function every time you read or write a field — giving you validation, caching, and derived values with simple <code>obj$field</code> syntax.</p>
 
-<p>This tutorial assumes you already know the basics of R6 (see <a href="R6-Classes-in-R.html">R6 Classes in R</a>). Here we go deeper into the features that make R6 a serious OOP tool.</p>
+<h2>How does R6 inheritance work?</h2>
 
-<h2>Inheritance with inherit and super</h2>
-
-<p>Use <code>inherit</code> in <code>R6Class()</code> to create a child class. The child inherits all public and private fields/methods. Use <code>super$</code> to call parent methods.</p>
+<p>When two classes share logic — say a DataSource and a CsvSource — copying code between them breaks the moment you fix a bug in one but forget the other. Inheritance solves this: define shared behavior once in a parent, then let children specialize. Let's build a parent-child pair and see how <code>super$</code> delegates back to the parent.</p>
 
 <div class="webr-container">
 
@@ -27,6 +28,7 @@ auto_link_case_sensitive: false
 
     <div class="webr-editor" data-language="r">library(R6)
 
+# Parent class
 Animal &lt;- R6Class(&quot;Animal&quot;,
   public = list(
     name = NULL,
@@ -39,177 +41,389 @@ Animal &lt;- R6Class(&quot;Animal&quot;,
 
     speak = function() {
       cat(self$name, &quot;says:&quot;, self$sound, &quot;\n&quot;)
-    },
-
-    describe = function() {
-      cat(&quot;I am&quot;, self$name, &quot;\n&quot;)
     }
   )
 )
 
+# Child class inherits everything from Animal
 Dog &lt;- R6Class(&quot;Dog&quot;,
   inherit = Animal,
   public = list(
-    breed = NULL,
+    tricks = NULL,
 
-    initialize = function(name, breed) {
-      super$initialize(name, sound = &quot;Woof&quot;)  # Call parent constructor
-      self$breed &lt;- breed
+    initialize = function(name, tricks = character(0)) {
+      super$initialize(name, sound = &quot;Woof&quot;)
+      self$tricks &lt;- tricks
     },
 
-    # Override parent method
-    describe = function() {
-      super$describe()  # Call parent version
-      cat(&quot;Breed:&quot;, self$breed, &quot;\n&quot;)
-    },
-
-    fetch = function(item) {
-      cat(self$name, &quot;fetches the&quot;, item, &quot;!\n&quot;)
-    }
-  )
-)
-
-rex &lt;- Dog$new(&quot;Rex&quot;, &quot;Golden Retriever&quot;)
-rex$speak()     # Inherited from Animal
-rex$describe()  # Overridden, calls super
-rex$fetch(&quot;ball&quot;)  # Dog-only method</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Multi-Level Inheritance</h4>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(R6)
-
-Base &lt;- R6Class(&quot;Base&quot;,
-  public = list(
-    id = NULL,
-    initialize = function(id) self$id &lt;- id,
-    info = function() cat(&quot;Base id:&quot;, self$id, &quot;\n&quot;)
-  )
-)
-
-Middle &lt;- R6Class(&quot;Middle&quot;,
-  inherit = Base,
-  public = list(
-    level = &quot;middle&quot;,
-    initialize = function(id) {
-      super$initialize(id)
-    },
-    info = function() {
-      super$info()
-      cat(&quot;Level:&quot;, self$level, &quot;\n&quot;)
-    }
-  )
-)
-
-Top &lt;- R6Class(&quot;Top&quot;,
-  inherit = Middle,
-  public = list(
-    tag = NULL,
-    initialize = function(id, tag) {
-      super$initialize(id)
-      self$tag &lt;- tag
-    },
-    info = function() {
-      super$info()
-      cat(&quot;Tag:&quot;, self$tag, &quot;\n&quot;)
-    }
-  )
-)
-
-obj &lt;- Top$new(&quot;A1&quot;, &quot;production&quot;)
-obj$info()
-cat(&quot;Inherits from Base?&quot;, inherits(obj, &quot;Base&quot;), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Private Methods</h2>
-
-<p>Private methods encapsulate internal logic that users of the class should not call directly.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(R6)
-
-PasswordManager &lt;- R6Class(&quot;PasswordManager&quot;,
-  public = list(
-    initialize = function() {
-      private$passwords &lt;- list()
-    },
-
-    add = function(site, password) {
-      if (!private$is_strong(password)) {
-        stop(&quot;Password too weak! Must be &gt;= 8 chars with a digit.&quot;)
+    show_tricks = function() {
+      if (length(self$tricks) == 0) {
+        cat(self$name, &quot;knows no tricks yet.\n&quot;)
+      } else {
+        cat(self$name, &quot;can:&quot;, paste(self$tricks, collapse = &quot;, &quot;), &quot;\n&quot;)
       }
-      private$passwords[[site]] &lt;- private$hash(password)
-      cat(&quot;Password saved for&quot;, site, &quot;\n&quot;)
+    }
+  )
+)
+
+rex &lt;- Dog$new(&quot;Rex&quot;, tricks = c(&quot;sit&quot;, &quot;shake&quot;, &quot;roll over&quot;))
+rex$speak()
+#&gt; Rex says: Woof
+rex$show_tricks()
+#&gt; Rex can: sit, shake, roll over</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Dog never defines <code>speak()</code> — it inherits the method from Animal. The <code>inherit = Animal</code> argument passes down all public and private members. Inside Dog's <code>initialize</code>, <code>super$initialize(name, sound = &quot;Woof&quot;)</code> calls the parent constructor so the <code>name</code> and <code>sound</code> fields get set properly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>R6 uses single inheritance — each class has at most one parent.</strong> If you need behavior from multiple sources, hold other R6 objects as fields (composition). This keeps the class hierarchy simple and avoids the "diamond problem" that plagues multiple inheritance in other languages.</div></div>
+
+<p>Now let's create another child to confirm the parent stays independent from each child's additions.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">Cat &lt;- R6Class(&quot;Cat&quot;,
+  inherit = Animal,
+  public = list(
+    initialize = function(name) {
+      super$initialize(name, sound = &quot;Meow&quot;)
+    },
+
+    purr = function() {
+      cat(self$name, &quot;purrs contentedly.\n&quot;)
+    }
+  )
+)
+
+whiskers &lt;- Cat$new(&quot;Whiskers&quot;)
+whiskers$speak()
+#&gt; Whiskers says: Meow
+whiskers$purr()
+#&gt; Whiskers purrs contentedly.</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Cat adds <code>purr()</code> without affecting Dog. Each child specializes the parent in its own direction — Dog adds tricks, Cat adds purring. The parent <code>speak()</code> method works for both because it reads <code>self$sound</code>, which each child sets differently via <code>super$initialize()</code>.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a Bird child class that inherits from Animal, sets its sound to "Tweet", and adds a <code>fly()</code> method that prints "[name] takes flight!". Create one and call both <code>speak()</code> and <code>fly()</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: create a Bird class
+Bird &lt;- R6Class(&quot;Bird&quot;,
+  inherit = Animal,
+  public = list(
+    initialize = function(name) {
+      # your code here
+    },
+
+    fly = function() {
+      # your code here
+    }
+  )
+)
+
+# Test:
+ex_bird &lt;- Bird$new(&quot;Robin&quot;)
+ex_bird$speak()
+#&gt; Expected: Robin says: Tweet
+ex_bird$fly()
+#&gt; Expected: Robin takes flight!</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Bird &lt;- R6Class(&quot;Bird&quot;,
+  inherit = Animal,
+  public = list(
+    initialize = function(name) {
+      super$initialize(name, sound = &quot;Tweet&quot;)
+    },
+
+    fly = function() {
+      cat(self$name, &quot;takes flight!\n&quot;)
+    }
+  )
+)
+
+ex_bird &lt;- Bird$new(&quot;Robin&quot;)
+ex_bird$speak()
+#&gt; Robin says: Tweet
+ex_bird$fly()
+#&gt; Robin takes flight!</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>super$initialize()</code> sets the name and sound in the parent, then <code>fly()</code> uses <code>self$name</code> which was stored by the parent constructor.</p>
+
+</details>
+</section>
+
+<h2>How do you override and extend parent methods with super$?</h2>
+
+<p>Sometimes a child needs to change what a parent method does — not just add new methods, but replace or wrap existing ones. This is <strong>method overriding</strong>. The <code>super$</code> reference lets the child call the parent's version when it still wants the original behavior as part of its own logic.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">Shape &lt;- R6Class(&quot;Shape&quot;,
+  public = list(
+    color = NULL,
+
+    initialize = function(color = &quot;red&quot;) {
+      self$color &lt;- color
+    },
+
+    describe = function() {
+      cat(&quot;A&quot;, self$color, &quot;shape\n&quot;)
+    }
+  )
+)
+
+Rectangle &lt;- R6Class(&quot;Rectangle&quot;,
+  inherit = Shape,
+  public = list(
+    width = NULL,
+    height = NULL,
+
+    initialize = function(width, height, color = &quot;blue&quot;) {
+      super$initialize(color)
+      self$width &lt;- width
+      self$height &lt;- height
+    },
+
+    area = function() self$width * self$height,
+
+    describe = function() {
+      super$describe()
+      cat(&quot;  Type: Rectangle (&quot;, self$width, &quot;x&quot;, self$height, &quot;)\n&quot;)
+      cat(&quot;  Area:&quot;, self$area(), &quot;\n&quot;)
+    }
+  )
+)
+
+Square &lt;- R6Class(&quot;Square&quot;,
+  inherit = Rectangle,
+  public = list(
+    initialize = function(side, color = &quot;green&quot;) {
+      super$initialize(width = side, height = side, color = color)
+    },
+
+    describe = function() {
+      super$describe()
+      cat(&quot;  (also a square with side&quot;, self$width, &quot;)\n&quot;)
+    }
+  )
+)
+
+sq &lt;- Square$new(5)
+sq$describe()
+#&gt; A green shape
+#&gt;   Type: Rectangle ( 5 x 5 )
+#&gt;   Area: 25
+#&gt;   (also a square with side 5 )</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Each <code>describe()</code> calls <code>super$describe()</code> first, then adds its own line. The call cascades up the chain: Square → Rectangle → Shape. This is the <strong>template method pattern</strong> — the parent sets the structure, children add details.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always call super$initialize() first in child constructors.</strong> The parent may set up state that the child depends on. Calling it last (or not at all) risks using uninitialized fields. Think of it like building a house — pour the foundation (parent) before framing the walls (child).</div></div>
+
+<p>Let's see that the child can also add entirely new methods that use inherited state without any overriding.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Square inherits area() from Rectangle — no override needed
+cat(&quot;Square area:&quot;, sq$area(), &quot;\n&quot;)
+#&gt; Square area: 25
+cat(&quot;Square color:&quot;, sq$color, &quot;\n&quot;)
+#&gt; Square color: green</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Square never defines <code>area()</code> or <code>color</code> — both come from Rectangle and Shape respectively. The child gains the full method and field set of every ancestor.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a <code>perimeter()</code> method to Rectangle (it should return <code>2 * (width + height)</code>), then call it on <code>sq</code> to confirm Square inherits it automatically.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: add perimeter to Rectangle
+Rectangle$set(&quot;public&quot;, &quot;perimeter&quot;, function() {
+  # your code here
+})
+
+# Test on the existing square:
+sq$perimeter()
+#&gt; Expected: 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Rectangle$set(&quot;public&quot;, &quot;perimeter&quot;, function() {
+  2 * (self$width + self$height)
+})
+
+sq$perimeter()
+#&gt; [1] 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>$set()</code> adds methods to an existing class dynamically. Since Square inherits from Rectangle, the new method is immediately available on all Square instances — even ones already created.</p>
+
+</details>
+</section>
+
+<h2>What are private fields and methods in R6?</h2>
+
+<p>When you build a class for others to use, not every piece of internal state should be accessible. Private fields and methods are hidden from code outside the class — only methods inside the class (using <code>private$</code>) can touch them. This means you can refactor internals later without breaking anyone's code.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">BankAccount &lt;- R6Class(&quot;BankAccount&quot;,
+  public = list(
+    owner = NULL,
+
+    initialize = function(owner, initial_balance = 0) {
+      self$owner &lt;- owner
+      private$balance &lt;- initial_balance
+      private$log_transaction(&quot;Account opened&quot;, initial_balance)
+    },
+
+    deposit = function(amount) {
+      if (amount &lt;= 0) stop(&quot;Deposit must be positive&quot;)
+      private$balance &lt;- private$balance + amount
+      private$log_transaction(&quot;Deposit&quot;, amount)
       invisible(self)
     },
 
-    verify = function(site, password) {
-      stored &lt;- private$passwords[[site]]
-      if (is.null(stored)) {
-        cat(&quot;No password stored for&quot;, site, &quot;\n&quot;)
-        return(FALSE)
-      }
-      result &lt;- stored == private$hash(password)
-      cat(&quot;Verification for&quot;, site, &quot;:&quot;, if (result) &quot;PASS&quot; else &quot;FAIL&quot;, &quot;\n&quot;)
-      result
+    withdraw = function(amount) {
+      if (amount &lt;= 0) stop(&quot;Withdrawal must be positive&quot;)
+      if (amount &gt; private$balance) stop(&quot;Insufficient funds&quot;)
+      private$balance &lt;- private$balance - amount
+      private$log_transaction(&quot;Withdrawal&quot;, -amount)
+      invisible(self)
+    },
+
+    get_balance = function() private$balance,
+
+    get_statement = function() {
+      cat(&quot;=== Statement for&quot;, self$owner, &quot;===\n&quot;)
+      cat(&quot;Balance:&quot;, private$balance, &quot;\n&quot;)
+      cat(&quot;Transactions:&quot;, length(private$history), &quot;\n&quot;)
     }
   ),
 
   private = list(
-    passwords = NULL,
+    balance = 0,
+    history = list(),
 
-    is_strong = function(pw) {
-      nchar(pw) &gt;= 8 &amp;&amp; grepl(&quot;[0-9]&quot;, pw)
-    },
-
-    hash = function(pw) {
-      # Simple hash simulation (use real hashing in production!)
-      paste0(&quot;hashed_&quot;, nchar(pw), &quot;_&quot;, substr(pw, 1, 1))
+    log_transaction = function(type, amount) {
+      entry &lt;- list(type = type, amount = amount, time = Sys.time())
+      private$history &lt;- c(private$history, list(entry))
     }
   )
 )
 
-pm &lt;- PasswordManager$new()
-pm$add(&quot;github&quot;, &quot;MyPass123!&quot;)
-pm$verify(&quot;github&quot;, &quot;MyPass123!&quot;)
-pm$verify(&quot;github&quot;, &quot;wrong&quot;)</div>
+acct &lt;- BankAccount$new(&quot;Alice&quot;, 1000)
+acct$deposit(500)
+acct$withdraw(200)
+acct$get_statement()
+#&gt; === Statement for Alice ===
+#&gt; Balance: 1300
+#&gt; Transactions: 3</div>
 
     <div class="webr-buttons">
 
@@ -227,65 +441,184 @@ pm$verify(&quot;github&quot;, &quot;wrong&quot;)</div>
 
 </div>
 
-<h2>Active Bindings</h2>
+<p>The <code>balance</code> and <code>history</code> fields live in <code>private</code> — outside code cannot read or write them directly. The only way to change the balance is through <code>deposit()</code> and <code>withdraw()</code>, which enforce rules (positive amounts, sufficient funds). The <code>log_transaction()</code> private method keeps an audit trail without exposing it.</p>
 
-<p>Active bindings look like fields but execute code when read or written. They are perfect for computed properties, validation on assignment, and read-only fields.</p>
+<p>Let's confirm that direct access from outside fails.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(R6)
+    <div class="webr-editor" data-language="r"># Trying to access private fields from outside
+tryCatch(
 
-Temperature &lt;- R6Class(&quot;Temperature&quot;,
+  acct$balance,
+  error = function(e) cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n&quot;)
+)
+#&gt; Error: Cannot access private field/method 'balance' ...
+
+# Trying to access private method from outside
+tryCatch(
+  acct$log_transaction(&quot;Hack&quot;, 99999),
+  error = function(e) cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n&quot;)
+)
+#&gt; Error: Cannot access private field/method 'log_transaction' ...</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>R6 enforces the boundary — private members simply don't exist from the outside. The error message is clear: you cannot access private fields or methods externally.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>R6 subclasses CAN access parent private methods via super$, but NOT private fields.</strong> If a child calls <code>super$log_transaction()</code>, that works. But <code>super$balance</code> fails — private fields belong to the defining class only. If a child needs the balance, the parent should expose a public or active method for it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a private field <code>transaction_count</code> (starting at 0) to BankAccount that increments in <code>log_transaction</code>, then add a public <code>get_tx_count()</code> method that returns it.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: add transaction counter
+BankAccount2 &lt;- R6Class(&quot;BankAccount2&quot;,
   public = list(
-    initialize = function(celsius) {
-      private$.celsius &lt;- celsius
+    initialize = function(owner) {
+      # your code here
+    },
+
+    deposit = function(amount) {
+      private$balance &lt;- private$balance + amount
+      private$transaction_count &lt;- private$transaction_count + 1
+      invisible(self)
+    },
+
+    get_tx_count = function() {
+      # your code here
     }
+  ),
+
+  private = list(
+    balance = 0,
+    transaction_count = 0
+  )
+)
+
+# Test:
+ex_acct &lt;- BankAccount2$new(&quot;Bob&quot;)
+ex_acct$deposit(100)$deposit(50)$deposit(25)
+ex_acct$get_tx_count()
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">BankAccount2 &lt;- R6Class(&quot;BankAccount2&quot;,
+  public = list(
+    initialize = function(owner) {
+      self$owner &lt;- owner
+    },
+
+    owner = NULL,
+
+    deposit = function(amount) {
+      private$balance &lt;- private$balance + amount
+      private$transaction_count &lt;- private$transaction_count + 1
+      invisible(self)
+    },
+
+    get_tx_count = function() {
+      private$transaction_count
+    }
+  ),
+
+  private = list(
+    balance = 0,
+    transaction_count = 0
+  )
+)
+
+ex_acct &lt;- BankAccount2$new(&quot;Bob&quot;)
+ex_acct$deposit(100)$deposit(50)$deposit(25)
+ex_acct$get_tx_count()
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The counter lives in <code>private</code> so outside code can't tamper with it. Method chaining works because <code>deposit()</code> returns <code>invisible(self)</code>.</p>
+
+</details>
+</section>
+
+<h2>How do active bindings create computed properties?</h2>
+
+<p>Active bindings are the R6 equivalent of Python's <code>@property</code> decorator. They look like regular fields from the outside (<code>obj$area</code>), but behind the scenes they run a function. This lets you compute values on the fly, validate assignments, or cache expensive calculations — all invisible to the user of the class.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">Circle &lt;- R6Class(&quot;Circle&quot;,
+  private = list(
+    .radius = NULL
   ),
 
   active = list(
-    # Read and write: celsius
-    celsius = function(value) {
-      if (missing(value)) return(private$.celsius)
-      stopifnot(is.numeric(value))
-      private$.celsius &lt;- value
+    radius = function(value) {
+      if (missing(value)) return(private$.radius)
+      if (!is.numeric(value) || value &lt;= 0) stop(&quot;Radius must be a positive number&quot;)
+      private$.radius &lt;- value
     },
 
-    # Computed property: fahrenheit (auto-converts)
-    fahrenheit = function(value) {
-      if (missing(value)) return(private$.celsius * 9/5 + 32)
-      private$.celsius &lt;- (value - 32) * 5/9
+    area = function(value) {
+      if (!missing(value)) stop(&quot;area is read-only&quot;)
+      pi * private$.radius^2
     },
 
-    # Read-only property
-    kelvin = function(value) {
-      if (!missing(value)) stop(&quot;kelvin is read-only&quot;)
-      private$.celsius + 273.15
+    diameter = function(value) {
+      if (missing(value)) return(2 * private$.radius)
+      if (!is.numeric(value) || value &lt;= 0) stop(&quot;Diameter must be positive&quot;)
+      private$.radius &lt;- value / 2
     }
   ),
 
-  private = list(
-    .celsius = NULL
+  public = list(
+    initialize = function(radius) {
+      self$radius &lt;- radius
+    }
   )
 )
 
-temp &lt;- Temperature$new(100)
-cat(&quot;Celsius:&quot;, temp$celsius, &quot;\n&quot;)
-cat(&quot;Fahrenheit:&quot;, temp$fahrenheit, &quot;\n&quot;)
-cat(&quot;Kelvin:&quot;, temp$kelvin, &quot;\n&quot;)
-
-# Set via fahrenheit -- celsius auto-updates
-temp$fahrenheit &lt;- 32
-cat(&quot;\nAfter setting fahrenheit = 32:\n&quot;)
-cat(&quot;Celsius:&quot;, temp$celsius, &quot;\n&quot;)
-cat(&quot;Fahrenheit:&quot;, temp$fahrenheit, &quot;\n&quot;)
-
-# Read-only field
-tryCatch(
-  { temp$kelvin &lt;- 300 },
-  error = function(e) cat(&quot;Error:&quot;, e$message, &quot;\n&quot;)
-)</div>
+c1 &lt;- Circle$new(5)
+cat(&quot;Radius:&quot;, c1$radius, &quot;\n&quot;)
+#&gt; Radius: 5
+cat(&quot;Area:&quot;, c1$area, &quot;\n&quot;)
+#&gt; Area: 78.53982
+cat(&quot;Diameter:&quot;, c1$diameter, &quot;\n&quot;)
+#&gt; Diameter: 10</div>
 
     <div class="webr-buttons">
 
@@ -303,117 +636,177 @@ tryCatch(
 
 </div>
 
-<h4>Active Bindings for Validation</h4>
+<p>Three active bindings, three different behaviors: <code>radius</code> is read-write with validation, <code>area</code> is read-only and computed, <code>diameter</code> is read-write and syncs back to radius. The user never calls a function — they just read and assign fields.</p>
+
+<p><img src="screenshots/R6-Advanced-active-binding-flow.webp" alt="How an active binding dispatches between GET and SET" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: How an active binding dispatches between GET (compute) and SET (validate & store).</em></p>
+
+<p>The secret is the <code>missing(value)</code> check. When R evaluates <code>c1$area</code>, it calls the binding function with no argument — <code>value</code> is missing, so the function returns the computed result. When you write <code>c1$diameter &lt;- 14</code>, the function receives <code>14</code> as <code>value</code> and stores it.</p>
+
+<p>Let's see the validation in action.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(R6)
+    <div class="webr-editor" data-language="r"># Setting diameter updates radius automatically
+c1$diameter &lt;- 14
+cat(&quot;New radius:&quot;, c1$radius, &quot;\n&quot;)
+#&gt; New radius: 7
+cat(&quot;New area:&quot;, c1$area, &quot;\n&quot;)
+#&gt; New area: 153.938
 
-Person &lt;- R6Class(&quot;Person&quot;,
-  public = list(
-    initialize = function(name, age) {
-      self$name &lt;- name  # Triggers active binding validation
-      self$age &lt;- age
-    }
-  ),
+# Validation rejects bad input
+tryCatch(
+  c1$radius &lt;- -3,
+  error = function(e) cat(&quot;Caught:&quot;, conditionMessage(e), &quot;\n&quot;)
+)
+#&gt; Caught: Radius must be a positive number
 
+# Read-only field rejects assignment
+tryCatch(
+  c1$area &lt;- 100,
+  error = function(e) cat(&quot;Caught:&quot;, conditionMessage(e), &quot;\n&quot;)
+)
+#&gt; Caught: area is read-only</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Setting <code>diameter</code> to 14 automatically updates <code>radius</code> to 7, and <code>area</code> recalculates to ~153.94. The validation catches negative values before they corrupt internal state. Read-only bindings reject assignment entirely.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Active bindings let you add validation and computation without changing the external interface.</strong> If you start with a plain public field and later need validation, convert it to an active binding — every piece of code that does <code>obj$field</code> still works, but now a function runs behind the scenes. This is why the convention uses <code>.radius</code> (private, prefixed with dot) as storage and <code>radius</code> (active) as the public face.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a <code>circumference</code> active binding to the Circle class that returns <code>2 * pi * radius</code>. Make it read-only.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: add circumference binding
+Circle2 &lt;- R6Class(&quot;Circle2&quot;,
+  private = list(.radius = NULL),
   active = list(
-    name = function(value) {
-      if (missing(value)) return(private$.name)
-      if (!is.character(value) || nchar(value) == 0) stop(&quot;name must be non-empty string&quot;)
-      private$.name &lt;- value
+    radius = function(value) {
+      if (missing(value)) return(private$.radius)
+      private$.radius &lt;- value
     },
-    age = function(value) {
-      if (missing(value)) return(private$.age)
-      if (!is.numeric(value) || value &lt; 0 || value &gt; 150) stop(&quot;age must be 0-150&quot;)
-      private$.age &lt;- value
+    circumference = function(value) {
+      # your code here
     }
   ),
-
-  private = list(
-    .name = NULL,
-    .age = NULL
+  public = list(
+    initialize = function(r) { self$radius &lt;- r }
   )
 )
 
-p &lt;- Person$new(&quot;Alice&quot;, 30)
-cat(p$name, &quot;is&quot;, p$age, &quot;\n&quot;)
-
-p$age &lt;- 31  # Valid
-cat(&quot;Updated age:&quot;, p$age, &quot;\n&quot;)
-
-tryCatch(
-  { p$age &lt;- -5 },
-  error = function(e) cat(&quot;Caught:&quot;, e$message, &quot;\n&quot;)
-)</div>
-
+# Test:
+ex_c &lt;- Circle2$new(10)
+ex_c$circumference
+#&gt; Expected: 62.83185</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Circle2 &lt;- R6Class(&quot;Circle2&quot;,
+  private = list(.radius = NULL),
+  active = list(
+    radius = function(value) {
+      if (missing(value)) return(private$.radius)
+      private$.radius &lt;- value
+    },
+    circumference = function(value) {
+      if (!missing(value)) stop(&quot;circumference is read-only&quot;)
+      2 * pi * private$.radius
+    }
+  ),
+  public = list(
+    initialize = function(r) { self$radius &lt;- r }
+  )
+)
+
+ex_c &lt;- Circle2$new(10)
+ex_c$circumference
+#&gt; [1] 62.83185</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
 </div>
 
-<h2>Finalize: Cleanup on Garbage Collection</h2>
+<p><strong>Explanation:</strong> The binding checks <code>missing(value)</code> — if someone tries to assign, it errors. Otherwise it computes and returns <code>2 * pi * radius</code>.</p>
 
-<p>The <code>finalize</code> private method runs when the object is garbage collected. Use it to close connections, delete temp files, or release resources.</p>
+</details>
+</section>
+
+<h2>How does finalize() clean up resources?</h2>
+
+<p>When an R6 object manages external resources — a database connection, a temporary file, a network socket — you need a way to release them when the object is no longer needed. The <code>finalize()</code> method runs automatically when R's garbage collector reclaims the object.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(R6)
-
-TempFileManager &lt;- R6Class(&quot;TempFileManager&quot;,
+    <div class="webr-editor" data-language="r">TempFile &lt;- R6Class(&quot;TempFile&quot;,
   public = list(
-    initialize = function(prefix = &quot;tmp&quot;) {
-      private$filepath &lt;- tempfile(pattern = prefix, fileext = &quot;.txt&quot;)
-      writeLines(&quot;temporary data&quot;, private$filepath)
-      cat(&quot;Created temp file:&quot;, private$filepath, &quot;\n&quot;)
+    path = NULL,
+
+    initialize = function(prefix = &quot;r6tmp&quot;) {
+      self$path &lt;- tempfile(pattern = prefix, fileext = &quot;.txt&quot;)
+      writeLines(&quot;Hello from R6!&quot;, self$path)
+      cat(&quot;Created:&quot;, self$path, &quot;\n&quot;)
     },
 
     read = function() {
-      readLines(private$filepath)
-    },
-
-    get_path = function() {
-      private$filepath
+      readLines(self$path)
     }
   ),
 
   private = list(
-    filepath = NULL,
-
     finalize = function() {
-      if (file.exists(private$filepath)) {
-        file.remove(private$filepath)
-        cat(&quot;Cleaned up temp file:&quot;, private$filepath, &quot;\n&quot;)
+      if (file.exists(self$path)) {
+        file.remove(self$path)
+        cat(&quot;Cleaned up:&quot;, self$path, &quot;\n&quot;)
       }
     }
   )
 )
 
-# Create and use
-mgr &lt;- TempFileManager$new()
-cat(&quot;Contents:&quot;, mgr$read(), &quot;\n&quot;)
-fpath &lt;- mgr$get_path()
-cat(&quot;File exists:&quot;, file.exists(fpath), &quot;\n&quot;)
+tf &lt;- TempFile$new()
+#&gt; Created: /tmp/RtmpXXXXXX/r6tmpXXXXXX.txt
+cat(&quot;Contents:&quot;, tf$read(), &quot;\n&quot;)
+#&gt; Contents: Hello from R6!
+cat(&quot;File exists?&quot;, file.exists(tf$path), &quot;\n&quot;)
+#&gt; File exists? TRUE
 
-# Remove reference and garbage collect
-rm(mgr)
-gc()  # Triggers finalize
-cat(&quot;File exists after gc:&quot;, file.exists(fpath), &quot;\n&quot;)</div>
+# Remove the reference and force garbage collection
+rm(tf)
+gc()
+#&gt; Cleaned up: /tmp/RtmpXXXXXX/r6tmpXXXXXX.txt</div>
 
     <div class="webr-buttons">
 
@@ -431,37 +824,141 @@ cat(&quot;File exists after gc:&quot;, file.exists(fpath), &quot;\n&quot;)</div>
 
 </div>
 
-<h2>Portable vs Non-Portable Classes</h2>
+<p>When <code>rm(tf)</code> removes the last reference and <code>gc()</code> runs, R6 calls <code>finalize()</code> which deletes the temp file. Without a finalizer, temp files would accumulate until the R session ends.</p>
 
-<p>By default, R6 classes are <strong>portable</strong> (<code>portable = TRUE</code>). This means you use <code>self$</code> and <code>private$</code> explicitly. Non-portable classes bind methods into the object's environment, so you can access fields without <code>self$</code>. Stick with portable (the default) -- it's clearer.</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Make finalize() private — there's no reason for external code to call it directly.</strong> If someone needs to release resources early (before garbage collection), provide a public <code>close()</code> or <code>disconnect()</code> method that calls the same cleanup logic, then set a flag so <code>finalize()</code> skips already-cleaned objects.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Modify the TempFile class to add a public <code>close()</code> method that calls the cleanup logic and a private <code>.closed</code> flag that prevents double-cleanup in <code>finalize()</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: add close() method with double-cleanup guard
+TempFile2 &lt;- R6Class(&quot;TempFile2&quot;,
+  public = list(
+    path = NULL,
+
+    initialize = function() {
+      self$path &lt;- tempfile(fileext = &quot;.txt&quot;)
+      writeLines(&quot;data&quot;, self$path)
+    },
+
+    close = function() {
+      # your code here
+    }
+  ),
+
+  private = list(
+    .closed = FALSE,
+
+    finalize = function() {
+      # your code here — skip if already closed
+    }
+  )
+)
+
+# Test:
+ex_tf &lt;- TempFile2$new()
+ex_tf$close()
+#&gt; Expected: prints confirmation, file removed
+ex_tf$close()
+#&gt; Expected: no error, no double-delete</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">TempFile2 &lt;- R6Class(&quot;TempFile2&quot;,
+  public = list(
+    path = NULL,
+
+    initialize = function() {
+      self$path &lt;- tempfile(fileext = &quot;.txt&quot;)
+      writeLines(&quot;data&quot;, self$path)
+    },
+
+    close = function() {
+      if (!private$.closed) {
+        if (file.exists(self$path)) file.remove(self$path)
+        private$.closed &lt;- TRUE
+        cat(&quot;Closed and cleaned up.\n&quot;)
+      }
+    }
+  ),
+
+  private = list(
+    .closed = FALSE,
+
+    finalize = function() {
+      if (!private$.closed) {
+        if (file.exists(self$path)) file.remove(self$path)
+      }
+    }
+  )
+)
+
+ex_tf &lt;- TempFile2$new()
+ex_tf$close()
+#&gt; Closed and cleaned up.
+ex_tf$close()
+# No output — already cleaned</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>.closed</code> flag prevents both double-cleanup and errors from calling <code>close()</code> multiple times. <code>finalize()</code> checks the same flag, so garbage collection is a no-op if <code>close()</code> was already called.</p>
+
+</details>
+</section>
+
+<h2>When should you use portable vs non-portable R6 classes?</h2>
+
+<p>R6 has two class modes: <strong>portable</strong> (the default) and <strong>non-portable</strong>. The difference is how methods reference themselves and their private members.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(R6)
-
-# Portable (default, recommended)
+    <div class="webr-editor" data-language="r"># Portable (default) — uses self$ and private$
 Portable &lt;- R6Class(&quot;Portable&quot;,
   portable = TRUE,
   public = list(
     x = 10,
-    show_x = function() cat(&quot;x =&quot;, self$x, &quot;\n&quot;)  # Need self$
-  )
+    get_x = function() self$x,
+    get_secret = function() private$secret
+  ),
+  private = list(secret = 42)
 )
 
-Portable$new()$show_x()
-
-# Non-portable (legacy style)
+# Non-portable — uses the enclosing environment directly
 NonPortable &lt;- R6Class(&quot;NonPortable&quot;,
   portable = FALSE,
   public = list(
     x = 10,
-    show_x = function() cat(&quot;x =&quot;, x, &quot;\n&quot;)  # No self$ needed
-  )
+    get_x = function() x,
+    get_secret = function() secret
+  ),
+  private = list(secret = 42)
 )
 
-NonPortable$new()$show_x()</div>
+p &lt;- Portable$new()
+np &lt;- NonPortable$new()
+cat(&quot;Portable:&quot;, p$get_x(), p$get_secret(), &quot;\n&quot;)
+#&gt; Portable: 10 42
+cat(&quot;Non-portable:&quot;, np$get_x(), np$get_secret(), &quot;\n&quot;)
+#&gt; Non-portable: 10 42</div>
 
     <div class="webr-buttons">
 
@@ -479,215 +976,687 @@ NonPortable$new()$show_x()</div>
 
 </div>
 
-<h2>Summary Table</h2>
+<p>Both produce the same result. The difference is readability and cross-package compatibility. In portable classes, <code>self$x</code> makes it explicit that you're reading a field, not a local variable. In non-portable classes, bare <code>x</code> is ambiguous — is it a field or something from an outer scope?</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always use portable classes (the default). Non-portable exists for backward compatibility only.</strong> Portable classes work correctly across package boundaries, are explicit about field access, and avoid name collisions between local variables and fields. There's no performance difference.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert this non-portable class to portable by adding <code>self$</code> and <code>private$</code> where needed.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: convert to portable
+Timer &lt;- R6Class(&quot;Timer&quot;,
+  portable = FALSE,
+  public = list(
+    start = function() { .start_time &lt;- Sys.time() },
+    elapsed = function() { Sys.time() - .start_time }
+  ),
+  private = list(.start_time = NULL)
+)
+
+# Rewrite as portable:
+TimerPortable &lt;- R6Class(&quot;TimerPortable&quot;,
+  public = list(
+    start = function() {
+      # your code here
+    },
+    elapsed = function() {
+      # your code here
+    }
+  ),
+  private = list(.start_time = NULL)
+)
+
+# Test:
+ex_timer &lt;- TimerPortable$new()
+ex_timer$start()
+Sys.sleep(0.1)
+ex_timer$elapsed()
+#&gt; Expected: Time difference of ~0.1 secs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">TimerPortable &lt;- R6Class(&quot;TimerPortable&quot;,
+  public = list(
+    start = function() {
+      private$.start_time &lt;- Sys.time()
+    },
+    elapsed = function() {
+      Sys.time() - private$.start_time
+    }
+  ),
+  private = list(.start_time = NULL)
+)
+
+ex_timer &lt;- TimerPortable$new()
+ex_timer$start()
+Sys.sleep(0.1)
+ex_timer$elapsed()
+#&gt; Time difference of 0.100... secs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Replace bare variable names with explicit <code>private$</code> references. This removes ambiguity and ensures the class works correctly when inherited across packages.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Logger Hierarchy with Finalize</h4>
+
+<p>Build a logging system with three classes:</p>
+
+<ul>
+
+<li><code>Logger</code> (parent): private <code>log_buffer</code> (character vector), public <code>log(message)</code> that appends to the buffer, public <code>get_logs()</code> that returns all entries, and an active binding <code>entry_count</code> that returns the buffer length.</li>
+
+<li><code>TimestampLogger</code> (child): overrides <code>log()</code> to prepend the current time before delegating to <code>super$log()</code>.</li>
+
+<li>Add a private <code>finalize()</code> to Logger that prints "Logger closed with N entries."</li>
+
+</ul>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: Build the Logger hierarchy
+# Hint: use super$log() in the child to avoid duplicating buffer logic
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Logger &lt;- R6Class(&quot;Logger&quot;,
+  public = list(
+    log = function(message) {
+      private$.buffer &lt;- c(private$.buffer, message)
+      invisible(self)
+    },
+
+    get_logs = function() private$.buffer
+  ),
+
+  active = list(
+    entry_count = function(value) {
+      if (!missing(value)) stop(&quot;entry_count is read-only&quot;)
+      length(private$.buffer)
+    }
+  ),
+
+  private = list(
+    .buffer = character(0),
+
+    finalize = function() {
+      cat(&quot;Logger closed with&quot;, length(private$.buffer), &quot;entries.\n&quot;)
+    }
+  )
+)
+
+TimestampLogger &lt;- R6Class(&quot;TimestampLogger&quot;,
+  inherit = Logger,
+  public = list(
+    log = function(message) {
+      stamped &lt;- paste0(&quot;[&quot;, format(Sys.time(), &quot;%H:%M:%S&quot;), &quot;] &quot;, message)
+      super$log(stamped)
+    }
+  )
+)
+
+tl &lt;- TimestampLogger$new()
+tl$log(&quot;Starting process&quot;)$log(&quot;Step 1 complete&quot;)$log(&quot;Done&quot;)
+cat(&quot;Entry count:&quot;, tl$entry_count, &quot;\n&quot;)
+#&gt; Entry count: 3
+cat(tl$get_logs(), sep = &quot;\n&quot;)
+#&gt; [14:32:01] Starting process
+#&gt; [14:32:01] Step 1 complete
+#&gt; [14:32:01] Done
+
+rm(tl); gc()
+#&gt; Logger closed with 3 entries.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> TimestampLogger overrides <code>log()</code> to prepend a timestamp, then calls <code>super$log()</code> so the buffer logic stays in one place. The active binding computes length on every access rather than tracking a separate counter.</p>
+
+</details>
+
+<h4>Exercise 2: Shape Hierarchy with Computed Area</h4>
+
+<p>Build a shape system:</p>
+
+<ul>
+
+<li><code>Shape</code> (parent): private <code>.color</code> field, active binding <code>color</code> (read-write with validation: must be a character string), and a <code>describe()</code> method printing the color.</li>
+
+<li><code>Rectangle</code> (child): adds private <code>.width</code> and <code>.height</code>, read-only active binding <code>area</code>, overrides <code>describe()</code> using <code>super$describe()</code>.</li>
+
+<li><code>Circle</code> (child): adds private <code>.radius</code>, read-only active binding <code>area</code> using pi*r^2, overrides <code>describe()</code>.</li>
+
+</ul>
+
+<p>Create one Rectangle(3, 4) and one Circle(5), call <code>describe()</code> and read <code>area</code> on each.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: Shape hierarchy
+# Hint: each child's area binding computes differently but the interface is the same
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Shape &lt;- R6Class(&quot;Shape&quot;,
+  private = list(.color = &quot;red&quot;),
+  active = list(
+    color = function(value) {
+      if (missing(value)) return(private$.color)
+      if (!is.character(value)) stop(&quot;Color must be a string&quot;)
+      private$.color &lt;- value
+    }
+  ),
+  public = list(
+    initialize = function(color = &quot;red&quot;) {
+      self$color &lt;- color
+    },
+    describe = function() {
+      cat(&quot;A&quot;, self$color, &quot;shape&quot;)
+    }
+  )
+)
+
+MyRect &lt;- R6Class(&quot;MyRect&quot;,
+  inherit = Shape,
+  private = list(.width = NULL, .height = NULL),
+  active = list(
+    area = function(value) {
+      if (!missing(value)) stop(&quot;area is read-only&quot;)
+      private$.width * private$.height
+    }
+  ),
+  public = list(
+    initialize = function(w, h, color = &quot;blue&quot;) {
+      super$initialize(color)
+      private$.width &lt;- w
+      private$.height &lt;- h
+    },
+    describe = function() {
+      super$describe()
+      cat(&quot; — Rectangle&quot;, private$.width, &quot;x&quot;, private$.height, &quot;, area =&quot;, self$area, &quot;\n&quot;)
+    }
+  )
+)
+
+MyCircle &lt;- R6Class(&quot;MyCircle&quot;,
+  inherit = Shape,
+  private = list(.radius = NULL),
+  active = list(
+    area = function(value) {
+      if (!missing(value)) stop(&quot;area is read-only&quot;)
+      pi * private$.radius^2
+    }
+  ),
+  public = list(
+    initialize = function(r, color = &quot;green&quot;) {
+      super$initialize(color)
+      private$.radius &lt;- r
+    },
+    describe = function() {
+      super$describe()
+      cat(&quot; — Circle r =&quot;, private$.radius, &quot;, area =&quot;, round(self$area, 2), &quot;\n&quot;)
+    }
+  )
+)
+
+r &lt;- MyRect$new(3, 4)
+r$describe()
+#&gt; A blue shape — Rectangle 3 x 4 , area = 12
+
+ci &lt;- MyCircle$new(5)
+ci$describe()
+#&gt; A green shape — Circle r = 5 , area = 78.54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both children override <code>describe()</code> and define their own <code>area</code> active binding. The polymorphism means <code>obj$area</code> works on any shape — the correct formula runs based on the actual class.</p>
+
+</details>
+
+<h4>Exercise 3: Config with Read-Only Active Bindings</h4>
+
+<p>Create a Config class:</p>
+
+<ul>
+
+<li>Private <code>.settings</code> <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> (initialized with <code>list(debug = FALSE, timeout = 30, retries = 3)</code>)</li>
+
+<li>Active bindings for each setting that are <strong>read-only</strong> (any assignment attempt errors)</li>
+
+<li>A public <code>set(key, value)</code> method that updates a setting (only if key exists)</li>
+
+<li>An <code>EnvironmentConfig</code> child that overrides <code>initialize</code> to read settings from environment variables (use <code>Sys.getenv()</code> with fallback to parent defaults)</li>
+
+</ul>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: Config with read-only active bindings
+# Hint: active bindings can read from the private list using the binding name
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Config &lt;- R6Class(&quot;Config&quot;,
+  private = list(
+    .settings = list(debug = FALSE, timeout = 30, retries = 3)
+  ),
+  active = list(
+    debug = function(value) {
+      if (!missing(value)) stop(&quot;Use $set() to modify settings&quot;)
+      private$.settings$debug
+    },
+    timeout = function(value) {
+      if (!missing(value)) stop(&quot;Use $set() to modify settings&quot;)
+      private$.settings$timeout
+    },
+    retries = function(value) {
+      if (!missing(value)) stop(&quot;Use $set() to modify settings&quot;)
+      private$.settings$retries
+    }
+  ),
+  public = list(
+    set = function(key, value) {
+      if (!key %in% names(private$.settings)) stop(&quot;Unknown setting: &quot;, key)
+      private$.settings[[key]] &lt;- value
+      invisible(self)
+    }
+  )
+)
+
+EnvironmentConfig &lt;- R6Class(&quot;EnvironmentConfig&quot;,
+  inherit = Config,
+  public = list(
+    initialize = function() {
+      env_timeout &lt;- Sys.getenv(&quot;APP_TIMEOUT&quot;, unset = &quot;&quot;)
+      if (nchar(env_timeout) &gt; 0) self$set(&quot;timeout&quot;, as.numeric(env_timeout))
+      env_retries &lt;- Sys.getenv(&quot;APP_RETRIES&quot;, unset = &quot;&quot;)
+      if (nchar(env_retries) &gt; 0) self$set(&quot;retries&quot;, as.integer(env_retries))
+    }
+  )
+)
+
+cfg &lt;- Config$new()
+cat(&quot;Timeout:&quot;, cfg$timeout, &quot;\n&quot;)
+#&gt; Timeout: 30
+cfg$set(&quot;timeout&quot;, 60)
+cat(&quot;New timeout:&quot;, cfg$timeout, &quot;\n&quot;)
+#&gt; New timeout: 60
+
+# Read-only enforcement:
+tryCatch(cfg$timeout &lt;- 99, error = function(e) cat(&quot;Blocked:&quot;, e$message, &quot;\n&quot;))
+#&gt; Blocked: Use $set() to modify settings</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Active bindings provide clean <code>cfg$timeout</code> syntax for reading, while <code>$set()</code> channels all writes through validation. The child <code>EnvironmentConfig</code> reads system environment variables on construction, falling back to parent defaults.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Let's combine inheritance, private fields, active bindings, and finalize into a realistic class hierarchy — a data pipeline system.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Parent: base data source with connection management
+DataSource &lt;- R6Class(&quot;DataSource&quot;,
+  public = list(
+    name = NULL,
+
+    initialize = function(name) {
+      self$name &lt;- name
+      private$.connected &lt;- FALSE
+      cat(&quot;DataSource '&quot;, name, &quot;' created.\n&quot;, sep = &quot;&quot;)
+    },
+
+    connect = function() {
+      private$.connected &lt;- TRUE
+      private$.connect_time &lt;- Sys.time()
+      cat(&quot;Connected to&quot;, self$name, &quot;\n&quot;)
+      invisible(self)
+    },
+
+    disconnect = function() {
+      if (private$.connected) {
+        private$.connected &lt;- FALSE
+        cat(&quot;Disconnected from&quot;, self$name, &quot;\n&quot;)
+      }
+      invisible(self)
+    },
+
+    read_data = function() {
+      if (!self$is_connected) stop(&quot;Not connected. Call $connect() first.&quot;)
+      private$fetch_data()
+    }
+  ),
+
+  active = list(
+    is_connected = function(value) {
+      if (!missing(value)) stop(&quot;is_connected is read-only&quot;)
+      private$.connected
+    },
+
+    uptime = function(value) {
+      if (!missing(value)) stop(&quot;uptime is read-only&quot;)
+      if (!private$.connected) return(0)
+      as.numeric(difftime(Sys.time(), private$.connect_time, units = &quot;secs&quot;))
+    }
+  ),
+
+  private = list(
+    .connected = FALSE,
+    .connect_time = NULL,
+
+    fetch_data = function() {
+      stop(&quot;Subclass must implement fetch_data()&quot;)
+    },
+
+    finalize = function() {
+      if (private$.connected) {
+        cat(&quot;[Cleanup] Auto-disconnecting&quot;, self$name, &quot;\n&quot;)
+        self$disconnect()
+      }
+    }
+  )
+)
+
+# Child: CSV data source
+CsvSource &lt;- R6Class(&quot;CsvSource&quot;,
+  inherit = DataSource,
+  public = list(
+    initialize = function(name, data) {
+      super$initialize(name)
+      private$.data &lt;- data
+    }
+  ),
+
+  private = list(
+    .data = NULL,
+
+    fetch_data = function() {
+      cat(&quot;Reading&quot;, nrow(private$.data), &quot;rows from&quot;, self$name, &quot;\n&quot;)
+      private$.data
+    }
+  )
+)
+
+# Child: filtered source (adds transformation layer)
+FilteredSource &lt;- R6Class(&quot;FilteredSource&quot;,
+  inherit = CsvSource,
+  public = list(
+    initialize = function(name, data, filter_col, filter_val) {
+      super$initialize(name, data)
+      private$.filter_col &lt;- filter_col
+      private$.filter_val &lt;- filter_val
+    }
+  ),
+
+  active = list(
+    filter_description = function(value) {
+      if (!missing(value)) stop(&quot;read-only&quot;)
+      paste(private$.filter_col, &quot;==&quot;, private$.filter_val)
+    }
+  ),
+
+  private = list(
+    .filter_col = NULL,
+    .filter_val = NULL,
+
+    fetch_data = function() {
+      raw &lt;- super$fetch_data()
+      filtered &lt;- raw[raw[[private$.filter_col]] == private$.filter_val, ]
+      cat(&quot;Filtered to&quot;, nrow(filtered), &quot;rows where&quot;,
+          private$.filter_col, &quot;==&quot;, private$.filter_val, &quot;\n&quot;)
+      filtered
+    }
+  )
+)
+
+# Demo: build a 3-level pipeline
+src &lt;- FilteredSource$new(
+  name = &quot;mtcars_6cyl&quot;,
+  data = mtcars,
+  filter_col = &quot;cyl&quot;,
+  filter_val = 6
+)
+#&gt; DataSource 'mtcars_6cyl' created.
+
+src$connect()
+#&gt; Connected to mtcars_6cyl
+
+cat(&quot;Connected?&quot;, src$is_connected, &quot;\n&quot;)
+#&gt; Connected? TRUE
+
+cat(&quot;Filter:&quot;, src$filter_description, &quot;\n&quot;)
+#&gt; Filter: cyl == 6
+
+result &lt;- src$read_data()
+#&gt; Reading 32 rows from mtcars_6cyl
+#&gt; Filtered to 7 rows where cyl == 6
+
+cat(&quot;Result rows:&quot;, nrow(result), &quot;\n&quot;)
+#&gt; Result rows: 7
+cat(&quot;Mean mpg:&quot;, round(mean(result$mpg), 1), &quot;\n&quot;)
+#&gt; Mean mpg: 19.7
+
+src$disconnect()
+#&gt; Disconnected from mtcars_6cyl</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>This example brings together every concept from the tutorial. DataSource defines the connection lifecycle (with finalize for auto-cleanup), CsvSource overrides <code>fetch_data()</code> to supply actual rows, and FilteredSource adds a transformation layer that calls <code>super$fetch_data()</code> to get raw data before filtering. Active bindings provide <code>is_connected</code>, <code>uptime</code>, and <code>filter_description</code> as clean property-style access.</p>
+
+<h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Feature</th>
 <th>Syntax</th>
-<th>Purpose</th>
+<th>When to use</th>
+<th>Watch out for</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Inheritance</td>
 <td><code>R6Class(&quot;Child&quot;, inherit = Parent)</code></td>
-<td>Single inheritance</td>
+<td>Share logic across related classes</td>
+<td>Single inheritance only — use composition for multi-source behavior</td>
 </tr>
 <tr>
-<td>Call parent</td>
-<td><code>super$method()</code></td>
-<td>Invoke parent method</td>
+<td>super$</td>
+<td><code>super$method()</code> or <code>super$initialize()</code></td>
+<td>Call parent implementation from override</td>
+<td>super$ can't access parent's private <em>fields</em>, only methods</td>
 </tr>
 <tr>
-<td>Private methods</td>
-<td><code>private = list(fn = function() ...)</code></td>
-<td>Internal-only logic</td>
+<td>Private fields</td>
+<td><code>private = list(x = ...)</code>, access via <code>private$x</code></td>
+<td>Hide internal state from external code</td>
+<td>Subclasses access private <em>methods</em> but not <em>fields</em></td>
 </tr>
 <tr>
 <td>Active bindings</td>
-<td><code>active = list(prop = function(value) ...)</code></td>
-<td>Computed properties</td>
+<td><code>active = list(field = function(value) {...})</code></td>
+<td>Computed properties, validation, read-only fields</td>
+<td>Check <code>missing(value)</code> to distinguish get from set</td>
 </tr>
 <tr>
 <td>Finalize</td>
-<td><code>private = list(finalize = function() ...)</code></td>
-<td>Cleanup on GC</td>
+<td><code>private = list(finalize = function() {...})</code></td>
+<td>Release external resources (files, connections)</td>
+<td>Runs during GC — timing is unpredictable; provide a public close() too</td>
 </tr>
 <tr>
 <td>Portable</td>
 <td><code>portable = TRUE</code> (default)</td>
-<td>Explicit self$/private$</td>
-</tr>
-<tr>
-<td>Lock class</td>
-<td><code>lock_class = TRUE</code></td>
-<td>Prevent adding new fields</td>
+<td>Always — cross-package compatible, explicit</td>
+<td>Non-portable exists for legacy reasons only</td>
 </tr>
 </tbody>
 </table>
 
-<h2>Practice Exercises</h2>
+<p><img src="screenshots/R6-Advanced-inheritance-chain.webp" alt="How R6 inheritance links parent, child, and grandchild classes via inherit and super$" class="img-responsive" loading="lazy" /></p>
 
-<p><strong>Exercise 1:</strong> Create a <code>Shape</code> base class with an <code>area()</code> method. Then create <code>Circle</code> and <code>Square</code> child classes that override <code>area()</code>. Both should call <code>super$initialize()</code>.</p>
+<p><em>Figure 1: How R6 inheritance links parent, child, and grandchild classes via inherit and super$.</em></p>
 
-<details><summary>Click to reveal solution</summary>
+<p><img src="screenshots/R6-Advanced-access-levels.webp" alt="Public, private, and active binding access paths in an R6 object" class="img-responsive" loading="lazy" /></p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(R6)
+<p><em>Figure 2: Public, private, and active binding access paths in an R6 object.</em></p>
 
-Shape &lt;- R6Class(&quot;Shape&quot;,
-  public = list(
-    color = NULL,
-    initialize = function(color = &quot;black&quot;) self$color &lt;- color,
-    area = function() stop(&quot;area() not implemented&quot;),
-    describe = function() cat(self$color, class(self)[1], &quot;area:&quot;, self$area(), &quot;\n&quot;)
-  )
-)
+<h2>References</h2>
 
-Circle &lt;- R6Class(&quot;Circle&quot;, inherit = Shape,
-  public = list(
-    radius = NULL,
-    initialize = function(radius, color = &quot;red&quot;) {
-      super$initialize(color)
-      self$radius &lt;- radius
-    },
-    area = function() pi * self$radius^2
-  )
-)
+<ol>
 
-Square &lt;- R6Class(&quot;Square&quot;, inherit = Shape,
-  public = list(
-    side = NULL,
-    initialize = function(side, color = &quot;blue&quot;) {
-      super$initialize(color)
-      self$side &lt;- side
-    },
-    area = function() self$side^2
-  )
-)
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. CRC Press (2019). Chapter 14: R6. <a href="https://adv-r.hadley.nz/r6.html">Link</a></li>
 
-Circle$new(5)$describe()
-Square$new(4)$describe()</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<li>Chang, W. — R6: Encapsulated Classes with <a class="auto-link" href="R6-Classes-in-R.html" title="R6 Classes in R: Reference Semantics & Mutable State Tutorial">Reference Semantics</a> (package vignette). <a href="https://r6.r-lib.org/articles/Introduction.html">Link</a></li>
 
-</details>
+<li>R6 CRAN documentation — R6Class reference. <a href="https://cran.r-project.org/web/packages/R6/R6.pdf">Link</a></li>
 
-<p><strong>Exercise 2:</strong> Create a <code>RangedValue</code> class with an active binding <code>value</code> that clamps any assignment between <code>min</code> and <code>max</code> (set in the constructor).</p>
+<li>Chang, W. — R6 package GitHub repository. <a href="https://github.com/r-lib/R6">Link</a></li>
 
-<details><summary>Click to reveal solution</summary>
+<li>R6 GitHub Issue #45 — Accessing private methods of superclass (discussion on field vs method access). <a href="https://github.com/r-lib/R6/issues/45">Link</a></li>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(R6)
+<li>Wickham, H. & Grolemund, G. — <em>R for Data Science</em>, 2nd Edition. O'Reilly (2023). <a href="https://r4ds.hadley.nz/">Link</a></li>
 
-RangedValue &lt;- R6Class(&quot;RangedValue&quot;,
-  public = list(
-    initialize = function(min, max, initial = min) {
-      private$.min &lt;- min
-      private$.max &lt;- max
-      self$value &lt;- initial
-    }
-  ),
-  active = list(
-    value = function(v) {
-      if (missing(v)) return(private$.value)
-      private$.value &lt;- max(private$.min, min(private$.max, v))
-    }
-  ),
-  private = list(
-    .value = NULL,
-    .min = NULL,
-    .max = NULL
-  )
-)
-
-rv &lt;- RangedValue$new(0, 100, 50)
-cat(&quot;Value:&quot;, rv$value, &quot;\n&quot;)
-rv$value &lt;- 200
-cat(&quot;After setting 200:&quot;, rv$value, &quot;\n&quot;)  # Clamped to 100
-rv$value &lt;- -10
-cat(&quot;After setting -10:&quot;, rv$value, &quot;\n&quot;)  # Clamped to 0</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-</details>
-
-<p><strong>Exercise 3:</strong> Add a <code>finalize</code> method to a <code>Logger</code> class that writes "Logger shutting down" to a file when the object is garbage collected.</p>
-
-<details><summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(R6)
-
-Logger &lt;- R6Class(&quot;Logger&quot;,
-  public = list(
-    initialize = function() {
-      private$logfile &lt;- tempfile(fileext = &quot;.log&quot;)
-      private$write_log(&quot;Logger started&quot;)
-    },
-    log = function(msg) private$write_log(msg),
-    get_log = function() readLines(private$logfile)
-  ),
-  private = list(
-    logfile = NULL,
-    write_log = function(msg) {
-      cat(paste(Sys.time(), msg, &quot;\n&quot;), file = private$logfile, append = TRUE)
-    },
-    finalize = function() {
-      private$write_log(&quot;Logger shutting down&quot;)
-      cat(&quot;Check log:&quot;, private$logfile, &quot;\n&quot;)
-    }
-  )
-)
-
-lg &lt;- Logger$new()
-lg$log(&quot;test message&quot;)
-cat(&quot;Log contents:\n&quot;)
-cat(lg$get_log(), sep = &quot;\n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-</details>
-
-<h2>FAQ</h2>
-
-<p><strong>Q: Does R6 support multiple inheritance?</strong> No. R6 supports only single inheritance (one parent). If you need to share behavior across unrelated classes, use composition (include another R6 object as a field) rather than inheritance.</p>
-
-<p><strong>Q: What is the difference between active bindings and getter/setter methods?</strong> Active bindings use property syntax (<code>obj$prop</code> and <code>obj$prop &lt;- val</code>) while getters/setters use method syntax (<code>obj$get_prop()</code> and <code>obj$set_prop(val)</code>). Active bindings are more natural and Pythonic.</p>
-
-<p><strong>Q: Should I always use finalize for cleanup?</strong> Only when your object holds external resources (file handles, database connections, temp files). For normal R objects, garbage collection handles memory automatically.</p>
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><a href="Operator-Overloading-in-R.html">Operator Overloading in R</a> -- Define <a class="auto-link" href="Infix-Functions-in-R.html" title="Infix Functions in R: Write Your Own %op% Operators">custom operators</a> for your classes</li>
+<li><a href="R6-Classes-in-R.html">R6 Classes in R</a> — R6 fundamentals: creating classes, public fields, reference semantics, and basic active bindings.</li>
 
-<li><a href="OOP-Design-Patterns-in-R.html">OOP Design Patterns in R</a> -- Factory, strategy, and observer patterns with R6</li>
+<li><a href="OOP-in-R.html">OOP in R: S3, S4, and R6</a> — Compare all three OOP systems side by side and learn when to use each.</li>
 
-<li><a href="R6-Classes-in-R.html">R6 Classes in R (Basics)</a> -- Review the fundamentals if needed</li>
+<li><a href="S4-Classes-in-R.html">S4 Classes in R</a> — Formal OOP with <a class="auto-link" href="S4-Methods-in-R.html" title="S4 Methods & Multiple Dispatch in R: setMethod() Explained">multiple dispatch</a>, validity checking, and the method/generic system.</li>
 
 </ul>
