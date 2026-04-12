@@ -221,6 +221,10 @@ def main():
         "--retry-failed", action="store_true",
         help="Retry posts that failed quality gate"
     )
+    parser.add_argument(
+        "--post", type=str,
+        help="Process a specific post ID only (e.g. --post 4.3.1)"
+    )
     args = parser.parse_args()
 
     claude = find_claude()
@@ -236,6 +240,15 @@ def main():
         started = False if args.start_from else True
 
         for entry in queue:
+            # --post: only process this specific ID
+            if args.post:
+                if entry["id"] != args.post:
+                    continue
+                # Reset so it runs even if previously done
+                entry["done"] = False
+                entry["attempts"] = 0
+                entry["last_error"] = None
+
             # --start-from: skip until we find the target ID
             if args.start_from and not started:
                 if entry["id"] == args.start_from:
@@ -277,7 +290,7 @@ def main():
 
             if args.dry_run:
                 log(f"  DRY RUN: claude -p \"{prompt}\" --dangerously-skip-permissions")
-                if args.one:
+                if args.one or args.post:
                     break
                 continue
 
@@ -313,7 +326,7 @@ def main():
                 else:
                     log(f"  Will retry on next run")
                 write_queue(queue)
-                if args.one:
+                if args.one or args.post:
                     break
                 continue
 
@@ -332,7 +345,7 @@ def main():
                 else:
                     log(f"  Will retry on next run")
                 write_queue(queue)
-                if args.one:
+                if args.one or args.post:
                     break
                 continue
 
@@ -347,7 +360,7 @@ def main():
                     entry["done"] = True
                     entry["quality_passed"] = False
                 write_queue(queue)
-                if args.one:
+                if args.one or args.post:
                     break
                 continue
 
@@ -358,7 +371,7 @@ def main():
             write_queue(queue)
             log(f"  SUCCESS: https://r-statistics.co/{slug}.html")
 
-            if args.one:
+            if args.one or args.post:
                 break
 
     except KeyboardInterrupt:
