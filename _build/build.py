@@ -914,7 +914,7 @@ WEBR_BODY_BLOCK = """
       // Yield to main thread before next editor
       if (initQueue.length > 0) {
         if ('requestIdleCallback' in window) {
-          requestIdleCallback(() => processInitQueue(), { timeout: 100 });
+          requestIdleCallback(() => processInitQueue(), { timeout: 500 });
         } else {
           setTimeout(processInitQueue, 0);
         }

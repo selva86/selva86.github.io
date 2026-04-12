@@ -138,19 +138,40 @@ function saveCollapsed(c) {
     .catch(function() {});
 })();
 
-// === Scroll-spy for right-side TOC ===
-window.addEventListener('scroll', function() {
-  var scrollPos = window.pageYOffset + 100;
-  document.querySelectorAll('#toc a').forEach(function(a) { a.classList.remove('toc-active'); });
-  var headings = document.querySelectorAll('#content h2');
-  var current = null;
-  headings.forEach(function(h) {
-    if (h.getBoundingClientRect().top + window.pageYOffset <= scrollPos) {
-      current = h;
+// === Scroll-spy for right-side TOC (throttled to once per frame) ===
+(function() {
+  var ticking = false;
+  var tocLinks = null;
+  var headings = null;
+  var lastActiveId = null;
+
+  function updateScrollSpy() {
+    if (!tocLinks) tocLinks = document.querySelectorAll('#toc a');
+    if (!headings) headings = document.querySelectorAll('#content h2');
+    if (tocLinks.length === 0 || headings.length === 0) { ticking = false; return; }
+
+    var scrollPos = window.pageYOffset + 100;
+    var currentId = null;
+    for (var i = 0; i < headings.length; i++) {
+      if (headings[i].offsetTop <= scrollPos) {
+        currentId = headings[i].id;
+      }
+    }
+    if (currentId !== lastActiveId) {
+      tocLinks.forEach(function(a) { a.classList.remove('toc-active'); });
+      if (currentId) {
+        var activeLink = document.querySelector('#toc a[href="#' + currentId + '"]');
+        if (activeLink) activeLink.classList.add('toc-active');
+      }
+      lastActiveId = currentId;
+    }
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', function() {
+    if (!ticking) {
+      requestAnimationFrame(updateScrollSpy);
+      ticking = true;
     }
   });
-  if (current) {
-    var activeLink = document.querySelector('#toc a[href="#' + current.id + '"]');
-    if (activeLink) activeLink.classList.add('toc-active');
-  }
-});
+})();
