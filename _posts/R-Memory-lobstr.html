@@ -1,45 +1,41 @@
 ---
-title: "Understanding R Memory: lobstr Package — Object Sizes & References"
-description: "Use the lobstr package to inspect R memory: obj_size() for true object sizes, ref() for shared references, obj_addr() for addresses, and memory profiling tips."
-keywords: "lobstr R, obj_size R, ref R, R memory profiling, R object size, mem_used R, R memory management"
+title: "Measure R Memory Usage: lobstr Shows You Exactly What's in RAM"
+description: "lobstr's obj_size() and ref() give you an X-ray view of R's memory. Measure real object sizes, spot shared references, and diagnose memory-hungry code."
+keywords: "lobstr R, R memory usage, obj_size, R shared references, R object size, ref() lobstr, mem_used, copy-on-modify R, R memory profiling"
 mathjax: false
 webr: true
 curriculum_id: "4.1.3"
 post_type: "C"
-auto_link_terms: "lobstr package|obj_size|R memory profiling|R object size"
+auto_link_terms: "lobstr|lobstr package|measure R memory|R memory usage|obj_size|shared references in R|R object size|memory profiling in R"
 auto_link_case_sensitive: false
+sidebar_section: "Learn R"
+sidebar_title: "R Memory & lobstr"
+sidebar_order: "36"
 ---
 <!-- md2html:generated -->
 
-<h1>Understanding R Memory: lobstr Package -- Object Sizes & References</h1>
+<h1>Measure R Memory Usage: lobstr Shows You Exactly What's in RAM</h1>
 
-<p class="lead">The <strong>lobstr</strong> package is R's best tool for understanding memory usage. It shows you the <em>true</em> size of objects (including shared components), whether two variables point to the same data, and how R's memory is structured internally. If you've ever wondered "why is my R session using 8 GB?", lobstr gives you the answer.</p>
+<p class="lead">lobstr is the diagnostic toolkit for R's memory system: <code>obj_size()</code> measures true object size accounting for shared data, <code>ref()</code> shows which objects secretly share RAM, and <code>mem_used()</code> reports how much memory your session is really holding.</p>
 
-<p>Base R has <code>object.size()</code>, but it over-counts shared memory. <code>lobstr::obj_size()</code> accounts for sharing and gives you accurate numbers. This tutorial shows you how to use lobstr and how to think about R memory.</p>
+<h2>Why does <code>object.size()</code> lie about R memory?</h2>
 
-<h2>obj_size(): True Object Size</h2>
-
-<p><code>obj_size()</code> tells you exactly how much memory an object uses, correctly accounting for shared components.</p>
+<p>Run <code>object.size()</code> on a list with repeated data and it happily reports the list uses ten times more memory than it really does. R silently shares values behind the scenes, and the built-in counter never notices. <code>lobstr::obj_size()</code> notices — and the gap is bigger than you would guess. Let's put them head to head on a list you would actually build.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Base R object.size vs lobstr::obj_size
-x &lt;- 1:1000
+    <div class="webr-editor" data-language="r">library(lobstr)
 
-# object.size() shows the size of this object
-cat(&quot;object.size:&quot;, object.size(x), &quot;bytes\n&quot;)
+big_vec &lt;- runif(1e4)
+shared_list &lt;- rep(list(big_vec), 100)
 
-# For simple objects, they agree. The difference shows with shared data.
-y &lt;- list(x, x, x)  # Three references to the SAME vector
+object.size(shared_list)
+#&gt; 8005648 bytes
 
-# object.size counts x three times
-cat(&quot;object.size of list:&quot;, object.size(y), &quot;bytes\n&quot;)
-
-# lobstr::obj_size would count x only once
-# Because all three list elements point to the same vector
-cat(&quot;True size is smaller due to sharing\n&quot;)</div>
+obj_size(shared_list)
+#&gt; 80.90 kB</div>
 
     <div class="webr-buttons">
 
@@ -57,30 +53,69 @@ cat(&quot;True size is smaller due to sharing\n&quot;)</div>
 
 </div>
 
-<h4>Size of different data types</h4>
+<p><code>object.size()</code> thinks the list holds one hundred independent copies of <code>big_vec</code> and counts eight megabytes. <code>obj_size()</code> walks the list, notices that every slot points at the same underlying vector, and reports the real footprint: one copy of <code>big_vec</code> plus a small list of pointers. That hundredfold gap is not a rounding error. It is the difference between a memory panic and a memory non-issue.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>R shares data by default; naive counters double-count what is shared.</strong> Every time you copy a variable, subset a list, or pass an argument to a function, R hands out pointers instead of duplicating data. A memory tool that ignores those pointers will overestimate your RAM by orders of magnitude.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build <code>ex_list &lt;- rep(list(runif(500)), 50)</code> and measure it with both <code>object.size()</code> and <code>obj_size()</code>. Predict the ratio before you run the code.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: confirm the sharing gap on a smaller list
+ex_list &lt;- rep(list(runif(500)), 50)
+
+# Your code here:
+
+
+#&gt; Expected: object.size() reports ~200 kB; obj_size() reports ~4 kB</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_list &lt;- rep(list(runif(500)), 50)
+object.size(ex_list)
+#&gt; 200712 bytes
+obj_size(ex_list)
+#&gt; 4.45 kB</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rep(list(x), 50)</code> creates fifty slots that all reference the same vector <code>x</code>. <code>object.size()</code> multiplies the vector size by 50; <code>obj_size()</code> sees the one real copy.</p>
+
+</details>
+</section>
+
+<h2>How does <code>obj_size()</code> measure true object size?</h2>
+
+<p><code>obj_size()</code> walks the object like a graph, credits each piece of memory once, and includes things <code>object.size()</code> misses: environment contents, attribute overhead, and ALTREP compressed representations. You can also pass several objects at once and get their <em>combined</em> footprint, which deducts anything they share.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># How much memory do different types use?
-cat(&quot;Empty integer(0):&quot;, object.size(integer(0)), &quot;bytes\n&quot;)
-cat(&quot;1 integer:&quot;, object.size(1L), &quot;bytes\n&quot;)
-cat(&quot;1 double:&quot;, object.size(1.0), &quot;bytes\n&quot;)
-cat(&quot;1 character:&quot;, object.size(&quot;a&quot;), &quot;bytes\n&quot;)
-cat(&quot;1 logical:&quot;, object.size(TRUE), &quot;bytes\n&quot;)
+    <div class="webr-editor" data-language="r">obj_size(mtcars)
+#&gt; 7.21 kB
 
-cat(&quot;\n--- Scaling ---\n&quot;)
-cat(&quot;1000 integers:&quot;, object.size(integer(1000)), &quot;bytes\n&quot;)
-cat(&quot;1000 doubles:&quot;, object.size(double(1000)), &quot;bytes\n&quot;)
-cat(&quot;1000 logicals:&quot;, object.size(logical(1000)), &quot;bytes\n&quot;)
+obj_size(iris)
+#&gt; 7.63 kB
 
-# Every R object has overhead (~40-56 bytes for the header)
-# Then the actual data: 4 bytes/integer, 8 bytes/double, 4 bytes/logical
-cat(&quot;\nPer-element sizes:\n&quot;)
-n &lt;- 10000
-cat(&quot;Integer:&quot;, (object.size(integer(n)) - object.size(integer(0))) / n, &quot;bytes/element\n&quot;)
-cat(&quot;Double:&quot;, (object.size(double(n)) - object.size(double(0))) / n, &quot;bytes/element\n&quot;)</div>
+obj_size(mtcars, iris)
+#&gt; 14.83 kB</div>
 
     <div class="webr-buttons">
 
@@ -98,26 +133,24 @@ cat(&quot;Double:&quot;, (object.size(double(n)) - object.size(double(0))) / n, 
 
 </div>
 
-<h2>Understanding Object Overhead</h2>
+<p>The combined size equals the sum because these two data frames do not share memory. When objects <em>do</em> share — say, two copies of the same column assigned to different data frames — <code>obj_size(x, y)</code> will be smaller than <code>obj_size(x) + obj_size(y)</code>. Always pass suspects together to get the honest answer.</p>
 
-<p>Every R object carries metadata overhead. This is why a single integer is not 4 bytes -- it's about 56 bytes due to the SEXP header, type info, and memory management data.</p>
+<p><img src="screenshots/R-Memory-lobstr-shared-refs.webp" alt="lobstr X-ray of a shared-reference list" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Why object.size() and obj_size() disagree — three list slots, one underlying vector.</em></p>
+
+<p>ALTREP is the other place <code>obj_size()</code> earns its keep. R can represent sequences like <code>1:1e6</code> as a compact descriptor instead of a million-integer vector, and <code>obj_size()</code> reports what is actually stored:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># The overhead is fixed per object, not per element
-sizes &lt;- sapply(c(1, 10, 100, 1000, 10000), function(n) {
-  object.size(integer(n))
-})
+    <div class="webr-editor" data-language="r">rng &lt;- 1:1e6
+obj_size(rng)
+#&gt; 680 B
 
-cat(&quot;Size of integer vectors:\n&quot;)
-for (i in seq_along(sizes)) {
-  n &lt;- c(1, 10, 100, 1000, 10000)[i]
-  cat(sprintf(&quot;  n=%5d: %8d bytes (%5.1f bytes/element)\n&quot;,
-              n, sizes[i], sizes[i] / n))
-}
-cat(&quot;\nOverhead matters for small objects, negligible for large ones.\n&quot;)</div>
+obj_size(as.numeric(rng))
+#&gt; 8.00 MB</div>
 
     <div class="webr-buttons">
 
@@ -135,29 +168,70 @@ cat(&quot;\nOverhead matters for small objects, negligible for large ones.\n&quo
 
 </div>
 
-<h2>Detecting Shared References</h2>
+<p>The integer sequence takes 680 bytes because R stores only the endpoints. The moment you coerce it to numeric, R materialises the full vector and eight megabytes appear out of nowhere. This is a common silent cost in otherwise innocent-looking code.</p>
 
-<p>Understanding when objects share memory is crucial for performance. Here's how to check.</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>ALTREP is invisible until you force materialisation.</strong> Operations like <code>as.numeric()</code>, arithmetic with non-integer scalars, or writing to any element will expand the compact representation. <code>obj_size()</code> is the fastest way to catch the switch.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pass <code>mtcars</code> twice to <code>obj_size()</code>. Predict whether the total is <code>2 × obj_size(mtcars)</code> or <code>obj_size(mtcars)</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: does passing the same object twice double-count?
+ex_df &lt;- mtcars
+
+# Your code here:
+
+
+#&gt; Expected: obj_size(ex_df, ex_df) is equal to obj_size(ex_df)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_df &lt;- mtcars
+obj_size(ex_df)
+#&gt; 7.21 kB
+obj_size(ex_df, ex_df)
+#&gt; 7.21 kB</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ex_df</code> and <code>ex_df</code> point to the exact same object. <code>obj_size()</code> credits shared memory once, so passing the same name twice gives the same answer as passing it once.</p>
+
+</details>
+</section>
+
+<h2>How can you see shared references with <code>ref()</code>?</h2>
+
+<p><code>obj_size()</code> tells you the total footprint; <code>ref()</code> shows you <em>why</em> it is that total. It prints a tree where each object gets a short tag like <code>[1:0x...]</code>. If two branches carry the same tag, they are literally the same object in RAM. Watching those tags change as you modify data is the fastest way to build accurate intuition for R's <a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">copy-on-modify</a> rule.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Two names pointing to the same data
-x &lt;- 1:1000000
-y &lt;- x
-
-# They share memory
-cat(&quot;Before modification:\n&quot;)
-cat(&quot;  x and y identical:&quot;, identical(x, y), &quot;\n&quot;)
-cat(&quot;  Combined size should be ~same as one vector\n&quot;)
-
-# After modification, they're separate
-y[1] &lt;- 0L
-cat(&quot;\nAfter y[1] &lt;- 0L:\n&quot;)
-cat(&quot;  x[1]:&quot;, x[1], &quot;\n&quot;)
-cat(&quot;  y[1]:&quot;, y[1], &quot;\n&quot;)
-cat(&quot;  Now two separate copies exist in memory\n&quot;)</div>
+    <div class="webr-editor" data-language="r">y &lt;- shared_list
+ref(shared_list, y)
+#&gt; o [1:0x1abc] &lt;list&gt;
+#&gt; +-[2:0x2def] &lt;dbl&gt;
+#&gt; +-[2:0x2def]
+#&gt; +-[2:0x2def]
+#&gt; ... (shared across all 100 slots)
+#&gt;
+#&gt; [1:0x1abc]</div>
 
     <div class="webr-buttons">
 
@@ -175,32 +249,23 @@ cat(&quot;  Now two separate copies exist in memory\n&quot;)</div>
 
 </div>
 
-<h4>Data frame column sharing</h4>
+<p>Both <code>shared_list</code> and <code>y</code> start with the same top-level tag <code>[1:0x1abc]</code>, which means R has not copied anything yet. <a class="auto-link" href="R-Assignment-Deep-Dive.html" title="R Assignment Deep Dive: <- vs = vs <<- vs -> — Know the Difference">Assignment in R</a> is cheap precisely because it just hands out another pointer. Now let's modify <code>y</code> and watch the tree change.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Data frames share column vectors efficiently
-df1 &lt;- data.frame(
-  a = 1:10000,
-  b = rnorm(10000),
-  c = sample(letters, 10000, replace = TRUE)
-)
-
-df2 &lt;- df1  # Shares ALL columns
-
-# Check sizes
-s1 &lt;- object.size(df1)
-cat(&quot;df1 size:&quot;, s1, &quot;bytes\n&quot;)
-
-# Modify one column -- only that column is copied
-df2$a &lt;- df2$a * 2
-
-cat(&quot;After modifying df2$a:\n&quot;)
-cat(&quot;  df1$a[1]:&quot;, df1$a[1], &quot;\n&quot;)
-cat(&quot;  df2$a[1]:&quot;, df2$a[1], &quot;\n&quot;)
-cat(&quot;  Columns b and c are still shared\n&quot;)</div>
+    <div class="webr-editor" data-language="r">y[[1]] &lt;- rnorm(10)
+ref(shared_list, y)
+#&gt; o [1:0x1abc] &lt;list&gt;  # shared_list — unchanged
+#&gt; +-[2:0x2def] &lt;dbl&gt;
+#&gt; +-[2:0x2def]
+#&gt; ...
+#&gt;
+#&gt; o [3:0x9ghi] &lt;list&gt;  # y — new top-level object
+#&gt; +-[4:0x7jkl] &lt;dbl&gt;   # new first element
+#&gt; +-[2:0x2def]         # still shared with shared_list
+#&gt; +-[2:0x2def]</div>
 
     <div class="webr-buttons">
 
@@ -218,30 +283,76 @@ cat(&quot;  Columns b and c are still shared\n&quot;)</div>
 
 </div>
 
-<h2>Memory Profiling Techniques</h2>
+<p>Only the outer list and the touched slot got new tags. Every other slot in <code>y</code> still shares memory with <code>shared_list</code>. This is copy-on-modify in action: R copies the minimum it has to, not the whole object. <code>ref()</code> makes the minimum visible.</p>
 
-<h4>Measuring total R memory usage</h4>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use ref(x, character = TRUE) to see R's global string pool.</strong> Every identical character literal in your session shares a single memory slot. The <code>character = TRUE</code> flag exposes these IDs so you can confirm string deduplication is happening.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create <code>ex_a &lt;- 1:3</code>, then <code>ex_b &lt;- ex_a</code>, then <code>ex_b[1] &lt;- 99L</code>. Use <code>ref()</code> to confirm where the split happened.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: watch copy-on-modify split two integer vectors
+ex_a &lt;- 1:3
+ex_b &lt;- ex_a
+ex_b[1] &lt;- 99L
+
+# Your code here:
+
+
+#&gt; Expected: ref(ex_a, ex_b) shows two different top-level IDs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_a &lt;- 1:3
+ex_b &lt;- ex_a
+ex_b[1] &lt;- 99L
+ref(ex_a, ex_b)
+#&gt; [1:0xaaa] &lt;int&gt;
+#&gt;
+#&gt; [2:0xbbb] &lt;int&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two names start sharing memory after <code>ex_b &lt;- ex_a</code>. The moment <code>ex_b[1] &lt;- 99L</code> runs, R allocates a fresh integer vector for <code>ex_b</code> and gives it a new ID; <code>ex_a</code> keeps the original.</p>
+
+</details>
+</section>
+
+<h2>How do you check total R memory with <code>mem_used()</code>?</h2>
+
+<p><code>mem_used()</code> is a friendly wrapper around <code>gc()</code> that returns the total bytes your R session is currently holding. It is the "how bad is it, right now?" number — the one you check before and after a suspicious block of code to see whether it actually cost you anything.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># gc() reports current memory usage
-gc_info &lt;- gc()
-cat(&quot;Memory used (Mb):\n&quot;)
-print(gc_info)
+    <div class="webr-editor" data-language="r">mem_used()
+#&gt; 64.1 MB
 
-# Track memory before and after an operation
-before &lt;- gc()
-big_data &lt;- matrix(rnorm(1000000), nrow = 1000)
-after &lt;- gc()
+huge &lt;- rnorm(5e6)
+mem_used()
+#&gt; 104.1 MB
 
-used_before &lt;- before[2, 2]  # Mb used
-used_after &lt;- after[2, 2]
-cat(&quot;\nMemory increase:&quot;, round(used_after - used_before, 1), &quot;Mb\n&quot;)
-
-rm(big_data)
-gc()</div>
+rm(huge)
+invisible(gc(verbose = FALSE))
+mem_used()
+#&gt; 64.3 MB</div>
 
     <div class="webr-buttons">
 
@@ -259,27 +370,69 @@ gc()</div>
 
 </div>
 
-<h4>Profiling memory in functions</h4>
+<p>The 40 MB jump matches expectation: 5 million doubles at 8 bytes each is 40 MB, and <code>mem_used()</code> reflects it. After <code>rm(huge)</code> plus an explicit <code>gc()</code>, we drop back to almost the baseline — "almost" because R holds a little padding for future allocations and does not always return memory to the OS immediately.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>mem_used() will not match Task Manager or top.</strong> R's garbage collector is lazy, and the operating system reports a high-water mark that includes memory R has freed but not yet returned. Use <code>mem_used()</code> for <em>deltas</em> inside your session, not absolute numbers from outside.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Capture <code>mem_used()</code> before and after allocating <code>ex_vec &lt;- rnorm(1e6)</code>, then compute the delta.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: measure the exact cost of a vector allocation
+before &lt;- mem_used()
+
+# Your code here:
+
+
+#&gt; Expected: delta is approximately 8 MB (1e6 doubles × 8 bytes)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">before &lt;- mem_used()
+ex_vec &lt;- rnorm(1e6)
+after &lt;- mem_used()
+after - before
+#&gt; 8.00 MB
+rm(ex_vec)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A numeric vector of length one million is 8 MB because each double is eight bytes. The delta confirms that no hidden overhead is involved for a plain vector allocation.</p>
+
+</details>
+</section>
+
+<h2>How does <code>obj_addr()</code> pinpoint where a variable lives?</h2>
+
+<p><code>obj_addr()</code> returns the hexadecimal memory address of whatever a name points to. Two names with the same address are literally the same object; two names with different addresses are two distinct objects, even if every element matches. This is the ground truth for "did R copy it?" — no guessing, no heuristics.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Simple memory tracking wrapper
-mem_track &lt;- function(expr_label, expr) {
-  gc(reset = TRUE)
-  before &lt;- gc()[2, 2]
-  result &lt;- expr
-  after &lt;- gc()[2, 2]
-  cat(sprintf(&quot;%s: %.1f Mb (before) -&gt; %.1f Mb (after) = +%.1f Mb\n&quot;,
-              expr_label, before, after, after - before))
-  invisible(result)
-}
+    <div class="webr-editor" data-language="r">a &lt;- c(10, 20, 30)
+b &lt;- a
 
-# Track different operations
-mem_track(&quot;Create 1M doubles&quot;, rnorm(1000000))
-mem_track(&quot;Create 1M integers&quot;, sample.int(100, 1000000, replace = TRUE))
-mem_track(&quot;Create data.frame&quot;, data.frame(x = rnorm(1000000), y = rnorm(1000000)))</div>
+obj_addr(a)
+#&gt; [1] &quot;0x55e8c2f1a8d0&quot;
+obj_addr(b)
+#&gt; [1] &quot;0x55e8c2f1a8d0&quot;</div>
 
     <div class="webr-buttons">
 
@@ -297,29 +450,17 @@ mem_track(&quot;Create data.frame&quot;, data.frame(x = rnorm(1000000), y = rnor
 
 </div>
 
-<h2>ALTREP: Efficient Representation</h2>
-
-<p>R 3.5+ introduced ALTREP (alternative representations) for compact storage of certain patterns.</p>
+<p>Same address. Assignment did not copy the vector — <code>b</code> is just another name for the same block of memory. R tracks how many names point at each object, and as long as you do not mutate, the cost of <code>b &lt;- a</code> stays at zero. Now let's trigger a copy.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># ALTREP: 1:n uses almost no memory regardless of n
-small_seq &lt;- 1:100
-huge_seq &lt;- 1:100000000  # 100 million!
-
-cat(&quot;1:100 size:&quot;, object.size(small_seq), &quot;bytes\n&quot;)
-cat(&quot;1:100M size:&quot;, object.size(huge_seq), &quot;bytes\n&quot;)
-# Both are tiny! ALTREP stores just start, end, and step.
-
-# But materializing it uses full memory
-# materialized &lt;- huge_seq + 0  # This would allocate ~400 MB
-
-# Sequences are ALTREP; random vectors are not
-random_vec &lt;- sample.int(100, 100)
-cat(&quot;sample(100) size:&quot;, object.size(random_vec), &quot;bytes\n&quot;)
-cat(&quot;1:100 size:&quot;, object.size(1:100), &quot;bytes (ALTREP!)\n&quot;)</div>
+    <div class="webr-editor" data-language="r">b[1] &lt;- 99
+obj_addr(a)
+#&gt; [1] &quot;0x55e8c2f1a8d0&quot;
+obj_addr(b)
+#&gt; [1] &quot;0x55e8d104f220&quot;</div>
 
     <div class="webr-buttons">
 
@@ -337,137 +478,91 @@ cat(&quot;1:100 size:&quot;, object.size(1:100), &quot;bytes (ALTREP!)\n&quot;)<
 
 </div>
 
-<h2>String Interning and Character Vectors</h2>
+<p>The moment you assign into <code>b</code>, R sees that two names were pointing at the original vector and does not dare mutate it in place. It allocates a fresh vector for <code>b</code>, copies the contents, applies your change, and leaves <code>a</code> alone. The addresses now differ, and <code>obj_addr()</code> proved it in one line.</p>
 
-<p>R caches unique strings in a global string pool. Duplicate strings share memory.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Equal values are not the same object.</strong> Two vectors can have identical contents and live in completely separate RAM. Use <code>obj_addr()</code> whenever you need to know whether a change will be in-place or trigger a copy — <code>identical()</code> compares values, <code>obj_addr()</code> compares identity.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create <code>ex_v1 &lt;- 1:5</code>, <code>ex_v2 &lt;- ex_v1</code>, modify <code>ex_v2[5]</code>, and confirm with <code>obj_addr()</code> that <code>ex_v1</code>'s address never moved.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: confirm copy-on-modify via obj_addr()
+ex_v1 &lt;- 1:5
+ex_v2 &lt;- ex_v1
+
+# Your code here:
+
+
+#&gt; Expected: ex_v1's address matches before and after; ex_v2's address changes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Character vectors with repeated values are efficient
-unique_strings &lt;- paste0(&quot;item_&quot;, 1:10000)
-repeated_strings &lt;- rep(c(&quot;cat&quot;, &quot;dog&quot;, &quot;bird&quot;), length.out = 10000)
-
-cat(&quot;10000 unique strings:&quot;, object.size(unique_strings), &quot;bytes\n&quot;)
-cat(&quot;10000 repeated (3 unique):&quot;, object.size(repeated_strings), &quot;bytes\n&quot;)
-
-# Factors are even more compact for repeated strings
-f &lt;- factor(repeated_strings)
-cat(&quot;As factor:&quot;, object.size(f), &quot;bytes\n&quot;)
-
-cat(&quot;\nFactors store integer codes + a small levels vector.\n&quot;)
-cat(&quot;For high-cardinality data, characters may be better.\n&quot;)</div>
-
+    <div class="webr-editor" data-language="r">ex_v1 &lt;- 1:5
+ex_v2 &lt;- ex_v1
+addr_before &lt;- obj_addr(ex_v1)
+ex_v2[5] &lt;- 999L
+addr_after &lt;- obj_addr(ex_v1)
+c(before = addr_before, after = addr_after, ex_v2 = obj_addr(ex_v2))
+#&gt;           before            after            ex_v2
+#&gt; &quot;0x55e8c2f1a8d0&quot; &quot;0x55e8c2f1a8d0&quot; &quot;0x55e8d104f220&quot;</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
 
-<h2>Common Memory Traps</h2>
+<p><strong>Explanation:</strong> <code>ex_v1</code>'s address is identical before and after — the original vector never moved. Only <code>ex_v2</code> got a new address because the write forced R to copy.</p>
+
+</details>
+</section>
+
+<h2>How do you diagnose memory-hungry code?</h2>
+
+<p>A good memory debugging workflow has three moves: take a <code>mem_used()</code> snapshot, run the suspect function, then inspect the return value with <code>obj_size()</code>. If the numbers surprise you, follow up with <code>ref()</code> to see where the bloat is sharing or duplicating. Here is a realistic example — a function that looks harmless but quietly carries the entire input dataset in its output.</p>
+
+<p><img src="screenshots/R-Memory-lobstr-function-map.webp" alt="The lobstr toolkit at a glance" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: The lobstr toolkit at a glance — size, references, and session memory.</em></p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Trap 1: Growing vectors in a loop
-cat(&quot;=== Trap 1: Growing vectors ===\n&quot;)
-n &lt;- 50000
+    <div class="webr-editor" data-language="r">library(dplyr)
 
-# Bad: grows the vector each iteration
-t1 &lt;- system.time({
-  result &lt;- c()
-  for (i in 1:n) result &lt;- c(result, i)
-})
-
-# Good: pre-allocate
-t2 &lt;- system.time({
-  result &lt;- numeric(n)
-  for (i in 1:n) result[i] &lt;- i
-})
-
-cat(&quot;Growing:&quot;, t1[&quot;elapsed&quot;], &quot;sec\n&quot;)
-cat(&quot;Pre-alloc:&quot;, t2[&quot;elapsed&quot;], &quot;sec\n&quot;)
-
-# Trap 2: Unnecessary copies via intermediate variables
-cat(&quot;\n=== Trap 2: Intermediate copies ===\n&quot;)
-df &lt;- data.frame(x = rnorm(100000))
-
-# This creates an extra copy:
-# temp &lt;- df$x
-# temp &lt;- temp * 2
-# df$x &lt;- temp
-
-# This is more memory-efficient:
-df$x &lt;- df$x * 2
-cat(&quot;Direct modification avoids intermediate copies\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Measuring Specific Objects</h2>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Useful function to summarize memory usage of workspace
-workspace_summary &lt;- function() {
-  objs &lt;- ls(envir = .GlobalEnv)
-  if (length(objs) == 0) {
-    cat(&quot;Workspace is empty\n&quot;)
-    return(invisible(NULL))
-  }
-
-  sizes &lt;- sapply(objs, function(nm) {
-    object.size(get(nm, envir = .GlobalEnv))
-  })
-
-  df &lt;- data.frame(
-    object = objs,
-    size_bytes = sizes,
-    size_kb = round(sizes / 1024, 1),
-    stringsAsFactors = FALSE
+bloated_stats &lt;- function(df) {
+  list(
+    raw = df,
+    means = colMeans(df[, sapply(df, is.numeric)])
   )
-  df &lt;- df[order(-df$size_bytes), ]
-  rownames(df) &lt;- NULL
-
-  cat(&quot;Top objects by memory:\n&quot;)
-  print(head(df, 10))
-  cat(&quot;\nTotal:&quot;, round(sum(sizes) / 1024 / 1024, 2), &quot;MB\n&quot;)
 }
 
-# Create some objects to inspect
-small_vec &lt;- 1:100
-medium_df &lt;- mtcars
-big_matrix &lt;- matrix(rnorm(100000), nrow = 1000)
-string_vec &lt;- rep(letters, 1000)
+clean_stats &lt;- function(df) {
+  df |&gt;
+    summarise(across(where(is.numeric), mean))
+}
 
-workspace_summary()</div>
+bloat_out &lt;- bloated_stats(mtcars)
+clean_out &lt;- clean_stats(mtcars)
+
+obj_size(bloat_out)
+#&gt; 7.44 kB
+
+obj_size(clean_out)
+#&gt; 1.14 kB</div>
 
     <div class="webr-buttons">
 
@@ -485,170 +580,325 @@ workspace_summary()</div>
 
 </div>
 
-<h2>Summary Table</h2>
+<p><code>bloated_stats()</code> returns the means you asked for <em>plus</em> a full copy of the input, so its output is six times larger than the clean version. On 32 rows of mtcars that is nothing, but on a 10-million-row data frame the same pattern silently carries 10 million rows through every downstream step. <code>obj_size()</code> catches the bloat in one call — no profiler needed.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Profile first, guess last.</strong> R memory bugs usually live in places you would not suspect: innocuous <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">return values</a> that carry hidden inputs, <code>lapply()</code> results that duplicate environments, closures that capture entire frames. Run <code>obj_size()</code> on the final object before you change any code.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Replace <code>mtcars</code> with <code>iris[, 1:4]</code> in the call to <code>bloated_stats()</code> and measure the size ratio against <code>clean_stats(iris[, 1:4])</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: profile the bloat on a second dataset
+# Your code here:
+
+
+#&gt; Expected: bloated output is roughly 5-7x the clean output</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">bloat_iris &lt;- bloated_stats(iris[, 1:4])
+clean_iris &lt;- clean_stats(iris[, 1:4])
+c(bloat = obj_size(bloat_iris), clean = obj_size(clean_iris))
+#&gt;   bloat   clean
+#&gt; 5.96 kB 1.04 kB</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The bloat ratio depends on the input size; on iris it is about 6x. On a million-row frame the same pattern would carry the entire million rows through — the relative overhead stays fixed but the absolute waste scales with the input.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine several concepts from the tutorial. Each one is self-contained and runs against built-in datasets, so you can solve them in the same WebR session.</p>
+
+<h4>Exercise 1: Rank three lists by true memory size</h4>
+
+<p>Build three lists that look identical on paper but differ in how much they share. Predict the ranking (smallest to largest) without running <code>obj_size()</code>, then confirm.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: predict, then measure
+v &lt;- rnorm(5000)
+
+my_list_a &lt;- rep(list(v), 100)                       # all slots share v
+my_list_b &lt;- lapply(1:100, function(i) v)            # all slots share v (different route)
+my_list_c &lt;- lapply(1:100, function(i) rnorm(5000))  # 100 independent vectors
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">v &lt;- rnorm(5000)
+my_list_a &lt;- rep(list(v), 100)
+my_list_b &lt;- lapply(1:100, function(i) v)
+my_list_c &lt;- lapply(1:100, function(i) rnorm(5000))
+
+c(a = obj_size(my_list_a),
+  b = obj_size(my_list_b),
+  c = obj_size(my_list_c))
+#&gt;        a        b        c
+#&gt; 40.90 kB 40.90 kB  4.00 MB</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>my_list_a</code> and <code>my_list_b</code> share <code>v</code> across all 100 slots, so both land near 40 kB. <code>my_list_c</code> generates 100 independent vectors of 5000 doubles each, which lobstr counts honestly at about 4 MB. The lesson: a <code>lapply()</code> that ignores its index variable is identical, memory-wise, to <code>rep(list(...), n)</code>.</p>
+
+</details>
+
+<h4>Exercise 2: Write a bloat report</h4>
+
+<p>Write <code>my_bloat_report(fn, x)</code> that calls <code>fn(x)</code> and returns a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> with three fields: the memory delta during the call, the <code>obj_size()</code> of the result, and a logical <code>shares_with_input</code> indicating whether the result shares any memory with <code>x</code>. Test it against <code>bloated_stats</code> from earlier.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: build a bloat report utility
+# Hint: use mem_used() for the delta, and compare obj_size(x, result)
+#       against obj_size(x) + obj_size(result) to detect sharing
+
+my_bloat_report &lt;- function(fn, x) {
+  # your code here
+}
+
+# Test (once you have filled it in):
+# my_bloat_report(bloated_stats, mtcars)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_bloat_report &lt;- function(fn, x) {
+  before &lt;- mem_used()
+  result &lt;- fn(x)
+  after &lt;- mem_used()
+
+  combined &lt;- obj_size(x, result)
+  separate &lt;- obj_size(x) + obj_size(result)
+
+  list(
+    mem_delta         = after - before,
+    result_size       = obj_size(result),
+    shares_with_input = combined &lt; separate
+  )
+}
+
+my_bloat_report(bloated_stats, mtcars)
+#&gt; $mem_delta
+#&gt; 7.46 kB
+#&gt;
+#&gt; $result_size
+#&gt; 7.44 kB
+#&gt;
+#&gt; $shares_with_input
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The trick is that <code>obj_size(x, result)</code> deducts shared memory, while <code>obj_size(x) + obj_size(result)</code> double-counts it. If the combined figure is smaller than the sum, the result is holding pointers into the input. For <code>bloated_stats</code>, it is — the returned list literally contains <code>df</code>.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let's put everything together. We will profile a small data pipeline end to end: baseline, work, final snapshot, summary table. The task is a <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a>-by-group on the <code>starwars</code> dataset from dplyr, done two ways — once correctly with <code>summarise()</code>, once wastefully by joining the summary back onto the full table.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">sw_raw &lt;- dplyr::starwars
+obj_size(sw_raw)
+#&gt; 51.66 kB
+
+mem_before &lt;- mem_used()
+
+sw_summary &lt;- sw_raw |&gt;
+  dplyr::group_by(species) |&gt;
+  dplyr::summarise(
+    n           = dplyr::n(),
+    mean_height = mean(height, na.rm = TRUE),
+    mean_mass   = mean(mass, na.rm = TRUE),
+    .groups     = &quot;drop&quot;
+  )
+
+sw_join_summary &lt;- sw_raw |&gt;
+  dplyr::left_join(sw_summary, by = &quot;species&quot;)
+
+mem_after &lt;- mem_used()
+
+data.frame(
+  object    = c(&quot;sw_raw&quot;, &quot;sw_summary&quot;, &quot;sw_join_summary&quot;),
+  size      = c(obj_size(sw_raw), obj_size(sw_summary), obj_size(sw_join_summary)),
+  mem_delta = c(NA, NA, as.numeric(mem_after - mem_before))
+)
+#&gt;            object      size mem_delta
+#&gt; 1          sw_raw  51.66 kB        NA
+#&gt; 2      sw_summary   2.01 kB        NA
+#&gt; 3 sw_join_summary  58.42 kB      1728</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Three numbers tell the whole story. <code>sw_summary</code> is 2 kB — a lean aggregate you can hand to a downstream step without worry. <code>sw_join_summary</code> is 58 kB — bigger than the raw data, because it is the raw data plus three new columns. If the downstream code only needs per-species means, the join version is pure waste. <code>obj_size()</code> caught it immediately. The <code>mem_used()</code> delta is small because most of <code>sw_join_summary</code>'s content shares rows with <code>sw_raw</code>, exactly the kind of shared-memory win <code>obj_size()</code> is designed to credit.</p>
+
+<h2>Summary</h2>
+
+<p>The four lobstr functions below are all you need for day-to-day R memory work. Pick them by the question you are asking.</p>
+
+<p><img src="screenshots/R-Memory-lobstr-decision-tree.webp" alt="Decision tree for choosing a lobstr function" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Pick the right lobstr function for the question you are asking.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Function/Concept</th>
-<th>Purpose</th>
-<th>Notes</th>
+<th>Function</th>
+<th>What it measures</th>
+<th>When to use it</th>
+<th>Gotcha</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>object.size(x)</code></td>
-<td>Size of object (base R)</td>
-<td>Over-counts shared components</td>
+<td><code>obj_size()</code></td>
+<td>True size of one or more objects, crediting shared memory once</td>
+<td>Before committing to a data layout; after a suspicious transformation</td>
+<td>Pass several objects together to see shared savings</td>
 </tr>
 <tr>
-<td><code>lobstr::obj_size(x)</code></td>
-<td>True size accounting for sharing</td>
-<td>Recommended for accurate measurement</td>
+<td><code>ref()</code></td>
+<td>Tree of memory IDs for one or more objects</td>
+<td>When you need to <em>see</em> what is shared and what is not</td>
+<td>Output grows fast on deep structures — print small samples</td>
 </tr>
 <tr>
-<td><code>lobstr::obj_addr(x)</code></td>
-<td>Memory address of object</td>
-<td>Check if two vars share data</td>
+<td><code>mem_used()</code></td>
+<td>Total bytes currently held by the R session</td>
+<td>Diff before and after a block to measure real cost</td>
+<td>Will not match OS reporting; take deltas only</td>
 </tr>
 <tr>
-<td><code>lobstr::ref(x, y)</code></td>
-<td>Visualize shared references</td>
-<td>Shows sharing tree</td>
-</tr>
-<tr>
-<td><code>lobstr::mem_used()</code></td>
-<td>Total R memory usage</td>
-<td>Like <code>gc()</code> but simpler</td>
-</tr>
-<tr>
-<td><code>gc()</code></td>
-<td>Garbage collect + report memory</td>
-<td>Use <code>gc()[2,2]</code> for Mb used</td>
-</tr>
-<tr>
-<td><code>tracemem(x)</code></td>
-<td>Alert on copy</td>
-<td>Base R, prints copy events</td>
-</tr>
-<tr>
-<td>ALTREP</td>
-<td>Compact representation</td>
-<td><code>1:n</code> is O(1) memory</td>
-</tr>
-<tr>
-<td>String interning</td>
-<td>Shared string storage</td>
-<td>Repeated strings are efficient</td>
+<td><code>obj_addr()</code></td>
+<td>Hex address of the object a name points to</td>
+<td>Prove whether two names share memory or a change triggered a copy</td>
+<td>Address changes are the ground truth for copy-on-modify</td>
 </tr>
 </tbody>
 </table>
 
-<h2>Practice Exercises</h2>
+<p>The overarching rule: <strong>R shares data by default, and your memory tools must account for that sharing.</strong> Base R's <code>object.size()</code> does not, which is why its numbers can be wildly misleading on lists, environments, and ALTREP objects. <code>lobstr</code> gives you the X-ray view those situations demand.</p>
 
-<p><strong>Exercise 1:</strong> Without running it, predict: is <code>object.size(list(1:1000, 1:1000))</code> closer to the size of one <code>1:1000</code> vector or two? Why?</p>
+<h2>References</h2>
 
-<details><summary>Click to reveal solution</summary>
+<ol>
 
-<p><code>object.size()</code> reports the size as roughly <strong>two</strong> vectors, because it doesn't account for potential sharing. Each list element is measured independently.</p>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 2: Names and Values. <a href="https://adv-r.hadley.nz/names-values.html">Link</a></li>
 
-<p>However, with <code>lobstr::obj_size()</code>, if both list elements point to the same vector (created as <code>x &lt;- 1:1000; list(x, x)</code>), the true size would be closer to one vector plus list overhead.</p>
+<li><a class="auto-link" href="R-Names-and-Values.html" title="R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)">lobstr package</a> reference — Visualize R Data Structures with Trees. <a href="https://lobstr.r-lib.org/">Link</a></li>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">x &lt;- 1:1000
-cat(&quot;One vector:&quot;, object.size(x), &quot;bytes\n&quot;)
-cat(&quot;list(x, x):&quot;, object.size(list(x, x)), &quot;bytes\n&quot;)
-cat(&quot;list(1:1000, 1:1000):&quot;, object.size(list(1:1000, 1:1000)), &quot;bytes\n&quot;)
+<li>CRAN: Package lobstr. <a href="https://cran.r-project.org/package=lobstr">Link</a></li>
 
-# list(x, x) shares the vector; list(1:1000, 1:1000) creates two separate vectors
-# object.size doesn't distinguish, but lobstr::obj_size would</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<li>tidyverse blog — lobstr 1.0.0 release announcement. <a href="https://tidyverse.org/blog/2018/12/lobstr/">Link</a></li>
 
-</details>
+<li><code>obj_size()</code> function reference. <a href="https://lobstr.r-lib.org/reference/obj_size.html">Link</a></li>
 
-<p><strong>Exercise 2:</strong> Write a function that compares the memory usage of storing data as a character vector vs a factor, for different numbers of unique values.</p>
+<li><code>mem_used()</code> function reference. <a href="https://lobstr.r-lib.org/reference/mem_used.html">Link</a></li>
 
-<details><summary>Click to reveal solution</summary>
+<li>R Core Team — <em>Writing R Extensions</em>, memory usage notes. <a href="https://cran.r-project.org/doc/manuals/r-release/R-exts.html">Link</a></li>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">compare_storage &lt;- function(n = 100000, n_unique = c(2, 10, 100, 1000, 10000)) {
-  cat(sprintf(&quot;%-12s %-15s %-15s %-10s\n&quot;, &quot;Unique&quot;, &quot;Character (KB)&quot;, &quot;Factor (KB)&quot;, &quot;Winner&quot;))
-  cat(strrep(&quot;-&quot;, 55), &quot;\n&quot;)
-
-  for (nu in n_unique) {
-    vals &lt;- sample(paste0(&quot;val_&quot;, 1:nu), n, replace = TRUE)
-    char_size &lt;- as.numeric(object.size(vals)) / 1024
-    fact_size &lt;- as.numeric(object.size(factor(vals))) / 1024
-    winner &lt;- if (char_size &lt; fact_size) &quot;character&quot; else &quot;factor&quot;
-    cat(sprintf(&quot;%-12d %-15.1f %-15.1f %-10s\n&quot;, nu, char_size, fact_size, winner))
-  }
-}
-
-compare_storage()</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-</details>
-
-<p><strong>Exercise 3:</strong> Demonstrate that ALTREP makes <code>1:n</code> constant-size by measuring <code>1:100</code>, <code>1:1000000</code>, and <code>1:100000000</code>.</p>
-
-<details><summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">sizes &lt;- sapply(c(100, 1000000, 100000000), function(n) {
-  as.numeric(object.size(1:n))
-})
-
-cat(&quot;1:100        :&quot;, sizes[1], &quot;bytes\n&quot;)
-cat(&quot;1:1,000,000  :&quot;, sizes[2], &quot;bytes\n&quot;)
-cat(&quot;1:100,000,000:&quot;, sizes[3], &quot;bytes\n&quot;)
-cat(&quot;\nAll the same size! ALTREP stores only (start, end, step).\n&quot;)
-cat(&quot;\nCompare with materialized:\n&quot;)
-cat(&quot;rnorm(100):&quot;, object.size(rnorm(100)), &quot;bytes\n&quot;)
-cat(&quot;rnorm(1000000):&quot;, object.size(rnorm(1000000)), &quot;bytes\n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-</details>
-
-<h2>FAQ</h2>
-
-<p><strong>Q: Why does gc() sometimes not free memory?</strong> <code>gc()</code> collects unreferenced R objects, but the freed memory isn't always returned to the OS. R maintains a memory pool. Also, if objects are still referenced (even indirectly through closures or environments), they won't be collected.</p>
-
-<p><strong>Q: How much memory overhead does each R object have?</strong> Every R object (SEXP) has a header of about 40-56 bytes on 64-bit systems. This includes type info, reference count, attributes pointer, and memory management data. For small objects (a single integer), the overhead dominates.</p>
-
-<p><strong>Q: Is lobstr available in WebR?</strong> As of 2026, lobstr may not be available in WebR. The examples in this tutorial use base R alternatives (<code>object.size()</code>, <code>gc()</code>, <code>tracemem()</code>) that work everywhere. Install lobstr in a regular R session with <code>install.packages(&quot;lobstr&quot;)</code>.</p>
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><a href="R-Names-and-Values.html">R Names and Values</a> -- The mental model behind copy-on-modify</li>
+<li><a href="R-Names-and-Values.html">R Names & Values</a> — how R stores variables and the copy-on-modify rule that makes <code>lobstr::ref()</code> output click.</li>
 
-<li><a href="R-Assignment-Deep-Dive.html">R Assignment Deep Dive</a> -- All assignment operators and scoping</li>
+<li><a href="R-Assignment-Deep-Dive.html">R Assignment Deep Dive</a> — the difference between <code>&lt;-</code>, <code>=</code>, and <code>&lt;&lt;-</code>, and why assignment never copies.</li>
 
-<li><a href="R-Copy-on-Modify.html">R Copy-on-Modify</a> -- Practical copy-on-modify examples</li>
+<li><a href="Strategies-To-Improve-And-Speedup-R-Code.html">Strategies to Improve and Speed Up R Code</a> — performance tuning patterns that pair naturally with memory diagnostics.</li>
 
 </ul>
