@@ -1,31 +1,28 @@
 ---
-title: "R6 Classes in R: When You Need Objects That Mutate in Place"
-slug: "R6-Classes-in-R"
-description: "R6 is R's modern OOP system for mutable, encapsulated objects — the one you want for stateful classes that behave like Python or Java objects. Here is the full workflow."
-keywords: "R6 classes in R, R mutable objects, R6 package, R reference semantics, R OOP encapsulated"
+title: "R6 Classes in R: When You Need Objects That Mutate In Place"
+slug: R6-Classes-in-R
+description: "Unlike S3 and S4, R6 objects are modified in place — no copies. Learn to build R6 classes with public/private fields, active bindings, and finalizers."
+keywords: "R6 classes in R, R6 reference semantics, R6 public private fields, R6 active bindings, R6 inheritance, mutable objects R, R6Class tutorial, R OOP R6"
+auto_link_terms: "R6 classes|R6 class|R6Class()|R6 objects|reference semantics in R|mutable objects in R|R6 active bindings|R6 inheritance"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-12"
+date: 2026-04-12
 curriculum_id: "4.3.6"
-post_type: "C"
-auto_link_terms: "R6 classes|R6 class|R6Class|R6 mutable"
-auto_link_case_sensitive: false
-sidebar_section: "Learn R"
-sidebar_title: "R6 Classes in R"
-sidebar_order: 46
+post_type: C
+sidebar_section: "Advanced R"
+sidebar_title: "R6 Classes"
+sidebar_order: 14
 ---
 
-# R6 Classes in R: When You Need Objects That Mutate in Place
+<p class="lead">R6 classes give you mutable objects in R — when you modify an R6 object, the change happens in place instead of creating a copy. This makes R6 the right choice when you need shared state, resource management, or objects that talk to external systems like databases and APIs.</p>
 
-<p class="lead">R6 is R's modern system for <strong>mutable, encapsulated</strong> objects. Unlike S3 and S4 (where every change returns a new copy), an R6 object can update its own state in place — so <code>counter$increment()</code> actually modifies <code>counter</code>. It is the OOP system you reach for when you need a Python-style object.</p>
+## What makes R6 different from S3 and S4?
 
-Most R code is purely functional: functions take values in, return new values out, and never mutate anything. That model is beautiful until you need a Shiny module tracking its own state, a database connection that knows if it is open, or a stream parser with a growing buffer. For those, R6 is the right tool. This tutorial walks you from the empty class to a working counter, then shows private fields, active bindings, and inheritance.
-
-## How Do You Create an R6 Class?
-
-Load the `R6` package and call `R6Class()` with a name and a list of `public` fields and methods. Fields are plain data; methods are functions that can reference `self$` to access or update them.
+S3 and S4 follow R's copy-on-modify rule — assign an object to a new variable, change one, and the other stays untouched. R6 breaks that rule deliberately. Both variables point to the *same* object, so a change through one is visible through the other. This is called **reference semantics**.
 
 ```r
+# R6 objects mutate in place — both variables see the change
 library(R6)
 
 Counter <- R6Class("Counter",
@@ -34,315 +31,1302 @@ Counter <- R6Class("Counter",
     increment = function() {
       self$count <- self$count + 1
       invisible(self)
-    },
-    get = function() self$count
+    }
   )
 )
 
 c1 <- Counter$new()
+c2 <- c1              # c2 points to the SAME object
 c1$increment()
 c1$increment()
-c1$increment()
-c1$get()
-#> [1] 3
+c1$count
+#> [1] 2
+c2$count
+#> [1] 2
 ```
 
-Three things to notice. First, the class is defined in one call — no `setClass` + `setMethod` split like S4. Second, calling `c1$increment()` **mutated** `c1` — after three calls, `c1$count` is 3, not still 0. That is the key difference from S3/S4. Third, methods return `invisible(self)` so you can chain them: `c1$increment()$increment()$increment()` works.
+Both `c1` and `c2` show a count of 2, even though we only called `increment()` on `c1`. That's reference semantics in action — there's only one object, and both variables point to it.
+
+Think of it like a sticky note on a document. S3 photocopies the document every time you hand it to someone — each person has their own copy and edits don't affect anyone else. R6 just sticks another label on the *same* document — everyone reads and writes the same page.
+
+Compare this directly with how a regular R list behaves:
+
+```r
+# S3/base R: copy-on-modify — changes don't propagate
+s3_list <- list(count = 0)
+s3_copy <- s3_list
+s3_copy$count <- 99
+
+s3_list$count
+#> [1] 0
+s3_copy$count
+#> [1] 99
+```
+
+The list copy is independent — changing `s3_copy` didn't touch `s3_list`. That's the opposite of what happened with our R6 Counter above.
 
 [KEY INSIGHT]
-**R6 objects have reference semantics.** `c2 <- c1` does *not* make a copy — both names point to the same underlying object, so `c2$increment()` will also affect `c1$count`. This is the opposite of S3/S4 (copy on modify) and matches Python/Java behaviour. If you need a real copy, use `c1$clone()`.
+**Reference semantics means R6 objects behave like Python or Java objects.** If you've used objects in another language, R6 will feel familiar — assigning an object to a new variable doesn't create a copy, it creates another reference to the same thing.
 
-## Why Does R6 Matter? The Copy Problem in S3/S4
-
-Watch what happens when you try to build a counter as an S3 class:
+**Try it:** Create an R6 class called `Scoreboard` with a `score` field (starting at 0) and an `add_points(n)` method. Create one scoreboard, assign it to a second variable, add 10 points through the second variable, and verify the first variable also shows 10.
 
 ```r
-new_counter_s3 <- function() structure(list(count = 0), class = "counter_s3")
-
-increment_s3 <- function(x) {
-  x$count <- x$count + 1
-  x                          # must return the new version
-}
-
-c1 <- new_counter_s3()
-increment_s3(c1)             # this builds a modified copy — but c1 is unchanged
-c1$count
-#> [1] 0
-```
-
-Calling `increment_s3(c1)` returned a modified copy but left `c1` alone. To make the change stick, you would have to reassign: `c1 <- increment_s3(c1)`. For a single counter that is annoying; for a database connection shared across 20 functions it is untenable. R6 fixes this by giving the object genuine identity — one mutation updates *the* object, everywhere it is referenced.
-
-## How Do You Add Private Fields?
-
-R6 supports **private** fields and methods — data and helpers that are hidden from the outside but accessible inside the class. Reference them with `private$` instead of `self$`.
-
-```r
-library(R6)
-
-SecureCounter <- R6Class("SecureCounter",
+# Try it: build a Scoreboard with reference semantics
+Scoreboard <- R6Class("Scoreboard",
   public = list(
-    initialize = function() {
-      private$count <- 0
-    },
-    increment = function() {
-      private$count <- private$count + 1
-      invisible(self)
-    },
-    get = function() private$count
-  ),
-  private = list(
-    count = NULL
+    score = 0,
+    add_points = function(n) {
+      # your code here
+    }
   )
 )
 
-sc <- SecureCounter$new()
-sc$increment()
-sc$increment()
-sc$get()
-#> [1] 2
-
-sc$count
-#> NULL
-```
-
-`sc$count` returns `NULL` — outside code cannot reach the private `count` field directly. The only way to read it is through the public `get()` method; the only way to change it is through `increment()`. This is proper **encapsulation**: the class controls every access to its state.
-
-## How Do You Use `initialize` for Constructor Logic?
-
-The special method named `initialize` runs when you call `ClassName$new(args)`. Use it to validate inputs and set up initial state.
-
-```r
-library(R6)
-
-BankAccount <- R6Class("BankAccount",
-  public = list(
-    initialize = function(owner, opening_balance = 0) {
-      stopifnot(is.character(owner), length(owner) == 1)
-      stopifnot(is.numeric(opening_balance), opening_balance >= 0)
-      private$owner   <- owner
-      private$balance <- opening_balance
-    },
-    deposit = function(amount) {
-      stopifnot(amount > 0)
-      private$balance <- private$balance + amount
-      invisible(self)
-    },
-    withdraw = function(amount) {
-      stopifnot(amount > 0, amount <= private$balance)
-      private$balance <- private$balance - amount
-      invisible(self)
-    },
-    balance = function() private$balance
-  ),
-  private = list(
-    owner   = NULL,
-    balance = NULL
-  )
-)
-
-acc <- BankAccount$new("Ada", 100)
-acc$deposit(50)
-acc$withdraw(30)
-acc$balance()
-#> [1] 120
-```
-
-The class has three public methods (`deposit`, `withdraw`, `balance`) and two private fields. Every state change goes through a public method that enforces the business rules — you cannot withdraw more than you have, and the balance can never go below zero. Because state is private, there is literally no way to violate the rules from outside.
-
-**Try it:** Write an `R6Class` called `Stack` with `push(x)`, `pop()`, and `size()` methods backed by a private `items` list.
-
-```r
-library(R6)
-# your code here
+# Test:
+ex_s1 <- Scoreboard$new()
+ex_s2 <- ex_s1
+ex_s2$add_points(10)
+ex_s1$score
+#> Expected: 10
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-library(R6)
+Scoreboard <- R6Class("Scoreboard",
+  public = list(
+    score = 0,
+    add_points = function(n) {
+      self$score <- self$score + n
+      invisible(self)
+    }
+  )
+)
 
+ex_s1 <- Scoreboard$new()
+ex_s2 <- ex_s1
+ex_s2$add_points(10)
+ex_s1$score
+#> [1] 10
+```
+
+**Explanation:** Because R6 uses reference semantics, `ex_s2` and `ex_s1` point to the same object. Adding points through either variable updates the shared score.
+
+</details>
+
+## How do you create an R6 class?
+
+Every R6 class starts with a call to `R6Class()`. You give it a class name and a `public` list containing fields (data) and methods (functions). Methods access the object's own fields using `self$`.
+
+```r
+# Define a Person class with fields and methods
+Person <- R6Class("Person",
+  public = list(
+    name = NULL,
+    age = NULL,
+    initialize = function(name, age) {
+      self$name <- name
+      self$age <- age
+    },
+    greet = function() {
+      cat(paste0("Hi, I'm ", self$name, " (", self$age, ").\n"))
+    }
+  )
+)
+
+p1 <- Person$new("Ada", 36)
+p1$greet()
+#> Hi, I'm Ada (36).
+p1$name
+#> [1] "Ada"
+```
+
+The `initialize()` method is R6's constructor — it runs automatically when you call `$new()`. Without it, fields keep their default values (both `NULL` here), and you'd have to set them manually after creation.
+
+Methods can call other methods on the same object using `self$`. Let's add an `introduce()` method that builds on `greet()`:
+
+```r
+# Methods can call other methods via self$
+Person <- R6Class("Person",
+  public = list(
+    name = NULL,
+    age = NULL,
+    initialize = function(name, age) {
+      self$name <- name
+      self$age <- age
+    },
+    greet = function() {
+      cat(paste0("Hi, I'm ", self$name, " (", self$age, ").\n"))
+    },
+    introduce = function(topic) {
+      self$greet()
+      cat(paste0("I'll be talking about ", topic, " today.\n"))
+    }
+  )
+)
+
+p1 <- Person$new("Ada", 36)
+p1$introduce("R6 classes")
+#> Hi, I'm Ada (36).
+#> I'll be talking about R6 classes today.
+```
+
+`introduce()` calls `self$greet()` internally, then adds its own output. This is how methods compose — each one can build on the others.
+
+[TIP]
+**Always define an initialize() method.** Without it, every field starts at its default value and users must set each one manually. A constructor makes object creation clean and enforces that required fields are provided upfront.
+
+**Try it:** Create a `Rectangle` class with `width` and `height` fields (set via initialize), and an `area()` method that returns `width * height`. Create a 5x3 rectangle and print its area.
+
+```r
+# Try it: build a Rectangle class
+Rectangle <- R6Class("Rectangle",
+  public = list(
+    width = NULL,
+    height = NULL,
+    initialize = function(width, height) {
+      # your code here
+    },
+    area = function() {
+      # your code here
+    }
+  )
+)
+
+# Test:
+ex_rect <- Rectangle$new(5, 3)
+ex_rect$area()
+#> Expected: 15
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+Rectangle <- R6Class("Rectangle",
+  public = list(
+    width = NULL,
+    height = NULL,
+    initialize = function(width, height) {
+      self$width <- width
+      self$height <- height
+    },
+    area = function() {
+      self$width * self$height
+    }
+  )
+)
+
+ex_rect <- Rectangle$new(5, 3)
+ex_rect$area()
+#> [1] 15
+```
+
+**Explanation:** The constructor stores both dimensions via `self$`, and `area()` multiplies them. Fields persist on the object between method calls.
+
+</details>
+
+## How do public and private fields work in R6?
+
+So far, every field has been public — anyone with a reference to the object can read or change it. That's convenient, but dangerous. If external code sets `acct$balance <- -1000`, your object's invariants are broken.
+
+R6 solves this with **private fields and methods**. They live in a separate `private` list and can only be accessed from *inside* the class using `private$`.
+
+```r
+# Private fields protect internal state
+BankAccount <- R6Class("BankAccount",
+  public = list(
+    owner = NULL,
+    initialize = function(owner, balance = 0) {
+      self$owner <- owner
+      private$balance <- balance
+    },
+    deposit = function(amount) {
+      if (amount <= 0) stop("Deposit must be positive")
+      private$balance <- private$balance + amount
+      cat(paste0("Deposited $", amount, ". Balance: $", private$balance, "\n"))
+      invisible(self)
+    },
+    withdraw = function(amount) {
+      if (amount > private$balance) stop("Insufficient funds")
+      private$balance <- private$balance - amount
+      cat(paste0("Withdrew $", amount, ". Balance: $", private$balance, "\n"))
+      invisible(self)
+    },
+    get_balance = function() {
+      private$balance
+    }
+  ),
+  private = list(
+    balance = 0
+  )
+)
+
+acct <- BankAccount$new("Selva", 100)
+acct$deposit(50)
+#> Deposited $50. Balance: $150
+acct$withdraw(30)
+#> Withdrew $30. Balance: $120
+acct$get_balance()
+#> [1] 120
+```
+
+The balance can only change through `deposit()` and `withdraw()`, which enforce the rules (no negative deposits, no overdrafts). The public `get_balance()` method provides read-only access.
+
+What happens if you try to access the private field directly?
+
+```r
+# Private fields are NOT accessible from outside
+acct$balance
+#> NULL
+```
+
+You get `NULL` — not an error, just nothing. R6 doesn't expose private fields through the public interface. If you accidentally write `self$balance` instead of `private$balance` inside a method, R6 silently creates a *new* public field — a subtle bug.
+
+[WARNING]
+**Private fields use private$, not self$.** Writing self$balance inside a method when balance is private silently creates a separate public field with the same name. The private field stays untouched, and you'll get mysterious bugs. Always double-check the prefix.
+
+![Anatomy of an R6 class](screenshots/R6-Classes-in-R-class-anatomy.webp)
+*Figure 1: Anatomy of an R6 class — public, private, and active sections.*
+
+**Try it:** Add a private `transaction_log` list to BankAccount. Each deposit/withdrawal should append a string like "deposit: 50" to the log. Add a public `get_log()` method that returns the log.
+
+```r
+# Try it: add a transaction log to BankAccount
+BankAccount2 <- R6Class("BankAccount2",
+  public = list(
+    owner = NULL,
+    initialize = function(owner, balance = 0) {
+      self$owner <- owner
+      private$balance <- balance
+      private$log <- list()
+    },
+    deposit = function(amount) {
+      private$balance <- private$balance + amount
+      # Add to log here
+      invisible(self)
+    },
+    get_log = function() {
+      # your code here
+    }
+  ),
+  private = list(
+    balance = 0,
+    log = NULL
+  )
+)
+
+# Test:
+ex_acct <- BankAccount2$new("Test", 100)
+ex_acct$deposit(50)
+ex_acct$deposit(25)
+ex_acct$get_log()
+#> Expected: list("deposit: 50", "deposit: 25")
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+BankAccount2 <- R6Class("BankAccount2",
+  public = list(
+    owner = NULL,
+    initialize = function(owner, balance = 0) {
+      self$owner <- owner
+      private$balance <- balance
+      private$log <- list()
+    },
+    deposit = function(amount) {
+      private$balance <- private$balance + amount
+      private$log <- c(private$log, paste0("deposit: ", amount))
+      invisible(self)
+    },
+    get_log = function() {
+      private$log
+    }
+  ),
+  private = list(
+    balance = 0,
+    log = NULL
+  )
+)
+
+ex_acct <- BankAccount2$new("Test", 100)
+ex_acct$deposit(50)
+ex_acct$deposit(25)
+ex_acct$get_log()
+#> [[1]]
+#> [1] "deposit: 50"
+#> 
+#> [[2]]
+#> [1] "deposit: 25"
+```
+
+**Explanation:** Each deposit appends a string to the private log list using `c()`. The public `get_log()` method provides read-only access.
+
+</details>
+
+## What are active bindings and when should you use them?
+
+Active bindings look like fields from the outside — you read and write them with `obj$field` — but behind the scenes they run a function. This gives you computed properties, validation, and read-only fields without changing how users interact with the object.
+
+```r
+# Active binding: computed Fahrenheit from Celsius
+Temperature <- R6Class("Temperature",
+  public = list(
+    celsius = NULL,
+    initialize = function(celsius) {
+      self$celsius <- celsius
+    }
+  ),
+  active = list(
+    fahrenheit = function(value) {
+      if (missing(value)) {
+        return(self$celsius * 9/5 + 32)
+      } else {
+        self$celsius <- (value - 32) * 5/9
+      }
+    }
+  )
+)
+
+temp <- Temperature$new(100)
+temp$fahrenheit
+#> [1] 212
+temp$fahrenheit <- 32
+temp$celsius
+#> [1] 0
+```
+
+The `fahrenheit` binding works both ways — reading it converts from Celsius, and setting it converts back. There's no stored Fahrenheit field. The value is always computed from `celsius`.
+
+Active bindings are also perfect for validation. Here's a class that rejects invalid age values:
+
+```r
+# Active binding for validation
+ValidatedPerson <- R6Class("ValidatedPerson",
+  public = list(
+    name = NULL,
+    initialize = function(name, age) {
+      self$name <- name
+      self$age <- age   # triggers the active binding
+    }
+  ),
+  private = list(
+    .age = NULL
+  ),
+  active = list(
+    age = function(value) {
+      if (missing(value)) return(private$.age)
+      if (!is.numeric(value) || value < 0 || value > 150) {
+        stop("Age must be a number between 0 and 150")
+      }
+      private$.age <- value
+    }
+  )
+)
+
+v <- ValidatedPerson$new("Bob", 25)
+v$age
+#> [1] 25
+v$age <- 30
+v$age
+#> [1] 30
+```
+
+From the outside, `v$age` looks like a plain field. But setting `v$age <- -5` would throw an error because the active binding validates every write. The actual value lives in `private$.age` — the active binding is just the gatekeeper.
+
+[KEY INSIGHT]
+**Active bindings let you add validation without changing the interface.** Users still write obj$age = 25 — they don't need to switch to a setter method. The binding validates silently behind the scenes.
+
+**Try it:** Create a `Circle` class where setting `radius` stores it in a private field, and a read-only `area` active binding returns `pi * radius^2`. Setting `area` directly should throw an error.
+
+```r
+# Try it: Circle with read-only area active binding
+Circle <- R6Class("Circle",
+  public = list(
+    initialize = function(radius) {
+      self$radius <- radius
+    }
+  ),
+  private = list(
+    .radius = NULL
+  ),
+  active = list(
+    radius = function(value) {
+      if (missing(value)) return(private$.radius)
+      # your code here
+    },
+    area = function(value) {
+      # your code here (read-only)
+    }
+  )
+)
+
+# Test:
+ex_circ <- Circle$new(5)
+ex_circ$area
+#> Expected: 78.53982
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+Circle <- R6Class("Circle",
+  public = list(
+    initialize = function(radius) {
+      self$radius <- radius
+    }
+  ),
+  private = list(
+    .radius = NULL
+  ),
+  active = list(
+    radius = function(value) {
+      if (missing(value)) return(private$.radius)
+      if (!is.numeric(value) || value <= 0) stop("Radius must be positive")
+      private$.radius <- value
+    },
+    area = function(value) {
+      if (!missing(value)) stop("area is read-only")
+      pi * private$.radius^2
+    }
+  )
+)
+
+ex_circ <- Circle$new(5)
+ex_circ$area
+#> [1] 78.53982
+```
+
+**Explanation:** The `area` binding computes from `private$.radius` on every read. Attempting to set it directly raises an error, making it effectively read-only.
+
+</details>
+
+## How does inheritance work with R6 classes?
+
+R6 supports single inheritance through the `inherit` argument. A child class gets all the parent's fields and methods, and can override any of them. Inside the child, `super$` accesses the parent's version of overridden methods.
+
+```r
+# Inheritance: Animal parent, Dog child
+Animal <- R6Class("Animal",
+  public = list(
+    name = NULL,
+    sound = NULL,
+    initialize = function(name, sound) {
+      self$name <- name
+      self$sound <- sound
+    },
+    speak = function() {
+      cat(paste0(self$name, " says ", self$sound, "!\n"))
+    }
+  )
+)
+
+Dog <- R6Class("Dog",
+  inherit = Animal,
+  public = list(
+    breed = NULL,
+    initialize = function(name, breed) {
+      super$initialize(name, sound = "Woof")
+      self$breed <- breed
+    },
+    fetch = function(item) {
+      cat(paste0(self$name, " fetches the ", item, "!\n"))
+    }
+  )
+)
+
+rex <- Dog$new("Rex", "Labrador")
+rex$speak()
+#> Rex says Woof!
+rex$fetch("ball")
+#> Rex fetches the ball!
+rex$breed
+#> [1] "Labrador"
+```
+
+Dog inherits `speak()` from Animal without redefining it. The constructor calls `super$initialize()` to set the parent's fields, then adds its own `breed` field. Dog also adds a new `fetch()` method that only dogs have.
+
+Inheritance can go multiple levels deep. Each class in the chain adds its own specialization:
+
+```r
+# Multi-level inheritance
+GuideDog <- R6Class("GuideDog",
+  inherit = Dog,
+  public = list(
+    handler = NULL,
+    initialize = function(name, breed, handler) {
+      super$initialize(name, breed)
+      self$handler <- handler
+    },
+    guide = function(destination) {
+      cat(paste0(self$name, " guides ", self$handler,
+                 " to ", destination, ".\n"))
+    }
+  )
+)
+
+buddy <- GuideDog$new("Buddy", "Golden Retriever", "Sam")
+buddy$speak()
+#> Buddy says Woof!
+buddy$guide("the park")
+#> Buddy guides Sam to the park.
+class(buddy)
+#> [1] "GuideDog" "Dog"      "Animal"   "R6"
+```
+
+`buddy` has access to Animal's `speak()`, Dog's `fetch()`, and its own `guide()` method. The `class()` output shows the full inheritance chain.
+
+![R6 inheritance chain](screenshots/R6-Classes-in-R-inheritance-flow.webp)
+*Figure 2: R6 inheritance chain — child classes extend parents via super$.*
+
+[TIP]
+**Always call super$initialize() in child constructors.** If you skip it, the parent's fields won't be set up and you'll get NULL values or errors when parent methods try to use them.
+
+**Try it:** Create a `Vehicle` class with `make` and `year` fields, and a `describe()` method. Then create an `ElectricCar` class that inherits from Vehicle, adds a `battery_level` field (default 100), and overrides `describe()` to include the battery level.
+
+```r
+# Try it: Vehicle -> ElectricCar hierarchy
+Vehicle <- R6Class("Vehicle",
+  public = list(
+    make = NULL,
+    year = NULL,
+    initialize = function(make, year) {
+      self$make <- make
+      self$year <- year
+    },
+    describe = function() {
+      cat(paste0(self$year, " ", self$make, "\n"))
+    }
+  )
+)
+
+ElectricCar <- R6Class("ElectricCar",
+  inherit = Vehicle,
+  public = list(
+    battery_level = 100,
+    initialize = function(make, year, battery_level = 100) {
+      # your code here
+    },
+    describe = function() {
+      # your code here
+    }
+  )
+)
+
+# Test:
+ex_car <- ElectricCar$new("Tesla", 2024, 85)
+ex_car$describe()
+#> Expected: "2024 Tesla (battery: 85%)"
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+Vehicle <- R6Class("Vehicle",
+  public = list(
+    make = NULL,
+    year = NULL,
+    initialize = function(make, year) {
+      self$make <- make
+      self$year <- year
+    },
+    describe = function() {
+      cat(paste0(self$year, " ", self$make, "\n"))
+    }
+  )
+)
+
+ElectricCar <- R6Class("ElectricCar",
+  inherit = Vehicle,
+  public = list(
+    battery_level = 100,
+    initialize = function(make, year, battery_level = 100) {
+      super$initialize(make, year)
+      self$battery_level <- battery_level
+    },
+    describe = function() {
+      cat(paste0(self$year, " ", self$make,
+                 " (battery: ", self$battery_level, "%)\n"))
+    }
+  )
+)
+
+ex_car <- ElectricCar$new("Tesla", 2024, 85)
+ex_car$describe()
+#> 2024 Tesla (battery: 85%)
+```
+
+**Explanation:** `super$initialize()` delegates to Vehicle's constructor for make/year, then the child sets battery_level. The overridden describe() adds battery info.
+
+</details>
+
+## How do you clone R6 objects correctly?
+
+Since R6 uses reference semantics, plain assignment (`y <- x`) doesn't copy — both variables point to the same object. To get an independent copy, use `$clone()`.
+
+A **shallow clone** copies the object's own fields, but any R6 objects *inside* those fields are still shared:
+
+```r
+# Shallow clone: inner R6 objects are still shared
+Player <- R6Class("Player",
+  public = list(
+    name = NULL,
+    score = 0,
+    initialize = function(name) {
+      self$name <- name
+    }
+  )
+)
+
+Team <- R6Class("Team",
+  public = list(
+    name = NULL,
+    captain = NULL,
+    initialize = function(name, captain) {
+      self$name <- name
+      self$captain <- captain
+    }
+  )
+)
+
+t1 <- Team$new("Alpha", Player$new("Selva"))
+t2 <- t1$clone()
+
+t2$name <- "Beta"
+t1$name
+#> [1] "Alpha"
+
+t2$captain$score <- 99
+t1$captain$score
+#> [1] 99
+```
+
+Changing `t2$name` (a simple string) didn't affect `t1` — that field was copied. But changing `t2$captain$score` *did* affect `t1`, because both teams still share the same Player object.
+
+To get fully independent copies, use `$clone(deep = TRUE)`:
+
+```r
+# Deep clone: everything is independent
+t3 <- t1$clone(deep = TRUE)
+t3$captain$score <- 0
+t1$captain$score
+#> [1] 99
+t3$captain$score
+#> [1] 0
+```
+
+Now `t3` has its own Player object. Changing the captain's score in `t3` doesn't affect `t1`.
+
+![Copy vs reference semantics](screenshots/R6-Classes-in-R-copy-vs-reference.webp)
+*Figure 3: Copy semantics vs reference semantics — S3 copies, R6 shares.*
+
+[WARNING]
+**Shallow cloning an R6 object that contains other R6 objects shares those inner objects.** Changes to the inner object appear in both the original and the clone. Use clone(deep = TRUE) whenever your object contains nested R6 fields.
+
+**Try it:** Create two Player objects, put them in a Team, deep-clone the team, change one player's score in the clone, and verify the original team's players are unchanged.
+
+```r
+# Try it: verify deep clone independence
+ex_p1 <- Player$new("Alice")
+ex_p2 <- Player$new("Bob")
+
+TeamV2 <- R6Class("TeamV2",
+  public = list(
+    players = NULL,
+    initialize = function(players) {
+      self$players <- players
+    }
+  )
+)
+
+ex_team1 <- TeamV2$new(list(ex_p1, ex_p2))
+# Deep clone and change a score:
+# your code here
+
+# Verify original is unchanged:
+ex_team1$players[[1]]$score
+#> Expected: 0
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_p1 <- Player$new("Alice")
+ex_p2 <- Player$new("Bob")
+
+TeamV2 <- R6Class("TeamV2",
+  public = list(
+    players = NULL,
+    initialize = function(players) {
+      self$players <- players
+    }
+  )
+)
+
+ex_team1 <- TeamV2$new(list(ex_p1, ex_p2))
+ex_team2 <- ex_team1$clone(deep = TRUE)
+ex_team2$players[[1]]$score <- 50
+ex_team1$players[[1]]$score
+#> [1] 0
+ex_team2$players[[1]]$score
+#> [1] 50
+```
+
+**Explanation:** Deep cloning recursively copies all R6 objects inside the team, so modifying a player in the clone leaves the original's players untouched.
+
+</details>
+
+## What are finalizers and why do they matter?
+
+A **finalizer** is a method that runs automatically when an R6 object is garbage collected. It's your chance to clean up resources — close database connections, delete temporary files, or flush logs.
+
+Define a finalizer by adding a `finalize` method to the private list:
+
+```r
+# Finalizer: clean up when the object is garbage collected
+FileLogger <- R6Class("FileLogger",
+  public = list(
+    path = NULL,
+    initialize = function(path) {
+      self$path <- path
+      private$messages <- character(0)
+      cat(paste0("Logger opened: ", path, "\n"))
+    },
+    log = function(msg) {
+      private$messages <- c(private$messages, paste0(Sys.time(), " — ", msg))
+      cat(paste0("Logged: ", msg, "\n"))
+    },
+    show_logs = function() {
+      cat(paste(private$messages, collapse = "\n"), "\n")
+    }
+  ),
+  private = list(
+    messages = NULL,
+    finalize = function() {
+      cat(paste0("Logger closing: ", self$path,
+                 " (", length(private$messages), " messages)\n"))
+    }
+  )
+)
+
+logger <- FileLogger$new("app.log")
+#> Logger opened: app.log
+logger$log("Server started")
+#> Logged: Server started
+logger$log("Request received")
+#> Logged: Request received
+rm(logger)
+gc()
+#> Logger closing: app.log (2 messages)
+```
+
+When `rm(logger)` removes the last reference and `gc()` runs garbage collection, the finalizer prints its cleanup message. In a real application, you'd close a file handle or database connection here instead of just printing.
+
+[NOTE]
+**Finalizers run on garbage collection, not immediately when you call rm().** R's garbage collector runs when it needs memory, which may not be right away. In examples, call gc() explicitly to trigger the finalizer. In production code, also provide a public close() or disconnect() method for deterministic cleanup.
+
+**Try it:** Create a `TempData` class whose initializer stores a message and whose finalizer prints "Cleaning up: [message]". Create an instance, remove it with `rm()`, and call `gc()` to see the finalizer fire.
+
+```r
+# Try it: finalizer that prints a cleanup message
+TempData <- R6Class("TempData",
+  public = list(
+    msg = NULL,
+    initialize = function(msg) {
+      # your code here
+    }
+  ),
+  private = list(
+    finalize = function() {
+      # your code here
+    }
+  )
+)
+
+# Test:
+ex_tmp <- TempData$new("session-42")
+rm(ex_tmp)
+gc()
+#> Expected: Cleaning up: session-42
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+TempData <- R6Class("TempData",
+  public = list(
+    msg = NULL,
+    initialize = function(msg) {
+      self$msg <- msg
+      cat(paste0("Created: ", msg, "\n"))
+    }
+  ),
+  private = list(
+    finalize = function() {
+      cat(paste0("Cleaning up: ", self$msg, "\n"))
+    }
+  )
+)
+
+ex_tmp <- TempData$new("session-42")
+#> Created: session-42
+rm(ex_tmp)
+gc()
+#> Cleaning up: session-42
+```
+
+**Explanation:** The private `finalize()` method runs automatically during garbage collection. It has access to `self$` so it can reference the object's fields for cleanup logic.
+
+</details>
+
+## Practice Exercises
+
+### Exercise 1: Stack with active size binding
+
+Build a `Stack` class with:
+
+- A private `items` list for storage
+- Public `push(value)`, `pop()`, `peek()`, and `is_empty()` methods
+- An active binding `size` that returns the current number of items
+- `pop()` should throw an error on an empty stack
+
+```r
+# Exercise 1: Build a Stack class
+# Hint: use private$items as a list, append with c()
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
 Stack <- R6Class("Stack",
   public = list(
     initialize = function() {
       private$items <- list()
     },
-    push = function(x) {
-      private$items <- c(private$items, list(x))
+    push = function(value) {
+      private$items <- c(private$items, list(value))
       invisible(self)
     },
     pop = function() {
-      n <- length(private$items)
-      if (n == 0) return(NULL)
-      top <- private$items[[n]]
-      private$items <- private$items[-n]
-      top
+      if (self$is_empty()) stop("Stack is empty")
+      val <- private$items[[self$size]]
+      private$items <- private$items[-self$size]
+      val
     },
-    size = function() length(private$items)
+    peek = function() {
+      if (self$is_empty()) stop("Stack is empty")
+      private$items[[self$size]]
+    },
+    is_empty = function() {
+      length(private$items) == 0
+    }
   ),
-  private = list(items = NULL)
+  private = list(
+    items = NULL
+  ),
+  active = list(
+    size = function() {
+      length(private$items)
+    }
+  )
 )
 
-s <- Stack$new()
-s$push(1)$push(2)$push(3)
-s$size()
+my_stack <- Stack$new()
+my_stack$push("a")
+my_stack$push("b")
+my_stack$push("c")
+my_stack$size
 #> [1] 3
-s$pop()
-#> [1] 3
-s$size()
+my_stack$pop()
+#> [1] "c"
+my_stack$peek()
+#> [1] "b"
+my_stack$size
 #> [1] 2
 ```
 
-**Explanation:** `push` appends to the private list; `pop` removes and returns the last element. Method chaining works because each mutator returns `invisible(self)`.
+**Explanation:** The stack stores items in a private list. The `size` active binding computes the length dynamically. `pop()` removes and returns the last element (LIFO order).
 
 </details>
 
-## How Does R6 Handle Inheritance?
+### Exercise 2: Linked list with deep clone
 
-Pass `inherit =` to `R6Class()` to extend an existing class. The subclass gets everything from the parent and can add new methods or override existing ones. Call `super$method()` to invoke the parent's version from inside the override.
+Build a `Node` R6 class with `value` and `next_node` fields. Then build a `LinkedList` class with:
 
-```r
-library(R6)
-
-SavingsAccount <- R6Class("SavingsAccount",
-  inherit = BankAccount,
-  public = list(
-    initialize = function(owner, opening_balance = 0, rate = 0.03) {
-      super$initialize(owner, opening_balance)
-      private$rate <- rate
-    },
-    accrue = function(years = 1) {
-      private$balance <- private$balance * (1 + private$rate)^years
-      invisible(self)
-    }
-  ),
-  private = list(rate = NULL)
-)
-
-sav <- SavingsAccount$new("Bo", 1000, rate = 0.05)
-sav$deposit(500)      # inherited from BankAccount
-sav$accrue(2)         # new SavingsAccount method
-round(sav$balance(), 2)
-#> [1] 1653.75
-```
-
-`super$initialize(...)` called the parent `BankAccount$initialize` to set up `owner` and `balance`, then the subclass added its own `rate`. The `deposit` method was inherited as-is; `accrue` is new. This is classic single inheritance — familiar from Python, Java, C++.
-
-[TIP]
-**Use `$clone()` when you want a true copy.** Because R6 objects have reference semantics, `b <- a` does not copy the state. If you need an independent copy, call `b <- a$clone()`. For deep copies of nested R6 objects, pass `deep = TRUE`.
-
-## Practice Exercises
-
-### Exercise 1: Running Average Tracker
-
-Write an R6 class `RunningMean` with `add(x)` to include a new value and `mean()` to return the current running average. Use private fields for `n` and `total`.
+- An `append(value)` method that adds to the end
+- A `print_all()` method that walks the chain and prints each value
+- A `copy()` method that returns a deep clone (modifying the copy shouldn't affect the original)
 
 ```r
-library(R6)
-# your code here
+# Exercise 2: LinkedList using R6 Nodes
+# Hint: Node holds a value and a reference to the next Node
+# Walk the chain with a while loop on current$next_node
+
+# Write your code below:
+
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-library(R6)
+Node <- R6Class("Node",
+  public = list(
+    value = NULL,
+    next_node = NULL,
+    initialize = function(value) {
+      self$value <- value
+    }
+  )
+)
 
-RunningMean <- R6Class("RunningMean",
+LinkedList <- R6Class("LinkedList",
   public = list(
     initialize = function() {
-      private$n <- 0
-      private$total <- 0
+      private$head <- NULL
     },
-    add = function(x) {
-      private$n     <- private$n + 1
-      private$total <- private$total + x
+    append = function(value) {
+      new_node <- Node$new(value)
+      if (is.null(private$head)) {
+        private$head <- new_node
+      } else {
+        current <- private$head
+        while (!is.null(current$next_node)) {
+          current <- current$next_node
+        }
+        current$next_node <- new_node
+      }
       invisible(self)
     },
-    mean = function() {
-      if (private$n == 0) return(NaN)
-      private$total / private$n
+    print_all = function() {
+      current <- private$head
+      values <- c()
+      while (!is.null(current)) {
+        values <- c(values, current$value)
+        current <- current$next_node
+      }
+      cat(paste(values, collapse = " -> "), "\n")
+    },
+    copy = function() {
+      self$clone(deep = TRUE)
     }
   ),
-  private = list(n = NULL, total = NULL)
+  private = list(
+    head = NULL
+  )
 )
 
-rm <- RunningMean$new()
-rm$add(10)$add(20)$add(30)
-rm$mean()
-#> [1] 20
+my_list <- LinkedList$new()
+my_list$append(1)$append(2)$append(3)
+my_list$print_all()
+#> 1 -> 2 -> 3
+
+my_copy <- my_list$copy()
+my_copy$append(4)
+my_copy$print_all()
+#> 1 -> 2 -> 3 -> 4
+my_list$print_all()
+#> 1 -> 2 -> 3
 ```
 
-**Explanation:** The class tracks a running sum and count privately; `mean()` returns the ratio. Chaining works because `add` returns `invisible(self)`.
+**Explanation:** Each Node holds a value and a reference to the next. Deep cloning creates independent copies of all Node objects in the chain, so appending to the copy doesn't affect the original.
 
 </details>
 
-### Exercise 2: Logger With Inheritance
+### Exercise 3: Logger with inheritance
 
-Build a base `Logger` R6 class with a `log(msg)` method that prints `"[INFO] msg"`. Subclass it as `TimestampLogger` that overrides `log(msg)` to prepend the current time.
+Build a `Logger` class with:
+
+- A private log history (list of strings)
+- A public `log(level, msg)` method that stores messages with timestamps
+- A `print_logs()` method that displays all logs
+- A private `finalize()` that prints how many unread logs remain
+
+Then create a `VerboseLogger` that inherits from Logger and overrides `log()` to also print each message to the console immediately.
 
 ```r
-library(R6)
-# your code here
+# Exercise 3: Logger + VerboseLogger inheritance
+# Hint: super$log() in VerboseLogger calls the parent's log method
+
+# Write your code below:
+
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-library(R6)
-
 Logger <- R6Class("Logger",
   public = list(
-    log = function(msg) {
-      cat("[INFO]", msg, "\n")
+    initialize = function() {
+      private$history <- list()
+      private$read_count <- 0
+    },
+    log = function(level, msg) {
+      entry <- paste0("[", level, "] ", Sys.time(), " — ", msg)
+      private$history <- c(private$history, entry)
+      invisible(self)
+    },
+    print_logs = function() {
+      if (length(private$history) == 0) {
+        cat("No logs recorded.\n")
+      } else {
+        cat(paste(private$history, collapse = "\n"), "\n")
+      }
+      private$read_count <- length(private$history)
+    }
+  ),
+  private = list(
+    history = NULL,
+    read_count = 0,
+    finalize = function() {
+      unread <- length(private$history) - private$read_count
+      cat(paste0("Logger finalized. ", unread, " unread logs.\n"))
     }
   )
 )
 
-TimestampLogger <- R6Class("TimestampLogger",
+VerboseLogger <- R6Class("VerboseLogger",
   inherit = Logger,
   public = list(
-    log = function(msg) {
-      cat("[", format(Sys.time(), "%H:%M:%S"), "] ", sep = "")
-      super$log(msg)
+    log = function(level, msg) {
+      super$log(level, msg)
+      cat(paste0("[", level, "] ", msg, "\n"))
+      invisible(self)
     }
   )
 )
 
-tl <- TimestampLogger$new()
-tl$log("server started")
-#> [12:34:56] [INFO] server started
+vlog <- VerboseLogger$new()
+vlog$log("INFO", "Server started")
+#> [INFO] Server started
+vlog$log("WARN", "Memory usage high")
+#> [WARN] Memory usage high
+vlog$print_logs()
+#> [INFO] 2026-04-12 ... — Server started
+#> [WARN] 2026-04-12 ... — Memory usage high
 ```
 
-**Explanation:** `super$log(msg)` invokes the parent's `log` method after the subclass prints the timestamp prefix. Classic method override with superclass delegation.
+**Explanation:** VerboseLogger overrides `log()` to print immediately, then delegates to `super$log()` to store in history. The finalizer reports unread logs when the object is garbage collected.
 
 </details>
+
+## Putting It All Together
+
+Let's build a complete `TaskManager` that combines every concept — R6 class definition, private fields, active bindings, inheritance, and finalizers.
+
+```r
+# Complete example: TaskManager with all R6 features
+Task <- R6Class("Task",
+  public = list(
+    title = NULL,
+    status = "pending",
+    created_at = NULL,
+    initialize = function(title) {
+      self$title <- title
+      self$created_at <- Sys.time()
+    },
+    complete = function() {
+      self$status <- "done"
+      invisible(self)
+    }
+  )
+)
+
+TaskManager <- R6Class("TaskManager",
+  public = list(
+    name = NULL,
+    initialize = function(name) {
+      self$name <- name
+      private$tasks <- list()
+      cat(paste0("TaskManager '", name, "' created.\n"))
+    },
+    add_task = function(title) {
+      task <- Task$new(title)
+      private$tasks <- c(private$tasks, list(task))
+      cat(paste0("Added: ", title, "\n"))
+      invisible(self)
+    },
+    complete_task = function(title) {
+      for (task in private$tasks) {
+        if (task$title == title && task$status == "pending") {
+          task$complete()
+          cat(paste0("Completed: ", title, "\n"))
+          return(invisible(self))
+        }
+      }
+      stop(paste0("No pending task found: ", title))
+    },
+    list_tasks = function() {
+      if (length(private$tasks) == 0) {
+        cat("No tasks.\n")
+        return(invisible(self))
+      }
+      for (task in private$tasks) {
+        marker <- if (task$status == "done") "[x]" else "[ ]"
+        cat(paste0("  ", marker, " ", task$title, "\n"))
+      }
+      invisible(self)
+    }
+  ),
+  private = list(
+    tasks = NULL,
+    finalize = function() {
+      cat(paste0("TaskManager '", self$name, "' closed. ",
+                 self$pending_count, " tasks still pending.\n"))
+    }
+  ),
+  active = list(
+    pending_count = function() {
+      sum(sapply(private$tasks, function(t) t$status == "pending"))
+    },
+    total_count = function() {
+      length(private$tasks)
+    }
+  )
+)
+
+# Use the TaskManager
+tm <- TaskManager$new("Sprint 1")
+#> TaskManager 'Sprint 1' created.
+
+tm$add_task("Write R6 tutorial")
+#> Added: Write R6 tutorial
+tm$add_task("Add exercises")
+#> Added: Add exercises
+tm$add_task("Review and publish")
+#> Added: Review and publish
+
+tm$pending_count
+#> [1] 3
+
+tm$complete_task("Write R6 tutorial")
+#> Completed: Write R6 tutorial
+
+tm$list_tasks()
+#>   [x] Write R6 tutorial
+#>   [ ] Add exercises
+#>   [ ] Review and publish
+
+tm$pending_count
+#> [1] 2
+tm$total_count
+#> [1] 3
+```
+
+This example ties together every major R6 feature: private storage (`private$tasks`), active bindings (`pending_count`, `total_count`), reference semantics (Task objects inside the list are modified in place when completed), composition (TaskManager holds Task objects), and a finalizer that reports pending work.
+
+Now let's extend it with inheritance — a `PriorityTaskManager` that adds priority levels:
+
+```r
+# Inheritance: PriorityTaskManager
+PriorityTaskManager <- R6Class("PriorityTaskManager",
+  inherit = TaskManager,
+  public = list(
+    add_task = function(title, priority = "medium") {
+      task <- Task$new(title)
+      task$priority <- priority
+      private$tasks <- c(private$tasks, list(task))
+      cat(paste0("Added [", toupper(priority), "]: ", title, "\n"))
+      invisible(self)
+    },
+    list_tasks = function() {
+      if (length(private$tasks) == 0) {
+        cat("No tasks.\n")
+        return(invisible(self))
+      }
+      order <- c("high", "medium", "low")
+      for (pri in order) {
+        matches <- Filter(function(t) {
+          isTRUE(t$priority == pri)
+        }, private$tasks)
+        if (length(matches) > 0) {
+          cat(paste0("--- ", toupper(pri), " ---\n"))
+          for (task in matches) {
+            marker <- if (task$status == "done") "[x]" else "[ ]"
+            cat(paste0("  ", marker, " ", task$title, "\n"))
+          }
+        }
+      }
+      invisible(self)
+    }
+  )
+)
+
+ptm <- PriorityTaskManager$new("Sprint 2")
+#> TaskManager 'Sprint 2' created.
+ptm$add_task("Fix critical bug", "high")
+#> Added [HIGH]: Fix critical bug
+ptm$add_task("Update docs", "low")
+#> Added [LOW]: Update docs
+ptm$add_task("Code review", "medium")
+#> Added [MEDIUM]: Code review
+
+ptm$list_tasks()
+#> --- HIGH ---
+#>   [ ] Fix critical bug
+#> --- MEDIUM ---
+#>   [ ] Code review
+#> --- LOW ---
+#>   [ ] Update docs
+
+ptm$pending_count
+#> [1] 3
+```
+
+The child overrides `add_task()` to accept a priority and `list_tasks()` to group by priority level. It inherits `complete_task()`, `pending_count`, and the finalizer from the parent without any changes.
 
 ## Summary
 
-| Feature           | How it works                                         |
-|-------------------|------------------------------------------------------|
-| Class definition  | `R6Class("Name", public = list(...), private = list(...))` |
-| Create instance   | `obj <- ClassName$new(args)`                         |
-| Access field      | `obj$field` (public only)                            |
-| Call method       | `obj$method(args)`                                   |
-| Inside class      | `self$x` (public), `private$x` (private)             |
-| Mutate            | Direct assignment — changes persist                  |
-| Inherit           | `inherit = ParentClass`                              |
-| Call parent       | `super$method(...)`                                  |
-| Copy              | `obj$clone()` (shallow), `obj$clone(deep=TRUE)`      |
+| Concept | Syntax | What it does |
+|---|---|---|
+| Define a class | `R6Class("Name", public = list(...))` | Creates a new R6 class generator |
+| Create an object | `MyClass$new(...)` | Instantiates an object, calls initialize() |
+| Access own fields | `self$field` | References the object's public fields/methods |
+| Private members | `private = list(...)` + `private$field` | Hidden from outside, only accessible internally |
+| Active bindings | `active = list(field = function(value) {...})` | Computed properties with optional validation |
+| Inheritance | `R6Class("Child", inherit = Parent)` | Child gets all parent fields/methods |
+| Call parent method | `super$method()` | Accesses the overridden parent version |
+| Shallow clone | `obj$clone()` | Copies fields, but nested R6 objects are shared |
+| Deep clone | `obj$clone(deep = TRUE)` | Recursively copies all nested R6 objects |
+| Finalizer | `private = list(finalize = function() {...})` | Runs on garbage collection for cleanup |
+| Reference semantics | `y <- x` (no copy) | Both variables point to the same object |
+
+**When to use R6 over S3/S4:**
+
+- You need objects that change in place (counters, loggers, connections)
+- You want encapsulation with private fields
+- Your objects manage external resources (files, databases, APIs)
+- You come from Python/Java and want familiar OOP patterns
+
+**When to stick with S3:**
+
+- Data-focused objects that don't mutate (model outputs, data summaries)
+- You want compatibility with base R's generic dispatch system
+- Simplicity matters more than encapsulation
 
 ## References
 
-1. `R6` package documentation. [Link](https://r6.r-lib.org/)
-2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
-3. Chang, W. — *R6: Encapsulated Object-Oriented Programming for R*. [Link](https://cran.r-project.org/package=R6)
-4. RStudio — Shiny modules (a major consumer of R6). [Link](https://shiny.posit.co/r/articles/modules.html)
-5. `plumber` package — R6-based API routing.
+1. Wickham, H. — *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
+2. Chang, W. — R6: Encapsulated Classes with Reference Semantics (package documentation). [Link](https://r6.r-lib.org/)
+3. R6 Introduction vignette — Getting started with R6. [Link](https://r6.r-lib.org/articles/Introduction.html)
+4. CRAN — R6 package reference manual. [Link](https://cran.r-project.org/web/packages/R6/)
+5. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 13: S4. [Link](https://adv-r.hadley.nz/s4.html)
+6. R Core Team — *R Language Definition*, Section 5: Object-Oriented Programming. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Object_002doriented-programming)
+7. Appsilon — OOP in R with R6: The Complete Guide (2022). [Link](https://www.appsilon.com/post/oop-in-r-with-r6)
 
 ## Continue Learning
 
-- [OOP in R](OOP-in-R.html) — where R6 fits among the four OOP systems.
-- [S4 Classes in R](S4-Classes-in-R.html) — the formal alternative for immutable typed objects.
-- [R Function Factories](R-Function-Factories.html) — the functional alternative for closures that capture state.
+1. [R6 Advanced](R6-Advanced.html) — Deep cloning with private deep_clone(), portable vs non-portable classes, and cross-package R6 inheritance patterns.
+2. [OOP in R: S3, S4, R5, R6](OOP-in-R.html) — Side-by-side comparison of all four R OOP systems to help you pick the right one.
+3. [OOP Design Patterns in R](OOP-Design-Patterns-in-R.html) — Factory, strategy, and observer patterns implemented with R6 classes.
