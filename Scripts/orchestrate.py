@@ -29,7 +29,7 @@ PROJECT_ROOT = REPO_ROOT.parent  # D:/09_rstatisticsco — where .claude/ lives
 QUEUE_FILE = REPO_ROOT / "post_queue.json"
 LOG_FILE = REPO_ROOT / "Scripts" / "orchestrate.log"
 LOCK_FILE = REPO_ROOT / "Scripts" / "orchestrate.lock"
-SESSION_TIMEOUT = 900  # 15 minutes per post
+SESSION_TIMEOUT = 2700  # 45 minutes per post
 
 
 # --- Logging ---
