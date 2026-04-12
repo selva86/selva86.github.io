@@ -1,76 +1,414 @@
 ---
-title: "Operator Overloading in R: Define Custom +, -, ==, [ & print Methods"
-description: "Learn to overload operators in R using S3 and S4 methods. Define custom +, -, *, ==, [, print, and comparison operators for your own classes."
-keywords: "operator overloading R, custom operators R, S3 operators, S4 operators, Ops group generic, R operator methods"
+title: "Operator Overloading in R: Give Your S3 Objects Intuitive Behaviour"
+description: "Define custom +, -, ==, [, print, and format methods for S3 objects in R so they behave naturally. Complete worked example building a physical units class."
+keywords: "operator overloading in R, S3 Ops group generic, custom operators R, double dispatch R, S3 print method, format method R, R class methods, physical units class R"
 mathjax: false
 webr: true
 curriculum_id: "4.3.8"
 post_type: "C"
-auto_link_terms: "operator overloading|Ops group generic|custom operators R"
+auto_link_terms: "operator overloading in R|Ops group generic|S3 group generics|double dispatch|custom operators in R|print.class method|format.class method"
 auto_link_case_sensitive: false
+sidebar_section: "Advanced R"
+sidebar_title: "Operator Overloading"
+sidebar_order: "17"
 ---
 <!-- md2html:generated -->
 
-<h1>Operator Overloading in R: Define Custom +, -, ==, [ & print Methods</h1>
+<h1>Operator Overloading in R: Give Your S3 Objects Intuitive Behaviour</h1>
 
-<p class="lead">R lets you define what <code>+</code>, <code>-</code>, <code>==</code>, <code>[</code>, and other operators do for your custom classes. This is called <strong>operator overloading</strong>. Both S3 and S4 support it, and it's how base R makes <code>+</code> work differently for numbers, dates, and strings.</p>
+<p class="lead"><strong>Operator overloading in R</strong> lets you define what <code>+</code>, <code>==</code>, <code>[</code>, and <code>print</code> do for your own S3 classes — so a length object adds in metres, a money object compares dollars, and every built-in operator keeps working the way it already looks.</p>
 
-<p>When you type <code>Sys.Date() + 1</code>, R doesn't use the same <code>+</code> as <code>2 + 3</code>. It dispatches to a method specialized for Date objects. You can define the same behavior for your own classes.</p>
+<p>You already use overloaded operators every day. <code>Sys.Date() + 1</code> adds a day, not the integer 1 to a number. <code>factor(&quot;a&quot;) == &quot;a&quot;</code> compares labels, not the underlying integer codes. Both work because R's operators are <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 generics</a> — ordinary functions that dispatch to methods based on class. The rest of this tutorial shows you how to write those methods for your own classes.</p>
 
-<h2>S3 Operator Overloading Basics</h2>
+<h2>What exactly is operator overloading in R?</h2>
 
-<p>In S3, operators are generic functions. Define a method named <code>operator.ClassName</code> to overload it.</p>
+<p>Here is the shortest possible payoff. We'll define a tiny length class that stores metres, teach <code>+</code> how to add two of them, and teach <code>print</code> how to display them. Everything else in the tutorial builds on this three-line pattern.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># A simple 2D point class
-Point &lt;- function(x, y) {
-  structure(list(x = x, y = y), class = &quot;Point&quot;)
+    <div class="webr-editor" data-language="r"># A minimal S3 class for lengths in metres
+length_m &lt;- function(x) {
+  structure(list(value = x), class = &quot;length_m&quot;)
 }
 
-print.Point &lt;- function(p, ...) {
-  cat(&quot;(&quot;, p$x, &quot;,&quot;, p$y, &quot;)\n&quot;)
+# Overload + for length_m
+`+.length_m` &lt;- function(e1, e2) {
+  length_m(e1$value + e2$value)
 }
 
-# Overload + for Point
-`+.Point` &lt;- function(e1, e2) {
-  if (inherits(e2, &quot;Point&quot;)) {
-    Point(e1$x + e2$x, e1$y + e2$y)
-  } else if (is.numeric(e2)) {
-    Point(e1$x + e2, e1$y + e2)
+# Teach R how to print length_m
+print.length_m &lt;- function(x, ...) {
+  cat(x$value, &quot;m\n&quot;)
+  invisible(x)
+}
+
+a &lt;- length_m(3)
+b &lt;- length_m(2)
+a + b
+#&gt; 5 m</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The constructor is a plain <code>list()</code> with a <code>class</code> attribute. <code>+.length_m</code> is a function whose name is the generic (<code>+</code>) followed by a dot and the class (<code>length_m</code>) — that's the whole recipe. When R sees <code>a + b</code> it checks the class of <code>a</code>, finds <code>+.length_m</code>, and calls it. The result is still a <code>length_m</code>, so <code>print()</code> also dispatches to our method and shows "5 m".</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>R's operators are already S3 generics.</strong> You aren't extending a language feature — you're writing one more method for a generic that base R ships with. That's why the machinery is so small: define a function with the right name and dispatch takes care of the rest.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>-.length_m</code> so that <code>a - b</code> returns a <code>length_m</code> holding the difference. Test it on <code>length_m(10) - length_m(4)</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: subtract two length_m values
+`-.length_m` &lt;- function(e1, e2) {
+  # your code here
+}
+
+length_m(10) - length_m(4)
+#&gt; Expected: 6 m</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">`-.length_m` &lt;- function(e1, e2) {
+  length_m(e1$value - e2$value)
+}
+length_m(10) - length_m(4)
+#&gt; 6 m</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subtraction follows the exact same pattern as addition — name the method <code>-.length_m</code>, do the arithmetic on the <code>value</code> field, and wrap the result back in the constructor so <code>print</code> still fires.</p>
+
+</details>
+</section>
+
+<h2>How does R decide which operator method to call?</h2>
+
+<p>Binary operators like <code>+</code> have <em>two</em> arguments, so R can't dispatch on just the first one the way <code>print()</code> does. Instead, it uses <strong>double dispatch</strong>: it examines the class of both sides and picks a method that works for either. That's how <code>as.Date(&quot;2020-01-01&quot;) + 1</code> can find a date method even though <code>1</code> is a plain integer on the right.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Scalar addition — only the left side has a method
+mixed &lt;- a + 3
+mixed
+#&gt; 6 m</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The left operand has class <code>length_m</code>, the right is a plain number. R looks for a method on either side, finds only ours, and calls it. Our existing <code>+.length_m</code> happens to handle this correctly because <code>e2$value</code> on a bare number quietly becomes <code>NULL</code>… which would actually break. Let's see what a robust version looks like.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A safer + that handles length_m + numeric too
+`+.length_m` &lt;- function(e1, e2) {
+  v1 &lt;- if (inherits(e1, &quot;length_m&quot;)) e1$value else e1
+  v2 &lt;- if (inherits(e2, &quot;length_m&quot;)) e2$value else e2
+  length_m(v1 + v2)
+}
+
+a + 3
+#&gt; 6 m
+3 + a
+#&gt; 6 m</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Now either side can be a plain number. This matters because double dispatch is commutative — R will call <code>+.length_m</code> for <code>3 + a</code> too, as long as at least one operand has the class. The method itself needs to stay symmetric, which is why we extract <code>v1</code> and <code>v2</code> before adding.</p>
+
+<p><img src="screenshots/Operator-Overloading-in-R-dispatch-flow.webp" alt="How R resolves a binary operator across two argument classes." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: How R resolves a binary operator across two argument classes.</em></p>
+
+<p>Things get noisier when two custom classes collide. If the left and right sides each define their own <code>+</code> method and the methods disagree, R prints a warning and falls back to the internal numeric <code>+</code>, which almost never does what you want.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A conflicting class with its own + method
+length_ft &lt;- function(x) structure(list(value = x), class = &quot;length_ft&quot;)
+`+.length_ft` &lt;- function(e1, e2) length_ft(e1$value + e2$value)
+
+# These two methods disagree — warning + wrong result
+suppressWarnings(a + length_ft(10))
+#&gt; $value
+#&gt; [1] 13
+#&gt; attr(,&quot;class&quot;)
+#&gt; [1] &quot;length_m&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>R saw two different methods and couldn't decide, so it stripped the class wrapper and returned a malformed object. The fix is to make one method aware of the other — either convert <code>length_ft</code> to metres inside <code>+.length_m</code>, or define a shared parent class. The warning is R's way of telling you "your two classes haven't agreed on how to meet yet."</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>"Incompatible methods" warnings are a silent bug magnet.</strong> The operation still returns something, just not what you expect. If you see this warning in your own code, stop and write an explicit conversion path between the two classes instead of letting R fall back to the internal operator.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Without running it, predict what <code>3 + a</code> returns. Check the dispatch rule: which operand is searched first?</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: predict the result of 3 + a
+# Hint: R searches BOTH operands for methods
+3 + a
+#&gt; Expected: 6 m</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">3 + a
+#&gt; 6 m</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even though <code>3</code> is on the left and has no class, <code>a</code> on the right has class <code>length_m</code> and defines <code>+.length_m</code>. Double dispatch checks both operands, finds our method on the right, and calls it. The method extracts <code>v1 = 3</code> and <code>v2 = 3</code> and returns a <code>length_m</code> of 6.</p>
+
+</details>
+</section>
+
+<h2>When should you use the Ops group generic instead?</h2>
+
+<p>Writing <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code> one by one gets old fast — that's ten methods just for basic arithmetic and comparison. R ships a shortcut: the <strong>Ops group generic</strong>. Define a single function called <code>Ops.yourclass</code> and R routes every operator in the group to it, passing the operator name in the special variable <code>.Generic</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># One method for all arithmetic + comparison
+Ops.length_m &lt;- function(e1, e2) {
+  v1 &lt;- if (inherits(e1, &quot;length_m&quot;)) e1$value else e1
+  v2 &lt;- if (inherits(e2, &quot;length_m&quot;)) e2$value else e2
+
+  result &lt;- get(.Generic)(v1, v2)
+
+  # Comparisons return logical; arithmetic returns length_m
+  if (.Generic %in% c(&quot;==&quot;, &quot;!=&quot;, &quot;&lt;&quot;, &quot;&lt;=&quot;, &quot;&gt;&quot;, &quot;&gt;=&quot;)) {
+    result
+  } else if (.Generic %in% c(&quot;+&quot;, &quot;-&quot;, &quot;*&quot;, &quot;/&quot;)) {
+    length_m(result)
   } else {
-    stop(&quot;Cannot add Point and &quot;, class(e2))
+    stop(.Generic, &quot; is not defined for length_m&quot;)
+  }
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>.Generic</code> is a string like <code>&quot;+&quot;</code> or <code>&quot;==&quot;</code>, and <code>get(.Generic)</code> fetches the actual base function — that's how one method handles every operator. We branch at the end: arithmetic wraps the result back into a <code>length_m</code>, comparison returns a bare logical (because asking "is 3 m less than 5 m" should give <code>TRUE</code>, not a length object).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Arithmetic and comparison share the same method now
+a + b
+#&gt; 5 m
+a * 2
+#&gt; 6 m
+a == b
+#&gt; [1] FALSE
+a &lt; b
+#&gt; [1] FALSE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>All four call the same <code>Ops.length_m</code>. That's ten operators covered by one function — and when you need to add <code>%%</code> later, you just add it to the <code>if</code> branch. The pattern scales much better than writing individual methods.</p>
+
+<p><img src="screenshots/Operator-Overloading-in-R-group-generics.webp" alt="The three S3 group generics that cover most math and comparison needs." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: The three S3 <a class="auto-link" href="S3-Method-Dispatch-in-R.html" title="S3 Method Dispatch in R: UseMethod(), NextMethod() & Inheritance">group generics</a> that cover most math and comparison needs.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use Ops for arithmetic and comparison, individual methods for the rest.</strong> The group generic only handles operators in the Ops family. Subsetting (<code>[</code>, <code>[[</code>), display (<code>print</code>, <code>format</code>), and conversion (<code>as.character</code>) still need their own named methods.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The method above rejects <code>%%</code> (modulo) with an error. Extend the allowed-arithmetic branch so that <code>length_m(10) %% length_m(3)</code> returns <code>length_m(1)</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: add %% to the arithmetic branch
+# Hint: edit the if/else chain in Ops.length_m
+length_m(10) %% length_m(3)
+#&gt; Expected: 1 m</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Ops.length_m &lt;- function(e1, e2) {
+  v1 &lt;- if (inherits(e1, &quot;length_m&quot;)) e1$value else e1
+  v2 &lt;- if (inherits(e2, &quot;length_m&quot;)) e2$value else e2
+  result &lt;- get(.Generic)(v1, v2)
+  if (.Generic %in% c(&quot;==&quot;, &quot;!=&quot;, &quot;&lt;&quot;, &quot;&lt;=&quot;, &quot;&gt;&quot;, &quot;&gt;=&quot;)) {
+    result
+  } else if (.Generic %in% c(&quot;+&quot;, &quot;-&quot;, &quot;*&quot;, &quot;/&quot;, &quot;%%&quot;)) {
+    length_m(result)
+  } else {
+    stop(.Generic, &quot; is not defined for length_m&quot;)
   }
 }
+length_m(10) %% length_m(3)
+#&gt; 1 m</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-# Overload - for Point
-`-.Point` &lt;- function(e1, e2) {
-  if (missing(e2)) {
-    Point(-e1$x, -e1$y)  # Unary minus
-  } else if (inherits(e2, &quot;Point&quot;)) {
-    Point(e1$x - e2$x, e1$y - e2$y)
-  } else {
-    stop(&quot;Cannot subtract&quot;)
-  }
+<p><strong>Explanation:</strong> Adding <code>&quot;%%&quot;</code> to the arithmetic whitelist lets the method wrap the modulo result in a <code>length_m</code>. The whitelist is your safety net — anything outside it hits the final <code>stop()</code> branch with a clear error.</p>
+
+</details>
+</section>
+
+<h2>How do you make your class print and format nicely?</h2>
+
+<p><code>print.length_m</code> above works, but it has a subtle weakness: only <code>print()</code> knows about units. If someone writes <code>paste(&quot;Height:&quot;, a)</code> they get back <code>&quot;Height: list(value = 3)&quot;</code> or worse. The clean solution is to split display into two methods. <code>format.class</code> produces the character representation; <code>print.class</code> calls <code>format</code> and adds any surrounding context.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Separate format from print
+format.length_m &lt;- function(x, ...) {
+  paste0(x$value, &quot; m&quot;)
 }
 
-# Overload == for Point
-`==.Point` &lt;- function(e1, e2) {
-  e1$x == e2$x &amp;&amp; e1$y == e2$y
+print.length_m &lt;- function(x, ...) {
+  cat(format(x), &quot;\n&quot;)
+  invisible(x)
 }
 
-a &lt;- Point(3, 4)
-b &lt;- Point(1, 2)
-
+format(a)
+#&gt; [1] &quot;3 m&quot;
 print(a)
-print(a + b)       # Point + Point
-print(a + 10)      # Point + scalar
-print(a - b)       # Point - Point
-print(-a)          # Unary minus
-cat(&quot;a == b:&quot;, a == b, &quot;\n&quot;)
-cat(&quot;a == a:&quot;, a == Point(3, 4), &quot;\n&quot;)</div>
+#&gt; 3 m
+paste(&quot;Distance to work:&quot;, format(a))
+#&gt; [1] &quot;Distance to work: 3 m&quot;</div>
 
     <div class="webr-buttons">
 
@@ -88,67 +426,83 @@ cat(&quot;a == a:&quot;, a == Point(3, 4), &quot;\n&quot;)</div>
 
 </div>
 
-<h2>The Ops Group Generic</h2>
+<p><code>format()</code> returns a string, so everything that calls <code>format()</code> under the hood — <code>paste</code>, <code>sprintf</code>, <code>as.character</code>, data-frame printing — automatically picks up our unit suffix. <code>print.length_m</code> becomes a thin wrapper: one <code>cat()</code> and an invisible return so the object isn't duplicated on screen when printing is called implicitly.</p>
 
-<p>Instead of defining <code>+.MyClass</code>, <code>-.MyClass</code>, <code>*.MyClass</code> separately, you can define <code>Ops.MyClass</code> to handle all arithmetic and comparison operators at once.</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Always return <code>invisible(x)</code> from a print method.</strong> If you return <code>x</code> normally, calling <code>print(a)</code> from inside another function can re-trigger printing and double up the output. <code>invisible(x)</code> keeps the value available to the caller without displaying it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Modify <code>format.length_m</code> so the number is shown with exactly two decimal places — for example, <code>length_m(3)</code> should display as <code>&quot;3.00 m&quot;</code>. Use <code>sprintf(&quot;%.2f&quot;, x$value)</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: two-decimal format
+format.length_m &lt;- function(x, ...) {
+  # your code here
+}
+
+format(length_m(3))
+#&gt; Expected: &quot;3.00 m&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">format.length_m &lt;- function(x, ...) {
+  paste0(sprintf(&quot;%.2f&quot;, x$value), &quot; m&quot;)
+}
+format(length_m(3))
+#&gt; [1] &quot;3.00 m&quot;
+format(length_m(1.5))
+#&gt; [1] &quot;1.50 m&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sprintf(&quot;%.2f&quot;, ...)</code> formats a number with two decimal places as a string. Wrapping it in <code>paste0</code> glues the unit suffix on. Because <code>print.length_m</code> calls <code>format</code>, the new formatting applies to <code>print(a)</code> as well — one change, two behaviours fixed.</p>
+
+</details>
+</section>
+
+<h2>How do you overload <code>[</code> and <code>[[</code> for vectorised classes?</h2>
+
+<p>So far <code>length_m</code> has stored a single number. The more useful version stores a vector of values — a whole column of lengths — and supports subsetting. The trick is that <code>[</code> is <em>also</em> a generic, so you can write <code>[.length_m</code> to keep the class attached after a slice. The implementation uses <code>NextMethod()</code>, which calls the next method in the dispatch chain (here, plain numeric subsetting).</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># A Money class using the Ops group generic
-Money &lt;- function(amount, currency = &quot;USD&quot;) {
-  structure(list(amount = amount, currency = currency), class = &quot;Money&quot;)
+    <div class="webr-editor" data-language="r"># Vectorised length class
+length_m &lt;- function(x) {
+  structure(list(value = x), class = &quot;length_m&quot;)
 }
 
-print.Money &lt;- function(x, ...) {
-  cat(x$currency, formatC(x$amount, format = &quot;f&quot;, digits = 2), &quot;\n&quot;)
+`[.length_m` &lt;- function(x, i) {
+  length_m(x$value[i])
 }
 
-Ops.Money &lt;- function(e1, e2) {
-  # .Generic holds the operator being used
-  op &lt;- .Generic
-
-  # Extract amounts
-  a1 &lt;- if (inherits(e1, &quot;Money&quot;)) e1$amount else e1
-  a2 &lt;- if (inherits(e2, &quot;Money&quot;)) e2$amount else e2
-
-  # Get currency (from whichever is Money)
-  curr &lt;- if (inherits(e1, &quot;Money&quot;)) e1$currency else e2$currency
-
-  # Check currency match for two Money objects
-  if (inherits(e1, &quot;Money&quot;) &amp;&amp; inherits(e2, &quot;Money&quot;)) {
-    if (e1$currency != e2$currency) stop(&quot;Currency mismatch&quot;)
-  }
-
-  # Compute result
-  result &lt;- switch(op,
-    &quot;+&quot;  = a1 + a2,
-    &quot;-&quot;  = a1 - a2,
-    &quot;*&quot;  = a1 * a2,
-    &quot;/&quot;  = a1 / a2,
-    &quot;==&quot; = a1 == a2,
-    &quot;!=&quot; = a1 != a2,
-    &quot;&lt;&quot;  = a1 &lt; a2,
-    &quot;&lt;=&quot; = a1 &lt;= a2,
-    &quot;&gt;&quot;  = a1 &gt; a2,
-    &quot;&gt;=&quot; = a1 &gt;= a2,
-    stop(&quot;Operator &quot;, op, &quot; not supported for Money&quot;)
-  )
-
-  # Comparisons return logical; arithmetic returns Money
-  if (op %in% c(&quot;==&quot;, &quot;!=&quot;, &quot;&lt;&quot;, &quot;&lt;=&quot;, &quot;&gt;&quot;, &quot;&gt;=&quot;)) {
-    return(result)
-  }
-  Money(result, curr)
+`[&lt;-.length_m` &lt;- function(x, i, value) {
+  x$value[i] &lt;- if (inherits(value, &quot;length_m&quot;)) value$value else value
+  x
 }
 
-price &lt;- Money(29.99)
-tax &lt;- Money(2.40)
-print(price + tax)
-print(price * 3)
-cat(&quot;price &gt; tax:&quot;, price &gt; tax, &quot;\n&quot;)
-cat(&quot;price == price:&quot;, price == Money(29.99), &quot;\n&quot;)</div>
+lens &lt;- length_m(c(10, 20, 30, 40, 50))
+lens[2:4]
+#&gt; 20 30 40 m
+lens[1] &lt;- 99
+lens
+#&gt; 99 20 30 40 50 m</div>
 
     <div class="webr-buttons">
 
@@ -166,50 +520,83 @@ cat(&quot;price == price:&quot;, price == Money(29.99), &quot;\n&quot;)</div>
 
 </div>
 
-<h2>Overloading [ and [[</h2>
+<p><code>[.length_m</code> subsets the internal <code>value</code> vector and rewraps it — one line of real work. The replacement form <code>[&lt;-.length_m</code> is a little more delicate because the <code>value</code> coming in might itself be a <code>length_m</code> (assigning one unit to another) or a bare number (assigning a literal). The guard checks which and extracts the underlying numbers before writing.</p>
 
-<p>The subset operators <code>[</code> and <code>[[</code> are internal generics. You can define methods for them.</p>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never call your constructor inside <code>[.class</code> if your class can be subclassed.</strong> Using the constructor forces the result back to the base class and strips subclass information. For single-class use the constructor is fine; if you plan to subclass, use <code>vctrs::vec_restore(NextMethod(), x)</code> instead so the subclass sticks around.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>[[.length_m</code> so that <code>lens[[3]]</code> returns a <code>length_m</code> holding just the third element. <code>[[</code> on a list normally returns the raw element; we want the class preserved.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: [[ that keeps the length_m wrapper
+`[[.length_m` &lt;- function(x, i) {
+  # your code here
+}
+
+lens[[3]]
+#&gt; Expected: 30 m</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">`[[.length_m` &lt;- function(x, i) {
+  length_m(x$value[[i]])
+}
+lens[[3]]
+#&gt; 30 m</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>[[.length_m</code> pulls out a single element with <code>x$value[[i]]</code> and rewraps it in the constructor. Without this method, <code>lens[[3]]</code> would strip the class and return a plain number — because <code>[[</code> dispatches on the underlying list, not the <code>length_m</code> wrapper.</p>
+
+</details>
+</section>
+
+<h2>How do you also overload <code>Math</code>, <code>Summary</code>, and comparison operators?</h2>
+
+<p>Alongside <code>Ops</code>, R has two more group generics worth knowing. <strong>Math</strong> covers element-wise functions like <code>sqrt</code>, <code>log</code>, <code>abs</code>, <code>round</code>, <code>exp</code>. <strong>Summary</strong> covers reducers like <code>sum</code>, <code>min</code>, <code>max</code>, <code>all</code>, <code>any</code>. Both work the same way as <code>Ops</code>: one method, dispatch on <code>.Generic</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># A named collection class
-Collection &lt;- function(...) {
-  items &lt;- list(...)
-  structure(items, class = &quot;Collection&quot;)
+    <div class="webr-editor" data-language="r"># Math group: element-wise functions
+Math.length_m &lt;- function(x, ...) {
+  length_m(get(.Generic)(x$value, ...))
 }
 
-print.Collection &lt;- function(x, ...) {
-  cat(&quot;Collection with&quot;, length(x), &quot;items:\n&quot;)
-  for (i in seq_along(x)) {
-    name &lt;- names(x)[i]
-    if (is.null(name) || name == &quot;&quot;) name &lt;- paste0(&quot;[&quot;, i, &quot;]&quot;)
-    cat(&quot;  &quot;, name, &quot;:&quot;, x[[i]], &quot;\n&quot;)
-  }
+# Summary group: reducers that collapse to a single length_m
+Summary.length_m &lt;- function(..., na.rm = FALSE) {
+  args &lt;- list(...)
+  values &lt;- unlist(lapply(args, function(a) {
+    if (inherits(a, &quot;length_m&quot;)) a$value else a
+  }))
+  length_m(get(.Generic)(values, na.rm = na.rm))
 }
 
-# Override [ to return a Collection (not a plain list)
-`[.Collection` &lt;- function(x, i) {
-  result &lt;- unclass(x)[i]
-  structure(result, class = &quot;Collection&quot;)
-}
-
-# Override [[ for single element access
-`[[.Collection` &lt;- function(x, i) {
-  unclass(x)[[i]]
-}
-
-# Override length
-length.Collection &lt;- function(x) {
-  length(unclass(x))
-}
-
-coll &lt;- Collection(a = 10, b = 20, c = 30, d = 40)
-print(coll)
-cat(&quot;\nSubset [2:3]:\n&quot;)
-print(coll[2:3])
-cat(&quot;\nElement [[1]]:&quot;, coll[[1]], &quot;\n&quot;)</div>
+abs(length_m(-7))
+#&gt; 7 m
+sqrt(length_m(16))
+#&gt; 4 m
+sum(lens)
+#&gt; 249 m
+max(lens)
+#&gt; 99 m</div>
 
     <div class="webr-buttons">
 
@@ -227,53 +614,69 @@ cat(&quot;\nElement [[1]]:&quot;, coll[[1]], &quot;\n&quot;)</div>
 
 </div>
 
-<h2>Overloading print, summary, and format</h2>
+<p><code>Math.length_m</code> is almost a one-liner because every Math function takes a single vector and returns another vector of the same length. <code>Summary.length_m</code> is slightly longer because <code>sum(a, b, c)</code> is valid — you might pass several length_m objects to reduce at once, so we <code>unlist</code> everything into a single numeric vector before reducing.</p>
 
-<p>These are the most commonly overloaded generics. Every class should have at least a <code>print</code> method.</p>
+<p><img src="screenshots/Operator-Overloading-in-R-method-map.webp" alt="The method family a rich S3 class typically ships with." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: The method family a rich S3 class typically ships with.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Group generics turn ~30 method definitions into 3.</strong> Ops covers 16 arithmetic and comparison operators. Math covers roughly 20 element-wise functions. Summary covers 5 reducers. Three group methods give your class "first-class citizen" behaviour across base R without the tedium of writing each operator by hand.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You didn't define a method for <code>range()</code>, but try <code>range(lens)</code> anyway. Why does it work? (Hint: check <code>?range</code> for what it calls internally.)</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">range(lens)
+#&gt; 20 99 m</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>range()</code> is not in the Summary group itself, but internally it calls <code>min()</code> and <code>max()</code> — both of which <em>are</em> in Summary and have our method. So <code>range(lens)</code> hits <code>Summary.length_m</code> twice and returns a two-element <code>length_m</code>. This cascade is exactly why group generics are worth the small upfront effort.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: A Celsius temperature class</h4>
+
+<p>Build a <code>celsius()</code> constructor that stores a temperature. Use the <code>Ops</code> group generic so that <code>celsius(20) + celsius(5)</code> returns <code>celsius(25)</code>, and <code>celsius(20) &gt; celsius(15)</code> returns <code>TRUE</code>. Also write <code>print.celsius</code> that displays <code>&quot;20 °C&quot;</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># A regression result class
-RegResult &lt;- function(formula, r_squared, coefficients) {
-  structure(
-    list(formula = formula, r_squared = r_squared, coefficients = coefficients),
-    class = &quot;RegResult&quot;
-  )
+    <div class="webr-editor" data-language="r"># Exercise 1: Celsius class
+# Hint: model this on length_m's Ops method, but split arithmetic/comparison
+
+celsius &lt;- function(x) {
+  # your constructor
 }
 
-print.RegResult &lt;- function(x, ...) {
-  cat(&quot;Linear Regression:&quot;, deparse(x$formula), &quot;\n&quot;)
-  cat(&quot;R-squared:&quot;, round(x$r_squared, 4), &quot;\n&quot;)
+Ops.celsius &lt;- function(e1, e2) {
+  # handle arithmetic vs comparison
 }
 
-summary.RegResult &lt;- function(object, ...) {
-  cat(&quot;=== Regression Summary ===\n&quot;)
-  cat(&quot;Formula:&quot;, deparse(object$formula), &quot;\n&quot;)
-  cat(&quot;R-squared:&quot;, round(object$r_squared, 4), &quot;\n&quot;)
-  cat(&quot;Coefficients:\n&quot;)
-  for (nm in names(object$coefficients)) {
-    cat(&quot;  &quot;, nm, &quot;=&quot;, round(object$coefficients[[nm]], 4), &quot;\n&quot;)
-  }
+print.celsius &lt;- function(x, ...) {
+  # display with °C suffix
 }
 
-format.RegResult &lt;- function(x, ...) {
-  paste0(&quot;RegResult(R2=&quot;, round(x$r_squared, 3), &quot;)&quot;)
-}
-
-# Use it
-fit &lt;- lm(mpg ~ wt + hp, data = mtcars)
-result &lt;- RegResult(
-  formula = mpg ~ wt + hp,
-  r_squared = summary(fit)$r.squared,
-  coefficients = as.list(coef(fit))
-)
-
-print(result)
-cat(&quot;\n&quot;)
-summary(result)
-cat(&quot;\nFormatted:&quot;, format(result), &quot;\n&quot;)</div>
+# Test:
+x1 &lt;- celsius(20)
+x2 &lt;- celsius(5)
+x1 + x2
+#&gt; 25 °C
+x1 &gt; celsius(15)
+#&gt; [1] TRUE</div>
 
     <div class="webr-buttons">
 
@@ -291,51 +694,80 @@ cat(&quot;\nFormatted:&quot;, format(result), &quot;\n&quot;)</div>
 
 </div>
 
-<h2>S4 Operator Overloading</h2>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>S4 uses <code>setMethod()</code> for operators. The approach is more formal but the result is the same.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">celsius &lt;- function(x) structure(list(value = x), class = &quot;celsius&quot;)
+
+Ops.celsius &lt;- function(e1, e2) {
+  v1 &lt;- if (inherits(e1, &quot;celsius&quot;)) e1$value else e1
+  v2 &lt;- if (inherits(e2, &quot;celsius&quot;)) e2$value else e2
+  result &lt;- get(.Generic)(v1, v2)
+  if (.Generic %in% c(&quot;==&quot;, &quot;!=&quot;, &quot;&lt;&quot;, &quot;&lt;=&quot;, &quot;&gt;&quot;, &quot;&gt;=&quot;)) {
+    result
+  } else if (.Generic %in% c(&quot;+&quot;, &quot;-&quot;, &quot;*&quot;, &quot;/&quot;)) {
+    celsius(result)
+  } else {
+    stop(.Generic, &quot; not supported for celsius&quot;)
+  }
+}
+
+print.celsius &lt;- function(x, ...) {
+  cat(x$value, &quot;°C\n&quot;)
+  invisible(x)
+}
+
+x1 &lt;- celsius(20)
+x2 &lt;- celsius(5)
+x1 + x2
+#&gt; 25 °C
+x1 &gt; celsius(15)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The structure mirrors <code>length_m</code> — the Ops method handles all operators in one place and branches on <code>.Generic</code> to decide whether the result stays wrapped (arithmetic) or collapses to a bare logical (comparison). The print method uses <code>cat()</code> with the <code>°C</code> glyph.</p>
+
+</details>
+
+<h4>Exercise 2: A currency-aware money class</h4>
+
+<p>Build a <code>money(amount, currency)</code> constructor that stores both an amount and a currency string. Overload <code>+.money</code> so adding two same-currency amounts works, but mixing currencies throws an error. Write <code>format.money</code> and <code>print.money</code> that produce <code>&quot;$100.00 USD&quot;</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">setClass(&quot;Fraction&quot;,
-  slots = list(num = &quot;integer&quot;, den = &quot;integer&quot;),
-  validity = function(object) {
-    if (object@den == 0L) &quot;denominator cannot be zero&quot;
-    else TRUE
-  }
-)
-
-Fraction &lt;- function(num, den) {
-  new(&quot;Fraction&quot;, num = as.integer(num), den = as.integer(den))
+    <div class="webr-editor" data-language="r"># Exercise 2: money class with currency guard
+money &lt;- function(amount, currency = &quot;USD&quot;) {
+  # your constructor
 }
 
-setMethod(&quot;show&quot;, &quot;Fraction&quot;, function(object) {
-  cat(object@num, &quot;/&quot;, object@den, &quot;\n&quot;)
-})
+`+.money` &lt;- function(e1, e2) {
+  # guard currency mismatch, then add
+}
 
-setMethod(&quot;+&quot;, signature(&quot;Fraction&quot;, &quot;Fraction&quot;), function(e1, e2) {
-  new_num &lt;- e1@num * e2@den + e2@num * e1@den
-  new_den &lt;- e1@den * e2@den
-  Fraction(new_num, new_den)
-})
+format.money &lt;- function(x, ...) {
+  # &quot;$100.00 USD&quot;
+}
 
-setMethod(&quot;*&quot;, signature(&quot;Fraction&quot;, &quot;Fraction&quot;), function(e1, e2) {
-  Fraction(e1@num * e2@num, e1@den * e2@den)
-})
+print.money &lt;- function(x, ...) {
+  # call format, then cat
+}
 
-setMethod(&quot;==&quot;, signature(&quot;Fraction&quot;, &quot;Fraction&quot;), function(e1, e2) {
-  e1@num * e2@den == e2@num * e1@den
-})
-
-a &lt;- Fraction(1, 3)
-b &lt;- Fraction(1, 6)
-cat(&quot;a: &quot;); show(a)
-cat(&quot;b: &quot;); show(b)
-cat(&quot;a + b: &quot;); show(a + b)
-cat(&quot;a * b: &quot;); show(a * b)
-cat(&quot;a == a:&quot;, a == a, &quot;\n&quot;)</div>
+# Test:
+m1 &lt;- money(50, &quot;USD&quot;)
+m2 &lt;- money(25, &quot;USD&quot;)
+m1 + m2
+#&gt; $75.00 USD</div>
 
     <div class="webr-buttons">
 
@@ -353,158 +785,307 @@ cat(&quot;a == a:&quot;, a == a, &quot;\n&quot;)</div>
 
 </div>
 
-<h2>Summary Table</h2>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">money &lt;- function(amount, currency = &quot;USD&quot;) {
+  structure(list(amount = amount, currency = currency), class = &quot;money&quot;)
+}
+
+`+.money` &lt;- function(e1, e2) {
+  if (e1$currency != e2$currency) {
+    stop(&quot;Cannot add &quot;, e1$currency, &quot; and &quot;, e2$currency)
+  }
+  money(e1$amount + e2$amount, e1$currency)
+}
+
+format.money &lt;- function(x, ...) {
+  sprintf(&quot;$%.2f %s&quot;, x$amount, x$currency)
+}
+
+print.money &lt;- function(x, ...) {
+  cat(format(x), &quot;\n&quot;)
+  invisible(x)
+}
+
+m1 &lt;- money(50, &quot;USD&quot;)
+m2 &lt;- money(25, &quot;USD&quot;)
+m1 + m2
+#&gt; $75.00 USD
+# money(10, &quot;EUR&quot;) + m1   # would error: &quot;Cannot add EUR and USD&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The guard inside <code>+.money</code> is what makes the class safer than plain numbers — mixing currencies is almost always a bug, so the class refuses. <code>format.money</code> returns a string, and <code>print.money</code> delegates to it so <code>paste(&quot;Total:&quot;, format(m1))</code> also works correctly.</p>
+
+</details>
+
+<h4>Exercise 3: A 2-D point class without Ops</h4>
+
+<p>Build a <code>point(x, y)</code> constructor, then overload <code>+</code> and <code>-</code> as <em>individual</em> methods (not <code>Ops</code>) so you can add and subtract points component-wise. Add <code>==.point</code> comparing both coordinates, and <code>print.point</code> showing <code>&quot;(3, 4)&quot;</code>. This exercise is the "no shortcuts" version — it shows what the group generic was hiding.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: 2-D point using individual operator methods
+point &lt;- function(x, y) {
+  # your constructor
+}
+
+`+.point` &lt;- function(e1, e2) {
+  # componentwise sum
+}
+
+`-.point` &lt;- function(e1, e2) {
+  # componentwise difference
+}
+
+`==.point` &lt;- function(e1, e2) {
+  # both x and y equal
+}
+
+print.point &lt;- function(p, ...) {
+  # &quot;(x, y)&quot;
+}
+
+# Test:
+p1 &lt;- point(3, 4)
+p2 &lt;- point(1, 2)
+p1 + p2
+#&gt; (4, 6)
+p1 == point(3, 4)
+#&gt; [1] TRUE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">point &lt;- function(x, y) structure(list(x = x, y = y), class = &quot;point&quot;)
+
+`+.point` &lt;- function(e1, e2) point(e1$x + e2$x, e1$y + e2$y)
+`-.point` &lt;- function(e1, e2) point(e1$x - e2$x, e1$y - e2$y)
+`==.point` &lt;- function(e1, e2) e1$x == e2$x &amp;&amp; e1$y == e2$y
+
+print.point &lt;- function(p, ...) {
+  cat(&quot;(&quot;, p$x, &quot;,&quot;, p$y, &quot;)\n&quot;, sep = &quot;&quot;)
+  invisible(p)
+}
+
+p1 &lt;- point(3, 4)
+p2 &lt;- point(1, 2)
+p1 + p2
+#&gt; (4,6)
+p1 - p2
+#&gt; (2,2)
+p1 == point(3, 4)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Writing three separate methods works fine for a small class, but notice the pattern — each one unpacks <code>e1</code> and <code>e2</code>, does the same arithmetic on both fields, and rewraps. <code>Ops.point</code> would compress all three into one <code>.Generic</code>-driven block, which is exactly why the group generic exists.</p>
+
+</details>
+
+<h2>Complete Example: A physical units class</h2>
+
+<p>Here is an end-to-end class that combines everything from the tutorial. <code>units()</code> stores a numeric vector plus a unit string. It supports <code>Ops</code> (arithmetic and comparison), <code>print</code>/<code>format</code> (display with unit suffix), <code>[</code> (vector subsetting), and <code>Summary</code> (sum, max, min).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A complete physical-units class
+units &lt;- function(value, unit) {
+  stopifnot(is.numeric(value), is.character(unit), length(unit) == 1)
+  structure(list(value = value, unit = unit), class = &quot;units&quot;)
+}
+
+Ops.units &lt;- function(e1, e2) {
+  u1 &lt;- if (inherits(e1, &quot;units&quot;)) e1$unit else NULL
+  u2 &lt;- if (inherits(e2, &quot;units&quot;)) e2$unit else NULL
+  unit &lt;- u1 %||% u2
+  if (!is.null(u1) &amp;&amp; !is.null(u2) &amp;&amp; u1 != u2) {
+    stop(&quot;Cannot combine units '&quot;, u1, &quot;' and '&quot;, u2, &quot;'&quot;)
+  }
+  v1 &lt;- if (inherits(e1, &quot;units&quot;)) e1$value else e1
+  v2 &lt;- if (inherits(e2, &quot;units&quot;)) e2$value else e2
+  result &lt;- get(.Generic)(v1, v2)
+  if (.Generic %in% c(&quot;==&quot;, &quot;!=&quot;, &quot;&lt;&quot;, &quot;&lt;=&quot;, &quot;&gt;&quot;, &quot;&gt;=&quot;)) {
+    result
+  } else if (.Generic %in% c(&quot;+&quot;, &quot;-&quot;, &quot;*&quot;, &quot;/&quot;)) {
+    units(result, unit)
+  } else {
+    stop(.Generic, &quot; not supported for units&quot;)
+  }
+}
+
+Summary.units &lt;- function(..., na.rm = FALSE) {
+  args &lt;- list(...)
+  values &lt;- unlist(lapply(args, function(a) a$value))
+  unit &lt;- args[[1]]$unit
+  units(get(.Generic)(values, na.rm = na.rm), unit)
+}
+
+format.units &lt;- function(x, ...) {
+  paste(x$value, x$unit)
+}
+
+print.units &lt;- function(x, ...) {
+  cat(format(x), &quot;\n&quot;)
+  invisible(x)
+}
+
+`[.units` &lt;- function(x, i) {
+  units(x$value[i], x$unit)
+}
+
+# The null-coalesce helper
+`%||%` &lt;- function(a, b) if (is.null(a)) b else a
+
+# Put it to work
+distances &lt;- units(c(100, 250, 175, 330), &quot;m&quot;)
+distances[2:3]
+#&gt; 250 175 m
+
+sum(distances)
+#&gt; 855 m
+max(distances)
+#&gt; 330 m
+
+distances + units(50, &quot;m&quot;)
+#&gt; 150 300 225 380 m
+distances &gt; 200
+#&gt; [1] FALSE  TRUE FALSE  TRUE
+
+# distances + units(10, &quot;kg&quot;)  # would error: Cannot combine units 'm' and 'kg'</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>This one class shows every technique from the tutorial working together. <code>Ops.units</code> enforces unit compatibility at the boundary — trying to add metres to kilograms fails loudly instead of silently producing nonsense. <code>Summary.units</code> lets reducers like <code>sum</code> stay in "units-space". <code>[.units</code> keeps the class attached through subsetting. And the <code>format</code>/<code>print</code> pair ensures that whether you explicitly print or just paste the value into a sentence, the unit suffix travels along.</p>
+
+<h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Operator</th>
-<th>S3 Method Name</th>
-<th>S4 Signature</th>
-<th>Group</th>
+<th>What you want</th>
+<th>How to do it</th>
+<th>Tiny example</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code></td>
-<td><code>+.Class</code>, etc.</td>
-<td><code>setMethod(&quot;+&quot;, ...)</code></td>
-<td>Ops</td>
+<td>Add two of your objects</td>
+<td>Define <code>+.class</code> or <code>Ops.class</code></td>
+<td>`<code> </code>+.length_m<code> &lt;- function(e1, e2) length_m(e1$value + e2$value) </code>`</td>
 </tr>
 <tr>
-<td><code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code></td>
-<td><code>==.Class</code>, etc.</td>
-<td><code>setMethod(&quot;==&quot;, ...)</code></td>
-<td>Ops</td>
+<td>One method for all arithmetic + comparison</td>
+<td>Define <code>Ops.class</code>, branch on <code>.Generic</code></td>
+<td><code>Ops.length_m &lt;- function(e1, e2) {...}</code></td>
 </tr>
 <tr>
-<td><code>[</code></td>
-<td><code>[.Class</code></td>
-<td><code>setMethod(&quot;[&quot;, ...)</code></td>
-<td>N/A (internal)</td>
+<td>Pretty printing</td>
+<td>Pair <code>format.class</code> with <code>print.class</code></td>
+<td><code>format.length_m &lt;- function(x, ...) paste0(x$value, &quot; m&quot;)</code></td>
 </tr>
 <tr>
-<td><code>[[</code></td>
-<td><code>[[.Class</code></td>
-<td><code>setMethod(&quot;[[&quot;, ...)</code></td>
-<td>N/A (internal)</td>
+<td>Subset a vectorised class</td>
+<td>Define <code>[.class</code>, call constructor on the slice</td>
+<td>`<code> </code>[.length_m<code> &lt;- function(x, i) length_m(x$value[i]) </code>`</td>
 </tr>
 <tr>
-<td><code>$</code></td>
-<td><code>$.Class</code></td>
-<td><code>setMethod(&quot;$&quot;, ...)</code></td>
-<td>N/A (internal)</td>
+<td>Element-wise math (<code>sqrt</code>, <code>abs</code>, <code>log</code>)</td>
+<td>Define <code>Math.class</code></td>
+<td><code>Math.length_m &lt;- function(x, ...) length_m(get(.Generic)(x$value, ...))</code></td>
 </tr>
 <tr>
-<td><code>print</code></td>
-<td><code>print.Class</code></td>
-<td><code>setMethod(&quot;show&quot;, ...)</code></td>
-<td>N/A</td>
+<td>Reducers (<code>sum</code>, <code>max</code>, <code>min</code>)</td>
+<td>Define <code>Summary.class</code></td>
+<td><code>Summary.length_m &lt;- function(...) {...}</code></td>
 </tr>
 <tr>
-<td><code>summary</code></td>
-<td><code>summary.Class</code></td>
-<td><code>setMethod(&quot;summary&quot;, ...)</code></td>
-<td>N/A</td>
-</tr>
-<tr>
-<td><code>format</code></td>
-<td><code>format.Class</code></td>
-<td><code>setMethod(&quot;format&quot;, ...)</code></td>
-<td>N/A</td>
-</tr>
-<tr>
-<td><code>abs</code>, <code>sqrt</code>, <code>log</code></td>
-<td><code>Math.Class</code> (group)</td>
-<td><code>setMethod(&quot;Math&quot;, ...)</code></td>
-<td>Math</td>
+<td>Compare custom objects</td>
+<td>Let <code>Ops</code> handle it, or write <code>==.class</code></td>
+<td><code>a == b</code> inside <code>Ops.length_m</code> returns a bare logical</td>
 </tr>
 </tbody>
 </table>
 
-<h2>Practice Exercises</h2>
+<h2>References</h2>
 
-<p><strong>Exercise 1:</strong> Create a <code>Percentage</code> class where <code>Percentage(50) + Percentage(30)</code> returns <code>Percentage(80)</code>, <code>print</code> shows <code>&quot;50%&quot;</code>, and <code>as.numeric</code> returns <code>0.5</code>.</p>
+<ol>
 
-<details><summary>Click to reveal solution</summary>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 13: S3. <a href="https://adv-r.hadley.nz/s3.html">Link</a></li>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">Percentage &lt;- function(x) {
-  structure(list(value = x), class = &quot;Percentage&quot;)
-}
-print.Percentage &lt;- function(x, ...) cat(x$value, &quot;%\n&quot;)
-as.numeric.Percentage &lt;- function(x, ...) x$value / 100
+<li>Gagolewski, M. — <em>Deep R Programming</em>, Chapter 10: S3 classes. <a href="https://deepr.gagolewski.com/chapter/220-s3.html">Link</a></li>
 
-`+.Percentage` &lt;- function(e1, e2) {
-  v1 &lt;- if (inherits(e1, &quot;Percentage&quot;)) e1$value else e1
-  v2 &lt;- if (inherits(e2, &quot;Percentage&quot;)) e2$value else e2
-  Percentage(v1 + v2)
-}
+<li>R Core Team — <code>?groupGeneric</code> (base <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a>). <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/groupGeneric.html">Link</a></li>
 
-print(Percentage(50) + Percentage(30))
-cat(&quot;As numeric:&quot;, as.numeric(Percentage(50)), &quot;\n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<li>R Core Team — <code>?Ops</code>, <code>?Math</code>, <code>?Summary</code>. <a href="https://rdrr.io/r/base/groupGeneric.html">Link</a></li>
 
-</details>
+<li>Wickham, H. — <em>Advanced R</em>, §13.4 "Object styles" and §13.6.1 "Operators and double dispatch". <a href="https://adv-r.hadley.nz/s3.html#operators">Link</a></li>
 
-<p><strong>Exercise 2:</strong> Create a <code>Matrix2x2</code> class with overloaded <code>*</code> for <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">matrix multiplication</a> and <code>print</code> for formatted display.</p>
+<li>vctrs package — <code>?vec_arith</code> for modern arithmetic dispatch. <a href="https://vctrs.r-lib.org/reference/vec_arith.html">Link</a></li>
 
-<details><summary>Click to reveal solution</summary>
+<li>units package — reference implementation of <code>Ops.units</code> for physical quantities. <a href="https://r-quantities.github.io/units/reference/Ops.units.html">Link</a></li>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">Matrix2x2 &lt;- function(a, b, c, d) {
-  structure(list(data = matrix(c(a, c, b, d), 2, 2)), class = &quot;Matrix2x2&quot;)
-}
-print.Matrix2x2 &lt;- function(x, ...) {
-  cat(&quot;| &quot;, x$data[1,1], x$data[1,2], &quot;|\n&quot;)
-  cat(&quot;| &quot;, x$data[2,1], x$data[2,2], &quot;|\n&quot;)
-}
-`*.Matrix2x2` &lt;- function(e1, e2) {
-  r &lt;- e1$data %*% e2$data
-  Matrix2x2(r[1,1], r[1,2], r[2,1], r[2,2])
-}
-
-A &lt;- Matrix2x2(1, 2, 3, 4)
-B &lt;- Matrix2x2(5, 6, 7, 8)
-cat(&quot;A:\n&quot;); print(A)
-cat(&quot;B:\n&quot;); print(B)
-cat(&quot;A * B:\n&quot;); print(A * B)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-</details>
-
-<h2>FAQ</h2>
-
-<p><strong>Q: Which operators can I overload in R?</strong> Almost all of them: arithmetic (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>^</code>, <code>%%</code>, <code>%/%</code>), comparison (<code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>), logical (<code>&amp;</code>, <code>|</code>, <code>!</code>), subsetting (<code>[</code>, <code>[[</code>, <code>$</code>), and display (<code>print</code>, <code>format</code>, <code>summary</code>). You can also define custom <a class="auto-link" href="Infix-Functions-in-R.html" title="Infix Functions in R: Write Your Own %op% Operators">infix operators</a> like <code>%between%</code>.</p>
-
-<p><strong>Q: What happens when the left operand is not my class (e.g., 5 + MyObj)?</strong> For S3, R checks the class of both operands. If neither has a method, it falls back to the default. In your Ops method, use <code>.Generic</code> and check which argument has your class.</p>
-
-<p><strong>Q: Should I use Ops group generic or individual operator methods?</strong> Use the Ops group generic when the logic is similar for all operators (e.g., extract values, apply operator, wrap result). Use individual methods when different operators need very different logic.</p>
+</ol>
 
 <h2>Continue Learning</h2>
 
-<ul>
+<ol>
 
-<li><a href="S3-Method-Dispatch-in-R.html">S3 Method Dispatch in R</a> -- Understand the dispatch mechanism behind operator methods</li>
+<li><strong><a href="S3-Classes-in-R.html">S3 Classes in R</a></strong> — how to define the class structure your operator methods dispatch on.</li>
 
-<li><a href="S4-Methods-in-R.html">S4 Methods & Multiple Dispatch</a> -- Formal operator overloading with S4</li>
+<li><strong><a href="S3-Method-Dispatch-in-R.html">S3 Method Dispatch in R</a></strong> — a deeper look at how R resolves a method call, including <code>NextMethod()</code> and inheritance chains.</li>
 
-<li><a href="OOP-in-R.html">OOP in R Overview</a> -- Compare all four OOP systems</li>
+<li><strong><a href="R6-Classes-in-R.html">R6 Classes in R</a></strong> — the reference-semantics alternative when you need mutable state and don't want double-dispatch gymnastics.</li>
 
-</ul>
+</ol>
