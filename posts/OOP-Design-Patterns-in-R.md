@@ -1,38 +1,36 @@
 ---
 title: "OOP Design Patterns in R: Factory, Strategy & Observer in R6"
 slug: "OOP-Design-Patterns-in-R"
-description: "Implement classic OOP design patterns in R using R6: Factory, Strategy, Observer, Singleton, and Builder. Practical examples for R programmers."
-keywords: "design patterns R, factory pattern R, strategy pattern R, observer pattern R, R6 design patterns, OOP patterns R"
+description: "Implement Factory, Strategy, Observer, Singleton & Builder design patterns in R using R6. Runnable examples, when to use each, and practical R6 idioms."
+keywords: "R6 design patterns, factory pattern R, strategy pattern R, observer pattern R, singleton pattern R, builder pattern R, OOP patterns R, R6 class examples"
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-13"
 curriculum_id: "FR-oop-3"
 post_type: "FR"
-auto_link_terms: "OOP design patterns|factory pattern R|strategy pattern R|observer pattern R"
+auto_link_terms: "OOP design patterns in R|design patterns in R6|factory pattern in R|strategy pattern in R|observer pattern in R|singleton pattern in R|builder pattern in R"
 auto_link_case_sensitive: false
-fr_parent: "OOP-in-R.html"
+fr_parent: "R6-Classes-in-R.html"
 ---
 
 # OOP Design Patterns in R: Factory, Strategy & Observer in R6
 
-<p class="lead">Design patterns are reusable solutions to common programming problems. While R isn't traditionally thought of as an OOP language, the <strong>R6</strong> class system makes patterns like <strong>Factory</strong>, <strong>Strategy</strong>, <strong>Observer</strong>, <strong>Singleton</strong>, and <strong>Builder</strong> clean and practical to implement.</p>
+<p class="lead">Design patterns are reusable solutions to recurring object-oriented problems. R6's mutable reference classes make the classic Gang-of-Four patterns — <strong>Factory</strong>, <strong>Strategy</strong>, <strong>Observer</strong>, <strong>Singleton</strong> and <strong>Builder</strong> — natural, compact and genuinely useful inside R packages, Shiny apps and simulation code.</p>
 
-These patterns are especially useful when building R packages, Shiny apps, or any system with complex, interacting components.
+## How does the Factory Pattern work in R6?
 
-## Factory Pattern
+A factory is a function whose only job is to decide *which* class to build and hand you back an instance you can use without caring about the choice it made. It keeps the selection rule in one place and lets the rest of your code treat the result uniformly. The classic R use case: a single `read()` method that silently routes CSV, JSON and Excel files to the right reader.
 
-The Factory pattern creates objects without exposing the creation logic. A factory function or class decides which class to instantiate based on input.
+Below we define three reader classes that share a `read()` method, then a tiny `create_reader()` factory that picks one based on the file extension. The caller never mentions `CSVReader` or `JSONReader` by name.
 
 ```r
 library(R6)
 
-# Define a family of related classes
 CSVReader <- R6Class("CSVReader",
   public = list(
     read = function(path) {
       cat("Reading CSV:", path, "\n")
-      # read.csv(path) in real code
-      data.frame(x = 1:3, y = 4:6)
+      data.frame(x = 1:3, y = c(4, 5, 6))
     }
   )
 )
@@ -41,8 +39,7 @@ JSONReader <- R6Class("JSONReader",
   public = list(
     read = function(path) {
       cat("Reading JSON:", path, "\n")
-      # jsonlite::fromJSON(path) in real code
-      list(x = 1:3, y = 4:6)
+      list(x = 1:3, y = list(4, 5, 6))
     }
   )
 )
@@ -51,17 +48,15 @@ ExcelReader <- R6Class("ExcelReader",
   public = list(
     read = function(path) {
       cat("Reading Excel:", path, "\n")
-      # readxl::read_excel(path) in real code
-      data.frame(x = 1:3, y = 4:6)
+      data.frame(x = 1:3, y = c(4, 5, 6))
     }
   )
 )
 
-# The Factory function
-create_reader <- function(file_path) {
-  ext <- tolower(tools::file_ext(file_path))
+create_reader <- function(path) {
+  ext <- tolower(tools::file_ext(path))
   switch(ext,
-    "csv" = CSVReader$new(),
+    "csv"  = CSVReader$new(),
     "json" = JSONReader$new(),
     "xlsx" = ExcelReader$new(),
     "xls"  = ExcelReader$new(),
@@ -69,497 +64,655 @@ create_reader <- function(file_path) {
   )
 }
 
-# Usage -- caller doesn't need to know which class is created
-reader <- create_reader("data.csv")
-result <- reader$read("data.csv")
+reader1 <- create_reader("sales.csv")
+reader1$read("sales.csv")
+#> Reading CSV: sales.csv
+#>   x y
+#> 1 1 4
+#> 2 2 5
+#> 3 3 6
 
 reader2 <- create_reader("config.json")
-result2 <- reader2$read("config.json")
+reader2$read("config.json")
+#> Reading JSON: config.json
+#> $x
+#> [1] 1 2 3
+#> $y
+#> $y[[1]]
+#> [1] 4
 ```
 
-The Factory pattern is useful when:
-- You have multiple classes that share an interface
-- The caller shouldn't need to know which concrete class to use
-- You might add new formats later without changing calling code
+Two different classes, one line of calling code. Adding an `ParquetReader` tomorrow means adding one `R6Class` and one line in the `switch` — no caller touches change.
 
-## Strategy Pattern
+![Factory flow](screenshots/OOP-Design-Patterns-in-R-factory-flow.webp)
+*Figure 1: How a factory routes one call to the right reader class.*
 
-The Strategy pattern lets you swap algorithms at runtime. Define a family of interchangeable algorithm objects and inject one into a context object.
+[KEY INSIGHT]
+**Callers depend on the interface, not the concrete class.** Every reader exposes `$read()`, so the calling code is immune to *which* subclass the factory picked. That is the whole point of the pattern.
+
+**Try it:** Add an `RDSReader` to the factory that handles `.rds` files. It should return `list(kind = "rds")` from its `read()` method.
 
 ```r
-library(R6)
-
-# Strategy: different imputation methods
-MeanImputer <- R6Class("MeanImputer",
+ex_RDSReader <- R6Class("ex_RDSReader",
   public = list(
-    impute = function(x) {
-      x[is.na(x)] <- mean(x, na.rm = TRUE)
-      x
-    },
-    name = function() "mean"
-  )
-)
-
-MedianImputer <- R6Class("MedianImputer",
-  public = list(
-    impute = function(x) {
-      x[is.na(x)] <- median(x, na.rm = TRUE)
-      x
-    },
-    name = function() "median"
-  )
-)
-
-ZeroImputer <- R6Class("ZeroImputer",
-  public = list(
-    impute = function(x) {
-      x[is.na(x)] <- 0
-      x
-    },
-    name = function() "zero"
-  )
-)
-
-# Context: uses whichever strategy is injected
-DataCleaner <- R6Class("DataCleaner",
-  public = list(
-    initialize = function(strategy) {
-      private$strategy <- strategy
-    },
-
-    set_strategy = function(strategy) {
-      private$strategy <- strategy
-      invisible(self)
-    },
-
-    clean = function(df) {
-      cat("Imputing with strategy:", private$strategy$name(), "\n")
-      for (col in names(df)) {
-        if (is.numeric(df[[col]]) && any(is.na(df[[col]]))) {
-          df[[col]] <- private$strategy$impute(df[[col]])
-        }
-      }
-      df
+    read = function(path) {
+      # your code here
     }
-  ),
-
-  private = list(
-    strategy = NULL
   )
 )
 
-# Create data with NAs
-df <- data.frame(
-  a = c(1, NA, 3, NA, 5),
-  b = c(10, 20, NA, 40, 50)
-)
-cat("Original:\n")
-print(df)
+ex_create_reader <- function(path) {
+  ext <- tolower(tools::file_ext(path))
+  switch(ext,
+    "csv" = CSVReader$new(),
+    "rds" = NULL,   # your code here
+    stop("Unsupported: ", ext)
+  )
+}
 
-# Try different strategies
-cleaner <- DataCleaner$new(MeanImputer$new())
-cat("\nMean imputed:\n")
-print(cleaner$clean(df))
-
-cleaner$set_strategy(MedianImputer$new())
-cat("\nMedian imputed:\n")
-print(cleaner$clean(df))
-
-cleaner$set_strategy(ZeroImputer$new())
-cat("\nZero imputed:\n")
-print(cleaner$clean(df))
+ex_create_reader("model.rds")$read("model.rds")
+#> Expected: $kind [1] "rds"
 ```
 
-## Observer Pattern
-
-The Observer pattern lets objects subscribe to events and get notified when something happens. This is the backbone of reactive programming (and Shiny).
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-library(R6)
-
-# Event emitter (subject)
-EventEmitter <- R6Class("EventEmitter",
+ex_RDSReader <- R6Class("ex_RDSReader",
   public = list(
-    on = function(event, callback) {
-      if (is.null(private$listeners[[event]])) {
-        private$listeners[[event]] <- list()
-      }
-      private$listeners[[event]] <- c(private$listeners[[event]], list(callback))
+    read = function(path) list(kind = "rds", path = path)
+  )
+)
+
+ex_create_reader <- function(path) {
+  ext <- tolower(tools::file_ext(path))
+  switch(ext,
+    "csv" = CSVReader$new(),
+    "rds" = ex_RDSReader$new(),
+    stop("Unsupported: ", ext)
+  )
+}
+ex_create_reader("model.rds")$read("model.rds")
+#> $kind
+#> [1] "rds"
+#> $path
+#> [1] "model.rds"
+```
+
+**Explanation:** The factory only needs the new mapping; every other caller still writes `create_reader(path)$read(path)`.
+
+</details>
+
+## How does the Strategy Pattern swap behavior at runtime?
+
+Strategy splits *what* from *how*. A **context** object knows what job needs doing — computing a single score from a vector of numbers — and holds onto a **strategy** object that knows how to do it. Swap the strategy and the same context behaves differently, without a single `if`/`else`.
+
+We'll build three scoring strategies (mean, median, trimmed mean) and a `Scorer` context that delegates to whichever strategy it currently holds. The important move is that the caller can change strategies midway through a session.
+
+```r
+MeanScore <- R6Class("MeanScore",
+  public = list(score = function(x) mean(x))
+)
+
+MedianScore <- R6Class("MedianScore",
+  public = list(score = function(x) median(x))
+)
+
+TrimmedScore <- R6Class("TrimmedScore",
+  public = list(
+    trim  = NULL,
+    initialize = function(trim = 0.1) self$trim <- trim,
+    score = function(x) mean(x, trim = self$trim)
+  )
+)
+
+Scorer <- R6Class("Scorer",
+  public = list(
+    strategy = NULL,
+    initialize  = function(strategy) self$strategy <- strategy,
+    set_strategy = function(strategy) self$strategy <- strategy,
+    run = function(x) self$strategy$score(x)
+  )
+)
+
+sc <- Scorer$new(MeanScore$new())
+sc$run(c(1, 2, 3, 4, 100))
+#> [1] 22
+
+sc$set_strategy(MedianScore$new())
+sc$run(c(1, 2, 3, 4, 100))
+#> [1] 3
+
+sc$set_strategy(TrimmedScore$new(trim = 0.2))
+sc$run(c(1, 2, 3, 4, 100))
+#> [1] 3
+```
+
+The single outlier (`100`) drags the plain mean to 22, but both the median and the 20%-trimmed mean ignore it and report 3. Same `sc$run()` call, three completely different robust-statistics behaviors — decided by which strategy object is attached.
+
+[TIP]
+**Strategies can be plain functions when they carry no state.** If `TrimmedScore` didn't need to remember `trim`, you could skip the R6 wrapper entirely and pass `mean`, `median` or `function(x) mean(x, trim = 0.2)` directly. Reach for R6 only when the strategy itself needs fields.
+
+**Try it:** Write `ex_MaxStrategy` — an R6 class whose `score()` method returns `max(x)` — and plug it into `Scorer` (already defined above).
+
+```r
+ex_MaxStrategy <- R6Class("ex_MaxStrategy",
+  public = list(
+    score = function(x) {
+      # your code here
+    }
+  )
+)
+
+ex_sc <- Scorer$new(ex_MaxStrategy$new())
+ex_sc$run(c(3, 1, 9, 4))
+#> Expected: 9
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_MaxStrategy <- R6Class("ex_MaxStrategy",
+  public = list(score = function(x) max(x))
+)
+ex_sc <- Scorer$new(ex_MaxStrategy$new())
+ex_sc$run(c(3, 1, 9, 4))
+#> [1] 9
+```
+
+**Explanation:** The context doesn't care how `score()` is computed — it only calls `self$strategy$score(x)`. Any object that implements `score()` plugs in cleanly.
+
+</details>
+
+## How does the Observer Pattern notify listeners of state changes?
+
+Observer inverts the usual call direction. Instead of code polling an object (*"did anything change yet?"*), the object itself calls a list of subscribers whenever its state updates. Shiny's reactivity is built on this idea; so is every event bus you have ever used.
+
+We'll model a temperature sensor as the **subject** and attach two **observers**: a logger that prints every reading, and an alerter that only fires when the value crosses a threshold.
+
+```r
+TempSensor <- R6Class("TempSensor",
+  public = list(
+    observers = list(),
+    value     = NA_real_,
+    subscribe = function(obs) {
+      self$observers <- c(self$observers, obs)
       invisible(self)
     },
-
-    emit = function(event, ...) {
-      callbacks <- private$listeners[[event]]
-      if (!is.null(callbacks)) {
-        for (cb in callbacks) {
-          cb(...)
-        }
-      }
+    unsubscribe = function(obs) {
+      self$observers <- Filter(function(o) !identical(o, obs), self$observers)
       invisible(self)
     },
-
-    remove_all = function(event) {
-      private$listeners[[event]] <- NULL
+    set_value = function(x) {
+      self$value <- x
+      for (obs in self$observers) obs$update(x)
       invisible(self)
     }
-  ),
-
-  private = list(
-    listeners = list()
   )
 )
 
-# A model that emits events when data changes
-DataModel <- R6Class("DataModel",
-  inherit = EventEmitter,
+LoggerObs <- R6Class("LoggerObs",
   public = list(
-    initialize = function(data = data.frame()) {
-      super$initialize()
-      private$data <- data
-    },
-
-    add_row = function(...) {
-      new_row <- data.frame(..., stringsAsFactors = FALSE)
-      private$data <- rbind(private$data, new_row)
-      self$emit("data_changed", private$data)
-      invisible(self)
-    },
-
-    get_data = function() private$data
-  ),
-
-  private = list(
-    data = NULL
+    update = function(x) cat("[log] value =", x, "\n")
   )
 )
 
-# Create model and attach observers
-model <- DataModel$new()
+AlertObs <- R6Class("AlertObs",
+  public = list(
+    threshold = NULL,
+    initialize = function(threshold) self$threshold <- threshold,
+    update = function(x) {
+      if (x > self$threshold) cat("[alert] ", x, "exceeds", self$threshold, "\n")
+    }
+  )
+)
 
-# Observer 1: log changes
-model$on("data_changed", function(data) {
-  cat("[Logger] Data now has", nrow(data), "rows\n")
-})
+sensor <- TempSensor$new()
+log1   <- LoggerObs$new()
+alert1 <- AlertObs$new(threshold = 30)
 
-# Observer 2: validate data
-model$on("data_changed", function(data) {
-  if (nrow(data) > 3) cat("[Validator] Warning: dataset getting large!\n")
-})
+sensor$subscribe(log1)$subscribe(alert1)
+sensor$set_value(22)
+#> [log] value = 22
 
-# Observer 3: summary stats
-model$on("data_changed", function(data) {
-  if (ncol(data) > 0 && is.numeric(data[[1]])) {
-    cat("[Stats] Mean of first column:", mean(data[[1]]), "\n")
+sensor$set_value(35)
+#> [log] value = 35
+#> [alert]  35 exceeds 30
+```
+
+Neither `LoggerObs` nor `AlertObs` knows the other exists — the sensor just walks its observer list and calls `update()` on each. Adding a third observer tomorrow is a single `$subscribe()` call; removing one is a single `$unsubscribe()`.
+
+![Observer sequence](screenshots/OOP-Design-Patterns-in-R-observer-seq.webp)
+*Figure 2: The subject notifies every subscribed observer whenever its state changes.*
+
+[WARNING]
+**R6 objects are reference-semantic — always mutate in place.** Writing `self$observers <- c(self$observers, obs)` works; writing it outside the R6 method using `x <- sensor; x$observers <- ...` mutates the original sensor too, because `x` is not a copy. This is exactly why R6 fits Observer cleanly: one subject is one shared identity.
+
+**Try it:** Write `ex_AverageObs` — an observer that keeps a running vector of readings in a public `values` field and prints the running mean on every update.
+
+```r
+ex_AverageObs <- R6Class("ex_AverageObs",
+  public = list(
+    values = c(),
+    update = function(x) {
+      # your code here
+    }
+  )
+)
+
+ex_sensor <- TempSensor$new()
+ex_sensor$subscribe(ex_AverageObs$new())
+ex_sensor$set_value(10)
+ex_sensor$set_value(20)
+#> Expected: running mean 10, then running mean 15
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_AverageObs <- R6Class("ex_AverageObs",
+  public = list(
+    values = c(),
+    update = function(x) {
+      self$values <- c(self$values, x)
+      cat("running mean =", mean(self$values), "\n")
+    }
+  )
+)
+ex_sensor <- TempSensor$new()
+ex_sensor$subscribe(ex_AverageObs$new())
+ex_sensor$set_value(10)
+#> running mean = 10
+ex_sensor$set_value(20)
+#> running mean = 15
+```
+
+**Explanation:** Because R6 mutates in place, appending to `self$values` inside `update()` persists across notifications. A plain-function observer would need external storage.
+
+</details>
+
+## When should you reach for Singleton or Builder patterns?
+
+Two smaller patterns fill obvious niches. **Singleton** guarantees exactly one instance exists — useful for a shared configuration, a database connection, or a logger. **Builder** handles objects whose construction has many optional knobs and you want a fluent, readable call site.
+
+The cleanest R singleton hides the instance inside a closure-scoped variable rather than a true class, because R packages already behave like process-wide namespaces.
+
+```r
+get_config <- local({
+  instance <- NULL
+  function() {
+    if (is.null(instance)) {
+      instance <<- R6Class("Config",
+        public = list(
+          host = "localhost",
+          port = 8080,
+          set_host = function(h) { self$host <- h; invisible(self) }
+        )
+      )$new()
+    }
+    instance
   }
 })
 
-# Add data -- all observers are notified
-model$add_row(x = 10, y = "a")
-cat("\n")
-model$add_row(x = 20, y = "b")
-cat("\n")
-model$add_row(x = 30, y = "c")
-cat("\n")
-model$add_row(x = 40, y = "d")
+cfg1 <- get_config()
+cfg2 <- get_config()
+cfg1$set_host("prod.example.com")
+cfg2$host
+#> [1] "prod.example.com"
+
+identical(cfg1, cfg2)
+#> [1] TRUE
 ```
 
-## Singleton Pattern
+`cfg1` and `cfg2` are the same object — setting the host through one shows up in the other.
 
-The Singleton pattern ensures only one instance of a class exists. Useful for configuration, logging, or database connection pools.
-
-```r
-library(R6)
-
-# Singleton using a closure
-AppConfig <- (function() {
-  instance <- NULL
-
-  R6Class("AppConfig",
-    public = list(
-      initialize = function() {
-        if (!is.null(instance)) {
-          stop("Use AppConfig$get_instance() instead of $new()")
-        }
-        private$settings <- list()
-      },
-
-      set = function(key, value) {
-        private$settings[[key]] <- value
-        invisible(self)
-      },
-
-      get = function(key, default = NULL) {
-        val <- private$settings[[key]]
-        if (is.null(val)) default else val
-      },
-
-      print = function(...) {
-        cat("AppConfig:", length(private$settings), "settings\n")
-        for (nm in names(private$settings)) {
-          cat("  ", nm, "=", private$settings[[nm]], "\n")
-        }
-      }
-    ),
-
-    private = list(
-      settings = NULL
-    )
-  )
-})()
-
-# Simple singleton via manual management
-config <- AppConfig$new()
-config$set("debug", TRUE)
-config$set("max_retries", 3)
-config$print()
-
-# Access from anywhere
-cat("Debug:", config$get("debug"), "\n")
-cat("Timeout:", config$get("timeout", default = 30), "\n")
-```
-
-## Builder Pattern
-
-The Builder pattern constructs complex objects step by step, especially when an object has many optional parameters.
+Now Builder: a report object with many optional fields, built up with chained calls.
 
 ```r
-library(R6)
-
-# The product
-Plot <- R6Class("Plot",
-  public = list(
-    title = NULL, x_label = NULL, y_label = NULL,
-    theme = NULL, colors = NULL, width = NULL, height = NULL,
-
-    render = function() {
-      cat("=== Plot ===\n")
-      cat("Title:", self$title %||% "(none)", "\n")
-      cat("X label:", self$x_label %||% "(auto)", "\n")
-      cat("Y label:", self$y_label %||% "(auto)", "\n")
-      cat("Theme:", self$theme %||% "default", "\n")
-      cat("Size:", self$width %||% 800, "x", self$height %||% 600, "\n")
-      cat("Colors:", paste(self$colors %||% "auto", collapse = ", "), "\n")
-    }
-  )
-)
-
-# The builder
-PlotBuilder <- R6Class("PlotBuilder",
-  public = list(
-    initialize = function() {
-      private$plot <- Plot$new()
-    },
-
-    set_title = function(title) {
-      private$plot$title <- title
-      invisible(self)
-    },
-
-    set_labels = function(x = NULL, y = NULL) {
-      if (!is.null(x)) private$plot$x_label <- x
-      if (!is.null(y)) private$plot$y_label <- y
-      invisible(self)
-    },
-
-    set_theme = function(theme) {
-      private$plot$theme <- theme
-      invisible(self)
-    },
-
-    set_size = function(width, height) {
-      private$plot$width <- width
-      private$plot$height <- height
-      invisible(self)
-    },
-
-    set_colors = function(colors) {
-      private$plot$colors <- colors
-      invisible(self)
-    },
-
-    build = function() {
-      result <- private$plot
-      private$plot <- Plot$new()  # Reset for next build
-      result
-    }
-  ),
-
-  private = list(
-    plot = NULL
-  )
-)
-
-# Fluent builder usage
-plot1 <- PlotBuilder$new()$
-  set_title("MPG vs Weight")$
-  set_labels(x = "Weight (1000 lbs)", y = "Miles per Gallon")$
-  set_theme("minimal")$
-  set_size(1200, 800)$
-  set_colors(c("#E41A1C", "#377EB8", "#4DAF4A"))$
-  build()
-
-plot1$render()
-```
-
-## Summary Table
-
-| Pattern | Purpose | When to Use |
-|---------|---------|-------------|
-| Factory | Create objects without specifying exact class | Multiple classes sharing an interface |
-| Strategy | Swap algorithms at runtime | Interchangeable behaviors (imputation, sorting, scoring) |
-| Observer | Notify subscribers of state changes | Event systems, reactive UIs, logging |
-| Singleton | One instance only | Config, DB connections, loggers |
-| Builder | Construct complex objects step by step | Objects with many optional parameters |
-
-## Practice Exercises
-
-**Exercise 1:** Implement a Factory that creates different normalization strategies: MinMaxScaler (0-1), StandardScaler (z-score), and RobustScaler (using median/IQR).
-
-<details><summary>Click to reveal solution</summary>
-
-```r
-library(R6)
-
-MinMaxScaler <- R6Class("MinMaxScaler",
-  public = list(
-    transform = function(x) (x - min(x)) / (max(x) - min(x)),
-    name = function() "min-max"
-  )
-)
-
-StandardScaler <- R6Class("StandardScaler",
-  public = list(
-    transform = function(x) (x - mean(x)) / sd(x),
-    name = function() "standard"
-  )
-)
-
-RobustScaler <- R6Class("RobustScaler",
-  public = list(
-    transform = function(x) (x - median(x)) / IQR(x),
-    name = function() "robust"
-  )
-)
-
-create_scaler <- function(method) {
-  switch(method,
-    "minmax" = MinMaxScaler$new(),
-    "standard" = StandardScaler$new(),
-    "robust" = RobustScaler$new(),
-    stop("Unknown method: ", method)
-  )
-}
-
-x <- c(10, 20, 30, 100, 50)
-for (m in c("minmax", "standard", "robust")) {
-  scaler <- create_scaler(m)
-  cat(scaler$name(), ":", round(scaler$transform(x), 3), "\n")
-}
-```
-
-</details>
-
-**Exercise 2:** Create a simple Observer-based `Counter` that emits "threshold" when the count exceeds a given value.
-
-<details><summary>Click to reveal solution</summary>
-
-```r
-library(R6)
-
-ObservableCounter <- R6Class("ObservableCounter",
-  public = list(
-    initialize = function(threshold = 5) {
-      private$count <- 0
-      private$threshold <- threshold
-      private$listeners <- list()
-    },
-    on_threshold = function(callback) {
-      private$listeners <- c(private$listeners, list(callback))
-      invisible(self)
-    },
-    increment = function(n = 1) {
-      private$count <- private$count + n
-      cat("Count:", private$count, "\n")
-      if (private$count >= private$threshold) {
-        for (cb in private$listeners) cb(private$count)
-      }
-      invisible(self)
-    },
-    get_count = function() private$count
-  ),
-  private = list(count = NULL, threshold = NULL, listeners = NULL)
-)
-
-ctr <- ObservableCounter$new(threshold = 3)
-ctr$on_threshold(function(n) cat("ALERT: count reached", n, "!\n"))
-ctr$increment()
-ctr$increment()
-ctr$increment()  # Triggers alert
-ctr$increment()
-```
-
-</details>
-
-**Exercise 3:** Implement a Builder for a `Report` object with optional title, author, sections (list of strings), and format ("html"/"pdf").
-
-<details><summary>Click to reveal solution</summary>
-
-```r
-library(R6)
-
-Report <- R6Class("Report",
-  public = list(
-    title = "Untitled", author = "Anonymous",
-    sections = list(), format = "html",
-    render = function() {
-      cat("=== Report ===\n")
-      cat("Title:", self$title, "\n")
-      cat("Author:", self$author, "\n")
-      cat("Format:", self$format, "\n")
-      cat("Sections:", length(self$sections), "\n")
-      for (s in self$sections) cat("  -", s, "\n")
-    }
-  )
-)
-
 ReportBuilder <- R6Class("ReportBuilder",
   public = list(
-    initialize = function() { private$r <- Report$new() },
-    title = function(t) { private$r$title <- t; invisible(self) },
-    author = function(a) { private$r$author <- a; invisible(self) },
-    add_section = function(s) { private$r$sections <- c(private$r$sections, s); invisible(self) },
-    format = function(f) { private$r$format <- f; invisible(self) },
-    build = function() { out <- private$r; private$r <- Report$new(); out }
-  ),
-  private = list(r = NULL)
+    title   = NULL,
+    author  = NULL,
+    body    = NULL,
+    format  = "html",
+    set_title  = function(x) { self$title  <- x; invisible(self) },
+    set_author = function(x) { self$author <- x; invisible(self) },
+    set_body   = function(x) { self$body   <- x; invisible(self) },
+    set_format = function(x) { self$format <- x; invisible(self) },
+    build = function() {
+      list(title = self$title, author = self$author,
+           body = self$body, format = self$format)
+    }
+  )
 )
 
 report <- ReportBuilder$new()$
-  title("Quarterly Analysis")$
-  author("Alice")$
-  add_section("Introduction")$
-  add_section("Methods")$
-  add_section("Results")$
-  format("pdf")$
+  set_title("Quarterly Review")$
+  set_author("Selva")$
+  set_body("Revenue up 12%.")$
+  set_format("pdf")$
   build()
 
-report$render()
+report$title
+#> [1] "Quarterly Review"
+report$format
+#> [1] "pdf"
 ```
+
+Each setter returns `invisible(self)`, which is the trick that makes the fluent `$set_x()$set_y()` chain work. The final `$build()` hands you the finished object.
+
+[NOTE]
+**R package namespaces already give you a de-facto singleton.** Any object stored in your package environment (via `.onLoad` or a top-level assignment) exists exactly once per session — no pattern required. Reach for the closure-style singleton only when you want lazy initialization or a stand-alone script.
+
+**Try it:** Extend the config singleton with a `set_port(p)` method that updates the port. Show that changing it via one reference is visible from the other.
+
+```r
+# Modify the Config R6Class inside get_config above to add set_port.
+# Then test:
+a <- get_config()
+b <- get_config()
+a$set_port(9090)
+b$port
+#> Expected: 9090
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+get_config <- local({
+  instance <- NULL
+  function() {
+    if (is.null(instance)) {
+      instance <<- R6Class("Config",
+        public = list(
+          host = "localhost",
+          port = 8080,
+          set_host = function(h) { self$host <- h; invisible(self) },
+          set_port = function(p) { self$port <- p; invisible(self) }
+        )
+      )$new()
+    }
+    instance
+  }
+})
+
+a <- get_config()
+b <- get_config()
+a$set_port(9090)
+b$port
+#> [1] 9090
+```
+
+**Explanation:** `a` and `b` point at the same underlying R6 object, so any mutation on one is observable through the other.
 
 </details>
 
-## FAQ
+## How do you choose the right pattern for your problem?
 
-**Q: Are design patterns overkill for R?**
-For scripts and one-off analyses, yes. For packages, Shiny apps, and production systems, no. Patterns make code more maintainable and testable.
+Patterns are not a checklist. They are vocabulary — a way to name a shape that keeps turning up in your code so that you and your reviewers can discuss it without re-explaining the mechanics. The question to ask is always "what pain am I feeling?" and then pick the pattern whose intent matches.
 
-**Q: Can I use design patterns with S3 or S4?**
-Yes, but R6's mutable objects and encapsulation make patterns much more natural. Factory can work with S3 (just return different S3 objects). Strategy and Observer are awkward without mutable state.
+![Pattern map](screenshots/OOP-Design-Patterns-in-R-pattern-map.webp)
+*Figure 3: The five R6 patterns grouped by purpose — creational versus behavioral.*
 
-**Q: Which pattern is most useful for R programmers?**
-Strategy is probably the most practical for data science workflows (swappable models, preprocessors, or scoring functions). Observer is essential for Shiny development.
+Here is the decision shortcut I use when reviewing R code:
+
+| Symptom in your code | Reach for |
+|---|---|
+| A growing `if`/`switch` that picks *which class* to build | **Factory** |
+| A growing `if`/`switch` that picks *how to compute something* | **Strategy** |
+| State change in one place needs to trigger work elsewhere | **Observer** |
+| You want exactly one shared instance of something | **Singleton** |
+| Constructor has 10+ optional arguments and call sites are painful | **Builder** |
+
+Below is a concrete "before and after": a slope classifier that starts as a nested `if`/`else` and becomes a clean Strategy. Notice how the second version is open to new rules without editing `classifier`.
+
+```r
+classify_v1 <- function(slope, kind) {
+  if (kind == "strict") {
+    if (slope > 0.5) "up" else if (slope < -0.5) "down" else "flat"
+  } else if (kind == "loose") {
+    if (slope > 0.1) "up" else if (slope < -0.1) "down" else "flat"
+  } else stop("unknown kind")
+}
+
+SlopeStrategy <- R6Class("SlopeStrategy",
+  public = list(
+    cutoff = NULL,
+    initialize = function(cutoff) self$cutoff <- cutoff,
+    label = function(slope) {
+      if (slope >  self$cutoff) "up"
+      else if (slope < -self$cutoff) "down"
+      else "flat"
+    }
+  )
+)
+
+classify_v2 <- function(slope, strategy) strategy$label(slope)
+
+classify_v1(0.3, "strict")
+#> [1] "flat"
+classify_v2(0.3, SlopeStrategy$new(cutoff = 0.5))
+#> [1] "flat"
+classify_v2(0.3, SlopeStrategy$new(cutoff = 0.1))
+#> [1] "up"
+```
+
+The `v1` function grows a new `else if` branch every time someone invents a new rule. The `v2` function will never change again — you just construct a new strategy with whatever cutoff (or entirely different logic) you need.
+
+[KEY INSIGHT]
+**Patterns are vocabulary, not scaffolding.** Don't force Strategy onto a script that has two branches and one caller. Reach for it when you catch yourself adding branches repeatedly, or when reviewers keep asking "wait, where does this behavior come from?"
+
+**Try it:** Your teammate keeps adding new chart types to a monster `if`/`else` in `plot_dispatch()`. Which pattern fixes this, and in one sentence, why?
+
+```r
+# Write your answer as an R comment below:
+# Pattern:
+# Reason:
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+# Pattern: Strategy (or Factory, depending on what's branching).
+# Reason: The branch is deciding *how to plot*, so each chart type
+# becomes a strategy object exposing a common draw() method; the
+# dispatcher just calls strategy$draw(data) and never grows again.
+```
+
+**Explanation:** If the branching picked *which class to build*, Factory would fit; because it picks *how to do the work*, Strategy is the right name.
+
+</details>
+
+## Practice Exercises
+
+### Exercise 1: A Strategy-based discount system
+
+Build a `Cart` context and three discount strategies: `NoDiscount`, `PercentDiscount` (takes a rate like 0.1 = 10% off), and `FlatDiscount` (takes a fixed amount off). `Cart` holds `items` (a numeric vector of prices) and a strategy, and exposes `total()` which returns the discounted total. Save the final totals into `my_totals` as a named list.
+
+```r
+# Exercise 1: Strategy-based discount system
+# Hint: each strategy has apply(subtotal) -> new total
+# Cart$total() calls self$strategy$apply(sum(self$items))
+
+# Write your code below:
+
+my_totals <- list()
+my_totals
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+NoDiscount <- R6Class("NoDiscount",
+  public = list(apply = function(sub) sub)
+)
+PercentDiscount <- R6Class("PercentDiscount",
+  public = list(
+    rate = NULL,
+    initialize = function(rate) self$rate <- rate,
+    apply = function(sub) sub * (1 - self$rate)
+  )
+)
+FlatDiscount <- R6Class("FlatDiscount",
+  public = list(
+    amount = NULL,
+    initialize = function(amount) self$amount <- amount,
+    apply = function(sub) max(0, sub - self$amount)
+  )
+)
+
+Cart <- R6Class("Cart",
+  public = list(
+    items = NULL,
+    strategy = NULL,
+    initialize = function(items, strategy) {
+      self$items <- items
+      self$strategy <- strategy
+    },
+    set_strategy = function(s) self$strategy <- s,
+    total = function() self$strategy$apply(sum(self$items))
+  )
+)
+
+items <- c(20, 30, 50)
+my_totals <- list(
+  none    = Cart$new(items, NoDiscount$new())$total(),
+  percent = Cart$new(items, PercentDiscount$new(0.1))$total(),
+  flat    = Cart$new(items, FlatDiscount$new(25))$total()
+)
+my_totals
+#> $none
+#> [1] 100
+#> $percent
+#> [1] 90
+#> $flat
+#> [1] 75
+```
+
+**Explanation:** `Cart` doesn't know (or care) which discount math happens — it delegates to whatever strategy it currently holds. Swapping strategies is a one-line operation.
+
+</details>
+
+### Exercise 2: Factory + Observer broadcast hub
+
+Build a `make_notifier(kind)` factory that returns an `EmailNotifier`, `SmsNotifier` or `SlackNotifier` — each implements a `send(msg)` method that `cat()`s a tagged line. Then build an `AlertHub` subject that stores a list of notifiers and broadcasts every alert to all of them via `$raise(msg)`. Save the hub to `my_hub` and raise one alert that reaches three notifiers.
+
+```r
+# Exercise 2: Factory + Observer
+# Hint: the factory returns one of three R6 classes;
+# AlertHub$raise(msg) loops its notifiers and calls $send(msg).
+
+# Write your code below:
+
+my_hub <- NULL
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+EmailNotifier <- R6Class("EmailNotifier",
+  public = list(send = function(msg) cat("[email]", msg, "\n"))
+)
+SmsNotifier <- R6Class("SmsNotifier",
+  public = list(send = function(msg) cat("[sms]  ", msg, "\n"))
+)
+SlackNotifier <- R6Class("SlackNotifier",
+  public = list(send = function(msg) cat("[slack]", msg, "\n"))
+)
+
+make_notifier <- function(kind) {
+  switch(kind,
+    "email" = EmailNotifier$new(),
+    "sms"   = SmsNotifier$new(),
+    "slack" = SlackNotifier$new(),
+    stop("unknown kind: ", kind)
+  )
+}
+
+AlertHub <- R6Class("AlertHub",
+  public = list(
+    notifiers = list(),
+    add = function(n) { self$notifiers <- c(self$notifiers, n); invisible(self) },
+    raise = function(msg) {
+      for (n in self$notifiers) n$send(msg)
+      invisible(self)
+    }
+  )
+)
+
+my_hub <- AlertHub$new()$
+  add(make_notifier("email"))$
+  add(make_notifier("sms"))$
+  add(make_notifier("slack"))
+
+my_hub$raise("disk full")
+#> [email] disk full
+#> [sms]   disk full
+#> [slack] disk full
+```
+
+**Explanation:** The factory hides the class choice; the observer hub broadcasts one event to many listeners. Two patterns, one ten-line pipeline.
+
+</details>
+
+## Complete Example
+
+Here's a tiny end-to-end pipeline that uses three of the patterns together. A factory picks a reader for `mtcars` (we just fake one); a strategy picks the scoring method; an observer logs every result. One function, five lines of calling code, all three patterns.
+
+```r
+Reader <- R6Class("Reader",
+  public = list(read = function() mtcars$mpg)
+)
+
+make_reader <- function(kind) switch(kind,
+  "mtcars" = Reader$new(),
+  stop("unknown")
+)
+
+pipe_sensor <- TempSensor$new()
+pipe_logger <- LoggerObs$new()
+pipe_sensor$subscribe(pipe_logger)
+
+pipe_scorer <- Scorer$new(TrimmedScore$new(trim = 0.1))
+result      <- pipe_scorer$run(make_reader("mtcars")$read())
+pipe_sensor$set_value(result)
+#> [log] value = 20.13
+
+result
+#> [1] 20.13462
+```
+
+The calling code never says `TrimmedScore`, never says `LoggerObs`, and never says `Reader` — it just says "give me a reader, score its data, and tell the sensor." Every piece is replaceable independently. That is what the patterns buy you.
+
+## Summary
+
+| Pattern | Category | Intent | Reach for it when… |
+|---|---|---|---|
+| Factory | Creational | Decide which class to build in one place | A branch is choosing *which class* to instantiate |
+| Strategy | Behavioral | Swap algorithms at runtime | A branch is choosing *how to compute* something |
+| Observer | Behavioral | Notify many listeners of one state change | State change needs fan-out without tight coupling |
+| Singleton | Creational | Guarantee a single shared instance | You want one config/logger/connection per session |
+| Builder | Creational | Fluent step-by-step construction | Constructor has many optional arguments |
+
+Reach for these patterns by name when a shape keeps recurring, not because the textbook told you to. R6's reference semantics make all five compact — most fit in under 25 lines.
+
+## References
+
+1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
+2. R6 package documentation on CRAN. [Link](https://cran.r-project.org/package=R6)
+3. R6P: Design Patterns in R (tidylab). [Link](https://tidylab.github.io/R6P/)
+4. Gamma, Helm, Johnson, Vlissides — *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley (1994).
+5. Refactoring.Guru — Catalog of Design Patterns. [Link](https://refactoring.guru/design-patterns)
+6. tidyverse R6 vignette — Introduction to R6. [Link](https://r6.r-lib.org/articles/Introduction.html)
 
 ## Continue Learning
-- [R6 Classes in R](R6-Classes-in-R.html) -- Learn R6 basics if you haven't already
-- [R6 Advanced: Inheritance & Active Bindings](R6-Advanced.html) -- Deeper R6 features
-- [OOP in R Exercises](R-OOP-Exercises.html) -- Practice problems covering all OOP systems
+
+- [R6 Classes in R](R6-Classes-in-R.html) — the parent tutorial that teaches R6 fields, methods, inheritance and active bindings.
+- [OOP in R](OOP-in-R.html) — overview of R's four OOP systems (S3, S4, R5/Reference Classes, R6).
+- [S4 Classes in R](S4-Classes-in-R.html) — the formal, generic-function-based alternative to R6 for package-grade type systems.
