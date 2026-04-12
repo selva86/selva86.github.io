@@ -1,54 +1,68 @@
 ---
-title: "S4 Multiple Dispatch: Methods That Choose Based on Two Arguments"
-description: "S4's killer feature is multiple dispatch — a method chosen based on the classes of several arguments at once. Learn how, when to use it, and why S3 cannot match it."
-keywords: "S4 multiple dispatch R, R multimethods, setMethod signature, R multi argument dispatch, S4 methods"
+title: "S4 Multiple Dispatch in R: Dispatch on Two Arguments Simultaneously"
+description: "S4 multiple dispatch lets methods specialise on the combination of two argument types — a capability S3 lacks. Learn setMethod(), showMethods(), and real use cases."
+keywords: "S4 multiple dispatch R, setMethod R, S4 methods R, multiple dispatch two arguments R, setGeneric R, showMethods R, S4 method signature, S4 dispatch resolution, S4 vs S3 dispatch"
 mathjax: false
 webr: true
 curriculum_id: "4.3.5"
 post_type: "C"
-auto_link_terms: "S4 multiple dispatch|multi-dispatch R|setMethod signature"
-auto_link_case_sensitive: false
+auto_link_terms: "S4 multiple dispatch|S4 methods|setMethod()|setGeneric()|showMethods()|multiple dispatch in R|S4 method dispatch|method signature"
+auto_link_case_sensitive: true
 sidebar_section: "Learn R"
-sidebar_title: "S4 Multiple Dispatch"
-sidebar_order: "45"
+sidebar_title: "S4 Methods & Dispatch"
+sidebar_order: "35"
 ---
 <!-- md2html:generated -->
 
-<h1>S4 Multiple Dispatch: Methods That Choose Based on Two Arguments</h1>
+<h1>S4 Multiple Dispatch in R: Dispatch on Two Arguments Simultaneously</h1>
 
-<p class="lead">S4's most powerful feature is <strong>multiple dispatch</strong> — a method chosen based on the classes of <em>several</em> arguments simultaneously. You get to define <code>combine(x, y)</code> differently for every <code>(class of x, class of y)</code> pair, and R picks the right one automatically.</p>
+<p class="lead">S4's multiple dispatch lets a single generic function choose different methods based on the classes of two or more arguments at once — something S3 cannot do. This is R's most powerful method-selection mechanism, used throughout Bioconductor and the Matrix package.</p>
 
-<p>Most object systems — Java, Python, JavaScript, and R's own S3 — dispatch on a single object: <code>obj.method(args)</code> looks at <code>obj</code>'s class. But real problems often involve <em>two</em> types interacting. Combining a <code>Polygon</code> with a <code>Point</code>? Adding a <code>SparseMatrix</code> to a <code>DenseMatrix</code>? With single dispatch, you have to pick one argument to dispatch on and branch inside the method. With S4 multiple dispatch, you just register every combination.</p>
+<h2>How does S4 multiple dispatch differ from S3's single dispatch?</h2>
 
-<h2>What Is Multiple Dispatch and When Do You Need It?</h2>
-
-<p>Multiple dispatch means "choose the method based on the classes of <em>all</em> arguments, not just the first". In S4 you express this with a multi-class <code>signature</code>.</p>
+<p>S3 dispatches on the class of the first argument only. If you call <code>combine(x, y)</code>, S3 checks <code>class(x)</code> and ignores <code>y</code> entirely. S4 flips this limitation — it examines the classes of <em>both</em> arguments together and picks the method that best matches the combination. Let's see the difference in action.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">setGeneric(&quot;combine&quot;, function(a, b) standardGeneric(&quot;combine&quot;))
-#&gt; [1] &quot;combine&quot;
+    <div class="webr-editor" data-language="r"># Define two S4 classes for unit systems
+setClass(&quot;Metric&quot;, slots = c(value = &quot;numeric&quot;, unit = &quot;character&quot;))
+setClass(&quot;Imperial&quot;, slots = c(value = &quot;numeric&quot;, unit = &quot;character&quot;))
 
-# Method for (numeric, numeric) → addition
-setMethod(&quot;combine&quot;, signature(&quot;numeric&quot;, &quot;numeric&quot;),
-  function(a, b) a + b)
+# A generic that dispatches on BOTH arguments
+setGeneric(&quot;convert&quot;, function(from, to) standardGeneric(&quot;convert&quot;),
+           signature = c(&quot;from&quot;, &quot;to&quot;))
 
-# Method for (character, character) → concatenation
-setMethod(&quot;combine&quot;, signature(&quot;character&quot;, &quot;character&quot;),
-  function(a, b) paste0(a, b))
+# Method 1: Metric -&gt; Imperial
+setMethod(&quot;convert&quot;, c(from = &quot;Metric&quot;, to = &quot;Imperial&quot;), function(from, to) {
+  if (from@unit == &quot;km&quot; &amp;&amp; to@unit == &quot;miles&quot;) {
+    new(&quot;Imperial&quot;, value = round(from@value * 0.6214, 2), unit = &quot;miles&quot;)
+  } else {
+    paste(&quot;Convert&quot;, from@unit, &quot;to&quot;, to@unit)
+  }
+})
 
-# Method for (character, numeric) → repetition
-setMethod(&quot;combine&quot;, signature(&quot;character&quot;, &quot;numeric&quot;),
-  function(a, b) paste(rep(a, b), collapse = &quot;&quot;))
+# Method 2: Imperial -&gt; Metric (different behavior!)
+setMethod(&quot;convert&quot;, c(from = &quot;Imperial&quot;, to = &quot;Metric&quot;), function(from, to) {
+  if (from@unit == &quot;miles&quot; &amp;&amp; to@unit == &quot;km&quot;) {
+    new(&quot;Metric&quot;, value = round(from@value * 1.6093, 2), unit = &quot;km&quot;)
+  } else {
+    paste(&quot;Convert&quot;, from@unit, &quot;to&quot;, to@unit)
+  }
+})
 
-combine(2, 3)
-#&gt; [1] 5
-combine(&quot;ha&quot;, &quot;ha&quot;)
-#&gt; [1] &quot;haha&quot;
-combine(&quot;ha&quot;, 3)
-#&gt; [1] &quot;hahaha&quot;</div>
+# Test: the COMBINATION of argument classes determines the method
+m1 &lt;- new(&quot;Metric&quot;, value = 10, unit = &quot;km&quot;)
+i1 &lt;- new(&quot;Imperial&quot;, value = 0, unit = &quot;miles&quot;)
+
+result1 &lt;- convert(m1, i1)  # Metric -&gt; Imperial
+result1@value
+#&gt; [1] 6.21
+
+result2 &lt;- convert(i1, m1)  # Imperial -&gt; Metric (different method!)
+result2@value
+#&gt; [1] 0</div>
 
     <div class="webr-buttons">
 
@@ -66,103 +80,26 @@ combine(&quot;ha&quot;, 3)
 
 </div>
 
-<p>Three registered methods, one generic. The dispatcher picks the right one based on the class pair. Try writing the same thing in S3: you would need to dispatch on <code>a</code>, then manually check <code>class(b)</code> inside, and the check would live inside every method. S4's signature handles it automatically.</p>
+<p>Notice how <code>convert(m1, i1)</code> and <code>convert(i1, m1)</code> call completely different methods. R looked at the class of <em>both</em> arguments to decide. In S3, only the first argument would matter — you'd have no way to distinguish the direction of conversion.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Multiple dispatch eliminates the "who owns this method?" question.</strong> When <code>combine(character, numeric)</code> doesn't naturally belong to <code>character</code> <em>or</em> <code>numeric</code>, single-dispatch languages force you to pick one arbitrarily. Multi-dispatch lets the operation live independently, with its behaviour registered per type pair.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Multiple dispatch selects methods based on argument combinations, not just the first argument.</strong> This means convert(Metric, Imperial) and convert(Imperial, Metric) can run entirely different code — a capability S3 simply doesn't have.</div></div>
 
-<h2>How Does S4 Choose Among Multiple Matches?</h2>
+<p><img src="screenshots/S4-Methods-in-R-s3-vs-s4.webp" alt="S3 dispatches on one argument; S4 dispatches on the combination of two." class="img-responsive" loading="lazy" /></p>
 
-<p>When several registered methods could match — because of inheritance — S4 picks the <strong>most specific</strong> one. Specificity is determined by class hierarchy: a subclass is more specific than its parent.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">setClass(&quot;Animal&quot;, representation(name = &quot;character&quot;))
-setClass(&quot;Dog&quot;, contains = &quot;Animal&quot;)
-setClass(&quot;Cat&quot;, contains = &quot;Animal&quot;)
-
-setGeneric(&quot;interact&quot;, function(a, b) standardGeneric(&quot;interact&quot;))
-
-# General case
-setMethod(&quot;interact&quot;, signature(&quot;Animal&quot;, &quot;Animal&quot;),
-  function(a, b) cat(a@name, &quot;and&quot;, b@name, &quot;meet.\n&quot;))
-
-# Specific case
-setMethod(&quot;interact&quot;, signature(&quot;Dog&quot;, &quot;Cat&quot;),
-  function(a, b) cat(a@name, &quot;chases&quot;, b@name, &quot;!\n&quot;))
-
-rex  &lt;- new(&quot;Dog&quot;, name = &quot;Rex&quot;)
-whis &lt;- new(&quot;Cat&quot;, name = &quot;Whiskers&quot;)
-
-interact(rex, whis)
-#&gt; Rex chases Whiskers !
-
-# No Dog-Dog method → falls back to (Animal, Animal)
-rex2 &lt;- new(&quot;Dog&quot;, name = &quot;Buddy&quot;)
-interact(rex, rex2)
-#&gt; Rex and Buddy meet.</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The dispatcher found <code>(Dog, Cat)</code> for the first call — the most specific match. For the second call, no <code>(Dog, Dog)</code> method exists, so it walked up the inheritance tree and used <code>(Animal, Animal)</code>. S4 handles the walk automatically using a "best-match" algorithm over the hierarchy.</p>
-
-<h2>How Do You Inspect Which Method Will Be Called?</h2>
-
-<p>Use <code>selectMethod()</code> to ask S4 "if I called this generic with these classes, which method would fire?". It returns the method function without calling it.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">selectMethod(&quot;interact&quot;, signature(&quot;Dog&quot;, &quot;Cat&quot;))
-#&gt; Method Definition:
-#&gt; 
-#&gt; function (a, b) 
-#&gt; cat(a@name, &quot;chases&quot;, b@name, &quot;!\n&quot;)
-#&gt; 
-#&gt; Signatures:
-#&gt;         a     b    
-#&gt; target  &quot;Dog&quot; &quot;Cat&quot;
-#&gt; defined &quot;Dog&quot; &quot;Cat&quot;</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Useful for debugging mysterious dispatches. <code>showMethods(&quot;interact&quot;)</code> lists every registered method for the generic, which is a sanity check when you are wondering "did my registration actually land?".</p>
+<p><em>Figure 2: S3 dispatches on one argument; S4 dispatches on the combination of two.</em></p>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Add a <code>(Cat, Dog)</code> method that prints the reverse message and test it on <code>interact(whiskers, rex)</code>.</p>
+<p><strong>Try it:</strong> Add a third method for the signature <code>c(&quot;Metric&quot;, &quot;Metric&quot;)</code> that returns <code>&quot;Already in metric — no conversion needed!&quot;</code>. Test it by calling <code>convert(m1, m1)</code>.</p>
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># your code here</div>
+    <div class="webr-editor" data-language="r"># Try it: add a Metric-to-Metric method
+# setMethod(&quot;convert&quot;, c(from = &quot;???&quot;, to = &quot;???&quot;), function(from, to) {
+#   # your code here
+# })
+
+# Test:
+# convert(m1, m1)
+#&gt; Expected: &quot;Already in metric — no conversion needed!&quot;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -176,20 +113,11 @@ interact(rex, rex2)
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">setClass(&quot;Animal&quot;, representation(name = &quot;character&quot;))
-setClass(&quot;Dog&quot;, contains = &quot;Animal&quot;)
-setClass(&quot;Cat&quot;, contains = &quot;Animal&quot;)
-
-setGeneric(&quot;interact&quot;, function(a, b) standardGeneric(&quot;interact&quot;))
-
-setMethod(&quot;interact&quot;, signature(&quot;Cat&quot;, &quot;Dog&quot;),
-  function(a, b) cat(a@name, &quot;hisses at&quot;, b@name, &quot;!\n&quot;))
-
-whis &lt;- new(&quot;Cat&quot;, name = &quot;Whiskers&quot;)
-rex  &lt;- new(&quot;Dog&quot;, name = &quot;Rex&quot;)
-
-interact(whis, rex)
-#&gt; Whiskers hisses at Rex !</div>
+    <div class="webr-editor" data-language="r">setMethod(&quot;convert&quot;, c(from = &quot;Metric&quot;, to = &quot;Metric&quot;), function(from, to) {
+  &quot;Already in metric — no conversion needed!&quot;
+})
+convert(m1, m1)
+#&gt; [1] &quot;Already in metric — no conversion needed!&quot;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -199,37 +127,40 @@ interact(whis, rex)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The <code>(Cat, Dog)</code> signature is distinct from <code>(Dog, Cat)</code> — argument order matters. S4 dispatches on the tuple exactly.</p>
+<p><strong>Explanation:</strong> The signature <code>c(&quot;Metric&quot;, &quot;Metric&quot;)</code> matches when both arguments are Metric objects. R checks both classes and routes to this specific method.</p>
 
 </details>
 </section>
 
-<h2>When Should You Avoid Multiple Dispatch?</h2>
+<h2>How do you define a generic that dispatches on two arguments?</h2>
 
-<p>Multiple dispatch is powerful, but the combinatorial explosion is real. If you have 10 classes and need every pair to interact, that is 100 methods — a lot to write, test, and maintain. Two strategies keep it manageable:</p>
-
-<ol>
-
-<li><strong>Use an <code>&quot;ANY&quot;</code> catch-all.</strong> The special class <code>&quot;ANY&quot;</code> matches anything. Register a fallback <code>signature(&quot;MyClass&quot;, &quot;ANY&quot;)</code> method that handles unknown second arguments. S4 only walks to it when no specific match exists.</li>
-
-</ol>
-
-<ol>
-
-<li><strong>Lean on inheritance.</strong> Register methods at the highest common ancestor. <code>signature(&quot;Animal&quot;, &quot;Animal&quot;)</code> covers every <code>Dog</code>/<code>Cat</code>/<code>Hamster</code> pair in one method; you only add specific overrides where the behaviour differs.</li>
-
-</ol>
+<p>The key is the <code>signature</code> parameter in <code>setGeneric()</code>. It tells R which arguments participate in method dispatch. Arguments not listed in the signature are passed through to every method but never influence which method is chosen.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Catch-all for &quot;interact Animal with anything&quot;
-setMethod(&quot;interact&quot;, signature(&quot;Animal&quot;, &quot;ANY&quot;),
-  function(a, b) cat(a@name, &quot;ignores&quot;, as.character(class(b)), &quot;\n&quot;))
+    <div class="webr-editor" data-language="r"># Create a generic that dispatches on x and y, but NOT on verbose
+setGeneric(&quot;interact&quot;, function(x, y, verbose = FALSE) {
+  standardGeneric(&quot;interact&quot;)
+}, signature = c(&quot;x&quot;, &quot;y&quot;))
 
-interact(new(&quot;Dog&quot;, name = &quot;Rex&quot;), 42)
-#&gt; Rex ignores numeric</div>
+# Define a simple class pair to test
+setClass(&quot;Cat&quot;, slots = c(name = &quot;character&quot;))
+setClass(&quot;Dog&quot;, slots = c(name = &quot;character&quot;))
+
+# Method for Cat + Dog interaction
+setMethod(&quot;interact&quot;, c(x = &quot;Cat&quot;, y = &quot;Dog&quot;), function(x, y, verbose = FALSE) {
+  msg &lt;- paste(x@name, &quot;hisses at&quot;, y@name)
+  if (verbose) paste(msg, &quot;(Cat is not happy)&quot;)
+  else msg
+})
+
+interact(new(&quot;Cat&quot;, name = &quot;Whiskers&quot;), new(&quot;Dog&quot;, name = &quot;Rex&quot;))
+#&gt; [1] &quot;Whiskers hisses at Rex&quot;
+
+interact(new(&quot;Cat&quot;, name = &quot;Whiskers&quot;), new(&quot;Dog&quot;, name = &quot;Rex&quot;), verbose = TRUE)
+#&gt; [1] &quot;Whiskers hisses at Rex (Cat is not happy)&quot;</div>
 
     <div class="webr-buttons">
 
@@ -247,35 +178,21 @@ interact(new(&quot;Dog&quot;, name = &quot;Rex&quot;), 42)
 
 </div>
 
-<p>The <code>&quot;ANY&quot;</code> class is S4's "default" equivalent — anything that does not match a more specific signature lands here. For more patterns, see <a href="S4-Classes-in-R.html">S4 Classes in R</a>.</p>
+<p>Both calls route to the same method because <code>verbose</code> isn't in the signature — it doesn't affect dispatch. Only the classes of <code>x</code> and <code>y</code> matter.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start with single-argument dispatch.</strong> Most S4 code you will write needs only <code>signature(&quot;MyClass&quot;)</code>, which is identical in spirit to S3. Reach for multi-argument signatures only when the problem genuinely spans two types.</div></div>
-
-<h2>How Does <code>callNextMethod()</code> Work?</h2>
-
-<p>Inside an S4 method, <code>callNextMethod()</code> continues the dispatch walk to the next-most-specific method — the S4 analogue of S3's <code>NextMethod()</code>. Useful for layering behaviour across inheritance levels.</p>
+<p>If you omit the <code>signature</code> argument entirely, R defaults to dispatching on all formal arguments except <code>...</code>. That's usually fine for two-argument generics, but it can cause surprises when you have extra parameters you don't want in the dispatch.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">setClass(&quot;Animal&quot;, representation(name = &quot;character&quot;))
-setClass(&quot;Dog&quot;, contains = &quot;Animal&quot;)
-
-setGeneric(&quot;describe&quot;, function(x) standardGeneric(&quot;describe&quot;))
-
-setMethod(&quot;describe&quot;, &quot;Animal&quot;, function(x) {
-  cat(&quot;Animal named&quot;, x@name, &quot;\n&quot;)
+    <div class="webr-editor" data-language="r"># Without explicit signature: ALL args (except ...) participate in dispatch
+setGeneric(&quot;demo_dispatch&quot;, function(a, b, mode = &quot;fast&quot;) {
+  standardGeneric(&quot;demo_dispatch&quot;)
 })
 
-setMethod(&quot;describe&quot;, &quot;Dog&quot;, function(x) {
-  callNextMethod()                     # run the Animal method first
-  cat(&quot;  (it's a dog)\n&quot;)
-})
-
-describe(new(&quot;Dog&quot;, name = &quot;Rex&quot;))
-#&gt; Animal named Rex 
-#&gt;   (it's a dog)</div>
+# Now 'mode' is part of the dispatch! You'd need to match its class too.
+# This is rarely what you want — explicit signatures are safer.</div>
 
     <div class="webr-buttons">
 
@@ -293,19 +210,820 @@ describe(new(&quot;Dog&quot;, name = &quot;Rex&quot;))
 
 </div>
 
-<p><code>callNextMethod()</code> inside <code>describe, Dog</code> ran <code>describe, Animal</code> first, then the <code>Dog</code>-specific line. No arguments needed — S4 remembers the dispatch context.</p>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Keep signatures to two arguments maximum.</strong> Each dispatched argument multiplies the number of methods you need. Two classes across two arguments means 4 methods; three arguments with two classes each means 8. Combinatorial explosion gets painful fast.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Define a generic called <code>merge_data()</code> with arguments <code>source</code>, <code>target</code>, and <code>method = &quot;inner&quot;</code>. Make it dispatch on <code>source</code> and <code>target</code> only — not on <code>method</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: define merge_data with a two-arg signature
+# setGeneric(&quot;merge_data&quot;, function(source, target, method = &quot;inner&quot;) {
+#   # your code here
+# }, signature = ???)
+
+# Verify the signature:
+# merge_data
+#&gt; Expected: standardGeneric with signature c(&quot;source&quot;, &quot;target&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">setGeneric(&quot;merge_data&quot;, function(source, target, method = &quot;inner&quot;) {
+  standardGeneric(&quot;merge_data&quot;)
+}, signature = c(&quot;source&quot;, &quot;target&quot;))
+
+merge_data
+#&gt; standardGeneric for &quot;merge_data&quot; defined from package &quot;.GlobalEnv&quot;
+#&gt; with signature c(&quot;source&quot;, &quot;target&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>signature = c(&quot;source&quot;, &quot;target&quot;)</code> tells R to use only those two arguments for dispatch. The <code>method</code> parameter passes through to all methods but never affects which method is called.</p>
+
+</details>
+</section>
+
+<h2>How do you write methods for specific argument combinations?</h2>
+
+<p>Once your generic has a two-argument signature, you register methods by specifying the class name for each position. Think of it as filling in cells of a grid — each cell is a unique class combination.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Two simple classes
+setClass(&quot;TextData&quot;, slots = c(content = &quot;character&quot;))
+setClass(&quot;NumericData&quot;, slots = c(values = &quot;numeric&quot;))
+
+# Generic dispatching on both
+setGeneric(&quot;combine&quot;, function(x, y) standardGeneric(&quot;combine&quot;),
+           signature = c(&quot;x&quot;, &quot;y&quot;))
+
+# Fill in the 2x2 grid: 4 methods for all combinations
+setMethod(&quot;combine&quot;, c(&quot;TextData&quot;, &quot;TextData&quot;), function(x, y) {
+  new(&quot;TextData&quot;, content = paste(x@content, y@content))
+})
+setMethod(&quot;combine&quot;, c(&quot;TextData&quot;, &quot;NumericData&quot;), function(x, y) {
+  new(&quot;TextData&quot;, content = paste(x@content, &quot;=&quot;, sum(y@values)))
+})
+setMethod(&quot;combine&quot;, c(&quot;NumericData&quot;, &quot;TextData&quot;), function(x, y) {
+  new(&quot;TextData&quot;, content = paste(sum(x@values), y@content))
+})
+setMethod(&quot;combine&quot;, c(&quot;NumericData&quot;, &quot;NumericData&quot;), function(x, y) {
+  new(&quot;NumericData&quot;, values = c(x@values, y@values))
+})
+
+# Test each combination
+t1 &lt;- new(&quot;TextData&quot;, content = &quot;hello&quot;)
+t2 &lt;- new(&quot;TextData&quot;, content = &quot;world&quot;)
+n1 &lt;- new(&quot;NumericData&quot;, values = c(1, 2, 3))
+n2 &lt;- new(&quot;NumericData&quot;, values = c(4, 5))
+
+combine(t1, t2)@content
+#&gt; [1] &quot;hello world&quot;
+
+combine(t1, n1)@content
+#&gt; [1] &quot;hello = 6&quot;
+
+combine(n1, t2)@content
+#&gt; [1] &quot;6 world&quot;
+
+combine(n1, n2)@values
+#&gt; [1] 1 2 3 4 5</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Each combination runs a completely different method body. The order matters — <code>combine(TextData, NumericData)</code> is a different cell from <code>combine(NumericData, TextData)</code>.</p>
+
+<p>You don't always need to fill every cell. The <code>&quot;ANY&quot;</code> pseudo-class acts as a wildcard — it matches any class in that argument position.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A fallback for ANY + TextData
+setMethod(&quot;combine&quot;, c(&quot;ANY&quot;, &quot;TextData&quot;), function(x, y) {
+  paste(&quot;Unknown type combined with text:&quot;, y@content)
+})
+
+# Test with something unexpected
+combine(42, t1)
+#&gt; [1] &quot;Unknown type combined with text: hello&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The <code>&quot;missing&quot;</code> pseudo-class handles cases where an argument isn't supplied at all.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Handle missing second argument
+setMethod(&quot;combine&quot;, c(&quot;TextData&quot;, &quot;missing&quot;), function(x, y) {
+  paste(x@content, &quot;(standalone)&quot;)
+})
+
+combine(t1)
+#&gt; [1] &quot;hello (standalone)&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Method signatures are order-sensitive.</strong> The signature c("TextData", "NumericData") is a completely different method from c("NumericData", "TextData"). Swapping the argument order won't automatically find the reverse method — you must define both if you need both directions.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a method for <code>combine()</code> with signature <code>c(&quot;NumericData&quot;, &quot;missing&quot;)</code> that returns a NumericData object with doubled values. Test it with <code>combine(n1)</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: handle combine(NumericData) with no second argument
+# setMethod(&quot;combine&quot;, c(&quot;NumericData&quot;, &quot;missing&quot;), function(x, y) {
+#   # your code here
+# })
+
+# Test:
+# combine(n1)@values
+#&gt; Expected: 2 4 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">setMethod(&quot;combine&quot;, c(&quot;NumericData&quot;, &quot;missing&quot;), function(x, y) {
+  new(&quot;NumericData&quot;, values = x@values * 2)
+})
+combine(n1)@values
+#&gt; [1] 2 4 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>&quot;missing&quot;</code> class matches when the second argument is absent. Inside the method, <code>y</code> isn't used — the method operates only on <code>x</code>.</p>
+
+</details>
+</section>
+
+<h2>What happens when no exact method matches?</h2>
+
+<p>When R can't find a method that exactly matches both argument classes, it doesn't give up immediately. Instead, it climbs the inheritance tree for each argument, looking for the closest inherited method. The method requiring the fewest total inheritance steps wins.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A class hierarchy: Shape is the parent, Circle and Square are children
+setClass(&quot;Shape&quot;, slots = c(color = &quot;character&quot;))
+setClass(&quot;Circle&quot;, contains = &quot;Shape&quot;, slots = c(radius = &quot;numeric&quot;))
+setClass(&quot;Square&quot;, contains = &quot;Shape&quot;, slots = c(side = &quot;numeric&quot;))
+
+# Generic for checking overlap
+setGeneric(&quot;overlap&quot;, function(a, b) standardGeneric(&quot;overlap&quot;),
+           signature = c(&quot;a&quot;, &quot;b&quot;))
+
+# Only define a method for the parent combination
+setMethod(&quot;overlap&quot;, c(&quot;Shape&quot;, &quot;Shape&quot;), function(a, b) {
+  &quot;Generic shape overlap check&quot;
+})
+
+# Test with child classes
+c1 &lt;- new(&quot;Circle&quot;, color = &quot;red&quot;, radius = 5)
+s1 &lt;- new(&quot;Square&quot;, color = &quot;blue&quot;, side = 4)
+
+overlap(c1, s1)
+#&gt; [1] &quot;Generic shape overlap check&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>No method exists for <code>(Circle, Square)</code>. R walks up: Circle inherits from Shape, Square inherits from Shape. The method <code>(Shape, Shape)</code> matches after one step per argument — two total steps. That's the closest match, so R uses it.</p>
+
+<p>Now let's add a more specific method and see how dispatch changes.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Add a specialized method for Circle + any Shape
+setMethod(&quot;overlap&quot;, c(&quot;Circle&quot;, &quot;Shape&quot;), function(a, b) {
+  paste(&quot;Circle (r =&quot;, a@radius, &quot;) overlaps with a shape&quot;)
+})
+
+# Same call, different result!
+overlap(c1, s1)
+#&gt; [1] &quot;Circle (r = 5 ) overlaps with a shape&quot;
+
+# Circle + Shape: 0 steps for first arg, 1 step for second = 1 total
+# Shape + Shape: 1 step for first arg, 1 step for second = 2 total
+# R picks the closer match: (Circle, Shape)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>R always picks the method requiring the fewest total inheritance steps. In this case, <code>(Circle, Shape)</code> is closer than <code>(Shape, Shape)</code> because the first argument matches exactly (0 steps) while only the second needs one step.</p>
+
+<p><img src="screenshots/S4-Methods-in-R-dispatch-flow.webp" alt="How S4 selects a method based on two argument classes." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: How S4 selects a method based on two argument classes.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>R picks the method requiring the fewest total inheritance steps across all arguments.</strong> An exact match on one argument plus one inheritance step on the other (1 total) beats one step on each argument (2 total). Think of it like "total distance" — closer is better.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Without running the code, predict which method <code>overlap(s1, c1)</code> will call — <code>(Shape, Shape)</code> or <code>(Circle, Shape)</code>? Then verify your prediction.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: predict which method handles overlap(Square, Circle)
+# Think about inheritance steps before running!
+
+# overlap(s1, c1)
+#&gt; Expected: ???</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">overlap(s1, c1)
+#&gt; [1] &quot;Generic shape overlap check&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>s1</code> is a Square (child of Shape), and <code>c1</code> is a Circle (child of Shape). The <code>(Circle, Shape)</code> method needs the first arg to be a Circle, but <code>s1</code> is a Square — no match even via inheritance. So R falls back to <code>(Shape, Shape)</code> which matches after 1 step per argument. Argument order matters in dispatch!</p>
+
+</details>
+</section>
+
+<h2>How do you inspect and debug S4 dispatch?</h2>
+
+<p>S4 provides several introspection functions that tell you exactly what's happening under the hood. These are essential when your dispatch isn't behaving as expected.</p>
+
+<p><code>showMethods()</code> lists all registered methods for a generic.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">showMethods(&quot;overlap&quot;)
+#&gt; Function: overlap
+#&gt; Signature:
+#&gt;   a        b
+#&gt;   target   &quot;Shape&quot;
+#&gt;   &quot;Circle&quot; &quot;Shape&quot;
+#&gt;   &quot;Shape&quot;  &quot;Shape&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>selectMethod()</code> is the most useful debugging tool — it reveals exactly which method R would call for a given class combination, including inherited methods.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># What method handles Circle + Square?
+selectMethod(&quot;overlap&quot;, c(&quot;Circle&quot;, &quot;Square&quot;))
+#&gt; Method Definition (Class &quot;derivedDefaultMethod&quot;):
+#&gt; function (a, b)
+#&gt; paste(&quot;Circle (r =&quot;, a@radius, &quot;) overlaps with a shape&quot;)
+#&gt;
+#&gt; Signatures:
+#&gt;         a        b
+#&gt; target  &quot;Circle&quot; &quot;Shape&quot;
+#&gt; defined &quot;Circle&quot; &quot;Shape&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>This tells you the <code>(Circle, Shape)</code> method handles the <code>(Circle, Square)</code> call — even though no <code>(Circle, Square)</code> method was directly defined.</p>
+
+<p><code>existsMethod()</code> and <code>hasMethod()</code> check whether a method exists. The difference: <code>existsMethod()</code> checks for directly defined methods only, while <code>hasMethod()</code> includes inherited methods.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Is there a DIRECT method for (Circle, Square)?
+existsMethod(&quot;overlap&quot;, c(&quot;Circle&quot;, &quot;Square&quot;))
+#&gt; [1] FALSE
+
+# Is there an INHERITED method for (Circle, Square)?
+hasMethod(&quot;overlap&quot;, c(&quot;Circle&quot;, &quot;Square&quot;))
+#&gt; [1] TRUE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>findMethod()</code> locates where a directly defined method lives in the search path.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">findMethod(&quot;overlap&quot;, c(&quot;Shape&quot;, &quot;Shape&quot;))
+#&gt; [[1]]
+#&gt; [1] &quot;.GlobalEnv&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use selectMethod() as your go-to debugging tool.</strong> It shows the method R will actually call — including inherited methods — rather than just directly defined ones. When dispatch behaves unexpectedly, selectMethod() is your first stop.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>showMethods()</code> to list all methods for the <code>convert</code> generic you defined in the first section.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: inspect the convert generic
+# showMethods(&quot;convert&quot;)
+#&gt; Expected: shows methods for Metric/Imperial combinations</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">showMethods(&quot;convert&quot;)
+#&gt; Function: convert
+#&gt; Signature:
+#&gt;   from       to
+#&gt;   &quot;Imperial&quot; &quot;Metric&quot;
+#&gt;   &quot;Metric&quot;   &quot;Imperial&quot;
+#&gt;   &quot;Metric&quot;   &quot;Metric&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>showMethods()</code> lists every directly registered method. You can see all three methods from Section 1, including the Metric-to-Metric method from the exercise.</p>
+
+</details>
+</section>
+
+<h2>When should you use multiple dispatch in practice?</h2>
+
+<p>Multiple dispatch shines whenever the <em>correct behavior</em> depends on the <em>combination</em> of input types, not just one of them. Three patterns come up repeatedly.</p>
+
+<p><strong>Pattern 1: Arithmetic on custom types.</strong> When you overload <code>+</code>, <code>-</code>, or other operators, the result depends on what's on both sides of the operator.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A simple Money class
+setClass(&quot;Money&quot;, slots = c(amount = &quot;numeric&quot;, currency = &quot;character&quot;))
+
+# Overload + for Money + Money (same currency)
+setMethod(&quot;+&quot;, c(&quot;Money&quot;, &quot;Money&quot;), function(e1, e2) {
+  if (e1@currency != e2@currency) stop(&quot;Cannot add different currencies&quot;)
+  new(&quot;Money&quot;, amount = e1@amount + e2@amount, currency = e1@currency)
+})
+
+# Overload + for Money + numeric (scaling)
+setMethod(&quot;+&quot;, c(&quot;Money&quot;, &quot;numeric&quot;), function(e1, e2) {
+  new(&quot;Money&quot;, amount = e1@amount + e2, currency = e1@currency)
+})
+
+wallet &lt;- new(&quot;Money&quot;, amount = 50, currency = &quot;USD&quot;)
+tip &lt;- new(&quot;Money&quot;, amount = 10, currency = &quot;USD&quot;)
+
+(wallet + tip)@amount
+#&gt; [1] 60
+
+(wallet + 5)@amount
+#&gt; [1] 55</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The <code>+</code> operator dispatches on <em>both</em> <code>e1</code> and <code>e2</code>. Adding Money to Money checks currencies and sums amounts. Adding Money to a plain number just adds the value. Without multiple dispatch, you'd need clunky if-else chains inside a single method.</p>
+
+<p><strong>Pattern 2: Data structure interactions.</strong> In Bioconductor, S4 classes like GRanges, DataFrame, and RleList interact through generics such as <code>combine()</code>, <code>merge()</code>, and <code>findOverlaps()</code>. The behavior varies by the combination of inputs.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Simplified Bioconductor-style example
+setClass(&quot;GeneList&quot;, slots = c(genes = &quot;character&quot;, organism = &quot;character&quot;))
+
+setGeneric(&quot;merge_bio&quot;, function(x, y) standardGeneric(&quot;merge_bio&quot;),
+           signature = c(&quot;x&quot;, &quot;y&quot;))
+
+# GeneList + GeneList: union of genes
+setMethod(&quot;merge_bio&quot;, c(&quot;GeneList&quot;, &quot;GeneList&quot;), function(x, y) {
+  new(&quot;GeneList&quot;,
+      genes = unique(c(x@genes, y@genes)),
+      organism = x@organism)
+})
+
+# GeneList + character: filter genes
+setMethod(&quot;merge_bio&quot;, c(&quot;GeneList&quot;, &quot;character&quot;), function(x, y) {
+  new(&quot;GeneList&quot;,
+      genes = intersect(x@genes, y),
+      organism = x@organism)
+})
+
+human_genes &lt;- new(&quot;GeneList&quot;, genes = c(&quot;TP53&quot;, &quot;BRCA1&quot;, &quot;EGFR&quot;), organism = &quot;human&quot;)
+more_genes &lt;- new(&quot;GeneList&quot;, genes = c(&quot;BRCA1&quot;, &quot;MYC&quot;, &quot;KRAS&quot;), organism = &quot;human&quot;)
+
+merge_bio(human_genes, more_genes)@genes
+#&gt; [1] &quot;TP53&quot;  &quot;BRCA1&quot; &quot;EGFR&quot;  &quot;MYC&quot;   &quot;KRAS&quot;
+
+merge_bio(human_genes, c(&quot;TP53&quot;, &quot;MYC&quot;))@genes
+#&gt; [1] &quot;TP53&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The same generic handles two completely different operations based on whether the second argument is another GeneList or a plain character vector.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Bioconductor uses S4 extensively.</strong> Over half of Bioconductor packages rely on S4 classes and multiple dispatch. If you work in genomics, proteomics, or bioinformatics, mastering S4 dispatch is essential for using and extending packages like GenomicRanges, SummarizedExperiment, and IRanges.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a method for <code>+</code> with signature <code>c(&quot;numeric&quot;, &quot;Money&quot;)</code> to make addition commutative. Test that <code>5 + wallet</code> works the same as <code>wallet + 5</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: make numeric + Money work
+# setMethod(&quot;+&quot;, c(&quot;numeric&quot;, &quot;Money&quot;), function(e1, e2) {
+#   # your code here
+# })
+
+# Test:
+# (5 + wallet)@amount
+#&gt; Expected: 55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">setMethod(&quot;+&quot;, c(&quot;numeric&quot;, &quot;Money&quot;), function(e1, e2) {
+  new(&quot;Money&quot;, amount = e1 + e2@amount, currency = e2@currency)
+})
+(5 + wallet)@amount
+#&gt; [1] 55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Without this method, <code>5 + wallet</code> would fail because R has no method for (numeric, Money). You must explicitly handle both argument orders — multiple dispatch doesn't assume commutativity.</p>
+
+</details>
+</section>
+
+<h2>How does dispatch resolution handle ambiguity?</h2>
+
+<p>Ambiguity arises when two methods are equally "close" to the target classes — they require the same number of total inheritance steps. R selects one but raises a warning, because the choice is arbitrary.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Two parent classes
+setClass(&quot;Printable&quot;, slots = c(label = &quot;character&quot;))
+setClass(&quot;Saveable&quot;, slots = c(path = &quot;character&quot;))
+
+# A child inheriting from both (multiple inheritance)
+setClass(&quot;Document&quot;, contains = c(&quot;Printable&quot;, &quot;Saveable&quot;))
+
+setGeneric(&quot;process&quot;, function(x, y) standardGeneric(&quot;process&quot;),
+           signature = c(&quot;x&quot;, &quot;y&quot;))
+
+# Method for (Printable, Saveable): 1 step for x, 1 step for y = 2 total
+setMethod(&quot;process&quot;, c(&quot;Printable&quot;, &quot;Saveable&quot;), function(x, y) {
+  &quot;Route A: print then save&quot;
+})
+
+# Method for (Saveable, Printable): also 1+1 = 2 total
+setMethod(&quot;process&quot;, c(&quot;Saveable&quot;, &quot;Printable&quot;), function(x, y) {
+  &quot;Route B: save then print&quot;
+})
+
+doc1 &lt;- new(&quot;Document&quot;, label = &quot;Report&quot;, path = &quot;/tmp/report&quot;)
+doc2 &lt;- new(&quot;Document&quot;, label = &quot;Invoice&quot;, path = &quot;/tmp/invoice&quot;)
+
+# This triggers an ambiguity warning!
+process(doc1, doc2)
+#&gt; Note: method with signature 'Printable#Saveable' chosen for
+#&gt;   function 'process', target signature 'Document#Document'.
+#&gt;  &quot;Saveable#Printable&quot; would also be valid
+#&gt; [1] &quot;Route A: print then save&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>R picks one (alphabetical order of class names breaks ties), but the warning tells you this is fragile. The fix is simple: define an explicit method for the ambiguous combination.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Resolve: add explicit method for (Document, Document)
+setMethod(&quot;process&quot;, c(&quot;Document&quot;, &quot;Document&quot;), function(x, y) {
+  &quot;Route C: document-specific processing&quot;
+})
+
+# No more warning
+process(doc1, doc2)
+#&gt; [1] &quot;Route C: document-specific processing&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Now R has an exact match at 0 total steps — no ambiguity. Whenever you see an ambiguity warning during development, add the explicit method immediately rather than hoping the arbitrary choice is correct.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Ambiguity warnings are silent bugs waiting to happen.</strong> R picks a method but the choice is arbitrary. If the "wrong" method runs, you'll get incorrect results with no error. Always resolve ambiguities by defining an explicit method for the conflicting signature.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>selectMethod()</code> to confirm that <code>process(doc1, doc2)</code> now resolves to the <code>(Document, Document)</code> method without any ambiguity.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: verify the resolved dispatch
+# selectMethod(&quot;process&quot;, c(&quot;Document&quot;, &quot;Document&quot;))
+#&gt; Expected: shows the Document#Document method</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">selectMethod(&quot;process&quot;, c(&quot;Document&quot;, &quot;Document&quot;))
+#&gt; Method Definition (Class &quot;derivedDefaultMethod&quot;):
+#&gt; function (x, y)
+#&gt; &quot;Route C: document-specific processing&quot;
+#&gt;
+#&gt; Signatures:
+#&gt;         x          y
+#&gt; target  &quot;Document&quot; &quot;Document&quot;
+#&gt; defined &quot;Document&quot; &quot;Document&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The target and defined signatures match perfectly — (Document, Document). No inheritance climbing needed, no ambiguity.</p>
+
+</details>
+</section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Shape Intersection</h4>
+<h4>Exercise 1: Build a format dispatcher</h4>
 
-<p>Define S4 classes <code>Circle</code> and <code>Rectangle</code> (just numeric slots for size). Write a generic <code>intersects(a, b)</code> with three methods: <code>(Circle, Circle)</code>, <code>(Rectangle, Rectangle)</code>, and <code>(Circle, Rectangle)</code>. Each can print a made-up result — the point is registering the methods.</p>
+<p>Create a multiple-dispatch system for formatting data. Define two classes: <code>MatrixData</code> (with a slot <code>mat</code> of type "matrix") and <code>DataFrameData</code> (with a slot <code>df</code> of type "data.frame"). Define a generic <code>format_output()</code> dispatching on <code>(data, style)</code> where <code>style</code> is one of two classes: <code>CSVStyle</code> (with a slot <code>delimiter</code>) and <code>JSONStyle</code> (with a slot <code>pretty</code> of type "logical"). Write 4 methods that return a descriptive string of the format being used. Test all 4 combinations.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># your code here</div>
+    <div class="webr-editor" data-language="r"># Exercise 1: format_output() dispatcher
+# Hint: define 4 classes, 1 generic, and 4 methods
+
+# Write your code below:
+</div>
 
     <div class="webr-buttons">
 
@@ -328,22 +1046,40 @@ describe(new(&quot;Dog&quot;, name = &quot;Rex&quot;))
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">setClass(&quot;Circle&quot;,    representation(radius = &quot;numeric&quot;))
-setClass(&quot;Rectangle&quot;, representation(width = &quot;numeric&quot;, height = &quot;numeric&quot;))
+    <div class="webr-editor" data-language="r">setClass(&quot;MatrixData&quot;, slots = c(mat = &quot;matrix&quot;))
+setClass(&quot;DataFrameData&quot;, slots = c(df = &quot;data.frame&quot;))
+setClass(&quot;CSVStyle&quot;, slots = c(delimiter = &quot;character&quot;))
+setClass(&quot;JSONStyle&quot;, slots = c(pretty = &quot;logical&quot;))
 
-setGeneric(&quot;intersects&quot;, function(a, b) standardGeneric(&quot;intersects&quot;))
+setGeneric(&quot;format_output&quot;, function(data, style) standardGeneric(&quot;format_output&quot;),
+           signature = c(&quot;data&quot;, &quot;style&quot;))
 
-setMethod(&quot;intersects&quot;, signature(&quot;Circle&quot;, &quot;Circle&quot;),
-  function(a, b) cat(&quot;Circle-Circle\n&quot;))
+setMethod(&quot;format_output&quot;, c(&quot;MatrixData&quot;, &quot;CSVStyle&quot;), function(data, style) {
+  paste(&quot;Matrix -&gt;&quot;, paste0(&quot;CSV (delim='&quot;, style@delimiter, &quot;')&quot;))
+})
+setMethod(&quot;format_output&quot;, c(&quot;MatrixData&quot;, &quot;JSONStyle&quot;), function(data, style) {
+  paste(&quot;Matrix -&gt; JSON (pretty =&quot;, style@pretty, &quot;)&quot;)
+})
+setMethod(&quot;format_output&quot;, c(&quot;DataFrameData&quot;, &quot;CSVStyle&quot;), function(data, style) {
+  paste(&quot;DataFrame -&gt;&quot;, paste0(&quot;CSV (delim='&quot;, style@delimiter, &quot;')&quot;))
+})
+setMethod(&quot;format_output&quot;, c(&quot;DataFrameData&quot;, &quot;JSONStyle&quot;), function(data, style) {
+  paste(&quot;DataFrame -&gt; JSON (pretty =&quot;, style@pretty, &quot;)&quot;)
+})
 
-setMethod(&quot;intersects&quot;, signature(&quot;Rectangle&quot;, &quot;Rectangle&quot;),
-  function(a, b) cat(&quot;Rect-Rect\n&quot;))
+md &lt;- new(&quot;MatrixData&quot;, mat = matrix(1:4, 2))
+dfd &lt;- new(&quot;DataFrameData&quot;, df = data.frame(x = 1:3))
+csv &lt;- new(&quot;CSVStyle&quot;, delimiter = &quot;,&quot;)
+json &lt;- new(&quot;JSONStyle&quot;, pretty = TRUE)
 
-setMethod(&quot;intersects&quot;, signature(&quot;Circle&quot;, &quot;Rectangle&quot;),
-  function(a, b) cat(&quot;Circle-Rect\n&quot;))
-
-intersects(new(&quot;Circle&quot;, radius = 1), new(&quot;Rectangle&quot;, width = 2, height = 3))
-#&gt; Circle-Rect</div>
+format_output(md, csv)
+#&gt; [1] &quot;Matrix -&gt; CSV (delim=',')&quot;
+format_output(md, json)
+#&gt; [1] &quot;Matrix -&gt; JSON (pretty = TRUE)&quot;
+format_output(dfd, csv)
+#&gt; [1] &quot;DataFrame -&gt; CSV (delim=',')&quot;
+format_output(dfd, json)
+#&gt; [1] &quot;DataFrame -&gt; JSON (pretty = TRUE)&quot;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -353,19 +1089,36 @@ intersects(new(&quot;Circle&quot;, radius = 1), new(&quot;Rectangle&quot;, width
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Three signatures, three methods. S4 picks the right one based on the tuple of argument classes.</p>
+<p><strong>Explanation:</strong> The 2x2 grid of data type x output style gives 4 distinct methods. Each combination can contain completely different formatting logic.</p>
 
 </details>
 
-<h4>Exercise 2: Layered <code>summary</code> With <code>callNextMethod</code></h4>
+<h4>Exercise 2: Vehicle towing system with inheritance</h4>
 
-<p>Build an <code>Animal</code> class with a <code>summary</code> method that prints the name. Subclass it as <code>Dog</code> with an extra <code>breed</code> slot and a <code>summary</code> method that uses <code>callNextMethod()</code> to reuse the parent logic and then prints the breed.</p>
+<p>Create a class hierarchy: <code>Vehicle</code> (parent, with slot <code>weight</code>), <code>Car</code> (child), and <code>Truck</code> (child with slot <code>tow_capacity</code>). Also create <code>Cargo</code> (parent, slot <code>weight</code>) and <code>HeavyCargo</code> (child). Define a generic <code>can_tow()</code> dispatching on <code>(vehicle, cargo)</code>. Write three methods:</p>
+
+<ol>
+
+<li><code>(Car, ANY)</code> returns <code>&quot;Cars cannot tow&quot;</code></li>
+
+<li><code>(Truck, Cargo)</code> returns <code>&quot;Truck can tow this cargo&quot;</code> if truck's tow_capacity exceeds cargo's weight</li>
+
+<li><code>(Truck, HeavyCargo)</code> always returns <code>&quot;Need a specialized heavy hauler&quot;</code></li>
+
+</ol>
+
+<p>Test with different combinations and verify dispatch using <code>selectMethod()</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># your code here</div>
+    <div class="webr-editor" data-language="r"># Exercise 2: vehicle towing with inheritance
+# Hint: HeavyCargo inherits from Cargo, so the (Truck, HeavyCargo) method
+# should be more specific than (Truck, Cargo)
+
+# Write your code below:
+</div>
 
     <div class="webr-buttons">
 
@@ -388,21 +1141,43 @@ intersects(new(&quot;Circle&quot;, radius = 1), new(&quot;Rectangle&quot;, width
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">setClass(&quot;Animal&quot;, representation(name = &quot;character&quot;))
-setClass(&quot;Dog&quot;, contains = &quot;Animal&quot;, representation(breed = &quot;character&quot;))
+    <div class="webr-editor" data-language="r">setClass(&quot;Vehicle&quot;, slots = c(weight = &quot;numeric&quot;))
+setClass(&quot;Car&quot;, contains = &quot;Vehicle&quot;)
+setClass(&quot;Truck&quot;, contains = &quot;Vehicle&quot;, slots = c(tow_capacity = &quot;numeric&quot;))
+setClass(&quot;Cargo&quot;, slots = c(weight = &quot;numeric&quot;))
+setClass(&quot;HeavyCargo&quot;, contains = &quot;Cargo&quot;)
 
-setMethod(&quot;summary&quot;, &quot;Animal&quot;, function(object, ...) {
-  cat(&quot;Name:&quot;, object@name, &quot;\n&quot;)
+setGeneric(&quot;can_tow&quot;, function(vehicle, cargo) standardGeneric(&quot;can_tow&quot;),
+           signature = c(&quot;vehicle&quot;, &quot;cargo&quot;))
+
+setMethod(&quot;can_tow&quot;, c(&quot;Car&quot;, &quot;ANY&quot;), function(vehicle, cargo) {
+  &quot;Cars cannot tow&quot;
+})
+setMethod(&quot;can_tow&quot;, c(&quot;Truck&quot;, &quot;Cargo&quot;), function(vehicle, cargo) {
+  if (vehicle@tow_capacity &gt; cargo@weight) &quot;Truck can tow this cargo&quot;
+  else &quot;Cargo exceeds tow capacity&quot;
+})
+setMethod(&quot;can_tow&quot;, c(&quot;Truck&quot;, &quot;HeavyCargo&quot;), function(vehicle, cargo) {
+  &quot;Need a specialized heavy hauler&quot;
 })
 
-setMethod(&quot;summary&quot;, &quot;Dog&quot;, function(object, ...) {
-  callNextMethod()
-  cat(&quot;Breed:&quot;, object@breed, &quot;\n&quot;)
-})
+my_car &lt;- new(&quot;Car&quot;, weight = 1500)
+my_truck &lt;- new(&quot;Truck&quot;, weight = 5000, tow_capacity = 3000)
+light &lt;- new(&quot;Cargo&quot;, weight = 500)
+heavy &lt;- new(&quot;HeavyCargo&quot;, weight = 10000)
 
-summary(new(&quot;Dog&quot;, name = &quot;Rex&quot;, breed = &quot;Lab&quot;))
-#&gt; Name: Rex 
-#&gt; Breed: Lab</div>
+can_tow(my_car, light)
+#&gt; [1] &quot;Cars cannot tow&quot;
+
+can_tow(my_truck, light)
+#&gt; [1] &quot;Truck can tow this cargo&quot;
+
+can_tow(my_truck, heavy)
+#&gt; [1] &quot;Need a specialized heavy hauler&quot;
+
+# Verify dispatch
+selectMethod(&quot;can_tow&quot;, c(&quot;Truck&quot;, &quot;HeavyCargo&quot;))
+#&gt; Shows the (Truck, HeavyCargo) method directly</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -412,9 +1187,203 @@ summary(new(&quot;Dog&quot;, name = &quot;Rex&quot;, breed = &quot;Lab&quot;))
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>callNextMethod()</code> continues the dispatch walk to <code>summary, Animal</code>, which runs first; then the <code>Dog</code> method's extra <code>cat</code> runs.</p>
+<p><strong>Explanation:</strong> HeavyCargo inherits from Cargo, so both (Truck, Cargo) and (Truck, HeavyCargo) could match. R picks (Truck, HeavyCargo) because it's an exact match (0 steps) versus (Truck, Cargo) which requires 1 inheritance step for the second argument.</p>
 
 </details>
+
+<h4>Exercise 3: Create and resolve an ambiguity</h4>
+
+<p>Intentionally create an ambiguous dispatch scenario:</p>
+
+<ol>
+
+<li>Define classes <code>Alpha</code> and <code>Beta</code>, and <code>AlphaBeta</code> that inherits from both</li>
+
+<li>Define a generic <code>resolve()</code> dispatching on <code>(x, y)</code></li>
+
+<li>Define methods for <code>(Alpha, Beta)</code> and <code>(Beta, Alpha)</code></li>
+
+<li>Call <code>resolve(ab, ab)</code> where <code>ab</code> is an AlphaBeta object — observe the warning</li>
+
+<li>Fix the ambiguity by adding a method for <code>(AlphaBeta, AlphaBeta)</code></li>
+
+<li>Use <code>showMethods()</code> and <code>selectMethod()</code> to verify the fix</li>
+
+</ol>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: ambiguity creation and resolution
+# Hint: AlphaBeta inherits from both Alpha and Beta,
+# so (Alpha, Beta) and (Beta, Alpha) are equidistant
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">setClass(&quot;Alpha&quot;, slots = c(a = &quot;numeric&quot;))
+setClass(&quot;Beta&quot;, slots = c(b = &quot;numeric&quot;))
+setClass(&quot;AlphaBeta&quot;, contains = c(&quot;Alpha&quot;, &quot;Beta&quot;))
+
+setGeneric(&quot;resolve&quot;, function(x, y) standardGeneric(&quot;resolve&quot;),
+           signature = c(&quot;x&quot;, &quot;y&quot;))
+
+setMethod(&quot;resolve&quot;, c(&quot;Alpha&quot;, &quot;Beta&quot;), function(x, y) &quot;Alpha-Beta path&quot;)
+setMethod(&quot;resolve&quot;, c(&quot;Beta&quot;, &quot;Alpha&quot;), function(x, y) &quot;Beta-Alpha path&quot;)
+
+ab &lt;- new(&quot;AlphaBeta&quot;, a = 1, b = 2)
+
+# This warns about ambiguity:
+resolve(ab, ab)
+#&gt; Note: method with signature 'Alpha#Beta' chosen...
+#&gt;  &quot;Beta#Alpha&quot; would also be valid
+#&gt; [1] &quot;Alpha-Beta path&quot;
+
+# Fix: add explicit method
+setMethod(&quot;resolve&quot;, c(&quot;AlphaBeta&quot;, &quot;AlphaBeta&quot;), function(x, y) &quot;AlphaBeta direct path&quot;)
+resolve(ab, ab)
+#&gt; [1] &quot;AlphaBeta direct path&quot;
+
+showMethods(&quot;resolve&quot;)
+selectMethod(&quot;resolve&quot;, c(&quot;AlphaBeta&quot;, &quot;AlphaBeta&quot;))
+#&gt; Shows the direct (AlphaBeta, AlphaBeta) method</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With multiple inheritance, both parents are equidistant (1 step each). The explicit (AlphaBeta, AlphaBeta) method at 0 steps removes all ambiguity.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Let's build a complete measurement unit system that demonstrates every concept from this tutorial: class definition, generic creation, multiple dispatch methods, inheritance, dispatch debugging, and ambiguity handling.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># === Complete Example: Measurement Unit System ===
+
+# 1. Define a class hierarchy
+setClass(&quot;Measurement&quot;, slots = c(value = &quot;numeric&quot;, unit = &quot;character&quot;))
+setClass(&quot;Length&quot;, contains = &quot;Measurement&quot;)
+setClass(&quot;Weight&quot;, contains = &quot;Measurement&quot;)
+setClass(&quot;MetricLength&quot;, contains = &quot;Length&quot;)
+setClass(&quot;ImperialLength&quot;, contains = &quot;Length&quot;)
+
+# 2. Define a multi-dispatch generic
+setGeneric(&quot;add_measurement&quot;, function(x, y) standardGeneric(&quot;add_measurement&quot;),
+           signature = c(&quot;x&quot;, &quot;y&quot;))
+
+# 3. Same-type addition (exact matches)
+setMethod(&quot;add_measurement&quot;, c(&quot;MetricLength&quot;, &quot;MetricLength&quot;), function(x, y) {
+  new(&quot;MetricLength&quot;, value = x@value + y@value, unit = x@unit)
+})
+
+setMethod(&quot;add_measurement&quot;, c(&quot;ImperialLength&quot;, &quot;ImperialLength&quot;), function(x, y) {
+  new(&quot;ImperialLength&quot;, value = x@value + y@value, unit = x@unit)
+})
+
+# 4. Cross-type addition with automatic conversion
+setMethod(&quot;add_measurement&quot;, c(&quot;MetricLength&quot;, &quot;ImperialLength&quot;), function(x, y) {
+  y_meters &lt;- y@value * 0.3048  # feet to meters
+  new(&quot;MetricLength&quot;, value = round(x@value + y_meters, 2), unit = &quot;m&quot;)
+})
+
+setMethod(&quot;add_measurement&quot;, c(&quot;ImperialLength&quot;, &quot;MetricLength&quot;), function(x, y) {
+  y_feet &lt;- y@value * 3.2808  # meters to feet
+  new(&quot;ImperialLength&quot;, value = round(x@value + y_feet, 2), unit = &quot;ft&quot;)
+})
+
+# 5. Fallback: incompatible types
+setMethod(&quot;add_measurement&quot;, c(&quot;Length&quot;, &quot;Weight&quot;), function(x, y) {
+  stop(&quot;Cannot add length and weight measurements&quot;)
+})
+
+setMethod(&quot;add_measurement&quot;, c(&quot;Weight&quot;, &quot;Length&quot;), function(x, y) {
+  stop(&quot;Cannot add weight and length measurements&quot;)
+})
+
+# 6. Scalar multiplication via ANY
+setMethod(&quot;add_measurement&quot;, c(&quot;MetricLength&quot;, &quot;ANY&quot;), function(x, y) {
+  if (is.numeric(y)) new(&quot;MetricLength&quot;, value = x@value * y, unit = x@unit)
+  else stop(&quot;Unsupported type for measurement operation&quot;)
+})
+
+# === Test the system ===
+beam_a &lt;- new(&quot;MetricLength&quot;, value = 2.5, unit = &quot;m&quot;)
+beam_b &lt;- new(&quot;MetricLength&quot;, value = 1.8, unit = &quot;m&quot;)
+plank &lt;- new(&quot;ImperialLength&quot;, value = 6, unit = &quot;ft&quot;)
+cargo &lt;- new(&quot;Weight&quot;, value = 50, unit = &quot;kg&quot;)
+
+# Same-type: Metric + Metric
+total_metric &lt;- add_measurement(beam_a, beam_b)
+cat(&quot;Metric + Metric:&quot;, total_metric@value, total_metric@unit, &quot;\n&quot;)
+#&gt; Metric + Metric: 4.3 m
+
+# Cross-type: Metric + Imperial (auto-converts)
+mixed &lt;- add_measurement(beam_a, plank)
+cat(&quot;Metric + Imperial:&quot;, mixed@value, mixed@unit, &quot;\n&quot;)
+#&gt; Metric + Imperial: 4.33 m
+
+# Scalar multiplication via ANY fallback
+doubled &lt;- add_measurement(beam_a, 3)
+cat(&quot;Metric * 3:&quot;, doubled@value, doubled@unit, &quot;\n&quot;)
+#&gt; Metric * 3: 7.5 m
+
+# Debug dispatch
+cat(&quot;\n--- Dispatch debugging ---\n&quot;)
+selectMethod(&quot;add_measurement&quot;, c(&quot;MetricLength&quot;, &quot;ImperialLength&quot;))
+#&gt; Method for (MetricLength, ImperialLength) - direct match
+
+hasMethod(&quot;add_measurement&quot;, c(&quot;MetricLength&quot;, &quot;Weight&quot;))
+#&gt; [1] TRUE  (inherited from Length, Weight)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>This system handles four scenarios through multiple dispatch: same-type addition, cross-<a class="auto-link" href="R-Data-Types.html" title="R Data Types: Which Type Is Your Variable? (And Why It Matters)">type conversion</a>, incompatible-type errors, and scalar operations. Each scenario runs a different method body, all through a single <code>add_measurement()</code> generic.</p>
 
 <h2>Summary</h2>
 
@@ -422,65 +1391,106 @@ summary(new(&quot;Dog&quot;, name = &quot;Rex&quot;, breed = &quot;Lab&quot;))
 <thead>
 <tr>
 <th>Concept</th>
-<th>Tool</th>
+<th>Key Function</th>
+<th>What It Does</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Declare generic</td>
-<td><code>setGeneric(&quot;f&quot;, ...)</code></td>
+<td>Define a generic</td>
+<td><code>setGeneric(f, signature = c(&quot;x&quot;, &quot;y&quot;))</code></td>
+<td>Creates a function that dispatches on two arguments</td>
 </tr>
 <tr>
-<td>Single dispatch</td>
-<td><code>setMethod(&quot;f&quot;, &quot;ClassA&quot;, ...)</code></td>
+<td>Register a method</td>
+<td><code>setMethod(f, c(&quot;ClassA&quot;, &quot;ClassB&quot;), ...)</code></td>
+<td>Binds behavior to a specific class combination</td>
 </tr>
 <tr>
-<td>Multi dispatch</td>
-<td><code>setMethod(&quot;f&quot;, signature(&quot;A&quot;, &quot;B&quot;), ...)</code></td>
+<td>Wildcard match</td>
+<td><code>&quot;ANY&quot;</code> in signature</td>
+<td>Matches any class in that position</td>
 </tr>
 <tr>
-<td>Catch-all</td>
-<td><code>&quot;ANY&quot;</code> class in signature</td>
-</tr>
-<tr>
-<td>Continue dispatch</td>
-<td><code>callNextMethod()</code></td>
-</tr>
-<tr>
-<td>Inspect match</td>
-<td><code>selectMethod(&quot;f&quot;, signature(...))</code></td>
+<td>Missing argument</td>
+<td><code>&quot;missing&quot;</code> in signature</td>
+<td>Matches when argument is not supplied</td>
 </tr>
 <tr>
 <td>List methods</td>
-<td><code>showMethods(&quot;f&quot;)</code></td>
+<td><code>showMethods(&quot;generic&quot;)</code></td>
+<td>Shows all registered methods</td>
+</tr>
+<tr>
+<td>Debug dispatch</td>
+<td><code>selectMethod(&quot;generic&quot;, c(&quot;A&quot;, &quot;B&quot;))</code></td>
+<td>Reveals the method R would actually call</td>
+</tr>
+<tr>
+<td>Check existence</td>
+<td><code>existsMethod()</code> / <code>hasMethod()</code></td>
+<td>Direct-only vs. including inherited methods</td>
+</tr>
+<tr>
+<td>Resolve ambiguity</td>
+<td>Add an explicit method</td>
+<td>Eliminates arbitrary choice from equal-distance methods</td>
 </tr>
 </tbody>
 </table>
+
+<p><img src="screenshots/S4-Methods-in-R-summary-mindmap.webp" alt="Key components of S4 multiple dispatch." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Key components of S4 multiple dispatch.</em></p>
+
+<p><strong>Key takeaways:</strong></p>
+
+<ul>
+
+<li>S4 multiple dispatch selects methods based on the combination of argument classes, not just the first argument</li>
+
+<li>The <code>signature</code> parameter in <code>setGeneric()</code> controls which arguments participate in dispatch</li>
+
+<li>R resolves inherited methods by minimising total inheritance steps across all arguments</li>
+
+<li>Ambiguity warnings mean two methods are equidistant — always resolve with an explicit method</li>
+
+<li>Use <code>selectMethod()</code> to see exactly which method R will call for any class combination</li>
+
+<li>Keep signatures to two arguments to avoid combinatorial explosion</li>
+
+</ul>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 15: S4. <a href="https://adv-r.hadley.nz/s4.html">Link</a></li>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 15: S4. <a href="https://adv-r.hadley.nz/s4.html">Link</a></li>
 
-<li>Chambers, J. M. — <em>Software for Data Analysis</em>, multi-dispatch chapter.</li>
+<li>R Core Team — <em>Writing R Extensions</em>: Methods and Classes. <a href="https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Classes-and-methods">Link</a></li>
 
-<li>Sperber, M. et al. — <em>Generic Functions for Common Lisp</em>. (The classic multi-dispatch reference.)</li>
+<li>Chambers, J.M. — <em>How S4 Methods Work</em> (2006). <a href="https://developer.r-project.org/howMethodsWork.pdf">Link</a></li>
 
-<li>R Core Team — <code>methods</code> package documentation.</li>
+<li>Leisch, F. — <em>S4 Classes and Methods</em>, UseR! 2004 Keynote. <a href="https://www.r-project.org/conferences/useR-2004/Keynotes/Leisch.pdf">Link</a></li>
 
-<li>Bioconductor — S4 design patterns. <a href="https://bioconductor.org/developers/how-to/commonMethodsAndClasses/">Link</a></li>
+<li>Genolini, C. — <em>A (Not So) Short Introduction to S4 OOP in R</em>. <a href="https://cran.r-project.org/doc/contrib/Genolini-S4tutorialV0-5en.pdf">Link</a></li>
+
+<li>Hansen, K.D. — <em>R S4 Classes and Methods</em> (Bioconductor course). <a href="https://kasperdanielhansen.github.io/genbioconductor/html/R_S4.html">Link</a></li>
+
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a> — <a class="auto-link" href="S4-Classes-in-R.html" title="S4 Classes in R: setClass(), setGeneric() & Formal OOP">setMethod()</a> reference. <a href="https://rdrr.io/r/methods/setMethod.html">Link</a></li>
+
+<li>Jones, M. — <em>R, Julia, Multiple Dispatch</em> (2021). <a href="https://www.mpjon.es/2021/05/31/r-julia-multiple-dispatch/">Link</a></li>
 
 </ol>
 
 <h2>Continue Learning</h2>
 
-<ul>
+<ol>
 
-<li><a href="S4-Classes-in-R.html">S4 Classes in R</a> — class definition, slots, validation.</li>
+<li><a href="/S4-Classes-in-R.html">S4 Classes in R</a> — How to define formal S4 classes with slots, validators, and inheritance before you need methods.</li>
 
-<li><a href="OOP-in-R.html">OOP in R</a> — where S4 fits in the bigger picture.</li>
+<li><a href="/S3-Method-Dispatch-in-R.html">S3 Method Dispatch in R</a> — How S3's simpler single-dispatch system works and where it falls short.</li>
 
-<li><a href="S3-Method-Dispatch-in-R.html">S3 Method Dispatch in R</a> — the single-dispatch equivalent.</li>
+<li><a href="/OOP-in-R.html">OOP in R: S3, S4, and R6</a> — A bird's-eye comparison of R's three major OOP systems and when to choose each.</li>
 
-</ul>
+</ol>
