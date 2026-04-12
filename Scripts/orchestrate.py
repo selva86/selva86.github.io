@@ -9,6 +9,7 @@ Usage:
     python Scripts/orchestrate.py --dry-run    # print what would run
     python Scripts/orchestrate.py --start-from 4.3.7
     python Scripts/orchestrate.py --retry-failed
+    python Scripts/orchestrate.py --post 4.3.1
 """
 
 import json
@@ -29,7 +30,8 @@ PROJECT_ROOT = REPO_ROOT.parent  # D:/09_rstatisticsco — where .claude/ lives
 QUEUE_FILE = REPO_ROOT / "post_queue.json"
 LOG_FILE = REPO_ROOT / "Scripts" / "orchestrate.log"
 LOCK_FILE = REPO_ROOT / "Scripts" / "orchestrate.lock"
-SESSION_TIMEOUT = 2700  # 45 minutes per post
+SESSION_TIMEOUT = 1500  # 25 minutes per post
+MAX_ATTEMPTS = 2
 
 
 # --- Logging ---
@@ -69,7 +71,7 @@ def write_queue(queue):
     tmp.replace(QUEUE_FILE)
 
 
-# --- Git state check ---
+# --- Git helpers ---
 def check_git_clean():
     result = subprocess.run(
         ["git", "status", "--porcelain"],
@@ -80,6 +82,58 @@ def check_git_clean():
         log(result.stdout.strip())
         return False
     return True
+
+
+def git_clean_untracked():
+    """Remove untracked files left by a failed/timed-out session."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, cwd=REPO_ROOT
+    )
+    untracked = []
+    for line in result.stdout.strip().splitlines():
+        if line.startswith("?? "):
+            fpath = line[3:].strip().strip('"')
+            untracked.append(fpath)
+    if not untracked:
+        return
+    log(f"  Cleaning {len(untracked)} untracked file(s) from failed session:")
+    for f in untracked:
+        full = REPO_ROOT / f
+        if full.exists():
+            full.unlink()
+            log(f"    removed: {f}")
+
+
+def git_checkout_modified():
+    """Revert modified files left by a failed/timed-out session."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, cwd=REPO_ROOT
+    )
+    modified = []
+    for line in result.stdout.strip().splitlines():
+        if line.startswith(" M ") or line.startswith("M  "):
+            fpath = line[3:].strip().strip('"')
+            modified.append(fpath)
+    if not modified:
+        return
+    log(f"  Reverting {len(modified)} modified file(s) from failed session:")
+    for f in modified:
+        subprocess.run(
+            ["git", "checkout", "--", f],
+            capture_output=True, text=True, cwd=REPO_ROOT
+        )
+        log(f"    reverted: {f}")
+
+
+def cleanup_failed_session():
+    """Clean up all traces of a failed/timed-out claude session."""
+    git_clean_untracked()
+    git_checkout_modified()
+    # Remove mermaid temp files
+    for tmp in glob.glob(str(REPO_ROOT / "_build" / "mermaid" / "tmp*")):
+        os.remove(tmp)
 
 
 # --- Find claude CLI ---
@@ -162,15 +216,34 @@ def publish(entry):
         return f"sync_registries failed: {result.stderr.strip()}"
     log(f"  sync_registries: {result.stdout.strip()}")
 
-    # git add
+    # git add — specific paths only (no -A to avoid stale temp files)
+    add_paths = [
+        f"posts/{slug}.md",
+        f"_posts/{slug}.html",
+        f"{slug}.html",
+        f"post_plans/{slug}_plan.md",
+        "sitemap.xml",
+        "feed.xml",
+        "www/sidebar.json",
+        "www/links.json",
+    ]
+    # Add diagram files
+    for webp in glob.glob(str(REPO_ROOT / "screenshots" / f"{slug}-*.webp")):
+        add_paths.append(f"screenshots/{os.path.basename(webp)}")
+    # Add mermaid source files
+    for mmd in glob.glob(str(REPO_ROOT / "_build" / "mermaid" / f"{slug}-*.mmd")):
+        add_paths.append(f"_build/mermaid/{os.path.basename(mmd)}")
+    # Add any FR parent fragments that were refreshed
     result = subprocess.run(
-        ["git", "add", "-A", "posts/", "_posts/", "post_plans/",
-         "screenshots/", "sitemap.xml", "feed.xml", "www/"],
+        ["git", "diff", "--name-only"],
         capture_output=True, text=True, cwd=REPO_ROOT
     )
-    # Also add any built .html files at root
+    for line in result.stdout.strip().splitlines():
+        if line.startswith("_posts/") and line != f"_posts/{slug}.html":
+            add_paths.append(line)
+
     subprocess.run(
-        ["git", "add", f"{slug}.html"],
+        ["git", "add"] + add_paths,
         capture_output=True, text=True, cwd=REPO_ROOT
     )
 
@@ -180,9 +253,8 @@ def publish(entry):
         capture_output=True, text=True, cwd=REPO_ROOT
     )
     if result.returncode != 0:
-        # Check if "nothing to commit"
         if "nothing to commit" in result.stdout:
-            log("  Nothing new to commit (already committed by dry-run?)")
+            log("  Nothing new to commit (already committed?)")
         else:
             return f"git commit failed: {result.stderr.strip()}"
     else:
@@ -320,7 +392,8 @@ def main():
             if exit_code != 0:
                 entry["attempts"] += 1
                 entry["last_error"] = f"claude exited with code {exit_code}"
-                if entry["attempts"] >= 2:
+                cleanup_failed_session()
+                if entry["attempts"] >= MAX_ATTEMPTS:
                     entry["done"] = True
                     entry["quality_passed"] = False
                     log(f"  FAILED (max attempts): {post_id}")
@@ -339,7 +412,8 @@ def main():
                 log(f"  QUALITY GATE FAILED:")
                 for e in errors:
                     log(f"    - {e}")
-                if entry["attempts"] >= 2:
+                cleanup_failed_session()
+                if entry["attempts"] >= MAX_ATTEMPTS:
                     entry["done"] = True
                     entry["quality_passed"] = False
                     log(f"  SKIPPING (max attempts): {post_id}")
@@ -357,7 +431,7 @@ def main():
                 entry["attempts"] += 1
                 entry["last_error"] = pub_error
                 log(f"  PUBLISH FAILED: {pub_error}")
-                if entry["attempts"] >= 2:
+                if entry["attempts"] >= MAX_ATTEMPTS:
                     entry["done"] = True
                     entry["quality_passed"] = False
                 write_queue(queue)
