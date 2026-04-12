@@ -407,7 +407,6 @@ WEBR_HEAD_BLOCK = """
         border-radius: 8px;
         overflow: hidden;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 0 1px rgba(0,0,0,0.1);
-        transition: box-shadow 0.2s ease;
       }
       .webr-container:hover {
         box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 0 1px rgba(0,0,0,0.12);
