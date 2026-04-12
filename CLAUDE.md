@@ -479,3 +479,19 @@ python -c "import json; d=json.load(open('curriculum-status.json',encoding='utf-
 - No branch protection or PR workflow
 - Do NOT commit `curriculum-status.json` (gitignored)
 - Do NOT include `Co-Authored-By` lines in commit messages
+
+## Post Quality Rules (Mandatory)
+
+Every post written by /write-post-interactive-v3 or /write-and-publish-v2 MUST:
+
+1. **Create a plan file** at `post_plans/<slug>_plan.md` BEFORE writing the post.
+   This is not optional regardless of post type (C, FR, or EX).
+   The plan is the source of truth for post structure.
+
+2. **Create and place Mermaid diagrams** for [C] posts. At least one diagram
+   rendered to `screenshots/<slug>-*.webp` and referenced in the post markdown
+   with `![Description](screenshots/<slug>-<name>.webp)` and a figure caption.
+   FR and EX posts: diagrams are optional.
+
+An automated quality gate (`Scripts/orchestrate.py`) checks both conditions
+after every post. Posts that fail are retried once, then flagged for manual review.
