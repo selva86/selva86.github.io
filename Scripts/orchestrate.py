@@ -6,8 +6,10 @@ Each post gets a fresh session. Quality gates run before publishing.
 Usage:
     python Scripts/orchestrate.py              # run full queue
     python Scripts/orchestrate.py --one        # process one post and stop
+    python Scripts/orchestrate.py --count 5    # process 5 posts and stop
     python Scripts/orchestrate.py --dry-run    # print what would run
     python Scripts/orchestrate.py --start-from 4.3.7
+    python Scripts/orchestrate.py --start-from 4.3.7 --count 3
     python Scripts/orchestrate.py --retry-failed
     python Scripts/orchestrate.py --post 4.3.1
 """
@@ -283,6 +285,10 @@ def main():
         help="Process one post and stop"
     )
     parser.add_argument(
+        "--count", type=int, default=0,
+        help="Process N posts and stop (e.g. --count 5)"
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Print what would run without executing"
     )
@@ -300,6 +306,10 @@ def main():
     )
     args = parser.parse_args()
 
+    # --one is shorthand for --count 1
+    if args.one:
+        args.count = 1
+
     claude = find_claude()
     queue = read_queue()
 
@@ -311,6 +321,10 @@ def main():
 
     try:
         started = False if args.start_from else True
+        processed = 0
+
+        def should_stop():
+            return args.post or (args.count and processed >= args.count)
 
         for entry in queue:
             # --post: only process this specific ID
@@ -363,7 +377,8 @@ def main():
 
             if args.dry_run:
                 log(f"  DRY RUN: claude -p \"{prompt}\" --dangerously-skip-permissions")
-                if args.one or args.post:
+                processed += 1
+                if should_stop():
                     break
                 continue
 
@@ -400,7 +415,8 @@ def main():
                 else:
                     log(f"  Will retry on next run")
                 write_queue(queue)
-                if args.one or args.post:
+                processed += 1
+                if should_stop():
                     break
                 continue
 
@@ -420,7 +436,8 @@ def main():
                 else:
                     log(f"  Will retry on next run")
                 write_queue(queue)
-                if args.one or args.post:
+                processed += 1
+                if should_stop():
                     break
                 continue
 
@@ -435,7 +452,8 @@ def main():
                     entry["done"] = True
                     entry["quality_passed"] = False
                 write_queue(queue)
-                if args.one or args.post:
+                processed += 1
+                if should_stop():
                     break
                 continue
 
@@ -446,7 +464,8 @@ def main():
             write_queue(queue)
             log(f"  SUCCESS: https://r-statistics.co/{slug}.html")
 
-            if args.one or args.post:
+            processed += 1
+            if should_stop():
                 break
 
     except KeyboardInterrupt:
