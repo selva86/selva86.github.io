@@ -511,6 +511,9 @@ WEBR_HEAD_BLOCK = """
         padding: 4px 0;
       }
       .webr-editor.cm-initialized { padding: 0; min-height: auto; }
+      /* Prevent CodeMirror's internal scroll container from capturing wheel events —
+         editors are fully expanded (viewportMargin: Infinity) so never need their own scrollbar */
+      .webr-editor .CodeMirror-scroll { overflow: hidden !important; }
       .webr-editor .CodeMirror-gutters {
         background: #f0f2f5;
         border-right: 1px solid #e1e4e8;
