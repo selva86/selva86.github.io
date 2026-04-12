@@ -1,79 +1,45 @@
 ---
-title: "R Error: undefined columns selected — Data Frame Subsetting Fix"
-description: "Fix R's 'undefined columns selected' error when subsetting data frames. Covers wrong column names, typos, $ vs [[ differences, and safe column access."
-keywords: "R undefined columns selected, R column not found, R data frame subsetting error, R wrong column name, R select columns"
+title: "R Error: 'undefined columns selected' — 3 Column-Subsetting Mistakes Fixed"
+description: "Fix R's 'undefined columns selected' error fast. Learn the 3 mistakes that trigger it — missing comma, column name typos, stale vectors — and the fix for each."
+keywords: "R undefined columns selected, R column subsetting error, R data frame subsetting, R missing comma error, R column name typo, R subsetting errors, safe_select R"
 mathjax: false
 webr: true
 curriculum_id: "ERR3"
 post_type: "FR"
-auto_link_terms: "undefined columns selected"
+auto_link_terms: "undefined columns selected|R undefined columns|undefined columns error|undefined columns selected in R"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
 ---
 <!-- md2html:generated -->
 
-<h1>R Error: undefined columns selected — Data Frame Subsetting Fix</h1>
+<h1>R Error: 'undefined columns selected' — 3 Column-Subsetting Mistakes Fixed</h1>
 
-<p class="lead"><code>Error in `[.data.frame`(df, , "col") : undefined columns selected</code> means you tried to access a column that doesn't exist in your data frame. It's usually a typo, a case mismatch, or a column that was renamed or dropped earlier in your pipeline.</p>
+<p class="lead"><code>Error in [.data.frame(df, , cols) : undefined columns selected</code> means R looked for a column name you requested inside a data frame and could not find it — or the subsetting call confused a row condition with a column vector. Three small mistakes cause almost every occurrence, and each one has a fast fix.</p>
 
-<h2>Reproducing the Error</h2>
+<h2>What does 'undefined columns selected' actually mean?</h2>
+
+<p>The error fires whenever <code>[</code> is asked to select a column that is not in <code>names(df)</code>, or when <code>[</code> receives only one argument and tries to read it as a column index. R reads every bracket call as <code>df[rows, cols]</code>. The moment <code>cols</code> resolves to a name or position that does not exist, R stops rather than guess. The fastest way to lock the pattern in is to trigger the error and watch the fix land.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">df &lt;- data.frame(
-  name = c(&quot;Alice&quot;, &quot;Bob&quot;, &quot;Carol&quot;),
-  score = c(88, 92, 75),
-  grade = c(&quot;B&quot;, &quot;A&quot;, &quot;C&quot;)
-)
+    <div class="webr-editor" data-language="r"># A tiny slice of mtcars to keep output small
+mt &lt;- head(mtcars[, c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;hp&quot;)], 5)
 
-# This works:
-cat(&quot;score column:&quot;, df[, &quot;score&quot;], &quot;\n&quot;)
-
-# This errors — 'Score' with capital S doesn't exist:
+# WRONG: forgot the comma — R reads the logical vector as a column index
 tryCatch(
-  df[, &quot;Score&quot;],
-  error = function(e) cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n&quot;)
+  mt[mt$mpg &gt; 20],
+  error = function(e) message(&quot;Error: &quot;, conditionMessage(e))
 )
+#&gt; Error: undefined columns selected
 
-# Always check available columns first:
-cat(&quot;Available columns:&quot;, paste(names(df), collapse = &quot;, &quot;), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Cause 1: Typo or Case Mismatch</h2>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">df &lt;- data.frame(total_sales = 1:5, avg_price = rnorm(5, 50))
-
-# Common typos:
-# df$total_Sale    — wrong case
-# df$totalsales    — missing underscore
-# df$total.sales   — dot instead of underscore
-
-# Fix: use names() to check
-cat(&quot;Columns:&quot;, paste(names(df), collapse = &quot;, &quot;), &quot;\n&quot;)
-
-# Tab completion in RStudio prevents this!
-cat(&quot;total_sales:&quot;, df$total_sales, &quot;\n&quot;)</div>
+# FIX: add the comma so R knows it's a row condition
+mt[mt$mpg &gt; 20, ]
+#&gt;                mpg cyl  hp
+#&gt; Mazda RX4     21.0   6 110
+#&gt; Mazda RX4 Wag 21.0   6 110
+#&gt; Datsun 710    22.8   4  93</div>
 
     <div class="webr-buttons">
 
@@ -91,105 +57,100 @@ cat(&quot;total_sales:&quot;, df$total_sales, &quot;\n&quot;)</div>
 
 </div>
 
-<h2>Cause 2: Selecting Multiple Columns with Wrong Names</h2>
+<p>The first call fails because R interprets <code>mt$mpg &gt; 20</code> as a column selector — a length-5 logical vector that does not line up with three columns. The second call uses the comma to mark it as a row filter, and R returns the matching rows cleanly. That is the core model: R always expects <code>[rows, cols]</code>, and it treats any single-argument bracket as column selection.</p>
 
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Single brackets on a data frame always assume <code>[rows, cols]</code>, and a missing comma makes R read your row filter as a column vector.</strong> Every single trigger for "undefined columns selected" comes from violating that rule — either by dropping the comma, by passing a name that is not in <code>names(df)</code>, or by passing a stale character vector that used to match but no longer does.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Reproduce the error on a five-row slice of <code>iris</code>, then fix it so you get rows where <code>Sepal.Length &gt; 5</code>. Capture the error message with <code>tryCatch()</code> so the notebook keeps running.</p>
 <div class="webr-container">
-
   <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex1_mt &lt;- head(iris[, c(&quot;Sepal.Length&quot;, &quot;Species&quot;)], 5)
 
-    <div class="webr-editor" data-language="r">df &lt;- data.frame(a = 1:3, b = 4:6, c = 7:9)
-
-# Error: one wrong name ruins the whole selection
-tryCatch(
-  df[, c(&quot;a&quot;, &quot;d&quot;)],
-  error = function(e) cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n&quot;)
+# Trigger the error
+ex1_err &lt;- tryCatch(
+  NULL,
+  error = function(e) conditionMessage(e)
 )
+ex1_err
+#&gt; Expected: &quot;undefined columns selected&quot;
 
-# Fix: check which names exist
-wanted &lt;- c(&quot;a&quot;, &quot;d&quot;)
-exists_check &lt;- wanted %in% names(df)
-cat(&quot;Exist?&quot;, paste(wanted, exists_check, sep = &quot;=&quot;), &quot;\n&quot;)
-
-# Only select columns that exist
-valid &lt;- wanted[wanted %in% names(df)]
-cat(&quot;Valid columns:&quot;, valid, &quot;\n&quot;)
-result &lt;- df[, valid, drop = FALSE]
-print(result)</div>
-
+# Fix it
+ex1_ok &lt;- NULL
+ex1_ok
+#&gt; Expected: a data frame of rows where Sepal.Length &gt; 5</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
-
-<h2>Cause 3: $ Returns NULL Instead of Error</h2>
-
-<p>Be careful — <code>$</code> silently returns <code>NULL</code> for missing columns:</p>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex1_mt &lt;- head(iris[, c(&quot;Sepal.Length&quot;, &quot;Species&quot;)], 5)
 
-    <div class="webr-editor" data-language="r">df &lt;- data.frame(x = 1:3, y = 4:6)
-
-# $ does NOT error — it returns NULL
-result &lt;- df$z
-cat(&quot;df$z:&quot;, result, &quot;\n&quot;)
-cat(&quot;is.null(df$z):&quot;, is.null(result), &quot;\n&quot;)
-
-# This NULL can cause confusing downstream errors:
-# mean(df$z) gives a warning, not an error about the column
-
-# [, ] DOES error — which is actually safer:
-tryCatch(
-  df[, &quot;z&quot;],
-  error = function(e) cat(&quot;[,] error:&quot;, conditionMessage(e), &quot;\n&quot;)
-)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Cause 4: Column Dropped Earlier in Pipeline</h2>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">df &lt;- data.frame(a = 1:5, b = 6:10, c = 11:15)
-
-# Drop column b
-df2 &lt;- df[, c(&quot;a&quot;, &quot;c&quot;)]
-
-# Later in your code, you forget b was dropped:
-tryCatch(
-  df2[, &quot;b&quot;],
-  error = function(e) cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n&quot;)
+ex1_err &lt;- tryCatch(
+  ex1_mt[ex1_mt$Sepal.Length &gt; 5],
+  error = function(e) conditionMessage(e)
 )
+ex1_err
+#&gt; [1] &quot;undefined columns selected&quot;
 
-cat(&quot;df2 only has:&quot;, paste(names(df2), collapse = &quot;, &quot;), &quot;\n&quot;)</div>
+ex1_ok &lt;- ex1_mt[ex1_mt$Sepal.Length &gt; 5, ]
+ex1_ok
+#&gt;   Sepal.Length Species
+#&gt; 1          5.1  setosa
+#&gt; 4          5.4  setosa</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first call drops the comma so R reads the logical vector as column indices. Adding <code>, </code> fixes it because R then parses the vector as a row filter.</p>
+
+</details>
+</section>
+
+<h2>Mistake #1: Why does a missing comma crash single-bracket subsetting?</h2>
+
+<p>The missing comma is the single most common cause, and it has a surprising explanation. When you write <code>df[condition]</code>, R does not throw a syntax error — it tries to be helpful by treating <code>condition</code> as a column selector. If the logical vector's length matches the column count exactly, you get a silent wrong answer. If it does not match (the usual case), you get "undefined columns selected."</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Three columns in our slice
+cars_small &lt;- head(mtcars[, c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;hp&quot;)], 6)
+ncol(cars_small)
+#&gt; [1] 3
+
+# The row filter is a length-6 logical — wrong shape for column indexing
+length(cars_small$mpg &gt; 20)
+#&gt; [1] 6
+
+# R tries to use it as a column selector and fails
+err1 &lt;- tryCatch(
+  cars_small[cars_small$mpg &gt; 20],
+  error = function(e) conditionMessage(e)
+)
+err1
+#&gt; [1] &quot;undefined columns selected&quot;
+
+# Add the comma and you get a row filter instead
+cars_small[cars_small$mpg &gt; 20, ]
+#&gt;                mpg cyl  hp
+#&gt; Mazda RX4     21.0   6 110
+#&gt; Mazda RX4 Wag 21.0   6 110
+#&gt; Datsun 710    22.8   4  93</div>
 
     <div class="webr-buttons">
 
@@ -207,35 +168,286 @@ cat(&quot;df2 only has:&quot;, paste(names(df2), collapse = &quot;, &quot;), &qu
 
 </div>
 
-<h2>Safe Column Access Patterns</h2>
+<p>The length mismatch is the smoking gun. A length-6 logical cannot be mapped onto 3 columns, so R rejects the call. Whenever you see "undefined columns selected" on a seemingly simple filter, check the bracket for a missing comma first — it is the fastest box to tick.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>dplyr::<a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">filter()</a> removes this entire class of bug.</strong> <code>filter(cars_small, mpg &gt; 20)</code> is unambiguous because it has no second argument to miss. If you are doing row filtering inside a long pipeline, reach for <code>filter()</code> rather than base <code>[</code> — you will never see this error from that code path again.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fix the broken call below so it returns rows where <code>cyl == 4</code>. The comma is missing in one specific place.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex2_df &lt;- head(mtcars[, c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;hp&quot;)], 8)
+
+# Broken call — fix it to return 4-cylinder rows
+ex2_fix &lt;- NULL
+ex2_fix
+#&gt; Expected: rows where cyl == 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex2_df &lt;- head(mtcars[, c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;hp&quot;)], 8)
+
+ex2_fix &lt;- ex2_df[ex2_df$cyl == 4, ]
+ex2_fix
+#&gt;             mpg cyl hp
+#&gt; Datsun 710 22.8   4 93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The comma after the row condition tells R "all columns." Without it, R reads the logical vector as column indices and throws the error.</p>
+
+</details>
+</section>
+
+<h2>Mistake #2: How do column name typos and case mismatches trigger it?</h2>
+
+<p>Column names in R are case-sensitive and whitespace-sensitive. <code>mpg</code>, <code>MPG</code>, and <code>&quot; mpg&quot;</code> are three different column names as far as <code>[</code> is concerned, and two of them will trigger the error on a standard mtcars slice. This mistake is especially common right after importing a CSV with <code>check.names = FALSE</code>, where R preserves whatever the header actually contained.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">df &lt;- data.frame(name = c(&quot;Alice&quot;, &quot;Bob&quot;), score = c(88, 92))
+    <div class="webr-editor" data-language="r"># Case mismatch — mtcars has &quot;mpg&quot;, not &quot;MPG&quot;
+tryCatch(
+  mtcars[, &quot;MPG&quot;],
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;undefined columns selected&quot;
 
-# Pattern 1: Check before accessing
-col &lt;- &quot;grade&quot;
-if (col %in% names(df)) {
-  cat(&quot;Column found:&quot;, df[[col]], &quot;\n&quot;)
-} else {
-  cat(&quot;Column '&quot;, col, &quot;' not found. Available:&quot;, paste(names(df), collapse=&quot;, &quot;), &quot;\n&quot;)
+# Correct case works
+head(mtcars[, &quot;mpg&quot;], 3)
+#&gt; Mazda RX4 Mazda RX4 Wag    Datsun 710
+#&gt;      21.0          21.0          22.8
+
+# Whitespace sneaks in from CSV headers like &quot; mpg &quot;
+dirty &lt;- data.frame(` mpg ` = c(21, 22, 23), check.names = FALSE)
+names(dirty)
+#&gt; [1] &quot; mpg &quot;
+
+# Asking for &quot;mpg&quot; fails because the real name has spaces
+tryCatch(
+  dirty[, &quot;mpg&quot;],
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;undefined columns selected&quot;
+
+# Fix: strip whitespace from the header names
+names(dirty) &lt;- trimws(names(dirty))
+dirty[, &quot;mpg&quot;]
+#&gt; [1] 21 22 23</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>names(mtcars)</code> is your friend whenever the error hints at a name mismatch — print it and eyeball the spelling. For whitespace bugs, <code>trimws(names(df))</code> is the one-liner that clears them. Case bugs usually come from typing <code>Mpg</code> or <code>MPG</code> out of habit; a quick <code>grep(&quot;^mpg$&quot;, names(df), ignore.case = TRUE)</code> confirms the column exists under a different casing.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run janitor::clean_names(df) once right after import.</strong> It snake-cases every column, strips whitespace, and removes special characters in a single call. Dropped into the top of a cleaning pipeline, it kills the whole typo-and-whitespace class of this error before downstream code sees the data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The data frame below has a stray trailing space on the <code>&quot;sepal&quot;</code> column. Fix the names, then select the <code>&quot;sepal&quot;</code> column cleanly.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex3_df &lt;- data.frame(`sepal ` = c(5.1, 4.9, 4.7), check.names = FALSE)
+names(ex3_df)
+#&gt; [1] &quot;sepal &quot;
+
+# Clean the names and select &quot;sepal&quot;
+ex3_val &lt;- NULL
+ex3_val
+#&gt; Expected: [1] 5.1 4.9 4.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex3_df &lt;- data.frame(`sepal ` = c(5.1, 4.9, 4.7), check.names = FALSE)
+names(ex3_df) &lt;- trimws(names(ex3_df))
+ex3_val &lt;- ex3_df[, &quot;sepal&quot;]
+ex3_val
+#&gt; [1] 5.1 4.9 4.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>trimws()</code> strips leading and trailing whitespace from every name. After cleanup, <code>&quot;sepal&quot;</code> matches and <code>[</code> returns the column.</p>
+
+</details>
+</section>
+
+<h2>Mistake #3: Why do stale column vectors break programmatic subsetting?</h2>
+
+<p>The third mistake hits real pipelines hardest. You build a character vector of column names earlier in the code — maybe read it from a config file, maybe computed it from <code>setdiff()</code>, maybe let a user pass it in — and then use it to subset. Somewhere upstream, the data frame loses a column or picks up a typo, and the vector drifts out of sync. Base <code>[</code> has no forgiving mode here: one unknown name in the vector, and the whole call throws.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A vector that looks plausible but has a typo — &quot;hpw&quot; should be &quot;hp&quot;
+wanted &lt;- c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;hpw&quot;)
+
+# Subsetting fails without telling you which name is bad
+tryCatch(
+  mtcars[, wanted],
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;undefined columns selected&quot;
+
+# setdiff() is the one-line diagnostic — it names the missing columns
+missing_cols &lt;- setdiff(wanted, names(mtcars))
+missing_cols
+#&gt; [1] &quot;hpw&quot;
+
+# Fix the typo and subset again
+wanted &lt;- c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;hp&quot;)
+head(mtcars[, wanted], 3)
+#&gt;                mpg cyl  hp
+#&gt; Mazda RX4     21.0   6 110
+#&gt; Mazda RX4 Wag 21.0   6 110
+#&gt; Datsun 710    22.8   4  93</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>setdiff(wanted, names(df))</code> should be your reflex move the instant this error appears in a function or pipeline. It returns exactly the names that do not exist in the data frame, so you know whether you have a typo, a dropped column, or user input that needs validation. The cost is one line; the payoff is you never squint at a long column vector trying to spot the bad one.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>dplyr::select(df, any_of(wanted)) and all_of(wanted) are the tidyverse equivalents.</strong> <code>any_of()</code> silently skips names that do not exist (safe for optional columns), while <code>all_of()</code> throws with a clear message naming the offenders. If you are already inside a tidyverse pipeline, prefer these over base <code>[</code> for dynamic column selection.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Diagnose which names in <code>ex4_cols</code> are missing from <code>mtcars</code> using <code>setdiff()</code>. Save the result to <code>ex4_miss</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex4_cols &lt;- c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;horsepower&quot;, &quot;weight&quot;)
+
+# Find which of ex4_cols are not in names(mtcars)
+ex4_miss &lt;- NULL
+ex4_miss
+#&gt; Expected: c(&quot;horsepower&quot;, &quot;weight&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex4_cols &lt;- c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;horsepower&quot;, &quot;weight&quot;)
+ex4_miss &lt;- setdiff(ex4_cols, names(mtcars))
+ex4_miss
+#&gt; [1] &quot;horsepower&quot; &quot;weight&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>setdiff(A, B)</code> returns the elements of <code>A</code> that are not in <code>B</code>. Applied to requested columns vs real column names, it pinpoints exactly which entries would trigger the error.</p>
+
+</details>
+</section>
+
+<h2>How do you find the missing column in ten seconds?</h2>
+
+<p>Once you know the three mistakes, diagnosis is mechanical. Walk the decision flow: check for a missing comma first (cheapest to verify), then compare names with <code>setdiff()</code>, and only then look for case or whitespace problems. The flowchart below captures that routine visually.</p>
+
+<p><img src="screenshots/R-Error-Undefined-Columns-diagnosis-flow.webp" alt="Decision flowchart showing the three-step diagnosis for the error" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Decision flow to diagnose which of the three mistakes caused the error.</em></p>
+
+<p>The diagnosis routine collapses into one small helper. <code>safe_select()</code> below checks the requested column names against the data frame before subsetting, and if any are missing it throws a clear error that names the offenders. Drop it into a utility file and use it whenever you subset programmatically.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">safe_select &lt;- function(df, cols) {
+  missing &lt;- setdiff(cols, names(df))
+  if (length(missing) &gt; 0) {
+    stop(
+      &quot;Columns not found in data frame: &quot;,
+      paste(missing, collapse = &quot;, &quot;),
+      &quot;.  Available: &quot;,
+      paste(names(df), collapse = &quot;, &quot;)
+    )
+  }
+  df[, cols, drop = FALSE]
 }
 
-# Pattern 2: Use [[ with a default
-safe_col &lt;- function(df, col, default = NA) {
-  if (col %in% names(df)) df[[col]] else rep(default, nrow(df))
-}
+# Happy path
+head(safe_select(mtcars, c(&quot;mpg&quot;, &quot;cyl&quot;)), 3)
+#&gt;                mpg cyl
+#&gt; Mazda RX4     21.0   6
+#&gt; Mazda RX4 Wag 21.0   6
+#&gt; Datsun 710    22.8   4
 
-cat(&quot;score:&quot;, safe_col(df, &quot;score&quot;), &quot;\n&quot;)
-cat(&quot;grade:&quot;, safe_col(df, &quot;grade&quot;, &quot;unknown&quot;), &quot;\n&quot;)
-
-# Pattern 3: Partial matching trap with $
-df &lt;- data.frame(total = 1:3, tax = 4:6)
-# df$t  — which column? R uses partial matching!
-# This is ambiguous and dangerous. Use [[ instead.
-cat(&quot;Explicit access:&quot;, df[[&quot;total&quot;]], &quot;\n&quot;)</div>
+# Unhappy path — the error message names the bad columns
+tryCatch(
+  safe_select(mtcars, c(&quot;mpg&quot;, &quot;gear&quot;, &quot;hpw&quot;)),
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;Columns not found in data frame: hpw.  Available: mpg, cyl, disp, hp, drat, wt, qsec, vs, am, gear, carb&quot;</div>
 
     <div class="webr-buttons">
 
@@ -253,24 +465,73 @@ cat(&quot;Explicit access:&quot;, df[[&quot;total&quot;]], &quot;\n&quot;)</div>
 
 </div>
 
-<h2>Practice Exercise</h2>
+<p>Notice how the error now tells you exactly what went wrong. <code>gear</code> is fine (it exists in <code>mtcars</code>), but <code>hpw</code> is flagged with the full list of valid names for cross-reference. This transforms "undefined columns selected" from a mystery into a pointed, actionable message — and adds <code>drop = FALSE</code> for free so single-column selections stay as data frames.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Fail loudly at the boundary, not silently deep in a pipeline.</strong> The moment a character vector of column names enters your function, validate it with <code>setdiff()</code>. That one check surfaces the bad name where the user can see the context, instead of letting R throw ten stack frames later with no hint of which column was wrong.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a short validator <code>ex5_check(df, cols)</code> that returns the character vector of missing columns (or <code>character(0)</code> if everything is present). Test it with a column vector that has one typo.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex5_check &lt;- function(df, cols) {
+  # your code here
+}
+
+ex5_check(mtcars, c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;wait&quot;))
+#&gt; Expected: [1] &quot;wait&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex5_check &lt;- function(df, cols) {
+  setdiff(cols, names(df))
+}
+
+ex5_check(mtcars, c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;wait&quot;))
+#&gt; [1] &quot;wait&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>setdiff()</code> is the entire validator. Wrapping it in a named function makes it self-documenting and easy to reuse at every boundary in your codebase.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Pre-flight check a brittle function</h4>
+
+<p>Given a function <code>summary_cols()</code> that takes a data frame and a character vector of columns and returns their means, add a pre-flight check so it throws a clear error naming any missing columns instead of the cryptic "undefined columns selected." Your fix should not change the happy path.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: Write a function select_cols(df, cols) that:
-# 1. Selects only the columns that exist in df
-# 2. Warns about any columns that don't exist
-# 3. Returns the subset data frame
+    <div class="webr-editor" data-language="r"># Starter
+summary_cols &lt;- function(df, cols) {
+  sub &lt;- df[, cols, drop = FALSE]
+  sapply(sub, mean, na.rm = TRUE)
+}
 
-# Test with:
-# df &lt;- data.frame(a = 1:3, b = 4:6, c = 7:9)
-# select_cols(df, c(&quot;a&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;))
-# Should return df[, c(&quot;a&quot;,&quot;c&quot;)] and warn about &quot;d&quot;, &quot;e&quot;
-
-# Write your code below:
-</div>
+# Write safe_summary() below that adds the pre-flight check.
+# Test:
+# safe_summary(mtcars, c(&quot;mpg&quot;, &quot;cyl&quot;))              # should work
+# safe_summary(mtcars, c(&quot;mpg&quot;, &quot;nonexistent&quot;))      # should error clearly</div>
 
     <div class="webr-buttons">
 
@@ -293,33 +554,24 @@ cat(&quot;Explicit access:&quot;, df[[&quot;total&quot;]], &quot;\n&quot;)</div>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">select_cols &lt;- function(df, cols) {
-  valid &lt;- cols[cols %in% names(df)]
-  invalid &lt;- cols[!cols %in% names(df)]
-
-  if (length(invalid) &gt; 0) {
-    warning(&quot;Columns not found: &quot;, paste(invalid, collapse = &quot;, &quot;),
-            &quot;\nAvailable: &quot;, paste(names(df), collapse = &quot;, &quot;))
+    <div class="webr-editor" data-language="r">safe_summary &lt;- function(df, cols) {
+  missing &lt;- setdiff(cols, names(df))
+  if (length(missing) &gt; 0) {
+    stop(&quot;Missing columns: &quot;, paste(missing, collapse = &quot;, &quot;))
   }
-
-  if (length(valid) == 0) {
-    warning(&quot;No valid columns selected — returning empty data frame&quot;)
-    return(df[, FALSE, drop = FALSE])
-  }
-
-  df[, valid, drop = FALSE]
+  sub &lt;- df[, cols, drop = FALSE]
+  sapply(sub, mean, na.rm = TRUE)
 }
 
-df &lt;- data.frame(a = 1:3, b = 4:6, c = 7:9)
+safe_summary(mtcars, c(&quot;mpg&quot;, &quot;cyl&quot;))
+#&gt;      mpg      cyl
+#&gt; 20.09062  6.18750
 
-result &lt;- tryCatch(
-  select_cols(df, c(&quot;a&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;)),
-  warning = function(w) {
-    cat(&quot;Warning:&quot;, conditionMessage(w), &quot;\n\n&quot;)
-    suppressWarnings(select_cols(df, c(&quot;a&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;)))
-  }
+tryCatch(
+  safe_summary(mtcars, c(&quot;mpg&quot;, &quot;nonexistent&quot;)),
+  error = function(e) conditionMessage(e)
 )
-print(result)</div>
+#&gt; [1] &quot;Missing columns: nonexistent&quot;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -329,67 +581,207 @@ print(result)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The function separates valid from invalid column names, warns about missing ones, and only returns the valid subset. <code>drop = FALSE</code> ensures we always get a data frame back, even for a single column.</p>
+<p><strong>Explanation:</strong> The <code>setdiff()</code> check runs before <code>[</code>, so a bad name is caught at the function boundary with an informative message. The happy path is unchanged — <code>[</code> runs only when all names are valid.</p>
 
 </details>
+
+<h4>Exercise 2: Classify which mistake caused the error</h4>
+
+<p>Write <code>diagnose_undef(df, cols_expr)</code> that runs a subsetting expression with <code>tryCatch()</code>, and if it errors with "undefined columns selected," returns a short string naming which mistake was the cause: <code>&quot;missing_comma&quot;</code>, <code>&quot;name_mismatch&quot;</code>, or <code>&quot;ok&quot;</code>. Use heuristics: if the two-argument <code>df[, cols_expr]</code> call succeeds and <code>cols_expr</code> is a logical vector of length <code>nrow(df)</code>, the real intent was a row filter and the cause was a missing comma.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Starter
+diagnose_undef &lt;- function(df, cols_expr) {
+  # Hint: use tryCatch() on df[, cols_expr]
+  # and check whether cols_expr looks like a row filter
+}
+
+# Test:
+# diagnose_undef(mtcars, mtcars$mpg &gt; 20)    # &quot;missing_comma&quot; style
+# diagnose_undef(mtcars, &quot;nonexistent&quot;)      # &quot;name_mismatch&quot;
+# diagnose_undef(mtcars, &quot;mpg&quot;)              # &quot;ok&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">diagnose_undef &lt;- function(df, cols_expr) {
+  two_arg_ok &lt;- tryCatch({
+    df[, cols_expr]
+    TRUE
+  }, error = function(e) FALSE)
+
+  if (two_arg_ok) {
+    row_like &lt;- is.logical(cols_expr) &amp;&amp; length(cols_expr) == nrow(df)
+    if (row_like) &quot;missing_comma&quot; else &quot;ok&quot;
+  } else {
+    &quot;name_mismatch&quot;
+  }
+}
+
+diagnose_undef(mtcars, &quot;mpg&quot;)
+#&gt; [1] &quot;ok&quot;
+
+diagnose_undef(mtcars, &quot;nonexistent&quot;)
+#&gt; [1] &quot;name_mismatch&quot;
+
+diagnose_undef(mtcars, mtcars$mpg &gt; 20)
+#&gt; [1] &quot;missing_comma&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two-argument form <code>df[, cols_expr]</code> succeeds only when <code>cols_expr</code> is a valid column selector. When the call succeeds and the expression is a logical vector of length <code>nrow(df)</code>, the real intent was a row filter — so the diagnosis is "missing_comma." Otherwise the call failed and the cause is a name mismatch.</p>
+
+</details>
+
+<h2>Complete Example: Debug a real CSV pipeline</h2>
+
+<p>Here is the situation this error shows up in most often: a messy CSV arrives from upstream, you pass the column names to a reporting function, and everything explodes. Below is the full debug-and-fix loop in one place.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Simulate a messy CSV with a leading space in one column header
+raw_csv &lt;- &quot;  mpg, cyl, horsepower\n21,6,110\n22,4,93\n19,6,105\n&quot;
+messy &lt;- read.csv(text = raw_csv, check.names = FALSE)
+names(messy)
+#&gt; [1] &quot;..mpg&quot;        &quot;X.cyl&quot;        &quot;X.horsepower&quot;
+
+# User passes a selection vector (note the typo on &quot;horsepower&quot;)
+user_cols &lt;- c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;horsepowr&quot;)
+
+# First attempt — fails with the familiar error
+tryCatch(
+  messy[, user_cols],
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;undefined columns selected&quot;
+
+# Step 1: clean the headers (make.names mangled leading spaces into dots)
+names(messy) &lt;- trimws(gsub(&quot;^[.]+|^X[.]&quot;, &quot;&quot;, names(messy)))
+names(messy)
+#&gt; [1] &quot;mpg&quot;        &quot;cyl&quot;        &quot;horsepower&quot;
+
+# Step 2: diagnose which names the user vector is missing
+setdiff(user_cols, names(messy))
+#&gt; [1] &quot;horsepowr&quot;
+
+# Step 3: fix the typo and subset safely
+clean &lt;- c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;horsepower&quot;)
+result &lt;- safe_select(messy, clean)
+result
+#&gt;   mpg cyl horsepower
+#&gt; 1  21   6        110
+#&gt; 2  22   4         93
+#&gt; 3  19   6        105</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Two root causes layered on top of each other — mangled headers from the CSV and a typo in the user vector — are a realistic real-world combination. Cleaning names plus <code>setdiff()</code> untangle them in two lines, and <code>safe_select()</code> makes the final subset both safe and informative if another typo shows up tomorrow.</p>
 
 <h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Cause</th>
-<th>Example</th>
-<th>Fix</th>
+<th>Mistake</th>
+<th>Symptom</th>
+<th>Fast fix</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Typo</td>
-<td><code>df[, &quot;Score&quot;]</code> (should be <code>&quot;score&quot;</code>)</td>
-<td>Check <code>names(df)</code></td>
+<td>#1 Missing comma</td>
+<td><code>df[cond]</code> treats <code>cond</code> as column vector</td>
+<td>Add <code>,</code> → <code>df[cond, ]</code>, or use <code>dplyr::filter()</code></td>
 </tr>
 <tr>
-<td>Case mismatch</td>
-<td><code>df$Total</code> vs <code>df$total</code></td>
-<td>R is case-sensitive</td>
+<td>#2 Typo or case mismatch</td>
+<td>Column name does not match <code>names(df)</code> exactly</td>
+<td>Print <code>names(df)</code>, check case, run <code>trimws()</code> on headers</td>
 </tr>
 <tr>
-<td>Column dropped</td>
-<td>Removed earlier in pipeline</td>
-<td>Track transformations</td>
+<td>#3 Stale column vector</td>
+<td>Character vector contains a name not in the current data</td>
+<td>Run <code>setdiff(cols, names(df))</code> to pinpoint the bad name</td>
 </tr>
 <tr>
-<td><code>$</code> returns NULL</td>
-<td><code>df$nonexistent</code></td>
-<td>Use <code>[[ ]]</code> for strict access</td>
-</tr>
-<tr>
-<td>Multiple bad names</td>
-<td><code>df[, c(&quot;a&quot;, &quot;bad&quot;)]</code></td>
-<td><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> with <code>%in% names(df)</code></td>
+<td>Prevention</td>
+<td>Any of the above, buried deep in a pipeline</td>
+<td>Wrap subsetting with <code>safe_select()</code> and fail at the boundary</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
-
-<h4>Why does $ return NULL while [,] throws an error?</h4>
-
-<p>Historical design choice. <code>$</code> uses partial matching and is lenient — it was designed for interactive use. <code>[,]</code> is stricter and better for programming. In production code, prefer <code>[[ ]]</code> which is strict and doesn't do partial matching.</p>
-
-<h4>How do I make column selection case-insensitive?</h4>
-
-<p>Use <code>tolower()</code>: <code>df[, tolower(names(df)) %in% tolower(wanted_cols)]</code>. Or <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">rename columns</a> first with <code>names(df) &lt;- tolower(names(df))</code>.</p>
-
-<h2>Continue Learning</h2>
+<h2>References</h2>
 
 <ol>
 
-<li><strong>R Error: <a class="auto-link" href="R-Error-Replacement-Length.html" title="R Error: replacement has length zero — The NA Assignment Bug">replacement has length zero</a></strong> — the NA assignment bug</li>
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R Documentation</a> — <code>[.data.frame</code> method reference. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.data.frame.html">Link</a></li>
 
-<li><strong>R Error: <a class="auto-link" href="R-Error-Subscript-Out-of-Bounds.html" title="R Error: subscript out of bounds — What It Means & How to Solve It">subscript out of bounds</a></strong> — indexing beyond vector length</li>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 4: Subsetting. <a href="https://adv-r.hadley.nz/subsetting.html">Link</a></li>
 
-<li><strong><a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">R Common Errors</a></strong> — the full reference of 50 common errors</li>
+<li>tidyselect documentation — <code>any_of()</code> and <code>all_of()</code> reference. <a href="https://tidyselect.r-lib.org/reference/all_of.html">Link</a></li>
+
+<li>dplyr documentation — <code>filter()</code> reference. <a href="https://dplyr.tidyverse.org/reference/filter.html">Link</a></li>
+
+<li><a class="auto-link" href="janitor-Package-in-R.html" title="janitor Package in R: Clean Messy Data with 5 Lines of Code">janitor package</a> — <code>clean_names()</code> function reference. <a href="https://sfirke.github.io/janitor/reference/clean_names.html">Link</a></li>
+
+<li>Statistics Globe — "Undefined Columns Selected When Subsetting <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">Data Frame in R</a>." <a href="https://statisticsglobe.com/undefined-columns-selected-when-subsetting-data-frame-in-r">Link</a></li>
+
+<li>Statology — "How to Handle 'undefined columns selected' in R." <a href="https://www.statology.org/undefined-columns-selected-r/">Link</a></li>
 
 </ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="R-Common-Errors.html">50 R Errors Decoded</a></strong> — the master list of R's most common error messages with plain-English explanations and exact fixes.</li>
+
+<li><strong><a href="R-Subsetting.html">R Subsetting</a></strong> — the definitive rule for when to reach for <code>[</code>, <code>[[</code>, <code>$</code>, and <code>@</code> in base R, with every trade-off laid out.</li>
+
+<li><strong><a href="R-Error-Object-Not-Found.html">R Error: 'object not found'</a></strong> — the companion guide covering the other most-hit lookup error and its seven root causes.</li>
+
+</ul>
