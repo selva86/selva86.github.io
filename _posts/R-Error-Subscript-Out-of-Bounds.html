@@ -1,46 +1,40 @@
 ---
-title: "R Error: subscript out of bounds — What It Means & How to Solve It"
-description: "Fix R's 'subscript out of bounds' error. Learn why it happens with vectors, lists, matrices and data frames, and how to prevent off-by-one and NA index bugs."
-keywords: "R subscript out of bounds, R index error, R out of bounds, R off by one, R indexing error, R subscript error"
+title: "R Error: 'subscript out of bounds' — Find Which Index Is Wrong Instantly"
+description: "Fix R's 'subscript out of bounds' error fast. Learn to identify which index is wrong, add bounds checks, and use seq_along() to prevent off-by-one bugs."
+keywords: "R subscript out of bounds, R out of bounds error, R index error, R off by one error, seq_along R, R bounds checking, R indexing errors"
 mathjax: false
 webr: true
 curriculum_id: "ERR2"
 post_type: "FR"
-auto_link_terms: "subscript out of bounds"
+auto_link_terms: "subscript out of bounds|R subscript error|out of bounds error|R index out of bounds|subscript out of range"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
 ---
 <!-- md2html:generated -->
 
-<h1>R Error: subscript out of bounds — What It Means & How to Solve It</h1>
+<h1>R Error: 'subscript out of bounds' — Find Which Index Is Wrong Instantly</h1>
 
-<p class="lead"><code>Error in x[[i]] : subscript out of bounds</code> means you tried to access an element at a position that doesn't exist. The index is either too large, negative in the wrong way, or NA. Here's how to diagnose and fix it.</p>
+<p class="lead"><code>Error in x[[i]] : subscript out of bounds</code> means R tried to reach an element at a position that does not exist — the index is larger than the object's length, or the row or column is past a matrix's dimensions. This guide shows how to find the bad index in ten seconds and stop it from coming back.</p>
 
-<h2>When Does This Error Occur?</h2>
+<h2>What does 'subscript out of bounds' actually mean?</h2>
 
-<p>This error happens with <code>[[</code> and matrices/arrays, but <em>not</em> with <code>[</code> on vectors (which returns NA instead):</p>
+<p>The error fires when <code>[[</code> or a matrix subscript asks for an index that is not there. R raises an error instead of silently returning <code>NA</code>, so you know something is wrong — but the message does not tell you <em>which</em> index is the culprit. The fastest way to learn the pattern is to trigger the error on purpose and read the size of the object that rejected you.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">x &lt;- c(10, 20, 30)
+    <div class="webr-editor" data-language="r"># A vector of three exam scores
+scores &lt;- c(88, 92, 75)
+length(scores)
+#&gt; [1] 3
 
-# Single bracket: returns NA (no error)
-cat(&quot;x[5] with [:&quot;, x[5], &quot;\n&quot;)
-
-# Double bracket: throws an error
+# Ask for element 5 with double brackets — R refuses
 tryCatch(
-  x[[5]],
-  error = function(e) cat(&quot;x[[5]] with [[:&quot;, conditionMessage(e), &quot;\n&quot;)
+  scores[[5]],
+  error = function(e) message(&quot;Error: &quot;, conditionMessage(e))
 )
-
-# Same for lists
-my_list &lt;- list(a = 1, b = 2)
-tryCatch(
-  my_list[[3]],
-  error = function(e) cat(&quot;list[[3]]:&quot;, conditionMessage(e), &quot;\n&quot;)
-)</div>
+#&gt; Error: subscript out of bounds</div>
 
     <div class="webr-buttons">
 
@@ -58,195 +52,79 @@ tryCatch(
 
 </div>
 
-<h2>Cause 1: Index Exceeds Length</h2>
+<p>The vector has 3 elements, so slot 5 does not exist. <code>[[</code> is designed to extract exactly one element, and there is no meaningful "single NA element" for R to return — so it throws instead. That is the entire mental model: <em>the slot is empty, and the operator refuses to invent a value for it.</em></p>
 
-<p>The most common cause — you're asking for element 10 of a 5-element vector:</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Single brackets forgive, double brackets do not.</strong> Single-bracket <code>[</code> indexing happily returns <code>NA</code> for out-of-range positions. Double-bracket <code>[[</code> indexing and matrix subscripts treat the same request as an error because they promise a single concrete value.</div></div>
 
+<section class="tryit-block">
+<p><strong>Try it:</strong> Trigger the error yourself on a length-4 vector by asking for index 10. Wrap the call in <code>tryCatch()</code> so the page keeps running.</p>
 <div class="webr-container">
-
   <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_v &lt;- c(10, 20, 30, 40)
 
-    <div class="webr-editor" data-language="r">scores &lt;- c(88, 92, 75, 81, 96)
-cat(&quot;Length:&quot;, length(scores), &quot;\n&quot;)
-
-# Safe: check length first
-i &lt;- 8
-if (i &lt;= length(scores)) {
-  cat(&quot;Score:&quot;, scores[[i]], &quot;\n&quot;)
-} else {
-  cat(&quot;Index&quot;, i, &quot;is out of bounds (max:&quot;, length(scores), &quot;)\n&quot;)
-}
-
-# Safer: use a helper
-safe_get &lt;- function(x, i, default = NA) {
-  if (i &gt;= 1 &amp;&amp; i &lt;= length(x)) x[[i]] else default
-}
-
-cat(&quot;safe_get(scores, 3):&quot;, safe_get(scores, 3), &quot;\n&quot;)
-cat(&quot;safe_get(scores, 8):&quot;, safe_get(scores, 8), &quot;\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Cause 2: Off-by-One in Loops</h2>
-
-<p>A very common bug — looping one past the end:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">values &lt;- c(5, 10, 15, 20)
-
-# BUG: 1:length(values)+1 is NOT 1:(length(values)+1)
-# It's (1:length(values)) + 1 = c(2, 3, 4, 5)
-# So values[[5]] is out of bounds!
-
-# Fix: use seq_along() or seq_len()
-for (i in seq_along(values)) {
-  cat(sprintf(&quot;values[[%d]] = %d\n&quot;, i, values[[i]]))
-}
-
-# Also common: comparing adjacent elements
-for (i in seq_len(length(values) - 1)) {
-  diff &lt;- values[[i + 1]] - values[[i]]
-  cat(sprintf(&quot;Diff %d-&gt;%d: %d\n&quot;, i, i+1, diff))
-}</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Cause 3: NA as Index</h2>
-
-<p>If your index variable is <code>NA</code>, you get an error with <code>[[</code>:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># NA index with [[
-idx &lt;- NA
-x &lt;- list(a = 1, b = 2, c = 3)
-
-tryCatch(
-  x[[idx]],
-  error = function(e) cat(&quot;NA index error:&quot;, conditionMessage(e), &quot;\n&quot;)
+# Replace NULL with an expression that triggers the error on ex_v
+ex_err &lt;- tryCatch(
+  NULL,
+  error = function(e) conditionMessage(e)
 )
-
-# Fix: check for NA before indexing
-if (!is.na(idx) &amp;&amp; idx &gt;= 1 &amp;&amp; idx &lt;= length(x)) {
-  cat(&quot;Value:&quot;, x[[idx]], &quot;\n&quot;)
-} else {
-  cat(&quot;Invalid index:&quot;, idx, &quot;\n&quot;)
-}</div>
-
+ex_err
+#&gt; Expected: &quot;subscript out of bounds&quot;</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
-
-<h2>Cause 4: Empty Subset Result</h2>
-
-<p>Using <code>which()</code> or filtering that returns no results, then indexing:</p>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">data &lt;- c(10, 20, 30, 40, 50)
-
-# which() returns integer(0) when nothing matches
-idx &lt;- which(data &gt; 100)
-cat(&quot;Matching indices:&quot;, idx, &quot;\n&quot;)
-cat(&quot;Length:&quot;, length(idx), &quot;\n&quot;)
-
-# This is fine with [:
-cat(&quot;data[idx]:&quot;, data[idx], &quot;\n&quot;)  # Returns numeric(0)
-
-# But this would error with [[:
-if (length(idx) &gt; 0) {
-  cat(&quot;First match:&quot;, data[[idx[1]]], &quot;\n&quot;)
-} else {
-  cat(&quot;No matches found\n&quot;)
-}</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Cause 5: Matrix Row/Column Out of Range</h2>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">mat &lt;- matrix(1:12, nrow = 3, ncol = 4)
-cat(&quot;Matrix dimensions:&quot;, nrow(mat), &quot;x&quot;, ncol(mat), &quot;\n&quot;)
-
-# Accessing row 5 of a 3-row matrix
-tryCatch(
-  mat[5, 2],
-  error = function(e) cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n&quot;)
+    <div class="webr-editor" data-language="r">ex_v &lt;- c(10, 20, 30, 40)
+ex_err &lt;- tryCatch(
+  ex_v[[10]],
+  error = function(e) conditionMessage(e)
 )
+ex_err
+#&gt; [1] &quot;subscript out of bounds&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-# Fix: validate indices against dimensions
-row_i &lt;- 5
-col_j &lt;- 2
-if (row_i &lt;= nrow(mat) &amp;&amp; col_j &lt;= ncol(mat)) {
-  cat(&quot;Value:&quot;, mat[row_i, col_j], &quot;\n&quot;)
-} else {
-  cat(sprintf(&quot;Index [%d,%d] exceeds dimensions [%d,%d]\n&quot;,
-              row_i, col_j, nrow(mat), ncol(mat)))
-}</div>
+<p><strong>Explanation:</strong> <code>ex_v[[10]]</code> asks for a tenth element that does not exist. <code>tryCatch()</code> captures the <code>simpleError</code> object, and <code>conditionMessage()</code> returns the error text as a string.</p>
+
+</details>
+</section>
+
+<h2>Which operators and objects trigger this error?</h2>
+
+<p>Three combinations of operator and object raise "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">subscript out of bounds</a>": <code>[[</code> on a vector or list, a matrix row/column subscript, and a data.frame row subscript. Each one rejects an impossible index the same way, but the shape you need to compare against is different.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Case 1: double brackets on a short vector
+nums &lt;- c(1, 2, 3)
+tryCatch(nums[[4]], error = function(e) message(&quot;vector: &quot;, conditionMessage(e)))
+#&gt; vector: subscript out of bounds
+
+# Case 2: row beyond matrix dimensions
+mat &lt;- matrix(1:6, nrow = 2, ncol = 3)
+tryCatch(mat[5, 1], error = function(e) message(&quot;matrix: &quot;, conditionMessage(e)))
+#&gt; matrix: subscript out of bounds
+
+# Case 3: row beyond a data.frame
+df &lt;- data.frame(a = 1:3, b = 4:6)
+tryCatch(df[[10, 1]], error = function(e) message(&quot;df[[,]]: &quot;, conditionMessage(e)))
+#&gt; df[[,]]: subscript out of bounds</div>
 
     <div class="webr-buttons">
 
@@ -264,44 +142,94 @@ if (row_i &lt;= nrow(mat) &amp;&amp; col_j &lt;= ncol(mat)) {
 
 </div>
 
-<h2>Prevention Patterns</h2>
+<p>Each block asks for a slot that does not exist, and each one raises the same error. The operators differ, but the reason is identical — R is being asked to extract a single value from a position that has no value.</p>
+
+<p>Notice what single-bracket indexing would do in the vector case: <code>nums[4]</code> returns <code>NA</code> with no warning at all. That quietness is why off-by-one bugs can survive in production code for months.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Single-bracket on a vector returns NA; double-bracket throws.</strong> If you are used to Python or JavaScript, <code>x[10]</code> probably feels like "index error territory" — but in R, <code>x[10]</code> on a short vector is silent. If you need the crash as a safety net, reach for <code>[[</code> instead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 2x2 matrix and trigger the error by asking for row 3. Save the error message to <code>ex_mat_err</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_mat &lt;- matrix(1:4, nrow = 2, ncol = 2)
+
+# Replace NULL with a subscript that asks for row 3
+ex_mat_err &lt;- tryCatch(
+  NULL,
+  error = function(e) conditionMessage(e)
+)
+ex_mat_err
+#&gt; Expected: &quot;subscript out of bounds&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_mat &lt;- matrix(1:4, nrow = 2, ncol = 2)
+ex_mat_err &lt;- tryCatch(
+  ex_mat[3, 1],
+  error = function(e) conditionMessage(e)
+)
+ex_mat_err
+#&gt; [1] &quot;subscript out of bounds&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The matrix has 2 rows, so asking for row 3 fails. Matrix subscripts are strict in the same way <code>[[</code> is — they must point to a real cell.</p>
+
+</details>
+</section>
+
+<h2>How do you find which subscript is wrong instantly?</h2>
+
+<p>The error message in R is famously uninformative — it never tells you which index is the bad one. You find it with a two-step recipe: look up the object's size, then compare the size to the index you used. Ten seconds of <code>length()</code> or <code>dim()</code> beats five minutes of guessing.</p>
+
+<p><img src="screenshots/R-Error-Subscript-Out-of-Bounds-debug-flow.webp" alt="Three checks that reveal the bad subscript" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Three quick checks that reveal the bad subscript.</em></p>
+
+<p>Let's wrap that recipe in a small helper you can paste into any debugging session. It prints the object's shape, the index you passed, and a clear "out of bounds by how much" verdict.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Pattern 1: Bounds checking helper
-check_bounds &lt;- function(x, i) {
-  n &lt;- if (is.null(dim(x))) length(x) else nrow(x)
-  if (any(is.na(i))) stop(&quot;NA in index&quot;)
-  if (any(i &lt; 1) || any(i &gt; n)) {
-    stop(sprintf(&quot;Index %s out of bounds [1, %d]&quot;,
-                 paste(i[i &lt; 1 | i &gt; n], collapse=&quot;,&quot;), n))
+    <div class="webr-editor" data-language="r">diagnose_subscript &lt;- function(x, i) {
+  if (is.null(dim(x))) {
+    n &lt;- length(x)
+    cat(&quot;Type: &quot;, class(x), &quot; | length: &quot;, n, &quot; | index: &quot;, i, &quot;\n&quot;, sep = &quot;&quot;)
+    if (i &gt; n) cat(&quot;Over by &quot;, i - n, &quot; element(s).\n&quot;, sep = &quot;&quot;)
+  } else {
+    d &lt;- dim(x)
+    cat(&quot;Type: &quot;, class(x)[1], &quot; | dim: &quot;, d[1], &quot;x&quot;, d[2],
+        &quot; | index: [&quot;, i[1], &quot;,&quot;, i[2], &quot;]\n&quot;, sep = &quot;&quot;)
+    if (i[1] &gt; d[1]) cat(&quot;Row over by &quot;, i[1] - d[1], &quot;.\n&quot;, sep = &quot;&quot;)
+    if (i[2] &gt; d[2]) cat(&quot;Col over by &quot;, i[2] - d[2], &quot;.\n&quot;, sep = &quot;&quot;)
   }
-  TRUE
 }
 
-x &lt;- 1:5
-tryCatch(
-  { check_bounds(x, 7); x[[7]] },
-  error = function(e) cat(&quot;Caught:&quot;, conditionMessage(e), &quot;\n&quot;)
-)
+diagnose_subscript(scores, 5)
+#&gt; Type: numeric | length: 3 | index: 5
+#&gt; Over by 2 element(s).
 
-# Pattern 2: Use seq_along() in loops
-x &lt;- c(3, 1, 4, 1, 5)
-for (i in seq_along(x)) {
-  cat(x[[i]], &quot; &quot;)
-}
-cat(&quot;\n&quot;)
-
-# Pattern 3: Defensive list access
-safe_list_get &lt;- function(lst, key, default = NULL) {
-  if (key %in% names(lst)) lst[[key]] else default
-}
-
-config &lt;- list(host = &quot;localhost&quot;, port = 8080)
-cat(&quot;host:&quot;, safe_list_get(config, &quot;host&quot;), &quot;\n&quot;)
-cat(&quot;timeout:&quot;, safe_list_get(config, &quot;timeout&quot;, 30), &quot;\n&quot;)</div>
+diagnose_subscript(mat, c(5, 1))
+#&gt; Type: matrix | dim: 2x3 | index: [5,1]
+#&gt; Row over by 3.</div>
 
     <div class="webr-buttons">
 
@@ -319,19 +247,271 @@ cat(&quot;timeout:&quot;, safe_list_get(config, &quot;timeout&quot;, 30), &quot;
 
 </div>
 
-<h2>Practice Exercise</h2>
+<p>Read the output line by line. The vector has length 3, you asked for 5 — you are over by 2. The matrix has 2 rows, you asked for row 5 — you are over by 3. Those numbers are exactly the arithmetic you need to fix the offending loop or off-by-one slip.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for str() as a one-line debug swiss army knife.</strong> When you are staring at a crashed script, <code>str(x)</code> prints the class, length, dimensions, and the first few values of any object. It is faster than calling <code>length()</code>, <code>dim()</code>, and <code>class()</code> separately, and it works on <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">nested lists</a>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print the length of your object and your attempted index side by side in one line so you can see the mismatch immediately.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_v2 &lt;- c(1, 2, 3, 4, 5)
+ex_i &lt;- 9
+
+# Your code: cat() length and index on one line
+# your code here
+#&gt; Expected: length=5 index=9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_v2 &lt;- c(1, 2, 3, 4, 5)
+ex_i &lt;- 9
+cat(&quot;length=&quot;, length(ex_v2), &quot; index=&quot;, ex_i, &quot;\n&quot;, sep = &quot;&quot;)
+#&gt; length=5 index=9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A single <code>cat()</code> with <code>sep = &quot;&quot;</code> keeps the output compact. In real debugging, drop this line right before the failing subscript and the mismatch is obvious.</p>
+
+</details>
+</section>
+
+<h2>Why does <code>1:length(x)</code> cause off-by-one bugs?</h2>
+
+<p>The single most common trigger in real R code is a loop that writes <code>1:length(x)</code>. It looks correct for a non-empty vector, but the moment <code>length(x)</code> is zero, <code>1:0</code> expands to <code>c(1, 0)</code> — two iterations on an empty object, and the first <code>x[[1]]</code> crashes. <code>seq_along(x)</code> solves it in one word.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: This function crashes with &quot;subscript out of bounds&quot;
-# for certain inputs. Find the bug and fix it.
+    <div class="webr-editor" data-language="r"># The trap: 1:length(x) when x is empty
+empty &lt;- integer(0)
+1:length(empty)
+#&gt; [1] 1 0
+seq_along(empty)
+#&gt; integer(0)
 
+# The bug in a loop
+bad_sum &lt;- function(x) {
+  total &lt;- 0
+  for (i in 1:length(x)) total &lt;- total + x[[i]]
+  total
+}
+tryCatch(bad_sum(empty), error = function(e) message(&quot;bad_sum: &quot;, conditionMessage(e)))
+#&gt; bad_sum: subscript out of bounds
+
+# The fix
+safe_sum &lt;- function(x) {
+  total &lt;- 0
+  for (i in seq_along(x)) total &lt;- total + x[[i]]
+  total
+}
+safe_sum(empty)
+#&gt; [1] 0
+safe_sum(c(3, 4, 5))
+#&gt; [1] 12</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>1:length(empty)</code> produced <code>c(1, 0)</code>, so the loop iterated twice on an empty vector and crashed on the first <code>x[[1]]</code>. <code>seq_along(empty)</code> returns <code>integer(0)</code>, and the for loop runs zero times, which is exactly what you want. This is the classic unit-test-passes-but-production-fails pattern — your tests use a non-empty vector, production hands you an empty one, and the crash ships.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Replace every 1:length(x) with seq_along(x).</strong> Use <code>seq_along(x)</code> or <code>seq_len(n)</code> wherever you would have written <code>1:length(x)</code>. Both produce an empty iterator on empty input rather than the infamous <code>c(1, 0)</code>, and your future self will stop getting paged for this.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rewrite the body of <code>ex_loop</code> to use <code>seq_along(ex_xs)</code> instead of <code>1:length(ex_xs)</code>, and confirm it returns 0 for an empty vector.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_xs &lt;- integer(0)
+
+ex_loop &lt;- function(xs) {
+  out &lt;- 0
+  # your code here: iterate over xs safely and sum the elements
+  out
+}
+
+ex_loop(ex_xs)
+#&gt; Expected: 0
+ex_loop(c(10, 20, 30))
+#&gt; Expected: 60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_xs &lt;- integer(0)
+
+ex_loop &lt;- function(xs) {
+  out &lt;- 0
+  for (i in seq_along(xs)) out &lt;- out + xs[[i]]
+  out
+}
+
+ex_loop(ex_xs)
+#&gt; [1] 0
+ex_loop(c(10, 20, 30))
+#&gt; [1] 60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>seq_along(integer(0))</code> is <code>integer(0)</code>, so the loop runs zero times when <code>xs</code> is empty. For non-empty vectors it behaves exactly like <code>1:length(xs)</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you add bounds checks to prevent it?</h2>
+
+<p>Once you know which lines can trip, you wrap them in a guard. Three patterns cover almost every real case: an inline <code>if (i &lt;= length(x))</code> check, a reusable <code>safe_get()</code> helper that returns a default, and <code>purrr::pluck()</code> for deeply nested lists.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A helper that returns a default instead of crashing
+safe_get &lt;- function(x, i, default = NA) {
+  if (is.na(i) || i &lt; 1 || i &gt; length(x)) default else x[[i]]
+}
+
+safe_get(scores, 2)
+#&gt; [1] 92
+safe_get(scores, 8)
+#&gt; [1] NA
+safe_get(scores, NA)
+#&gt; [1] NA
+safe_get(scores, 8, default = -1)
+#&gt; [1] -1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>safe_get()</code> guards three failure modes at once: an <code>NA</code> index, an index below 1, and an index past <code>length(x)</code>. If any of them are true, it returns the default — otherwise it uses <code>[[</code> to extract the real element. Notice how the <code>is.na(i)</code> check comes first: the short-circuit <code>||</code> means the later comparisons never run on an <code>NA</code>, which would otherwise return <code>NA</code> instead of <code>TRUE</code> and sneak a crash through.</p>
+
+<p>The design rule is <em>crash at the edges, trust the middle</em>: validate indices at the points where user input, file data, or loop math enters your function, and then trust the core loop to do its work without checks at every access.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>purrr::pluck() is the tidyverse-native equivalent.</strong> If you already use purrr, <code>pluck(x, i, .default = NA)</code> does the same job as <code>safe_get()</code> and handles deeply nested lists like <code>pluck(config, &quot;db&quot;, &quot;host&quot;, .default = &quot;localhost&quot;)</code> without a cascade of <code>if</code> statements.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>ex_get(x, i)</code> that returns <code>&quot;bad index&quot;</code> when <code>i</code> is <code>NA</code> or out of range, otherwise returns <code>x[[i]]</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_get &lt;- function(x, i) {
+  # your code here
+}
+
+ex_get(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 2)
+#&gt; Expected: &quot;b&quot;
+ex_get(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 9)
+#&gt; Expected: &quot;bad index&quot;
+ex_get(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), NA)
+#&gt; Expected: &quot;bad index&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_get &lt;- function(x, i) {
+  if (is.na(i) || i &lt; 1 || i &gt; length(x)) &quot;bad index&quot; else x[[i]]
+}
+
+ex_get(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 2)
+#&gt; [1] &quot;b&quot;
+ex_get(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 9)
+#&gt; [1] &quot;bad index&quot;
+ex_get(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), NA)
+#&gt; [1] &quot;bad index&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The guard is the same three checks as <code>safe_get()</code>: NA, below 1, above length. Ordering <code>is.na(i)</code> first matters — it short-circuits before the numeric comparisons, which would return <code>NA</code> and break the <code>if</code>.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Fix a crashing pair-finder</h4>
+
+<p>The function below looks for pairs of numbers that sum to <code>target</code>. It works on normal input but crashes with "subscript out of bounds" when <code>x</code> has 0 or 1 elements. Find the bug and fix it. Your fix should return an empty list (not crash) for inputs shorter than 2.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Broken version — do not change the signature
 find_pairs &lt;- function(x, target) {
   pairs &lt;- list()
   for (i in 1:length(x)) {
-    for (j in (i+1):length(x)) {
+    for (j in (i + 1):length(x)) {
       if (x[[i]] + x[[j]] == target) {
         pairs[[length(pairs) + 1]] &lt;- c(i, j)
       }
@@ -340,15 +520,83 @@ find_pairs &lt;- function(x, target) {
   pairs
 }
 
-# Works:
-cat(&quot;Pairs summing to 10:\n&quot;)
-result &lt;- find_pairs(c(3, 7, 5, 5, 2, 8), 10)
-for (p in result) cat(&quot;  indices&quot;, p[1], &quot;and&quot;, p[2], &quot;\n&quot;)
+# Write your fixed version below and test it:
 
-# Crashes with single element:
-# find_pairs(c(5), 10)
+# Expected:
+# find_pairs(c(3, 7, 5, 5, 2, 8), 10) should return 3 pairs
+# find_pairs(c(5), 10)                should return list()
+# find_pairs(integer(0), 10)          should return list()</div>
 
-# Fix the function below:
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">find_pairs &lt;- function(x, target) {
+  my_pairs &lt;- list()
+  n &lt;- length(x)
+  if (n &lt; 2) return(my_pairs)
+
+  for (i in seq_len(n - 1)) {
+    for (j in seq.int(i + 1, n)) {
+      if (x[[i]] + x[[j]] == target) {
+        my_pairs[[length(my_pairs) + 1]] &lt;- c(i, j)
+      }
+    }
+  }
+  my_pairs
+}
+
+length(find_pairs(c(3, 7, 5, 5, 2, 8), 10))
+#&gt; [1] 3
+length(find_pairs(c(5), 10))
+#&gt; [1] 0
+length(find_pairs(integer(0), 10))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two bugs had to be fixed together. First, <code>1:length(x)</code> expands to <code>c(1, 0)</code> on empty input — the <code>if (n &lt; 2) return()</code> guard short-circuits both the empty and single-element cases. Second, <code>(i + 1):length(x)</code> becomes <code>2:1 = c(2, 1)</code> on a length-1 vector, so even if you got past the empty case, it would crash — <code>seq.int(i + 1, n)</code> together with the early return handles both. Variables use the <code>my_</code> prefix so the exercise does not clobber anything in the tutorial state.</p>
+
+</details>
+
+<h4>Exercise 2: Build a diagnostic wrapper</h4>
+
+<p>Write <code>explain_bounds(expr, x)</code> that runs <code>expr</code> (passed as a quoted R expression), catches any "subscript out of bounds" error, and prints the shape of <code>x</code> plus the exact error message. If <code>expr</code> runs without error, it should return the result. Use <code>tryCatch()</code> and <code>eval()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Expected:
+# explain_bounds(quote(scores[[5]]), scores)
+#   should print: &quot;length=3, index attempted: 5&quot; and return NULL
+# explain_bounds(quote(scores[[2]]), scores)
+#   should return 92
+
+# Write explain_bounds below:
 </div>
 
     <div class="webr-buttons">
@@ -372,29 +620,25 @@ for (p in result) cat(&quot;  indices&quot;, p[1], &quot;and&quot;, p[2], &quot;
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Bug: When x has 1 element, (i+1):length(x) becomes 2:1 = c(2,1)
-# which causes x[[2]] to be out of bounds.
-# Fix: check that j &gt; i and j &lt;= length(x)
-
-find_pairs &lt;- function(x, target) {
-  pairs &lt;- list()
-  n &lt;- length(x)
-  if (n &lt; 2) return(pairs)  # Need at least 2 elements
-
-  for (i in 1:(n - 1)) {
-    for (j in (i + 1):n) {
-      if (x[[i]] + x[[j]] == target) {
-        pairs[[length(pairs) + 1]] &lt;- c(i, j)
+    <div class="webr-editor" data-language="r">explain_bounds &lt;- function(expr, x) {
+  tryCatch(
+    eval(expr),
+    error = function(e) {
+      if (is.null(dim(x))) {
+        cat(&quot;length=&quot;, length(x), &quot;, error: &quot;, conditionMessage(e), &quot;\n&quot;, sep = &quot;&quot;)
+      } else {
+        cat(&quot;dim=&quot;, paste(dim(x), collapse = &quot;x&quot;),
+            &quot;, error: &quot;, conditionMessage(e), &quot;\n&quot;, sep = &quot;&quot;)
       }
+      invisible(NULL)
     }
-  }
-  pairs
+  )
 }
 
-# Now works for all cases:
-cat(&quot;Normal:&quot;, length(find_pairs(c(3, 7, 5, 5, 2, 8), 10)), &quot;pairs\n&quot;)
-cat(&quot;Single:&quot;, length(find_pairs(c(5), 10)), &quot;pairs\n&quot;)
-cat(&quot;Empty:&quot;, length(find_pairs(c(), 10)), &quot;pairs\n&quot;)</div>
+explain_bounds(quote(scores[[5]]), scores)
+#&gt; length=3, error: subscript out of bounds
+explain_bounds(quote(scores[[2]]), scores)
+#&gt; [1] 92</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -404,67 +648,130 @@ cat(&quot;Empty:&quot;, length(find_pairs(c(), 10)), &quot;pairs\n&quot;)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The bug is the <code>1:length(x)</code> pattern when <code>x</code> has only 1 element: <code>(i+1):length(x)</code> becomes <code>2:1</code>, which is <code>c(2, 1)</code>. Guard with <code>if (n &lt; 2) return()</code> and use <code>1:(n-1)</code> for the outer loop.</p>
+<p><strong>Explanation:</strong> <code>quote(scores[[5]])</code> captures the call without running it, so <code>eval()</code> decides when to run it. The error handler branches on whether <code>x</code> has dimensions (matrix / data.frame) or just a length (vector / list) and prints the relevant shape information alongside the original error message.</p>
 
 </details>
+
+<h2>Complete Example: Safe row extraction from a data.frame</h2>
+
+<p>Let's combine every pattern from this post into one utility you can reuse: a function that extracts a row from a data.frame and returns a row of <code>NA</code>s if the index is out of bounds. It guards against <code>NA</code> indices, negative indices, and indices past <code>nrow()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">safe_row &lt;- function(df, i) {
+  na_row &lt;- df[1, ]
+  na_row[] &lt;- NA
+
+  if (is.na(i) || i &lt; 1 || i &gt; nrow(df)) {
+    return(na_row)
+  }
+  df[i, ]
+}
+
+people &lt;- data.frame(
+  name   = c(&quot;Amelia&quot;, &quot;Bruno&quot;, &quot;Cara&quot;),
+  age    = c(32, 45, 28),
+  salary = c(75000, 92000, 68000),
+  stringsAsFactors = FALSE
+)
+
+safe_row(people, 2)
+#&gt;    name age salary
+#&gt; 2 Bruno  45  92000
+
+safe_row(people, 9)
+#&gt;   name age salary
+#&gt; 1 &lt;NA&gt;  NA     NA
+
+safe_row(people, NA)
+#&gt;   name age salary
+#&gt; 1 &lt;NA&gt;  NA     NA</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>safe_row()</code> pre-builds an NA template once (<code>na_row</code>) so the fallback keeps the original data.frame's column types — important for downstream code that expects <code>age</code> to be numeric and <code>name</code> to be character. The three checks — <code>is.na</code>, below 1, above <code>nrow(df)</code> — are exactly the same three from <code>safe_get()</code>, just using <code>nrow</code> instead of <code>length</code>. The pattern scales to any rectangular object.</p>
 
 <h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Cause</th>
+<th>Trigger</th>
 <th>Example</th>
-<th>Fix</th>
+<th>Fast fix</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Index too large</td>
-<td><code>x[[10]]</code> on length-5</td>
-<td>Check <code>length(x)</code> first</td>
+<td><code>[[</code> past vector/list length</td>
+<td><code>scores[[10]]</code> on length-3</td>
+<td>Check <code>length(x)</code> first, use <code>safe_get()</code></td>
 </tr>
 <tr>
-<td>Off-by-one in loop</td>
-<td><code>1:(length(x)+1)</code></td>
-<td>Use <code>seq_along(x)</code></td>
+<td>Matrix row/col out of range</td>
+<td><code>mat[5, 2]</code> on 2x3</td>
+<td>Check <code>dim(mat)</code> first, use <code>i &lt;= nrow(mat)</code></td>
+</tr>
+<tr>
+<td>data.frame row past <code>nrow()</code></td>
+<td><code>df[[10, 1]]</code> on 3 rows</td>
+<td><code>safe_row(df, i)</code> with NA fallback</td>
+</tr>
+<tr>
+<td><code>1:length(x)</code> on empty input</td>
+<td><code>for (i in 1:length(empty))</code></td>
+<td>Use <code>seq_along(x)</code> or <code>seq_len(n - 1)</code></td>
 </tr>
 <tr>
 <td>NA index</td>
 <td><code>x[[NA]]</code></td>
-<td>Check <code>!is.na(i)</code></td>
-</tr>
-<tr>
-<td>Empty which()</td>
-<td><code>x[[which(x&gt;999)[1]]]</code></td>
-<td>Check <code>length()</code> of result</td>
-</tr>
-<tr>
-<td>Matrix bounds</td>
-<td><code>mat[5,2]</code> on 3-row</td>
-<td>Check <code>nrow()</code>/<code>ncol()</code></td>
+<td>Guard with <code>is.na(i)</code> before comparison</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<h2>References</h2>
 
-<h4>Why does x[10] return NA but x[[10]] throws an error?</h4>
+<ol>
 
-<p><code>[</code> is designed for subsetting (can return multiple elements) and uses NA as a placeholder for missing positions. <code>[[</code> is designed for extracting a single element and is stricter — there's no meaningful "single NA element" to return.</p>
+<li>Wickham, H. — <em>Advanced R</em>, Chapter 4: Subsetting. <a href="https://adv-r.hadley.nz/subsetting.html">Link</a></li>
 
-<h4>How do I handle this in lapply/sapply?</h4>
+<li>R Core Team — <em>An Introduction to R</em>, Section 6: Lists and data frames. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
 
-<p>If your function might get indices out of range, wrap the access in <code>tryCatch</code> or validate before accessing. <code>purrr::pluck()</code> is a safe alternative that returns a default value when the element doesn't exist.</p>
+<li>Base <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R help</a> page: <code>?&quot;[[&quot;</code></li>
+
+<li>purrr documentation — <code>pluck()</code> reference. <a href="https://purrr.tidyverse.org/reference/pluck.html">Link</a></li>
+
+<li>R source code — <code>src/main/subscript.c</code> (where the error is raised).</li>
+
+<li>Stack Overflow canonical: "What does 'subscript out of bounds' mean in R?" <a href="https://stackoverflow.com/questions/6929596">Link</a></li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ol>
 
-<li><strong>R Error: <a class="auto-link" href="R-Error-Undefined-Columns.html" title="R Error: undefined columns selected — Data Frame Subsetting Fix">undefined columns selected</a></strong> — data frame subsetting fix</li>
+<li><strong>R Common Errors</strong> — the full reference covering the other 50 errors R throws at you.</li>
 
-<li><strong>R Error: <a class="auto-link" href="R-Error-Replacement-Length.html" title="R Error: replacement has length zero — The NA Assignment Bug">replacement has length zero</a></strong> — the NA assignment bug</li>
+<li><strong>R Error: <a class="auto-link" href="R-Error-Undefined-Columns.html" title="R Error: undefined columns selected — Data Frame Subsetting Fix">undefined columns selected</a></strong> — the data.frame cousin of this error, triggered by bad column names.</li>
 
-<li><strong><a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">R Common Errors</a></strong> — the full reference of 50 common errors</li>
+<li><strong>R Error: <a class="auto-link" href="R-Error-Replacement-Length.html" title="R Error: replacement has length zero — The NA Assignment Bug">replacement has length zero</a></strong> — the NA assignment bug that shows up in the same debugging sessions.</li>
 
 </ol>
