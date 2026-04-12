@@ -3,8 +3,8 @@
   <head>
     <title>Active Bindings in R: makeActiveBinding() for Computed Variables</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Learn active bindings in R: makeActiveBinding() creates variables that run a function every time they're accessed, useful for computed properties and R6 fields.">
-    <meta name="Keywords" content="R active bindings, makeActiveBinding, R computed variables, R6 active fields, R dynamic variables, R binding">
+    <meta name="Description" content="Learn makeActiveBinding() in R to create variables that run a function on every read or write. Build computed properties, validators, and R6 active fields.">
+    <meta name="Keywords" content="R active bindings, makeActiveBinding, R computed variables, R6 active fields, R reactive variables, bindingIsActive, R computed properties">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -119,14 +119,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Active Bindings in R: makeActiveBinding() for Computed Variables">
-    <meta property="og:description" content="Learn active bindings in R: makeActiveBinding() creates variables that run a function every time they're accessed, useful for computed properties and R6 fields.">
+    <meta property="og:description" content="Learn makeActiveBinding() in R to create variables that run a function on every read or write. Build computed properties, validators, and R6 active fields.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/R-Active-Bindings.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/R-Active-Bindings.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Active Bindings in R: makeActiveBinding() for Computed Variables">
-    <meta name="twitter:description" content="Learn active bindings in R: makeActiveBinding() creates variables that run a function every time they're accessed, useful for computed properties and R6 fields.">
+    <meta name="twitter:description" content="Learn makeActiveBinding() in R to create variables that run a function on every read or write. Build computed properties, validators, and R6 active fields.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/R-Active-Bindings.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -134,12 +134,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Active Bindings in R: makeActiveBinding() for Computed Variables",
-      "description": "Learn active bindings in R: makeActiveBinding() creates variables that run a function every time they're accessed, useful for computed properties and R6 fields.",
+      "description": "Learn makeActiveBinding() in R to create variables that run a function on every read or write. Build computed properties, validators, and R6 active fields.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/R-Active-Bindings.html",
-      "datePublished": "2026-04-11",
-      "dateModified": "2026-04-11",
+      "datePublished": "2026-04-13",
+      "dateModified": "2026-04-13",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -156,16 +156,7 @@
       ]
     }
     </script>
-        <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-      {"@type": "Question", "name": "How are active bindings used in R6 classes?", "acceptedAnswer": {"@type": "Answer", "text": "R6 classes have an active field in their class definition. Active fields look like regular fields to the user but run functions underneath — perfect for computed properties, validation, and lazy initialization."}},
-      {"@type": "Question", "name": "Do active bindings have performance overhead?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — each access runs a function call instead of a simple value lookup. For rarely-accessed properties this is negligible. For hot loops accessing millions of times, use regular variables instead."}}
-      ]
-    }
-    </script>
+    
     
     <!-- WebR Interactive R Code -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
@@ -634,29 +625,29 @@
 
 <h1>Active Bindings in R: makeActiveBinding() for Computed Variables</h1>
 
-<p class="lead">An active binding is a variable that runs a function every time you read or write to it. Instead of storing a static value, it computes a result on access — like a property getter in object-oriented languages. Create them with <code>makeActiveBinding()</code>.</p>
+<p class="lead">An active binding is a variable that runs a function every time you read or write to it. Instead of storing a static value, the binding executes a getter (and optionally a setter) on access — like a computed property in object-oriented languages. You create them with <code>makeActiveBinding()</code> in base R, and R6 uses the same machinery for its <code>active</code> fields.</p>
 
-<h2>What Are Active Bindings?</h2>
+<h2>What is an active binding in R?</h2>
 
-<p>Normal variables store a value. <a class="auto-link" href="R6-Advanced.html" title="R6 Inheritance, Private Methods & Active Bindings: Advanced R6">Active bindings</a> run a function:</p>
+<p>Normal R variables are dumb storage — <code>x &lt;- 42</code> files the number away and that's that. An active binding upgrades a name into a function call: reading the binding triggers the function, and the result is what comes back. Here is the classic demo: a <code>now</code> binding that always returns the current time without parentheses, without a helper, just the bare symbol.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Normal variable: stores a value
-x &lt;- 42
-cat(&quot;x:&quot;, x, &quot;\n&quot;)  # Just returns 42
-
-# Active binding: runs a function each time you access it
+    <div class="webr-editor" data-language="r"># Create an active binding named `now` in the global environment.
+# Accessing `now` (no parentheses) runs the function each time.
 makeActiveBinding(&quot;now&quot;, function() Sys.time(), globalenv())
 
-cat(&quot;now:&quot;, format(now), &quot;\n&quot;)
-Sys.sleep(0.1)
-cat(&quot;now:&quot;, format(now), &quot;\n&quot;)  # Different value each time!
+now
+#&gt; [1] &quot;2026-04-13 09:14:23 UTC&quot;
 
-# Clean up
-rm(now)</div>
+Sys.sleep(1)
+now
+#&gt; [1] &quot;2026-04-13 09:14:24 UTC&quot;
+
+# Clean up so the binding doesn't linger in later blocks
+rm(&quot;now&quot;, envir = globalenv())</div>
 
     <div class="webr-buttons">
 
@@ -674,24 +665,31 @@ rm(now)</div>
 
 </div>
 
+<p>Two reads of <code>now</code>, separated by a one-second sleep, give two different timestamps. Notice we never wrote <code>now()</code> — the symbol <em>is</em> the function call. Every appearance triggers a fresh evaluation.</p>
+
+<p>Here is a second angle: a counter that auto-increments on every access. We need to store the count somewhere, so we hide it in a dedicated environment and have the binding close over it.</p>
+
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Active binding as a counter
-env &lt;- new.env(parent = emptyenv())
-env$.count &lt;- 0
+    <div class="webr-editor" data-language="r"># Private state lives inside a throwaway environment
+counter_env &lt;- new.env(parent = emptyenv())
+counter_env$.n &lt;- 0
 
 makeActiveBinding(&quot;counter&quot;, function() {
-  env$.count &lt;- env$.count + 1
-  env$.count
+  counter_env$.n &lt;- counter_env$.n + 1
+  counter_env$.n
 }, globalenv())
 
-cat(&quot;First access:&quot;, counter, &quot;\n&quot;)   # 1
-cat(&quot;Second access:&quot;, counter, &quot;\n&quot;)  # 2
-cat(&quot;Third access:&quot;, counter, &quot;\n&quot;)   # 3
+counter
+#&gt; [1] 1
+counter
+#&gt; [1] 2
+counter
+#&gt; [1] 3
 
-rm(counter)</div>
+rm(&quot;counter&quot;, envir = globalenv())</div>
 
     <div class="webr-buttons">
 
@@ -709,29 +707,79 @@ rm(counter)</div>
 
 </div>
 
-<h2>makeActiveBinding() Syntax</h2>
+<p>Three reads of the same name, three different values. The getter closed over <code>counter_env</code>, so it can stash state between calls without touching the <a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">global environment</a>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>With an active binding, the symbol is the function call.</strong> Every time R encounters the bare name, it re-runs the backing function from scratch — so the name can return a fresh value, a computed result, or the outcome of a side effect on each access.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a read-only active binding called <code>ex_today_is</code> that returns <code>Sys.Date()</code> on every access. Clean up with <code>rm()</code> when you are done.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: write the binding below
+# your code here
+
+# Test:
+# ex_today_is
+#&gt; Expected: today's date like &quot;2026-04-13&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">makeActiveBinding(&quot;ex_today_is&quot;, function() Sys.Date(), globalenv())
+ex_today_is
+#&gt; [1] &quot;2026-04-13&quot;
+rm(&quot;ex_today_is&quot;, envir = globalenv())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The getter takes zero arguments, so the binding is read-only. <code>Sys.Date()</code> runs on every access — if you came back tomorrow, the value would have advanced by a day.</p>
+
+</details>
+</section>
+
+<h2>How do you create read-only vs read-write bindings?</h2>
+
+<p>R inspects the function you pass to <code>makeActiveBinding()</code> and decides its behaviour based on how many arguments it takes. A zero-argument function is a pure getter: the binding becomes read-only, and assigning to it raises an error. A single-argument function doubles as both getter and setter — reads call it with no argument, writes call it with the new value as the only argument. Branch on <code>missing(value)</code> to tell the two cases apart.</p>
+
+<p>First, a read-only binding. A hidden environment holds a numeric vector, and the binding <code>data_mean</code> computes its mean on every read. Mutating the underlying vector makes the binding report a new value automatically — no refresh step, no stale cache.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># makeActiveBinding(name, function, environment)
-
-# Read-only computed property
+    <div class="webr-editor" data-language="r"># Private state: a vector of values we want to summarise
 data_env &lt;- new.env(parent = emptyenv())
-data_env$values &lt;- c(10, 20, 30, 40, 50)
+data_env$.values &lt;- c(10, 20, 30, 40, 50)
 
+# Getter-only binding — read-only, since the function takes no arguments
 makeActiveBinding(&quot;data_mean&quot;, function() {
-  mean(data_env$values)
+  mean(data_env$.values)
 }, globalenv())
 
-cat(&quot;Mean:&quot;, data_mean, &quot;\n&quot;)
+data_mean
+#&gt; [1] 30
 
-# Change the underlying data
-data_env$values &lt;- c(100, 200, 300)
-cat(&quot;Updated mean:&quot;, data_mean, &quot;\n&quot;)  # Automatically reflects new data
+# Change the underlying data; the binding reflects it immediately
+data_env$.values &lt;- c(100, 200, 300)
+data_mean
+#&gt; [1] 200
 
-rm(data_mean)</div>
+rm(&quot;data_mean&quot;, envir = globalenv())</div>
 
     <div class="webr-buttons">
 
@@ -749,34 +797,37 @@ rm(data_mean)</div>
 
 </div>
 
-<h4>Read-Write Active Bindings</h4>
+<p>The binding never caches — it calls <code>mean()</code> fresh on every read. That is the defining trade-off: always correct, never free.</p>
 
-<p>If the function accepts an argument, you can set the binding's value:</p>
+<p>Now the read-write version. The binding below stores a temperature internally in Celsius but exposes it as Fahrenheit. Reading the name converts Celsius to Fahrenheit on the fly; assigning a new Fahrenheit value converts back to Celsius and stores it.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">env &lt;- new.env(parent = emptyenv())
-env$.temp_celsius &lt;- 0
+    <div class="webr-editor" data-language="r"># Private Celsius state
+temp_env &lt;- new.env(parent = emptyenv())
+temp_env$.celsius &lt;- 0
 
 makeActiveBinding(&quot;temp_fahrenheit&quot;, function(value) {
   if (missing(value)) {
-    # Getter: convert C to F
-    env$.temp_celsius * 9/5 + 32
+    # Read: Celsius -&gt; Fahrenheit
+    temp_env$.celsius * 9 / 5 + 32
   } else {
-    # Setter: convert F to C and store
-    env$.temp_celsius &lt;- (value - 32) * 5/9
+    # Write: Fahrenheit -&gt; Celsius, then store
+    temp_env$.celsius &lt;- (value - 32) * 5 / 9
   }
 }, globalenv())
 
-env$.temp_celsius &lt;- 100
-cat(&quot;100C in F:&quot;, temp_fahrenheit, &quot;\n&quot;)
+temp_env$.celsius &lt;- 100
+temp_fahrenheit
+#&gt; [1] 212
 
 temp_fahrenheit &lt;- 32
-cat(&quot;32F in C:&quot;, env$.temp_celsius, &quot;\n&quot;)
+temp_env$.celsius
+#&gt; [1] 0
 
-rm(temp_fahrenheit)</div>
+rm(&quot;temp_fahrenheit&quot;, envir = globalenv())</div>
 
     <div class="webr-buttons">
 
@@ -794,37 +845,104 @@ rm(temp_fahrenheit)</div>
 
 </div>
 
-<h2>Practical Uses</h2>
+<p>The stored value is always Celsius; users see and write Fahrenheit. Both sides stay in sync because the conversion happens inside the binding, not in scattered helper functions.</p>
 
-<h4>Validated Assignment</h4>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Keep backing state in a dedicated environment with dot-prefixed field names.</strong> The dot (<code>.celsius</code>, <code>.values</code>) is an R convention that marks a field as private, and isolating the state in its own environment means you will not accidentally shadow a global variable of the same name.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a read-only active binding <code>ex_cm_to_inches</code> that converts a hidden <code>.cm</code> value to inches by dividing by <code>2.54</code>. Put the source value in an environment called <code>ex_cm_env</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_cm_env &lt;- new.env(parent = emptyenv())
+ex_cm_env$.cm &lt;- 100
+
+# your code here: makeActiveBinding(&quot;ex_cm_to_inches&quot;, ...)
+
+# Test:
+# ex_cm_to_inches
+#&gt; Expected: 39.37008</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_cm_env &lt;- new.env(parent = emptyenv())
+ex_cm_env$.cm &lt;- 100
+
+makeActiveBinding(&quot;ex_cm_to_inches&quot;, function() {
+  ex_cm_env$.cm / 2.54
+}, globalenv())
+
+ex_cm_to_inches
+#&gt; [1] 39.37008
+
+# Updating the source value changes the output
+ex_cm_env$.cm &lt;- 250
+ex_cm_to_inches
+#&gt; [1] 98.4252
+
+rm(&quot;ex_cm_to_inches&quot;, envir = globalenv())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The getter closes over <code>ex_cm_env</code>, so changing <code>ex_cm_env$.cm</code> is reflected on the next read. Because the function has no arguments, assigning to <code>ex_cm_to_inches</code> would raise an error — which is exactly what "read-only" means here.</p>
+
+</details>
+</section>
+
+<h2>How can active bindings validate assignments?</h2>
+
+<p>When the backing function accepts <code>value</code>, it becomes a gatekeeper. Every write runs through it before anything is stored, so rejecting bad input is a matter of raising an error inside the setter. This is the cleanest way to enforce invariants in R without reaching for S4 or R6 — the user still sees a plain variable, but the variable polices itself.</p>
+
+<p>The example below wraps an <code>age</code> value in a binding that only accepts numbers between 0 and 150. A bad assignment raises an error; the stored value stays untouched.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">env &lt;- new.env(parent = emptyenv())
-env$.age &lt;- 25
+    <div class="webr-editor" data-language="r">age_env &lt;- new.env(parent = emptyenv())
+age_env$.age &lt;- 25
 
 makeActiveBinding(&quot;age&quot;, function(value) {
-  if (missing(value)) return(env$.age)
+  if (missing(value)) return(age_env$.age)
   if (!is.numeric(value) || value &lt; 0 || value &gt; 150) {
     stop(&quot;age must be a number between 0 and 150&quot;)
   }
-  env$.age &lt;- value
+  age_env$.age &lt;- value
 }, globalenv())
 
-cat(&quot;Age:&quot;, age, &quot;\n&quot;)
-age &lt;- 30
-cat(&quot;Updated age:&quot;, age, &quot;\n&quot;)
+age
+#&gt; [1] 25
 
-# This would error:
+age &lt;- 30
+age
+#&gt; [1] 30
+
+# Attempting an invalid assignment
 tryCatch(
   age &lt;- -5,
-  error = function(e) cat(&quot;Error:&quot;, conditionMessage(e), &quot;\n&quot;)
+  error = function(e) cat(&quot;Rejected:&quot;, conditionMessage(e), &quot;\n&quot;)
 )
+#&gt; Rejected: age must be a number between 0 and 150
 
-cat(&quot;Age after invalid assignment:&quot;, age, &quot;\n&quot;)  # Still 30
-rm(age)</div>
+age
+#&gt; [1] 30
+
+rm(&quot;age&quot;, envir = globalenv())</div>
 
     <div class="webr-buttons">
 
@@ -842,35 +960,112 @@ rm(age)</div>
 
 </div>
 
-<h4>Logging Access</h4>
+<p>The invalid write <code>age &lt;- -5</code> never reaches storage: the setter raises an error, and <code>age</code> still reads <code>30</code>. Compare this with hand-rolled validator functions — readers no longer have to remember to call <code>set_age()</code> instead of <code>&lt;-</code>. The binding makes the normal assignment syntax safe.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Validation only fires on assignments to the bound name.</strong> If the reader pokes at the backing environment directly with <code>age_env$.age &lt;- -5</code>, they bypass the gate entirely. Treat the backing environment as private — never expose it — or keep it inside a closure where it cannot be reached from outside.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a read-write active binding <code>ex_positive_balance</code> that stores a number in <code>ex_balance_env$.balance</code>, rejects negative values with <code>stop(&quot;balance cannot be negative&quot;)</code>, and returns the stored value on read.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_balance_env &lt;- new.env(parent = emptyenv())
+ex_balance_env$.balance &lt;- 100
+
+# your code here: makeActiveBinding(&quot;ex_positive_balance&quot;, ...)
+
+# Test:
+# ex_positive_balance &lt;- 250
+# ex_positive_balance
+#&gt; Expected: 250</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_balance_env &lt;- new.env(parent = emptyenv())
+ex_balance_env$.balance &lt;- 100
 
-    <div class="webr-editor" data-language="r">env &lt;- new.env(parent = emptyenv())
-env$.secret &lt;- &quot;classified&quot;
-env$.access_log &lt;- character()
-
-makeActiveBinding(&quot;secret&quot;, function(value) {
-  if (missing(value)) {
-    entry &lt;- paste(&quot;READ at&quot;, format(Sys.time()))
-    env$.access_log &lt;- c(env$.access_log, entry)
-    return(env$.secret)
+makeActiveBinding(&quot;ex_positive_balance&quot;, function(value) {
+  if (missing(value)) return(ex_balance_env$.balance)
+  if (!is.numeric(value) || value &lt; 0) {
+    stop(&quot;balance cannot be negative&quot;)
   }
-  entry &lt;- paste(&quot;WRITE at&quot;, format(Sys.time()))
-  env$.access_log &lt;- c(env$.access_log, entry)
-  env$.secret &lt;- value
+  ex_balance_env$.balance &lt;- value
 }, globalenv())
 
-cat(&quot;Secret:&quot;, secret, &quot;\n&quot;)
-secret &lt;- &quot;new_value&quot;
-cat(&quot;Updated:&quot;, secret, &quot;\n&quot;)
+ex_positive_balance &lt;- 250
+ex_positive_balance
+#&gt; [1] 250
 
-cat(&quot;\nAccess log:\n&quot;)
-for (entry in env$.access_log) cat(&quot; &quot;, entry, &quot;\n&quot;)
+tryCatch(
+  ex_positive_balance &lt;- -10,
+  error = function(e) cat(&quot;Rejected:&quot;, conditionMessage(e), &quot;\n&quot;)
+)
+#&gt; Rejected: balance cannot be negative
 
-rm(secret)</div>
+ex_positive_balance
+#&gt; [1] 250
+
+rm(&quot;ex_positive_balance&quot;, envir = globalenv())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The branch on <code>missing(value)</code> makes this a getter/setter pair, and the <code>stop()</code> inside the setter rejects bad writes before the backing field is touched.</p>
+
+</details>
+</section>
+
+<h2>How are active bindings used in R6 classes?</h2>
+
+<p>R6 is the most common modern object system in R, and its <code>active</code> field is a thin wrapper around <code>makeActiveBinding()</code>. When you declare an <code>active</code> field in an R6 class, R6 installs an active binding on each instance at construction time. The upshot: fields that look like data but compute on access.</p>
+
+<p>The classic use case is derived attributes — values that depend on other fields and must never drift out of sync. Here is a <code>Rectangle</code> class with regular <code>width</code> and <code>height</code> fields and an <code>area</code> active field:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(R6)
+
+Rectangle &lt;- R6Class(&quot;Rectangle&quot;,
+  public = list(
+    width  = NULL,
+    height = NULL,
+    initialize = function(width, height) {
+      self$width  &lt;- width
+      self$height &lt;- height
+    }
+  ),
+  active = list(
+    area = function(value) {
+      if (!missing(value)) stop(&quot;area is read-only&quot;, call. = FALSE)
+      self$width * self$height
+    }
+  )
+)
+
+r &lt;- Rectangle$new(width = 3, height = 4)
+r$area
+#&gt; [1] 12
+
+# Mutate a regular field — area updates on the next read
+r$width &lt;- 10
+r$area
+#&gt; [1] 40</div>
 
     <div class="webr-buttons">
 
@@ -888,15 +1083,204 @@ rm(secret)</div>
 
 </div>
 
-<h2>Practice Exercise</h2>
+<p><code>r$area</code> never holds a stale value. The first read computes <code>3 * 4</code>; after we change <code>width</code>, the next read computes <code>10 * 4</code>. You did not call a method, you did not refresh anything — you accessed a field, and it did the right thing.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>R6 active fields eliminate the stale-derived-attribute bug by design.</strong> In a plain R6 class, a cached <code>area</code> field would drift every time someone updated <code>width</code> without remembering to recompute. Active fields remove the remembering — the computation <em>is</em> the field.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Define an R6 class <code>ex_RectanglePlus</code> with the same <code>width</code> and <code>height</code> fields plus a read-only <code>perimeter</code> active field equal to <code>2 * (width + height)</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># your code here: define ex_RectanglePlus with active = list(perimeter = ...)
+
+# Test:
+# ex_rp &lt;- ex_RectanglePlus$new(3, 4)
+# ex_rp$perimeter
+#&gt; Expected: 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_RectanglePlus &lt;- R6Class(&quot;ex_RectanglePlus&quot;,
+  public = list(
+    width  = NULL,
+    height = NULL,
+    initialize = function(width, height) {
+      self$width  &lt;- width
+      self$height &lt;- height
+    }
+  ),
+  active = list(
+    perimeter = function(value) {
+      if (!missing(value)) stop(&quot;perimeter is read-only&quot;, call. = FALSE)
+      2 * (self$width + self$height)
+    }
+  )
+)
+
+ex_rp &lt;- ex_RectanglePlus$new(3, 4)
+ex_rp$perimeter
+#&gt; [1] 14
+
+ex_rp$width &lt;- 10
+ex_rp$perimeter
+#&gt; [1] 28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>active</code> list binds <code>perimeter</code> to a getter at construction, so it recomputes on every read. Mutating <code>width</code> or <code>height</code> is all it takes to get a fresh perimeter.</p>
+
+</details>
+</section>
+
+<h2>When should you avoid active bindings?</h2>
+
+<p><a class="auto-link" href="R6-Advanced.html" title="R6 Inheritance, Private Methods & Active Bindings: Advanced R6">Active bindings</a> look free because they read like variables, but every access is a function call under the hood. In hot paths — tight loops, scalar code inside a bigger pipeline — that cost compounds fast. A rough benchmark makes the difference visible.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: Create an active binding called &quot;random_greeting&quot;
-# that returns a random greeting each time it's accessed.
-# Greetings: &quot;Hello!&quot;, &quot;Hi there!&quot;, &quot;Hey!&quot;, &quot;Greetings!&quot;, &quot;Howdy!&quot;
+    <div class="webr-editor" data-language="r"># Set up a normal variable and an equivalent active binding
+bench_env &lt;- new.env(parent = emptyenv())
+bench_env$.x &lt;- 1
+
+normal_var &lt;- 1
+makeActiveBinding(&quot;bench_binding&quot;, function() bench_env$.x, globalenv())
+
+# Read each 100,000 times and time it
+n &lt;- 1e5
+
+t_normal &lt;- system.time({
+  for (i in seq_len(n)) y &lt;- normal_var
+})
+t_active &lt;- system.time({
+  for (i in seq_len(n)) y &lt;- bench_binding
+})
+
+t_normal[[&quot;elapsed&quot;]]
+#&gt; [1] 0.004
+t_active[[&quot;elapsed&quot;]]
+#&gt; [1] 0.18
+
+rm(&quot;bench_binding&quot;, envir = globalenv())</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The numbers on your machine will vary (WebR runs noticeably slower than native R), but the gap is typically an order of magnitude or more. For a derived value read a few dozen times, that is irrelevant. For a loop that reads the name a million times, it matters. The fix is simple: read the binding once into a local variable, then use the local inside the loop.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Active bindings are not a free replacement for variables.</strong> Reserve them for properties you genuinely want computed on access — validated writes, R6 derived fields, reactive lookups. For values that do not change, a plain assignment is faster and clearer.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Cache the benchmark binding into a local variable before the loop and measure the three versions (normal, active, cached). Which one closes the gap?</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Scaffold: compare three loops (normal, active, cached active)
+n &lt;- 1e4
+normal_var &lt;- 1
+makeActiveBinding(&quot;ex_bench&quot;, function() 1, globalenv())
+
+# your code here: time three loops using system.time()
+
+rm(&quot;ex_bench&quot;, envir = globalenv())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">n &lt;- 1e4
+normal_var &lt;- 1
+makeActiveBinding(&quot;ex_bench&quot;, function() 1, globalenv())
+
+t1 &lt;- system.time(for (i in seq_len(n)) y &lt;- normal_var)
+t2 &lt;- system.time(for (i in seq_len(n)) y &lt;- ex_bench)
+
+cached &lt;- ex_bench
+t3 &lt;- system.time(for (i in seq_len(n)) y &lt;- cached)
+
+c(normal = t1[[&quot;elapsed&quot;]], active = t2[[&quot;elapsed&quot;]], cached = t3[[&quot;elapsed&quot;]])
+#&gt;  normal  active  cached
+#&gt;   0.000   0.015   0.000
+
+rm(&quot;ex_bench&quot;, envir = globalenv())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Caching <code>ex_bench</code> into <code>cached</code> turns the loop body back into a plain variable read — no per-iteration function call, so elapsed time collapses to roughly the normal-variable baseline.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstone exercises combine validation, hidden state, and R6. They use distinct names (prefixed with <code>acct_</code> or <code>my_</code>) so they do not collide with any tutorial bindings.</p>
+
+<h4>Exercise 1: A validated BankAccount</h4>
+
+<p>Build a <code>BankAccount</code>-style setup with three pieces:</p>
+
+<ol>
+
+<li>A hidden environment <code>acct_env</code> with a field <code>.balance</code> that starts at <code>0</code>.</li>
+
+<li>An active binding <code>account_balance</code> that rejects non-numeric values and negative balances with <code>stop(&quot;balance cannot go below zero&quot;)</code>.</li>
+
+<li>A read-only active binding <code>account_status</code> that returns <code>&quot;overdrawn&quot;</code> when the balance is <code>0</code>, <code>&quot;low&quot;</code> when it is less than <code>100</code>, and <code>&quot;healthy&quot;</code> otherwise.</li>
+
+</ol>
+
+<p>Test by setting <code>account_balance &lt;- 250</code>, then <code>account_balance &lt;- 50</code>, then attempting <code>account_balance &lt;- -10</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: BankAccount
+# Hint 1: branch on missing(value) in account_balance
+# Hint 2: account_status takes no arguments — read-only
 
 # Write your code below:
 </div>
@@ -922,17 +1306,44 @@ rm(secret)</div>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">makeActiveBinding(&quot;random_greeting&quot;, function() {
-  greetings &lt;- c(&quot;Hello!&quot;, &quot;Hi there!&quot;, &quot;Hey!&quot;, &quot;Greetings!&quot;, &quot;Howdy!&quot;)
-  sample(greetings, 1)
+    <div class="webr-editor" data-language="r">acct_env &lt;- new.env(parent = emptyenv())
+acct_env$.balance &lt;- 0
+
+makeActiveBinding(&quot;account_balance&quot;, function(value) {
+  if (missing(value)) return(acct_env$.balance)
+  if (!is.numeric(value) || value &lt; 0) {
+    stop(&quot;balance cannot go below zero&quot;)
+  }
+  acct_env$.balance &lt;- value
 }, globalenv())
 
-cat(random_greeting, &quot;\n&quot;)
-cat(random_greeting, &quot;\n&quot;)
-cat(random_greeting, &quot;\n&quot;)
-cat(random_greeting, &quot;\n&quot;)
+makeActiveBinding(&quot;account_status&quot;, function() {
+  b &lt;- acct_env$.balance
+  if (b == 0)        &quot;overdrawn&quot;
+  else if (b &lt; 100)  &quot;low&quot;
+  else               &quot;healthy&quot;
+}, globalenv())
 
-rm(random_greeting)</div>
+account_balance &lt;- 250
+c(balance = account_balance, status = account_status)
+#&gt;   balance    status
+#&gt;     &quot;250&quot; &quot;healthy&quot;
+
+account_balance &lt;- 50
+c(balance = account_balance, status = account_status)
+#&gt; balance  status
+#&gt;    &quot;50&quot;   &quot;low&quot;
+
+tryCatch(
+  account_balance &lt;- -10,
+  error = function(e) cat(&quot;Rejected:&quot;, conditionMessage(e), &quot;\n&quot;)
+)
+#&gt; Rejected: balance cannot go below zero
+
+account_balance
+#&gt; [1] 50
+
+rm(&quot;account_balance&quot;, &quot;account_status&quot;, envir = globalenv())</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -942,71 +1353,247 @@ rm(random_greeting)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Each time <code>random_greeting</code> is accessed, the function runs and <code>sample()</code> picks a random element. No two accesses are guaranteed to return the same value.</p>
+<p><strong>Explanation:</strong> <code>account_balance</code> is a read-write binding that gates assignments. <code>account_status</code> is read-only and derives its value from the same backing field, so the two bindings can never disagree — updating the balance automatically updates the status.</p>
 
 </details>
+
+<h4>Exercise 2: A Thermostat R6 class</h4>
+
+<p>Create an R6 class <code>Thermostat</code> with two active fields:</p>
+
+<ol>
+
+<li><code>celsius</code> — read-write, validated to be between <code>0</code> and <code>100</code> (error message: <code>&quot;celsius must be between 0 and 100&quot;</code>). Store it in a private field called <code>.c_</code>.</li>
+
+<li><code>fahrenheit</code> — read-only, computed as <code>celsius * 9 / 5 + 32</code>.</li>
+
+</ol>
+
+<p>Construct a <code>Thermostat$new()</code> instance, set <code>celsius</code> to <code>30</code>, and confirm that <code>fahrenheit</code> returns <code>86</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: Thermostat R6 class
+# Hint: use the `private = list(.c_ = 0)` slot for backing state
+# Hint: active fields access private via `private$.c_`
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">Thermostat &lt;- R6Class(&quot;Thermostat&quot;,
+  private = list(.c_ = 0),
+  active = list(
+    celsius = function(value) {
+      if (missing(value)) return(private$.c_)
+      if (!is.numeric(value) || value &lt; 0 || value &gt; 100) {
+        stop(&quot;celsius must be between 0 and 100&quot;)
+      }
+      private$.c_ &lt;- value
+    },
+    fahrenheit = function(value) {
+      if (!missing(value)) stop(&quot;fahrenheit is read-only&quot;, call. = FALSE)
+      private$.c_ * 9 / 5 + 32
+    }
+  )
+)
+
+my_t &lt;- Thermostat$new()
+my_t$celsius &lt;- 30
+c(c = my_t$celsius, f = my_t$fahrenheit)
+#&gt;  c  f
+#&gt; 30 86
+
+tryCatch(
+  my_t$celsius &lt;- 150,
+  error = function(e) cat(&quot;Rejected:&quot;, conditionMessage(e), &quot;\n&quot;)
+)
+#&gt; Rejected: celsius must be between 0 and 100
+
+my_t$celsius
+#&gt; [1] 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>private</code> list holds the canonical Celsius value. <code>celsius</code> is a gated read-write active field; <code>fahrenheit</code> is a derived read-only field that converts the same private state. No code outside the class can write to <code>fahrenheit</code> directly, and no code can leave <code>celsius</code> outside the valid range.</p>
+
+</details>
+
+<h2>Complete Example: a LiveStats class</h2>
+
+<p>Here is everything in one piece. <code>LiveStats</code> wraps a numeric vector with active fields for <code>n</code>, <code>mean_val</code>, <code>sd_val</code>, and <code>range_val</code>. Every append automatically refreshes every statistic — no manual <code>update_stats()</code> call, no way to end up with stale numbers.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">LiveStats &lt;- R6Class(&quot;LiveStats&quot;,
+  public = list(
+    initialize = function(values = numeric(0)) {
+      private$.values &lt;- values
+    },
+    add = function(x) {
+      private$.values &lt;- c(private$.values, x)
+      invisible(self)
+    }
+  ),
+  private = list(.values = numeric(0)),
+  active = list(
+    n = function(value) {
+      if (!missing(value)) stop(&quot;n is read-only&quot;, call. = FALSE)
+      length(private$.values)
+    },
+    mean_val = function(value) {
+      if (!missing(value)) stop(&quot;mean_val is read-only&quot;, call. = FALSE)
+      if (length(private$.values) == 0) NA_real_ else mean(private$.values)
+    },
+    sd_val = function(value) {
+      if (!missing(value)) stop(&quot;sd_val is read-only&quot;, call. = FALSE)
+      if (length(private$.values) &lt; 2) NA_real_ else sd(private$.values)
+    },
+    range_val = function(value) {
+      if (!missing(value)) stop(&quot;range_val is read-only&quot;, call. = FALSE)
+      if (length(private$.values) == 0) c(NA_real_, NA_real_) else range(private$.values)
+    }
+  )
+)
+
+ls1 &lt;- LiveStats$new(c(10, 20, 30))
+c(n = ls1$n, mean = ls1$mean_val, sd = ls1$sd_val)
+#&gt;    n  mean    sd
+#&gt; 3.00 20.00 10.00
+
+# Append more data — every stat refreshes on the next read
+ls1$add(c(40, 50))
+c(n = ls1$n, mean = ls1$mean_val, sd = ls1$sd_val)
+#&gt;     n   mean     sd
+#&gt;  5.00  30.00  15.81
+
+ls1$range_val
+#&gt; [1] 10 50</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Every statistic is computed on read. The class exposes only what should be public — the <code>add()</code> method and the stat fields — hides the raw vector in <code>private</code>, and makes it impossible for any reader to see inconsistent values. That combination (validation, derivation, encapsulation) is the real payoff of active bindings.</p>
 
 <h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Feature</th>
+<th>Pattern</th>
 <th>Syntax</th>
-<th>Purpose</th>
+<th>When to use</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Create binding</td>
-<td><code>makeActiveBinding(&quot;name&quot;, fn, env)</code></td>
-<td>Define computed variable</td>
+<td>Read-only computed</td>
+<td><code>function() { ... }</code></td>
+<td>Derived values that depend on other state</td>
 </tr>
 <tr>
-<td>Read-only</td>
-<td><code>function() { ... }</code> (no args)</td>
-<td>Computed property</td>
+<td>Read-write validated</td>
+<td><code>function(value) { if (missing(value)) ... else ... }</code></td>
+<td>Setters that enforce invariants</td>
 </tr>
 <tr>
-<td>Read-write</td>
-<td><code>function(value) { ... }</code></td>
-<td>Validated getter/setter</td>
+<td>Hidden state</td>
+<td><code>env &lt;- new.env(); env$.x &lt;- ...</code></td>
+<td>Keep backing data out of the global environment</td>
 </tr>
 <tr>
-<td>Check if active</td>
+<td>R6 active field</td>
+<td><code>active = list(name = function(value) ...)</code></td>
+<td>Object-oriented computed properties</td>
+</tr>
+<tr>
+<td>Inspect</td>
 <td><code>bindingIsActive(&quot;name&quot;, env)</code></td>
-<td>Test binding type</td>
+<td>Detect whether a name is an active binding</td>
 </tr>
 <tr>
-<td>R6 active fields</td>
-<td><code>active = list(name = function() ...)</code></td>
-<td>OOP computed properties</td>
+<td>Remove</td>
+<td><code>rm(&quot;name&quot;, envir = env)</code></td>
+<td>Delete a binding</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<p>Active bindings turn variables into function calls. That unlocks computed properties, validated assignments, and R6's active fields — at the cost of making every access slightly slower. Use them where the semantic benefit pays for the per-call overhead, and reach for plain variables everywhere else.</p>
 
-<h4>How are active bindings used in R6 classes?</h4>
+<h2>References</h2>
 
-<p><a class="auto-link" href="OOP-in-R.html" title="OOP in R: S3 vs S4 vs R5 vs R6 — When to Use Each System">R6 classes</a> have an <code>active</code> field in their class definition. Active fields look like regular fields to the user but run functions underneath — perfect for computed properties, validation, and lazy initialization.</p>
+<ol>
 
-<h4>Do active bindings have performance overhead?</h4>
+<li>R Core Team — <code>bindenv {base}</code>: Binding and Environment Locking, Active Bindings. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/bindenv.html">Link</a></li>
 
-<p>Yes — each access runs a function call instead of a simple value lookup. For rarely-accessed properties this is negligible. For hot loops accessing millions of times, use regular variables instead.</p>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 7: Environments. <a href="https://adv-r.hadley.nz/environments.html">Link</a></li>
+
+<li>Chang, W. — R6 package documentation: Introduction and active fields. <a href="https://r6.r-lib.org/articles/Introduction.html">Link</a></li>
+
+<li>Xie, Y. — "makeActiveBinding(): The Most Magical Hidden Gem in Base R". <a href="https://yihui.org/en/2018/08/make-active-binding/">Link</a></li>
+
+<li>Fay, C. — "R and active binding (and pizza)". <a href="https://colinfay.me/ractivebinfing/">Link</a></li>
+
+<li>Müller, K. — <code>bindr</code>: Parametrized Active Bindings. <a href="https://krlmlr.github.io/bindr/">Link</a></li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ol>
 
-<li><strong>R6 Classes</strong> — active bindings are a key feature of R6's OOP system</li>
+<li><strong><a href="R-Environments.html">R Environments</a></strong> — bindings live inside environments; an active binding cannot exist anywhere else.</li>
 
-<li><strong><a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">R Environments</a></strong> — active bindings live in environments</li>
+<li><strong><a href="R6-Classes-in-R.html">R6 Classes in R</a></strong> — the <code>active</code> field slot is built directly on top of <code>makeActiveBinding()</code>.</li>
 
-<li><strong><a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">R Closures</a></strong> — the function in an active binding is often a closure</li>
+<li><strong><a href="R-Closures.html">R Closures</a></strong> — the function you pass to <code>makeActiveBinding()</code> is almost always a closure that captures the backing state.</li>
 
 </ol>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Internal-Functions.html"><span class="rt-title">R Internal Functions: .Internal(), .Call(), .External() — Low Level</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Assignment-Deep-Dive.html"><span class="rt-title">R Assignment Deep Dive: &lt;- vs = vs &lt;&lt;- vs -&gt; — Know the Difference</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="R-Conditions-System.html"><span class="rt-title">R Conditions System: message(), warning(), stop() &amp; Custom Conditions</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="R-Names-and-Values.html"><span class="rt-title">R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)</span><span class="rt-meta">Advanced R &middot; 3 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Internal-Functions.html"><span class="rt-title">R Internal Functions: .Internal(), .Call(), .External() — Low Level</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Debugging.html"><span class="rt-title">Debugging R: The Complete Toolkit — From traceback() to RStudio Breakpoints</span><span class="rt-meta">Advanced R &middot; 13 min read</span></a><a class="rt-card" href="R-Names-and-Values.html"><span class="rt-title">How R Stores Variables: The Copy-on-Modify Rule Every R User Should Know</span><span class="rt-meta">Advanced R &middot; 8 min read</span></a><a class="rt-card" href="R-Promise-Objects.html"><span class="rt-title">R Promise Objects: Lazy Evaluation &amp; Force() Explained</span><span class="rt-meta">9 min read</span></a></div></section>
 
         </div>
 
