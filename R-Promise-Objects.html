@@ -3,8 +3,8 @@
   <head>
     <title>R Promise Objects: Lazy Evaluation & Force() Explained</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Learn how R uses promise objects for lazy evaluation: delayed argument evaluation, force(), substitute(), and why default arguments are evaluated lazily.">
-    <meta name="Keywords" content="R promise objects, R lazy evaluation, R force function, R substitute, R delayed evaluation, R default arguments, R promises">
+    <meta name="Description" content="R wraps function arguments in promise objects and evaluates them lazily. Learn promises, force(), substitute(), the closure loop trap, and default-arg scoping.">
+    <meta name="Keywords" content="R promise objects, R lazy evaluation, R force function, R force(), R substitute, R delayed evaluation, closure loop trap R, R default arguments, delayedAssign R">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -119,14 +119,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="R Promise Objects: Lazy Evaluation & Force() Explained">
-    <meta property="og:description" content="Learn how R uses promise objects for lazy evaluation: delayed argument evaluation, force(), substitute(), and why default arguments are evaluated lazily.">
+    <meta property="og:description" content="R wraps function arguments in promise objects and evaluates them lazily. Learn promises, force(), substitute(), the closure loop trap, and default-arg scoping.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/R-Promise-Objects.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/R-Promise-Objects.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="R Promise Objects: Lazy Evaluation & Force() Explained">
-    <meta name="twitter:description" content="Learn how R uses promise objects for lazy evaluation: delayed argument evaluation, force(), substitute(), and why default arguments are evaluated lazily.">
+    <meta name="twitter:description" content="R wraps function arguments in promise objects and evaluates them lazily. Learn promises, force(), substitute(), the closure loop trap, and default-arg scoping.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/R-Promise-Objects.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -134,12 +134,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "R Promise Objects: Lazy Evaluation & Force() Explained",
-      "description": "Learn how R uses promise objects for lazy evaluation: delayed argument evaluation, force(), substitute(), and why default arguments are evaluated lazily.",
+      "description": "R wraps function arguments in promise objects and evaluates them lazily. Learn promises, force(), substitute(), the closure loop trap, and default-arg scoping.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/R-Promise-Objects.html",
-      "datePublished": "2026-04-11",
-      "dateModified": "2026-04-11",
+      "datePublished": "2026-04-13",
+      "dateModified": "2026-04-13",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -156,16 +156,7 @@
       ]
     }
     </script>
-        <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-      {"@type": "Question", "name": "Is lazy evaluation the same as memoization?", "acceptedAnswer": {"@type": "Answer", "text": "No. Lazy evaluation means \"don't compute until needed.\" Memoization means \"compute once, cache the result.\" A promise is evaluated once and then cached, so there's a similarity — but the key feature of lazy evaluation is deferral, not caching."}},
-      {"@type": "Question", "name": "Why doesn't R evaluate arguments eagerly like most languages?", "acceptedAnswer": {"@type": "Answer", "text": "Lazy evaluation enables powerful patterns: default arguments that reference other arguments, short-circuit evaluation, and functions like substitute() that inspect the caller's expression. It also avoids computing unused arguments."}}
-      ]
-    }
-    </script>
+    
     
     <!-- WebR Interactive R Code -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
@@ -634,25 +625,32 @@
 
 <h1>R Promise Objects: Lazy Evaluation & Force() Explained</h1>
 
-<p class="lead">When you call a <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a>, arguments are not evaluated immediately. Instead, R creates <strong>promise objects</strong> — recipes that say "evaluate this expression when (and if) it's actually needed." This is lazy evaluation, and it's both a feature and a source of subtle bugs.</p>
+<p class="lead">An <strong>R promise object</strong> is a recipe R creates for every function argument: an unevaluated expression, an environment to evaluate it in, and an empty value slot that fills on first use. This mechanism — <strong>lazy evaluation</strong> — lets R skip work it doesn't need, but it also hides a few traps that cost R programmers real hours.</p>
 
-<h2>How Lazy Evaluation Works</h2>
+<h2>What is a promise object in R?</h2>
 
-<p>When you call <code>f(x + 1)</code>, R does not compute <code>x + 1</code> first. It packages the expression <code>x + 1</code> and the environment to evaluate it in as a promise, and passes that to <code>f</code>. The promise is only evaluated when <code>f</code> actually uses the argument:</p>
+<p>The quickest way to see a promise in action is to pass a side-effecting expression as an argument and watch <em>when</em> R decides to run it. Below, <code>show_when()</code> takes two arguments but only uses the first. Notice how the second argument — a <code>cat()</code> call that would normally print immediately — stays silent because R never needed to look at it.</p>
+
+<p>The function prints a marker, uses argument <code>a</code>, then exits without ever touching <code>b</code>. If R evaluated arguments <em>eagerly</em> (like Python or JavaScript), the <code>cat()</code> inside <code>b</code> would fire as soon as we called the function. It doesn't.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Lazy evaluation: arguments aren't evaluated until used
-lazy_demo &lt;- function(a, b) {
-  cat(&quot;About to use 'a'\n&quot;)
+    <div class="webr-editor" data-language="r"># Arguments are wrapped in promises; unused ones never run
+show_when &lt;- function(a, b) {
+  cat(&quot;[function body starts]\n&quot;)
   cat(&quot;a =&quot;, a, &quot;\n&quot;)
-  cat(&quot;'b' is never used — its expression is never evaluated\n&quot;)
+  cat(&quot;[function body ends; b was never touched]\n&quot;)
 }
 
-# Even though 1/0 would cause issues, b is never evaluated
-lazy_demo(42, {cat(&quot;b is being evaluated!\n&quot;); 999})</div>
+show_when(
+  a = 10,
+  b = { cat(&quot;  &gt;&gt; b was evaluated!\n&quot;); 999 }
+)
+#&gt; [function body starts]
+#&gt; a = 10 
+#&gt; [function body ends; b was never touched]</div>
 
     <div class="webr-buttons">
 
@@ -670,25 +668,106 @@ lazy_demo(42, {cat(&quot;b is being evaluated!\n&quot;); 999})</div>
 
 </div>
 
+<p>The <code>&quot;&gt;&gt; b was evaluated!&quot;</code> line never appears. When R called <code>show_when()</code>, it packaged the expression <code>{ cat(...); 999 }</code> and the calling environment into a <strong>promise</strong> and bound that promise to the formal argument <code>b</code>. The promise sat there, unused, until <code>show_when()</code> returned. No evaluation, no side effect, no cost.</p>
+
+<p>Every promise has three slots:</p>
+
+<ol>
+
+<li><strong>Expression</strong> — the unevaluated code you wrote (<code>{ cat(...); 999 }</code>)</li>
+
+<li><strong>Environment</strong> — where that expression should be evaluated (here, the <a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">global environment</a>)</li>
+
+<li><strong>Value</strong> — empty at first, filled when the promise is <em>forced</em> (first access)</li>
+
+</ol>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A promise is R's IOU for a value.</strong> Every function argument starts as an unevaluated expression paired with an environment; R only cashes the IOU when the function body actually reads the argument.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a function <code>ex_lazy(x, y)</code> that returns <code>x * 2</code> and never uses <code>y</code>. Pass a noisy <code>cat()</code> expression as <code>y</code> and confirm it stays silent.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: write ex_lazy()
+ex_lazy &lt;- function(x, y) {
+  # your code here
+}
+
+# Test:
+ex_lazy(5, { cat(&quot;y ran!\n&quot;); 999 })
+#&gt; Expected: 10  (and no &quot;y ran!&quot; message)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_lazy &lt;- function(x, y) {
+  x * 2
+}
+ex_lazy(5, { cat(&quot;y ran!\n&quot;); 999 })
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because <code>y</code> is never referenced in the body, its promise is never forced. The <code>cat()</code> call lives inside the promise's expression slot and is discarded when the function returns.</p>
+
+</details>
+</section>
+
+<h2>How does lazy evaluation actually work step by step?</h2>
+
+<p>Now that you've seen a promise stay unforced, let's trace the full lifecycle. When R encounters <code>f(x + 1)</code>, it does four things in order:</p>
+
+<ol>
+
+<li><strong>Wrap</strong> — build a promise holding the expression <code>x + 1</code> plus a pointer to the caller's environment.</li>
+
+<li><strong>Bind</strong> — attach that promise to <code>f</code>'s formal parameter name.</li>
+
+<li><strong>Force</strong> — the <em>first</em> time <code>f</code>'s body reads the parameter, evaluate the expression in its captured environment.</li>
+
+<li><strong>Cache</strong> — store the result in the value slot. Every subsequent read returns the cached value directly.</li>
+
+</ol>
+
+<p>That caching step matters. A promise is forced <em>at most once</em>, so referencing an argument five times does not recompute it five times. Here's the proof:</p>
+
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># This means side effects in arguments happen at use time, not call time
-log_and_return &lt;- function(label, value) {
-  cat(sprintf(&quot;[%s evaluated]\n&quot;, label))
-  value
+    <div class="webr-editor" data-language="r"># Each call to noisy() bumps a counter — so we can count evaluations
+counter &lt;- 0
+noisy &lt;- function() {
+  counter &lt;&lt;- counter + 1
+  42
 }
 
-process &lt;- function(x, y) {
-  cat(&quot;Function started\n&quot;)
-  result &lt;- x  # x is evaluated here
-  cat(&quot;After using x\n&quot;)
-  # y is never used, so it's never evaluated
-  result
+use_twice &lt;- function(x) {
+  r1 &lt;- x + 1   # first read — forces the promise, caches 42
+  r2 &lt;- x + 1   # second read — reads the cached value, no recompute
+  r1 + r2
 }
 
-process(log_and_return(&quot;x&quot;, 10), log_and_return(&quot;y&quot;, 20))</div>
+counter &lt;- 0
+use_twice(noisy())
+#&gt; [1] 86
+cat(&quot;noisy() ran&quot;, counter, &quot;time(s)\n&quot;)
+#&gt; noisy() ran 1 time(s)</div>
 
     <div class="webr-buttons">
 
@@ -706,124 +785,85 @@ process(log_and_return(&quot;x&quot;, 10), log_and_return(&quot;y&quot;, 20))</d
 
 </div>
 
-<h2>The Lazy Evaluation Trap in Loops</h2>
+<p>Despite <code>x</code> being read twice, <code>noisy()</code> executed exactly once. On the first read, R saw an unforced promise, ran <code>noisy()</code> in the global environment, got <code>42</code>, and stored it. On the second read, the promise's value slot was already populated, so R skipped straight to the cached number.</p>
 
-<p>The most common bug from lazy evaluation occurs with closures in loops:</p>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>"Evaluate once, cache forever" is why lazy evaluation costs nothing at runtime.</strong> You can reference an argument ten times in a function body without worrying about re-running expensive expressions — R memoises the first forcing automatically.</div></div>
 
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a third read of <code>x</code> inside <code>use_twice()</code> and predict what <code>counter</code> will be after one call. Run it to check.</p>
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># The classic trap
-fns &lt;- list()
-for (i in 1:3) {
-  fns[[i]] &lt;- function() cat(&quot;i =&quot;, i, &quot;\n&quot;)
+    <div class="webr-editor" data-language="r"># Try it: modify to read x three times
+ex_cached_fn &lt;- function(x) {
+  r1 &lt;- x + 1
+  r2 &lt;- x + 1
+  # add a third read of x here
 }
 
-# All print 3! Because i is evaluated lazily when called, not when defined
-fns[[1]]()
-fns[[2]]()
-fns[[3]]()</div>
-
+counter &lt;- 0
+ex_cached_fn(noisy())
+cat(&quot;noisy() ran&quot;, counter, &quot;time(s)\n&quot;)
+#&gt; Expected: noisy() ran 1 time(s)</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Fix with force()
-fns_fixed &lt;- list()
-for (i in 1:3) {
-  local({
-    forced_i &lt;- i  # force evaluation by assigning to local variable
-    fns_fixed[[length(fns_fixed) + 1]] &lt;&lt;- function() cat(&quot;i =&quot;, forced_i, &quot;\n&quot;)
-  })
+    <div class="webr-editor" data-language="r">ex_cached_fn &lt;- function(x) {
+  r1 &lt;- x + 1
+  r2 &lt;- x + 1
+  r3 &lt;- x * 2
+  r1 + r2 + r3
 }
-
-fns_fixed[[1]]()
-fns_fixed[[2]]()
-fns_fixed[[3]]()</div>
-
+counter &lt;- 0
+ex_cached_fn(noisy())
+#&gt; [1] 170
+cat(&quot;noisy() ran&quot;, counter, &quot;time(s)\n&quot;)
+#&gt; noisy() ran 1 time(s)</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
 
-<h2>force(): Evaluate Now</h2>
+<p><strong>Explanation:</strong> No matter how many times <code>x</code> appears, only the first access forces the promise. The value slot is filled with <code>42</code> and every subsequent read is a plain lookup.</p>
 
-<p><code>force(x)</code> simply evaluates <code>x</code> immediately. It's equivalent to just writing <code>x</code>, but makes the intent clear:</p>
+</details>
+</section>
+
+<h2>Why do default arguments see other function arguments?</h2>
+
+<p>You've probably written (or seen) a function like <code>function(x, n = length(x))</code> — a default that refers to another argument. It works because of one rule: <strong>default arguments are evaluated in the function's own environment, not the caller's</strong>. By the time R needs <code>n</code>, <code>x</code> is already bound in the function frame, so <code>length(x)</code> has something to look up.</p>
+
+<p>Here's the friendly version:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># force() in function factories
-make_adder &lt;- function(n) {
-  force(n)  # Evaluate n NOW, not later
-  function(x) x + n
-}
-
-# Without force(), this pattern can have subtle bugs
-# when the argument comes from a changing variable
-adders &lt;- lapply(1:5, make_adder)
-cat(&quot;adders[[1]](10) =&quot;, adders[[1]](10), &quot;\n&quot;)  # 11
-cat(&quot;adders[[3]](10) =&quot;, adders[[3]](10), &quot;\n&quot;)  # 13
-cat(&quot;adders[[5]](10) =&quot;, adders[[5]](10), &quot;\n&quot;)  # 15</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Default arguments are evaluated lazily IN the function's environment
-smart_default &lt;- function(x, n = length(x)) {
-  # n defaults to length(x), evaluated when n is first used
-  # At that point, x is already available in this environment
+    <div class="webr-editor" data-language="r">smart_default &lt;- function(x, n = length(x)) {
+  cat(&quot;n =&quot;, n, &quot;\n&quot;)
   head(x, n)
 }
 
-cat(&quot;All:&quot;, smart_default(1:10), &quot;\n&quot;)
-cat(&quot;First 3:&quot;, smart_default(1:10, 3), &quot;\n&quot;)</div>
+smart_default(1:10)
+#&gt; n = 10 
+#&gt;  [1]  1  2  3  4  5  6  7  8  9 10
+
+smart_default(1:10, 3)
+#&gt; n = 3 
+#&gt; [1] 1 2 3</div>
 
     <div class="webr-buttons">
 
@@ -841,25 +881,273 @@ cat(&quot;First 3:&quot;, smart_default(1:10, 3), &quot;\n&quot;)</div>
 
 </div>
 
-<h2>substitute(): Capture the Promise Expression</h2>
+<p>When you omit <code>n</code>, R wraps the default expression <code>length(x)</code> in a promise whose <em>environment</em> is the call frame of <code>smart_default</code>. The moment the body reads <code>n</code>, that promise forces, finds <code>x</code> in the same frame, and returns <code>10</code>. When you pass <code>n = 3</code>, the default is never consulted — your supplied promise takes its place.</p>
 
-<p><code>substitute()</code> captures the unevaluated expression from a promise:</p>
+<p>Now the unfriendly version. The same rule means a default can reference <em>anything</em> in the function's local scope, including variables created <em>after</em> the formal parameters. Hadley's classic <code>h05()</code> example shows how strange that gets:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># substitute captures what the user typed, not the value
-show_expression &lt;- function(x) {
+    <div class="webr-editor" data-language="r">h05 &lt;- function(x = ls()) {
+  a &lt;- 1
+  x  # first read of x — forces the default promise NOW
+}
+
+# No argument — default runs inside h05, after `a` was created
+h05()
+#&gt; [1] &quot;a&quot; &quot;x&quot;
+
+# Caller supplies ls() — different evaluation context
+h05(ls())
+#&gt; [1] &quot;h05&quot;      &quot;noisy&quot;    &quot;counter&quot;  ...</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Same expression — <code>ls()</code> — two completely different results. The default version runs in <code>h05</code>'s frame, where the locals are <code>a</code> and <code>x</code>, so <code>ls()</code> returns <code>c(&quot;a&quot;, &quot;x&quot;)</code>. The supplied version runs in the <em>caller's</em> frame (the global environment), where <code>ls()</code> returns whatever globals happen to exist.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Default arg = lazy + function's environment. Caller-supplied arg = lazy + caller's environment.</strong> Two different worlds. Useful for <code>function(x, n = length(x))</code> patterns, dangerous when a default references a local whose meaning the caller can't see.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>ex_append(x, suffix = paste0(&quot;-&quot;, length(x)))</code> that returns <code>paste0(x, suffix)</code>. Call it with and without <code>suffix</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it
+ex_append &lt;- function(x, suffix = paste0(&quot;-&quot;, length(x))) {
+  # your code here
+}
+
+ex_append(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+#&gt; Expected: &quot;a-3&quot; &quot;b-3&quot; &quot;c-3&quot;
+ex_append(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), &quot;!&quot;)
+#&gt; Expected: &quot;a!&quot; &quot;b!&quot; &quot;c!&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_append &lt;- function(x, suffix = paste0(&quot;-&quot;, length(x))) {
+  paste0(x, suffix)
+}
+ex_append(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+#&gt; [1] &quot;a-3&quot; &quot;b-3&quot; &quot;c-3&quot;
+ex_append(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), &quot;!&quot;)
+#&gt; [1] &quot;a!&quot; &quot;b!&quot; &quot;c!&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The default <code>paste0(&quot;-&quot;, length(x))</code> is wrapped in a promise whose environment is the call frame. When forced, it sees <code>x</code> already bound and computes the suffix on the fly.</p>
+
+</details>
+</section>
+
+<h2>What is the closure-loop trap and how does force() fix it?</h2>
+
+<p>This is the bug that lazy evaluation is infamous for. Build closures inside a <code>for</code> loop that captures the loop variable, and every closure will end up pointing at the <em>same</em> final value. Watch:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># The buggy factory — no force()
+make_adder &lt;- function(n) {
+  function(x) x + n
+}
+
+# Build three adders in a loop
+adders &lt;- list()
+for (i in 1:3) {
+  adders[[i]] &lt;- make_adder(i)
+}
+
+# We expect 11, 12, 13. We get...
+adders[[1]](10)
+#&gt; [1] 13
+adders[[2]](10)
+#&gt; [1] 13
+adders[[3]](10)
+#&gt; [1] 13</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>All three adders return 13. Why? Each call <code>make_adder(i)</code> created a promise for <code>n</code> whose <em>expression</em> was the symbol <code>i</code> and whose <em>environment</em> was the global frame. That promise stayed unforced because the inner function <code>function(x) x + n</code> doesn't touch <code>n</code> until you call it. By the time you call the first adder, the loop has already finished and <code>i</code> equals 3. Every promise forces to the same number.</p>
+
+<p>The fix is to <strong>force the promise eagerly</strong> inside the factory, before the inner function is returned. <code>force(n)</code> is the idiomatic way to say "evaluate this promise now, capture its value":</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># The safe factory — force() burns in the value
+make_adder_safe &lt;- function(n) {
+  force(n)           # evaluate n NOW, cache in the promise's value slot
+  function(x) x + n  # inner function reads the cached value later
+}
+
+adders_safe &lt;- list()
+for (i in 1:3) {
+  adders_safe[[i]] &lt;- make_adder_safe(i)
+}
+
+adders_safe[[1]](10)
+#&gt; [1] 11
+adders_safe[[2]](10)
+#&gt; [1] 12
+adders_safe[[3]](10)
+#&gt; [1] 13</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Correct. On iteration 1, <code>force(n)</code> ran inside <code>make_adder_safe</code>'s frame, evaluated <code>i</code> (which was 1), and cached 1 in the value slot. The inner closure's reference to <code>n</code> now resolves to that frozen 1, regardless of what <code>i</code> does later. Iterations 2 and 3 froze their own promises the same way.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><a class="auto-link" href="R-Function-Factories.html" title="R Function Factories: Functions That Create Functions (With 5 Examples)">Function factories</a> used inside loops must <code>force()</code> their captured argument.</strong> It's a silent, frustrating bug — the code looks right, it doesn't error, it just returns the wrong numbers. If you're building closures that capture anything from an <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">enclosing environment</a>, add <code>force()</code> as a reflex.</div></div>
+
+<p>Technically, <code>force(x)</code> is nothing more than <code>identity(x)</code> — it does not exist to do work, only to make the intent unmistakable. Writing <code>n</code> on its own line would also force the promise; <code>force(n)</code> just tells the next reader why.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The factory below builds personalised greeters but has the same bug. Add <code>force()</code> to fix it.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: fix the greeter factory
+ex_make_greeter &lt;- function(name) {
+  # add one line here
+  function() paste0(&quot;Hi, &quot;, name, &quot;!&quot;)
+}
+
+greeters &lt;- list()
+for (who in c(&quot;Ada&quot;, &quot;Bram&quot;, &quot;Cai&quot;)) {
+  greeters[[who]] &lt;- ex_make_greeter(who)
+}
+
+greeters$Ada()
+#&gt; Expected: &quot;Hi, Ada!&quot;
+greeters$Bram()
+#&gt; Expected: &quot;Hi, Bram!&quot;
+greeters$Cai()
+#&gt; Expected: &quot;Hi, Cai!&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_make_greeter &lt;- function(name) {
+  force(name)
+  function() paste0(&quot;Hi, &quot;, name, &quot;!&quot;)
+}
+greeters &lt;- list()
+for (who in c(&quot;Ada&quot;, &quot;Bram&quot;, &quot;Cai&quot;)) {
+  greeters[[who]] &lt;- ex_make_greeter(who)
+}
+greeters$Ada()
+#&gt; [1] &quot;Hi, Ada!&quot;
+greeters$Bram()
+#&gt; [1] &quot;Hi, Bram!&quot;
+greeters$Cai()
+#&gt; [1] &quot;Hi, Cai!&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Without <code>force(name)</code>, every closure captures the same unforced promise for <code>name</code>, which later resolves to <code>&quot;Cai&quot;</code> — the loop's final value. Forcing inside the factory freezes each closure's copy.</p>
+
+</details>
+</section>
+
+<h2>How does substitute() let you inspect a promise?</h2>
+
+<p>So far we've talked about forcing a promise — getting its value. <code>substitute()</code> does the opposite: it reads the <strong>expression</strong> slot <em>without</em> triggering evaluation. It gives you the raw code the caller typed.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">show_expression &lt;- function(x) {
   expr &lt;- substitute(x)
   cat(&quot;Expression:&quot;, deparse(expr), &quot;\n&quot;)
-  cat(&quot;Value:&quot;, x, &quot;\n&quot;)
+  cat(&quot;Value     :&quot;, x, &quot;\n&quot;)
 }
+
+show_expression(1 + 2 + 3)
+#&gt; Expression: 1 + 2 + 3 
+#&gt; Value     : 6 
+
+show_expression(sqrt(144))
+#&gt; Expression: sqrt(144) 
+#&gt; Value     : 12 
 
 a &lt;- 5
 show_expression(a + 10)
-show_expression(sqrt(144))
-show_expression(1:5)</div>
+#&gt; Expression: a + 10 
+#&gt; Value     : 15 </div>
 
     <div class="webr-buttons">
 
@@ -877,25 +1165,189 @@ show_expression(1:5)</div>
 
 </div>
 
-<p>This is how functions like <code>plot()</code> automatically label axes with the expression you passed in.</p>
+<p><code>substitute(x)</code> peered inside the promise and handed back the expression slot — the exact code the caller wrote. Then <code>x</code> on the next line forced the promise normally to get the value. Both slots, one promise.</p>
 
-<h2>Practice Exercise</h2>
+<p>This is the engine behind a lot of "magic" R functions. <code>plot(x, y)</code> labels its axes "x" and "y" because it calls <code>substitute()</code> on its arguments. <code>curve(sin(1/x^2), 0, 1)</code> captures <code>sin(1/x^2)</code> as an expression, never evaluates it in the caller, and re-evaluates it across a grid of <code>x</code> values. dplyr's <code>filter(cyl == 4)</code> works because <code>filter()</code> uses substitute-like tools to capture <code>cyl == 4</code> and evaluate it inside the data frame instead of the caller.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>substitute()</code> only captures the promise at <em>its own</em> argument position.</strong> If function <code>outer(x)</code> passes <code>x</code> down to <code>inner(x)</code>, and <code>inner()</code> calls <code>substitute(x)</code>, it sees the symbol <code>x</code> — not the original expression from the outermost caller. Metaprogramming across function boundaries needs <code>rlang::enquo()</code> or manual expression passing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>ex_describe(x)</code> that returns a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> with <code>expression</code> (a character string via <code>deparse</code>) and <code>value</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it
+ex_describe &lt;- function(x) {
+  # your code here
+}
+
+ex_describe(10 * (3 + 2))
+#&gt; Expected:
+#&gt; $expression
+#&gt; [1] &quot;10 * (3 + 2)&quot;
+#&gt; $value
+#&gt; [1] 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_describe &lt;- function(x) {
+  list(
+    expression = deparse(substitute(x)),
+    value      = x
+  )
+}
+ex_describe(10 * (3 + 2))
+#&gt; $expression
+#&gt; [1] &quot;10 * (3 + 2)&quot;
+#&gt; 
+#&gt; $value
+#&gt; [1] 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>substitute(x)</code> returns an R language object; <code>deparse()</code> converts it to a string. Reading <code>x</code> on the next line forces the promise and gives the value.</p>
+
+</details>
+</section>
+
+<h2>Can I create promises manually with delayedAssign()?</h2>
+
+<p><a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">Function arguments</a> are the usual source of promises, but you can create one at the top level too. <code>delayedAssign(name, expr)</code> binds <code>name</code> to a promise that holds <code>expr</code> unevaluated — the expression runs the first time you reference <code>name</code>, and never again.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: Create a function make_validators() that takes a list
-# of conditions like list(positive = x &gt; 0, small = x &lt; 100)
-# and returns a list of validator functions.
-# Make sure each validator captures its own condition correctly
-# (don't fall into the lazy evaluation trap).
+    <div class="webr-editor" data-language="r"># Bind a promise to the name `big_calc` without running the body
+delayedAssign(&quot;big_calc&quot;, {
+  cat(&quot;(computing big_calc...)\n&quot;)
+  sum(as.numeric(1:1e6))
+})
 
-# Test: validators$positive(-5) should return FALSE
-#       validators$small(50) should return TRUE
+cat(&quot;Nothing has been computed yet.\n&quot;)
+#&gt; Nothing has been computed yet.
 
-# Write your code below:
+# First access — the promise forces, the message prints, the value caches
+big_calc
+#&gt; (computing big_calc...)
+#&gt; [1] 500000500000
+
+# Second access — cached, no recomputation, no message
+big_calc
+#&gt; [1] 500000500000</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
 </div>
+
+<p>Two things to notice. First, the <code>cat()</code> message printed exactly once — exactly on the first read of <code>big_calc</code>. That's the familiar "force and cache" rule, now applied to a top-level binding instead of a function argument. Second, after the first access, <code>big_calc</code> looks like an ordinary variable holding <code>500000500000</code> — the promise has done its job.</p>
+
+<p>This is how many R packages expose large reference datasets: <code>delayedAssign</code> on package load, and the dataset stays compressed on disk until a user actually reads it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><em><em>For values that should recompute on </em>every</em> access, reach for <code>makeActiveBinding()</code> instead.** <code>delayedAssign()</code> fires once and caches; <code>makeActiveBinding()</code> fires every time. Different tools for lazy-once vs lazy-always.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>delayedAssign()</code> to create <code>ex_config</code> whose expression reads the current time via <code>Sys.time()</code>. Confirm that the <em>same</em> time shows up on repeated reads.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it
+delayedAssign(&quot;ex_config&quot;, Sys.time())
+
+# First access — records the time
+first  &lt;- ex_config
+Sys.sleep(1)
+second &lt;- ex_config
+
+identical(first, second)
+#&gt; Expected: TRUE   (promise cached on first read)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">delayedAssign(&quot;ex_config&quot;, Sys.time())
+
+first  &lt;- ex_config
+Sys.sleep(1)
+second &lt;- ex_config
+
+identical(first, second)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>Sys.time()</code> runs once, during the first access to <code>ex_config</code>. The returned time is cached in the promise's value slot, so the second read returns the same cached timestamp — not a fresh one.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These pull together several ideas from the tutorial. Use distinct variable names (prefixed <code>my_</code>) so exercise code doesn't clobber the teaching examples above.</p>
+
+<h4>Exercise 1: A safe multiplier factory</h4>
+
+<p>Write <code>make_multiplier(n)</code> that returns a function of <code>x</code> computing <code>x * n</code>. Build five multipliers in a <code>for</code> loop (for <code>n = 2</code> through <code>6</code>) and store them in a list called <code>my_mults</code>. Verify that each multiplier returns the correct result — <code>my_mults[[1]](10)</code> should give <code>20</code>, <code>my_mults[[5]](10)</code> should give <code>60</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: use force() to avoid the closure-loop trap
+
+make_multiplier &lt;- function(n) {
+  # your code here
+}
+
+my_mults &lt;- list()
+for (k in 2:6) {
+  # fill my_mults here
+}
+
+# Test
+sapply(my_mults, function(f) f(10))
+#&gt; Expected: 20 30 40 50 60</div>
 
     <div class="webr-buttons">
 
@@ -918,38 +1370,18 @@ show_expression(1:5)</div>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">make_validators &lt;- function(conditions) {
-  validators &lt;- list()
-  for (name in names(conditions)) {
-    local({
-      threshold_name &lt;- name
-      cond &lt;- conditions[[threshold_name]]
-      validators[[threshold_name]] &lt;&lt;- function(x) {
-        eval(cond, list(x = x))
-      }
-    })
-  }
-  validators
+    <div class="webr-editor" data-language="r">make_multiplier &lt;- function(n) {
+  force(n)
+  function(x) x * n
 }
 
-# Simpler approach using lapply (no lazy eval trap)
-make_validators2 &lt;- function(rules) {
-  lapply(rules, function(rule) {
-    force(rule)
-    function(x) eval(rule, list(x = x))
-  })
+my_mults &lt;- list()
+for (k in 2:6) {
+  my_mults[[k - 1]] &lt;- make_multiplier(k)
 }
 
-validators &lt;- make_validators2(list(
-  positive = quote(x &gt; 0),
-  small = quote(x &lt; 100),
-  even = quote(x %% 2 == 0)
-))
-
-cat(&quot;Is -5 positive?&quot;, validators$positive(-5), &quot;\n&quot;)
-cat(&quot;Is 50 small?&quot;, validators$small(50), &quot;\n&quot;)
-cat(&quot;Is 7 even?&quot;, validators$even(7), &quot;\n&quot;)
-cat(&quot;Is 8 even?&quot;, validators$even(8), &quot;\n&quot;)</div>
+sapply(my_mults, function(f) f(10))
+#&gt; [1] 20 30 40 50 60</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -959,9 +1391,217 @@ cat(&quot;Is 8 even?&quot;, validators$even(8), &quot;\n&quot;)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Using <code>quote()</code> to create unevaluated expressions and <code>eval()</code> with a custom environment prevents the lazy evaluation trap. <code>lapply()</code> creates a new scope for each iteration, which also helps.</p>
+<p><strong>Explanation:</strong> Without <code>force(n)</code>, all five closures would capture the same unforced promise for <code>k</code> and return <code>60</code> (the loop's final value times 10). <code>force(n)</code> evaluates and caches on each call, freezing <code>n</code> at 2, 3, 4, 5, 6 respectively.</p>
 
 </details>
+
+<h4>Exercise 2: Build your own <code>once()</code></h4>
+
+<p>Write <code>once(fn)</code> that takes a zero-argument function <code>fn</code> and returns a new function that runs <code>fn()</code> the first time it's called and returns the cached result on every subsequent call. Do this using a local environment (not <code>delayedAssign</code>). Test on a random-number generator and confirm two calls give the <em>same</em> number.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: cache-on-first-call helper
+
+once &lt;- function(fn) {
+  # your code here
+}
+
+set.seed(1)
+my_once_fn &lt;- once(function() runif(1))
+
+my_once_fn()
+my_once_fn()
+#&gt; Expected: both calls return the same number</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">once &lt;- function(fn) {
+  force(fn)
+  cache &lt;- new.env(parent = emptyenv())
+  cache$done &lt;- FALSE
+
+  function() {
+    if (!cache$done) {
+      cache$value &lt;- fn()
+      cache$done  &lt;- TRUE
+    }
+    cache$value
+  }
+}
+
+set.seed(1)
+my_once_fn &lt;- once(function() runif(1))
+
+my_once_fn()
+#&gt; [1] 0.2655087
+my_once_fn()
+#&gt; [1] 0.2655087</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A small environment (<code>cache</code>) persists across calls because the returned closure holds a reference to it. The first call evaluates <code>fn()</code> and stores the result; later calls short-circuit to the cached value. Notice the <code>force(fn)</code> at the top — if you built multiple <code>once()</code> wrappers in a loop, you'd hit the closure-loop trap without it.</p>
+
+</details>
+
+<h4>Exercise 3: A default that survives the h05 trap</h4>
+
+<p>Write <code>safe_default(x, n = length(x))</code> that returns <code>head(x, n)</code>, but <em>guards</em> against the trap shown earlier: if the caller passes their own <code>n</code>, use it; if they omit <code>n</code>, fall back to <code>length(x)</code> computed inside the function. Use <code>missing()</code> to tell the two cases apart.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: missing() + default arg
+
+safe_default &lt;- function(x, n = length(x)) {
+  # use missing() to branch on whether n was supplied
+}
+
+my_safe &lt;- safe_default(1:10)
+my_safe
+#&gt; Expected: 1 2 3 4 5 6 7 8 9 10
+
+my_safe &lt;- safe_default(1:10, 3)
+my_safe
+#&gt; Expected: 1 2 3</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">safe_default &lt;- function(x, n = length(x)) {
+  if (missing(n)) {
+    n &lt;- length(x)  # computed in this frame, promises forced here
+  }
+  head(x, n)
+}
+
+safe_default(1:10)
+#&gt;  [1]  1  2  3  4  5  6  7  8  9 10
+safe_default(1:10, 3)
+#&gt; [1] 1 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>missing(n)</code> returns <code>TRUE</code> if the caller didn't supply <code>n</code> — it checks whether <code>n</code>'s promise still holds the default expression. Branching on <code>missing()</code> makes defaults explicit and prevents surprises when a default references other locals in the function body.</p>
+
+</details>
+
+<h2>Putting It All Together: a lazy config loader</h2>
+
+<p>Here's a small real-world scenario that ties promises, <code>force()</code>, and <code>delayedAssign()</code> together. Imagine a configuration object where each value is computed on demand — reading a file, contacting a database, running an expensive calculation — and you only pay for the keys you actually touch.</p>
+
+<p><code>lazy_config()</code> accepts a list of name → expression pairs (passed via <code>quote()</code> so the expressions don't evaluate at call time). It stores each expression as a promise inside a dedicated environment and returns that environment. Reading a key forces the corresponding promise exactly once.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">lazy_config &lt;- function(entries) {
+  env &lt;- new.env(parent = emptyenv())
+  for (key in names(entries)) {
+    local({
+      k &lt;- key                 # freeze key for this iteration
+      expr &lt;- entries[[k]]
+      force(k); force(expr)    # capture both by value
+      delayedAssign(k, eval(expr), assign.env = env)
+    })
+  }
+  env
+}
+
+# Define three config entries — note that none run yet
+cfg &lt;- lazy_config(list(
+  db_host    = quote({ cat(&quot;  resolving db_host\n&quot;);    &quot;db.internal:5432&quot; }),
+  api_key    = quote({ cat(&quot;  resolving api_key\n&quot;);    paste0(&quot;key-&quot;, sample(1000, 1)) }),
+  heavy_calc = quote({ cat(&quot;  resolving heavy_calc\n&quot;); sum(1:1e5) })
+))
+
+cat(&quot;Config built. Nothing computed yet.\n&quot;)
+#&gt; Config built. Nothing computed yet.
+
+cat(&quot;First access to db_host:\n&quot;)
+cfg$db_host
+#&gt;   resolving db_host
+#&gt; [1] &quot;db.internal:5432&quot;
+
+cat(&quot;Second access to db_host:\n&quot;)
+cfg$db_host
+#&gt; [1] &quot;db.internal:5432&quot;
+
+cat(&quot;heavy_calc is never read — never computed.\n&quot;)
+#&gt; heavy_calc is never read — never computed.</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Three things to observe. First, building <code>cfg</code> printed nothing — no expression was evaluated yet; each became a promise. Second, the first read of <code>cfg$db_host</code> printed the "resolving" message and returned the value; the second read printed nothing, because the promise was already forced and cached. Third, <code>cfg$heavy_calc</code> never ran at all — its expression still sits in an unforced promise inside <code>cfg</code> and will never fire unless someone reads it.</p>
+
+<p>The <code>force(k)</code> and <code>force(expr)</code> inside <code>local()</code> are the same closure-loop defence from Exercise 1 — without them, every <code>delayedAssign()</code> would capture the final loop values of <code>key</code> and <code>entries[[key]]</code>, and all three keys would resolve to the same expression.</p>
 
 <h2>Summary</h2>
 
@@ -969,66 +1609,86 @@ cat(&quot;Is 8 even?&quot;, validators$even(8), &quot;\n&quot;)</div>
 <thead>
 <tr>
 <th>Concept</th>
-<th>Description</th>
-<th>Solution</th>
+<th>What it is</th>
+<th>When you notice it</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Lazy evaluation</td>
-<td>Arguments evaluated on demand</td>
-<td>Default R behavior</td>
+<td>Promise</td>
+<td>Expression + environment + value slot</td>
+<td>Every function call</td>
 </tr>
 <tr>
-<td>Promise</td>
-<td>Unevaluated expression + environment</td>
-<td>Created automatically for args</td>
+<td>Lazy evaluation</td>
+<td>Delay compute until first access</td>
+<td>Unused arguments never run</td>
 </tr>
 <tr>
 <td><code>force(x)</code></td>
-<td>Evaluate argument immediately</td>
-<td>Use in <a class="auto-link" href="R-Function-Factories.html" title="R Function Factories: Functions That Create Functions (With 5 Examples)">function factories</a></td>
+<td>Evaluate a promise now, cache the result</td>
+<td>Function factories inside loops</td>
 </tr>
 <tr>
 <td><code>substitute(x)</code></td>
-<td>Capture unevaluated expression</td>
-<td>For metaprogramming</td>
+<td>Read the expression slot without forcing</td>
+<td>Metaprogramming, NSE, <code>plot()</code> axis labels</td>
 </tr>
 <tr>
-<td>Loop trap</td>
-<td>Closures capture variable, not value</td>
-<td>Use <code>force()</code> or <code>local()</code></td>
+<td>Default arg scoping</td>
+<td>Defaults evaluate in the <em>function's</em> environment</td>
+<td><code>function(x, n = length(x))</code> works</td>
 </tr>
 <tr>
-<td>Default args</td>
-<td>Evaluated in function's environment</td>
-<td>Can reference other args</td>
+<td><code>h05()</code> trap</td>
+<td>Same expression, different meaning as default vs supplied</td>
+<td>Defaults that reference locals</td>
+</tr>
+<tr>
+<td>Closure-loop trap</td>
+<td>Closures share one unforced promise</td>
+<td><code>for</code> + function factory</td>
+</tr>
+<tr>
+<td><code>delayedAssign()</code></td>
+<td>Create a top-level promise by hand</td>
+<td>Package datasets, lazy config</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<h2>References</h2>
 
-<h4>Is lazy evaluation the same as memoization?</h4>
+<ol>
 
-<p>No. Lazy evaluation means "don't compute until needed." <a class="auto-link" href="Memoization-in-R.html" title="Memoization in R: memoise Package — Cache Expensive Functions">Memoization</a> means "compute once, cache the result." A promise is evaluated once and then cached, so there's a similarity — but the key feature of lazy evaluation is <em>deferral</em>, not caching.</p>
+<li>Wickham, H. <em>Advanced R</em> (2nd ed.), §6.5 Lazy evaluation. CRC Press, 2019. <a href="https://adv-r.hadley.nz/functions.html">Link</a></li>
 
-<h4>Why doesn't R evaluate arguments eagerly like most languages?</h4>
+<li>R Core Team — <code>force()</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/force.html">Link</a></li>
 
-<p>Lazy evaluation enables powerful patterns: default arguments that reference other arguments, short-circuit evaluation, and functions like <code>substitute()</code> that inspect the caller's expression. It also avoids computing unused arguments.</p>
+<li>R Core Team — <code>delayedAssign()</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/delayedAssign.html">Link</a></li>
+
+<li>Gągolewski, M. <em>Deep R Programming</em>, Chapter 17: Lazy evaluation. <a href="https://deepr.gagolewski.com/chapter/340-lazy.html">Link</a></li>
+
+<li>Fay, C. — <em>About lazy evaluation</em> (2018). <a href="https://colinfay.me/lazyeval/">Link</a></li>
+
+<li>Mailund, T. — <em>Promises, their environments, and how we evaluate them</em>. <a href="https://mailund.dk/posts/promises-and-lazy-evaluation/">Link</a></li>
+
+<li>R Core Team — <em>R Internals</em>, §1.3 Promise objects. <a href="https://cran.r-project.org/doc/manuals/r-release/R-ints.html">Link</a></li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ol>
 
-<li><strong>R Active Bindings</strong> — computed variables with <a class="auto-link" href="R-Active-Bindings.html" title="Active Bindings in R: makeActiveBinding() for Computed Variables">makeActiveBinding()</a></li>
+<li><strong><a class="auto-link" href="R-Lexical-Scoping.html" title="Lexical Scoping in R: How R Looks Up Variable Names (R Search Path)">R Lexical Scoping</a></strong> — the rule that tells R <em>where</em> to look up a promise's expression. Lazy evaluation decides <em>when</em>; scoping decides <em>where</em>.</li>
 
-<li><strong><a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">R Closures</a></strong> — how functions capture environments (closely related to promises)</li>
+<li><strong>R Closures</strong> — how functions remember the environment they were born in, which is exactly what makes the closure-loop trap bite (and what makes it fixable).</li>
 
-<li><strong><a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">R Environments</a></strong> — the environments where promises are evaluated</li>
+<li><strong>R Environments</strong> — the containers that promises live inside, and the thing <code>eval.env</code> in <code>delayedAssign()</code> actually points to.</li>
 
 </ol>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Namespaces.html"><span class="rt-title">R Namespaces: How Packages Export Functions &amp; Prevent Conflicts</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Debugging.html"><span class="rt-title">Debugging R Code: browser(), debug(), traceback() &amp; RStudio Debugger</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a><a class="rt-card" href="R-Names-and-Values.html"><span class="rt-title">R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)</span><span class="rt-meta">Advanced R &middot; 3 min read</span></a><a class="rt-card" href="R-Memory-lobstr.html"><span class="rt-title">Understanding R Memory: lobstr Package — Object Sizes &amp; References</span><span class="rt-meta">Advanced R &middot; 2 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Active-Bindings.html"><span class="rt-title">Active Bindings in R: makeActiveBinding() for Computed Variables</span><span class="rt-meta">1 min read</span></a><a class="rt-card" href="R-Assignment-Deep-Dive.html"><span class="rt-title">&lt;- vs = vs &lt;&lt;- in R: The Definitive Guide to Assignment Operators</span><span class="rt-meta">Advanced R &middot; 8 min read</span></a><a class="rt-card" href="R-Environments.html"><span class="rt-title">R Environments: The Missing Piece That Makes Scoping, Closures &amp; NSE Click</span><span class="rt-meta">Advanced R &middot; 7 min read</span></a><a class="rt-card" href="R-Closures.html"><span class="rt-title">R Closures: The Pattern Behind Shiny Reactive Logic and ggplot2 Themes</span><span class="rt-meta">Advanced R &middot; 10 min read</span></a></div></section>
 
         </div>
 
