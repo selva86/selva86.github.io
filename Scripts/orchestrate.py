@@ -25,6 +25,7 @@ from datetime import datetime
 
 # --- Configuration ---
 REPO_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = REPO_ROOT.parent  # D:/09_rstatisticsco — where .claude/ lives
 QUEUE_FILE = REPO_ROOT / "post_queue.json"
 LOG_FILE = REPO_ROOT / "Scripts" / "orchestrate.log"
 LOCK_FILE = REPO_ROOT / "Scripts" / "orchestrate.lock"
@@ -305,7 +306,7 @@ def main():
             try:
                 result = subprocess.run(
                     [claude, "-p", prompt, "--dangerously-skip-permissions"],
-                    cwd=str(REPO_ROOT),
+                    cwd=str(PROJECT_ROOT),
                     timeout=SESSION_TIMEOUT
                 )
                 exit_code = result.returncode
