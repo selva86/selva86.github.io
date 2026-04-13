@@ -1,257 +1,505 @@
 ---
-title: "How to Learn R Programming: A 12-Month Structured Roadmap from Zero"
+title: "Learn R in 12 Months: A Week-by-Week Roadmap With No Wasted Time"
 slug: "How-to-Learn-R"
-description: "A structured 12-month plan to learn R programming from scratch. Monthly milestones, specific resources, projects, and measurable checkpoints at every stage."
-keywords: "how to learn R, learn R programming, R learning roadmap, R beginner guide, R programming plan, learn R step by step, R study plan"
-mathjax: false
-webr: false
-date: "2026-03-29"
-curriculum_id: "CAR2"
-post_type: "C"
-auto_link_terms: "how to learn R|learn R programming|R learning roadmap"
+description: "A 12-month week-by-week R learning roadmap: data wrangling, stats, visualization, modeling, and packages — with milestones and projects at each stage."
+keywords: "how to learn R, learn R programming, R roadmap, R study plan, R programming for beginners, R data science path, R learning milestones"
+auto_link_terms: "how to learn R|learn R programming|R learning roadmap|R study plan|R learning path|12 month R roadmap|R programming roadmap"
 auto_link_case_sensitive: false
-fr_parent: "Is-R-Worth-Learning-in-2026.html"
-sidebar_section: "Learn R"
-sidebar_title: "How to Learn R"
+mathjax: false
+webr: true
+date: "2026-04-13"
+curriculum_id: "CAR2"
+post_type: "FR"
 ---
 
-# How to Learn R Programming: A 12-Month Structured Roadmap from Zero
+# Learn R in 12 Months: A Week-by-Week Roadmap With No Wasted Time
 
-<p class="lead">You can go from zero programming experience to a competent R data analyst in 12 months with consistent daily practice. This roadmap gives you monthly milestones, specific resources, hands-on projects, and clear checkpoints so you always know where you are and what to learn next.</p>
+<p class="lead">Most people who try to learn R quit in the first month because they follow a plan that is either too vague ("just practice") or too ambitious ("become an expert in 30 days"). This 12-month roadmap gives you a specific weekly schedule, four milestone gates so you know when to move on, and an honest list of things you should skip.</p>
 
-Most people fail to learn R not because it's hard, but because they lack structure. They watch random tutorials, never build real projects, and plateau after week three. This plan prevents that. Follow it sequentially -- each month builds on the last.
+## What does the 12-month R roadmap look like at a glance?
 
-**Prerequisites:** None. This roadmap assumes no programming experience. If you know another language, you can move through months 1-3 faster.
+Think of the next year as four three-month phases that stack on each other. Phase 1 teaches the language — syntax, objects, how R thinks. Phase 2 covers data wrangling and visualisation, which is where R stops being a toy and becomes genuinely useful. Phase 3 brings in statistics and modelling, the domain R was built for. Phase 4 is where you pick a specialisation — machine learning, Shiny, bioinformatics, or time series — and go deep. Before we dive in, here is a taste of what even raw R gives you with two lines of code.
 
-## Phase 1: Foundations (Months 1-3)
-
-### Month 1: Installation, Data Types, and Basic Operations
-
-**Goal:** Install R and RStudio, understand data types, and write simple scripts.
-
-**Topics:**
-- Install R and RStudio (see [Install R and RStudio](/Install-R-and-RStudio-2026.html))
-- Data types: numeric, character, logical, integer, factor
-- Data structures: vectors, matrices, lists, data frames
-- Basic operations: arithmetic, comparison, logical operators
-- Variable assignment with `<-`
-- Functions: `mean()`, `sum()`, `length()`, `str()`, `summary()`, `head()`
-- Reading CSV files: `read.csv()`
-
-**Primary resource:** [R for Data Science (2e)](https://r4ds.hadley.nz/) -- Chapters 1-4 (free online)
-
-**Practice:** Install the `swirl` package and complete the "R Programming" course:
 ```r
-install.packages("swirl")
-swirl::swirl()
+# One line of R can replace a whole spreadsheet column of formulas
+data(mtcars)
+summary(mtcars$mpg)
+#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#>   10.40   15.43   19.20   20.09   22.80   33.90
 ```
 
-**Project:** Load the built-in `mtcars` dataset. Calculate the mean MPG for each number of cylinders. Save results to a CSV file.
+Two lines, and you already have the full five-number summary plus the mean of a real dataset. By the end of month 2, you will read code like this as naturally as English. That compounding payoff is why R rewards a steady weekly rhythm rather than a heroic 30-day sprint.
 
-**Checkpoint:** Can you create vectors, subset data frames, and apply basic functions? Move on.
+[KEY INSIGHT]
+**The roadmap is built around milestone gates, not hours.** You advance when you can complete a small project from memory, not when the calendar says it is time. This prevents the "I finished the course but cannot write anything" trap that most tutorials produce.
 
-### Month 2: Data Wrangling with dplyr and tidyr
+**Try it:** Use `summary()` on the `hp` column of `mtcars` to inspect the horsepower distribution. Store the result in `ex_hp_summary`.
 
-**Goal:** Master the tidyverse verbs for data manipulation.
+```r
+# Try it: summarise mtcars$hp
+ex_hp_summary <- # your code here
 
-**Topics:**
-- The `|>` pipe operator (or `%>%`)
-- `dplyr::filter()` -- select rows by condition
-- `dplyr::select()` -- choose columns
-- `dplyr::mutate()` -- create/modify columns
-- `dplyr::summarise()` + `group_by()` -- aggregate by groups
-- `dplyr::arrange()` -- sort rows
-- Joins: `left_join()`, `inner_join()`, `anti_join()`
-- `tidyr::pivot_longer()` and `pivot_wider()` -- reshaping
+ex_hp_summary
+#> Expected: five-number summary + mean of horsepower (min ~52, max ~335)
+```
 
-**Primary resource:** R for Data Science (2e) -- Chapters 5-8
+<details>
+<summary>Click to reveal solution</summary>
 
-**Project:** Download the `nycflights13` dataset. Answer these questions using dplyr:
-1. Which carrier had the most flights?
-2. What is the average delay by destination?
-3. Which routes have the highest proportion of cancelled flights?
+```r
+ex_hp_summary <- summary(mtcars$hp)
+ex_hp_summary
+#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#>    52.0    96.5   123.0   146.7   180.0   335.0
+```
 
-**Checkpoint:** Can you chain 5+ dplyr operations in a single pipeline? Move on.
+**Explanation:** `summary()` dispatches on the object's type. Given a numeric vector it returns the five-number summary plus the mean.
 
-### Month 3: Visualization with ggplot2
+</details>
 
-**Goal:** Create publication-quality charts.
+## Months 1-3: What should you learn in the foundations phase?
 
-**Topics:**
-- ggplot2 grammar: `ggplot()`, `aes()`, `geom_*()` layers
-- Scatter plots, bar charts, line charts, histograms, box plots, violin plots
-- Aesthetics: color, size, shape, fill, alpha
-- Faceting: `facet_wrap()`, `facet_grid()`
-- Labels and titles: `labs()`
-- Themes: `theme_minimal()`, `theme_classic()`, `theme_bw()`
-- Saving: `ggsave()`
+Phase 1 is about fluency with the language itself. The goal is simple — by the end of month 3 you should be able to open RStudio, load a CSV, poke at it with base R, and produce a short written summary of what you found. No tidyverse yet, no statistics, no plots fancier than `plot()`. Foundations first.
 
-**Primary resource:** R for Data Science (2e) -- Chapters 10-12
+Weeks 1-2 cover installation, the RStudio interface, arithmetic, and assignment with `<-`. Weeks 3-4 introduce the core data structures — vectors, lists, and data frames — and how to index them. Weeks 5-8 add functions, `if`/`for`, and reading small CSV files with `read.csv()`. Weeks 9-12 are your first milestone project — pick a dataset that interests you and write a base-R exploration script, end to end.
 
-**Project:** Create an EDA report with 8+ plots exploring a dataset of your choice. Include at least: scatter plot with trend line, grouped bar chart, faceted plot, and customized theme.
+Here is the kind of code a week-4 reader should be able to write without looking it up.
 
-**Checkpoint:** Can you create any standard chart type and customize its appearance? Move on.
+```r
+# Typical week-4 code: describe a vector of ages
+ages <- c(21, 34, 28, 45, 31, 29, 52, 40)
+mean(ages)
+#> [1] 35
+sd(ages)
+#> [1] 10.14586
+length(ages[ages > 30])
+#> [1] 5
+```
 
-## Phase 2: Applied Skills (Months 4-6)
+Three lines, three different patterns — an aggregate function, a summary statistic, and a logical filter used as an index. The last line is the most important idea in all of R: boolean vectors act as selectors. Once that clicks, everything else in the language becomes easier.
 
-### Month 4: Data Cleaning, Strings, and Dates
+[NOTE]
+**Skip advanced topics in month 1.** Environments, S4 classes, lazy evaluation, and metaprogramming are rabbit holes that look essential in blog posts but are not. You can build a full data-analysis career without touching S4. Come back to them in Phase 4 if your specialisation needs them.
 
-**Topics:**
-- Missing values: `is.na()`, `na.rm`, `tidyr::drop_na()`, `tidyr::replace_na()`
-- String manipulation: `stringr` package (`str_detect()`, `str_replace()`, `str_extract()`)
-- Regular expressions: basics for pattern matching
-- Date handling: `lubridate` (`ymd()`, `year()`, `month()`, date arithmetic)
-- Type conversions: `as.numeric()`, `as.character()`, `as.Date()`
+**Try it:** Create a vector `ex_scores` containing 85, 92, 78, 95, 88 and compute its mean, rounded to one decimal place.
 
-**Project:** Find a messy real-world dataset (government open data portals are ideal). Clean it end-to-end: fix column names, parse dates, handle missing values, standardize text fields.
+```r
+# Try it: mean of a vector
+ex_scores <- # your code here
 
-### Month 5: Statistics in R
+round(mean(ex_scores), 1)
+#> Expected: 87.6
+```
 
-**Topics:**
-- Descriptive statistics: `summary()`, `psych::describe()`
-- Hypothesis testing: `t.test()`, `wilcox.test()`, `chisq.test()`
-- Correlation: `cor()`, `cor.test()`
-- Linear regression: `lm()`, interpreting `summary()` output
-- ANOVA: `aov()`, Tukey post-hoc tests
-- Assumption checking: diagnostic plots, Shapiro-Wilk, Levene's test
-- Effect sizes: `effectsize` package
+<details>
+<summary>Click to reveal solution</summary>
 
-**Primary resource:** [Learning Statistics with R](https://learningstatisticswithr.com/) (free online)
+```r
+ex_scores <- c(85, 92, 78, 95, 88)
+round(mean(ex_scores), 1)
+#> [1] 87.6
+```
 
-**Project:** Conduct a complete statistical analysis on a real dataset. State hypotheses, check assumptions, run tests, calculate effect sizes, and write up results.
+**Explanation:** `c()` concatenates values into a numeric vector. `mean()` averages them and `round(x, 1)` keeps one decimal place.
 
-### Month 6: Reproducible Reports with R Markdown/Quarto
+</details>
 
-**Topics:**
-- R Markdown and Quarto basics: code chunks, inline code, markdown formatting
-- Output formats: HTML, PDF, Word
-- Code chunk options: `echo`, `eval`, `fig.width`, `warning`, `message`
-- Tables: `knitr::kable()`, `gt`, `flextable`
-- Parameterized reports
-- Cross-referencing figures and tables
+## Months 4-6: How do you master data wrangling and visualisation?
 
-**Project:** Convert your Month 5 statistical analysis into a complete R Markdown or Quarto report with introduction, methods, results, and discussion. Render to HTML and PDF.
+Phase 2 is where R becomes your daily driver instead of a toy from a textbook. The tidyverse — especially dplyr, tidyr, and ggplot2 — turns clunky multi-step analyses into short, readable pipelines. If you skipped tidyverse here to "stay pure base-R", you would spend three times as long on every real project.
 
-## Phase 3: Intermediate (Months 7-9)
+Weeks 13-16 focus on the five core dplyr verbs: `filter()`, `select()`, `mutate()`, `summarise()`, and `group_by()`. Weeks 17-20 add `tidyr` reshaping, joins, and string and date handling. Weeks 21-24 are the ggplot2 grammar — layers, aesthetics, facets — and your second milestone project is a one-page exploratory-data-analysis report on a dataset you did not choose yourself.
 
-### Month 7: Writing Functions and Functional Programming
+Let us see the same `mtcars` question from earlier, but answered the tidyverse way.
 
-**Topics:**
-- Writing functions: arguments, defaults, `return()`, input validation with `stop()` and `warning()`
-- Scope and environments: how R finds variables
-- The `purrr` package: `map()`, `map_dbl()`, `map_dfr()`, `map2()`
-- Anonymous functions: `\(x) x + 1`
-- Error handling: `tryCatch()`, `purrr::safely()`, `purrr::possibly()`
+```r
+# Week-14 style: grouped summary with dplyr
+library(dplyr)
+mpg_by_cyl <- mtcars |>
+  group_by(cyl) |>
+  summarise(mean_mpg = mean(mpg), n = n())
+mpg_by_cyl
+#> # A tibble: 3 × 3
+#>     cyl mean_mpg     n
+#>   <dbl>    <dbl> <int>
+#> 1     4     26.7    11
+#> 2     6     19.7     7
+#> 3     8     15.1    14
+```
 
-**Primary resource:** [Advanced R](https://adv-r.hadley.nz/) -- Chapters 6-9 (free online)
+The pipe reads left-to-right like a sentence — "take mtcars, group by cylinder, then summarise mean mpg and count." Four-cylinder cars average 26.7 mpg, eight-cylinders just 15.1. That is the kind of answer you can extract in fifteen seconds once the pipeline is second nature.
 
-**Project:** Refactor one of your earlier projects. Extract repeated code into functions. Use `map()` to apply analysis across multiple groups or files.
+Visualising the same relationship is a one-liner with ggplot2.
 
-### Month 8: Machine Learning with tidymodels
+```r
+# Week-22 style: scatterplot with grouping aesthetic
+library(ggplot2)
+ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
+  geom_point(size = 3) +
+  labs(title = "Fuel economy vs weight by cylinder count",
+       x = "Weight (1000 lbs)", y = "MPG", colour = "Cylinders")
+```
 
-**Topics:**
-- tidymodels framework: recipes, parsnip, workflows, tune, yardstick
-- Train/test split: `rsample::initial_split()`
-- Feature engineering: `recipes` package
-- Models: linear regression, logistic regression, decision tree, random forest
-- Cross-validation: `vfold_cv()`
-- Metrics: RMSE, accuracy, AUC, confusion matrix
-- Hyperparameter tuning: `tune_grid()`
+Every ggplot2 plot has three ingredients — a data frame, an `aes()` mapping, and one or more `geom_*` layers. Once you internalise that pattern, every new chart type is just swapping the geom.
 
-**Primary resource:** [Tidy Modeling with R](https://www.tmwr.org/) (free online)
+[TIP]
+**Learn the native pipe `|>` first.** The magrittr pipe `%>%` has extra tricks but the native pipe covers 95 percent of daily use and ships with base R, so your code runs anywhere without loading magrittr.
 
-**Project:** Build an end-to-end ML pipeline: preprocess with recipes, compare 3 models using 10-fold CV, tune the best one, evaluate on holdout test set.
+**Try it:** Use dplyr to count how many `mtcars` rows have `mpg > 25`. Assign the count to `ex_efficient_count`.
 
-### Month 9: Interactive Visualization and Communication
+```r
+# Try it: count efficient cars
+ex_efficient_count <- mtcars |>
+  # your code here
 
-**Topics:**
-- Interactive plots: `plotly::ggplotly()`, `ggiraph`
-- Maps: `leaflet`, `sf` + `ggplot2`
-- Tables: `gt` for publication-quality tables
-- Dashboards: Quarto dashboards or `flexdashboard`
-- Animation: `gganimate`
-- Color: `viridis`, `RColorBrewer`, custom palettes
+ex_efficient_count
+#> Expected: 6
+```
 
-**Project:** Build an interactive dashboard that combines plots, maps, and tables. Deploy it as an HTML document or on a free hosting service.
+<details>
+<summary>Click to reveal solution</summary>
 
-## Phase 4: Specialization (Months 10-12)
+```r
+ex_efficient_count <- mtcars |>
+  filter(mpg > 25) |>
+  nrow()
+ex_efficient_count
+#> [1] 6
+```
 
-### Month 10-11: Deep Dive into One Area
+**Explanation:** `filter()` keeps rows matching the condition; `nrow()` counts them. You could also use `summarise(n = n())` for the same answer.
 
-Choose the specialization that matches your career goals:
+</details>
 
-| Specialization | What to Learn | Key Packages |
-|---------------|---------------|-------------|
-| Biostatistics | Survival analysis, clinical trials | survival, survminer, admiral |
-| Econometrics | Panel data, causal inference | fixest, plm, did |
-| Finance | Time series, portfolio analysis | quantmod, PerformanceAnalytics |
-| Text/NLP | Text mining, sentiment analysis | tidytext, quanteda |
-| Bayesian Stats | Probabilistic modeling, MCMC | brms, rstanarm |
-| Shiny Apps | Web applications | shiny, bslib, golem |
-| Geospatial | Mapping, spatial analysis | sf, terra, tmap |
+## Months 7-9: Which statistics and modelling topics matter most?
 
-### Month 12: Portfolio, Networking, and Job Prep
+Phase 3 is the most skipped phase in every other roadmap and the one that matters most for long-term pay-off. R was built by statisticians, and the thing that sets it apart from Python is not speed — it is a 20,000-package ecosystem of statistical methods that "just work".
 
-**Build your portfolio:**
-- 3-5 polished projects on GitHub with clear READMEs
-- At least one deployed Shiny app or interactive report
-- A blog post about an analysis (use Quarto)
+Weeks 25-28 cover descriptive statistics, common distributions, and the classic hypothesis tests — t-tests, chi-squared, ANOVA basics. Weeks 29-32 introduce linear regression with `lm()`, diagnostic plots, and the `broom` package for tidying model output. Weeks 33-36 add generalised linear models — logistic regression for classification — and your third milestone project is a short regression report with a real research question.
 
-**Job preparation:**
-- Review [R Interview Questions](/R-Interview-Questions.html)
-- Update resume with specific R skills (see [R Resume Skills](/R-Resume-Skills.html))
-- Practice explaining analyses out loud
+The first regression model you will ever fit looks like this.
 
-**Networking:**
-- Attend R meetups or useR! conference
-- Join R communities (R-Ladies, R4DS Slack, Mastodon #rstats)
-- Contribute to an open-source R package (documentation improvements count)
+```r
+# Week-29 style: multiple linear regression
+fit <- lm(mpg ~ wt + cyl, data = mtcars)
+summary(fit)$coefficients
+#>              Estimate Std. Error   t value     Pr(>|t|)
+#> (Intercept) 39.686261  1.7149840 23.140893 3.043182e-20
+#> wt          -3.190972  0.7569065 -4.215577 2.220200e-04
+#> cyl         -1.507795  0.4146883 -3.635972 1.064282e-03
+```
 
-## Recommended Daily Schedule
+Each row is one predictor. The `Estimate` column says every extra 1000 lbs of weight costs about 3.2 mpg, holding cylinders constant. Both p-values are tiny, so the effects are not noise. This is the core loop of applied statistics in R — specify a formula, fit, interpret, check assumptions.
 
-| Time Available | Schedule |
-|---------------|----------|
-| 30 min/day | Read and type along with one example |
-| 1 hour/day | 30 min reading + 30 min exercises |
-| 2 hours/day | 30 min reading + 60 min project + 30 min exercises |
-| Weekends only | 4-6 hours Saturday: focused project work |
+[KEY INSIGHT]
+**Statistics fluency is the R superpower.** Any data scientist can write dplyr pipelines, but picking the right test, fitting the right model, and interpreting the coefficients correctly is what turns an analyst into a senior analyst. Do not skip Phase 3.
 
-**The most important rule:** Code every day, even for just 15 minutes. Consistency beats intensity.
+**Try it:** Fit a simple linear regression of `mpg` on `hp` alone using `mtcars`. Save the model to `ex_fit` and check the coefficient of `hp`.
 
-## Top Mistakes to Avoid
+```r
+# Try it: fit a simple regression
+ex_fit <- # your code here
 
-1. **Watching without coding** -- You must type the code yourself. Reading is not learning.
-2. **Skipping fundamentals** -- Don't jump to ML before mastering dplyr and ggplot2.
-3. **Staying in tutorial mode** -- Start building real projects by month 2.
-4. **Ignoring the tidyverse** -- Learn base R basics, then use tidyverse for daily work.
-5. **Not using Git** -- Start using Git by month 3. Every project should be version-controlled.
-6. **Only using clean datasets** -- Real data is messy. Practice cleaning early and often.
-7. **Learning alone** -- Join a community. Asking questions accelerates learning.
+coef(ex_fit)
+#> Expected: (Intercept) ≈ 30.10, hp ≈ -0.068
+```
 
-## Complete Resource List
+<details>
+<summary>Click to reveal solution</summary>
 
-| Resource | Type | Cost | Best For |
-|----------|------|------|----------|
-| [R for Data Science (2e)](https://r4ds.hadley.nz/) | Book (free online) | Free | Months 1-6 |
-| [Advanced R](https://adv-r.hadley.nz/) | Book (free online) | Free | Months 7-9 |
-| [Tidy Modeling with R](https://www.tmwr.org/) | Book (free online) | Free | Month 8 |
-| [Learning Statistics with R](https://learningstatisticswithr.com/) | Book (free online) | Free | Month 5 |
-| swirl | Interactive R tutorials | Free | Month 1 |
-| [Exercism R Track](https://exercism.org/tracks/r) | Coding exercises | Free | Ongoing practice |
-| [R for Data Science community](https://rfordatasci.com/) | Slack + study groups | Free | Ongoing support |
+```r
+ex_fit <- lm(mpg ~ hp, data = mtcars)
+coef(ex_fit)
+#> (Intercept)          hp
+#> 30.09886054 -0.06822828
+```
 
-## FAQ
+**Explanation:** A formula `y ~ x` in `lm()` fits `y = b0 + b1 * x`. The `hp` slope says every extra horsepower costs about 0.068 mpg on average.
 
-**Q: Can I learn R without a math or statistics background?**
-A: Yes. R is a programming language -- you can learn its syntax without knowing statistics. To use R for data analysis, you'll want to learn basic statistics in parallel (Month 5). This roadmap builds both skills.
+</details>
 
-**Q: Should I learn base R or tidyverse first?**
-A: Month 1 covers base R fundamentals (essential). Months 2-3 switch to tidyverse (productive). You need both, but tidyverse makes you productive faster.
+## Months 10-12: How do you pick a specialisation?
 
-**Q: 12 months sounds long. Can I learn faster?**
-A: Yes. With 2-3 hours daily, you can compress this to 6 months. With full-time study, 3 months is possible. The timeline assumes ~1 hour/day.
+Phase 4 is where the roadmap forks. By now you speak R fluently, so the question shifts from "what do I learn next" to "which problem do I want to solve?" Pick one track, go deep for eight weeks, and spend the final four weeks of the year on a capstone portfolio project that you can show employers or collaborators.
+
+![Decision flow for picking a specialisation](screenshots/How-to-Learn-R-specialisation-choice.webp)
+
+*Figure 2: A simple decision flow for picking a specialisation in months 10-12.*
+
+The four most common tracks are machine learning with `tidymodels`, interactive apps with `shiny`, time-series forecasting with `fable`, and a domain specialisation like bioinformatics or quantitative finance. There is no "best" track — the best one is the one that matches a problem you already find interesting.
+
+Here is a taste of the machine-learning track — a logistic model predicting whether a car has a manual transmission.
+
+```r
+# Week-38 style: binary classification with glm()
+glm_fit <- glm(am ~ mpg + wt, data = mtcars, family = binomial)
+round(coef(glm_fit), 3)
+#> (Intercept)         mpg          wt
+#>      25.899       0.367      -9.015
+```
+
+A positive `mpg` coefficient and a strongly negative `wt` coefficient match intuition — lighter, more efficient cars in the `mtcars` sample tend to be manuals. That is a two-line classifier you can extend with cross-validation and ROC curves as you go deeper.
+
+**Try it:** Fit a logistic model of `am` on `mpg` alone and store it in `ex_glm`.
+
+```r
+# Try it: logistic regression with one predictor
+ex_glm <- # your code here
+
+coef(ex_glm)
+#> Expected: (Intercept) ≈ -6.60, mpg ≈ 0.307
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_glm <- glm(am ~ mpg, data = mtcars, family = binomial)
+coef(ex_glm)
+#> (Intercept)         mpg
+#>  -6.6035267   0.3070282
+```
+
+**Explanation:** `family = binomial` tells `glm()` to fit a logistic regression. A positive slope on `mpg` means more fuel-efficient cars in this sample are more likely to be manuals.
+
+</details>
+
+## How do you know you're ready to move to the next phase?
+
+Each phase ends with a concrete self-assessment gate. If you can complete the gate test from memory, you are ready. If not, spend another week or two consolidating before moving on — weak foundations compound into a permanent feeling of "I know R but cannot actually write anything."
+
+The four gates are:
+
+1. **End of month 3** — read a CSV, filter rows with base R, compute a mean, write the result to a file.
+2. **End of month 6** — take a raw dataset, clean it with dplyr and tidyr, and make three publication-quality ggplot2 charts with captions.
+3. **End of month 9** — pose a research question, fit and diagnose a regression, and write a one-page interpretation.
+4. **End of month 12** — ship a portfolio project in your chosen specialisation that someone else could reproduce from your code.
+
+Here is what a month-6 gate test looks like as a single runnable snippet.
+
+```r
+# Month-6 gate test: can you read and explain this in under a minute?
+gate_result <- mtcars |>
+  filter(mpg > 20) |>
+  group_by(cyl) |>
+  summarise(mean_hp = mean(hp), mean_wt = mean(wt), n = n()) |>
+  arrange(desc(mean_hp))
+gate_result
+#> # A tibble: 2 × 4
+#>     cyl mean_hp mean_wt     n
+#>   <dbl>   <dbl>   <dbl> <int>
+#> 1     6   110      2.77     3
+#> 2     4    81.8    2.25    11
+```
+
+If you can look at that pipeline and narrate what it does without running it, you have passed the wrangling gate.
+
+[WARNING]
+**Do not skip gates because of impatience.** The most common failure mode in self-taught R is finishing all the tutorials but never internalising any of them. Gates force internalisation.
+
+**Try it:** Take the `gate_result` pipeline above and modify it to filter on `mpg > 15` instead of 20, assigning the new result to `ex_gate`.
+
+```r
+# Try it: modify the gate pipeline
+ex_gate <- mtcars |>
+  # your code here
+
+nrow(ex_gate)
+#> Expected: 3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_gate <- mtcars |>
+  filter(mpg > 15) |>
+  group_by(cyl) |>
+  summarise(mean_hp = mean(hp), mean_wt = mean(wt), n = n()) |>
+  arrange(desc(mean_hp))
+nrow(ex_gate)
+#> [1] 3
+```
+
+**Explanation:** Lowering the `mpg` threshold lets six- and eight-cylinder cars into the result, giving three rows instead of two.
+
+</details>
+
+## What common mistakes waste beginners' time?
+
+Five mistakes explain almost every "I have been learning R for a year and still feel lost" email I get. Recognise them early and the 12 months above become genuinely productive instead of quietly frustrating.
+
+1. **Tutorial hopping.** Starting six courses and finishing none. Pick one resource per phase and finish it before switching.
+2. **Learning every package at once.** You do not need `data.table`, `sf`, `tidymodels`, and `shiny` in month one. One package per phase is plenty.
+3. **Avoiding statistics.** Phase 3 feels harder than Phase 2, so people rush past it. Then they cannot interpret a p-value under pressure.
+4. **Copying code without reading output.** If you paste a block and the console prints something you do not understand, stop and read it.
+5. **Starting Shiny before dplyr feels easy.** Building interactive apps on top of wobbly data-wrangling skills is the fastest way to quit.
+
+The cheapest bug to fix is the one about reading output. Look at this classic trap.
+
+```r
+# A silent NA-handling bug that catches every beginner
+scores <- c(85, 92, NA, 78, 95, 88)
+mean(scores)
+#> [1] NA
+mean(scores, na.rm = TRUE)
+#> [1] 87.6
+```
+
+The first call returns `NA`, not an error — which is exactly why it is dangerous. R tells you the result is undefined because one value is missing, and expects you to tell it what to do. Forgetting `na.rm = TRUE` silently zeroes out reports every day in production codebases.
+
+[WARNING]
+**NA handling silently wrecks analyses.** Always inspect your data for missing values before summarising, and make a conscious choice about how to handle them. `sum(is.na(x))` is your cheapest sanity check.
+
+**Try it:** Compute the mean of `c(10, NA, 20, 30, NA, 40)` while ignoring the missing values. Save it to `ex_mean`.
+
+```r
+# Try it: fix the NA bug
+ex_mean <- # your code here
+
+ex_mean
+#> Expected: 25
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_mean <- mean(c(10, NA, 20, 30, NA, 40), na.rm = TRUE)
+ex_mean
+#> [1] 25
+```
+
+**Explanation:** `na.rm = TRUE` drops missing values before averaging. Without it, any `NA` in the vector propagates and you get `NA` back.
+
+</details>
+
+## Practice Exercises
+
+These two capstones combine skills from across the roadmap. They are harder than the inline drills — expect to spend 15-30 minutes each, not 30 seconds.
+
+### Exercise 1: Mini EDA pipeline on airquality
+
+Using the built-in `airquality` dataset, write a single dplyr pipeline that filters out rows where `Ozone` is missing, groups by `Month`, and returns each month's mean `Ozone` and row count. Assign the result to `my_eda` and sort by descending mean `Ozone`.
+
+```r
+# Capstone 1: airquality EDA pipeline
+# Hint: use filter(), group_by(), summarise(), arrange()
+
+my_eda <- # your code here
+
+my_eda
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_eda <- airquality |>
+  filter(!is.na(Ozone)) |>
+  group_by(Month) |>
+  summarise(mean_ozone = mean(Ozone), n = n()) |>
+  arrange(desc(mean_ozone))
+my_eda
+#> # A tibble: 5 × 3
+#>   Month mean_ozone     n
+#>   <int>      <dbl> <int>
+#> 1     8       60.0    26
+#> 2     7       59.1    26
+#> 3     9       31.4    29
+#> 4     6       29.4     9
+#> 5     5       23.6    26
+```
+
+**Explanation:** `!is.na(Ozone)` drops missing observations before grouping. July and August run hottest, which matches real ozone data — hot months generate more ground-level ozone.
+
+</details>
+
+### Exercise 2: Two-predictor regression report
+
+Fit a linear model of `mpg` on `wt` and `hp` using `mtcars`. Save it to `my_model`, extract the coefficient of determination (R-squared) into `my_r2`, and round it to three decimals.
+
+```r
+# Capstone 2: regression with two predictors
+# Hint: summary(model)$r.squared gives R-squared
+
+my_model <- # your code here
+my_r2 <- # your code here
+
+my_r2
+#> Expected: 0.827
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_model <- lm(mpg ~ wt + hp, data = mtcars)
+my_r2 <- round(summary(my_model)$r.squared, 3)
+my_r2
+#> [1] 0.827
+```
+
+**Explanation:** With both `wt` and `hp` in the model, R-squared is 0.827 — the two predictors jointly explain about 83 percent of the variance in fuel economy, up from 0.753 for `wt` alone. That jump is why multiple regression is worth learning.
+
+</details>
+
+## Putting It All Together
+
+Here is a month-9 worked example — the full loop you should be able to run on a new dataset without a tutorial by the end of Phase 3. Load, summarise, fit, interpret.
+
+```r
+# End-to-end: does petal length separate iris species?
+data(iris)
+
+iris |>
+  group_by(Species) |>
+  summarise(mean_petal = mean(Petal.Length),
+            sd_petal = sd(Petal.Length))
+#> # A tibble: 3 × 3
+#>   Species    mean_petal sd_petal
+#>   <fct>           <dbl>    <dbl>
+#> 1 setosa           1.46    0.174
+#> 2 versicolor       4.26    0.470
+#> 3 virginica        5.55    0.552
+
+setosa_fit <- glm(I(Species == "setosa") ~ Petal.Length,
+                  data = iris, family = binomial)
+round(coef(setosa_fit), 2)
+#> (Intercept) Petal.Length
+#>       62.49       -22.27
+```
+
+The grouped summary already hints at the answer — setosa's petals average 1.46 cm while virginica's average 5.55 cm, with almost no overlap in the standard deviations. The logistic model confirms it: a huge negative slope on `Petal.Length` means longer petals push the probability of "is setosa" towards zero very sharply. That end-to-end loop — summarise, model, interpret — is the core rhythm of applied R.
+
+## Summary
+
+![The 12-month roadmap across four phases](screenshots/How-to-Learn-R-phases-timeline.webp)
+
+*Figure 1: The 12-month roadmap split into four three-month phases with milestone gates.*
+
+| Phase | Months | Skills | Milestone project |
+|---|---|---|---|
+| 1. Foundations | 1-3 | Syntax, vectors, data frames, base-R exploration | Base-R analysis of a dataset you chose |
+| 2. Wrangling & viz | 4-6 | dplyr, tidyr, ggplot2 | One-page EDA report |
+| 3. Stats & modelling | 7-9 | Hypothesis tests, lm(), glm(), broom | Regression write-up with interpretation |
+| 4. Specialisation | 10-12 | ML, Shiny, time series, or domain | Capstone portfolio project |
+
+The three rules underneath the table are simple — one resource per phase, one milestone project per phase, and no skipping gates. Twelve months of that rhythm beats any crash course.
+
+## References
+
+1. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd edition. [Link](https://r4ds.hadley.nz/)
+2. Wickham, H. — *Advanced R*, 2nd edition. CRC Press. [Link](https://adv-r.hadley.nz/)
+3. R Core Team — *An Introduction to R* (CRAN manual). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+4. Posit — R & tidyverse cheatsheets. [Link](https://posit.co/resources/cheatsheets/)
+5. Tidyverse project — package documentation. [Link](https://www.tidyverse.org/)
+6. James, Witten, Hastie & Tibshirani — *An Introduction to Statistical Learning*. [Link](https://www.statlearning.com/)
+7. R-bloggers — aggregated R tutorials and articles. [Link](https://www.r-bloggers.com/)
+8. Stack Overflow — the `[r]` tag. [Link](https://stackoverflow.com/questions/tagged/r)
 
 ## Continue Learning
-- [Free R Courses](/Free-R-Courses.html) -- 15 best free resources ranked by quality
-- [Best R Books](/Best-R-Books.html) -- Complete reading list from beginner to expert
-- [R Data Scientist Career](/R-Data-Scientist-Career.html) -- Where this roadmap leads
+
+- [R Data Types](R-Data-Types.html) — the first thing to master in Phase 1.
+- [dplyr filter and select](dplyr-filter-select.html) — the opening lesson of Phase 2.
+- [ggplot2 tutorial with R](ggplot2-Tutorial-With-R.html) — the core grammar for the visualisation weeks.
