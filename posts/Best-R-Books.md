@@ -1,246 +1,164 @@
 ---
-title: "Best R Books: Complete Reading List from Beginner to Expert"
+title: "Best R Books: A Curated Reading List That Won't Waste Your Time"
 slug: "Best-R-Books"
-description: "The best R programming books ranked by level: 15+ essential books from R for Data Science to Advanced R, with what each covers and who should read it."
-keywords: "best R books, R programming books, R for data science book, advanced R book, ggplot2 book, learn R books, R textbook recommendations"
+description: "The definitive ranked reading list — from R for Data Science to Advanced R and Statistical Rethinking. What each book does best, and who should skip it."
+keywords: "best R books, R programming books, R for data science book, advanced R book, ggplot2 book, R book recommendations, free R books, statistical rethinking"
 mathjax: false
 webr: false
-date: "2026-03-29"
+date: "2026-04-13"
 curriculum_id: "CAR5"
 post_type: "FR"
-auto_link_terms: "best R books|R programming books|R book recommendations"
+auto_link_terms: "best R books|R programming books|R book recommendations|Advanced R book|R for Data Science book"
 auto_link_case_sensitive: false
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
 ---
 
-# Best R Books: Complete Reading List from Beginner to Expert
+# Best R Books: A Curated Reading List That Won't Waste Your Time
 
-<p class="lead">The R book ecosystem is exceptional -- many of the best texts are free online, written by the creators of the tools themselves. This curated reading list covers 18 books organized by level, each with a clear description of what it teaches and who should read it.</p>
+<p class="lead">Most R book lists are undifferentiated 20-book dumps. This one is ranked, opinionated, and tells you exactly when to skip a book — because nobody reads 20 books. Pick one entry point, finish it, then branch by goal.</p>
 
-Unlike many programming languages where official documentation is the primary resource, R has a tradition of high-quality, freely available books. Several are written by Hadley Wickham (chief scientist at Posit and creator of the tidyverse), making them authoritative references for modern R.
+## Why does R have so many good free books?
 
-## Beginner Books
+R has a book problem most languages envy: there are too many *good* books, most are free online, and several are written by the people who built the tools you will use every day. The risk is not finding a bad book — it is reading five overlapping ones and never getting past the basics. The fix is to pick one entry point, finish it, then specialise. This list walks that exact path.
 
-### 1. R for Data Science (2nd Edition)
+The reason R's book ecosystem looks this way is historical. R grew out of academic statistics, where sharing the textbook *is* the culture. Hadley Wickham and the Posit team extended that culture to the tidyverse, publishing most of their books free online under the bookdown project while also selling print editions through CRC Press. You get the same text either way.
 
-**Authors:** Hadley Wickham, Mine Cetinkaya-Rundel, Garrett Grolemund
-**Free online:** [r4ds.hadley.nz](https://r4ds.hadley.nz/)
-**Published:** 2023
+That abundance has a cost. Plenty of older R books are technically still in print but effectively abandoned — they reference dplyr 0.5, the `plyr` package, or base graphics idioms nobody writes anymore. The signal for "still current" is simple: check when the book was last updated and whether it uses the native pipe `|>`, `across()`, and tidyr 1.0+ syntax. If it uses `mutate_if()` or `%>%` exclusively without mention of `|>`, it is from a previous era.
 
-The single best starting point for learning R. Covers data import, tidying, transformation (dplyr), visualization (ggplot2), and communication (R Markdown). The 2nd edition is updated for the native pipe operator and modern tidyverse.
+[KEY INSIGHT]
+**One book per stage — then move on.** Most beginners get stuck in a loop of buying new R books for problems they already know how to solve. The readers who become fluent finish *one* book per stage (beginner, specialist, expert) instead of half-reading five.
 
-**Read this if:** You're new to R or new to the tidyverse. This should be your first R book.
-**Skip if:** You already use dplyr and ggplot2 fluently.
+## Where should a complete beginner start?
 
-### 2. Hands-On Programming with R
+If you have never written a line of R, there is one honest answer: **R for Data Science (2nd edition)** by Hadley Wickham, Mine Çetinkaya-Rundel and Garrett Grolemund. It is free at [r4ds.hadley.nz](https://r4ds.hadley.nz/), it is updated for the native pipe, and it walks you from zero to a complete data analysis workflow using the tidyverse. No other beginner book gets you productive as fast.
 
-**Author:** Garrett Grolemund
-**Free online:** [rstudio-education.github.io/hopr](https://rstudio-education.github.io/hopr/)
+The 2nd edition matters. The 1st edition uses the magrittr pipe `%>%`, older dplyr idioms, and a few deprecated `tidyr` functions. If you pick up a used copy from 2017, you will have to translate code as you read it. Always link to [r4ds.hadley.nz](https://r4ds.hadley.nz/), not [r4ds.had.co.nz](https://r4ds.had.co.nz/).
 
-Teaches R programming fundamentals through hands-on projects (building a slot machine, simulating dice rolls). Focuses on base R programming: objects, types, functions, loops, and environments.
+[TIP]
+**Read the 2nd edition, not the 1st.** The 1st edition predates the native pipe and dplyr 1.0; you will spend time translating deprecated idioms instead of learning. Bookmark r4ds.hadley.nz and ignore older copies.
 
-**Read this if:** You want to understand R as a programming language, not just a data analysis tool.
-**Skip if:** You already know another programming language and find the basics trivial.
+R for Data Science has two common alternatives, and each makes sense for a specific reader. **Hands-On Programming with R** by Garrett Grolemund (free at [rstudio-education.github.io/hopr](https://rstudio-education.github.io/hopr/)) teaches R as a programming language — you build a slot machine, simulate dice, and learn about environments and scoping. Pick this one if your goal is to understand R, not just use it for analysis. **Learning Statistics with R** by Danielle Navarro teaches R and introductory statistics together. Pick this one if you also need the stats foundation — hypothesis testing, regression, ANOVA — and you do not have it yet from a prior course.
 
-### 3. Learning Statistics with R
+Here is the short version in table form:
 
-**Author:** Danielle Navarro
-**Free online:** [learningstatisticswithr.com](https://learningstatisticswithr.com/)
+| Book | Best for | Skip if |
+|---|---|---|
+| R for Data Science (2e) | Data analysis workflow, tidyverse from day one | You already know dplyr and ggplot2 fluently |
+| Hands-On Programming with R | Understanding R as a programming language | You come from another language and want analysis-ready skills fast |
+| Learning Statistics with R | Learning stats and R together from zero | You already have an introductory stats course |
 
-Teaches statistics and R simultaneously. Covers descriptive statistics, probability, hypothesis testing, regression, ANOVA, and chi-square. Written for psychology students but applicable to any field.
+Finish the one you picked before adding a second. This is the most common place readers stall — buying a second beginner book as a form of procrastination.
 
-**Read this if:** You're learning both statistics AND R at the same time.
-**Skip if:** You already have a strong statistics background.
+## Which book teaches modern data wrangling best?
 
-### 4. The Book of R
+If "modern data wrangling" means tidyverse — dplyr, tidyr, stringr, lubridate — the answer is still **R for Data Science**. Chapters 4–8 cover the core verbs (`filter`, `select`, `mutate`, `summarise`, `group_by`), pivoting, and joins with exactly the depth a working analyst needs. You do not need a second book for everyday wrangling.
 
-**Author:** Tilman Davies
-**Published:** 2016
+Two companions are worth knowing about. **Practical Data Science with R (2nd edition)** by Nina Zumel and John Mount is the book to read after R4DS if your job involves messy business data — inconsistent column headers, mixed types, join-key mismatches, and the everyday reality of data that was never designed for analysis. It is stronger on real-world data cleaning than R4DS, which uses well-behaved example datasets.
 
-A comprehensive reference covering base R from scratch: data types, control flow, functions, graphics, statistical tests. More traditional textbook style than R4DS.
+**R Cookbook (2nd edition)** by JD Long and Paul Teetor is indexed by problem, not by concept. You do not *read* it — you look things up. When you need "how do I read a fixed-width file" or "how do I compute a rolling mean by group," the cookbook points you at the three-line answer in seconds. Keep it as a reference, not a tutorial.
 
-**Read this if:** You prefer a thorough, traditional textbook approach to base R.
-**Skip if:** You learn better from project-based or tidyverse-first approaches.
+[NOTE]
+**Prefer books published 2022 or later.** dplyr 1.1 superseded the `_at`, `_if`, and `_all` variants with `across()`, and tidyr reworked `pivot_longer()` and `pivot_wider()`. Older books still teach `mutate_at()` and `gather()`/`spread()`. The code still runs, but nobody writes it that way anymore, and you will have to unlearn it later.
 
-## Intermediate Books
+## What's the best book for R visualisation?
 
-### 5. ggplot2: Elegant Graphics for Data Analysis (3rd Edition)
+R's visualisation story is dominated by ggplot2, and there are two books you should actually know about. The first is **ggplot2: Elegant Graphics for Data Analysis (3rd edition)** by Hadley Wickham, Danielle Navarro and Thomas Lin Pedersen — free at [ggplot2-book.org](https://ggplot2-book.org/). It teaches the *grammar* of graphics: layers, scales, facets, coordinates, themes. Read it once, slowly, and ggplot2 stops feeling like memorising incantations.
 
-**Author:** Hadley Wickham, Danielle Navarro, Thomas Lin Pedersen
-**Free online:** [ggplot2-book.org](https://ggplot2-book.org/)
-**Published:** 2024
+The second is **R Graphics Cookbook (2nd edition)** by Winston Chang, free at [r-graphics.org](https://r-graphics.org/). It is organised as 150+ recipes: "How do I add error bars?", "How do I make a grouped bar chart?", "How do I flip a legend?". You do not read it cover to cover — you open it when a visual problem lands on your desk.
 
-The definitive guide to ggplot2 by its creator. Goes far beyond the basics into the grammar of graphics theory, coordinate systems, scale transformations, guide customization, and extension development.
+[TIP]
+**The Cookbook is the one you'll keep open. The grammar book is the one you read once.** Most working analysts need both: the grammar book for the mental model (you only need it once) and the cookbook for the daily recipes (you need it forever).
 
-**Read this if:** You use ggplot2 regularly and want to master it.
-**Skip if:** You only need basic charts (R4DS covers the basics well).
+If you want to go beyond "what button do I press" into *why* a chart communicates well, **Fundamentals of Data Visualization** by Claus Wilke (free at [clauswilke.com/dataviz](https://clauswilke.com/dataviz/)) is the best design-principles book in the R orbit. It is not strictly an R book — the examples happen to be in R — but it teaches chart selection, colour choice and proportional encoding better than anything else on this list.
 
-### 6. R Packages (2nd Edition)
+## Which books will make you an expert R programmer?
 
-**Author:** Hadley Wickham, Jenny Bryan
-**Free online:** [r-pkgs.org](https://r-pkgs.org/)
-**Published:** 2023
+There is exactly one book that separates "I use R" from "I understand R," and it is **Advanced R (2nd edition)** by Hadley Wickham, free at [adv-r.hadley.nz](https://adv-r.hadley.nz/). It covers functions, environments, lazy evaluation, R's three object-oriented systems (S3, S4, R6), and metaprogramming. Every concept that makes R look weird from outside — unquoted column names in dplyr, the funny scoping rules, formulas as first-class values — is explained from first principles.
 
-Everything you need to create R packages: structure, documentation (roxygen2), testing (testthat), dependencies, CRAN submission, and lifecycle management.
+Pair it with **R Packages (2nd edition)** by Hadley Wickham and Jenny Bryan, free at [r-pkgs.org](https://r-pkgs.org/). Once you understand R, you will want to organise your code into packages. This book walks you through the modern package workflow: `usethis`, `devtools`, `testthat`, `roxygen2`, `pkgdown`, and GitHub Actions for CI. It pairs with Advanced R the way a lab pairs with a lecture.
 
-**Read this if:** You want to create R packages (for CRAN, your team, or yourself).
-**Skip if:** You only write analysis scripts.
+[WARNING]
+**Advanced R is not a first R book.** Attempting it before six months of hands-on R will frustrate you — the chapter on environments assumes you have already been confused by scoping in practice. Finish R for Data Science and write real code first, then come back.
 
-### 7. Tidy Modeling with R
+A third option in this tier is **The Art of R Programming** by Norman Matloff. It takes a software-engineering angle rather than Wickham's mathematical-linguistic one, and it covers things Advanced R skips: debugging workflows, calling C from R, performance tuning on a lower level. It is older, but the fundamentals have not changed. Read it if Advanced R's metaprogramming chapters feel too abstract and you want something closer to the metal.
 
-**Authors:** Max Kuhn, Julia Silge
-**Free online:** [tmwr.org](https://www.tmwr.org/)
-**Published:** 2022
+## Which books cover statistics and machine learning in R?
 
-The comprehensive guide to the tidymodels framework for machine learning in R. Covers recipes, parsnip, workflows, tuning, resampling, and model evaluation.
+The free textbook the entire statistical-learning field standardised on is **An Introduction to Statistical Learning with R (2nd edition)** by James, Witten, Hastie and Tibshirani — free at [statlearning.com](https://www.statlearning.com/). It covers linear and logistic regression, resampling, tree methods, SVM, clustering, and (in the 2nd edition) deep learning and survival analysis, with R labs that make every method runnable. If you want *one* ML book with R, this is it.
 
-**Read this if:** You do machine learning in R.
-**Skip if:** You don't do predictive modeling.
+For a more applied, "how do I actually put this into production" angle, **Hands-On Machine Learning with R** by Bradley Boehmke and Brandon Greenwell (free at [bradleyboehmke.github.io/HOML](https://bradleyboehmke.github.io/HOML/)) is the sibling book. It walks through realistic ML pipelines — feature engineering, resampling, hyperparameter tuning, model interpretation — using `caret` and the tidymodels ecosystem.
 
-### 8. R Markdown: The Definitive Guide
+**Tidy Modeling with R** by Max Kuhn and Julia Silge (free at [tmwr.org](https://www.tmwr.org/)) is the official tidymodels book and the one to read if you want your ML code to look like modern tidyverse. It replaces `caret` (which Kuhn himself wrote) with `parsnip`, `recipes`, `workflows` and `rsample`. If you are starting ML in R today, start with this book.
 
-**Authors:** Yihui Xie, J.J. Allaire, Garrett Grolemund
-**Free online:** [bookdown.org/yihui/rmarkdown](https://bookdown.org/yihui/rmarkdown/)
+And then there is **Statistical Rethinking (2nd edition)** by Richard McElreath. It is a Bayesian statistics book that uses R and Stan, and it is — by wide agreement — the best-written statistics textbook of the last decade. McElreath teaches causal reasoning, prior choice and posterior interpretation with clarity you rarely see in statistics writing. The printed book uses the `rethinking` package; Solomon Kurz maintains a free tidyverse-and-`brms` port at [bookdown.org/content/4857](https://bookdown.org/content/4857/) if you prefer that.
 
-Covers all R Markdown output formats: documents, presentations, dashboards, websites, and books. Essential reference for anyone producing reports.
+[KEY INSIGHT]
+**ISLR teaches you *what* to do. Statistical Rethinking teaches you *why*.** Most ML books show methods; *Rethinking* shows the reasoning that decides whether the method is appropriate at all. Read ISLR for competence, then *Rethinking* for judgement.
 
-**Read this if:** You use R Markdown or Quarto for reports and want to go deeper.
-**Skip if:** R4DS's R Markdown chapter is sufficient for your needs.
+## What about specialised domains — time series, text, Bayesian, geospatial?
 
-### 9. Text Mining with R
+Four specialised books are each the best in their niche, and all of them are free.
 
-**Authors:** Julia Silge, David Robinson
-**Free online:** [tidytextmining.com](https://www.tidytextmining.com/)
+**Forecasting: Principles and Practice (3rd edition)** by Rob Hyndman and George Athanasopoulos — free at [otexts.com/fpp3](https://otexts.com/fpp3/) — is the time-series book. It uses the modern `fable` / `tsibble` stack, covers exponential smoothing, ARIMA and dynamic regression, and is written by the maintainer of the `forecast` and `fable` packages. If you work on time-series problems, this is the only book you need.
 
-A tidy approach to text analysis: tokenizing, sentiment analysis, topic modeling, and n-grams using the tidytext package.
+**Text Mining with R** by Julia Silge and David Robinson — free at [tidytextmining.com](https://www.tidytextmining.com/) — is the NLP-adjacent book. It introduces the `tidytext` workflow (one-token-per-row) and walks through sentiment analysis, TF-IDF, topic modelling, and the `gutenbergr` workflow. For classical text analytics in R, it is the default.
 
-**Read this if:** You work with text data (surveys, social media, documents).
-**Skip if:** Text analysis is not in your workflow.
+**Bayesian Data Analysis (3rd edition)** by Gelman, Carlin, Stern, Dunson, Vehtari and Rubin is the heavyweight Bayesian reference — free at [stat.columbia.edu/~gelman/book](http://www.stat.columbia.edu/~gelman/book/). It is denser than Statistical Rethinking and more of a reference than a teaching book. Read *Rethinking* first, then BDA3 when you need depth.
 
-## Advanced Books
+**Geocomputation with R** by Robin Lovelace, Jakub Nowosad and Jannes Muenchow — free at [r.geocompx.org](https://r.geocompx.org/) — is the spatial-data book. It covers `sf`, `terra`, raster operations, map-making with `tmap`, and the modern spatial ecosystem. If you work with geographic data, this is the entry point.
 
-### 10. Advanced R (2nd Edition)
+## How do I pick the right book for *my* goal?
 
-**Author:** Hadley Wickham
-**Free online:** [adv-r.hadley.nz](https://adv-r.hadley.nz/)
-**Published:** 2019
+After the beginner stage, the single most common mistake is to keep reading "general R" books instead of branching by what you actually want to build. The diagram below shows four reading paths, each starting from the same entry point.
 
-The essential guide to R internals: environments, scoping, functional programming, OOP (S3, S4, R6), metaprogramming, performance optimization, Rcpp. If you want to truly understand how R works, this is the book.
+![R book reading paths — four goals, one starting book](screenshots/Best-R-Books-reading-path.webp)
 
-**Read this if:** You've been using R for 6+ months and want to level up from user to programmer.
-**Skip if:** You only need R for basic analysis.
-
-### 11. R for Data Science Solutions
-
-**Authors:** Jeffrey B. Arnold
-**Free online:** [jrnold.github.io/r4ds-exercise-solutions](https://jrnold.github.io/r4ds-exercise-solutions/)
-
-Solutions to all exercises in R for Data Science. Useful for checking your work and seeing alternative approaches.
-
-### 12. Efficient R Programming
-
-**Authors:** Colin Gillespie, Robin Lovelace
-**Free online:** [csgillespie.github.io/efficientR](https://csgillespie.github.io/efficientR/)
-
-How to make R code faster: profiling, memory management, vectorization, parallel computing, Rcpp, and efficient workflows.
-
-**Read this if:** Your R code is too slow and you need to optimize it.
-
-### 13. Statistical Rethinking
-
-**Author:** Richard McElreath
-**Not free** (textbook, ~$60)
-
-A Bayesian statistics course using R (with brms/rstanarm). Widely regarded as the best introduction to Bayesian thinking. Emphasizes understanding over mechanical application of formulas.
-
-**Read this if:** You want to learn Bayesian statistics seriously.
-
-### 14. Geocomputation with R
-
-**Authors:** Robin Lovelace, Jakub Nowosad, Jannes Muenchow
-**Free online:** [r.geocompx.org](https://r.geocompx.org/)
-
-The definitive guide to geospatial analysis in R using sf, terra, and tmap.
-
-**Read this if:** You work with spatial data (maps, geographic analysis).
-
-## Specialized Books
-
-### 15. Forecasting: Principles and Practice (3rd Edition)
-
-**Authors:** Rob Hyndman, George Athanasopoulos
-**Free online:** [otexts.com/fpp3](https://otexts.com/fpp3/)
-
-Time series analysis and forecasting using the fable/tsibble framework. Written by the creator of the forecast package.
-
-**Read this if:** You do time series analysis or forecasting.
-
-### 16. Mastering Shiny
-
-**Author:** Hadley Wickham
-**Free online:** [mastering-shiny.org](https://mastering-shiny.org/)
-
-Building interactive web applications with Shiny: reactive programming, modules, testing, performance, and production deployment.
-
-**Read this if:** You build or plan to build Shiny apps.
-
-### 17. Introduction to Statistical Learning (ISLR)
-
-**Authors:** Gareth James, Daniela Witten, Trevor Hastie, Robert Tibshirani
-**Free online:** [statlearning.com](https://www.statlearning.com/)
-
-The classic machine learning textbook with R labs. Covers regression, classification, resampling, tree methods, SVM, clustering, and deep learning. More accessible than its advanced sibling (Elements of Statistical Learning).
-
-**Read this if:** You want a rigorous understanding of machine learning methods.
-
-### 18. Happy Git and GitHub for the useR
-
-**Author:** Jenny Bryan
-**Free online:** [happygitwithr.com](https://happygitwithr.com/)
-
-Git and GitHub specifically for R users. Covers setup, workflows, collaboration, and common pain points.
-
-**Read this if:** You struggle with Git or haven't started using version control.
-
-## Recommended Reading Order
-
-| Stage | Book | Time |
-|-------|------|------|
-| Month 1-3 | R for Data Science (2e) | Core foundation |
-| Month 3-6 | Learning Statistics with R | If you need statistics |
-| Month 4-6 | ggplot2 book (chapters you need) | Visualization depth |
-| Month 6-9 | Advanced R (chapters 1-13) | Understand R deeply |
-| Month 8-10 | Tidy Modeling with R | Machine learning |
-| Month 9-12 | One specialized book for your domain | Specialization |
-| Ongoing | R Packages | When you start creating packages |
-
-## Summary Comparison Table
-
-| Book | Level | Free? | Primary Topic |
-|------|-------|-------|--------------|
-| R for Data Science | Beginner | Yes | Data analysis workflow |
-| Hands-On Programming with R | Beginner | Yes | Base R programming |
-| Learning Statistics with R | Beginner | Yes | Statistics + R |
-| ggplot2 Book | Intermediate | Yes | Visualization |
-| R Packages | Intermediate | Yes | Package development |
-| Tidy Modeling with R | Intermediate | Yes | Machine learning |
-| Advanced R | Advanced | Yes | R internals, programming |
-| Statistical Rethinking | Advanced | No | Bayesian statistics |
-| ISLR | Intermediate | Yes | Machine learning theory |
-| Mastering Shiny | Intermediate | Yes | Web applications |
-
-## FAQ
-
-**Q: Which single book should I start with?**
-A: R for Data Science (2e). It covers the most ground for practical data analysis, it's free, and it's written by the people who built the tools.
-
-**Q: Are physical copies worth buying?**
-A: If you prefer reading on paper or want to support the authors, yes. But since most R books are freely available online, you can read them all without spending anything.
-
-**Q: How quickly should I read these books?**
-A: Don't just read -- type every code example, do the exercises, and build projects alongside. One chapter per day (with coding) is a sustainable pace. Reading without coding teaches you almost nothing.
+*Figure 1: Four reading paths, one entry point — where to go after finishing R for Data Science.*
+
+The rule of thumb is one book per stage. Finish *R for Data Science*, then pick exactly one branch: the data-analyst path (Graphics Cookbook + R Cookbook), the statistician path (ISLR + Statistical Rethinking), the R-developer path (Advanced R + R Packages), or the ML-engineer path (Hands-On ML + Tidy Modeling). Resist the urge to read two branches at once — you will make slower progress on both than you would on one.
+
+The path depends on what you already know and what your work actually requires. A PhD student in biostatistics should probably read ISLR before anything else, because their job is models. A frontend-turned-data-person at a startup should probably go straight to Tidy Modeling with R, because their job is pipelines. A research scientist building a package to share with colleagues should pair Advanced R with R Packages from the start, because their job is code reuse.
+
+[TIP]
+**When to pay, when to read free.** Almost every book above is legitimately free online, and the free version is identical to the print edition. Buy print only if you read better on paper — not out of a sense that "real" books are paid. The authors get royalties on the print edition either way, and the online version is not a pirated copy; it is the official one.
+
+## Summary
+
+| Goal | Start here | Then read |
+|---|---|---|
+| Complete beginner | R for Data Science (2e) | Pick one branch below |
+| Data analyst (business) | R for Data Science (2e) | R Graphics Cookbook + R Cookbook |
+| Statistician / researcher | R for Data Science (2e) | ISLR → Statistical Rethinking |
+| R developer / package author | R for Data Science (2e) | Advanced R + R Packages |
+| ML engineer | R for Data Science (2e) | Tidy Modeling with R + Hands-On ML with R |
+| Visualisation specialist | R for Data Science (2e) | ggplot2 book + Fundamentals of Data Visualization |
+| Time-series forecaster | R for Data Science (2e) | Forecasting: Principles and Practice (3e) |
+| Text / NLP analyst | R for Data Science (2e) | Text Mining with R |
+| Spatial / GIS analyst | R for Data Science (2e) | Geocomputation with R |
+| Bayesian modeller | R for Data Science (2e) | Statistical Rethinking → BDA3 |
+
+The meta-lesson of this list: R's free-book ecosystem is so good that the question is never "can I afford the book" — it is "can I finish the book." Pick one per stage. Finish it. Then branch.
+
+## References
+
+1. Wickham, H., Çetinkaya-Rundel, M., Grolemund, G. — *R for Data Science (2nd edition)*, O'Reilly (2023). [Free online](https://r4ds.hadley.nz/)
+2. Wickham, H. — *Advanced R (2nd edition)*, CRC Press (2019). [Free online](https://adv-r.hadley.nz/)
+3. Wickham, H., Bryan, J. — *R Packages (2nd edition)*, O'Reilly (2023). [Free online](https://r-pkgs.org/)
+4. Wickham, H., Navarro, D., Pedersen, T. L. — *ggplot2: Elegant Graphics for Data Analysis (3rd edition)*. [Free online](https://ggplot2-book.org/)
+5. Chang, W. — *R Graphics Cookbook (2nd edition)*, O'Reilly (2018). [Free online](https://r-graphics.org/)
+6. James, G., Witten, D., Hastie, T., Tibshirani, R. — *An Introduction to Statistical Learning with R (2nd edition)*, Springer (2021). [Free online](https://www.statlearning.com/)
+7. Boehmke, B., Greenwell, B. — *Hands-On Machine Learning with R*, CRC Press (2019). [Free online](https://bradleyboehmke.github.io/HOML/)
+8. Kuhn, M., Silge, J. — *Tidy Modeling with R*, O'Reilly (2022). [Free online](https://www.tmwr.org/)
+9. McElreath, R. — *Statistical Rethinking (2nd edition)*, CRC Press (2020). [Book site](https://xcelab.net/rm/statistical-rethinking/)
+10. Hyndman, R. J., Athanasopoulos, G. — *Forecasting: Principles and Practice (3rd edition)*, OTexts (2021). [Free online](https://otexts.com/fpp3/)
+11. Silge, J., Robinson, D. — *Text Mining with R*, O'Reilly (2017). [Free online](https://www.tidytextmining.com/)
+12. Grolemund, G. — *Hands-On Programming with R*, O'Reilly (2014). [Free online](https://rstudio-education.github.io/hopr/)
+13. Wilke, C. O. — *Fundamentals of Data Visualization*, O'Reilly (2019). [Free online](https://clauswilke.com/dataviz/)
+14. Lovelace, R., Nowosad, J., Muenchow, J. — *Geocomputation with R (2nd edition)*, CRC Press (2025). [Free online](https://r.geocompx.org/)
+15. Gelman, A. et al. — *Bayesian Data Analysis (3rd edition)*, CRC Press (2013). [Free online](http://www.stat.columbia.edu/~gelman/book/)
 
 ## Continue Learning
-- [Free R Courses](/Free-R-Courses.html) -- 15 best free learning resources beyond books
-- [How to Learn R](/How-to-Learn-R.html) -- 12-month roadmap with these books integrated
-- [R Interview Questions](/R-Interview-Questions.html) -- Test your knowledge
+
+- [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html) — the honest case for and against investing your reading time in R.
+- [Learn R in 12 Months: A Week-by-Week Roadmap](How-to-Learn-R.html) — the structured study plan that pairs with this reading list.
+- [R vs Python for Data Science](R-vs-Python-for-Data-Science.html) — if you are still choosing which language to invest your book-time in.
