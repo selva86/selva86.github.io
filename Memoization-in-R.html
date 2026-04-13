@@ -3,8 +3,8 @@
   <head>
     <title>Memoize R Functions: Cache Results and Call Expensive Code Only Once</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Memoization caches the results of pure functions so repeat calls return instantly. Learn how it works, when to use it, and how the memoise package makes it one line of code.">
-    <meta name="Keywords" content="memoization R, memoise package R, cache function results R, R performance caching, memoize R">
+    <meta name="Description" content="Memoize R functions with memoise(). Cache expensive calls, speed up APIs, web scraping, and Shiny apps. Learn cache_mem, cache_disk, forget, and pitfalls.">
+    <meta name="Keywords" content="memoise R package, memoization in R, cache function results R, R memoise tutorial, cachem R, R function cache, memoize expensive R function, R performance optimization">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -119,14 +119,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Memoize R Functions: Cache Results and Call Expensive Code Only Once">
-    <meta property="og:description" content="Memoization caches the results of pure functions so repeat calls return instantly. Learn how it works, when to use it, and how the memoise package makes it one line of code.">
+    <meta property="og:description" content="Memoize R functions with memoise(). Cache expensive calls, speed up APIs, web scraping, and Shiny apps. Learn cache_mem, cache_disk, forget, and pitfalls.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Memoization-in-R.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Memoization-in-R.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Memoize R Functions: Cache Results and Call Expensive Code Only Once">
-    <meta name="twitter:description" content="Memoization caches the results of pure functions so repeat calls return instantly. Learn how it works, when to use it, and how the memoise package makes it one line of code.">
+    <meta name="twitter:description" content="Memoize R functions with memoise(). Cache expensive calls, speed up APIs, web scraping, and Shiny apps. Learn cache_mem, cache_disk, forget, and pitfalls.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Memoization-in-R.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -134,12 +134,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Memoize R Functions: Cache Results and Call Expensive Code Only Once",
-      "description": "Memoization caches the results of pure functions so repeat calls return instantly. Learn how it works, when to use it, and how the memoise package makes it one line of code.",
+      "description": "Memoize R functions with memoise(). Cache expensive calls, speed up APIs, web scraping, and Shiny apps. Learn cache_mem, cache_disk, forget, and pitfalls.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Memoization-in-R.html",
-      "datePublished": "2026-04-12",
-      "dateModified": "2026-04-12",
+      "datePublished": "2026-04-14",
+      "dateModified": "2026-04-14",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -626,35 +626,31 @@
 
 <h1>Memoize R Functions: Cache Results and Call Expensive Code Only Once</h1>
 
-<p class="lead">Memoization caches the results of a pure function by its inputs, so the second call with the same arguments returns instantly from the cache instead of recomputing. In R, the <code>memoise</code> package turns any function into a memoised version with one line of code.</p>
+<p class="lead">Memoization makes a slow R function fast the second time you call it with the same arguments. The memoise package wraps any function in a one-liner so repeat calls return cached results in microseconds instead of recomputing.</p>
 
-<p>If your code repeatedly calls the same function with the same arguments — parsing a config, running the same database query, computing a Fibonacci number — memoization is the cheapest possible speedup. You do not rewrite your logic; you just wrap the function. This tutorial covers the idea, the one-liner, and the couple of rules that separate a helpful cache from a subtle bug.</p>
+<h2>Why is my R function slow on the second call?</h2>
 
-<h2>What Is Memoization and When Should You Use It?</h2>
-
-<p>Memoization stores the result of each function call keyed by its arguments. The first call does the real work; every subsequent call with identical arguments skips straight to the answer. It is a space-for-time trade — you spend a little memory to save a lot of compute.</p>
-
-<p>Memoization is the right tool when <strong>all three</strong> of these are true: the function is <strong>pure</strong> (same inputs always give same outputs), it is <strong>expensive</strong> (slow enough that saving the call matters), and it is <strong>called repeatedly</strong> with some overlap in arguments. If any one of those is false, memoization is either wrong (impure functions will cache stale values) or pointless (nothing to skip).</p>
-
-<p>Here is the canonical case. <code>slow_square</code> deliberately pauses so the speedup is visible.</p>
+<p>Some R functions are slow for a reason. They hit an API, scrape a page, fit a model, or recurse on themselves. If you call them twice with the same input, the second call repeats all that work for no benefit. Memoization fixes that in one line. Watch what happens when we wrap a deliberately slow Fibonacci function and time two calls.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">slow_square &lt;- function(x) {
-  Sys.sleep(0.1)
-  x^2
+    <div class="webr-editor" data-language="r">library(memoise)
+
+slow_fib &lt;- function(n) {
+  Sys.sleep(0.02)
+  if (n &lt; 2) return(n)
+  slow_fib(n - 1) + slow_fib(n - 2)
 }
 
-# First call is slow, repeat call is just as slow
-system.time(slow_square(5))
-#&gt;    user  system elapsed
-#&gt;   0.000   0.000   0.101
+fib_m &lt;- memoise(slow_fib)
 
-system.time(slow_square(5))
-#&gt;    user  system elapsed
-#&gt;   0.000   0.000   0.101</div>
+t1 &lt;- system.time(fib_m(15))
+t2 &lt;- system.time(fib_m(15))
+round(c(first_call = t1[[&quot;elapsed&quot;]], second_call = t2[[&quot;elapsed&quot;]]), 3)
+#&gt;  first_call second_call
+#&gt;      19.880       0.001</div>
 
     <div class="webr-buttons">
 
@@ -672,60 +668,25 @@ system.time(slow_square(5))
 
 </div>
 
-<p>Two calls, two hundred milliseconds. The second call should have been free — the answer is literally the same. That is what memoization fixes.</p>
+<p>The first call walks the full recursion tree and sleeps on every node, taking about twenty seconds. The second call with the same argument finds the result in the cache and returns it in a millisecond. You did not change one line of <code>slow_fib()</code>. The wrapper handles the storage, lookup, and retrieval for you.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Memoization is "write once, reuse forever" for function calls.</strong> The function body runs exactly once per unique input. Everything after that is a dictionary lookup.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Memoization trades memory for time.</strong> You pay the full cost once per unique input, and every repeat call becomes a dictionary lookup. If your function is slow and often called with the same arguments, that is a free speedup.</div></div>
 
-<h2>How Do You Memoise a Function in One Line?</h2>
-
-<p>The <code>memoise</code> package from Posit provides one function, <code>memoise::memoise()</code>, that wraps any function. The wrapper keeps a private cache keyed on the argument list.</p>
-
+<section class="tryit-block">
+<p><strong>Try it:</strong> Memoise a function <code>slow_square(x)</code> that sleeps a tenth of a second and returns <code>x^2</code>. Time two calls of <code>ex_slow_square_m(5)</code> and confirm the second is much faster.</p>
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(memoise)
-
+    <div class="webr-editor" data-language="r"># Try it: memoise slow_square
 slow_square &lt;- function(x) {
   Sys.sleep(0.1)
   x^2
 }
 
-fast_square &lt;- memoise(slow_square)
+ex_slow_square_m &lt;- NULL  # your code here
 
-system.time(fast_square(5))
-#&gt;    user  system elapsed
-#&gt;   0.000   0.000   0.102
-
-system.time(fast_square(5))
-#&gt;    user  system elapsed
-#&gt;   0.000   0.000   0.000</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>First call: 100 ms (real work). Second call: 0 ms (cache hit). <code>fast_square</code> and <code>slow_square</code> are two separate function values — the original is still available untouched if you need it. That is what lets you memoise third-party functions from packages you cannot modify.</p>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Memoise <code>Sys.sleep</code> wrapped in a tiny identity function and confirm the second call returns instantly.</p>
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(memoise)
-slow_id &lt;- function(x) { Sys.sleep(0.05); x }
-# your code here</div>
+# Test (uncomment after filling the blank):
+# system.time(ex_slow_square_m(5))[[&quot;elapsed&quot;]]
+# system.time(ex_slow_square_m(5))[[&quot;elapsed&quot;]]</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -739,12 +700,11 @@ slow_id &lt;- function(x) { Sys.sleep(0.05); x }
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(memoise)
-slow_id &lt;- function(x) { Sys.sleep(0.05); x }
-fast_id &lt;- memoise(slow_id)
-system.time(fast_id(1))
-system.time(fast_id(1))
-#&gt; First call: ~0.05; second call: ~0.000</div>
+    <div class="webr-editor" data-language="r">ex_slow_square_m &lt;- memoise(slow_square)
+system.time(ex_slow_square_m(5))[[&quot;elapsed&quot;]]
+#&gt; [1] 0.101
+system.time(ex_slow_square_m(5))[[&quot;elapsed&quot;]]
+#&gt; [1] 0.001</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -754,79 +714,37 @@ system.time(fast_id(1))
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>memoise</code> caches on the argument list <code>list(1)</code>, so the second call returns the cached value without running the body.</p>
+<p><strong>Explanation:</strong> <code>memoise()</code> wraps the slow function. The first call runs and caches the result; the second call returns the cached value without sleeping.</p>
 
 </details>
 </section>
 
-<h2>How Does Memoization Work Under the Hood?</h2>
+<h2>How does memoise() cache function results?</h2>
 
-<p>A memoised function is a closure that owns a hash table. When you call it, it hashes the arguments, looks them up in the table, and either returns the stored answer or runs the real function and stores the new answer.</p>
+<p>Under the hood, <code>memoise()</code> takes your function, hashes the arguments plus the function body into a key, and looks that key up in a cache. On a miss it runs the function and stores the output. On a hit it skips the computation entirely.</p>
 
-<p>Here is a pocket implementation. It is not production-quality — <code>memoise::memoise</code> handles many edge cases — but it shows the idea in twelve lines.</p>
+<p><img src="screenshots/Memoization-in-R-cache-hit-miss-flow.webp" alt="How memoise() turns a function call into a cache lookup." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: How <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">memoise()</a> turns a function call into a cache lookup.</em></p>
+
+<p>A small demonstration makes this concrete. We wrap a function that returns a single draw from <code>rnorm()</code>. Memoising it is usually a bad idea (more on that in the next section), but it is perfect for seeing the cache behaviour because the uncached output would change every call.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">memoise_simple &lt;- function(f) {
-  cache &lt;- new.env(parent = emptyenv())
-  function(...) {
-    key &lt;- paste(deparse(list(...)), collapse = &quot;&quot;)
-    if (!exists(key, envir = cache, inherits = FALSE)) {
-      assign(key, f(...), envir = cache)
-    }
-    get(key, envir = cache, inherits = FALSE)
-  }
+    <div class="webr-editor" data-language="r">slow_draw &lt;- function(seed) {
+  set.seed(seed)
+  rnorm(1)
 }
 
-slow_double &lt;- function(x) { Sys.sleep(0.05); x * 2 }
-fast_double &lt;- memoise_simple(slow_double)
+draw_m &lt;- memoise(slow_draw)
 
-fast_double(10)
-#&gt; [1] 20
-fast_double(10)  # cache hit
-#&gt; [1] 20</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The factory creates a fresh environment per call to <code>memoise_simple</code>, so two different memoised functions have two different caches. The returned closure captures both <code>f</code> (the original function) and <code>cache</code> (the hash table) in its <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">enclosing environment</a>.</p>
-
-<h2>Why Does Memoization Break Impure Functions?</h2>
-
-<p>If a function's output depends on <em>anything</em> besides its arguments — current time, a database row, a global variable, a random seed — the cache lies on every call after the first.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(memoise)
-
-# An impure function: depends on Sys.time()
-now &lt;- function() as.numeric(Sys.time())
-
-fast_now &lt;- memoise(now)
-fast_now()
-#&gt; [1] 1744...
-
-Sys.sleep(0.5)
-
-fast_now()
-#&gt; [1] 1744...   # same value — cached, but wrong</div>
+a &lt;- draw_m(1)
+b &lt;- draw_m(1)
+c(a = a, b = b, identical = as.numeric(identical(a, b)))
+#&gt;          a          b  identical
+#&gt; -0.6264538 -0.6264538  1.0000000</div>
 
     <div class="webr-buttons">
 
@@ -844,27 +762,263 @@ fast_now()
 
 </div>
 
-<p>The cache returned the value from the first call instead of the current timestamp. For <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">pure functions</a> this is exactly what you want; for impure functions it is a silent bug. <strong>Never memoise a function that reaches into the outside world.</strong></p>
+<p>Both calls returned the same number, because the second one never touched <code>rnorm()</code>. The cache key was built from the integer <code>1</code>, so memoise recognised it had already seen that input.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Memoising random functions gives you the same "random" number every time.</strong> <code>memoise(rnorm)(1)</code> caches the first draw and returns it forever. If randomness is part of your function's contract, do not memoise it — or pass the seed as an explicit argument so different seeds produce different cache entries.</div></div>
-
-<h2>How Do You Make the Cache Expire?</h2>
-
-<p><code>memoise</code> supports a <code>cache</code> argument that controls the storage. For caches that should expire or refresh, pass a <code>cache_filesystem</code> (persistent across sessions) or use <code>timeout</code> to invalidate entries older than N seconds.</p>
+<p>Keys are built from values, not variable names. That means passing the same value through a different variable still hits the same cache entry.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(memoise)
+    <div class="webr-editor" data-language="r">n_val &lt;- 1
+identical(draw_m(n_val), draw_m(1))
+#&gt; [1] TRUE
 
-get_config &lt;- memoise(
-  function() { Sys.sleep(0.1); list(version = &quot;1.0&quot;, debug = TRUE) },
-  ~ memoise::timeout(60)  # cache expires after 60 seconds
+is.memoised(draw_m)
+#&gt; [1] TRUE
+is.memoised(slow_draw)
+#&gt; [1] FALSE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>is.memoised()</code> tells you whether a function has been wrapped. The plain <code>slow_draw</code> is still the original, so it returns <code>FALSE</code>. Only the wrapped copy, <code>draw_m</code>, carries a cache.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Keys are hashed with rlang::hash().</strong> Two arguments that are <code>identical()</code> produce the same key, so <code>1L</code> and <code>1</code> count as different calls because one is integer and the other is double. If your function accepts numeric-or-integer versions of the same value, coerce before passing in.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a one-line check that returns <code>TRUE</code> when a function has been memoised and <code>FALSE</code> when it has not. Test it on both <code>draw_m</code> and <code>slow_draw</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: check memoisation status
+ex_is_memo &lt;- function(f) {
+  # your code here
+}
+
+# Test:
+# c(ex_is_memo(draw_m), ex_is_memo(slow_draw))
+#&gt; Expected: TRUE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_is_memo &lt;- function(f) is.memoised(f)
+c(ex_is_memo(draw_m), ex_is_memo(slow_draw))
+#&gt; [1]  TRUE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>is.memoised()</code> is the built-in predicate. Wrapping it in your own function adds nothing except a clearer name at the call site.</p>
+
+</details>
+</section>
+
+<h2>When should you memoize and when should you avoid it?</h2>
+
+<p>Memoization only works when the function's output depends entirely on its arguments. That is called <em>referential transparency</em>: the same inputs must always give the same output.</p>
+
+<p>Good candidates for memoization:</p>
+
+<ol>
+
+<li><strong>External API calls</strong> that return the same result for the same query</li>
+
+<li><strong>Web scraping</strong> — hitting the same URL twice is wasted bandwidth</li>
+
+<li><strong>Expensive model fits in Shiny</strong>, where users often revisit the same parameter combinations</li>
+
+<li><strong>Recursive math</strong> like Fibonacci or dynamic programming</li>
+
+<li><strong>Parameter sweeps</strong> that revisit earlier grid points</li>
+
+<li><strong>SQL or BigQuery lookups</strong> that are slow and deterministic</li>
+
+</ol>
+
+<p>Bad candidates:</p>
+
+<ol>
+
+<li><strong>Functions with side effects</strong> like writing to a file or sending an email — you want those to run every time</li>
+
+<li><strong>Functions that return the current time, date, or random numbers</strong> — caching freezes the output at the first call</li>
+
+<li><strong>Functions that read mutable state</strong> like a database row that might change between calls</li>
+
+<li><strong>Already-fast functions</strong> — the hashing overhead can outweigh the saving</li>
+
+</ol>
+
+<p>Here is what goes wrong when you violate referential transparency. We memoise <code>Sys.time()</code>, which should return the current time.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">now &lt;- function() Sys.time()
+now_m &lt;- memoise(now)
+
+t_first &lt;- now_m()
+Sys.sleep(1)
+t_second &lt;- now_m()
+as.numeric(t_second - t_first)
+#&gt; [1] 0</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The second call returned the same timestamp as the first. From the cache's point of view, both calls had zero arguments, so they shared a key. Memoization froze time.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not memoise functions with side effects or non-deterministic output.</strong> If <code>f(x)</code> can return a different value the second time, memoise will silently return a stale answer. Audit your function with one question: "given the same inputs, is the output always the same?"</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict what happens if you memoise <code>sample(1:10, 1)</code> and call it three times. Will you get three different integers or one integer repeated?</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: memoised sample
+ex_sample_m &lt;- memoise(function() sample(1:10, 1))
+
+# Run it three times:
+# c(ex_sample_m(), ex_sample_m(), ex_sample_m())
+#&gt; Expected: three identical integers (cached first draw)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_sample_m2 &lt;- memoise(function() sample(1:10, 1))
+c(ex_sample_m2(), ex_sample_m2(), ex_sample_m2())
+#&gt; [1] 3 3 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The wrapped function takes no arguments, so every call shares the same cache key. The first draw is stored; the next two calls return it unchanged. This is the exact trap the warning above describes.</p>
+
+</details>
+</section>
+
+<h2>How do you persist the cache across R sessions?</h2>
+
+<p>By default, <code>memoise()</code> stores results in a <code>cache_mem()</code> backend. That is a fast in-memory cache capped at 512 MB that disappears when your R session ends. For long-running work that you want to survive a restart, switch to <code>cache_disk()</code>, which writes each cache entry to a folder as an RDS file.</p>
+
+<p><img src="screenshots/Memoization-in-R-cache-backends.webp" alt="Picking between in-memory and on-disk caches." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Picking between in-memory and on-disk caches.</em></p>
+
+<p>Here is a disk-backed cache in action. We point it at a temporary folder so the example is self-contained, and wrap a deliberately expensive function.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(cachem)
+
+disk_dir &lt;- tempfile(&quot;memo_&quot;)
+expensive &lt;- function(x) {
+  Sys.sleep(0.5)
+  x * 10
+}
+
+exp_m &lt;- memoise(expensive, cache = cache_disk(dir = disk_dir))
+
+r1 &lt;- system.time(exp_m(7))[[&quot;elapsed&quot;]]
+r2 &lt;- system.time(exp_m(7))[[&quot;elapsed&quot;]]
+length(list.files(disk_dir))
+#&gt; [1] 1
+c(first = r1, second = r2)
+#&gt;  first second
+#&gt;  0.503  0.002</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The first call ran the half-second sleep and dropped one file into the cache folder. The second call skipped the computation and returned the cached result. If you restart R and point a new <code>cache_disk()</code> at the same folder, the entry is still there.</p>
+
+<p>You can also set a time-to-live on the cache so stale entries clear automatically. That is useful for API responses you trust for a few minutes but not forever.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">short_m &lt;- memoise(
+  function() Sys.time(),
+  cache = cache_mem(max_age = 5)
 )
 
-system.time(get_config())
-system.time(get_config())</div>
+v1 &lt;- short_m()
+Sys.sleep(6)
+v2 &lt;- short_m()
+as.numeric(v2 - v1)
+#&gt; [1] 6.006</div>
 
     <div class="webr-buttons">
 
@@ -882,20 +1036,164 @@ system.time(get_config())</div>
 
 </div>
 
-<p>The <code>~ timeout(60)</code> formula tells <code>memoise</code> to key the cache on "which 60-second window am I in". Once the clock ticks past the boundary, the next call recomputes. For most interactive analysis you will never need this — the default in-session cache is plenty.</p>
+<p>The first call cached a timestamp with a five-second shelf life. After sleeping six seconds, the key was considered stale, so the second call ran afresh and returned a new time. Without <code>max_age</code>, both calls would have returned the same timestamp, as you saw in the previous section.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Share one cache between multiple memoised functions.</strong> Create one <code>cache_disk()</code> object and pass it as the <code>cache =</code> argument to several <code>memoise()</code> calls. Keys include the function body, so collisions are impossible, and you get one place to clear everything.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the <code>max_age</code> in the snippet above from <code>5</code> to <code>2</code> seconds. What value should <code>Sys.sleep()</code> be set to so the second call is still a cache hit?</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: tune TTL
+ex_ttl_m &lt;- memoise(
+  function() Sys.time(),
+  cache = cache_mem(max_age = 2)
+)
+
+# Fill in a sleep shorter than 2 seconds, then confirm two calls return same time.
+# v_a &lt;- ex_ttl_m(); Sys.sleep(?); v_b &lt;- ex_ttl_m()
+# as.numeric(v_b - v_a)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_ttl_m &lt;- memoise(
+  function() Sys.time(),
+  cache = cache_mem(max_age = 2)
+)
+v_a &lt;- ex_ttl_m()
+Sys.sleep(1)
+v_b &lt;- ex_ttl_m()
+as.numeric(v_b - v_a)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A sleep of one second keeps us inside the two-second TTL window, so the second call returns the cached timestamp. Sleeping three seconds would expire the entry and force a fresh call.</p>
+
+</details>
+</section>
+
+<h2>How do you invalidate or inspect a memoised function?</h2>
+
+<p>Sometimes you need to clear the cache deliberately. Maybe a remote API changed its data, or you want to force a recompute after tweaking a downstream formula. The memoise package gives you three tools: <code>forget()</code> to clear everything, <code>drop_cache()</code> to drop one key, and <code>has_cache()</code> to ask whether a key is already stored.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">life_m &lt;- memoise(function(k) {
+  Sys.sleep(0.1)
+  k * 2
+})
+
+life_m(1); life_m(2); life_m(3)
+has_cache(life_m)(2)
+#&gt; [1] TRUE
+
+drop_cache(life_m)(2)
+has_cache(life_m)(2)
+#&gt; [1] FALSE
+
+forget(life_m)
+has_cache(life_m)(1)
+#&gt; [1] FALSE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Notice the double-parenthesis pattern: <code>has_cache(life_m)(2)</code> returns a function and then calls it with the key you are asking about. The same goes for <code>drop_cache()</code>. After the first three calls we have three keys; <code>has_cache()(2)</code> confirms key <code>2</code> is present; <code>drop_cache()(2)</code> removes only that one; <code>forget()</code> wipes the whole cache.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use omit_args to ignore flags that should not affect the cache key.</strong> If your function takes a <code>verbose = TRUE</code> argument for logging only, pass <code>omit_args = &quot;verbose&quot;</code> to <code>memoise()</code> so calls with <code>verbose = TRUE</code> and <code>verbose = FALSE</code> share the same cache entry.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a memoised <code>ex_double_m()</code> that returns <code>x * 2</code>, cache three values, then drop only the entry for <code>x = 5</code>. Confirm with <code>has_cache()</code> that keys <code>1</code> and <code>5</code> differ.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: selective invalidation
+ex_double &lt;- function(x) x * 2
+ex_double_m &lt;- NULL  # your code here
+
+# Test plan:
+# ex_double_m(1); ex_double_m(5); ex_double_m(7)
+# drop_cache(ex_double_m)(5)
+# c(has_cache(ex_double_m)(1), has_cache(ex_double_m)(5))
+#&gt; Expected: TRUE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_double_m &lt;- memoise(ex_double)
+ex_double_m(1); ex_double_m(5); ex_double_m(7)
+drop_cache(ex_double_m)(5)
+c(has_cache(ex_double_m)(1), has_cache(ex_double_m)(5))
+#&gt; [1]  TRUE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>drop_cache(mf)(k)</code> removes only key <code>k</code>. Everything else in the cache is untouched, so key <code>1</code> is still present while key <code>5</code> is gone.</p>
+
+</details>
+</section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Memoise a Recursive Fibonacci</h4>
+<h4>Exercise 1: Memoize a slow mean function</h4>
 
-<p>Write a naive recursive Fibonacci and memoise it. Measure the difference in <code>system.time()</code> on <code>fib(25)</code>.</p>
+<p>Write a function <code>my_slow_mean(n)</code> that generates a random vector of length <code>n</code> with a fixed seed and sleeps for 0.3 seconds before returning its mean. Memoise it as <code>my_mean_m</code>, run a first call to warm the cache, then time a second call and save its elapsed time as <code>my_result</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(memoise)
-# your code here</div>
+    <div class="webr-editor" data-language="r"># Exercise 1: memoise a slow mean
+# Hint: use set.seed() inside for determinism, then memoise(my_slow_mean).
+
+# Write your code below:
+</div>
 
     <div class="webr-buttons">
 
@@ -918,20 +1216,81 @@ system.time(get_config())</div>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(memoise)
+    <div class="webr-editor" data-language="r">my_slow_mean &lt;- function(n) {
+  set.seed(2026)
+  Sys.sleep(0.3)
+  mean(rnorm(n))
+}
+my_mean_m &lt;- memoise(my_slow_mean)
 
-fib_slow &lt;- function(n) {
-  if (n &lt; 2) return(n)
-  fib_slow(n - 1) + fib_slow(n - 2)
+invisible(my_mean_m(1000))
+my_result &lt;- system.time(my_mean_m(1000))[[&quot;elapsed&quot;]]
+my_result
+#&gt; [1] 0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first call pays the 0.3-second sleep and stores the mean under the key for <code>n = 1000</code>. The second call returns the stored value without sleeping, so <code>my_result</code> is effectively zero.</p>
+
+</details>
+
+<h4>Exercise 2: Disk cache with a TTL</h4>
+
+<p>Build a fake API function <code>my_api(id)</code> that sleeps half a second and returns <code>id * 100</code>. Wrap it with <code>memoise()</code> using <code>cache_disk()</code> and a <code>max_age</code> of 2 seconds. Call <code>my_api_m(1)</code>, sleep for three seconds, call it again, and confirm the second call was a cache miss (run time near half a second).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: disk cache with TTL
+# Hint: cache_disk() takes max_age just like cache_mem().
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_api &lt;- function(id) {
+  Sys.sleep(0.5)
+  id * 100
 }
 
-fib_fast &lt;- memoise(function(n) {
-  if (n &lt; 2) return(n)
-  fib_fast(n - 1) + fib_fast(n - 2)
-})
+my_api_m &lt;- memoise(
+  my_api,
+  cache = cache_disk(dir = tempfile(&quot;api_&quot;), max_age = 2)
+)
 
-system.time(fib_slow(25))
-system.time(fib_fast(25))</div>
+t_hit &lt;- system.time(my_api_m(1))[[&quot;elapsed&quot;]]
+Sys.sleep(3)
+t_miss &lt;- system.time(my_api_m(1))[[&quot;elapsed&quot;]]
+c(first = t_hit, after_ttl = t_miss)
+#&gt;     first after_ttl
+#&gt;     0.503     0.503</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -941,50 +1300,113 @@ system.time(fib_fast(25))</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The naive <code>fib_slow</code> recomputes the same subcalls exponentially. Memoised <code>fib_fast</code> caches every <code>n</code>, so it runs in linear time — often 100x faster.</p>
+<p><strong>Explanation:</strong> The first call pays the half-second sleep. Waiting three seconds exceeds the two-second TTL, so the cache entry expires. The second call runs from scratch and matches the first call's timing — proof the cache miss is real.</p>
 
 </details>
 
-<h4>Exercise 2: Detect an Impure Function</h4>
+<h2>Complete Example</h2>
 
-<p>Given <code>random_msg &lt;- function() sample(c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;), 1)</code>, explain why <code>memoise(random_msg)</code> is a bad idea.</p>
+<p>Let us put everything together with a small weather-lookup workflow. Imagine <code>fetch_weather(city)</code> hits a slow API (we fake it with <code>Sys.sleep()</code>). You call it for three cities, then repeat the same query to warm the cache.</p>
 
-<details>
-<summary>Click to reveal solution</summary>
+<div class="webr-container">
 
-<p><strong>Explanation:</strong> <code>random_msg</code> is not pure — <code>sample()</code> calls R's random number generator, which is stateful. The first call caches whichever value came out, and every subsequent call returns the same cached value, breaking the randomness the caller expects. To memoise "randomness" safely, pass the seed as an explicit argument: <code>random_msg &lt;- function(seed) { set.seed(seed); sample(c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;), 1) }</code>. Now two different seeds produce two different cache entries.</p>
+  <div class="webr-code-block">
 
-</details>
+    <div class="webr-editor" data-language="r">fetch_weather &lt;- function(city) {
+  Sys.sleep(0.4)
+  data.frame(city = city, temp_c = round(runif(1, 10, 30), 1))
+}
+
+fetch_m &lt;- memoise(
+  fetch_weather,
+  cache = cache_disk(dir = tempfile(&quot;weather_&quot;))
+)
+
+cities &lt;- c(&quot;Chennai&quot;, &quot;Berlin&quot;, &quot;Tokyo&quot;)
+
+first_pass &lt;- system.time(lapply(cities, fetch_m))[[&quot;elapsed&quot;]]
+second_pass &lt;- system.time(lapply(cities, fetch_m))[[&quot;elapsed&quot;]]
+round(c(first = first_pass, second = second_pass), 3)
+#&gt;  first second
+#&gt;  1.210  0.005</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The first pass pays three API calls (three sleeps of 0.4 seconds each). The second pass reads all three results from disk in milliseconds. If you restart R and point a fresh <code>cache_disk()</code> at the same folder, the second pass is still free. That is the whole point of memoization in one example: cheap the second time, cheap after a restart, and you did not rewrite <code>fetch_weather()</code> at all.</p>
 
 <h2>Summary</h2>
+
+<p><img src="screenshots/Memoization-in-R-overview-mindmap.webp" alt="Memoization in R at a glance." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Memoization in R at a glance.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Question</th>
-<th>Answer</th>
+<th>Concept</th>
+<th>Takeaway</th>
+<th>Function</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>When is memoization safe?</td>
-<td>The function is pure and expensive.</td>
+<td>Wrap a function</td>
+<td>One-line speedup for repeat calls</td>
+<td><code>memoise(f)</code></td>
 </tr>
 <tr>
-<td>How do you apply it in R?</td>
-<td><code>memoise::memoise(f)</code> — one line, returns a new function.</td>
+<td>Default cache</td>
+<td>512 MB RAM, gone at session end</td>
+<td><code>cache_mem()</code></td>
 </tr>
 <tr>
-<td>What does the cache live in?</td>
-<td>An environment private to the wrapper.</td>
+<td>Persistent cache</td>
+<td>Files on disk, survives restarts</td>
+<td><code>cache_disk(dir = ...)</code></td>
 </tr>
 <tr>
-<td>What breaks it?</td>
-<td>Any side effect or external dependency.</td>
+<td>Expire entries</td>
+<td>TTL for fresh-but-not-realtime data</td>
+<td><code>max_age = N</code></td>
 </tr>
 <tr>
-<td>Persistent cache across sessions?</td>
-<td><code>memoise(..., cache = cache_filesystem(...))</code>.</td>
+<td>Clear everything</td>
+<td>Nuke the cache</td>
+<td><code>forget(mf)</code></td>
+</tr>
+<tr>
+<td>Clear one key</td>
+<td>Drop a single entry</td>
+<td><code>drop_cache(mf)(key)</code></td>
+</tr>
+<tr>
+<td>Check a key</td>
+<td>Ask if a key is cached</td>
+<td><code>has_cache(mf)(key)</code></td>
+</tr>
+<tr>
+<td>Ignore an argument</td>
+<td>Skip logging flags in the key</td>
+<td><code>omit_args = &quot;verbose&quot;</code></td>
+</tr>
+<tr>
+<td>Safety rule</td>
+<td>Only memoise <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">pure functions</a></td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
@@ -993,15 +1415,19 @@ system.time(fib_fast(25))</div>
 
 <ol>
 
-<li><code>memoise</code> package documentation. <a href="https://memoise.r-lib.org/">Link</a></li>
+<li>memoise package site. <a href="https://memoise.r-lib.org/">memoise.r-lib.org</a></li>
 
-<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 11: Function operators. <a href="https://adv-r.hadley.nz/function-operators.html">Link</a></li>
+<li>r-lib/memoise GitHub repository. <a href="https://github.com/r-lib/memoise">github.com/r-lib/memoise</a></li>
 
-<li>Hadley Wickham and Jim Hester — original <code>memoise</code> CRAN page. <a href="https://cran.r-project.org/package=memoise">Link</a></li>
+<li>memoise CRAN manual (v2.0.1). <a href="https://cran.r-project.org/web/packages/memoise/memoise.pdf">cran.r-project.org/package=memoise</a></li>
 
-<li><code>digest</code> package — the hashing back-end used by <code>memoise</code>. <a href="https://cran.r-project.org/package=digest">Link</a></li>
+<li>cachem package site. <a href="https://cachem.r-lib.org/">cachem.r-lib.org</a></li>
 
-<li>Dynamic Programming entry in <em>The Algorithm Design Manual</em> (Skiena) — the broader algorithmic context. <a href="https://www.algorist.com/">Link</a></li>
+<li>Wickham, H. <em>Advanced R</em>, 2nd edition. Function Factories chapter. <a href="https://adv-r.hadley.nz/function-factories.html">adv-r.hadley.nz/function-factories.html</a></li>
+
+<li>cachem on CRAN. <a href="https://cran.r-project.org/package=cachem">cran.r-project.org/package=cachem</a></li>
+
+<li>R-bloggers. <em>Optimize your R Code using Memoization</em>. <a href="https://www.r-bloggers.com/2018/10/optimize-your-r-code-using-memoization/">r-bloggers.com</a></li>
 
 </ol>
 
@@ -1009,14 +1435,14 @@ system.time(fib_fast(25))</div>
 
 <ul>
 
-<li><a href="R-Function-Operators.html">R Function Operators</a> — memoise is an operator; learn the general pattern.</li>
+<li><a href="R-Functions.html">Writing R Functions</a> — before you memoise a function, write one that is worth memoising.</li>
 
-<li><a href="R-Function-Factories.html">R Function Factories</a> — the factory pattern that underlies every memoiser.</li>
+<li><a href="R-Function-Factories.html">R Function Factories</a> — <code>memoise()</code> is itself a <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">function factory</a>; this post shows the pattern behind it.</li>
 
-<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a> — why pure functions matter for caching to work.</li>
+<li><a href="Strategies-To-Improve-And-Speedup-R-Code.html">Strategies to Speed Up R Code</a> — memoization is one of many techniques for making slow R code fast.</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Functional-Programming-Exercises.html"><span class="rt-title">R Functional Programming Exercises: 10 Practice Problems With Solutions</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a><a class="rt-card" href="Functional-Programming-in-R.html"><span class="rt-title">Functional Programming in R: The Mindset That Makes Your Code 10x Cleaner</span><span class="rt-meta">Advanced R &middot; 6 min read</span></a><a class="rt-card" href="furrr-Package-in-R.html"><span class="rt-title">furrr Package in R: Parallel purrr With the future Backend</span><span class="rt-meta">3 min read</span></a><a class="rt-card" href="R-Function-Factories.html"><span class="rt-title">R Function Factories: How to Build Customisable Functions That Generate Functions</span><span class="rt-meta">Advanced R &middot; 3 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Currying-and-Partial-Application.html"><span class="rt-title">R Currying &amp; Partial Application: purrr::partial() &amp; rlang</span><span class="rt-meta">6 min read</span></a><a class="rt-card" href="Writing-Composable-R-Code.html"><span class="rt-title">Composable R Code: Design Functions That Chain Together Like Unix Pipes</span><span class="rt-meta">Advanced R &middot; 4 min read</span></a><a class="rt-card" href="R-Function-Operators.html"><span class="rt-title">R Function Operators: Transform Existing Functions Without Rewriting Them</span><span class="rt-meta">Advanced R &middot; 9 min read</span></a><a class="rt-card" href="Infix-Functions-in-R.html"><span class="rt-title">Infix Functions in R: Write Your Own %op% Operators</span><span class="rt-meta">7 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="Reduce-Filter-Map-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Reduce, Filter, Map</span></a>
 <a class="pn-link pn-next" href="Writing-Composable-R-Code.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Composable R Code</span></a>
