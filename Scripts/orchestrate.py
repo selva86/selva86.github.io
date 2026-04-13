@@ -97,8 +97,18 @@ def revert_churn_screenshots():
         log(f"  Reverted {len(reverted)} churn webp(s): {', '.join(reverted)}")
 
 
+def cleanup_orphan_mermaid_tmps():
+    """Remove mermaid temp files that get left behind between sessions."""
+    for tmp in glob.glob(str(REPO_ROOT / "_build" / "mermaid" / "tmp*")):
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
 def check_git_clean():
     revert_churn_screenshots()
+    cleanup_orphan_mermaid_tmps()
     result = subprocess.run(
         ["git", "status", "--porcelain"],
         capture_output=True, text=True, cwd=REPO_ROOT
