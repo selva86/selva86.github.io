@@ -1,335 +1,514 @@
 ---
-title: "Functional Programming in R: The Mindset That Makes Your Code 10x Cleaner"
+title: "Functional Programming in R: The Mindset That Makes Your Code 10× Cleaner"
 slug: "Functional-Programming-in-R"
-description: "Master functional programming in R — pure functions, higher-order functions, map/reduce, and immutability — with runnable examples and the mental models that make it click."
-keywords: "functional programming R, R functional style, higher-order functions R, pure functions R, map reduce R, R functional paradigm"
+description: "Master functional programming in R: treat functions as data, replace loops with map/filter/reduce, and write code that is shorter, safer, and 10x cleaner."
+keywords: "functional programming R, R map function, R reduce, R filter, higher-order functions R, first-class functions R, R functionals, R lapply vs map, pure functions R"
+auto_link_terms: "functional programming in R|first-class functions|higher-order functions|R functionals|map reduce filter|pure functions R"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-12"
+date: "2026-04-14"
 curriculum_id: "4.2.1"
 post_type: "C"
-auto_link_terms: "functional programming in R|functional programming|higher-order functions|pure functions"
-auto_link_case_sensitive: false
-sidebar_section: "Learn R"
+sidebar_section: "Functional Programming"
 sidebar_title: "Functional Programming"
-sidebar_order: 33
+sidebar_order: 1
 ---
 
-# Functional Programming in R: The Mindset That Makes Your Code 10x Cleaner
+# Functional Programming in R: The Mindset That Makes Your Code 10× Cleaner
 
-<p class="lead">Functional programming in R means writing code as pure functions composed together, treating functions as first-class values, and replacing explicit loops with higher-order operations like <code>map</code>, <code>filter</code>, and <code>reduce</code>.</p>
+<p class="lead">Functional programming in R is the discipline of treating functions as ordinary values — you can store them, pass them around, and compose them — so repetitive loops collapse into single lines that say exactly what they do. Once the mindset clicks, most of your R code gets dramatically shorter, safer, and easier to read.</p>
 
-R is, at heart, a functional language. Most R users discover this slowly, one small refactoring at a time. This tutorial gives you the five ideas that let you skip that slow discovery and write in a functional style on purpose — cleaner code, fewer bugs, and code that reads like what it does.
+## Why is functional programming a mindset, not a package?
 
-## What Does "Functional Programming" Actually Mean in R?
-
-You have probably written R functions for years. Functional *programming* is not just "using functions" — it is a style choice that follows three rules.
-
-A function is **pure** when it returns the same output for the same input and changes nothing else in the world — no globals, no files, no printing. Functions are **first-class values** in R, which means you can store one in a variable, pass it into another function, or return it from another function, exactly like a number or a string. And because R copies on modify, functional code is naturally **immutable** — the input vector you pass in is never silently altered.
-
-Here is a single tiny example that demonstrates all three ideas at once. We pass the function `mean` to `sapply`, which calls it once per column of `iris[, 1:4]`, without ever changing `iris`.
+You've written the loop before: declare an empty vector, count indices, assign by position, try not to break the bookkeeping. It works, but most of the code is scaffolding, not meaning. Functional style flips that ratio. You describe the transformation once and hand it to R — the iteration disappears into a single call. Here is the same answer, both ways.
 
 ```r
-sapply(iris[, 1:4], mean)
-#> Sepal.Length  Sepal.Width Petal.Length  Petal.Width
-#>     5.843333     3.057333     3.758000     1.199333
+# The loop way: lots of scaffolding
+nums <- 1:5
+squares_loop <- numeric(length(nums))
+for (i in seq_along(nums)) {
+  squares_loop[i] <- nums[i]^2
+}
+squares_loop
+#> [1]  1  4  9 16 25
+
+# The functional way: hand the operation to R
+squares_fp <- sapply(nums, function(x) x^2)
+squares_fp
+#> [1]  1  4  9 16 25
 ```
 
-Three things just happened that would feel unusual in a language like Python or Java. `mean` was treated as a *value* and passed around. `sapply` is a *higher-order function* — a function that accepts another function. And the result — a named numeric vector — is a brand new object; `iris` itself is untouched. Those three properties are the entire toolkit.
+Both blocks produce the same vector. The loop spends four lines managing an index and a result buffer before it ever mentions squaring. The `sapply` call says, in one line, "apply this function to each element." That is the entire pitch of functional style: stop writing the bookkeeping, start writing the meaning.
 
 [KEY INSIGHT]
-**Functional programming in R is about what you want, not how to compute it.** A `for` loop says "take this counter, do this, then do that". `sapply(cols, mean)` says "I want one mean per column". The second version is shorter and almost impossible to get wrong.
+**Stop describing how to iterate, start describing what to do to each item.** Loops ask you to manage a counter, a buffer, and an assignment. Functionals only ask you what transformation to apply — R handles the rest.
 
-## What Makes a Function "Pure" and Why Should You Care?
+[NOTE]
+**Every example here uses base R, so you need zero packages.** `sapply`, `Map`, `Filter`, and `Reduce` ship with R itself. The popular purrr package is a modern, type-stable wrapper on the same ideas — we will see one line of it near the end so you can recognise the pattern later.
 
-A pure function is a vending machine. You press button B4, you get a KitKat. Same button, same KitKat — always. It does not email your grandmother, it does not write to a file, it does not check the weather. R's `sum()`, `mean()`, `sqrt()`, and `toupper()` are all pure. Your own helpers should aim for this whenever they can.
-
-Compare two versions of the same task below. The impure version relies on a counter in the global environment; the pure version takes its state in and returns its state out.
+**Try it:** Convert a vector of Celsius temperatures `temps_c <- c(15, 22, 8, 30, 18)` to Fahrenheit using `sapply` and the formula `F = C * 9/5 + 32`. Save the result to `ex_temps_f`.
 
 ```r
-# Impure: reaches into the global environment
-counter <- 0
-tick_impure <- function() {
-  counter <<- counter + 1
-  counter
-}
-tick_impure()
-#> [1] 1
-tick_impure()
-#> [1] 2
+# Try it: convert Celsius to Fahrenheit
+temps_c <- c(15, 22, 8, 30, 18)
 
-# Pure: the state lives inside the call
-tick_pure <- function(state) state + 1
-tick_pure(tick_pure(tick_pure(0)))
+ex_temps_f <- sapply(temps_c, function(x) {
+  # your code here
+})
+ex_temps_f
+#> Expected: 59.0 71.6 46.4 86.0 64.4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_temps_f <- sapply(temps_c, function(x) x * 9/5 + 32)
+ex_temps_f
+#> [1] 59.0 71.6 46.4 86.0 64.4
+```
+
+**Explanation:** `sapply` calls the anonymous function on every element of `temps_c` and simplifies the result to a numeric vector. The whole conversion is a one-liner because the "what" fits in one expression.
+
+</details>
+
+## How are functions first-class objects in R?
+
+"First-class" is a claim about status: a value is first-class when you can do the same things to it that you can do to any other value. Integers are first-class — you can assign them, put them in a list, pass them to a function, or return them. In R, functions have exactly the same privileges. Seeing the proof of that is the fastest way to unlock the mindset.
+
+```r
+# 1. Assign a function to a variable, just like you would assign a number
+double <- function(x) x * 2
+double(7)
+#> [1] 14
+
+# 2. Store several functions inside a list and look them up by name
+ops <- list(
+  double = function(x) x * 2,
+  square = function(x) x^2,
+  negate = function(x) -x
+)
+ops$square(4)
+#> [1] 16
+```
+
+`double` is now a name that refers to a function, exactly the way `x <- 7` makes `x` refer to a number. The `ops` list holds three functions together, each retrievable with `$`. If this feels normal, good — that is the goal. Functions in R are ordinary values you can carry around in any container.
+
+The other two privileges are "pass as an argument" and "return from another function." Here is a function that takes another function and applies it twice.
+
+```r
+apply_twice <- function(f, x) f(f(x))
+
+# Pass the named `double` function
+apply_twice(double, 5)     # 5 -> 10 -> 20
+#> [1] 20
+
+# Pass an anonymous function — no need to name a helper you will use once
+apply_twice(function(x) x + 3, 0)   # 0 -> 3 -> 6
+#> [1] 6
+```
+
+`apply_twice` is a higher-order function: a function whose argument (or return value) is itself a function. The first call hands over `double`, the second hands over an inline anonymous function. R treats them identically because, to R, they are just values of type `function`.
+
+![Four privileges of first-class functions](screenshots/Functional-Programming-in-R-first-class.webp)
+*Figure 1: Four things you can do with a function that you can also do with any value.*
+
+[TIP]
+**Anonymous functions are perfect for one-shot transformations.** Writing `function(x) x + 1` inline is shorter than defining a helper you will never reuse. R 4.1+ also supports the shorthand `\(x) x + 1`, which reads especially well inside `sapply` and `Map`.
+
+**Try it:** Write `ex_apply_thrice(f, x)` that applies `f` three times to `x`. Test it using `\(x) x + 1` on `0` — the answer should be `3`.
+
+```r
+# Try it: apply f three times
+ex_apply_thrice <- function(f, x) {
+  # your code here
+}
+
+ex_apply_thrice(\(x) x + 1, 0)
+#> Expected: 3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_apply_thrice <- function(f, x) f(f(f(x)))
+ex_apply_thrice(\(x) x + 1, 0)
 #> [1] 3
 ```
 
-The pure version can be tested by reading only the function body — there is nothing else to check. The impure version's behaviour depends on whatever `counter` happens to be when you run it, and that value could have been changed by anything in your session. For code you expect to live a long time, prefer pure.
+**Explanation:** The function composes `f` with itself three times. Starting from `0`, each call adds one: `0 -> 1 -> 2 -> 3`. This is a tiny taste of how you build behaviour by combining functions instead of writing more code.
+
+</details>
+
+## What are map, filter, and reduce — R's three core functionals?
+
+Nearly every repetitive task on a collection fits one of three shapes. **Map** transforms each element, **filter** keeps elements that pass a test, and **reduce** collapses everything into a single value. R ships all three as base functions — `Map()`, `Filter()`, and `Reduce()` — plus the friendly vector-returning cousins `sapply()` and `vapply()`. Once you recognise the three shapes, you will spot them everywhere.
+
+```r
+numbers <- 1:6
+
+# MAP: apply a function to every element (returns a list)
+Map(function(x) x^2, numbers)
+#> [[1]] [1] 1
+#> [[2]] [1] 4
+#> [[3]] [1] 9
+#> ... up to [[6]] [1] 36
+
+# sapply is the same idea but simplifies to a vector
+sapply(numbers, function(x) x^2)
+#> [1]  1  4  9 16 25 36
+
+# FILTER: keep elements that satisfy a predicate (a function returning TRUE/FALSE)
+Filter(function(x) x %% 2 == 0, numbers)
+#> [1] 2 4 6
+
+# REDUCE: collapse a collection into one value using a binary function
+Reduce(`+`, numbers)          # sum via repeated addition
+#> [1] 21
+
+# Reduce can show its work with accumulate = TRUE
+Reduce(`+`, numbers, accumulate = TRUE)
+#> [1]  1  3  6 10 15 21
+```
+
+Read from top to bottom: `Map` returned a list (one squared value per input), `sapply` did the same job but gave back a plain numeric vector, `Filter` kept only the even values, and `Reduce` collapsed `1:6` to the sum `21`. The `accumulate = TRUE` variant is a debugging gift — it shows you every intermediate value, so you can see why repeatedly adding `1:6` must end at `21`.
+
+![Map filter reduce data flow](screenshots/Functional-Programming-in-R-map-filter-reduce.webp)
+*Figure 2: How map, filter, and reduce transform a collection step by step.*
+
+[WARNING]
+**Map() always returns a list, even for numeric output.** If you want a vector back, use `sapply()` or `vapply()` (stricter, type-checked), or wrap the `Map()` call in `unlist()`. Forgetting this is a top reason beginners think functional code "looks weird" — they are getting lists where they expected numbers.
+
+**Try it:** Use `Filter` to keep only strings longer than 3 characters from `words <- c("R", "cat", "tiger", "ox", "whale")`. Save the result to `ex_long_words`.
+
+```r
+# Try it: filter strings by length
+words <- c("R", "cat", "tiger", "ox", "whale")
+
+ex_long_words <- Filter(function(w) {
+  # your code here
+}, words)
+ex_long_words
+#> Expected: "tiger" "whale"
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_long_words <- Filter(function(w) nchar(w) > 3, words)
+ex_long_words
+#> [1] "tiger" "whale"
+```
+
+**Explanation:** `nchar(w) > 3` is the predicate — a function that returns `TRUE` or `FALSE` for each element. `Filter` keeps only the inputs for which the predicate is `TRUE`. "tiger" (5) and "whale" (5) pass; the rest are dropped.
+
+</details>
+
+## How do pure functions and closures power functional style?
+
+Two ideas make functional code safe and reusable. A **pure function** depends only on its arguments and changes nothing else — given the same inputs, it always returns the same output. A **closure** is a function that remembers the environment it was created in, so it can carry a piece of state without using a global variable. Together they explain why functional R is easy to test and easy to compose.
+
+```r
+# PURE: add depends only on its inputs and changes nothing outside
+add <- function(a, b) a + b
+add(2, 3)
+#> [1] 5
+
+# IMPURE: the result depends on hidden global state
+counter <- 0
+impure_increment <- function() {
+  counter <<- counter + 1    # <<- reaches out and mutates the outside world
+  counter
+}
+
+impure_increment()
+#> [1] 1
+impure_increment()
+#> [1] 2
+```
+
+`add(2, 3)` will return `5` forever, no matter how many times or in what order you call it — that is purity. `impure_increment()` returns a different number on every call because its answer depends on the hidden `counter` variable. Impure functions can be useful, but they make code harder to reason about: to predict the output, you need to know the history of every prior call. Functional style prefers purity because purity is what makes `Map`, `Filter`, and `Reduce` trustworthy — R can call them in any order without surprises.
+
+A closure looks similar but uses the outer environment in a controlled, read-only way.
+
+```r
+make_multiplier <- function(factor) {
+  function(x) x * factor   # the inner function "closes over" `factor`
+}
+
+times_three <- make_multiplier(3)
+times_ten   <- make_multiplier(10)
+
+times_three(7)
+#> [1] 21
+times_ten(7)
+#> [1] 70
+```
+
+`make_multiplier(3)` returns a brand-new function whose body refers to `factor`. That `factor` lives in the environment `make_multiplier` was running in when it returned, and the returned function keeps a reference to it forever. `times_three` and `times_ten` are two different closures, each remembering its own `factor`. This is how you build specialised functions from a general recipe — no classes, no templates, just one line.
+
+[KEY INSIGHT]
+**A closure is a function that remembers its birth environment.** The inner function sees `factor` because it was born inside `make_multiplier`. This "memory" is what lets one recipe generate many specialised workers without repeating yourself.
+
+**Try it:** Write `ex_make_greeter(greeting)` that returns a function pasting `greeting` before a name. Use it to build a `hi` function and call it on `"Selva"`.
+
+```r
+# Try it: a greeting factory
+ex_make_greeter <- function(greeting) {
+  # your code here
+}
+
+hi <- ex_make_greeter("Hi")
+hi("Selva")
+#> Expected: "Hi, Selva"
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_make_greeter <- function(greeting) {
+  function(name) paste0(greeting, ", ", name)
+}
+
+hi <- ex_make_greeter("Hi")
+hi("Selva")
+#> [1] "Hi, Selva"
+```
+
+**Explanation:** `ex_make_greeter` returns an inner function that closes over `greeting`. Calling `ex_make_greeter("Hi")` creates a new closure where `greeting` is `"Hi"` forever, so `hi("Selva")` pastes `"Hi"` in front of any name you pass.
+
+</details>
+
+## When should you reach for functional style instead of a loop?
+
+Not every loop needs to be refactored. If the loop is tiny, imperative, and easier to read than the alternative, leave it alone — the goal is clarity, not ideological purity. But the moment a loop is describing a **transformation** (each → something), a **filter** (keep items where), or an **accumulation** (combine all into one), that loop is secretly a functional, and rewriting it usually shrinks the code by half.
+
+Here is a concrete comparison on the built-in `mtcars` dataset — compute the mean of three columns.
+
+```r
+# Functional: declarative, one line
+col_means_fp <- sapply(mtcars[, c("mpg", "hp", "wt")], mean)
+col_means_fp
+#>        mpg         hp         wt
+#>  20.090625 146.687500   3.217250
+
+# Loop: same answer, more scaffolding
+col_means_loop <- numeric(3)
+names(col_means_loop) <- c("mpg", "hp", "wt")
+for (col in names(col_means_loop)) {
+  col_means_loop[col] <- mean(mtcars[[col]])
+}
+col_means_loop
+#>        mpg         hp         wt
+#>  20.090625 146.687500   3.217250
+```
+
+Both versions return the same named numeric vector. The functional version is a single line because `sapply` already knows how to iterate over a list (a data frame *is* a list of columns) and collect results by name. The loop version needs four lines to reproduce that plumbing by hand. Read the `sapply` line aloud: "apply `mean` to each of these columns." That sentence is the code.
+
+If you work in the tidyverse, the same idea is one line of purrr:
+
+```r
+# One-liner with purrr::map_dbl — guaranteed to return a double vector
+library(purrr)
+map_dbl(mtcars[, c("mpg", "hp", "wt")], mean)
+#>        mpg         hp         wt
+#>  20.090625 146.687500   3.217250
+```
+
+`map_dbl` is the type-stable sibling of `sapply`: it returns a double vector or it errors — it never silently gives you a list. That guarantee is the main reason purrr exists alongside base R's functionals.
 
 [TIP]
-**Push side effects to the edges.** Inside the core of your program, keep functions pure. At the edge — `readr::read_csv`, `print`, `ggsave` — side effects are unavoidable and that is fine. Keeping the core pure means most of your code is trivially testable.
+**Start with base R's functionals, move to purrr when you need type safety.** `sapply`, `lapply`, `Map`, `Filter`, and `Reduce` are always available and teach the vocabulary. `purrr::map_dbl`, `map_chr`, `map_lgl`, and `map_df` add type-stable returns and pipe-friendly ergonomics when you want them.
 
-**Try it:** Write a pure function `ex_shift(x, by)` that adds `by` to every element of `x` and returns the result.
+A practical decision list:
+
+1. **Describing a transformation?** Use `sapply`, `Map`, or `purrr::map_*`.
+2. **Keeping only some elements?** Use `Filter` or `purrr::keep`.
+3. **Collapsing to one value?** Use `Reduce` or `purrr::reduce`.
+4. **Need a running side-effect like printing, plotting, or writing files?** Use `for`, or `purrr::walk` if you want the functional style — side effects are legal, they are just not the functionals' strength.
+
+**Try it:** Replace the loop `total <- 0; for (i in 1:100) total <- total + i` with a one-line `Reduce` call. Save the result to `ex_total`.
 
 ```r
-# your code here
-ex_shift(c(1, 2, 3), 10)
-#> Expected: 11 12 13
+# Try it: sum 1 to 100 with Reduce
+ex_total <- NA  # your code here
+ex_total
+#> Expected: 5050
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-ex_shift <- function(x, by) x + by
-ex_shift(c(1, 2, 3), 10)
-#> [1] 11 12 13
+ex_total <- Reduce(`+`, 1:100)
+ex_total
+#> [1] 5050
 ```
 
-**Explanation:** The function uses only its arguments and R's vectorised `+` — no globals, no side effects, same output for same input.
-
-</details>
-
-## How Are Functions First-Class in R?
-
-"First-class" is jargon for one simple property: a function is a value you can put in a variable, a list, or an argument. Anything you can do with the number `42`, you can do with the function `mean`.
-
-The snippet below stores a function in a variable, puts several functions in a list, and passes one of them as an argument — all without the language complaining.
-
-```r
-f <- mean
-f(1:10)
-#> [1] 5.5
-
-funs <- list(avg = mean, mid = median, spread = sd)
-funs$spread(1:10)
-#> [1] 3.02765
-
-apply_fun <- function(x, fun) fun(x)
-apply_fun(1:10, median)
-#> [1] 5.5
-```
-
-The third idiom is the important one. `apply_fun` never has to know *which* statistic you want — you hand that in. One function serves five use cases. Once you see this, the whole of the apply family and `purrr` suddenly makes sense: those are just `apply_fun` grown up.
-
-**Try it:** Put `min`, `max`, and `sum` in a named list and call the `max` entry on `1:100`.
-
-```r
-# your code here
-#> Expected: 100
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-ex_funs <- list(lo = min, hi = max, total = sum)
-ex_funs$hi(1:100)
-#> [1] 100
-```
-
-**Explanation:** Functions sit in list slots just like numbers; `$hi` pulls out `max` and the trailing `(1:100)` calls it.
-
-</details>
-
-## What Are Higher-Order Functions? (map, filter, reduce)
-
-A **higher-order function** takes a function as input, returns a function as output, or both. The three most useful shapes — and the three you should know by name — are map, filter, and reduce.
-
-`map` walks over a collection and applies a function to each element. In R, this is `sapply` for vector output, `lapply` for list output, or `purrr::map` for a richer typed version. `filter` keeps only the elements that satisfy a predicate — base R has `Filter()`. `reduce` combines elements with a binary function into a single value — base R has `Reduce()`. Together, these three cover the majority of data-transformation code.
-
-```r
-nums <- 1:10
-
-sapply(nums, function(x) x^2)
-#>  [1]   1   4   9  16  25  36  49  64  81 100
-
-Filter(function(x) x %% 2 == 0, nums)
-#> [1]  2  4  6  8 10
-
-Reduce(`+`, nums)
-#> [1] 55
-```
-
-Three lines replaced three different `for` loops. More importantly, each line says exactly what it does at the level you care about — "square each", "keep even", "total them". You never asked for a counter, an index, or a running total; the higher-order function supplied those for you.
-
-**Try it:** Use `Filter()` to keep only the strings in `c("apple", "banana", "cherry", "date")` that have more than 5 characters.
-
-```r
-# your code here
-#> Expected: "banana" "cherry"
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-Filter(function(s) nchar(s) > 5, c("apple", "banana", "cherry", "date"))
-#> [1] "banana" "cherry"
-```
-
-**Explanation:** The predicate `function(s) nchar(s) > 5` returns `TRUE` for longer strings; `Filter` keeps the matching positions.
-
-</details>
-
-## How Does Immutability Work in R?
-
-R's copy-on-modify rule means that passing a vector to a function can never corrupt the original. Unlike Python or JavaScript, you do not have to worry about a function reaching into your list and changing it. Functional code leans on this heavily — you can chain transformations knowing every step produces a brand new value.
-
-```r
-original <- c(1, 2, 3, 4, 5)
-
-double_it <- function(x) x * 2
-doubled <- double_it(original)
-
-doubled
-#> [1]  2  4  6  8 10
-
-original
-#> [1] 1 2 3 4 5
-```
-
-R made a private copy of `original` the moment `double_it` modified it inside the function body. That is the single most important reason R is safe for data analysis: mistakes inside a function cannot retroactively poison the data that was passed in.
-
-[NOTE]
-**Copy-on-modify is lazy, not eager.** R only actually duplicates memory when a value is modified. Reading a vector inside a function leaves the original in place. That is why functional code in R is fast *and* safe.
-
-**Try it:** Write a function `ex_zero_negs(x)` that replaces negative elements of `x` with zero and show that the original is unchanged.
-
-```r
-ex_v <- c(-2, 1, -5, 4)
-# your code here
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-ex_zero_negs <- function(x) { x[x < 0] <- 0; x }
-ex_v <- c(-2, 1, -5, 4)
-ex_zero_negs(ex_v)
-#> [1] 0 1 0 4
-ex_v
-#> [1] -2  1 -5  4
-```
-
-**Explanation:** Assigning to `x[x < 0]` inside the function triggers a copy; the caller's `ex_v` is untouched.
-
-</details>
-
-## How Do You Compose Small Functions Into a Pipeline?
-
-The payoff of writing pure, first-class, higher-order functions shows up when you need to chain several transformations. The native pipe `|>` turns `f(g(h(x)))` into `x |> h() |> g() |> f()` — same computation, read top to bottom, no nested parentheses.
-
-```r
-iris |>
-  subset(Species == "setosa") |>
-  (\(df) df[, 1:4])() |>
-  colMeans() |>
-  round(2)
-#> Sepal.Length  Sepal.Width Petal.Length  Petal.Width
-#>         5.01         3.43         1.46         0.25
-```
-
-Read that pipeline out loud: take iris, keep only setosa, drop the Species column, take column means, round to two decimals. Each step is a small pure function; the pipe glues them together. No intermediate variables, no manual loops — and every step is independently testable.
-
-**Try it:** Use the native pipe to take `mtcars`, keep only rows with `cyl == 4`, and return the mean `mpg` rounded to one decimal.
-
-```r
-# your code here
-#> Expected: 26.7
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-mtcars |>
-  subset(cyl == 4) |>
-  (\(df) mean(df$mpg))() |>
-  round(1)
-#> [1] 26.7
-```
-
-**Explanation:** `subset()` filters rows, the anonymous `\(df)` extracts `mpg` and takes its mean, and `round(1)` is the final step.
+**Explanation:** `Reduce` applies `+` pairwise across the vector: `1 + 2 = 3`, then `3 + 3 = 6`, then `6 + 4 = 10`, and so on. The final value is the classic Gauss sum `5050`. One line replaces a three-line loop — and the intent reads right off the page.
 
 </details>
 
 ## Practice Exercises
 
-### Exercise 1: Pure Higher-Order Pipeline
+These capstones combine two or more ideas from the tutorial. Each uses distinct variable names prefixed with `my_` so you can experiment without overwriting tutorial state.
 
-Write a single pipeline that takes `1:20`, keeps only the even numbers, squares each remaining number, and sums the squares. Save the result to `my_result`.
+### Exercise 1: Filter then map for word lengths
+
+Given the list below, use `Filter` and `sapply` together to return a numeric vector of **lengths** of words that have at least 5 letters. Save the result to `my_long_lengths`.
 
 ```r
-# your code here
+# Exercise 1: filter by length, then measure
+word_list <- list("banana", "kiwi", "strawberry", "fig", "watermelon")
 
+# Write your code below:
+
+# Expected: 6 10 10
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-my_result <- 1:20 |>
-  Filter(f = function(x) x %% 2 == 0) |>
-  sapply(function(x) x^2) |>
-  sum()
-my_result
-#> [1] 1540
+long_words <- Filter(function(w) nchar(w) >= 5, word_list)
+my_long_lengths <- sapply(long_words, nchar)
+my_long_lengths
+#> [1]  6 10 10
 ```
 
-**Explanation:** `Filter` keeps evens, `sapply` squares each one, `sum` reduces to a single total.
+**Explanation:** `Filter` keeps `"banana"`, `"strawberry"`, and `"watermelon"`. `sapply(long_words, nchar)` then measures each surviving word. This is the canonical filter-then-map shape and is how most real data pipelines begin.
 
 </details>
 
-### Exercise 2: Replace a for Loop With Reduce
+### Exercise 2: Build a power function with a factory
 
-Rewrite this imperative running-product loop using `Reduce()`.
+Write a function factory `make_power(n)` that returns a function raising its input to the `n`th power. Use it to create `cube` and then apply `cube` to `1:5`. Save the resulting vector to `my_cubes`.
 
 ```r
-# Imperative version you are replacing:
-total <- 1
-for (x in 1:5) total <- total * x
-total
-#> [1] 120
+# Exercise 2: function factory
 
-# Rewrite using Reduce:
+make_power <- function(n) {
+  # your code here
+}
 
+cube <- make_power(3)
+my_cubes <- sapply(1:5, cube)
+my_cubes
+#> Expected: 1 8 27 64 125
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-my_product <- Reduce(`*`, 1:5)
-my_product
-#> [1] 120
+make_power <- function(n) {
+  function(x) x^n
+}
+
+cube <- make_power(3)
+my_cubes <- sapply(1:5, cube)
+my_cubes
+#> [1]   1   8  27  64 125
 ```
 
-**Explanation:** `Reduce` with `*` repeatedly multiplies the running result by the next element — that is exactly what a running-product loop does.
+**Explanation:** `make_power(3)` returns a closure that remembers `n = 3`. Every call to `cube(x)` computes `x^3`. You could also build `square <- make_power(2)` from the same factory — one recipe, many specialised workers.
 
 </details>
+
+### Exercise 3: Running factorial with accumulate
+
+Use `Reduce` with `accumulate = TRUE` to compute the running product of `1:6` — these are the factorials `1!`, `2!`, `3!`, up to `6!`. Save the resulting vector to `my_factorials`.
+
+```r
+# Exercise 3: factorials via Reduce
+# Hint: Reduce(f, x, accumulate = TRUE) returns all intermediate results
+
+my_factorials <- NA  # your code here
+my_factorials
+#> Expected: 1 2 6 24 120 720
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_factorials <- Reduce(`*`, 1:6, accumulate = TRUE)
+my_factorials
+#> [1]   1   2   6  24 120 720
+```
+
+**Explanation:** Multiplication is the reducer. `accumulate = TRUE` captures each intermediate product: `1`, then `1*2 = 2`, then `2*3 = 6`, then `6*4 = 24`, and so on. Running totals and running products are the two most useful `Reduce` patterns in practice.
+
+</details>
+
+## Complete Example
+
+Let's put all five ideas to work on a tiny but realistic task: given a small inventory, compute the **average price of items that are currently in stock**. This example uses first-class functions (stored in a list-of-records), a filter, a map, and a reduce — the whole FP toolkit on three lines of data.
+
+```r
+inventory <- list(
+  list(name = "pen",    price = 2,  in_stock = TRUE),
+  list(name = "book",   price = 15, in_stock = FALSE),
+  list(name = "eraser", price = 1,  in_stock = TRUE),
+  list(name = "ruler",  price = 3,  in_stock = TRUE)
+)
+
+# Step 1 — FILTER: keep only records where in_stock is TRUE
+in_stock_items <- Filter(function(item) item$in_stock, inventory)
+length(in_stock_items)
+#> [1] 3
+
+# Step 2 — MAP: pull the price field out of each surviving record
+prices <- sapply(in_stock_items, function(item) item$price)
+prices
+#> [1] 2 1 3
+
+# Step 3 — REDUCE: sum the prices, then divide by count to get the mean
+avg_price <- Reduce(`+`, prices) / length(prices)
+avg_price
+#> [1] 2
+```
+
+Each step has a single job and a single shape. You filter to drop out-of-stock items, map to extract the field you care about, and reduce to collapse many values into one. Every intermediate result is visible, so debugging is trivial — you check each pipe one at a time. Once the steps work, you can chain them into a single line for production:
+
+```r
+# The same pipeline, written as one fluent expression
+mean(sapply(Filter(function(i) i$in_stock, inventory), function(i) i$price))
+#> [1] 2
+```
+
+That one-liner is the reward for learning the vocabulary. It reads right to left like a sentence: "take the mean of the prices of the in-stock items in `inventory`." Your future self will thank you for writing it this way.
 
 ## Summary
 
-| Concept              | One-line takeaway                                                     |
-|----------------------|-----------------------------------------------------------------------|
-| Pure function        | Same input → same output, no side effects.                           |
-| First-class functions| Store, pass, and return functions like any other value.               |
-| Higher-order function| Takes or returns a function — `sapply`, `Filter`, `Reduce`, `purrr::map`. |
-| Immutability         | R copies on modify — inputs are never silently changed.              |
-| Composition          | Chain small pure functions with the pipe `|>` instead of nesting.    |
+Functional programming in R is a mindset before it is a toolkit. Once you accept that functions are ordinary values, the rest falls out naturally — map, filter, and reduce become the obvious way to describe repetitive work, pure functions become the obvious way to keep results predictable, and closures become the obvious way to build specialised workers from a single recipe.
+
+![Mindset shift from loops to functional style](screenshots/Functional-Programming-in-R-mindset-shift.webp)
+*Figure 3: The mental move from looping to functional style.*
+
+Five takeaways to keep:
+
+1. **Functions are values.** Assign them, store them in lists, pass them as arguments, return them from other functions.
+2. **Three shapes cover most iteration.** Transform with `Map`/`sapply`, filter with `Filter`, collapse with `Reduce`. Spot the shape, pick the functional.
+3. **Pure functions are easier to reason about.** Same inputs, same output, no hidden state — that is the guarantee that makes composition safe.
+4. **Closures carry state cleanly.** A function returned from another function remembers the environment it was born in — use that to build specialised workers.
+5. **Start with base R, graduate to purrr.** `sapply`, `Map`, `Filter`, `Reduce` teach the vocabulary. `purrr::map_dbl` and friends add type safety when you need it.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 10: Function factories. [Link](https://adv-r.hadley.nz/function-factories.html)
-3. `purrr` package documentation — a tidyverse toolkit for functional programming. [Link](https://purrr.tidyverse.org/)
-4. R Core Team — base R `Reduce`, `Filter`, `Map`, and `Position` reference. [Link](https://rdrr.io/r/base/funprog.html)
-5. Chambers, J. M. — *Software for Data Analysis: Programming with R*. Springer (2008).
+1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
+3. Peng, R. D. — *Mastering Software Development in R*, §2.3 Functional Programming. [Link](https://bookdown.org/rdpeng/RProgDA/functional-programming.html)
+4. R Core Team — `Map`, `Filter`, `Reduce` reference (`funprog`). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/funprog.html)
+5. purrr tidyverse package documentation. [Link](https://purrr.tidyverse.org/)
+6. Rodrigues, B. — *Modern R with the tidyverse*, Chapter 8: Functional Programming. [Link](https://modern-rstats.eu/functional-programming.html)
 
 ## Continue Learning
 
-- [purrr map() Variants](purrr-map-Variants.html) — the tidyverse's typed answer to `sapply`.
-- [R Anonymous Functions](R-Anonymous-Functions.html) — the `\(x)` shorthand that makes functional pipelines short.
-- [Memoization in R](Memoization-in-R.html) — cache pure function results for an instant speedup.
+- [purrr map() Variants](purrr-map-Variants.html) — the type-stable, pipe-friendly modern alternative to `sapply`.
+- [R Anonymous Functions](R-Anonymous-Functions.html) — a deep dive into `function(x) ...` and the R 4.1+ shorthand `\(x) ...`.
+- [Reduce, Filter, Map in R](Reduce-Filter-Map-in-R.html) — a focused walkthrough of the base-R trio with more examples.

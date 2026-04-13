@@ -1,40 +1,44 @@
 ---
-title: "Functional Programming in R: The Mindset That Makes Your Code 10x Cleaner"
-description: "Master functional programming in R — pure functions, higher-order functions, map/reduce, and immutability — with runnable examples and the mental models that make it click."
-keywords: "functional programming R, R functional style, higher-order functions R, pure functions R, map reduce R, R functional paradigm"
+title: "Functional Programming in R: The Mindset That Makes Your Code 10× Cleaner"
+description: "Master functional programming in R: treat functions as data, replace loops with map/filter/reduce, and write code that is shorter, safer, and 10x cleaner."
+keywords: "functional programming R, R map function, R reduce, R filter, higher-order functions R, first-class functions R, R functionals, R lapply vs map, pure functions R"
 mathjax: false
 webr: true
 curriculum_id: "4.2.1"
 post_type: "C"
-auto_link_terms: "functional programming in R|functional programming|higher-order functions|pure functions"
+auto_link_terms: "functional programming in R|first-class functions|higher-order functions|R functionals|map reduce filter|pure functions R"
 auto_link_case_sensitive: false
-sidebar_section: "Learn R"
+sidebar_section: "Functional Programming"
 sidebar_title: "Functional Programming"
-sidebar_order: "33"
+sidebar_order: "1"
 ---
 <!-- md2html:generated -->
 
-<h1>Functional Programming in R: The Mindset That Makes Your Code 10x Cleaner</h1>
+<h1>Functional Programming in R: The Mindset That Makes Your Code 10× Cleaner</h1>
 
-<p class="lead">Functional programming in R means writing code as pure functions composed together, treating functions as first-class values, and replacing explicit loops with higher-order operations like <code>map</code>, <code>filter</code>, and <code>reduce</code>.</p>
+<p class="lead">Functional programming in R is the discipline of treating functions as ordinary values — you can store them, pass them around, and <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> them — so repetitive loops collapse into single lines that say exactly what they do. Once the mindset clicks, most of your R code gets dramatically shorter, safer, and easier to read.</p>
 
-<p>R is, at heart, a functional language. Most R users discover this slowly, one small refactoring at a time. This tutorial gives you the five ideas that let you skip that slow discovery and write in a functional style on purpose — cleaner code, fewer bugs, and code that reads like what it does.</p>
+<h2>Why is functional programming a mindset, not a package?</h2>
 
-<h2>What Does "Functional Programming" Actually Mean in R?</h2>
-
-<p>You have probably written <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> for years. Functional <em>programming</em> is not just "using functions" — it is a style choice that follows three rules.</p>
-
-<p>A function is <strong>pure</strong> when it returns the same output for the same input and changes nothing else in the world — no globals, no files, no printing. Functions are <strong>first-class values</strong> in R, which means you can store one in a variable, pass it into another function, or return it from another function, exactly like a number or a string. And because R copies on modify, functional code is naturally <strong>immutable</strong> — the input vector you pass in is never silently altered.</p>
-
-<p>Here is a single tiny example that demonstrates all three ideas at once. We pass the function <code>mean</code> to <code>sapply</code>, which calls it once per column of <code>iris[, 1:4]</code>, without ever changing <code>iris</code>.</p>
+<p>You've written the loop before: declare an empty vector, count indices, assign by position, try not to break the bookkeeping. It works, but most of the code is scaffolding, not meaning. Functional style flips that ratio. You describe the transformation once and hand it to R — the iteration disappears into a single call. Here is the same answer, both ways.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">sapply(iris[, 1:4], mean)
-#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
-#&gt;     5.843333     3.057333     3.758000     1.199333</div>
+    <div class="webr-editor" data-language="r"># The loop way: lots of scaffolding
+nums &lt;- 1:5
+squares_loop &lt;- numeric(length(nums))
+for (i in seq_along(nums)) {
+  squares_loop[i] &lt;- nums[i]^2
+}
+squares_loop
+#&gt; [1]  1  4  9 16 25
+
+# The functional way: hand the operation to R
+squares_fp &lt;- sapply(nums, function(x) x^2)
+squares_fp
+#&gt; [1]  1  4  9 16 25</div>
 
     <div class="webr-buttons">
 
@@ -52,35 +56,298 @@ sidebar_order: "33"
 
 </div>
 
-<p>Three things just happened that would feel unusual in a language like Python or Java. <code>mean</code> was treated as a <em>value</em> and passed around. <code>sapply</code> is a <em>higher-order function</em> — a function that accepts another function. And the result — a named numeric vector — is a brand new object; <code>iris</code> itself is untouched. Those three properties are the entire toolkit.</p>
+<p>Both blocks produce the same vector. The loop spends four lines managing an index and a result buffer before it ever mentions squaring. The <code>sapply</code> call says, in one line, "apply this function to each element." That is the entire pitch of functional style: stop writing the bookkeeping, start writing the meaning.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Functional programming in R is about what you want, not how to compute it.</strong> A <code>for</code> loop says "take this counter, do this, then do that". <code>sapply(cols, mean)</code> says "I want one mean per column". The second version is shorter and almost impossible to get wrong.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Stop describing how to iterate, start describing what to do to each item.</strong> Loops ask you to manage a counter, a buffer, and an assignment. Functionals only ask you what transformation to apply — R handles the rest.</div></div>
 
-<h2>What Makes a Function "Pure" and Why Should You Care?</h2>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Every example here uses base R, so you need zero packages.</strong> <code>sapply</code>, <code>Map</code>, <code>Filter</code>, and <code>Reduce</code> ship with R itself. The popular purrr package is a modern, type-stable wrapper on the same ideas — we will see one line of it near the end so you can recognise the pattern later.</div></div>
 
-<p>A pure function is a vending machine. You press button B4, you get a KitKat. Same button, same KitKat — always. It does not email your grandmother, it does not write to a file, it does not check the weather. R's <code>sum()</code>, <code>mean()</code>, <code>sqrt()</code>, and <code>toupper()</code> are all pure. Your own helpers should aim for this whenever they can.</p>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert a vector of Celsius temperatures <code>temps_c &lt;- c(15, 22, 8, 30, 18)</code> to Fahrenheit using <code>sapply</code> and the formula <code>F = C * 9/5 + 32</code>. Save the result to <code>ex_temps_f</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: convert Celsius to Fahrenheit
+temps_c &lt;- c(15, 22, 8, 30, 18)
 
-<p>Compare two versions of the same task below. The impure version relies on a counter in the <a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">global environment</a>; the pure version takes its state in and returns its state out.</p>
+ex_temps_f &lt;- sapply(temps_c, function(x) {
+  # your code here
+})
+ex_temps_f
+#&gt; Expected: 59.0 71.6 46.4 86.0 64.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_temps_f &lt;- sapply(temps_c, function(x) x * 9/5 + 32)
+ex_temps_f
+#&gt; [1] 59.0 71.6 46.4 86.0 64.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sapply</code> calls the anonymous function on every element of <code>temps_c</code> and simplifies the result to a numeric vector. The whole conversion is a one-liner because the "what" fits in one expression.</p>
+
+</details>
+</section>
+
+<h2>How are functions first-class objects in R?</h2>
+
+<p>"First-class" is a claim about status: a value is first-class when you can do the same things to it that you can do to any other value. Integers are first-class — you can assign them, put them in a list, pass them to a function, or return them. In R, functions have exactly the same privileges. Seeing the proof of that is the fastest way to unlock the mindset.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Impure: reaches into the global environment
+    <div class="webr-editor" data-language="r"># 1. Assign a function to a variable, just like you would assign a number
+double &lt;- function(x) x * 2
+double(7)
+#&gt; [1] 14
+
+# 2. Store several functions inside a list and look them up by name
+ops &lt;- list(
+  double = function(x) x * 2,
+  square = function(x) x^2,
+  negate = function(x) -x
+)
+ops$square(4)
+#&gt; [1] 16</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>double</code> is now a name that refers to a function, exactly the way <code>x &lt;- 7</code> makes <code>x</code> refer to a number. The <code>ops</code> list holds three functions together, each retrievable with <code>$</code>. If this feels normal, good — that is the goal. Functions in R are ordinary values you can carry around in any container.</p>
+
+<p>The other two privileges are "pass as an argument" and "return from another function." Here is a function that takes another function and applies it twice.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">apply_twice &lt;- function(f, x) f(f(x))
+
+# Pass the named `double` function
+apply_twice(double, 5)     # 5 -&gt; 10 -&gt; 20
+#&gt; [1] 20
+
+# Pass an anonymous function — no need to name a helper you will use once
+apply_twice(function(x) x + 3, 0)   # 0 -&gt; 3 -&gt; 6
+#&gt; [1] 6</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>apply_twice</code> is a higher-order function: a function whose argument (or return value) is itself a function. The first call hands over <code>double</code>, the second hands over an inline anonymous function. R treats them identically because, to R, they are just values of type <code>function</code>.</p>
+
+<p><img src="screenshots/Functional-Programming-in-R-first-class.webp" alt="Four privileges of first-class functions" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Four things you can do with a function that you can also do with any value.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Anonymous functions are perfect for one-shot transformations.</strong> Writing <code>function(x) x + 1</code> inline is shorter than defining a helper you will never reuse. R 4.1+ also supports the shorthand <code>\(x) x + 1</code>, which reads especially well inside <code>sapply</code> and <code>Map</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>ex_apply_thrice(f, x)</code> that applies <code>f</code> three times to <code>x</code>. Test it using <code>\(x) x + 1</code> on <code>0</code> — the answer should be <code>3</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: apply f three times
+ex_apply_thrice &lt;- function(f, x) {
+  # your code here
+}
+
+ex_apply_thrice(\(x) x + 1, 0)
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_apply_thrice &lt;- function(f, x) f(f(f(x)))
+ex_apply_thrice(\(x) x + 1, 0)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function composes <code>f</code> with itself three times. Starting from <code>0</code>, each call adds one: <code>0 -&gt; 1 -&gt; 2 -&gt; 3</code>. This is a tiny taste of how you build behaviour by combining functions instead of writing more code.</p>
+
+</details>
+</section>
+
+<h2>What are map, filter, and reduce — R's three core functionals?</h2>
+
+<p>Nearly every repetitive task on a collection fits one of three shapes. <strong>Map</strong> transforms each element, <strong>filter</strong> keeps elements that pass a test, and <strong>reduce</strong> collapses everything into a single value. R ships all three as base functions — <code>Map()</code>, <code>Filter()</code>, and <code>Reduce()</code> — plus the friendly vector-returning cousins <code>sapply()</code> and <code>vapply()</code>. Once you recognise the three shapes, you will spot them everywhere.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">numbers &lt;- 1:6
+
+# MAP: apply a function to every element (returns a list)
+Map(function(x) x^2, numbers)
+#&gt; [[1]] [1] 1
+#&gt; [[2]] [1] 4
+#&gt; [[3]] [1] 9
+#&gt; ... up to [[6]] [1] 36
+
+# sapply is the same idea but simplifies to a vector
+sapply(numbers, function(x) x^2)
+#&gt; [1]  1  4  9 16 25 36
+
+# FILTER: keep elements that satisfy a predicate (a function returning TRUE/FALSE)
+Filter(function(x) x %% 2 == 0, numbers)
+#&gt; [1] 2 4 6
+
+# REDUCE: collapse a collection into one value using a binary function
+Reduce(`+`, numbers)          # sum via repeated addition
+#&gt; [1] 21
+
+# Reduce can show its work with accumulate = TRUE
+Reduce(`+`, numbers, accumulate = TRUE)
+#&gt; [1]  1  3  6 10 15 21</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Read from top to bottom: <code>Map</code> returned a list (one squared value per input), <code>sapply</code> did the same job but gave back a plain numeric vector, <code>Filter</code> kept only the even values, and <code>Reduce</code> collapsed <code>1:6</code> to the sum <code>21</code>. The <code>accumulate = TRUE</code> variant is a debugging gift — it shows you every intermediate value, so you can see why repeatedly adding <code>1:6</code> must end at <code>21</code>.</p>
+
+<p><img src="screenshots/Functional-Programming-in-R-map-filter-reduce.webp" alt="Map filter reduce data flow" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: How map, filter, and reduce transform a collection step by step.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Map() always returns a list, even for numeric output.</strong> If you want a vector back, use <code>sapply()</code> or <code>vapply()</code> (stricter, type-checked), or wrap the <code>Map()</code> call in <code>unlist()</code>. Forgetting this is a top reason beginners think functional code "looks weird" — they are getting lists where they expected numbers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>Filter</code> to keep only strings longer than 3 characters from <code>words &lt;- c(&quot;R&quot;, &quot;cat&quot;, &quot;tiger&quot;, &quot;ox&quot;, &quot;whale&quot;)</code>. Save the result to <code>ex_long_words</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: filter strings by length
+words &lt;- c(&quot;R&quot;, &quot;cat&quot;, &quot;tiger&quot;, &quot;ox&quot;, &quot;whale&quot;)
+
+ex_long_words &lt;- Filter(function(w) {
+  # your code here
+}, words)
+ex_long_words
+#&gt; Expected: &quot;tiger&quot; &quot;whale&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_long_words &lt;- Filter(function(w) nchar(w) &gt; 3, words)
+ex_long_words
+#&gt; [1] &quot;tiger&quot; &quot;whale&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>nchar(w) &gt; 3</code> is the predicate — a function that returns <code>TRUE</code> or <code>FALSE</code> for each element. <code>Filter</code> keeps only the inputs for which the predicate is <code>TRUE</code>. "tiger" (5) and "whale" (5) pass; the rest are dropped.</p>
+
+</details>
+</section>
+
+<h2>How do pure functions and closures power functional style?</h2>
+
+<p>Two ideas make functional code safe and reusable. A <strong>pure function</strong> depends only on its arguments and changes nothing else — given the same inputs, it always returns the same output. A <strong>closure</strong> is a function that remembers the environment it was created in, so it can carry a piece of state without using a global variable. Together they explain why functional R is easy to test and easy to compose.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># PURE: add depends only on its inputs and changes nothing outside
+add &lt;- function(a, b) a + b
+add(2, 3)
+#&gt; [1] 5
+
+# IMPURE: the result depends on hidden global state
 counter &lt;- 0
-tick_impure &lt;- function() {
-  counter &lt;&lt;- counter + 1
+impure_increment &lt;- function() {
+  counter &lt;&lt;- counter + 1    # &lt;&lt;- reaches out and mutates the outside world
   counter
 }
-tick_impure()
+
+impure_increment()
 #&gt; [1] 1
-tick_impure()
-#&gt; [1] 2
-
-# Pure: the state lives inside the call
-tick_pure &lt;- function(state) state + 1
-tick_pure(tick_pure(tick_pure(0)))
-#&gt; [1] 3</div>
+impure_increment()
+#&gt; [1] 2</div>
 
     <div class="webr-buttons">
 
@@ -98,17 +365,58 @@ tick_pure(tick_pure(tick_pure(0)))
 
 </div>
 
-<p>The pure version can be tested by reading only the function body — there is nothing else to check. The impure version's behaviour depends on whatever <code>counter</code> happens to be when you run it, and that value could have been changed by anything in your session. For code you expect to live a long time, prefer pure.</p>
+<p><code>add(2, 3)</code> will return <code>5</code> forever, no matter how many times or in what order you call it — that is purity. <code>impure_increment()</code> returns a different number on every call because its answer depends on the hidden <code>counter</code> variable. Impure functions can be useful, but they make code harder to reason about: to predict the output, you need to know the history of every prior call. Functional style prefers purity because purity is what makes <code>Map</code>, <code>Filter</code>, and <code>Reduce</code> trustworthy — R can call them in any order without surprises.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Push side effects to the edges.</strong> Inside the core of your program, keep functions pure. At the edge — <code>readr::read_csv</code>, <code>print</code>, <code>ggsave</code> — side effects are unavoidable and that is fine. Keeping the core pure means most of your code is trivially testable.</div></div>
+<p>A closure looks similar but uses the outer environment in a controlled, read-only way.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">make_multiplier &lt;- function(factor) {
+  function(x) x * factor   # the inner function &quot;closes over&quot; `factor`
+}
+
+times_three &lt;- make_multiplier(3)
+times_ten   &lt;- make_multiplier(10)
+
+times_three(7)
+#&gt; [1] 21
+times_ten(7)
+#&gt; [1] 70</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>make_multiplier(3)</code> returns a brand-new function whose body refers to <code>factor</code>. That <code>factor</code> lives in the environment <code>make_multiplier</code> was running in when it returned, and the returned function keeps a reference to it forever. <code>times_three</code> and <code>times_ten</code> are two different closures, each remembering its own <code>factor</code>. This is how you build specialised functions from a general recipe — no classes, no templates, just one line.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A closure is a function that remembers its birth environment.</strong> The inner function sees <code>factor</code> because it was born inside <code>make_multiplier</code>. This "memory" is what lets one recipe generate many specialised workers without repeating yourself.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Write a pure function <code>ex_shift(x, by)</code> that adds <code>by</code> to every element of <code>x</code> and returns the result.</p>
+<p><strong>Try it:</strong> Write <code>ex_make_greeter(greeting)</code> that returns a function pasting <code>greeting</code> before a name. Use it to build a <code>hi</code> function and call it on <code>&quot;Selva&quot;</code>.</p>
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># your code here
-ex_shift(c(1, 2, 3), 10)
-#&gt; Expected: 11 12 13</div>
+    <div class="webr-editor" data-language="r"># Try it: a greeting factory
+ex_make_greeter &lt;- function(greeting) {
+  # your code here
+}
+
+hi &lt;- ex_make_greeter(&quot;Hi&quot;)
+hi(&quot;Selva&quot;)
+#&gt; Expected: &quot;Hi, Selva&quot;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -122,9 +430,13 @@ ex_shift(c(1, 2, 3), 10)
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex_shift &lt;- function(x, by) x + by
-ex_shift(c(1, 2, 3), 10)
-#&gt; [1] 11 12 13</div>
+    <div class="webr-editor" data-language="r">ex_make_greeter &lt;- function(greeting) {
+  function(name) paste0(greeting, &quot;, &quot;, name)
+}
+
+hi &lt;- ex_make_greeter(&quot;Hi&quot;)
+hi(&quot;Selva&quot;)
+#&gt; [1] &quot;Hi, Selva&quot;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -134,32 +446,36 @@ ex_shift(c(1, 2, 3), 10)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The function uses only its arguments and R's vectorised <code>+</code> — no globals, no side effects, same output for same input.</p>
+<p><strong>Explanation:</strong> <code>ex_make_greeter</code> returns an inner function that closes over <code>greeting</code>. Calling <code>ex_make_greeter(&quot;Hi&quot;)</code> creates a new closure where <code>greeting</code> is <code>&quot;Hi&quot;</code> forever, so <code>hi(&quot;Selva&quot;)</code> pastes <code>&quot;Hi&quot;</code> in front of any name you pass.</p>
 
 </details>
 </section>
 
-<h2>How Are Functions First-Class in R?</h2>
+<h2>When should you reach for functional style instead of a loop?</h2>
 
-<p>"First-class" is jargon for one simple property: a function is a value you can put in a variable, a list, or an argument. Anything you can do with the number <code>42</code>, you can do with the function <code>mean</code>.</p>
+<p>Not every loop needs to be refactored. If the loop is tiny, imperative, and easier to read than the alternative, leave it alone — the goal is clarity, not ideological purity. But the moment a loop is describing a <strong>transformation</strong> (each → something), a <strong>filter</strong> (keep items where), or an <strong>accumulation</strong> (combine all into one), that loop is secretly a functional, and rewriting it usually shrinks the code by half.</p>
 
-<p>The snippet below stores a function in a variable, puts several functions in a list, and passes one of them as an argument — all without the language complaining.</p>
+<p>Here is a concrete comparison on the built-in <code>mtcars</code> dataset — compute the mean of three columns.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">f &lt;- mean
-f(1:10)
-#&gt; [1] 5.5
+    <div class="webr-editor" data-language="r"># Functional: declarative, one line
+col_means_fp &lt;- sapply(mtcars[, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)], mean)
+col_means_fp
+#&gt;        mpg         hp         wt
+#&gt;  20.090625 146.687500   3.217250
 
-funs &lt;- list(avg = mean, mid = median, spread = sd)
-funs$spread(1:10)
-#&gt; [1] 3.02765
-
-apply_fun &lt;- function(x, fun) fun(x)
-apply_fun(1:10, median)
-#&gt; [1] 5.5</div>
+# Loop: same answer, more scaffolding
+col_means_loop &lt;- numeric(3)
+names(col_means_loop) &lt;- c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)
+for (col in names(col_means_loop)) {
+  col_means_loop[col] &lt;- mean(mtcars[[col]])
+}
+col_means_loop
+#&gt;        mpg         hp         wt
+#&gt;  20.090625 146.687500   3.217250</div>
 
     <div class="webr-buttons">
 
@@ -177,14 +493,62 @@ apply_fun(1:10, median)
 
 </div>
 
-<p>The third idiom is the important one. <code>apply_fun</code> never has to know <em>which</em> statistic you want — you hand that in. One function serves five use cases. Once you see this, the whole of the apply family and <code>purrr</code> suddenly makes sense: those are just <code>apply_fun</code> grown up.</p>
+<p>Both versions return the same named numeric vector. The functional version is a single line because <code>sapply</code> already knows how to iterate over a list (a data frame <em>is</em> a list of columns) and collect results by name. The loop version needs four lines to reproduce that plumbing by hand. Read the <code>sapply</code> line aloud: "apply <code>mean</code> to each of these columns." That sentence is the code.</p>
+
+<p>If you work in the tidyverse, the same idea is one line of purrr:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># One-liner with purrr::map_dbl — guaranteed to return a double vector
+library(purrr)
+map_dbl(mtcars[, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)], mean)
+#&gt;        mpg         hp         wt
+#&gt;  20.090625 146.687500   3.217250</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>map_dbl</code> is the type-stable sibling of <code>sapply</code>: it returns a double vector or it errors — it never silently gives you a list. That guarantee is the main reason purrr exists alongside base R's functionals.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start with base R's functionals, move to purrr when you need type safety.</strong> <code>sapply</code>, <code>lapply</code>, <code>Map</code>, <code>Filter</code>, and <code>Reduce</code> are always available and teach the vocabulary. <code>purrr::map_dbl</code>, <code>map_chr</code>, <code>map_lgl</code>, and <code>map_df</code> add type-stable returns and pipe-friendly ergonomics when you want them.</div></div>
+
+<p>A practical decision list:</p>
+
+<ol>
+
+<li><strong>Describing a transformation?</strong> Use <code>sapply</code>, <code>Map</code>, or <code>purrr::map_*</code>.</li>
+
+<li><strong>Keeping only some elements?</strong> Use <code>Filter</code> or <code>purrr::keep</code>.</li>
+
+<li><strong>Collapsing to one value?</strong> Use <code>Reduce</code> or <code>purrr::reduce</code>.</li>
+
+<li><strong>Need a running side-effect like printing, plotting, or writing files?</strong> Use <code>for</code>, or <code>purrr::walk</code> if you want the functional style — side effects are legal, they are just not the functionals' strength.</li>
+
+</ol>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Put <code>min</code>, <code>max</code>, and <code>sum</code> in a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> and call the <code>max</code> entry on <code>1:100</code>.</p>
+<p><strong>Try it:</strong> Replace the loop <code>total &lt;- 0; for (i in 1:100) total &lt;- total + i</code> with a one-line <code>Reduce</code> call. Save the result to <code>ex_total</code>.</p>
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># your code here
-#&gt; Expected: 100</div>
+    <div class="webr-editor" data-language="r"># Try it: sum 1 to 100 with Reduce
+ex_total &lt;- NA  # your code here
+ex_total
+#&gt; Expected: 5050</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -198,9 +562,9 @@ apply_fun(1:10, median)
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex_funs &lt;- list(lo = min, hi = max, total = sum)
-ex_funs$hi(1:100)
-#&gt; [1] 100</div>
+    <div class="webr-editor" data-language="r">ex_total &lt;- Reduce(`+`, 1:100)
+ex_total
+#&gt; [1] 5050</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -210,247 +574,29 @@ ex_funs$hi(1:100)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Functions sit in list slots just like numbers; <code>$hi</code> pulls out <code>max</code> and the trailing <code>(1:100)</code> calls it.</p>
-
-</details>
-</section>
-
-<h2>What Are Higher-Order Functions? (map, filter, reduce)</h2>
-
-<p>A <strong>higher-order function</strong> takes a function as input, returns a function as output, or both. The three most useful shapes — and the three you should know by name — are map, filter, and reduce.</p>
-
-<p><code>map</code> walks over a collection and applies a function to each element. In R, this is <code>sapply</code> for vector output, <code>lapply</code> for list output, or <code>purrr::map</code> for a richer typed version. <code>filter</code> keeps only the elements that satisfy a predicate — base R has <code>Filter()</code>. <code>reduce</code> combines elements with a binary function into a single value — base R has <code>Reduce()</code>. Together, these three cover the majority of data-transformation code.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">nums &lt;- 1:10
-
-sapply(nums, function(x) x^2)
-#&gt;  [1]   1   4   9  16  25  36  49  64  81 100
-
-Filter(function(x) x %% 2 == 0, nums)
-#&gt; [1]  2  4  6  8 10
-
-Reduce(`+`, nums)
-#&gt; [1] 55</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Three lines replaced three different <code>for</code> loops. More importantly, each line says exactly what it does at the level you care about — "square each", "keep even", "total them". You never asked for a counter, an index, or a running total; the higher-order function supplied those for you.</p>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Use <code>Filter()</code> to keep only the strings in <code>c(&quot;apple&quot;, &quot;banana&quot;, &quot;cherry&quot;, &quot;date&quot;)</code> that have more than 5 characters.</p>
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># your code here
-#&gt; Expected: &quot;banana&quot; &quot;cherry&quot;</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">Filter(function(s) nchar(s) &gt; 5, c(&quot;apple&quot;, &quot;banana&quot;, &quot;cherry&quot;, &quot;date&quot;))
-#&gt; [1] &quot;banana&quot; &quot;cherry&quot;</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> The predicate <code>function(s) nchar(s) &gt; 5</code> returns <code>TRUE</code> for longer strings; <code>Filter</code> keeps the matching positions.</p>
-
-</details>
-</section>
-
-<h2>How Does Immutability Work in R?</h2>
-
-<p>R's <a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">copy-on-modify</a> rule means that passing a vector to a function can never corrupt the original. Unlike Python or JavaScript, you do not have to worry about a function reaching into your list and changing it. Functional code leans on this heavily — you can chain transformations knowing every step produces a brand new value.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">original &lt;- c(1, 2, 3, 4, 5)
-
-double_it &lt;- function(x) x * 2
-doubled &lt;- double_it(original)
-
-doubled
-#&gt; [1]  2  4  6  8 10
-
-original
-#&gt; [1] 1 2 3 4 5</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>R made a private copy of <code>original</code> the moment <code>double_it</code> modified it inside the function body. That is the single most important reason R is safe for data analysis: mistakes inside a function cannot retroactively poison the data that was passed in.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Copy-on-modify is lazy, not eager.</strong> R only actually duplicates memory when a value is modified. Reading a vector inside a function leaves the original in place. That is why functional code in R is fast <em>and</em> safe.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Write a function <code>ex_zero_negs(x)</code> that replaces negative elements of <code>x</code> with zero and show that the original is unchanged.</p>
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex_v &lt;- c(-2, 1, -5, 4)
-# your code here</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex_zero_negs &lt;- function(x) { x[x &lt; 0] &lt;- 0; x }
-ex_v &lt;- c(-2, 1, -5, 4)
-ex_zero_negs(ex_v)
-#&gt; [1] 0 1 0 4
-ex_v
-#&gt; [1] -2  1 -5  4</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> Assigning to <code>x[x &lt; 0]</code> inside the function triggers a copy; the caller's <code>ex_v</code> is untouched.</p>
-
-</details>
-</section>
-
-<h2>How Do You Compose Small Functions Into a Pipeline?</h2>
-
-<p>The payoff of writing pure, first-class, higher-order functions shows up when you need to chain several transformations. The <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">native pipe</a> <code>|&gt;</code> turns <code>f(g(h(x)))</code> into <code>x |&gt; h() |&gt; g() |&gt; f()</code> — same computation, read top to bottom, no nested parentheses.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">iris |&gt;
-  subset(Species == &quot;setosa&quot;) |&gt;
-  (\(df) df[, 1:4])() |&gt;
-  colMeans() |&gt;
-  round(2)
-#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
-#&gt;         5.01         3.43         1.46         0.25</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Read that pipeline out loud: take iris, keep only setosa, drop the Species column, take column means, round to two decimals. Each step is a small pure function; the pipe glues them together. No intermediate variables, no manual loops — and every step is independently testable.</p>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Use the native pipe to take <code>mtcars</code>, keep only rows with <code>cyl == 4</code>, and return the mean <code>mpg</code> rounded to one decimal.</p>
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># your code here
-#&gt; Expected: 26.7</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">mtcars |&gt;
-  subset(cyl == 4) |&gt;
-  (\(df) mean(df$mpg))() |&gt;
-  round(1)
-#&gt; [1] 26.7</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>subset()</code> filters rows, the anonymous <code>\(df)</code> extracts <code>mpg</code> and takes its mean, and <code>round(1)</code> is the final step.</p>
+<p><strong>Explanation:</strong> <code>Reduce</code> applies <code>+</code> pairwise across the vector: <code>1 + 2 = 3</code>, then <code>3 + 3 = 6</code>, then <code>6 + 4 = 10</code>, and so on. The final value is the classic Gauss sum <code>5050</code>. One line replaces a three-line loop — and the intent reads right off the page.</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Pure Higher-Order Pipeline</h4>
+<p>These capstones combine two or more ideas from the tutorial. Each uses distinct variable names prefixed with <code>my_</code> so you can experiment without overwriting tutorial state.</p>
 
-<p>Write a single pipeline that takes <code>1:20</code>, keeps only the even numbers, squares each remaining number, and sums the squares. Save the result to <code>my_result</code>.</p>
+<h4>Exercise 1: Filter then map for word lengths</h4>
+
+<p>Given the list below, use <code>Filter</code> and <code>sapply</code> together to return a numeric vector of <strong>lengths</strong> of words that have at least 5 letters. Save the result to <code>my_long_lengths</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># your code here
-</div>
+    <div class="webr-editor" data-language="r"># Exercise 1: filter by length, then measure
+word_list &lt;- list(&quot;banana&quot;, &quot;kiwi&quot;, &quot;strawberry&quot;, &quot;fig&quot;, &quot;watermelon&quot;)
+
+# Write your code below:
+
+# Expected: 6 10 10</div>
 
     <div class="webr-buttons">
 
@@ -473,12 +619,10 @@ ex_v
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_result &lt;- 1:20 |&gt;
-  Filter(f = function(x) x %% 2 == 0) |&gt;
-  sapply(function(x) x^2) |&gt;
-  sum()
-my_result
-#&gt; [1] 1540</div>
+    <div class="webr-editor" data-language="r">long_words &lt;- Filter(function(w) nchar(w) &gt;= 5, word_list)
+my_long_lengths &lt;- sapply(long_words, nchar)
+my_long_lengths
+#&gt; [1]  6 10 10</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -488,26 +632,28 @@ my_result
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>Filter</code> keeps evens, <code>sapply</code> squares each one, <code>sum</code> reduces to a single total.</p>
+<p><strong>Explanation:</strong> <code>Filter</code> keeps <code>&quot;banana&quot;</code>, <code>&quot;strawberry&quot;</code>, and <code>&quot;watermelon&quot;</code>. <code>sapply(long_words, nchar)</code> then measures each surviving word. This is the canonical filter-then-map shape and is how most real data pipelines begin.</p>
 
 </details>
 
-<h4>Exercise 2: Replace a for Loop With Reduce</h4>
+<h4>Exercise 2: Build a power function with a factory</h4>
 
-<p>Rewrite this imperative running-product loop using <code>Reduce()</code>.</p>
+<p>Write a <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">function factory</a> <code>make_power(n)</code> that returns a function raising its input to the <code>n</code>th power. Use it to create <code>cube</code> and then apply <code>cube</code> to <code>1:5</code>. Save the resulting vector to <code>my_cubes</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Imperative version you are replacing:
-total &lt;- 1
-for (x in 1:5) total &lt;- total * x
-total
-#&gt; [1] 120
+    <div class="webr-editor" data-language="r"># Exercise 2: function factory
 
-# Rewrite using Reduce:
-</div>
+make_power &lt;- function(n) {
+  # your code here
+}
+
+cube &lt;- make_power(3)
+my_cubes &lt;- sapply(1:5, cube)
+my_cubes
+#&gt; Expected: 1 8 27 64 125</div>
 
     <div class="webr-buttons">
 
@@ -530,9 +676,14 @@ total
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_product &lt;- Reduce(`*`, 1:5)
-my_product
-#&gt; [1] 120</div>
+    <div class="webr-editor" data-language="r">make_power &lt;- function(n) {
+  function(x) x^n
+}
+
+cube &lt;- make_power(3)
+my_cubes &lt;- sapply(1:5, cube)
+my_cubes
+#&gt; [1]   1   8  27  64 125</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -542,57 +693,175 @@ my_product
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>Reduce</code> with <code>*</code> repeatedly multiplies the running result by the next element — that is exactly what a running-product loop does.</p>
+<p><strong>Explanation:</strong> <code>make_power(3)</code> returns a closure that remembers <code>n = 3</code>. Every call to <code>cube(x)</code> computes <code>x^3</code>. You could also build <code>square &lt;- make_power(2)</code> from the same factory — one recipe, many specialised workers.</p>
 
 </details>
+
+<h4>Exercise 3: Running factorial with accumulate</h4>
+
+<p>Use <code>Reduce</code> with <code>accumulate = TRUE</code> to compute the running product of <code>1:6</code> — these are the factorials <code>1!</code>, <code>2!</code>, <code>3!</code>, up to <code>6!</code>. Save the resulting vector to <code>my_factorials</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: factorials via Reduce
+# Hint: Reduce(f, x, accumulate = TRUE) returns all intermediate results
+
+my_factorials &lt;- NA  # your code here
+my_factorials
+#&gt; Expected: 1 2 6 24 120 720</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_factorials &lt;- Reduce(`*`, 1:6, accumulate = TRUE)
+my_factorials
+#&gt; [1]   1   2   6  24 120 720</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Multiplication is the reducer. <code>accumulate = TRUE</code> captures each intermediate product: <code>1</code>, then <code>1*2 = 2</code>, then <code>2*3 = 6</code>, then <code>6*4 = 24</code>, and so on. Running totals and running products are the two most useful <code>Reduce</code> patterns in practice.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let's put all five ideas to work on a tiny but realistic task: given a small inventory, compute the <strong>average price of items that are currently in stock</strong>. This example uses first-class functions (stored in a list-of-records), a filter, a map, and a reduce — the whole FP toolkit on three lines of data.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">inventory &lt;- list(
+  list(name = &quot;pen&quot;,    price = 2,  in_stock = TRUE),
+  list(name = &quot;book&quot;,   price = 15, in_stock = FALSE),
+  list(name = &quot;eraser&quot;, price = 1,  in_stock = TRUE),
+  list(name = &quot;ruler&quot;,  price = 3,  in_stock = TRUE)
+)
+
+# Step 1 — FILTER: keep only records where in_stock is TRUE
+in_stock_items &lt;- Filter(function(item) item$in_stock, inventory)
+length(in_stock_items)
+#&gt; [1] 3
+
+# Step 2 — MAP: pull the price field out of each surviving record
+prices &lt;- sapply(in_stock_items, function(item) item$price)
+prices
+#&gt; [1] 2 1 3
+
+# Step 3 — REDUCE: sum the prices, then divide by count to get the mean
+avg_price &lt;- Reduce(`+`, prices) / length(prices)
+avg_price
+#&gt; [1] 2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Each step has a single job and a single shape. You filter to drop out-of-stock items, map to extract the field you care about, and reduce to collapse many values into one. Every intermediate result is visible, so debugging is trivial — you check each pipe one at a time. Once the steps work, you can chain them into a single line for production:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># The same pipeline, written as one fluent expression
+mean(sapply(Filter(function(i) i$in_stock, inventory), function(i) i$price))
+#&gt; [1] 2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>That one-liner is the reward for learning the vocabulary. It reads right to left like a sentence: "take the mean of the prices of the in-stock items in <code>inventory</code>." Your future self will thank you for writing it this way.</p>
 
 <h2>Summary</h2>
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Concept</th>
-<th>One-line takeaway</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Pure function</td>
-<td>Same input → same output, no side effects.</td>
-</tr>
-<tr>
-<td>First-class functions</td>
-<td>Store, pass, and return functions like any other value.</td>
-</tr>
-<tr>
-<td>Higher-order function</td>
-<td>Takes or returns a function — <code>sapply</code>, <code>Filter</code>, <code>Reduce</code>, <code>purrr::map</code>.</td>
-</tr>
-<tr>
-<td>Immutability</td>
-<td>R copies on modify — inputs are never silently changed.</td>
-</tr>
-<tr>
-<td>Composition</td>
-<td>Chain small pure functions with the pipe `</td>
-<td>>` instead of nesting.</td>
-</tr>
-</tbody>
-</table>
+<p>Functional programming in R is a mindset before it is a toolkit. Once you accept that functions are ordinary values, the rest falls out naturally — map, filter, and reduce become the obvious way to describe repetitive work, pure functions become the obvious way to keep results predictable, and closures become the obvious way to build specialised workers from a single recipe.</p>
+
+<p><img src="screenshots/Functional-Programming-in-R-mindset-shift.webp" alt="Mindset shift from loops to functional style" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: The mental move from looping to functional style.</em></p>
+
+<p>Five takeaways to keep:</p>
+
+<ol>
+
+<li><strong>Functions are values.</strong> Assign them, store them in lists, pass them as arguments, return them from other functions.</li>
+
+<li><strong>Three shapes cover most iteration.</strong> Transform with <code>Map</code>/<code>sapply</code>, filter with <code>Filter</code>, collapse with <code>Reduce</code>. Spot the shape, pick the functional.</li>
+
+<li><strong>Pure functions are easier to reason about.</strong> Same inputs, same output, no hidden state — that is the guarantee that makes composition safe.</li>
+
+<li><strong>Closures carry state cleanly.</strong> A function returned from another function remembers the environment it was born in — use that to build specialised workers.</li>
+
+<li><strong>Start with base R, graduate to purrr.</strong> <code>sapply</code>, <code>Map</code>, <code>Filter</code>, <code>Reduce</code> teach the vocabulary. <code>purrr::map_dbl</code> and friends add type safety when you need it.</li>
+
+</ol>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 9: Functionals. <a href="https://adv-r.hadley.nz/functionals.html">Link</a></li>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 9: Functionals. <a href="https://adv-r.hadley.nz/functionals.html">Link</a></li>
 
-<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 10: <a class="auto-link" href="R-Function-Factories.html" title="R Function Factories: Functions That Create Functions (With 5 Examples)">Function factories</a>. <a href="https://adv-r.hadley.nz/function-factories.html">Link</a></li>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 6: Functions. <a href="https://adv-r.hadley.nz/functions.html">Link</a></li>
 
-<li><code>purrr</code> package documentation — a tidyverse toolkit for functional programming. <a href="https://purrr.tidyverse.org/">Link</a></li>
+<li>Peng, R. D. — <em>Mastering Software Development in R</em>, §2.3 Functional Programming. <a href="https://bookdown.org/rdpeng/RProgDA/functional-programming.html">Link</a></li>
 
-<li>R Core Team — base R <code>Reduce</code>, <code>Filter</code>, <code>Map</code>, and <code>Position</code> reference. <a href="https://rdrr.io/r/base/funprog.html">Link</a></li>
+<li>R Core Team — <code>Map</code>, <code>Filter</code>, <code>Reduce</code> reference (<code>funprog</code>). <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/funprog.html">Link</a></li>
 
-<li>Chambers, J. M. — <em>Software for Data Analysis: Programming with R</em>. Springer (2008).</li>
+<li>purrr tidyverse package documentation. <a href="https://purrr.tidyverse.org/">Link</a></li>
+
+<li>Rodrigues, B. — <em>Modern R with the tidyverse</em>, Chapter 8: Functional Programming. <a href="https://modern-rstats.eu/functional-programming.html">Link</a></li>
 
 </ol>
 
@@ -600,11 +869,11 @@ my_product
 
 <ul>
 
-<li><a href="purrr-map-Variants.html">purrr map() Variants</a> — the tidyverse's typed answer to <code>sapply</code>.</li>
+<li><a href="purrr-map-Variants.html">purrr map() Variants</a> — the type-stable, pipe-friendly modern alternative to <code>sapply</code>.</li>
 
-<li><a href="R-Anonymous-Functions.html">R Anonymous Functions</a> — the <code>\(x)</code> shorthand that makes functional pipelines short.</li>
+<li><a href="R-Anonymous-Functions.html">R Anonymous Functions</a> — a deep dive into <code>function(x) ...</code> and the R 4.1+ shorthand <code>\(x) ...</code>.</li>
 
-<li><a href="Memoization-in-R.html">Memoization in R</a> — cache pure function results for an instant speedup.</li>
+<li><a href="Reduce-Filter-Map-in-R.html">Reduce, Filter, Map in R</a> — a focused walkthrough of the base-R trio with more examples.</li>
 
 </ul>
 
