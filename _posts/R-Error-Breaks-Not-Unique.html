@@ -1,36 +1,44 @@
 ---
-title: "R Error: breaks are not unique in hist() — Bin Width Fix"
-description: "Fix the R error 'breaks are not unique' in hist(). Learn causes: constant data, too many breaks, manual break errors, and solutions for proper histograms."
-keywords: "R breaks not unique, R hist error, R histogram breaks, R hist bin width, R histogram constant data, R hist breaks fix"
+title: "R hist() Error: 'breaks are not unique' — Why Your Data Has No Spread"
+description: "Fix R's 'breaks are not unique' error in hist(). Caused by constant or low-variance data — learn to detect it and use jitter, fewer breaks, or barplot()."
+keywords: "R breaks are not unique, R hist error, R histogram error, breaks not unique fix, R hist constant data, R hist bin width, R histogram low variance"
 mathjax: false
 webr: true
 curriculum_id: "ERR16"
 post_type: "FR"
-auto_link_terms: "breaks are not unique|hist breaks error"
+auto_link_terms: "breaks are not unique|hist breaks error|R histogram error|breaks not unique"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
 ---
 <!-- md2html:generated -->
 
-<h1>R Error: breaks are not unique in hist() — Bin Width Fix</h1>
+<h1>R hist() Error: 'breaks are not unique' — Why Your Data Has No Spread</h1>
 
-<p class="lead"><code>Error in hist.default(x, ...) : some 'breaks' are not unique</code> means the bin boundaries you gave to <code>hist()</code> have duplicate values. This happens with constant data, zero-range data, or incorrect manual break vectors.</p>
+<p class="lead">The error <code>some 'breaks' are not unique</code> means <code>hist()</code> built bin edges that contain duplicates — almost always because your data has zero or near-zero spread, so the computed boundaries collapse onto the same number.</p>
 
-<h2>The Error</h2>
+<h2>Why does R throw "breaks are not unique"?</h2>
+
+<p><code>hist()</code> picks bin edges from <code>range(x)</code> and the chosen breaks rule (Sturges by default). If every value in <code>x</code> is the same, <code>diff(range(x))</code> is zero, so every edge lands on the same point and R refuses to draw overlapping bars. The block below reproduces the exact message with <code>tryCatch()</code> so you can compare it to what your console printed.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Reproduce the error:
-constant_data &lt;- rep(5, 100)  # all values are 5
+    <div class="webr-editor" data-language="r"># Reproduce the error on purpose
+flat_data &lt;- rep(5, 100)
 
-# hist() tries to create breaks but range is zero
-# hist(constant_data)
-# Error: some 'breaks' are not unique
+err &lt;- tryCatch(
+  hist(flat_data, plot = FALSE),
+  error = function(e) conditionMessage(e)
+)
+err
+#&gt; [1] &quot;some 'breaks' are not unique&quot;
 
-cat(&quot;Data range:&quot;, range(constant_data), &quot;\n&quot;)
-cat(&quot;When all values are identical, R can't create distinct bin edges.\n&quot;)</div>
+# Confirm the root cause
+diff(range(flat_data))
+#&gt; [1] 0
+length(unique(flat_data))
+#&gt; [1] 1</div>
 
     <div class="webr-buttons">
 
@@ -48,229 +56,340 @@ cat(&quot;When all values are identical, R can't create distinct bin edges.\n&qu
 
 </div>
 
-<h2>Cause 1: Constant or Zero-Variance Data</h2>
+<p>The error text is literal — R is telling you that after it built the break vector, two or more entries were equal. The diagnostic lines confirm why: the range is zero and there is only one unique value. Any fix has to either give <code>hist()</code> a range to work with, or switch to a chart that doesn't need one.</p>
 
-<p>All values are the same, so there's no range to divide into bins:</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>This error is a symptom, not a bug.</strong> <code>hist()</code> is refusing to draw bins because the data has no spread to bin — the fix is to inspect the data, not to patch the plot call.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a vector of 50 zeros named <code>ex_zero</code>, pass it to <code>hist(..., plot = FALSE)</code> inside <code>tryCatch()</code>, and capture the error message.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: reproduce the error with a vector of zeros
+ex_zero &lt;- # your code here
+
+ex_msg &lt;- tryCatch(
+  hist(ex_zero, plot = FALSE),
+  error = function(e) conditionMessage(e)
+)
+ex_msg
+#&gt; Expected: &quot;some 'breaks' are not unique&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">x &lt;- rep(42, 50)
-cat(&quot;All values:&quot;, unique(x), &quot;\n&quot;)
-cat(&quot;Variance:&quot;, var(x), &quot;\n&quot;)
-
-# Fix 1: add a small buffer to create a range
-cat(&quot;\nFix 1: Use explicit breaks around the value\n&quot;)
-hist(x, breaks = seq(41, 43, by = 0.5),
-     main = &quot;Constant Data Histogram&quot;, col = &quot;steelblue&quot;)
-
-# Fix 2: check for constant data first
-if (length(unique(x)) == 1) {
-  cat(&quot;Fix 2: Data is constant at&quot;, unique(x), &quot;\n&quot;)
-  cat(&quot;A histogram is not meaningful for constant data.\n&quot;)
-  cat(&quot;Use barplot() instead.\n&quot;)
-}</div>
-
+    <div class="webr-editor" data-language="r">ex_zero &lt;- rep(0, 50)
+ex_msg &lt;- tryCatch(
+  hist(ex_zero, plot = FALSE),
+  error = function(e) conditionMessage(e)
+)
+ex_msg
+#&gt; [1] &quot;some 'breaks' are not unique&quot;</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
 
-<p><strong>Fix:</strong> Check <code>var(x) &gt; 0</code> or <code>length(unique(x)) &gt; 1</code> before calling <code>hist()</code>. For constant data, use <code>barplot()</code> instead.</p>
+<p><strong>Explanation:</strong> Any constant vector triggers the same error — the specific value (5, 0, 42) doesn't matter. What matters is that <code>length(unique(x)) == 1</code>.</p>
 
-<h2>Cause 2: Nearly Constant Data with Too Many Breaks</h2>
+</details>
+</section>
 
-<p>The data has a tiny range but you request many bins:</p>
+<h2>How do you detect low-variance columns before calling hist()?</h2>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Data with very small range
-set.seed(1)
-x &lt;- rnorm(100, mean = 50, sd = 0.001)
-cat(&quot;Range:&quot;, range(x), &quot;\n&quot;)
-cat(&quot;Spread:&quot;, diff(range(x)), &quot;\n&quot;)
-
-# Requesting many breaks on tiny range can fail
-# hist(x, breaks = 100)  # May error: breaks not unique
-
-# Fix: let R choose breaks automatically, or use fewer bins
-hist(x, breaks = 10,
-     main = &quot;Nearly Constant Data&quot;, col = &quot;coral&quot;)
-
-cat(&quot;\nWhen range is tiny, use fewer breaks.\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Fix:</strong> <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a> the number of breaks, or let R choose automatically with <code>breaks = &quot;Sturges&quot;</code> (the default).</p>
-
-<h2>Cause 3: Manual Breaks with Duplicate Values</h2>
-
-<p>Your break vector has repeated values:</p>
+<p>If you loop over a data frame and call <code>hist()</code> on each numeric column, one sick column will kill the whole loop. Three cheap checks catch the problem before <code>hist()</code> ever runs: <code>var(x) &gt; 0</code>, <code>length(unique(x)) &gt; 1</code>, and <code>diff(range(x)) &gt; 0</code>. Running them with <code>sapply()</code> gives you a per-column report in two lines.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Wrong: duplicate break point at 20
-bad_breaks &lt;- c(0, 10, 20, 20, 30, 40)
-cat(&quot;Bad breaks:&quot;, bad_breaks, &quot;\n&quot;)
-cat(&quot;Has duplicates:&quot;, any(duplicated(bad_breaks)), &quot;\n&quot;)
-
-# Fix: remove duplicates and sort
-good_breaks &lt;- sort(unique(bad_breaks))
-cat(&quot;Good breaks:&quot;, good_breaks, &quot;\n&quot;)
-
-# Now hist works
-x &lt;- runif(200, min = 0, max = 40)
-hist(x, breaks = good_breaks,
-     main = &quot;Fixed Manual Breaks&quot;, col = &quot;lightgreen&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Fix:</strong> Use <code>sort(unique(breaks))</code> to remove duplicates from manual break vectors.</p>
-
-<h2>Cause 4: Programmatically Generated Breaks That Collapse</h2>
-
-<p>When computing breaks from data, edge cases can create duplicates:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Example: breaks based on quantiles with tied values
-x &lt;- c(rep(1, 50), rep(2, 30), rep(3, 20))
-cat(&quot;Data:&quot;, table(x), &quot;\n&quot;)
-
-q &lt;- quantile(x, probs = seq(0, 1, 0.1))
-cat(&quot;Quantile breaks:&quot;, q, &quot;\n&quot;)
-cat(&quot;Many duplicates!\n&quot;)
-
-# Fix: use unique breaks
-unique_breaks &lt;- unique(q)
-cat(&quot;Unique breaks:&quot;, unique_breaks, &quot;\n&quot;)
-
-# Better approach for discrete data: use barplot
-barplot(table(x), main = &quot;Discrete Data&quot;, col = &quot;plum&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Fix:</strong> When generating breaks from data with ties, apply <code>unique()</code> to the breaks. For discrete data, prefer <code>barplot(table(x))</code> over <code>hist()</code>.</p>
-
-<h2>Cause 5: Integer Data with Narrow Range</h2>
-
-<p>Integer data with few unique values often causes this:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Dice rolls: only values 1-6
-set.seed(42)
-rolls &lt;- sample(1:6, 100, replace = TRUE)
-cat(&quot;Unique values:&quot;, sort(unique(rolls)), &quot;\n&quot;)
-
-# Fix 1: use breaks that span half-integers
-hist(rolls, breaks = seq(0.5, 6.5, by = 1),
-     main = &quot;Dice Rolls&quot;, col = &quot;skyblue&quot;,
-     xlab = &quot;Face Value&quot;)
-
-# Fix 2: use barplot for integer/count data
-cat(&quot;\nBarplot is often better for integer data:\n&quot;)
-barplot(table(rolls), main = &quot;Dice Rolls (barplot)&quot;,
-        col = &quot;skyblue&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Fix:</strong> For integer data, set breaks at half-integers: <code>seq(min(x) - 0.5, max(x) + 0.5, by = 1)</code>. Or use <code>barplot(table(x))</code>.</p>
-
-<h2>Practice Exercise</h2>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Exercise: Create a histogram for this data that might
-# have issues with breaks. Handle edge cases gracefully.
-
-set.seed(99)
-data_list &lt;- list(
-  normal = rnorm(200, mean = 50, sd = 10),
-  constant = rep(25, 200),
-  discrete = sample(1:3, 200, replace = TRUE)
+    <div class="webr-editor" data-language="r"># Mixed data frame: one constant column, one normal
+set.seed(7)
+df &lt;- data.frame(
+  constant = rep(5, 100),
+  normal   = rnorm(100, mean = 50, sd = 10)
 )
 
-# Write a safe_hist() function that handles all three cases:
+col_stats &lt;- sapply(df, function(x) c(
+  var      = var(x),
+  n_unique = length(unique(x)),
+  spread   = diff(range(x))
+))
+col_stats
+#&gt;          constant    normal
+#&gt; var             0  96.77
+#&gt; n_unique        1  100.00
+#&gt; spread          0  46.83
+
+# Flag the columns that will break hist()
+names(df)[col_stats[&quot;n_unique&quot;, ] &lt; 2]
+#&gt; [1] &quot;constant&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
 </div>
+
+<p>The <code>constant</code> column shows up with <code>var = 0</code>, <code>n_unique = 1</code>, and <code>spread = 0</code> — any one of those three is a reliable flag. In production code you only need one check; <code>length(unique(x)) &gt; 1</code> is the cheapest because it stops as soon as it finds a second distinct value.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Guard every call to hist() in a loop.</strong> Wrap the call in <code>if (length(unique(x)) &gt; 1) hist(x) else message(&quot;skip: constant column&quot;)</code> so one bad column doesn't stop the whole batch.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a third column <code>ex_tiny</code> to <code>df</code> that contains 100 values from <code>rnorm(100, mean = 50, sd = 1e-9)</code>. Will the <code>length(unique) &gt; 1</code> guard still clear it?</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: add a near-constant column and check the guard
+df$ex_tiny &lt;- # your code here
+
+length(unique(df$ex_tiny)) &gt; 1
+#&gt; Expected: TRUE (but hist() may still struggle — next section)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">df$ex_tiny &lt;- rnorm(100, mean = 50, sd = 1e-9)
+length(unique(df$ex_tiny)) &gt; 1
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The guard clears it because R stores doubles with ~15 digits of precision, so 100 draws with <code>sd = 1e-9</code> are almost all distinct. But the spread is tiny — the next section handles that case.</p>
+
+</details>
+</section>
+
+<h2>How do you fix constant or near-constant data?</h2>
+
+<p>Once you know a column has no useful spread, there are three practical paths. Use <code>barplot(table(x))</code> when the data is truly constant — it's the honest chart. Use <code>jitter()</code> when you want to <em>visualize</em> tiny noise that's invisible at the default resolution. Use manual <code>seq()</code> breaks when you want <code>hist()</code> to draw a single bar around the constant value.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Fix 1: barplot is the honest chart for constant data
+barplot(table(flat_data),
+        main = &quot;flat_data (constant = 5)&quot;,
+        col  = &quot;steelblue&quot;)
+
+# Fix 2: jitter adds spread just for visualization
+set.seed(1)
+hist(jitter(flat_data, amount = 0.5),
+     main = &quot;flat_data with jitter&quot;,
+     col  = &quot;coral&quot;)
+
+# Fix 3: manual breaks around the constant value
+hist(flat_data,
+     breaks = seq(4.5, 5.5, by = 0.25),
+     main   = &quot;flat_data with manual breaks&quot;,
+     col    = &quot;lightgreen&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The barplot version is correct but boring — a single bar of height 100. The jittered version looks like a real histogram, but the spread is artificial. The manual-breaks version is the best compromise if you need a histogram in a panel of other histograms: the chart type stays consistent and readers see one tall bar centered on 5.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>jitter() invents spread that isn't in the data.</strong> Only use it for visualization. Never run statistics on jittered values — you'll be reporting noise you injected yourself.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>hist()</code> with manual <code>breaks = seq(4, 6, by = 0.5)</code> on <code>flat_data</code> and confirm it renders without error.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: manual breaks straddling the constant value
+ex_breaks &lt;- seq(4, 6, by = 0.5)
+hist(flat_data, breaks = ex_breaks,
+     main = &quot;ex: manual breaks&quot;, col = &quot;plum&quot;)
+#&gt; Expected: a single-bar histogram centered on 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_breaks &lt;- seq(4, 6, by = 0.5)
+hist(flat_data, breaks = ex_breaks,
+     main = &quot;ex: manual breaks&quot;, col = &quot;plum&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> As long as the break vector has at least two distinct values <em>and</em> brackets the data range, <code>hist()</code> is happy. The bar lands in the <code>(4.5, 5]</code> bin.</p>
+
+</details>
+</section>
+
+<h2>How do you fix duplicate manual or quantile breaks?</h2>
+
+<p>Even when your data has plenty of spread, you can still hand <code>hist()</code> a bad break vector. The two common failure modes are a hardcoded vector with a typo and a break vector generated from <code>quantile()</code> on tied data. Both trigger the same error, and both are fixed by <code>sort(unique(...))</code> — though the quantile version is usually a hint that <code>barplot()</code> is a better fit.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Tied data: only values 1 and 2, 50 of each
+tied &lt;- c(rep(1, 50), rep(2, 50))
+
+# quantile() returns duplicated edges because of the ties
+q_breaks &lt;- quantile(tied, probs = seq(0, 1, 0.1))
+q_breaks
+#&gt;   0%  10%  20%  30%  40%  50%  60%  70%  80%  90% 100%
+#&gt;    1    1    1    1    1    1    2    2    2    2    2
+
+# This errors: &quot;some 'breaks' are not unique&quot;
+# hist(tied, breaks = q_breaks)
+
+# Rescue 1: drop duplicates
+hist(tied, breaks = unique(q_breaks),
+     main = &quot;rescued with unique()&quot;, col = &quot;skyblue&quot;)
+
+# Rescue 2 (cleaner): tied data is really discrete — use barplot
+barplot(table(tied),
+        main = &quot;tied as barplot&quot;, col = &quot;skyblue&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>quantile()</code> returned six <code>1</code>s and five <code>2</code>s because the 10th through 50th percentiles of the data are all exactly <code>1</code>. <code>unique()</code> collapses the break vector to just <code>c(1, 2)</code> and <code>hist()</code> draws a single bin — technically correct but not informative. The <code>barplot(table(tied))</code> version is usually what you actually wanted: two bars, one per discrete level.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>cut()</code> errors with the same message.</strong> If you're binning a variable with <code>cut(x, breaks = quantile(x, ...))</code> and see <code>&#x27;breaks&#x27; are not unique</code>, apply the same <code>unique()</code> rescue — or switch to <code>cut(x, breaks = unique(...), include.lowest = TRUE)</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given <code>c(rep(1, 50), rep(2, 50))</code>, build a quantile break vector at deciles, fix the duplicates, and count how many unique edges remain.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: fix the quantile pipeline
+ex_tied &lt;- c(rep(1, 50), rep(2, 50))
+ex_q    &lt;- quantile(ex_tied, probs = seq(0, 1, 0.1))
+ex_fix  &lt;- # your code here
+
+length(ex_fix)
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_tied &lt;- c(rep(1, 50), rep(2, 50))
+ex_q    &lt;- quantile(ex_tied, probs = seq(0, 1, 0.1))
+ex_fix  &lt;- sort(unique(ex_q))
+length(ex_fix)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> After <code>unique()</code> the vector holds only <code>1</code> and <code>2</code>. Two edges make one bin — a sign that a barplot would communicate more than a histogram here.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Build a safe hist() wrapper</h4>
+
+<p>Write <code>my_safe_hist(x)</code> that does two things. If <code>length(unique(x)) &lt; 2</code>, print a one-line diagnostic with <code>message()</code> and return <code>invisible(NULL)</code>. Otherwise, call <code>hist(x, main = &quot;safe hist&quot;)</code> and return <code>invisible(NULL)</code>. Test it on <code>rep(7, 50)</code> (should skip) and <code>rnorm(200)</code> (should plot).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: safe hist wrapper
+# Hint: check length(unique(x)) before calling hist()
+
+my_safe_hist &lt;- function(x) {
+  # your code here
+}
+
+my_safe_hist(rep(7, 50))
+my_safe_hist(rnorm(200))</div>
 
     <div class="webr-buttons">
 
@@ -293,44 +412,19 @@ data_list &lt;- list(
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">safe_hist &lt;- function(x, ...) {
-  # Check for empty or all-NA
-  x &lt;- x[!is.na(x)]
-  if (length(x) == 0) {
-    cat(&quot;No data to plot.\n&quot;)
+    <div class="webr-editor" data-language="r">my_safe_hist &lt;- function(x) {
+  if (length(unique(x)) &lt; 2) {
+    message(&quot;skip: x has &quot;, length(unique(x)), &quot; unique value(s)&quot;)
     return(invisible(NULL))
   }
-
-  # Check for constant data
-  if (length(unique(x)) == 1) {
-    cat(&quot;Constant data at&quot;, unique(x), &quot;- using barplot.\n&quot;)
-    barplot(table(x), ...)
-    return(invisible(NULL))
-  }
-
-  # Check for discrete data (few unique values)
-  if (length(unique(x)) &lt;= 10 &amp;&amp; all(x == round(x))) {
-    cat(&quot;Discrete data - using aligned breaks.\n&quot;)
-    breaks &lt;- seq(min(x) - 0.5, max(x) + 0.5, by = 1)
-    hist(x, breaks = breaks, ...)
-    return(invisible(NULL))
-  }
-
-  # Normal case
-  hist(x, ...)
+  hist(x, main = &quot;safe hist&quot;, col = &quot;steelblue&quot;)
+  invisible(NULL)
 }
 
-set.seed(99)
-data_list &lt;- list(
-  normal = rnorm(200, mean = 50, sd = 10),
-  constant = rep(25, 200),
-  discrete = sample(1:3, 200, replace = TRUE)
-)
-
-for (nm in names(data_list)) {
-  cat(&quot;\n---&quot;, nm, &quot;---\n&quot;)
-  safe_hist(data_list[[nm]], main = nm, col = &quot;steelblue&quot;)
-}</div>
+my_safe_hist(rep(7, 50))
+#&gt; skip: x has 1 unique value(s)
+my_safe_hist(rnorm(200))
+#&gt; (plots a normal histogram)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -340,67 +434,221 @@ for (nm in names(data_list)) {
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The function handles three cases: constant data (uses barplot), discrete data with few unique integers (uses half-integer breaks), and continuous data (uses default hist). This prevents the "breaks not unique" error in all cases.</p>
+<p><strong>Explanation:</strong> The guard catches the constant case before <code>hist()</code> ever runs, so the function never throws the <code>&#x27;breaks&#x27; are not unique</code> error. Using <code>message()</code> (not <code>print()</code>) keeps the diagnostic out of normal output streams.</p>
 
 </details>
+
+<h4>Exercise 2: Column-wise dispatch</h4>
+
+<p>Given a data frame with four numeric columns — one constant, one near-constant, two normal — loop over columns and pick the right chart per column. Skip the constant one, jitter the near-constant one, plot the normal ones directly. Save each decision (<code>&quot;skip&quot;</code>, <code>&quot;jitter&quot;</code>, <code>&quot;plot&quot;</code>) to a named character vector <code>my_plot_log</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: column-wise dispatch
+# Hint: branch on length(unique(x)) and diff(range(x))
+
+set.seed(11)
+my_df &lt;- data.frame(
+  const = rep(3, 100),
+  tiny  = rnorm(100, mean = 0, sd = 1e-6),
+  n1    = rnorm(100, mean = 10, sd = 2),
+  n2    = rnorm(100, mean = 20, sd = 5)
+)
+
+my_plot_log &lt;- character(ncol(my_df))
+names(my_plot_log) &lt;- names(my_df)
+
+# Write your loop below:</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">set.seed(11)
+my_df &lt;- data.frame(
+  const = rep(3, 100),
+  tiny  = rnorm(100, mean = 0, sd = 1e-6),
+  n1    = rnorm(100, mean = 10, sd = 2),
+  n2    = rnorm(100, mean = 20, sd = 5)
+)
+
+my_plot_log &lt;- character(ncol(my_df))
+names(my_plot_log) &lt;- names(my_df)
+
+for (nm in names(my_df)) {
+  x &lt;- my_df[[nm]]
+  if (length(unique(x)) &lt; 2) {
+    my_plot_log[nm] &lt;- &quot;skip&quot;
+  } else if (diff(range(x)) &lt; 1e-4) {
+    hist(jitter(x, amount = 1e-4), main = nm, col = &quot;coral&quot;)
+    my_plot_log[nm] &lt;- &quot;jitter&quot;
+  } else {
+    hist(x, main = nm, col = &quot;steelblue&quot;)
+    my_plot_log[nm] &lt;- &quot;plot&quot;
+  }
+}
+my_plot_log
+#&gt;    const     tiny       n1       n2
+#&gt;   &quot;skip&quot; &quot;jitter&quot;   &quot;plot&quot;   &quot;plot&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The loop uses two thresholds. <code>length(unique(x)) &lt; 2</code> catches truly constant columns; <code>diff(range(x)) &lt; 1e-4</code> catches near-constant ones that would draw a useless one-bar histogram at default settings. Each decision is logged so you can audit the plots later.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the full pattern you would ship in a reporting pipeline — inspect each numeric column, pick a chart, plot it, and return a decision log.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># End-to-end: safe histogram for every numeric column
+set.seed(99)
+demo_df &lt;- data.frame(
+  id     = 1:200,
+  flat   = rep(42, 200),
+  noise  = rnorm(200, mean = 0, sd = 1e-8),
+  height = rnorm(200, mean = 170, sd = 8),
+  weight = rnorm(200, mean = 70,  sd = 12)
+)
+
+chart_for &lt;- function(x, nm) {
+  if (!is.numeric(x))                 return(&quot;not numeric&quot;)
+  if (length(unique(x)) &lt; 2)          return(&quot;constant -&gt; barplot&quot;)
+  if (diff(range(x)) &lt; 1e-6)          return(&quot;near-constant -&gt; jitter&quot;)
+  return(&quot;normal -&gt; hist&quot;)
+}
+
+decisions &lt;- sapply(names(demo_df), function(nm) chart_for(demo_df[[nm]], nm))
+decisions
+#&gt;                      id                    flat                   noise
+#&gt;         &quot;normal -&gt; hist&quot;   &quot;constant -&gt; barplot&quot; &quot;near-constant -&gt; jitter&quot;
+#&gt;                  height                  weight
+#&gt;         &quot;normal -&gt; hist&quot;        &quot;normal -&gt; hist&quot;
+
+# Plot using the dispatch table
+for (nm in names(demo_df)) {
+  x &lt;- demo_df[[nm]]
+  if (decisions[[nm]] == &quot;constant -&gt; barplot&quot;) {
+    barplot(table(x), main = nm, col = &quot;steelblue&quot;)
+  } else if (decisions[[nm]] == &quot;near-constant -&gt; jitter&quot;) {
+    hist(jitter(x, amount = 1e-6), main = nm, col = &quot;coral&quot;)
+  } else if (decisions[[nm]] == &quot;normal -&gt; hist&quot;) {
+    hist(x, main = nm, col = &quot;lightgreen&quot;)
+  }
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The <code>decisions</code> vector is your audit trail. In a real pipeline you would log it alongside the plots so a reviewer can see <em>why</em> the <code>flat</code> column became a barplot and the <code>noise</code> column became a jittered histogram — without that log, an unexpected chart type looks like a bug instead of a deliberate choice.</p>
 
 <h2>Summary</h2>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Cause</th>
+<th>Symptom</th>
+<th>Root cause</th>
 <th>Fix</th>
-<th>Prevention</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Constant data (zero variance)</td>
-<td>Use <code>barplot()</code> or add buffer</td>
-<td>Check <code>var(x) &gt; 0</code> first</td>
+<td>All values identical</td>
+<td>Zero range → duplicate edges</td>
+<td><code>barplot(table(x))</code></td>
 </tr>
 <tr>
-<td>Tiny range + many breaks</td>
-<td>Reduce number of breaks</td>
-<td>Let R choose: <code>breaks = &quot;Sturges&quot;</code></td>
+<td>Near-constant data, many requested breaks</td>
+<td>Spread below bin resolution</td>
+<td><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a> breaks or <code>jitter()</code></td>
 </tr>
 <tr>
-<td>Duplicate manual breaks</td>
+<td>Manual <code>breaks = c(...)</code> with a repeat</td>
+<td>Typo in the vector</td>
 <td><code>sort(unique(breaks))</code></td>
-<td>Build break vectors carefully</td>
 </tr>
 <tr>
-<td>Quantile breaks with ties</td>
-<td>Apply <code>unique()</code> to breaks</td>
-<td>Check for tied values</td>
+<td><code>quantile()</code>-derived breaks on tied data</td>
+<td>Tied values collapse quantiles</td>
+<td><code>unique(quantile(...))</code> — or <code>barplot</code></td>
 </tr>
 <tr>
-<td>Integer data, narrow range</td>
-<td>Use <code>seq(min-0.5, max+0.5, 1)</code></td>
-<td>Use <code>barplot(table(x))</code> for counts</td>
+<td>Discrete integer data, narrow range</td>
+<td>Few unique values</td>
+<td><code>seq(min - 0.5, max + 0.5, by = 1)</code></td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<p>The common thread: the error is about your data, not your plot call. Inspect <code>length(unique(x))</code> first; the right fix follows from the answer.</p>
 
-<h4>What is the default number of breaks in hist()?</h4>
+<h2>References</h2>
 
-<p>R uses the "Sturges" method by default, which computes <code>ceiling(log2(n) + 1)</code> bins where n is the number of data points. For 100 observations, that's about 8 bins. You can also try <code>&quot;FD&quot;</code> (Freedman-Diaconis) or <code>&quot;Scott&quot;</code> for alternative bin widths.</p>
+<ol>
 
-<h4>Can I use hist() with non-numeric data?</h4>
+<li>R Core Team — <code>?hist</code> documentation, stats package reference manual. <a href="https://stat.ethz.ch/R-manual/R-devel/library/graphics/html/hist.html">Link</a></li>
 
-<p>No. <code>hist()</code> only works with <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a>. For categorical data, use <code>barplot(table(x))</code>. For date/time data, convert to numeric first or use <code>hist.Date()</code> / <code>hist.POSIXct()</code>.</p>
+<li>Venables, W. N. & Ripley, B. D. — <em>Modern Applied Statistics with S</em>, 4th Edition, Chapter 5: Graphics. Springer (2002).</li>
+
+<li>Wickham, H. — <em>ggplot2: Elegant Graphics for Data Analysis</em>, 3rd Edition, Chapter on histograms and density plots. <a href="https://ggplot2-book.org/statistical-summaries">Link</a></li>
+
+<li>R source — <code>hist.default()</code> implementation in the <code>graphics</code> package. <a href="https://github.com/wch/r-source/blob/trunk/src/library/graphics/R/hist.R">Link</a></li>
+
+<li>R Core Team — <code>?cut</code> documentation (same error shape, same fix). <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/cut.html">Link</a></li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ol>
 
-<li><strong>R Error in read.csv: <a class="auto-link" href="R-Error-CSV-Columns.html" title="R Error in read.csv: more columns than column names — CSV Parse Fix">more columns than column names</a></strong> — CSV parsing fixes</li>
+<li><strong><a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">R Common Errors</a></strong> — the full reference for <code>Error in ...</code> messages you'll meet in base R.</li>
 
-<li><strong>R Error: <a class="auto-link" href="R-Error-Singular-Matrix.html" title="R Error: singular matrix in solve() — Near-Singular Matrix Solutions">singular matrix in solve</a>()</strong> — near-singular matrix solutions</li>
+<li><strong>R Error: <a class="auto-link" href="R-Error-Singular-Matrix.html" title="R Error: singular matrix in solve() — Near-Singular Matrix Solutions">singular matrix in solve</a>()</strong> — another "your data is degenerate" message with a similar fix pattern.</li>
 
-<li><strong><a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">R Common Errors</a></strong> — the full reference of 50 common errors</li>
+<li><strong>R Error in read.csv: <a class="auto-link" href="R-Error-CSV-Columns.html" title="R Error in read.csv: more columns than column names — CSV Parse Fix">more columns than column names</a></strong> — parsing errors that hit before you ever get to plot.</li>
 
 </ol>
