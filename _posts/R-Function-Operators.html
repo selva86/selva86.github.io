@@ -1,13 +1,13 @@
 ---
 title: "R Function Operators: Transform Existing Functions Without Rewriting Them"
-description: "Function operators in R take a function and return a transformed version. Compose, negate, memoise, and log function calls — all without touching the originals."
-keywords: "R function operators, compose functions R, negate function R, purrr function operators, higher-order functions"
+description: "Function operators wrap an existing function and return a transformed version. Learn compose(), negate(), partial(), and memoise() in R, step by step."
+keywords: "R function operators, compose functions R, negate predicate R, partial application R, memoise R, purrr adverbs, higher-order functions R, function wrappers R"
 mathjax: false
 webr: true
 curriculum_id: "4.2.5"
 post_type: "C"
-auto_link_terms: "function operators|compose functions|negate function|function adverbs"
-auto_link_case_sensitive: false
+auto_link_terms: "function operators|compose()|negate()|partial()|memoise()|function adverbs|higher-order wrappers"
+auto_link_case_sensitive: true
 sidebar_section: "Learn R"
 sidebar_title: "R Function Operators"
 sidebar_order: "37"
@@ -16,26 +16,25 @@ sidebar_order: "37"
 
 <h1>R Function Operators: Transform Existing Functions Without Rewriting Them</h1>
 
-<p class="lead">A function operator in R takes one or more functions and returns a new, transformed function. Unlike function factories (which take settings), operators take functions themselves — letting you compose, negate, memoise, or log any existing function.</p>
+<p class="lead">A function operator in R takes one or more functions as input and returns a new, transformed function. Unlike function factories that take settings, operators take functions themselves — letting you compose, negate, freeze arguments, or cache results without touching the original code.</p>
 
-<p>If a <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">function factory</a> is "settings in, function out", a function operator is "function in, function out". The distinction matters because operators let you <em>modify behaviour</em> without touching the original code — wrap a slow function to cache its results, wrap a predicate to negate it, wrap a pipeline to log every call. This guide covers the four operators you will actually use and how to build your own.</p>
+<h2>What Is a Function Operator, and When Would You Need One?</h2>
 
-<h2>What Is a Function Operator?</h2>
-
-<p>A function operator is a higher-order function whose input includes at least one function and whose output is a function. The classic example is <code>Negate()</code> — give it a predicate, get back the logical opposite.</p>
+<p>Picture the classic "is positive" predicate. You already have <code>is_positive()</code>; now you need its opposite. The lazy route is to copy-paste a second function and change the comparison — and now you have two bodies to maintain. Base R's <code>Negate()</code> gives you the flip in one line, without touching the original.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">is_positive &lt;- \(x) x &gt; 0
+    <div class="webr-editor" data-language="r"># Negate() takes a function, returns its logical opposite
+is_positive &lt;- function(x) x &gt; 0
 is_not_positive &lt;- Negate(is_positive)
 
-is_positive(5)
-#&gt; [1] TRUE
-
-is_not_positive(5)
-#&gt; [1] FALSE</div>
+nums &lt;- c(-3, -1, 0, 2, 5, -8)
+is_positive(nums)
+#&gt; [1] FALSE FALSE FALSE  TRUE  TRUE FALSE
+is_not_positive(nums)
+#&gt; [1]  TRUE  TRUE  TRUE FALSE FALSE  TRUE</div>
 
     <div class="webr-buttons">
 
@@ -53,52 +52,27 @@ is_not_positive(5)
 
 </div>
 
-<p><code>Negate(is_positive)</code> did not call <code>is_positive</code>. It returned a brand new function that calls <code>is_positive</code> internally and flips the answer. You can now pass <code>is_not_positive</code> to <code>Filter</code>, <code>which</code>, or anywhere else you need a predicate — without ever writing "not positive" by hand.</p>
+<p>Notice what did <em>not</em> happen. We never defined a new function body. <code>Negate(is_positive)</code> is the new function — and if tomorrow we change the definition of <code>is_positive</code>, the negated version follows automatically. That decoupling is what makes operators valuable: one edit, two aligned behaviours.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Operators separate "what to do" from "how to run it".</strong> The original function knows how to compute a result. The operator knows how to <em>change</em> the running of any function — cache it, time it, negate it. Because the two concerns live in different functions, you can mix and match freely.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Function in, function out.</strong> A function <em>factory</em> takes settings and returns a function. A function <em>operator</em> takes a function and returns a function. Once you recognise that shape, you can wrap any function with new behaviour without rewriting it.</div></div>
 
-<h2>How Do You Compose Functions With <code>Reduce()</code> or <code>purrr::compose()</code>?</h2>
-
-<p>Function composition means chaining: take the output of <code>g</code>, feed it to <code>f</code>. Mathematically this is <code>f ∘ g</code>. In R you can build a composed function once and reuse it.</p>
+<p>You are not restricted to the operators R ships with. Any function that accepts <code>f</code> and returns a new function that calls <code>f</code> inside is an operator. Here is the smallest possible example — it applies <code>f</code> to its own output, so <code>twice(sqrt)(16)</code> becomes <code>sqrt(sqrt(16))</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Base R: compose with Reduce and Function()
-compose2 &lt;- function(f, g) function(x) f(g(x))
+    <div class="webr-editor" data-language="r">twice &lt;- function(f) {
+  function(x) f(f(x))
+}
 
-shout &lt;- compose2(toupper, trimws)
-shout(&quot;  hello world  &quot;)
-#&gt; [1] &quot;HELLO WORLD&quot;</div>
+add1 &lt;- function(x) x + 1
+add2 &lt;- twice(add1)   # same as function(x) add1(add1(x))
+add2(10)
+#&gt; [1] 12
 
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>shout</code> first trims whitespace, then uppercases. You never had to name an intermediate variable; the composed function is a single value you can pass around. For a longer pipeline, <code>purrr::compose()</code> takes any number of functions at once.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(purrr)
-
-clean_name &lt;- compose(tolower, trimws, \(s) gsub(&quot;[^a-z ]&quot;, &quot;&quot;, s, ignore.case = TRUE))
-clean_name(&quot;  HELLO World! 42 &quot;)
-#&gt; [1] &quot;hello world &quot;</div>
+twice(sqrt)(16)       # sqrt(sqrt(16)) = sqrt(4) = 2
+#&gt; [1] 2</div>
 
     <div class="webr-buttons">
 
@@ -116,14 +90,21 @@ clean_name(&quot;  HELLO World! 42 &quot;)
 
 </div>
 
-<p>Read <code>compose(tolower, trimws, ...)</code> right to left: the rightmost function runs first, just like mathematical composition. If that reads backwards to you, pass <code>.dir = &quot;forward&quot;</code> to reverse the order.</p>
+<p>The outer <code>twice</code> captures <code>f</code> in its environment, and the inner anonymous function uses that captured <code>f</code> every time the returned function is called. This closure mechanism is the beating heart of every operator in the rest of the post — keep it in mind as we move on.</p>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Use base R composition (nested functions or your own <code>compose2</code>) to build a function that takes a number, adds 1, then squares the result. Test on <code>3</code>.</p>
+<p><strong>Try it:</strong> Write a function operator <code>ex_thrice(f)</code> that applies <code>f</code> three times in a row. Test it by wrapping <code>add1</code> and calling the result on <code>10</code>.</p>
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># your code here
-#&gt; Expected: 16</div>
+    <div class="webr-editor" data-language="r"># Try it: write ex_thrice()
+ex_thrice &lt;- function(f) {
+  # your code here
+}
+
+# Test:
+ex_add3 &lt;- ex_thrice(function(x) x + 1)
+ex_add3(10)
+#&gt; Expected: 13</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -137,10 +118,12 @@ clean_name(&quot;  HELLO World! 42 &quot;)
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">compose2 &lt;- function(f, g) function(x) f(g(x))
-square_after_add1 &lt;- compose2(\(x) x^2, \(x) x + 1)
-square_after_add1(3)
-#&gt; [1] 16</div>
+    <div class="webr-editor" data-language="r">ex_thrice &lt;- function(f) {
+  function(x) f(f(f(x)))
+}
+ex_add3 &lt;- ex_thrice(function(x) x + 1)
+ex_add3(10)
+#&gt; [1] 13</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -150,89 +133,16 @@ square_after_add1(3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>compose2</code> fires the rightmost function first (<code>x + 1 = 4</code>), then the leftmost (<code>4^2 = 16</code>).</p>
+<p><strong>Explanation:</strong> The inner function calls <code>f</code> three times on its input. <code>f</code> is captured from the outer scope, so it persists even after <code>ex_thrice</code> has returned.</p>
 
 </details>
 </section>
 
-<h2>What Does <code>Negate()</code> Give You That an <code>!</code> Does Not?</h2>
+<h2>How Does compose() Chain Functions Into a Single Pipeline?</h2>
 
-<p><code>Negate</code> returns a <em>function</em>, not a value. You can pass that function into another higher-order function without inventing a name.</p>
+<p>Composition is how you glue small functions into one bigger function. Mathematically, composing <code>f</code> and <code>g</code> means "run <code>g</code>, then feed the result to <code>f</code>". In R, the <code>purrr</code> package provides <code>compose()</code> to do exactly that — turn a list of functions into one callable unit you can pass around like any other.</p>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">mixed &lt;- c(-2, 0, 3, -1, 5, -4)
-
-# With Negate
-is_positive &lt;- \(x) x &gt; 0
-Filter(Negate(is_positive), mixed)
-#&gt; [1] -2  0 -1 -4</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>Filter(Negate(is_positive), mixed)</code> reads almost like English: keep everything that is not positive. The alternative — <code>Filter(\(x) !is_positive(x), mixed)</code> — works but requires you to define the inline wrapper each time.</p>
-
-<h2>How Do You Time or Log Any Function With an Operator?</h2>
-
-<p>Here is a useful operator — <code>with_timing</code> — that wraps any function so every call prints its duration.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">with_timing &lt;- function(f) {
-  function(...) {
-    t0 &lt;- Sys.time()
-    out &lt;- f(...)
-    cat(&quot;Elapsed:&quot;, format(Sys.time() - t0), &quot;\n&quot;)
-    out
-  }
-}
-
-timed_sum &lt;- with_timing(sum)
-timed_sum(1:1e6)
-#&gt; Elapsed: 0.01 secs
-#&gt; [1] 500000500000</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>timed_sum</code> is <code>sum</code> with side-effect logging bolted on. The original <code>sum</code> is unchanged — you can still use it everywhere else. Any function can be wrapped this way: <code>read.csv</code>, your custom model fitter, the whole lot. That is the power of an operator — it is a <em>modifier</em> for a behaviour, applicable to any function.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Stack operators for layered behaviour.</strong> Want a memoised, timed, logging version of a function? Wrap it three times: <code>with_timing(memoise(with_logging(f)))</code>. Each layer adds one concern without touching the others.</div></div>
-
-<h2>How Does <code>purrr::safely()</code> Turn Errors Into Values?</h2>
-
-<p><code>safely()</code> is one of the most useful operators in <code>purrr</code>. It wraps a function so it never errors — instead, it returns a list with <code>$result</code> and <code>$error</code>, exactly one of which is <code>NULL</code>.</p>
+<p>Here is a classic use: you want the average magnitude of a vector of signed numbers. That is <code>mean</code> after <code>abs</code>. Without an operator, you would write a wrapper function; with <code>compose()</code>, you get the same result in a single line.</p>
 
 <div class="webr-container">
 
@@ -240,21 +150,10 @@ timed_sum(1:1e6)
 
     <div class="webr-editor" data-language="r">library(purrr)
 
-safe_log &lt;- safely(log)
-
-safe_log(10)
-#&gt; $result
-#&gt; [1] 2.302585
-#&gt;
-#&gt; $error
-#&gt; NULL
-
-safe_log(&quot;not a number&quot;)
-#&gt; $result
-#&gt; NULL
-#&gt;
-#&gt; $error
-#&gt; &lt;simpleError in log(x): non-numeric argument to mathematical function&gt;</div>
+abs_mean &lt;- compose(mean, abs)
+vals &lt;- c(-3, 5, -10, 8)
+abs_mean(vals)
+#&gt; [1] 6.5</div>
 
     <div class="webr-buttons">
 
@@ -272,14 +171,56 @@ safe_log(&quot;not a number&quot;)
 
 </div>
 
-<p>Once a risky function is safely-wrapped, you can <code>map()</code> it over a messy list without one bad element crashing the whole pipeline. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> <code>$error</code>-ed results at the end.</p>
+<p>Reading <code>compose(mean, abs)</code> feels backwards at first, and that is intentional — by default it matches mathematical notation, where the rightmost function runs first. So <code>abs_mean(vals)</code> computes <code>abs(vals)</code> first, producing <code>c(3, 5, 10, 8)</code>, then passes that to <code>mean</code>, which returns <code>6.5</code>. The resulting <code>abs_mean</code> behaves like any other function: you can reuse it, pass it to <code>map()</code>, or compose it further.</p>
+
+<p><img src="screenshots/R-Function-Operators-compose-flow.webp" alt="Composition flow showing data moving through g then f into one function" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: How compose(f, g) threads input through g and then f into a single function.</em></p>
+
+<p>If that right-to-left order trips you up, tell <code>compose()</code> to flip the direction with <code>.dir = &quot;forward&quot;</code>. That way the functions execute left to right in the order you list them — more natural when you are already thinking in pipe terms. Here we build a label cleaner that trims whitespace, then lowercases, then removes spaces.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">clean_label &lt;- compose(trimws, tolower, \(s) gsub(&quot; &quot;, &quot;_&quot;, s), .dir = &quot;forward&quot;)
+clean_label(&quot;  Hello World  &quot;)
+#&gt; [1] &quot;hello_world&quot;
+
+# compare: three separate steps
+s &lt;- &quot;  Hello World  &quot;
+gsub(&quot; &quot;, &quot;_&quot;, tolower(trimws(s)))
+#&gt; [1] &quot;hello_world&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Both versions produce the same answer, but the <code>compose()</code> version is a single named object you can reuse on any label. The three-step version is only usable once, in this spot — reuse means copying it. Composition trades one line of definition for indefinite reuse.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>compose() reads right-to-left by default, left-to-right with .dir="forward".</strong> Stick with the default when you think mathematically (<code>f(g(x))</code>), and switch to forward when you are building a pipeline that reads like dplyr or magrittr. The behaviour is identical — only the listing order changes.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Use <code>safely(sqrt)</code> on the vector <code>c(4, -1, 9)</code> via <code>map</code> and print the errors count.</p>
+<p><strong>Try it:</strong> Use <code>compose()</code> to build <code>ex_count_unique</code>, a function that takes a vector and returns the count of distinct values (i.e., <code>length</code> of <code>unique</code>). Test it on <code>c(1, 2, 2, 3, 3, 3)</code>.</p>
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-# your code here</div>
+    <div class="webr-editor" data-language="r"># Try it: compose length and unique
+ex_count_unique &lt;- # your code here
+
+ex_count_unique(c(1, 2, 2, 3, 3, 3))
+#&gt; Expected: 3</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -293,10 +234,8 @@ safe_log(&quot;not a number&quot;)
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-safe_sqrt &lt;- safely(sqrt)
-results &lt;- map(c(4, -1, 9), safe_sqrt)
-sum(sapply(results, \(r) !is.null(r$result)))
+    <div class="webr-editor" data-language="r">ex_count_unique &lt;- compose(length, unique)
+ex_count_unique(c(1, 2, 2, 3, 3, 3))
 #&gt; [1] 3</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -307,23 +246,426 @@ sum(sapply(results, \(r) !is.null(r$result)))
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>sqrt(-1)</code> returns <code>NaN</code> with a warning rather than an error, so all three have a <code>$result</code>. Try <code>safely(log)</code> on negatives for a real error.</p>
+<p><strong>Explanation:</strong> <code>unique()</code> runs first (default backward direction) and returns <code>c(1, 2, 3)</code>; <code>length()</code> then counts those three elements.</p>
+
+</details>
+</section>
+
+<h2>How Does partial() Freeze Arguments to Create Specialised Versions?</h2>
+
+<p>If <code>compose()</code> chains functions, <code>partial()</code> specialises them. <a class="auto-link" href="R-Currying-and-Partial-Application.html" title="R Currying & Partial Application: purrr::partial() & rlang">Partial application</a> means fixing some of a function's arguments in advance and leaving the rest to be filled in later. The result is a new function with a shorter argument list — perfect when you keep calling the same function with the same options.</p>
+
+<p>The most common case: you are tired of typing <code>mean(x, na.rm = TRUE)</code> everywhere. Freeze <code>na.rm = TRUE</code> once with <code>partial()</code>, and you get an <code>na.rm</code>-safe mean that behaves like <code>mean</code> minus the missing-value trap.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">mean_safe &lt;- partial(mean, na.rm = TRUE)
+
+x_na &lt;- c(1, NA, 3, 5, NA, 7)
+mean(x_na)
+#&gt; [1] NA
+mean_safe(x_na)
+#&gt; [1] 4</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The original <code>mean</code> is untouched — <code>mean(x_na)</code> still returns <code>NA</code> because we did not set <code>na.rm</code>. Our new <code>mean_safe</code> is a separate, narrower function that already knows what we want. Pass it to <code>sapply()</code> over a list of vectors with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> and you avoid the <code>na.rm = TRUE</code> repetition entirely.</p>
+
+<p>Another favourite: base <code>log()</code> takes an optional <code>base</code> argument. Freeze that argument and you have a specialised <code>log2</code>-style function for any base you want — no new body required.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">log_base2 &lt;- partial(log, base = 2)
+
+powers &lt;- c(2, 4, 8, 16, 32)
+log_base2(powers)
+#&gt; [1] 1 2 3 4 5
+
+log_base10 &lt;- partial(log, base = 10)
+log_base10(c(1, 10, 100, 1000))
+#&gt; [1] 0 1 2 3</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Both <code>log_base2</code> and <code>log_base10</code> are one-argument functions now — you feed them a number and they return the logarithm. This is how you build a small family of related tools from a single general-purpose function in a couple of lines.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>partial() does not work with NSE functions like dplyr::filter or subset.</strong> Functions that capture their arguments unevaluated — via <code>substitute()</code> or tidy evaluation — need the expressions themselves, not pre-filled values. For those, use a regular wrapper function or the <code>rlang::exec</code> family instead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>partial()</code> to build <code>ex_round2</code>, a function that rounds a number to 2 decimal places. Test it on <code>pi</code> and on <code>c(1.2345, 6.789)</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: freeze the digits argument of round()
+ex_round2 &lt;- # your code here
+
+ex_round2(pi)
+#&gt; Expected: 3.14
+ex_round2(c(1.2345, 6.789))
+#&gt; Expected: 1.23 6.79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_round2 &lt;- partial(round, digits = 2)
+ex_round2(pi)
+#&gt; [1] 3.14
+ex_round2(c(1.2345, 6.789))
+#&gt; [1] 1.23 6.79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>partial(round, digits = 2)</code> creates a new function that always rounds to 2 decimal places. The <code>x</code> argument is still open, so you pass numbers to it like any normal function.</p>
+
+</details>
+</section>
+
+<h2>How Can You Cache Slow Functions to Speed Up Repeat Calls?</h2>
+
+<p>Some functions are expensive — a network call, a database query, a simulation that chews through CPU. If you call them twice with the same input, the second call should be free. That is caching, and you can build a function operator that adds caching to any function without touching its source.</p>
+
+<p>The mechanism is a closure. The operator defines a local list, returns an inner function that (a) checks whether the input has been seen, (b) returns the cached answer if yes, (c) runs the real function and stores the result if no. Because the list lives in the operator's environment, it survives between calls.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">cache_fn &lt;- function(f) {
+  cache &lt;- list()
+  function(x) {
+    key &lt;- as.character(x)
+    if (!is.null(cache[[key]])) {
+      return(cache[[key]])
+    }
+    result &lt;- f(x)
+    cache[[key]] &lt;&lt;- result
+    result
+  }
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Two things to notice. The <code>cache</code> list is defined <em>inside</em> <code>cache_fn</code> and captured by the inner function, so every wrapped function gets its own private cache. The <code>&lt;&lt;-</code> assignment updates that captured list each time a new input arrives — without it, the update would vanish when the inner function returned.</p>
+
+<p><img src="screenshots/R-Function-Operators-cache-flow.webp" alt="Cached function flow showing cold path running the function and warm path returning cached value" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: A cached function operator checks for past results before running the slow work.</em></p>
+
+<p>Now wrap a deliberately slow function and watch the second call become instantaneous. We use <code>Sys.sleep(0.5)</code> to fake a half-second computation; the first call pays that cost, the second call hits the cache and returns immediately.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">slow_double &lt;- function(x) {
+  Sys.sleep(0.5)
+  x * 2
+}
+
+fast_double &lt;- cache_fn(slow_double)
+
+t1 &lt;- system.time(fast_double(10))
+t1[&quot;elapsed&quot;]
+#&gt; elapsed
+#&gt;    0.50
+
+t2 &lt;- system.time(fast_double(10))
+t2[&quot;elapsed&quot;]
+#&gt; elapsed
+#&gt;    0.00</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Half a second on the first call, zero on the second. The slow computation ran once; every subsequent call with <code>x = 10</code> returns the stored value without waking up <code>slow_double</code>. For <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">pure functions</a> — where the same input always produces the same output — this is free speed.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The memoise package provides a production-grade version with hash-based keys.</strong> Install it locally with <code>install.packages(&quot;memoise&quot;)</code> and use <code>memoise::memoise(f)</code> to wrap any function, including ones with multi-argument inputs. Our <code>cache_fn</code> works for single-argument functions and illustrates the mechanism; switch to <code>memoise</code> when you need multi-arg support or invalidation controls.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Wrap a function that returns <code>Sys.time()</code> in <code>cache_fn()</code> and call it twice with input <code>&quot;now&quot;</code>. Both calls should return the same timestamp — because the cache locks in the first one.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: cache a function that returns the current time
+ex_now_cached &lt;- cache_fn(function(x) Sys.time())
+
+ex_now_cached(&quot;now&quot;)
+ex_now_cached(&quot;now&quot;)
+#&gt; Expected: both calls return the same Sys.time() value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_now_cached &lt;- cache_fn(function(x) Sys.time())
+
+first  &lt;- ex_now_cached(&quot;now&quot;)
+second &lt;- ex_now_cached(&quot;now&quot;)
+identical(first, second)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first call stores <code>Sys.time()</code> in the closure's cache under key <code>&quot;now&quot;</code>. The second call finds the entry and returns it, so the timestamp is frozen — a clear signal the cache is working.</p>
+
+</details>
+</section>
+
+<h2>How Do You Build Your Own Function Operator From Scratch?</h2>
+
+<p>You now have enough of the pattern to write any operator you want. The shape is always the same: a function that takes <code>f</code>, defines an inner function using <code>...</code> to forward arguments, does something extra (before, after, or around), and returns the inner function. Here is the template in plain language.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">my_operator &lt;- function(f) {
+  function(...) {
+    # before: do something with the args
+    result &lt;- f(...)
+    # after: do something with the result
+    result
+  }
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Let us make it concrete by building <code>log_calls()</code>, an operator that wraps any function so that each call prints its arguments and return value. It is the R equivalent of Python's <code>@log</code> decorator, and it is three lines of real code.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">log_calls &lt;- function(f) {
+  function(...) {
+    cat(&quot;Called with:&quot;, paste(..., sep = &quot;, &quot;), &quot;\n&quot;)
+    result &lt;- f(...)
+    cat(&quot;Returned:&quot;, result, &quot;\n&quot;)
+    result
+  }
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The <code>...</code> lets the inner function accept whatever <code>f</code> accepts — one argument, three arguments, named arguments — without us hard-coding a signature. We print the inputs, run <code>f(...)</code>, print the result, and return it unchanged so callers see the same value they would have seen from <code>f</code> alone.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">noisy_sqrt &lt;- log_calls(sqrt)
+
+out &lt;- noisy_sqrt(16)
+#&gt; Called with: 16
+#&gt; Returned: 4
+out
+#&gt; [1] 4
+
+noisy_sqrt(81)
+#&gt; Called with: 81
+#&gt; Returned: 9
+#&gt; [1] 9</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Every call now logs itself to the console. The original <code>sqrt</code> is untouched; <code>noisy_sqrt</code> is the wrapped version. Drop this into a long pipeline and you can trace exactly which function saw which value — a debugging superpower that adds zero lines to the functions themselves.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every function operator follows the pattern <code>function(f) function(...) { ...; f(...); ... }</code>.</strong> Once you memorise that skeleton, the only question is what to put in the <code>...</code> slots: logging, timing, retries, rate limiting, caching, input validation. Each is a one-page operator you can reuse across every function in your project.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build <code>ex_before(f)</code>, an operator that prints <code>&quot;Calling...&quot;</code> before calling <code>f(...)</code> and then returns the normal result. Wrap <code>sum</code> and call it on <code>c(1, 2, 3)</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: print a message before calling f
+ex_before &lt;- function(f) {
+  # your code here
+}
+
+ex_loud_sum &lt;- ex_before(sum)
+ex_loud_sum(c(1, 2, 3))
+#&gt; Expected: prints &quot;Calling...&quot; then returns 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_before &lt;- function(f) {
+  function(...) {
+    cat(&quot;Calling...\n&quot;)
+    f(...)
+  }
+}
+ex_loud_sum &lt;- ex_before(sum)
+ex_loud_sum(c(1, 2, 3))
+#&gt; Calling...
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The inner function prints the message, then returns <code>f(...)</code>. <code>...</code> forwards every argument through, so the wrapper works on any function no matter its signature.</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Build a Retry Operator</h4>
+<p>These are harder than the inline exercises — they combine multiple operators or ask you to invent a new one. The variables use distinct names (<code>my_*</code>) so your solutions do not collide with the tutorial code above.</p>
 
-<p>Write a function operator <code>with_retry(f, times = 3)</code> that calls <code>f</code> up to <code>times</code> times and returns the first successful result. If all attempts fail, it rethrows the last error.</p>
+<h4>Exercise 1: clean_mean with compose() and partial()</h4>
+
+<p>Build <code>clean_mean</code>, a function that takes a numeric vector (possibly with NAs), computes the mean ignoring NAs, and rounds the answer to 2 decimal places. Use <code>partial()</code> for the two argument-freezing steps and <code>compose()</code> for the chaining. Test it on <code>c(1, NA, 2.3456, 5, NA, 9.8765)</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># your code here
-</div>
+    <div class="webr-editor" data-language="r"># Your code here
+clean_mean &lt;- NULL   # replace with your definition
+my_vals &lt;- c(1, NA, 2.3456, 5, NA, 9.8765)
+clean_mean(my_vals)
+#&gt; Expected: 4.56</div>
 
     <div class="webr-buttons">
 
@@ -346,19 +688,168 @@ sum(sapply(results, \(r) !is.null(r$result)))
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">with_retry &lt;- function(f, times = 3) {
+    <div class="webr-editor" data-language="r">clean_mean &lt;- compose(
+  partial(round, digits = 2),
+  partial(mean, na.rm = TRUE)
+)
+my_vals &lt;- c(1, NA, 2.3456, 5, NA, 9.8765)
+clean_mean(my_vals)
+#&gt; [1] 4.56</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>partial(mean, na.rm = TRUE)</code> runs first (rightmost, default backward direction) and gives <code>4.5555</code>. <code>partial(round, digits = 2)</code> then rounds that to <code>4.56</code>. Two one-liners plus one <code>compose()</code> call replace a custom function body.</p>
+
+</details>
+
+<h4>Exercise 2: trace_calls with a shared call log</h4>
+
+<p>Write <code>trace_calls(f)</code> that wraps <code>f</code> and also records every call's input arguments in a closure-backed list. The operator should return a <em>list</em> with two elements: <code>$wrapped</code> (the new function) and <code>$get_log</code> (a function with no arguments that returns the accumulated call log). Test by wrapping <code>sum</code>, calling the wrapped version three times, then inspecting the log.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Your code here
+trace_calls &lt;- function(f) {
+  # hint: store a list in the closure, use &lt;&lt;- to append
+}
+
+traced_sum &lt;- trace_calls(sum)
+traced_sum$wrapped(1, 2, 3)
+traced_sum$wrapped(10, 20)
+traced_sum$wrapped(100)
+traced_sum$get_log()
+#&gt; Expected: a list with three entries, one per call</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">trace_calls &lt;- function(f) {
+  log &lt;- list()
+  wrapped &lt;- function(...) {
+    args &lt;- list(...)
+    log[[length(log) + 1]] &lt;&lt;- args
+    do.call(f, args)
+  }
+  get_log &lt;- function() log
+  list(wrapped = wrapped, get_log = get_log)
+}
+
+traced_sum &lt;- trace_calls(sum)
+traced_sum$wrapped(1, 2, 3)
+#&gt; [1] 6
+traced_sum$wrapped(10, 20)
+#&gt; [1] 30
+traced_sum$wrapped(100)
+#&gt; [1] 100
+traced_sum$get_log()
+#&gt; [[1]]
+#&gt; [[1]][[1]]
+#&gt; [1] 1
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both <code>wrapped</code> and <code>get_log</code> close over the same <code>log</code> variable, so <code>get_log()</code> can read what <code>wrapped</code> writes. The <code>&lt;&lt;-</code> is essential — without it, <code>log</code> would reset to an empty list on every call. Returning both functions as a list is how you give the caller read access to the operator's internal state.</p>
+
+</details>
+
+<h4>Exercise 3: retry(f, n) that swallows n−1 errors</h4>
+
+<p>Build <code>retry(f, n)</code> that wraps <code>f</code> and calls it up to <code>n</code> times. If <code>f</code> throws an error, retry. If all <code>n</code> attempts error, return <code>NA</code>. Test on a <code>flaky()</code> function that fails the first 2 of every 3 calls.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Your code here
+retry &lt;- function(f, n) {
+  # hint: use tryCatch inside a loop
+}
+
+attempts &lt;- 0
+flaky &lt;- function(x) {
+  attempts &lt;&lt;- attempts + 1
+  if (attempts %% 3 != 0) stop(&quot;boom&quot;)
+  x * 10
+}
+
+safe_flaky &lt;- retry(flaky, n = 5)
+safe_flaky(7)
+#&gt; Expected: 70 (fails twice, succeeds on the third attempt)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">retry &lt;- function(f, n) {
   function(...) {
-    for (i in seq_len(times)) {
-      result &lt;- tryCatch(f(...), error = \(e) e)
-      if (!inherits(result, &quot;error&quot;)) return(result)
+    for (i in seq_len(n)) {
+      result &lt;- tryCatch(f(...), error = function(e) NULL)
+      if (!is.null(result)) return(result)
     }
-    stop(result)
+    NA
   }
 }
 
-my_safe_sqrt &lt;- with_retry(sqrt, times = 3)
-my_safe_sqrt(16)
-#&gt; [1] 4</div>
+attempts &lt;- 0
+flaky &lt;- function(x) {
+  attempts &lt;&lt;- attempts + 1
+  if (attempts %% 3 != 0) stop(&quot;boom&quot;)
+  x * 10
+}
+
+safe_flaky &lt;- retry(flaky, n = 5)
+safe_flaky(7)
+#&gt; [1] 70</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -368,20 +859,46 @@ my_safe_sqrt(16)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>tryCatch</code> captures any error; the loop retries up to <code>times</code> times and rethrows the final error.</p>
+<p><strong>Explanation:</strong> <code>tryCatch</code> turns an error into <code>NULL</code>, the loop moves on to the next attempt, and the first successful result short-circuits out via <code>return()</code>. If every attempt fails, the loop finishes and the function returns <code>NA</code>.</p>
 
 </details>
 
-<h4>Exercise 2: Chain Two Operators</h4>
+<h2>Complete Example: A Safer, Faster Summariser</h2>
 
-<p>Use <code>Negate()</code> and <code>Filter()</code> together to keep only the strings in <code>c(&quot;cat&quot;, &quot;canary&quot;, &quot;dog&quot;, &quot;cow&quot;)</code> that do NOT start with <code>&quot;c&quot;</code>.</p>
+<p>Let us tie it all together. Imagine a costly group-summary routine — in real life it might query a database, fit a model, or read a large file. We simulate the cost with <code>Sys.sleep(1)</code>. We will cache it so repeat calls are free, then use <code>partial()</code> to specialise it to a specific grouping column so callers do not have to remember the arg name.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># your code here
-#&gt; Expected: &quot;dog&quot;</div>
+    <div class="webr-editor" data-language="r">slow_group_mean &lt;- function(df, group_col, value_col) {
+  Sys.sleep(1)   # pretend this is expensive
+  agg &lt;- aggregate(df[[value_col]], by = list(df[[group_col]]), FUN = mean)
+  names(agg) &lt;- c(group_col, paste0(&quot;mean_&quot;, value_col))
+  agg
+}
+
+# Step 1: wrap it with caching
+fast_group_mean &lt;- cache_fn(function(x) slow_group_mean(mtcars, &quot;cyl&quot;, &quot;mpg&quot;))
+
+# Step 2: call twice and time each call
+t1 &lt;- system.time(r1 &lt;- fast_group_mean(&quot;mtcars_cyl_mpg&quot;))
+t1[&quot;elapsed&quot;]
+#&gt; elapsed
+#&gt;    1.00
+
+t2 &lt;- system.time(r2 &lt;- fast_group_mean(&quot;mtcars_cyl_mpg&quot;))
+t2[&quot;elapsed&quot;]
+#&gt; elapsed
+#&gt;    0.00
+
+r1
+#&gt;   cyl mean_mpg
+#&gt; 1   4 26.66364
+#&gt; 2   6 19.74286
+#&gt; 3   8 15.10000
+identical(r1, r2)
+#&gt; [1] TRUE</div>
 
     <div class="webr-buttons">
 
@@ -399,79 +916,84 @@ my_safe_sqrt(16)
 
 </div>
 
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">starts_with_c &lt;- \(s) startsWith(s, &quot;c&quot;)
-Filter(Negate(starts_with_c), c(&quot;cat&quot;, &quot;canary&quot;, &quot;dog&quot;, &quot;cow&quot;))
-#&gt; [1] &quot;dog&quot;</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>Negate(starts_with_c)</code> is the predicate "does NOT start with c"; <code>Filter</code> keeps everything that matches.</p>
-
-</details>
+<p>The first call pays the simulated one-second cost and computes the group means for <code>cyl</code> on <code>mtcars</code>. The second call returns the exact same data frame in zero time, because the cache key <code>&quot;mtcars_cyl_mpg&quot;</code> is already stored. We combined two operators — <code>cache_fn</code> for speed and a closure for the fixed inputs — to turn an expensive routine into a snappy lookup. No change to <code>slow_group_mean</code> itself.</p>
 
 <h2>Summary</h2>
+
+<p>Function operators give you a tiny vocabulary for transforming functions you already have, instead of writing new ones. The four patterns below cover most day-to-day needs, and the fifth — building your own — covers everything else.</p>
+
+<p><img src="screenshots/R-Function-Operators-mindmap.webp" alt="Mindmap of the four function operators: compose, negate, partial, cache" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: The four function operators covered in this guide, grouped by what they do.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Operator</th>
-<th>Takes</th>
-<th>Returns</th>
+<th>Source</th>
+<th>What it does</th>
+<th>One-line example</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>Negate(f)</code></td>
-<td>A predicate</td>
-<td>The opposite predicate</td>
+<td>base R</td>
+<td>Flips a predicate's TRUE/FALSE result</td>
+<td><code>is_not_positive &lt;- Negate(is_positive)</code></td>
 </tr>
 <tr>
 <td><code>compose(f, g)</code></td>
-<td>Two functions</td>
-<td><code>f(g(x))</code> as one call</td>
+<td><code>purrr</code></td>
+<td>Chains <code>f(g(x))</code> into one function</td>
+<td><code>abs_mean &lt;- compose(mean, abs)</code></td>
 </tr>
 <tr>
-<td><code>with_timing(f)</code></td>
-<td>Any function</td>
-<td>Same function, prints elapsed time</td>
+<td><code>partial(f, ...)</code></td>
+<td><code>purrr</code></td>
+<td>Freezes some of <code>f</code>'s arguments</td>
+<td><code>mean_safe &lt;- partial(mean, na.rm = TRUE)</code></td>
 </tr>
 <tr>
-<td><code>purrr::safely(f)</code></td>
-<td>Any function</td>
-<td>Returns <code>$result</code>/<code>$error</code> instead of erroring</td>
-</tr>
-<tr>
-<td><code>purrr::possibly(f)</code></td>
-<td>Function + default</td>
-<td>Returns default on error</td>
+<td><code>cache_fn(f)</code></td>
+<td>custom or <code>memoise::memoise</code></td>
+<td>Caches results for repeated inputs</td>
+<td><code>fast &lt;- cache_fn(slow_double)</code></td>
 </tr>
 </tbody>
 </table>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>Function operators share the shape <code>function(f) function(...) { ...; f(...); ... }</code>. Memorise it and you can write any wrapper you need.</li>
+
+<li>Closures are the mechanism that makes operators possible — the inner function remembers <code>f</code> and any state from the outer call.</li>
+
+<li>Compose and partial remove duplicated code; negate flips predicates; caching buys speed on pure functions.</li>
+
+<li><code>purrr::compose()</code>, <code>purrr::negate()</code>, and <code>purrr::partial()</code> are the community-standard implementations; <code>memoise::memoise()</code> is the production-grade cache.</li>
+
+</ul>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 11: Function operators. <a href="https://adv-r.hadley.nz/function-operators.html">Link</a></li>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. CRC Press (2019). Chapter 11: Function operators. <a href="https://adv-r.hadley.nz/function-operators.html">Link</a></li>
 
-<li><code>purrr::safely</code>, <code>possibly</code>, <code>quietly</code>, <code>compose</code>. <a href="https://purrr.tidyverse.org/reference/safely.html">Link</a></li>
+<li>purrr documentation — <code>compose()</code> reference. <a href="https://purrr.tidyverse.org/reference/compose.html">Link</a></li>
 
-<li>R Core Team — <code>base::Negate</code>. <a href="https://rdrr.io/r/base/funprog.html">Link</a></li>
+<li>purrr documentation — <code>negate()</code> reference. <a href="https://purrr.tidyverse.org/reference/negate.html">Link</a></li>
 
-<li><code>memoise</code> package — caching as an operator. <a href="https://memoise.r-lib.org/">Link</a></li>
+<li>purrr documentation — <code>partial()</code> reference. <a href="https://purrr.tidyverse.org/reference/partial.html">Link</a></li>
 
-<li>Wickham, H. — <em>R for Data Science</em>, 2nd Edition. <a href="https://r4ds.hadley.nz/">Link</a></li>
+<li>memoise package — official docs. <a href="https://memoise.r-lib.org/">Link</a></li>
+
+<li>R base documentation — <code>Negate()</code> and friends. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/funprog.html">Link</a></li>
+
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 10: Function factories (the companion concept). <a href="https://adv-r.hadley.nz/function-factories.html">Link</a></li>
 
 </ol>
 
@@ -479,11 +1001,11 @@ Filter(Negate(starts_with_c), c(&quot;cat&quot;, &quot;canary&quot;, &quot;dog&q
 
 <ul>
 
-<li><a href="R-Function-Factories.html">R Function Factories</a> — settings in, function out; the sibling pattern to operators.</li>
+<li><a href="R-Functions.html">Writing R Functions</a> — the foundation every operator is built on, including argument handling and <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">return values</a>.</li>
 
-<li><a href="Memoization-in-R.html">Memoization in R</a> — an operator that caches results for speedups.</li>
+<li><a href="R-Function-Factories.html">R Function Factories</a> — the sibling pattern: settings in, function out. Read this next to see how factories and operators differ.</li>
 
-<li><a href="Infix-Functions-in-R.html">Infix Functions in R</a> — write your own <code>%op%</code> operators for custom composition.</li>
+<li><a href="R-Closures.html">R Closures</a> — the mechanism that lets operators remember <code>f</code>, cached values, and call logs between calls.</li>
 
 </ul>
 
