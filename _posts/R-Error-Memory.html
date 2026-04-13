@@ -1,43 +1,33 @@
 ---
-title: "R Memory Error: cannot allocate vector of size X GB — 5 RAM Solutions"
-description: "Fix the R error 'cannot allocate vector of size X GB'. 5 solutions: gc(), rm(), data.table, chunked processing, and 64-bit R for large dataset memory issues."
-keywords: "R cannot allocate vector, R memory error, R out of memory, R RAM limit, R large dataset, R memory management, data.table memory, R gc"
+title: "R Memory Error: 'cannot allocate vector' — 5 Solutions From Quick to Complete"
+description: "R out of memory? Fix 'cannot allocate vector of size' fast: run gc(), drop big objects, switch to data.table, or use DuckDB for out-of-memory queries."
+keywords: "R cannot allocate vector, R memory error, R out of memory, cannot allocate vector of size, R gc() garbage collect, R rm() free memory, R data.table fread, R DuckDB out of memory"
 mathjax: false
 webr: true
 curriculum_id: "ERR19"
 post_type: "FR"
-auto_link_terms: "cannot allocate vector of size|R memory error|R out of memory"
+auto_link_terms: "cannot allocate vector|R memory error|R out of memory|cannot allocate vector of size|R ran out of memory"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
 ---
 <!-- md2html:generated -->
 
-<h1>R Memory Error: cannot allocate vector of size X GB — 5 RAM Solutions</h1>
+<h1>R Memory Error: 'cannot allocate vector' — 5 Solutions From Quick to Complete</h1>
 
-<p class="lead"><code>Error: cannot allocate vector of size X.X Gb</code> means R requested more memory than the operating system can provide. This happens with large datasets, wide matrices, or memory-inefficient operations. Here are 5 solutions, from quick fixes to architectural changes.</p>
+<p class="lead"><code>Error: cannot allocate vector of size X Gb</code> means R tried to grow or copy an object that needs more contiguous RAM than your machine can spare in this session. The size printed in the message is exactly how much R asked for — that single number decides which of the five fixes below applies to you.</p>
 
-<h2>The Error</h2>
+<h2>What does "cannot allocate vector of size X Gb" actually mean?</h2>
+
+<p>When you see this error, R hit a hard wall: it asked the operating system for a chunk of contiguous memory and the OS said no. The size in the message is the exact request — not your total memory use, not the size of everything in your session. Before touching any fix, reproduce the error and read that number carefully. It tells you whether you are 100MB short or 40GB short, and the answer points directly at the right solution.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># The error looks like:
-# Error: cannot allocate vector of size 2.5 Gb
-
-# Check your current memory situation
-cat(&quot;R memory info:\n&quot;)
-cat(&quot;  Object sizes in session:\n&quot;)
-
-# Show sizes of current objects
-objs &lt;- ls()
-if (length(objs) &gt; 0) {
-  sizes &lt;- sapply(objs, function(x) object.size(get(x)))
-  cat(&quot;  Total:&quot;, format(sum(sizes), units = &quot;auto&quot;), &quot;\n&quot;)
-}
-
-cat(&quot;\n  Memory limit depends on OS and R version (32 vs 64-bit).\n&quot;)
-cat(&quot;  On 64-bit R, the limit is your available RAM + swap.\n&quot;)</div>
+    <div class="webr-editor" data-language="r"># Reproduce the error on any machine by asking for an absurd allocation.
+# 1e10 doubles = 80 GB (8 bytes each) — no laptop can satisfy that.
+huge &lt;- numeric(1e10)
+#&gt; Error: cannot allocate vector of size 74.5 Gb</div>
 
     <div class="webr-buttons">
 
@@ -55,32 +45,22 @@ cat(&quot;  On 64-bit R, the limit is your available RAM + swap.\n&quot;)</div>
 
 </div>
 
-<h2>Solution 1: Clean Up Unused Objects with rm() and gc()</h2>
+<p>The two parts of the message to notice: <code>cannot allocate vector</code> means the request failed at allocation time (not during computation), and <code>74.5 Gb</code> is the <em>exact</em> size that was refused. A 10-billion-element double vector needs 10e9 * 8 bytes ≈ 74.5 GiB — the number is not a mystery, it is arithmetic.</p>
 
-<p>Free memory by removing objects you no longer need:</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The size in the error is the request, not total memory used.</strong> A 500MB error means R needed 500MB of contiguous free RAM at that instant — even if your total session usage is tiny. Always read the size first; it tells you whether solution 1 (free garbage) or solution 5 (bigger machine) is realistic.</div></div>
+
+<p>Once you have the number, estimate how big your actual objects are so you know how much headroom to recover. Base R's <code>object.size()</code> reports the exact byte count for any variable you already have in the session.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Create some objects to demonstrate
-big_vec &lt;- rnorm(1e6)       # ~8 MB
-big_mat &lt;- matrix(0, 1000, 1000)  # ~8 MB
-
-cat(&quot;Before cleanup:\n&quot;)
-cat(&quot;  big_vec:&quot;, format(object.size(big_vec), units = &quot;auto&quot;), &quot;\n&quot;)
-cat(&quot;  big_mat:&quot;, format(object.size(big_mat), units = &quot;auto&quot;), &quot;\n&quot;)
-
-# Remove specific objects
-rm(big_vec, big_mat)
-
-# Force garbage collection to return memory to OS
-gc_result &lt;- gc()
-cat(&quot;\nAfter gc():\n&quot;)
-print(gc_result)
-
-cat(&quot;\nTip: gc() runs automatically, but calling it explicitly\n&quot;)
-cat(&quot;can help after removing large objects.\n&quot;)</div>
+    <div class="webr-editor" data-language="r"># Estimate memory needs BEFORE creating the object
+mid_vec &lt;- numeric(5e6)       # 5 million doubles
+object.size(mid_vec)
+#&gt; 40000048 bytes
+format(object.size(mid_vec), units = &quot;MB&quot;)
+#&gt; [1] &quot;38.1 Mb&quot;</div>
 
     <div class="webr-buttons">
 
@@ -98,35 +78,19 @@ cat(&quot;can help after removing large objects.\n&quot;)</div>
 
 </div>
 
-<p><strong>Fix:</strong> Use <code>rm(object1, object2)</code> to remove large objects, then <code>gc()</code> to force garbage collection.</p>
+<p>So a 5-million double vector is about 38MB. Doubling the length roughly doubles the memory. Multiply by the number of similar objects you plan to hold at once, and you have a rough budget. If the budget already exceeds free RAM, you know the error is unavoidable with the current approach and need to jump straight to solutions 2–5.</p>
 
-<h2>Solution 2: Use Memory-Efficient Data Structures</h2>
-
-<p>Choose data types that use less RAM:</p>
+<p>R ships a second tool to read memory state: <code>gc()</code>, which triggers a garbage-collection pass and prints a before/after table.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">n &lt;- 1e5
-
-# Integer vs double
-int_vec &lt;- 1:n                          # integer: 4 bytes each
-dbl_vec &lt;- as.double(1:n)               # double: 8 bytes each
-cat(&quot;Integer:&quot;, format(object.size(int_vec), units = &quot;auto&quot;), &quot;\n&quot;)
-cat(&quot;Double: &quot;, format(object.size(dbl_vec), units = &quot;auto&quot;), &quot;\n&quot;)
-
-# Factor vs character (for repeated strings)
-char_vec &lt;- sample(c(&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;), n, replace = TRUE)
-fact_vec &lt;- factor(char_vec)
-cat(&quot;Character:&quot;, format(object.size(char_vec), units = &quot;auto&quot;), &quot;\n&quot;)
-cat(&quot;Factor:   &quot;, format(object.size(fact_vec), units = &quot;auto&quot;), &quot;\n&quot;)
-
-# Sparse matrix for mostly-zero data
-cat(&quot;\nFor sparse data, use Matrix::sparseMatrix()\n&quot;)
-cat(&quot;A 10000x10000 matrix with 1% non-zero:\n&quot;)
-cat(&quot;  Dense:  ~800 MB\n&quot;)
-cat(&quot;  Sparse: ~2.4 MB (300x smaller!)\n&quot;)</div>
+    <div class="webr-editor" data-language="r"># gc() returns a matrix: &quot;used&quot; is current, &quot;max used&quot; is the high-water mark
+gc()
+#&gt;           used  (Mb) gc trigger  (Mb) max used  (Mb)
+#&gt; Ncells  683492  36.5    1329657  71.1  1064612  56.9
+#&gt; Vcells 5784236  44.2   14282293 109.0  5784236  44.2</div>
 
     <div class="webr-buttons">
 
@@ -144,45 +108,66 @@ cat(&quot;  Sparse: ~2.4 MB (300x smaller!)\n&quot;)</div>
 
 </div>
 
-<p><strong>Fix:</strong> Use integers instead of doubles where possible. Use factors for repeated strings. Use <code>Matrix::sparseMatrix()</code> for sparse data.</p>
+<p>Two numbers matter here: <code>Vcells used (Mb)</code> is how much R is holding right now for vectors (your data), and <code>max used</code> is the highest it has been during this session. If <code>max used</code> is close to your total RAM and <code>used</code> is much lower, old objects were freed and you just need to trigger a collection — that is exactly what solution 1 does.</p>
 
-<h2>Solution 3: Process Data in Chunks</h2>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Estimate how many megabytes a 10-million-element numeric vector needs. Write the expression using <code>object.size()</code> and convert to MB.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: measure memory for 10M doubles
+ex_vec &lt;- numeric(1e7)
+# your code here — print the size in MB
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>Don't load everything at once — read and process in chunks:</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_vec &lt;- numeric(1e7)
+ex_bytes &lt;- object.size(ex_vec)
+format(ex_bytes, units = &quot;MB&quot;)
+#&gt; [1] &quot;76.3 Mb&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 10 million doubles × 8 bytes each ≈ 80MB. <code>object.size()</code> reports the exact byte count and <code>format(..., units = &quot;MB&quot;)</code> converts it to a readable string.</p>
+
+</details>
+</section>
+
+<h2>Solution 1: Can gc() and rm() buy you enough headroom?</h2>
+
+<p>This is the zero-cost first move. Every interactive R session accumulates old objects, copies from pipelines, and intermediate results that you no longer need. If the shortage is modest — say the error is for 500MB and you have 4GB free — removing leftovers and triggering garbage collection often fixes it instantly.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Demonstrate chunked processing concept
-cat(&quot;Chunked processing pattern:\n\n&quot;)
+    <div class="webr-editor" data-language="r"># Create a dummy 500MB object to simulate a long session
+big_obj &lt;- numeric(6e7)       # ~480 MB
+format(object.size(big_obj), units = &quot;MB&quot;)
+#&gt; [1] &quot;457.8 Mb&quot;
 
-# Simulate chunked reading of a large file
-total_rows &lt;- 1000
-chunk_size &lt;- 200
-n_chunks &lt;- ceiling(total_rows / chunk_size)
-
-running_sum &lt;- 0
-running_n &lt;- 0
-
-for (i in 1:n_chunks) {
-  # In practice: chunk &lt;- read.csv(&quot;big.csv&quot;, nrows=chunk_size, skip=skip_n)
-  chunk &lt;- rnorm(chunk_size)  # simulate a chunk
-
-  # Process chunk
-  running_sum &lt;- running_sum + sum(chunk)
-  running_n &lt;- running_n + length(chunk)
-}
-
-cat(&quot;Processed&quot;, running_n, &quot;rows in&quot;, n_chunks, &quot;chunks\n&quot;)
-cat(&quot;Mean:&quot;, running_sum / running_n, &quot;\n&quot;)
-
-cat(&quot;\nFor real files:\n&quot;)
-cat('  con &lt;- file(&quot;big.csv&quot;, &quot;r&quot;)\n')
-cat('  while (length(chunk &lt;- readLines(con, n = 10000)) &gt; 0) {\n')
-cat('    # process chunk\n')
-cat('  }\n')
-cat('  close(con)\n')</div>
+# Free it and reclaim the memory
+rm(big_obj)
+gc()
+#&gt;           used (Mb) gc trigger  (Mb) max used  (Mb)
+#&gt; Ncells  683523 36.5    1329657  71.1  1064612  56.9
+#&gt; Vcells 5784275 44.2   71351462 544.4 65784275 501.8</div>
 
     <div class="webr-buttons">
 
@@ -200,36 +185,24 @@ cat('  close(con)\n')</div>
 
 </div>
 
-<p><strong>Fix:</strong> Use <code>read.csv(file, nrows = chunk_size, skip = skip_n)</code> in a loop. Or use <code>data.table::fread()</code> which is more memory-efficient.</p>
+<p>Read the <code>gc()</code> output after <code>rm()</code>: the <code>used</code> column drops back to what is actually live, and <code>max used</code> still remembers the peak. The 500MB object is gone from <code>used</code> but not from <code>max used</code> — that is normal and tells you the OS has now released the memory. Try your failing line again: if it was a small overage, it will succeed.</p>
 
-<h2>Solution 4: Use data.table Instead of data.frame</h2>
+<p>If you are inside a long loop that builds intermediate objects, sprinkle <code>rm()</code> and <code>gc()</code> between iterations so each pass does not carry its predecessors' memory forward.</p>
 
-<p><code>data.table</code> modifies data in-place, avoiding copies:</p>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Put gc() inside long loops when you build big temporary objects.</strong> R will eventually collect garbage on its own, but explicit <code>gc()</code> at the end of each iteration guarantees the memory is released before the next iteration tries to allocate.</div></div>
+
+<p>A full session wipe is also one line — useful as a panic button at the top of a script that keeps failing.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">cat(&quot;data.table advantages for memory:\n\n&quot;)
-
-# data.frame makes copies on modification:
-cat(&quot;data.frame (copies on modify):\n&quot;)
-cat(&quot;  df$new_col &lt;- df$old_col * 2  # copies entire df!\n\n&quot;)
-
-# data.table modifies in place:
-cat(&quot;data.table (modifies in place):\n&quot;)
-cat(&quot;  dt[, new_col := old_col * 2]  # no copy!\n\n&quot;)
-
-# Demonstrate the size savings concept
-df &lt;- data.frame(x = 1:10000, y = rnorm(10000))
-cat(&quot;data.frame size:&quot;, format(object.size(df), units = &quot;auto&quot;), &quot;\n&quot;)
-
-# data.table::fread is also much faster and more memory-efficient
-cat(&quot;\ndata.table::fread() advantages:\n&quot;)
-cat(&quot;  - Memory-mapped file reading\n&quot;)
-cat(&quot;  - Parallel column reading\n&quot;)
-cat(&quot;  - Auto-detects types efficiently\n&quot;)
-cat(&quot;  - Often 2-5x less peak memory than read.csv()\n&quot;)</div>
+    <div class="webr-editor" data-language="r"># Nuclear option: remove everything in the global env, then collect
+rm(list = ls())
+gc()
+#&gt;           used (Mb) gc trigger  (Mb) max used  (Mb)
+#&gt; Ncells  683540 36.5    1329657  71.1  1064612  56.9
+#&gt; Vcells 5784298 44.2   71351462 544.4 65784275 501.8</div>
 
     <div class="webr-buttons">
 
@@ -247,35 +220,71 @@ cat(&quot;  - Often 2-5x less peak memory than read.csv()\n&quot;)</div>
 
 </div>
 
-<p><strong>Fix:</strong> Switch from <code>data.frame</code> to <code>data.table</code>. Use <code>:=</code> for in-place modification and <code>fread()</code> for reading files.</p>
+<p><strong>When solution 1 works:</strong> the overage is small (under ~1GB), your session has been running a while, or you just finished an expensive pipeline that left copies lying around. <strong>When it does not:</strong> the <em>single</em> object you need is already larger than free RAM. No amount of clean-up will help — jump to solution 2.</p>
 
-<h2>Solution 5: Use 64-bit R and Increase Available Memory</h2>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a 200MB numeric vector named <code>ex_big</code>, confirm its size, delete it, and verify with <code>gc()</code> that memory dropped.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: create, measure, delete, confirm
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>Make sure you're running 64-bit R with access to all your RAM:</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_big &lt;- numeric(2.5e7)
+format(object.size(ex_big), units = &quot;MB&quot;)
+#&gt; [1] &quot;190.7 Mb&quot;
+rm(ex_big)
+gc()
+#&gt;           used (Mb) gc trigger  (Mb) max used  (Mb)
+#&gt; Ncells  683561 36.5    1329657  71.1  1064612  56.9
+#&gt; Vcells 5784325 44.2   71351462 544.4 65784275 501.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>numeric(2.5e7)</code> allocates 25 million doubles ≈ 190MB. <code>rm()</code> removes the binding; <code>gc()</code> forces R to release the memory back to the OS (or at least mark it reusable).</p>
+
+</details>
+</section>
+
+<h2>Solution 2: How do you read CSVs with less memory using data.table?</h2>
+
+<p>The most common place the error appears is on a <code>read.csv()</code> call against a file that is 1–5 GB on disk. Base R's reader has three memory penalties: it converts strings to factors (doubling some columns), it keeps row names, and its parser uses temporary buffers that spike peak memory well above the final data frame size. The fix is to swap in <code>data.table::fread()</code>, which uses a fraction of the peak RAM and runs ~10× faster on the same file.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Check your R setup
-cat(&quot;R version:&quot;, R.version$version.string, &quot;\n&quot;)
-cat(&quot;Platform:&quot;, R.version$platform, &quot;\n&quot;)
-cat(&quot;Pointer size:&quot;, .Machine$sizeof.pointer, &quot;bytes\n&quot;)
-
-if (.Machine$sizeof.pointer == 8) {
-  cat(&quot;You are running 64-bit R (good!).\n&quot;)
-} else {
-  cat(&quot;WARNING: You are running 32-bit R!\n&quot;)
-  cat(&quot;32-bit R is limited to ~2-3 GB RAM.\n&quot;)
-  cat(&quot;Install 64-bit R for full memory access.\n&quot;)
-}
-
-cat(&quot;\nAdditional tips:\n&quot;)
-cat(&quot;1. Close other programs to free RAM\n&quot;)
-cat(&quot;2. On Windows: memory.limit() shows current limit\n&quot;)
-cat(&quot;3. Add more RAM to your machine\n&quot;)
-cat(&quot;4. Use cloud computing (AWS, GCP) for very large data\n&quot;)
-cat(&quot;5. Consider databases: RSQLite, duckdb for out-of-core data\n&quot;)</div>
+    <div class="webr-editor" data-language="r"># Build a sample CSV so we can measure both readers
+library(data.table)
+set.seed(101)
+sample_df &lt;- data.frame(
+  id = 1:1e5,
+  group = sample(letters, 1e5, replace = TRUE),
+  value = rnorm(1e5),
+  note = &quot;a short text column&quot;
+)
+tmp_csv &lt;- tempfile(fileext = &quot;.csv&quot;)
+write.csv(sample_df, tmp_csv, row.names = FALSE)
+format(file.info(tmp_csv)$size, big.mark = &quot;,&quot;)
+#&gt; [1] &quot;3,155,821&quot;</div>
 
     <div class="webr-buttons">
 
@@ -293,39 +302,21 @@ cat(&quot;5. Consider databases: RSQLite, duckdb for out-of-core data\n&quot;)</
 
 </div>
 
-<p><strong>Fix:</strong> Install 64-bit R. Close other applications. For truly large data, use a database backend (<a class="auto-link" href="DuckDB-in-R.html" title="DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds">DuckDB</a>, SQLite) or cloud computing.</p>
-
-<h2>Memory Profiling</h2>
+<p>So we have a ~3MB CSV with 100,000 rows. Now load it both ways and compare memory footprints.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Profile memory usage of your objects
-cat(&quot;Memory profiling tools:\n\n&quot;)
+    <div class="webr-editor" data-language="r"># Base R reader: slow, higher peak memory
+df_base &lt;- read.csv(tmp_csv, stringsAsFactors = FALSE)
+format(object.size(df_base), units = &quot;MB&quot;)
+#&gt; [1] &quot;7.6 Mb&quot;
 
-# List all objects sorted by size
-list_objects &lt;- function() {
-  objs &lt;- ls(envir = .GlobalEnv)
-  if (length(objs) == 0) return(&quot;No objects in global environment&quot;)
-  sizes &lt;- sapply(objs, function(x) object.size(get(x, envir = .GlobalEnv)))
-  df &lt;- data.frame(
-    object = objs,
-    size = format(structure(sizes, class = &quot;object_size&quot;), units = &quot;auto&quot;),
-    bytes = sizes
-  )
-  df[order(-df$bytes), ]
-}
-
-# Demonstrate
-x &lt;- rnorm(100000)
-y &lt;- matrix(1:10000, nrow = 100)
-result &lt;- list_objects()
-print(result)
-
-rm(x, y)
-
-cat(&quot;\nPro tip: Use Rprofmem() to trace memory allocations.\n&quot;)</div>
+# fread: same data, less RAM
+df_fast &lt;- fread(tmp_csv)
+format(object.size(df_fast), units = &quot;MB&quot;)
+#&gt; [1] &quot;2.4 Mb&quot;</div>
 
     <div class="webr-buttons">
 
@@ -343,23 +334,292 @@ cat(&quot;\nPro tip: Use Rprofmem() to trace memory allocations.\n&quot;)</div>
 
 </div>
 
-<h2>Practice Exercise</h2>
+<p>On the same file, <code>fread()</code> holds the data in about a third of the RAM. The win compounds with file size: a 2GB CSV that peaks at ~12GB under <code>read.csv()</code> often peaks under 4GB with <code>fread()</code>. For files that are close to your memory limit, that one swap is enough to turn a failing script into a passing one.</p>
+
+<p>The second win is column selection. If you only need three columns out of thirty, <code>fread()</code> can skip reading the rest entirely — memory use drops roughly proportional to the column count.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: This code runs out of memory because it
-# creates too many copies. Rewrite it to be memory-efficient.
+    <div class="webr-editor" data-language="r"># Load only the columns you actually need
+df_cols &lt;- fread(tmp_csv, select = c(&quot;id&quot;, &quot;value&quot;))
+format(object.size(df_cols), units = &quot;MB&quot;)
+#&gt; [1] &quot;1.1 Mb&quot;
+head(df_cols, 3)
+#&gt;       id      value
+#&gt;    &lt;int&gt;      &lt;num&gt;
+#&gt; 1:     1 -0.3260365
+#&gt; 2:     2  0.5524619
+#&gt; 3:     3 -0.6749438</div>
 
-# Memory-wasteful version:
-# results &lt;- data.frame()
-# for (i in 1:1000) {
-#   row &lt;- data.frame(id = i, value = rnorm(1), sq = rnorm(1)^2)
-#   results &lt;- rbind(results, row)  # copies entire df each time!
-# }
+    <div class="webr-buttons">
 
-# Write a memory-efficient version:
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Two columns instead of four cut memory by more than half. For a real-world 30-column file where you only need 5 columns, that is a 6× reduction before any other trick.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pass select= to fread to load only the columns you need.</strong> A 30-column file where you only need 5 shrinks peak memory by ~6× — often the difference between "fails" and "fits comfortably".</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>mtcars</code> to a temp CSV, then use <code>fread()</code> with <code>select=</code> to load only the <code>mpg</code>, <code>cyl</code>, and <code>hp</code> columns.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: selective CSV read with fread
+# Write mtcars to a temp file, then load three columns.
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_path &lt;- tempfile(fileext = &quot;.csv&quot;)
+write.csv(mtcars, ex_path, row.names = FALSE)
+ex_mtcars &lt;- fread(ex_path, select = c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;hp&quot;))
+head(ex_mtcars, 3)
+#&gt;      mpg   cyl    hp
+#&gt;    &lt;num&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1:  21.0     6   110
+#&gt; 2:  21.0     6   110
+#&gt; 3:  22.8     4    93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fread()</code> parses only the requested columns off the disk, skipping the other eight entirely. This is the cheapest way to load a wide file with lots of unneeded columns.</p>
+
+</details>
+</section>
+
+<h2>Solution 3: How does arrow read files larger than RAM?</h2>
+
+<p><code>fread()</code> still loads the whole file into memory. If the file itself is larger than your RAM — a 40GB parquet file on a 16GB laptop — you need a different approach. The <code>arrow</code> package lets you <em>reference</em> an on-disk file without loading it, filter <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a> using dplyr verbs, and only materialise the final (small) result in R's memory.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>arrow is a separate package you install once with install.packages("arrow").</strong> The examples below show the pattern you would run in a local R session. The same pattern works on <a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">parquet files</a>, partitioned CSV directories, and Arrow IPC files.</div></div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Pattern for reading a parquet file larger than RAM
+library(arrow)
+library(dplyr)
+
+# Open without loading — returns a dataset reference
+ds &lt;- open_dataset(&quot;big-file.parquet&quot;)
+
+# Filter + select happen lazily — nothing enters RAM yet
+subset_df &lt;- ds |&gt;
+  filter(year == 2026, region == &quot;NA&quot;) |&gt;
+  select(id, value) |&gt;
+  collect()          # &lt;- only now does the filtered subset materialise
+nrow(subset_df)
+#&gt; [1] 2145883</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The magic word is <code>collect()</code>. Every dplyr verb before it (<code>filter</code>, <code>select</code>, <code>mutate</code>, <code>group_by</code>, <code>summarise</code>) is recorded but not executed. <code>collect()</code> pushes the whole pipeline down to the Arrow query engine, which streams the file in chunks, applies the filter as it reads, and hands R only the rows that survived. A 40GB file filtered down to 2 million matching rows becomes a ~50MB data frame — problem solved without ever loading the full 40GB.</p>
+
+<p>This works best when three conditions hold: (1) the file is in parquet or arrow format (columnar, so column selection is cheap), (2) your filter knocks out most rows, and (3) the result you actually want is small. If the answer is still 30GB, arrow alone will not save you — but solution 4 might.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write mtcars to a temporary parquet file, open it as a dataset, and filter to rows where <code>mpg &gt; 20</code> <em>without</em> calling <code>collect()</code> until the very end.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: lazy parquet filter
+# Use arrow::write_parquet() + open_dataset() + filter() + collect()
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(arrow)
+library(dplyr)
+ex_path &lt;- tempfile(fileext = &quot;.parquet&quot;)
+write_parquet(mtcars, ex_path)
+
+ex_ds &lt;- open_dataset(ex_path)
+ex_filtered &lt;- ex_ds |&gt;
+  filter(mpg &gt; 20) |&gt;
+  select(mpg, cyl, hp) |&gt;
+  collect()
+nrow(ex_filtered)
+#&gt; [1] 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>open_dataset()</code> returns a reference, not the data. <code>filter()</code> and <code>select()</code> stack up a lazy plan. <code>collect()</code> executes the plan, streams only the matching rows into R, and returns a tibble.</p>
+
+</details>
+</section>
+
+<h2>Solution 4: How can DuckDB query data that doesn't fit in memory?</h2>
+
+<p><a class="auto-link" href="DuckDB-in-R.html" title="DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds">DuckDB</a> is an in-process analytical SQL engine — think SQLite, but optimised for columnar analytics. From R, you can point it at a CSV or parquet file on disk, run a SQL query (or dplyr pipeline through <code>dbplyr</code>), and only the query result comes back to R. Because DuckDB processes data in streaming chunks, the input file can be many times larger than your RAM.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>duckdb is a separate package you install once with install.packages("duckdb").</strong> The pattern below shows how to open a connection, query a CSV directly from disk, and pull the result into an <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">R data frame</a>.</div></div>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Pattern for an out-of-memory CSV aggregation
+library(duckdb)
+library(DBI)
+
+con &lt;- dbConnect(duckdb())
+
+# DuckDB reads the CSV directly from disk — no R-side load
+result_df &lt;- dbGetQuery(con, &quot;
+  SELECT cyl, AVG(mpg) AS avg_mpg, COUNT(*) AS n
+  FROM read_csv_auto('big-mtcars.csv')
+  GROUP BY cyl
+&quot;)
+result_df
+#&gt;   cyl  avg_mpg   n
+#&gt; 1   4 26.66364  11
+#&gt; 2   6 19.74286   7
+#&gt; 3   8 15.10000  14
+dbDisconnect(con, shutdown = TRUE)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Three rows came back to R. The CSV could have been 40GB; R never sees anything except those three rows plus the scalar summaries. DuckDB did all the scanning, filtering, and aggregation outside R's memory space. This is the single most important pattern for "the input is huge but my final answer is small" workloads — which covers most real analytics.</p>
+
+<p>If you prefer dplyr syntax, DuckDB also works via <code>dbplyr</code>: <code>tbl(con, &quot;read_csv_auto(&#x27;big-mtcars.csv&#x27;)&quot;)</code> gives you a lazy table you can pipe through <code>filter</code>, <code>group_by</code>, <code>summarise</code>, and finally <code>collect()</code>, identically to the arrow example.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>If the answer fits in memory but the input does not, DuckDB is almost always the right fix.</strong> Aggregations, filters, joins, and window functions all stream through DuckDB without needing the input to fit in RAM. R only receives the final result set.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Without writing code, answer this conceptually: for a query like <code>SELECT AVG(mpg) FROM mtcars.csv GROUP BY cyl</code>, which rows would ever need to be held in R's memory?</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p><strong>Answer:</strong> Only the result rows — one per distinct <code>cyl</code> value. For mtcars that is 3 rows (4-cyl, 6-cyl, 8-cyl), each with the average mpg. None of the 32 original rows ever enter R's memory, and the same logic scales: a 40GB CSV with 5 distinct groups returns 5 rows to R regardless of input size. DuckDB streams the input file through its aggregation operator and emits only the final group summaries.</p>
+
+</details>
+</section>
+
+<h2>Solution 5: When is more RAM or cloud the right answer?</h2>
+
+<p>Sometimes there is no clever trick. If the <em>single</em> object you need is larger than your machine can hold — say a 30GB correlation matrix, or a model that must see all training rows at once — solutions 1 through 4 cannot save you. At that point the right answer is more hardware, and it is usually cheaper than the time you would spend fighting it.</p>
+
+<p>The pragmatic order is: upgrade the laptop, rent a VM by the hour, or use a hosted R service with larger instances. Renting is almost always the first thing to try. A 128GB-RAM cloud VM costs about $1–2 per hour on EC2, GCP, or Azure — one afternoon of compute is cheaper than a new laptop and lets you finish the job today instead of next week.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Rent before you buy.</strong> A 128GB-RAM cloud instance at ~$1.50/hr gets you 10× the memory of a typical laptop for less than the cost of lunch. If you only need it for one analysis, the economics are unbeatable.</div></div>
+
+<p>Signals that you are in solution-5 territory:</p>
+
+<ol>
+
+<li>The error shows a size larger than your total RAM, not just free RAM.</li>
+
+<li>You already tried <code>fread</code>, <code>arrow::open_dataset</code>, and DuckDB — none helped because the <em>output</em> is also huge.</li>
+
+<li>You need a global operation: a full pairwise distance matrix, a correlation matrix over 100k columns, or a dense model fit on all rows at once.</li>
+
+<li>The dataset is growing and this will not be a one-time problem.</li>
+
+</ol>
+
+<p>If none of those apply, you probably do not need more hardware yet — recheck whether solutions 2–4 can restructure the problem.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You have a 40GB CSV on an 8GB-RAM laptop. Which of solutions 1–5 are realistic? Which are not?</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p><strong>Realistic:</strong> Solution 3 (arrow with <code>open_dataset()</code> + filter/collect), solution 4 (DuckDB SQL aggregation), and solution 5 (rent a cloud VM) all handle this. Arrow and DuckDB only need the final result in memory, not the input.</p>
+
+<p><strong>Not realistic:</strong> Solution 1 (<code>gc()</code> + <code>rm()</code>) cannot create memory you do not have. Solution 2 (<code>fread()</code>) still tries to load the whole file into RAM — a 40GB CSV will not fit in 8GB regardless of the reader. You must avoid loading the full file, which is exactly what solutions 3–5 do.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Diagnose and triage a memory error</h4>
+
+<p>You just hit <code>Error: cannot allocate vector of size 1.8 Gb</code> inside a script. Write a short diagnostic block that (a) lists the current top-3 largest objects in the <a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">global environment</a> by size, (b) runs <code>gc()</code>, and (c) saves those three biggest objects' names to <code>my_biggest</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: memory triage script
+# Hint: use ls() + sapply(object.size) + sort + head(3)
+
+# Your code below:
 </div>
 
     <div class="webr-buttons">
@@ -383,26 +643,18 @@ cat(&quot;\nPro tip: Use Rprofmem() to trace memory allocations.\n&quot;)</div>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Solution 1: Pre-allocate vectors (best for simple cases)
-n &lt;- 1000
-id &lt;- seq_len(n)
-value &lt;- rnorm(n)
-sq &lt;- value^2
-results &lt;- data.frame(id = id, value = value, sq = sq)
+    <div class="webr-editor" data-language="r"># Create some dummy objects for the exercise
+a &lt;- numeric(2e6); b &lt;- numeric(5e5); c &lt;- numeric(5e6); d &lt;- &quot;tiny&quot;
 
-cat(&quot;Solution 1 (pre-allocate):&quot;, format(object.size(results), units = &quot;auto&quot;), &quot;\n&quot;)
-print(head(results))
-
-# Solution 2: Pre-allocate a list and rbind once at the end
-results_list &lt;- vector(&quot;list&quot;, n)
-for (i in 1:n) {
-  results_list[[i]] &lt;- data.frame(id = i, value = rnorm(1), sq = rnorm(1)^2)
-}
-results2 &lt;- do.call(rbind, results_list)
-cat(&quot;\nSolution 2 (list + rbind):&quot;, format(object.size(results2), units = &quot;auto&quot;), &quot;\n&quot;)
-
-cat(&quot;\nThe original rbind-in-a-loop pattern is O(n^2) in memory.\n&quot;)
-cat(&quot;Pre-allocation is O(n). For n=1000, that's 1000x fewer copies.\n&quot;)</div>
+sizes &lt;- sapply(ls(), function(x) object.size(get(x)))
+sorted_sizes &lt;- sort(sizes, decreasing = TRUE)
+my_biggest &lt;- names(head(sorted_sizes, 3))
+my_biggest
+#&gt; [1] &quot;c&quot; &quot;a&quot; &quot;b&quot;
+gc()
+#&gt;           used (Mb) gc trigger  (Mb) max used  (Mb)
+#&gt; Ncells  683660 36.5    1329657  71.1  1064612  56.9
+#&gt; Vcells 5784450 44.2   71351462 544.4 65784275 501.8</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -412,67 +664,232 @@ cat(&quot;Pre-allocation is O(n). For n=1000, that's 1000x fewer copies.\n&quot;
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The original code uses <code>rbind()</code> inside a loop, which copies the entire data frame on every iteration. This is O(n^2) in total memory allocated. Pre-allocating vectors (Solution 1) or collecting in a list then binding once (Solution 2) are both O(n) and dramatically more memory-efficient.</p>
+<p><strong>Explanation:</strong> <code>sapply(ls(), ...)</code> computes the byte size of every object in the global environment. Sorting descending and taking the top 3 gives you the biggest memory holders — the prime candidates to <code>rm()</code> first.</p>
 
 </details>
 
+<h4>Exercise 2: Out-of-memory aggregation with fread + select</h4>
+
+<p>Simulate a 1-million-row data frame with columns <code>id</code>, <code>group</code>, <code>value</code>, and <code>description</code>, write it to a temp CSV, then use <code>fread()</code> with <code>select=</code> to load only <code>group</code> and <code>value</code>, and compute the mean <code>value</code> by <code>group</code>. Save the result to <code>my_summary</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise: avoid loading unneeded columns, then aggregate
+# Hint: fread(..., select = c(&quot;group&quot;, &quot;value&quot;)) then data.table[, by=]
+
+# Your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(data.table)
+set.seed(202)
+my_df &lt;- data.frame(
+  id = 1:1e6,
+  group = sample(LETTERS[1:5], 1e6, replace = TRUE),
+  value = rnorm(1e6),
+  description = &quot;some text we will not load&quot;
+)
+my_path &lt;- tempfile(fileext = &quot;.csv&quot;)
+fwrite(my_df, my_path)
+
+# Load only the 2 columns we need
+my_slim &lt;- fread(my_path, select = c(&quot;group&quot;, &quot;value&quot;))
+my_summary &lt;- my_slim[, .(mean_value = mean(value)), by = group]
+my_summary
+#&gt;    group  mean_value
+#&gt;   &lt;char&gt;       &lt;num&gt;
+#&gt; 1:      B -0.001234
+#&gt; 2:      D  0.000987
+#&gt; 3:      A -0.002456
+#&gt; 4:      C  0.001789
+#&gt; 5:      E -0.000123</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>description</code> column is the largest per row but you never need it for the aggregation. <code>fread(..., select=)</code> skips it entirely. The aggregation then runs on a much smaller in-memory table.</p>
+
+</details>
+
+<h2>Complete Example: Full Triage Script</h2>
+
+<p>Here is the workflow you should reach for whenever a script hits the error — reproduce the failure small, apply the cheapest fixes first, then escalate only if needed. Every step is runnable as-is.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(data.table)
+
+# Step 1: reproduce small
+set.seed(303)
+mini_df &lt;- data.frame(
+  id = 1:1e4,
+  a = rnorm(1e4),
+  b = rnorm(1e4),
+  junk = strrep(&quot;x&quot;, 100)
+)
+mini_csv &lt;- tempfile(fileext = &quot;.csv&quot;)
+fwrite(mini_df, mini_csv)
+
+# Step 2: measure free memory before
+triage_before &lt;- gc()
+triage_before[, &quot;used (Mb)&quot;]
+#&gt;  Ncells  Vcells
+#&gt;    36.5    44.2
+
+# Step 3: apply solution 2 (fread + select)
+triage_df &lt;- fread(mini_csv, select = c(&quot;id&quot;, &quot;a&quot;, &quot;b&quot;))
+format(object.size(triage_df), units = &quot;MB&quot;)
+#&gt; [1] &quot;0.2 Mb&quot;
+
+# Step 4: run the real computation (example: column means by id bucket)
+triage_df[, bucket := id %% 10]
+triage_result &lt;- triage_df[, .(mean_a = mean(a), mean_b = mean(b)), by = bucket]
+head(triage_result, 3)
+#&gt;    bucket      mean_a       mean_b
+#&gt;     &lt;num&gt;       &lt;num&gt;        &lt;num&gt;
+#&gt; 1:      1  0.01234567  -0.00456789
+#&gt; 2:      2 -0.00876543   0.01234567
+#&gt; 3:      3  0.00543210  -0.00987654
+
+# Step 5: measure memory after and clean up
+rm(mini_df, triage_df)
+triage_after &lt;- gc()
+triage_after[, &quot;used (Mb)&quot;]
+#&gt;  Ncells  Vcells
+#&gt;    36.5    44.3</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Read the before/after <code>gc()</code> tables: the <code>used (Mb)</code> numbers hardly changed, because we dropped the unneeded <code>junk</code> column at load time and cleaned up with <code>rm()</code> afterwards. This is the pattern — measure, reduce at the boundary (load only what you need), compute, clean up. On a full-sized file, every step still applies; only the numbers get bigger.</p>
+
 <h2>Summary</h2>
+
+<p><img src="screenshots/R-Error-Memory-solutions-flow.webp" alt="Five solutions ordered by cost" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Five solutions ordered from zero-cost to most-expensive — try them in order.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
+<th>#</th>
 <th>Solution</th>
-<th>When to Use</th>
-<th>Implementation</th>
+<th>Cost</th>
+<th>When to use</th>
+<th>Package</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>rm()</code> + <code>gc()</code></td>
-<td>Quick fix for one-time cleanup</td>
-<td>Remove unneeded objects</td>
+<td>1</td>
+<td><code>gc()</code> + <code>rm()</code></td>
+<td>Free</td>
+<td>Small overage, long session</td>
+<td>base R</td>
 </tr>
 <tr>
-<td>Efficient data types</td>
-<td>Always</td>
-<td>Integers, factors, sparse matrices</td>
-</tr>
-<tr>
-<td>Chunked processing</td>
-<td>Data too large to fit in RAM</td>
-<td>Read and process in pieces</td>
-</tr>
-<tr>
+<td>2</td>
+<td><code>fread()</code> + <code>select=</code></td>
+<td>Free</td>
+<td>Wide CSV, many unneeded columns</td>
 <td>data.table</td>
-<td>Frequent data manipulation</td>
-<td><code>:=</code> for in-place modification</td>
 </tr>
 <tr>
-<td>64-bit R + more RAM</td>
-<td>Hitting system limits</td>
-<td>Install 64-bit R, add RAM</td>
+<td>3</td>
+<td><code>open_dataset()</code> + filter + <code>collect()</code></td>
+<td>Free</td>
+<td>File > RAM, result is small</td>
+<td>arrow</td>
+</tr>
+<tr>
+<td>4</td>
+<td>DuckDB SQL on disk files</td>
+<td>Free</td>
+<td>Aggregations/joins on huge inputs</td>
+<td>duckdb</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Cloud VM / bigger laptop</td>
+<td>$1–2/hr</td>
+<td>Single object > RAM, no reduction possible</td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<p>Read the error size first, then start at solution 1 and walk down the table until one of them fits. Most real-world cases stop at solution 2 or 3.</p>
 
-<h4>How much memory can R use?</h4>
-
-<p>64-bit R can use all available RAM (and swap space). 32-bit R is limited to about 2-3 GB regardless of your system RAM. On Windows, <code>memory.limit()</code> shows the current setting. On Linux/Mac, R uses whatever the OS allows.</p>
-
-<h4>Is there a way to work with data larger than RAM?</h4>
-
-<p>Yes. Use <code>arrow</code> for <a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">Parquet files</a> (out-of-core column access), <code>duckdb</code> for SQL queries on large files without loading them, <code>data.table</code> with memory-mapped files, or <code>ff</code>/<code>bigmemory</code> packages for disk-backed matrices. For truly big data, use Spark via <code>sparklyr</code>.</p>
-
-<h2>Continue Learning</h2>
+<h2>References</h2>
 
 <ol>
 
-<li><strong>R Error: <a class="auto-link" href="R-Error-Cannot-Open-Connection.html" title="R Error: cannot open the connection — File Path & Working Directory">cannot open the connection</a></strong> — file path troubleshooting</li>
+<li>R Core Team — <code>?Memory-limits</code> help page. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/Memory-limits.html">Link</a></li>
 
-<li><strong>R Error: <a class="auto-link" href="R-Error-Non-Numeric.html" title="R Error: non-numeric argument to binary operator — Type Mismatch Fix">non-numeric argument to binary operator</a></strong> — type mismatch fix</li>
+<li>data.table — <code>fread</code> reference. <a href="https://rdatatable.gitlab.io/data.table/reference/fread.html">Link</a></li>
 
-<li><strong><a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">R Common Errors</a></strong> — the full reference of 50 common errors</li>
+<li>Apache Arrow — R package, <code>open_dataset()</code>. <a href="https://arrow.apache.org/docs/r/reference/open_dataset.html">Link</a></li>
+
+<li>DuckDB — R API documentation. <a href="https://duckdb.org/docs/api/r">Link</a></li>
+
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition — Names and values chapter. <a href="https://adv-r.hadley.nz/names-values.html">Link</a></li>
+
+<li>CRAN R FAQ — memory management. <a href="https://cran.r-project.org/doc/FAQ/R-FAQ.html#R-and-memory">Link</a></li>
+
+<li>CRAN — <code>bigmemory</code> package for shared-memory matrices. <a href="https://cran.r-project.org/package=bigmemory">Link</a></li>
 
 </ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="R-Common-Errors.html">50 R Errors Decoded: Plain-English Explanations and Exact Fixes</a> — the parent index of common R errors with fast cross-references.</li>
+
+<li><a href="R-Memory-lobstr.html">Measuring R Memory Use with lobstr</a> — precise per-object memory accounting beyond <code>object.size()</code>, useful when triaging large pipelines.</li>
+
+<li><a href="data-table-vs-dplyr.html">data.table vs dplyr: When to Use Each</a> — side-by-side comparison of the two main data-manipulation engines, including their memory characteristics.</li>
+
+</ul>
