@@ -3,8 +3,8 @@
   <head>
     <title>R Function Factories: How to Build Customisable Functions That Generate Functions</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Learn R function factories — functions that return other functions. See closures, partial application, and real-world examples like custom formatters and power builders.">
-    <meta name="Keywords" content="R function factories, R closures, functions that return functions, partial application R, R higher-order factories">
+    <meta name="Description" content="An R function factory returns a new function that remembers its parameters via a closure. Master the pattern with 5 real examples, from power() to MLE.">
+    <meta name="Keywords" content="R function factory, function factories in R, closures in R, force() R, stateful functions R, higher-order functions R, R functional programming, lexical scoping R">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -119,14 +119,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="R Function Factories: How to Build Customisable Functions That Generate Functions">
-    <meta property="og:description" content="Learn R function factories — functions that return other functions. See closures, partial application, and real-world examples like custom formatters and power builders.">
+    <meta property="og:description" content="An R function factory returns a new function that remembers its parameters via a closure. Master the pattern with 5 real examples, from power() to MLE.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/R-Function-Factories.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/R-Function-Factories.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="R Function Factories: How to Build Customisable Functions That Generate Functions">
-    <meta name="twitter:description" content="Learn R function factories — functions that return other functions. See closures, partial application, and real-world examples like custom formatters and power builders.">
+    <meta name="twitter:description" content="An R function factory returns a new function that remembers its parameters via a closure. Master the pattern with 5 real examples, from power() to MLE.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/R-Function-Factories.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -134,12 +134,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "R Function Factories: How to Build Customisable Functions That Generate Functions",
-      "description": "Learn R function factories — functions that return other functions. See closures, partial application, and real-world examples like custom formatters and power builders.",
+      "description": "An R function factory returns a new function that remembers its parameters via a closure. Master the pattern with 5 real examples, from power() to MLE.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/R-Function-Factories.html",
-      "datePublished": "2026-04-12",
-      "dateModified": "2026-04-12",
+      "datePublished": "2026-04-14",
+      "dateModified": "2026-04-14",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -626,32 +626,27 @@
 
 <h1>R Function Factories: How to Build Customisable Functions That Generate Functions</h1>
 
-<p class="lead">A function factory in R is a function whose return value is another function. The returned function remembers the arguments that were passed to the factory, letting you build customised helpers on demand without duplicating code.</p>
+<p class="lead">A function factory is an R function that builds and returns another function, trapping its arguments inside a persistent closure so the child function "remembers" them. The pattern turns one-off helpers into reusable templates you can tailor on the fly.</p>
 
-<p>Once you see how a function factory works, dozens of everyday R idioms click into place — <code>stats::ecdf</code>, <code>scales::percent_format</code>, <code>purrr::partial</code>, the <code>power</code> example from every FP tutorial. They are all the same pattern. This guide teaches the pattern, shows five practical factories, and flags the one memory gotcha to watch out for.</p>
+<h2>What is a function factory in R?</h2>
 
-<h2>What Is a Function Factory, Exactly?</h2>
-
-<p>A function factory is "a function that makes functions". You pass in the settings — the <em>parameters of the parameters</em> — and get back a specialised function that uses those settings. The returned function is a <strong>closure</strong>: it captures the environment of the factory call, so it remembers whatever was passed in.</p>
-
-<p>Here is the canonical example. <code>power_of(n)</code> returns a function that raises its input to the <code>n</code>-th power. Call the factory once with <code>2</code>, once with <code>3</code>, and you now have <code>square</code> and <code>cube</code> — two related but independent functions.</p>
+<p>Imagine you need <code>square()</code>, <code>cube()</code>, and a tenth-power helper — identical except for the exponent. Writing three copies is busywork. A better move is to write <code>power()</code> once, hand it an exponent, and let it return a specialised child function you can call like any other. Here is the whole idea in six lines of R, with the payoff on display.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">power_of &lt;- function(n) {
-  function(x) x^n
+    <div class="webr-editor" data-language="r">power &lt;- function(exponent) {
+  function(x) x ^ exponent
 }
 
-square &lt;- power_of(2)
-cube   &lt;- power_of(3)
+square &lt;- power(2)
+cube   &lt;- power(3)
 
-square(5)
-#&gt; [1] 25
-
-cube(5)
-#&gt; [1] 125</div>
+square(1:5)
+#&gt; [1]  1  4  9 16 25
+cube(1:5)
+#&gt; [1]   1   8  27  64 125</div>
 
     <div class="webr-buttons">
 
@@ -669,102 +664,28 @@ cube(5)
 
 </div>
 
-<p><code>power_of(2)</code> did not run <code>5^2</code>. It <em>returned</em> a function that will run <code>x^2</code> whenever you call it. The value <code>n = 2</code> lives inside the returned function's environment and is recalled every time <code>square</code> is invoked. <code>cube</code> has its own private copy of <code>n = 3</code> — the two functions share no state.</p>
+<p><code>power()</code> is the factory. It does not do the work — it manufactures a worker. Every call to <code>power()</code> returns a brand-new function that carries its own <code>exponent</code> along with it, tucked inside the <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">enclosing environment</a> of the returned function. <code>square</code> and <code>cube</code> look like plain functions from the outside, but each one has a tiny backpack of remembered state.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A function factory trades "one function with many arguments" for "many specialised functions, each with fewer arguments".</strong> That sounds wasteful until you realise you can now pass those specialised functions around as first-class values — to <code>sapply</code>, to <code>map</code>, into a data frame column — without ever re-specifying the settings.</div></div>
+<p><img src="screenshots/R-Function-Factories-mechanism.webp" alt="Function factory mechanism diagram" class="img-responsive" loading="lazy" /></p>
 
-<h2>Why Do Function Factories Work? (Closures Over the Enclosing Environment)</h2>
+<p><em>Figure 1: How power(2) captures its exponent and returns a specialised child function.</em></p>
 
-<p>When a function is defined <em>inside</em> another function, it captures the <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">enclosing environment</a>. Every variable in the parent function is reachable from the child — and it stays reachable even after the parent has finished running.</p>
+<p>This is exactly how <code>scales::dollar</code>, <code>scales::percent</code>, <code>ecdf</code>, and <code>approxfun</code> work under the hood in base R and the tidyverse.</p>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">make_adder &lt;- function(delta) {
-  function(x) x + delta
-}
-
-add5  &lt;- make_adder(5)
-add10 &lt;- make_adder(10)
-
-add5(100)
-#&gt; [1] 105
-
-add10(100)
-#&gt; [1] 110</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>make_adder(5)</code> creates a new environment where <code>delta = 5</code>, then returns a function that lives inside that environment. The environment is kept alive because the returned function holds a reference to it. Every call to <code>add5(100)</code> looks up <code>delta</code> in that captured environment — finds <code>5</code> — and computes <code>100 + 5</code>.</p>
-
-<p>For the deeper mechanics of how R pulls this off, see the dedicated post on <a href="R-Closures.html">R Closures</a>.</p>
-
-<h2>A Formatter Factory: Five Lines, Infinite Customisation</h2>
-
-<p>Here is a real example. <code>make_formatter</code> builds a number formatter that always prefixes with a currency symbol and rounds to a fixed number of decimals. You can generate <code>usd</code>, <code>eur</code>, and <code>jpy</code> from the same factory.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">make_formatter &lt;- function(symbol, decimals = 2) {
-  function(x) paste0(symbol, formatC(x, format = &quot;f&quot;, digits = decimals))
-}
-
-usd &lt;- make_formatter(&quot;$&quot;, 2)
-eur &lt;- make_formatter(&quot;€&quot;, 2)
-jpy &lt;- make_formatter(&quot;¥&quot;, 0)
-
-usd(1234.5)
-#&gt; [1] &quot;$1234.50&quot;
-
-eur(1234.5)
-#&gt; [1] &quot;€1234.50&quot;
-
-jpy(1234.5)
-#&gt; [1] &quot;¥1235&quot;</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Each returned function knows its own <code>symbol</code> and <code>decimals</code>. Calling <code>usd(1234.5)</code> does not need the symbol — that was burned in at the moment you called the factory. You can store the three formatters in a list, pass them to <code>sapply</code>, or drop them into a ggplot <code>labels = </code> argument.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Three R features combine to make factories possible.</strong> <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">First-class functions</a> (functions can be returned like values), <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">lexical scoping</a> (a function looks up variables where it was defined, not where it was called), and closures (the returned function keeps its enclosing environment alive). Remove any one and the pattern collapses.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Write a factory <code>ex_make_prefixer(prefix)</code> that returns a function prepending <code>prefix</code> to any string. Build one for "INFO: " and use it.</p>
+<p><strong>Try it:</strong> Build a factory <code>ex_multiplier(factor)</code> that returns a function multiplying its argument by <code>factor</code>. Use it to make a <code>triple</code> function and apply it to <code>1:4</code>.</p>
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># your code here
-info &lt;- ex_make_prefixer(&quot;INFO: &quot;)
-info(&quot;server started&quot;)
-#&gt; Expected: &quot;INFO: server started&quot;</div>
+    <div class="webr-editor" data-language="r"># Try it: write ex_multiplier
+ex_multiplier &lt;- function(factor) {
+  # your code here
+}
+
+triple &lt;- ex_multiplier(3)
+triple(1:4)
+#&gt; Expected: 3 6 9 12</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -778,12 +699,12 @@ info(&quot;server started&quot;)
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex_make_prefixer &lt;- function(prefix) {
-  function(msg) paste0(prefix, msg)
+    <div class="webr-editor" data-language="r">ex_multiplier &lt;- function(factor) {
+  function(x) x * factor
 }
-info &lt;- ex_make_prefixer(&quot;INFO: &quot;)
-info(&quot;server started&quot;)
-#&gt; [1] &quot;INFO: server started&quot;</div>
+triple &lt;- ex_multiplier(3)
+triple(1:4)
+#&gt; [1]  3  6  9 12</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -793,28 +714,28 @@ info(&quot;server started&quot;)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The factory captures <code>prefix</code> in its enclosing environment; the returned function uses it on every call.</p>
+<p><strong>Explanation:</strong> <code>ex_multiplier</code> returns an anonymous child function. That child remembers <code>factor</code> because its enclosing environment is the <a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">execution environment</a> of <code>ex_multiplier</code>, where <code>factor = 3</code> was bound.</p>
 
 </details>
 </section>
 
-<h2>How Do You Partially Apply a Function?</h2>
+<h2>Why does R need force() inside a function factory?</h2>
 
-<p><a class="auto-link" href="R-Currying-and-Partial-Application.html" title="R Currying & Partial Application: purrr::partial() & rlang">Partial application</a> means fixing one or more of a function's arguments in advance, producing a new function that takes only the remaining ones. You can roll it yourself with a factory, or use <code>purrr::partial()</code>.</p>
+<p>R evaluates arguments lazily — it does not look at the value of a parameter until something in the function body actually uses it. That sounds harmless until you build factories inside a loop. Watch what happens when we try to make a list of power functions the naive way.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Roll your own
-partial_apply &lt;- function(f, ...) {
-  fixed_args &lt;- list(...)
-  function(...) do.call(f, c(fixed_args, list(...)))
-}
+    <div class="webr-editor" data-language="r">exponents &lt;- 2:4
+powers_buggy &lt;- lapply(exponents, function(e) power(e))
 
-round2 &lt;- partial_apply(round, digits = 2)
-round2(3.14159)
-#&gt; [1] 3.14</div>
+powers_buggy[[1]](10)
+#&gt; [1] 10000
+powers_buggy[[2]](10)
+#&gt; [1] 10000
+powers_buggy[[3]](10)
+#&gt; [1] 10000</div>
 
     <div class="webr-buttons">
 
@@ -832,17 +753,112 @@ round2(3.14159)
 
 </div>
 
-<p><code>round2</code> is <code>round</code> with <code>digits = 2</code> baked in. Any call to <code>round2(x)</code> becomes <code>round(x, digits = 2)</code>. The technique is invaluable in pipelines where you want a one-argument function but the real function needs two — fix the one you know in advance.</p>
+<p>All three functions return 10000, which is <code>10^4</code>. That is not what we asked for. The problem is subtle: when <code>power(e)</code> runs, <code>exponent</code> is bound to a <em>promise</em> pointing at <code>e</code>. The promise is not evaluated until someone calls the manufactured function — and by then the loop has finished, leaving every promise resolving to the last value of <code>e</code>. Every child function ends up with the same exponent.</p>
 
-<h2>A Counter Factory: Mutable State Done Right</h2>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><a class="auto-link" href="R-Promise-Objects.html" title="R Promise Objects: Lazy Evaluation & Force() Explained">Lazy evaluation</a> inside factories is a silent bug.</strong> The code runs, no error is raised, and the wrong number quietly propagates. Any factory that captures a value from its arguments should force that argument early.</div></div>
 
-<p>Factories also let you create functions that carry <em>mutable</em> state — safely, because the state is private. The pattern uses <code>&lt;&lt;-</code> to update a variable in the enclosing environment.</p>
+<p>The fix is a single line: <code>force(exponent)</code> evaluates the promise immediately, locking the value in before the child function is returned.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">make_counter &lt;- function() {
+    <div class="webr-editor" data-language="r">power_safe &lt;- function(exponent) {
+  force(exponent)
+  function(x) x ^ exponent
+}
+
+powers_safe &lt;- lapply(2:4, function(e) power_safe(e))
+
+powers_safe[[1]](10)
+#&gt; [1] 100
+powers_safe[[2]](10)
+#&gt; [1] 1000
+powers_safe[[3]](10)
+#&gt; [1] 10000</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Now each child carries its own exponent. <code>force()</code> itself is nothing magical — it is literally defined as <code>function(x) x</code>. The important bit is naming it: calling <code>force(exponent)</code> tells both R and the next reader of your code "I deliberately want this promise resolved right here."</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The factory below is broken by lazy evaluation. Fix it so each adder adds the correct value.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: fix ex_make_adder with force()
+ex_make_adder &lt;- function(n) {
+  function(x) x + n
+}
+
+ex_adders &lt;- lapply(1:3, function(i) ex_make_adder(i))
+ex_adders[[1]](10)
+#&gt; Expected: 11
+ex_adders[[2]](10)
+#&gt; Expected: 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_make_adder &lt;- function(n) {
+  force(n)
+  function(x) x + n
+}
+
+ex_adders &lt;- lapply(1:3, function(i) ex_make_adder(i))
+ex_adders[[1]](10)
+#&gt; [1] 11
+ex_adders[[2]](10)
+#&gt; [1] 12
+ex_adders[[3]](10)
+#&gt; [1] 13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding <code>force(n)</code> resolves the promise while <code>i</code> still points at the correct loop value. Without it, every adder shared the final <code>i</code>.</p>
+
+</details>
+</section>
+
+<h2>How do function factories use closures to remember state?</h2>
+
+<p>So far every child function has been read-only with respect to its captured values. But the enclosing environment is a real R environment — you can also <em>write</em> to it. The super-assignment operator <code>&lt;&lt;-</code> walks up the scope chain and updates a binding in the first enclosing frame that has it. That turns the enclosing environment into persistent memory.</p>
+
+<p>The canonical example is a counter factory. Each call to <code>new_counter()</code> creates an independent counter with its own state.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">new_counter &lt;- function() {
   count &lt;- 0
   function() {
     count &lt;&lt;- count + 1
@@ -850,13 +866,17 @@ round2(3.14159)
   }
 }
 
-tick &lt;- make_counter()
-tick()
+counter_a &lt;- new_counter()
+counter_b &lt;- new_counter()
+
+counter_a()
 #&gt; [1] 1
-tick()
+counter_a()
 #&gt; [1] 2
-tick()
-#&gt; [1] 3</div>
+counter_a()
+#&gt; [1] 3
+counter_b()
+#&gt; [1] 1</div>
 
     <div class="webr-buttons">
 
@@ -874,23 +894,114 @@ tick()
 
 </div>
 
-<p><code>tick</code> has its own private <code>count</code>. Nothing else in your R session can read or write it. If you need a second independent counter, call <code>make_counter()</code> again — the two will not interfere.</p>
+<p><code>counter_a</code> and <code>counter_b</code> look identical, but they are isolated. Each one has its own enclosing environment containing a private <code>count</code> variable, created fresh when <code>new_counter()</code> was called. Using <code>&lt;-</code> inside the child would create a local variable and throw away the update; <code>&lt;&lt;-</code> is what makes the memory stick.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Closures capture environments by reference — they can hold on to big objects.</strong> If a factory closes over a large data frame, that data frame stays in memory for as long as the returned function exists. Watch out for accidentally bloating your session.</div></div>
+<p><img src="screenshots/R-Function-Factories-closure-env.webp" alt="Closure environment chain diagram" class="img-responsive" loading="lazy" /></p>
 
-<h2>How Do You Build Many Specialised Functions Programmatically?</h2>
+<p><em>Figure 2: Each counter created by new_counter() holds its own enclosing environment.</em></p>
 
-<p>Because a factory returns a function <em>value</em>, you can use <code>lapply</code> to generate a whole family of them in one go.</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Stateful factories are how R built toy "objects" before R6 or S4 existed.</strong> Counters, caches, and small accumulators were routinely written exactly this way. It is still the right tool when you need one small piece of private state and do not want the ceremony of a class.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build <code>ex_running_sum()</code> — each call to the returned function should add its argument to a running total and return the new total.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: write ex_running_sum
+ex_running_sum &lt;- function() {
+  total &lt;- 0
+  # your code here
+}
+
+adder &lt;- ex_running_sum()
+adder(10)
+#&gt; Expected: 10
+adder(5)
+#&gt; Expected: 15
+adder(100)
+#&gt; Expected: 115</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_running_sum &lt;- function() {
+  total &lt;- 0
+  function(x) {
+    total &lt;&lt;- total + x
+    total
+  }
+}
+
+adder &lt;- ex_running_sum()
+adder(10)
+#&gt; [1] 10
+adder(5)
+#&gt; [1] 15
+adder(100)
+#&gt; [1] 115</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>total &lt;&lt;- total + x</code> updates the <code>total</code> binding in the enclosing environment of <code>ex_running_sum</code>, so the value persists across calls to <code>adder()</code>.</p>
+
+</details>
+</section>
+
+<h2>When should you use function factories over regular functions?</h2>
+
+<p>Function factories earn their keep when expensive work can be done <strong>once</strong> and then reused on every call to the child function. Maximum likelihood estimation is a classic case. To fit a Poisson rate $\lambda$ to observed counts, you minimise the negative log-likelihood:</p>
+
+<p>$$-\log L(\lambda) = n \lambda - \left(\sum_i x_i\right) \log \lambda + \sum_i \log(x_i!)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$n$ = number of observations</li>
+
+<li>$\sum_i x_i$ = the sample total</li>
+
+<li>$\sum_i \log(x_i!)$ = a constant that does not depend on $\lambda$</li>
+
+</ul>
+
+<p>Notice that $n$, $\sum x_i$, and the factorial term never change as the optimiser explores different values of $\lambda$. A naive implementation would recompute them every step. A factory can stash them once.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">powers &lt;- lapply(1:5, \(n) function(x) x^n)
+    <div class="webr-editor" data-language="r">nll_poisson &lt;- function(x) {
+  force(x)
+  n          &lt;- length(x)
+  sum_x      &lt;- sum(x)
+  sum_lgamma &lt;- sum(lgamma(x + 1))   # log(x!)
+  function(lambda) {
+    n * lambda - sum_x * log(lambda) + sum_lgamma
+  }
+}
 
-# powers[[1]](10) = 10^1, powers[[2]](10) = 10^2, ...
-sapply(powers, \(f) f(10))
-#&gt; [1]     10    100   1000  10000 100000</div>
+set.seed(94)
+x_data &lt;- rpois(n = 500, lambda = 3.7)
+
+ll &lt;- nll_poisson(x_data)
+fit_poisson &lt;- optimise(ll, interval = c(0.01, 20))
+fit_poisson$minimum
+#&gt; [1] 3.712</div>
 
     <div class="webr-buttons">
 
@@ -908,20 +1019,298 @@ sapply(powers, \(f) f(10))
 
 </div>
 
-<p>One line built five specialised functions. <code>sapply</code> then called each one in turn. This is exactly how libraries like <code>scales</code> build their <code>label_*</code> families — you are just seeing the pattern earlier.</p>
+<p>The optimiser hammered the child function hundreds of times, but <code>length()</code>, <code>sum()</code>, and the <code>lgamma</code> work happened exactly once. For a 500-element sample the savings are small; for millions of rows it is the difference between a cup of coffee and an afternoon.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Move every constant out of the child function and into the factory body.</strong> If a calculation does not depend on the argument the child receives, it belongs above the inner <code>function(...)</code> line. This is the single biggest performance lever factories give you.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>ex_deviation(x)</code> — it precomputes <code>mean(x)</code> and returns a function that takes a new value <code>v</code> and reports how far it is from that mean.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: write ex_deviation
+ex_deviation &lt;- function(x) {
+  # your code here
+}
+
+dev_fn &lt;- ex_deviation(c(10, 20, 30, 40, 50))
+dev_fn(45)
+#&gt; Expected: 15
+dev_fn(12)
+#&gt; Expected: -18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_deviation &lt;- function(x) {
+  force(x)
+  mu &lt;- mean(x)
+  function(v) v - mu
+}
+
+dev_fn &lt;- ex_deviation(c(10, 20, 30, 40, 50))
+dev_fn(45)
+#&gt; [1] 15
+dev_fn(12)
+#&gt; [1] -18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mean(x)</code> runs once when the factory is called and the result is stashed in <code>mu</code>. Every subsequent call to <code>dev_fn()</code> reads that constant instead of recomputing it.</p>
+
+</details>
+</section>
+
+<h2>How do function factories power ggplot2 label formatters?</h2>
+
+<p>Open <code>scales::label_number()</code> or <code>scales::label_dollar()</code> and you will find function factories. They take formatting options (prefix, suffix, big-mark, precision) and return a function that turns a numeric vector into strings. That is exactly the shape <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> wants for axis labels — a single-argument function — so factories let you configure the formatting up front and pass the customised child into <code>scale_y_continuous(labels = ...)</code>.</p>
+
+<p>You can build your own in a few lines.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">label_maker &lt;- function(prefix = &quot;&quot;, suffix = &quot;&quot;, digits = 0) {
+  force(prefix); force(suffix); force(digits)
+  function(x) {
+    paste0(prefix, formatC(x, format = &quot;f&quot;, digits = digits, big.mark = &quot;,&quot;), suffix)
+  }
+}
+
+dollars &lt;- label_maker(prefix = &quot;$&quot;, digits = 2)
+pct2    &lt;- label_maker(suffix = &quot;%&quot;, digits = 1)
+
+dollars(c(1234.5, 99.9, 1e6))
+#&gt; [1] &quot;$1,234.50&quot;     &quot;$99.90&quot;        &quot;$1,000,000.00&quot;
+pct2(c(0.1, 12.345, 100))
+#&gt; [1] &quot;0.1%&quot;   &quot;12.3%&quot;  &quot;100.0%&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>dollars</code> and <code>pct2</code> are ordinary-looking functions a plot can call with a single vector of numbers. All the configuration work happened once, inside <code>label_maker</code>. If you ever tried passing formatting options directly to ggplot2 and ended up with an anonymous-function soup, this is the clean alternative.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for a factory whenever you need to hand a "configured" function to something that only accepts a single-argument function.</strong> Plotting libraries, <code>optimise()</code>, <code>integrate()</code>, <code>Reduce()</code>, and <code>purrr::map()</code> all fit this description.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>ex_percent(digits)</code> — a factory returning a function that formats numeric proportions as percentages with the given number of decimal places. <code>ex_percent(0)</code> on <code>0.257</code> should give <code>&quot;26%&quot;</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: write ex_percent
+ex_percent &lt;- function(digits) {
+  # your code here
+}
+
+fmt0 &lt;- ex_percent(0)
+fmt0(c(0.1, 0.257, 0.999))
+#&gt; Expected: &quot;10%&quot;  &quot;26%&quot;  &quot;100%&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_percent &lt;- function(digits) {
+  force(digits)
+  function(x) paste0(formatC(100 * x, format = &quot;f&quot;, digits = digits), &quot;%&quot;)
+}
+
+fmt0 &lt;- ex_percent(0)
+fmt0(c(0.1, 0.257, 0.999))
+#&gt; [1] &quot;10%&quot;  &quot;26%&quot;  &quot;100%&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The child multiplies by 100 to convert the proportion, uses <code>formatC</code> to control decimal places, and pastes a <code>%</code> on the end. The factory configures <code>digits</code> once.</p>
+
+</details>
+</section>
+
+<h2>How do you avoid memory leaks in function factories?</h2>
+
+<p>There is one footgun worth knowing about. A manufactured function keeps its enclosing environment alive as long as the function itself is alive — and that enclosing environment contains <strong>everything</strong> that was defined inside the factory, not just the things the child function uses. If you happen to create a big temporary object in the factory body, it sticks around forever.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">factory_heavy &lt;- function() {
+  big &lt;- runif(1e6)           # 8 MB of random numbers, never used by the child
+  fudge &lt;- 0.1
+  function(x) x + fudge
+}
+
+f_heavy &lt;- factory_heavy()
+format(object.size(environment(f_heavy)), units = &quot;MB&quot;)
+#&gt; [1] &quot;7.6 Mb&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>f_heavy</code> is a trivial "add 0.1" function, yet it is dragging 7.6 MB of dead weight around because <code>big</code> is still sitting in its enclosing environment. The fix is to delete the unused object inside the factory before returning the child.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">factory_lean &lt;- function() {
+  big   &lt;- runif(1e6)
+  fudge &lt;- mean(big) + 0.1     # use big, then drop it
+  rm(big)
+  function(x) x + fudge
+}
+
+f_lean &lt;- factory_lean()
+format(object.size(environment(f_lean)), units = &quot;Kb&quot;)
+#&gt; [1] &quot;1.6 Kb&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Down from 7.6 MB to under 2 KB. The rule is simple: anything you compute inside a factory but do not need in the child function should be removed with <code>rm()</code> before you return.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Factories hold on to everything in scope, not just the variables the child references.</strong> If you are building thousands of functions inside a loop or storing them in a list, an unused 10 MB object inside the factory body turns into 10 GB of retained memory. Always <code>rm()</code> heavy intermediates.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The factory below captures a large <code>raw</code> object it does not need. Clean it up so the returned function is lean.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: clean up ex_leaky
+ex_leaky &lt;- function() {
+  raw &lt;- rnorm(5e5)
+  threshold &lt;- quantile(raw, 0.95)
+  # your cleanup here
+  function(x) x &gt; threshold
+}
+
+ex_f &lt;- ex_leaky()
+format(object.size(environment(ex_f)), units = &quot;Kb&quot;)
+#&gt; Expected: something small, not several Mb</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_leaky &lt;- function() {
+  raw &lt;- rnorm(5e5)
+  threshold &lt;- quantile(raw, 0.95)
+  rm(raw)
+  function(x) x &gt; threshold
+}
+
+ex_f &lt;- ex_leaky()
+format(object.size(environment(ex_f)), units = &quot;Kb&quot;)
+#&gt; [1] &quot;1.8 Kb&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>raw</code> was only needed to compute <code>threshold</code>. After that we drop it with <code>rm()</code>, and the child function keeps just the small <code>threshold</code> value in its enclosing environment.</p>
+
+</details>
+</section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Build a Clamping Factory</h4>
+<p>Two capstone problems combining everything above. The <code>my_*</code> prefixes below keep exercise state from colliding with earlier code.</p>
 
-<p>Write a factory <code>make_clamp(lo, hi)</code> that returns a function clamping its input into the <code>[lo, hi]</code> range. Use it to build <code>clamp_0_1</code> and test it on <code>c(-0.5, 0.3, 1.5)</code>.</p>
+<h4>Exercise 1: Build a bounded clipper factory</h4>
+
+<p>Write <code>make_bounded_clipper(lo, hi)</code> that returns a function which clips a numeric vector so every value falls inside <code>[lo, hi]</code>. Use <code>force()</code> for safety. Test it on <code>c(-0.5, 0.3, 1.2)</code> with a 0-to-1 clipper.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># your code here
-</div>
+    <div class="webr-editor" data-language="r"># Exercise 1: bounded clipper
+# Hint: inside the child, use pmin(pmax(x, lo), hi)
+
+make_bounded_clipper &lt;- function(lo, hi) {
+  # your code here
+}
+
+my_clip_01 &lt;- make_bounded_clipper(0, 1)
+my_clip_01(c(-0.5, 0.3, 1.2))</div>
 
     <div class="webr-buttons">
 
@@ -944,11 +1333,14 @@ sapply(powers, \(f) f(10))
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">make_clamp &lt;- function(lo, hi) {
+    <div class="webr-editor" data-language="r">make_bounded_clipper &lt;- function(lo, hi) {
+  force(lo); force(hi)
+  stopifnot(lo &lt; hi)
   function(x) pmin(pmax(x, lo), hi)
 }
-clamp_0_1 &lt;- make_clamp(0, 1)
-clamp_0_1(c(-0.5, 0.3, 1.5))
+
+my_clip_01 &lt;- make_bounded_clipper(0, 1)
+my_clip_01(c(-0.5, 0.3, 1.2))
 #&gt; [1] 0.0 0.3 1.0</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -959,23 +1351,30 @@ clamp_0_1(c(-0.5, 0.3, 1.5))
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>pmax(x, lo)</code> floors at <code>lo</code>; <code>pmin(..., hi)</code> caps at <code>hi</code>. The factory burns both bounds into the closure.</p>
+<p><strong>Explanation:</strong> <code>pmax(x, lo)</code> lifts anything below <code>lo</code>; <code>pmin(..., hi)</code> caps anything above <code>hi</code>. <code>force()</code> guards against lazy evaluation if the factory is ever used inside a loop.</p>
 
 </details>
 
-<h4>Exercise 2: Running Total With Mutable State</h4>
+<h4>Exercise 2: Exponentially weighted moving average</h4>
 
-<p>Write a factory <code>make_accumulator()</code> that returns a function adding its argument to a running total and returning the new total.</p>
+<p>Build <code>make_ema(alpha)</code> that returns a stateful function. On each call, the function takes a numeric value, updates an exponentially weighted moving average using <code>new = alpha * x + (1 - alpha) * old</code>, and returns the new EMA. Use <code>&lt;&lt;-</code> so state persists. Demonstrate two independent trackers.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># your code here
-acc &lt;- make_accumulator()
-acc(5)   # 5
-acc(3)   # 8
-acc(10)  # 18</div>
+    <div class="webr-editor" data-language="r"># Exercise 2: stateful EMA
+# Hint: initialise the state to NA and special-case the first call
+
+make_ema &lt;- function(alpha) {
+  # your code here
+}
+
+my_fast &lt;- make_ema(0.5)
+my_slow &lt;- make_ema(0.1)
+
+c(my_fast(10), my_fast(20), my_fast(30))
+c(my_slow(10), my_slow(20), my_slow(30))</div>
 
     <div class="webr-buttons">
 
@@ -998,20 +1397,22 @@ acc(10)  # 18</div>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">make_accumulator &lt;- function() {
-  total &lt;- 0
+    <div class="webr-editor" data-language="r">make_ema &lt;- function(alpha) {
+  force(alpha)
+  state &lt;- NA_real_
   function(x) {
-    total &lt;&lt;- total + x
-    total
+    state &lt;&lt;- if (is.na(state)) x else alpha * x + (1 - alpha) * state
+    state
   }
 }
-my_acc &lt;- make_accumulator()
-my_acc(5)
-#&gt; [1] 5
-my_acc(3)
-#&gt; [1] 8
-my_acc(10)
-#&gt; [1] 18</div>
+
+my_fast &lt;- make_ema(0.5)
+my_slow &lt;- make_ema(0.1)
+
+c(my_fast(10), my_fast(20), my_fast(30))
+#&gt; [1] 10.0 15.0 22.5
+c(my_slow(10), my_slow(20), my_slow(30))
+#&gt; [1] 10.00 11.00 12.90</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1021,48 +1422,125 @@ my_acc(10)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>&lt;&lt;-</code> updates <code>total</code> in the enclosing environment. Each factory call produces an independent accumulator.</p>
+<p><strong>Explanation:</strong> Each tracker gets its own <code>state</code> via an independent enclosing environment. The first value seeds the state; subsequent calls blend the new value with the remembered one. <code>my_fast</code> reacts quickly because <code>alpha = 0.5</code>; <code>my_slow</code> smooths more because <code>alpha = 0.1</code>.</p>
 
 </details>
 
+<h2>Complete Example</h2>
+
+<p>Let us put the pattern to work on something realistic: a reusable range validator for data-cleaning pipelines. You pass minimum and maximum bounds into the factory, and it hands back a function that audits a numeric vector and reports what failed. You can mint one validator for ages, another for percentages, and drop them straight into a dplyr pipeline.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">make_range_validator &lt;- function(min_val, max_val, label = &quot;value&quot;) {
+  force(min_val); force(max_val); force(label)
+  msg &lt;- paste0(&quot;Out-of-range &quot;, label, &quot; detected&quot;)
+  function(x) {
+    bad_idx &lt;- which(x &lt; min_val | x &gt; max_val | is.na(x))
+    list(
+      ok        = length(bad_idx) == 0,
+      n_bad     = length(bad_idx),
+      offending = x[bad_idx],
+      message   = if (length(bad_idx)) msg else paste0(&quot;All &quot;, label, &quot;s pass&quot;)
+    )
+  }
+}
+
+validate_age &lt;- make_range_validator(0, 120, label = &quot;age&quot;)
+validate_pct &lt;- make_range_validator(0, 1,   label = &quot;proportion&quot;)
+
+dirty_ages &lt;- c(25, 42, 170, -3, 55, NA)
+validate_age(dirty_ages)
+#&gt; $ok
+#&gt; [1] FALSE
+#&gt;
+#&gt; $n_bad
+#&gt; [1] 3
+#&gt;
+#&gt; $offending
+#&gt; [1] 170  -3  NA
+#&gt;
+#&gt; $message
+#&gt; [1] &quot;Out-of-range age detected&quot;
+
+dirty_pcts &lt;- c(0.1, 0.4, 0.9, 1.1)
+validate_pct(dirty_pcts)
+#&gt; $ok
+#&gt; [1] FALSE
+#&gt;
+#&gt; $n_bad
+#&gt; [1] 1
+#&gt;
+#&gt; $offending
+#&gt; [1] 1.1
+#&gt;
+#&gt; $message
+#&gt; [1] &quot;Out-of-range proportion detected&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Every trick from the tutorial shows up in <code>make_range_validator</code>. <code>force()</code> pins the bounds and label so the factory is safe inside loops. The precomputed <code>msg</code> is the MLE-style optimisation: build the error string once, reuse it forever. The returned closure carries <code>min_val</code>, <code>max_val</code>, <code>label</code>, and <code>msg</code> in its enclosing environment, so the two validators stay independent despite sharing code. And because the result is a plain single-argument function, you can pipe it into <code>purrr::map()</code>, <code>dplyr::summarise()</code>, or anything else that expects <code>f(x)</code>.</p>
+
 <h2>Summary</h2>
+
+<p><img src="screenshots/R-Function-Factories-when-to-use.webp" alt="When to use a function factory diagram" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Decision guide for when a function factory is the right tool.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Pattern</th>
-<th>What the factory captures</th>
-<th>Canonical example</th>
+<th>When to use</th>
+<th>Key rule</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Parameterised behaviour</td>
-<td>Settings passed in</td>
-<td><code>power_of(n)</code></td>
+<td><code>power(exponent)</code> style</td>
+<td>You need many near-identical functions differing only by a parameter</td>
+<td>The parameter lives in the enclosing environment</td>
 </tr>
 <tr>
-<td>Partial application</td>
-<td>Fixed arguments for a general function</td>
-<td><code>partial_apply(round, digits = 2)</code></td>
+<td><code>force(arg)</code> guard</td>
+<td>Any time the factory is called inside a loop or <code>lapply</code></td>
+<td>Force before the inner <code>function(...)</code> line</td>
 </tr>
 <tr>
-<td>Private mutable state</td>
-<td>A counter or cache</td>
-<td><code>make_counter()</code></td>
+<td><code>&lt;&lt;-</code> super-assignment</td>
+<td>You need persistent state (counter, cache, EMA)</td>
+<td>Initialise state inside the factory, mutate inside the child</td>
 </tr>
 <tr>
-<td>Formatter family</td>
-<td>Symbol and precision</td>
-<td><code>make_formatter(&quot;$&quot;, 2)</code></td>
+<td>Precompute inside factory</td>
+<td>Expensive setup that does not depend on the child's input</td>
+<td>Move constants above the inner <code>function(...)</code> line</td>
 </tr>
 <tr>
-<td>Programmatic generation</td>
-<td>Loop variable</td>
-<td><code>lapply(1:n, power_of)</code></td>
+<td><code>rm()</code> cleanup</td>
+<td>You created a large intermediate but do not need it in the child</td>
+<td>Call <code>rm()</code> before returning the child function</td>
 </tr>
 </tbody>
 </table>
+
+<p><strong>The mental model to keep:</strong> a function factory is a <em>function-building function</em>. Everything before the inner <code>function(...)</code> line runs <strong>once</strong>; everything inside runs on <strong>every</strong> call to the child. Push work upward to run it once, and use the enclosing environment as the bridge.</p>
 
 <h2>References</h2>
 
@@ -1070,13 +1548,17 @@ my_acc(10)
 
 <li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 10: Function factories. <a href="https://adv-r.hadley.nz/function-factories.html">Link</a></li>
 
-<li>Wickham, H. — <em>Advanced R</em>, Chapter 7: Environments. <a href="https://adv-r.hadley.nz/environments.html">Link</a></li>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 6: Functions (closures and lexical scoping). <a href="https://adv-r.hadley.nz/functions.html">Link</a></li>
 
-<li><code>purrr::partial()</code> documentation. <a href="https://purrr.tidyverse.org/reference/partial.html">Link</a></li>
+<li>Advanced R Solutions — Chapter 9: Function factories exercises. <a href="https://advanced-r-solutions.rbind.io/function-factories.html">Link</a></li>
 
-<li><code>scales</code> package — label factories like <code>label_percent()</code>. <a href="https://scales.r-lib.org/">Link</a></li>
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R Documentation</a> — <code>force()</code>: forcing evaluation of an argument. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/force.html">Link</a></li>
 
-<li>Chambers, J. M. — <em>Extending R</em>. CRC Press (2016).</li>
+<li>R Documentation — <code>environment()</code>: inspecting and manipulating environments. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/environment.html">Link</a></li>
+
+<li>scales package — <code>label_number()</code> and the formatter family (real-world factories used by ggplot2). <a href="https://scales.r-lib.org/reference/label_number.html">Link</a></li>
+
+<li>factory package on CRAN — tools for building function factories with cleaner printed output. <a href="https://cran.r-project.org/package=factory">Link</a></li>
 
 </ol>
 
@@ -1084,14 +1566,14 @@ my_acc(10)
 
 <ul>
 
-<li><a href="R-Closures.html">R Closures</a> — the environment-capture mechanism that makes factories work.</li>
+<li><strong><a href="R-Closures.html">R Closures</a></strong> — The closure mechanism that makes every factory in this tutorial work. Go deeper on environments and lexical scope.</li>
 
-<li><a href="R-Function-Operators.html">R Function Operators</a> — factories that take <em>and</em> return functions.</li>
+<li><strong><a href="R-Function-Operators.html">R Function Operators</a></strong> — A close cousin of factories: functions that take a function and return a modified version of it. Think decorators in Python.</li>
 
-<li><a href="Memoization-in-R.html">Memoization in R</a> — a factory that caches results for a speedup.</li>
+<li><strong><a href="Functional-Programming-in-R.html">Functional Programming in R</a></strong> — How factories, closures, operators, and functionals fit together as one coherent toolkit.</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="purrr-map-Variants.html"><span class="rt-title">purrr map() in R: Every Variant Explained With the Mental Model That Makes Them Click</span><span class="rt-meta">Advanced R &middot; 4 min read</span></a><a class="rt-card" href="R-Functional-Programming-Exercises.html"><span class="rt-title">R Functional Programming Exercises: 10 Practice Problems With Solutions</span><span class="rt-meta">Practice Exercises &middot; 2 min read</span></a><a class="rt-card" href="R-Anonymous-Functions.html"><span class="rt-title">R Anonymous Functions: The \\(x) Syntax That Replaces function(x)</span><span class="rt-meta">Advanced R &middot; 3 min read</span></a><a class="rt-card" href="Functional-Programming-in-R.html"><span class="rt-title">Functional Programming in R: The Mindset That Makes Your Code 10x Cleaner</span><span class="rt-meta">Advanced R &middot; 6 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R-Function-Operators.html"><span class="rt-title">R Function Operators: Transform Existing Functions Without Rewriting Them</span><span class="rt-meta">Advanced R &middot; 3 min read</span></a><a class="rt-card" href="Memoization-in-R.html"><span class="rt-title">Memoize R Functions: Cache Results and Call Expensive Code Only Once</span><span class="rt-meta">Advanced R &middot; 4 min read</span></a><a class="rt-card" href="Functional-Programming-in-R.html"><span class="rt-title">Functional Programming in R: The Mindset That Makes Your Code 10× Cleaner</span><span class="rt-meta">Advanced R &middot; 9 min read</span></a><a class="rt-card" href="furrr-Package-in-R.html"><span class="rt-title">furrr Package in R: Parallel purrr with future Backend</span><span class="rt-meta">7 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="R-Anonymous-Functions.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">R Anonymous Functions</span></a>
 <a class="pn-link pn-next" href="R-Function-Operators.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">R Function Operators</span></a>
@@ -1119,6 +1601,15 @@ my_acc(10)
   <script defer src="www/toc.js?v=7"></script>
   <!-- MathJax Script -->
   
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+    });
+  </script>
+  <script type="text/javascript"
+    src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  </script>
+
   <!-- WebR Interactive Code -->
   
   <!-- WebR Engine — CodeMirror deferred to avoid blocking -->
