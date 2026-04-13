@@ -1,12 +1,12 @@
 ---
 title: "Composable R Code: Design Functions That Chain Together Like Unix Pipes"
-description: "Learn to write composable R functions that chain cleanly through the pipe. Five practical rules: single responsibility, data-first, no side effects, predictable types, and small."
-keywords: "composable R code, R pipe design, R function design, composable functions R, R function architecture"
+description: "Learn to design composable R functions: small, single-purpose, data-first, type-stable, side-effect free. Chain them with pipes and purrr beautifully."
+keywords: "composable R code, composable R functions, R function design, pipe-friendly functions, R functional programming, tidyverse function design"
 mathjax: false
 webr: true
 curriculum_id: "4.2.8"
 post_type: "C"
-auto_link_terms: "composable R code|composable functions|R pipe design"
+auto_link_terms: "composable R code|composable functions|pipe-friendly functions|composable function design|R function composition"
 auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "Composable R Code"
@@ -16,31 +16,33 @@ sidebar_order: "40"
 
 <h1>Composable R Code: Design Functions That Chain Together Like Unix Pipes</h1>
 
-<p class="lead">Composable R code is built from small, single-purpose functions that accept a data object as their first argument and return the same shape. Functions written this way chain effortlessly through the <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">native pipe</a> <code>|&gt;</code>, exactly like Unix pipes chain shell commands.</p>
+<p class="lead">Composable R code is built from small, single-purpose functions that take a data object as their first argument and return the same shape — so they chain effortlessly through <code>|&gt;</code>, exactly like Unix shell commands chain through <code>|</code>.</p>
 
-<p>The reason Unix shell commands are so powerful in combination is not the shell itself — it is that every command reads from stdin and writes to stdout in a predictable way. R can feel the same once you adopt five rules for how you write functions. This tutorial gives you those rules and shows what "composable" code looks like in practice.</p>
+<p>This tutorial gives you five concrete rules for writing functions that snap together cleanly, plus before-and-after refactors so you can see the difference in real R code. We will use base R and the tidyverse interchangeably — both ecosystems share the same composition idea.</p>
 
-<h2>What Does "Composable" Actually Mean?</h2>
+<h2>What does it mean for R code to be composable?</h2>
 
-<p>Two functions are composable when the output of one can be fed directly to the other. In R this usually means "take a data frame and return a data frame" or "take a vector and return a vector". If every step in your pipeline shares the same input/output shape, every permutation is legal — just like stringing together Unix commands with pipes.</p>
-
-<p>Here is the difference. Look at two ways of computing the mean <code>mpg</code> for 4-cylinder cars in <code>mtcars</code>.</p>
+<p>Unix shell commands feel powerful in combination because every command reads from stdin and writes to stdout the same way. R can feel just as powerful once your functions follow a small set of shape rules. Here is a tiny end-to-end pipeline using nothing but composable building blocks — each function does one job, takes a data frame, and hands one back.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Not composable: nested, hard to read
-round(mean(subset(mtcars, cyl == 4)$mpg), 1)
-#&gt; [1] 26.7
+    <div class="webr-editor" data-language="r">library(dplyr)
 
-# Composable: each step takes and returns something pipeable
-mtcars |&gt;
-  subset(cyl == 4) |&gt;
-  (\(df) df$mpg)() |&gt;
-  mean() |&gt;
-  round(1)
-#&gt; [1] 26.7</div>
+summary_by_cyl &lt;- mtcars |&gt;
+  filter(mpg &gt; 18) |&gt;
+  mutate(kpl = mpg * 0.425) |&gt;
+  group_by(cyl) |&gt;
+  summarise(avg_kpl = mean(kpl), n = n())
+
+summary_by_cyl
+#&gt; # A tibble: 3 × 3
+#&gt;     cyl avg_kpl     n
+#&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt; 1     4    11.4    11
+#&gt; 2     6    8.96     7
+#&gt; 3     8    6.71     4</div>
 
     <div class="webr-buttons">
 
@@ -58,100 +60,22 @@ mtcars |&gt;
 
 </div>
 
-<p>The second version is longer by a line or two but reads top to bottom: take <code>mtcars</code>, filter, pull a column, average, round. Each step is a function whose job is one verb. That is composability in action — and the rest of this tutorial is about how to write your own functions so they fit this shape.</p>
+<p>Look at the structure. Four functions — <code>filter()</code>, <code>mutate()</code>, <code>group_by()</code>, <code>summarise()</code> — chain through <code>|&gt;</code> without a single intermediate variable. Each one accepts a data frame and returns a data frame. None of them print, plot, or write a file as a side effect. That is what "composable" means in practice: predictable shape in, predictable shape out, one job per function.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Composable code is about interfaces, not cleverness.</strong> Any function can be written "composably" if you decide in advance what goes in, what comes out, and that the function does exactly one thing. Those three decisions are the entire design.</div></div>
+<p>A function is composable when you can drop it into the middle of a pipe without thinking about it. Five rules make that possible. Each section below covers one rule, with a refactor that shows what changes when you apply it.</p>
 
-<h2>Rule 1 — Data First Argument</h2>
-
-<p>If the first argument of every function is the data, the pipe becomes effortless. This is the single most important convention. <code>dplyr</code>, <code>tidyr</code>, <code>purrr</code>, and base R's <code>subset</code> all follow it; so should your own helpers.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Good: data first
-add_total &lt;- function(df, qty_col, price_col) {
-  df$total &lt;- df[[qty_col]] * df[[price_col]]
-  df
-}
-
-orders &lt;- data.frame(
-  item  = c(&quot;Pen&quot;, &quot;Pad&quot;),
-  qty   = c(10, 5),
-  price = c(1.5, 3.0)
-)
-
-orders |&gt; add_total(&quot;qty&quot;, &quot;price&quot;)
-#&gt;   item qty price total
-#&gt; 1  Pen  10   1.5    15
-#&gt; 2  Pad   5   3.0    15</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Because <code>df</code> is first, the pipe slots the data in automatically. If you had written <code>add_total(qty_col, price_col, df)</code> instead, you would need <code>|&gt; (\(d) add_total(&quot;qty&quot;, &quot;price&quot;, d))()</code> at every call site. Data first is the small choice that makes or breaks your library.</p>
-
-<h2>Rule 2 — Return the Same Shape You Took</h2>
-
-<p>A function that takes a data frame and returns a data frame can be followed by another function that expects a data frame. A function that takes a data frame and returns a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> breaks the chain — the next step needs a custom unpacker.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Good: data frame in, data frame out
-add_z_score &lt;- function(df, col) {
-  z_values &lt;- scale(df[[col]])[, 1]
-  df[[paste0(col, &quot;_z&quot;)]] &lt;- z_values
-  df
-}
-
-mtcars |&gt;
-  add_z_score(&quot;mpg&quot;) |&gt;
-  add_z_score(&quot;hp&quot;) |&gt;
-  head(3)
-#&gt;                    mpg cyl ...        mpg_z     hp_z
-#&gt; Mazda RX4         21.0   6 ...   0.15088602 -0.5350928
-#&gt; Mazda RX4 Wag     21.0   6 ...   0.15088602 -0.5350928
-#&gt; Datsun 710        22.8   4 ...   0.44954344 -0.7830405</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Two chained calls to <code>add_z_score</code> work because each one returns the same shape it received — a data frame with one extra column. You can keep piping indefinitely.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The pipe is just glue — composability lives in the functions, not the operator.</strong> <code>|&gt;</code> only works because the functions on either side agree on a shape. Get the function shapes right and the pipe falls out naturally.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Write <code>ex_add_constant(df, col, k)</code> that adds <code>k</code> to every value of <code>col</code> and returns the data frame unchanged otherwise.</p>
+<p><strong>Try it:</strong> Write a 2-step pipe on <code>mtcars</code> that keeps rows where <code>cyl == 6</code> and then computes the mean <code>hp</code>. Save the result to <code>ex_mean_hp</code>.</p>
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># your code here</div>
+    <div class="webr-editor" data-language="r"># Try it: chain filter + summarise
+ex_mean_hp &lt;- mtcars |&gt;
+  # your code here
+
+ex_mean_hp
+#&gt; Expected: roughly 122.3</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -165,14 +89,13 @@ mtcars |&gt;
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex_add_constant &lt;- function(df, col, k) {
-  df[[col]] &lt;- df[[col]] + k
-  df
-}
-mtcars |&gt; ex_add_constant(&quot;mpg&quot;, 10) |&gt; head(2)
-#&gt;                    mpg cyl disp  hp ...
-#&gt; Mazda RX4         31.0   6  160 110 ...
-#&gt; Mazda RX4 Wag     31.0   6  160 110 ...</div>
+    <div class="webr-editor" data-language="r">ex_mean_hp &lt;- mtcars |&gt;
+  filter(cyl == 6) |&gt;
+  summarise(mean_hp = mean(hp))
+
+ex_mean_hp
+#&gt;    mean_hp
+#&gt; 1 122.2857</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -182,32 +105,35 @@ mtcars |&gt; ex_add_constant(&quot;mpg&quot;, 10) |&gt; head(2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The function returns the modified data frame as its last expression, preserving the shape for the next pipe step.</p>
+<p><strong>Explanation:</strong> <code>filter()</code> and <code>summarise()</code> both take a data frame and return one, so they snap together with <code>|&gt;</code> directly.</p>
 
 </details>
 </section>
 
-<h2>Rule 3 — One Function, One Verb</h2>
+<h2>How do you keep a function focused on one job?</h2>
 
-<p>A composable function does one thing. If your helper "loads a file, filters it, computes <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a>, and writes a report", break it into four functions. Each becomes independently testable and reusable in other pipelines.</p>
+<p>The first rule is the hardest one to follow because it asks you to resist convenience. When you are deep in an analysis, it is tempting to write one big function that loads, cleans, summarises, and prints results all at once. That function feels efficient — until you need to reuse half of it and discover the halves are stuck together.</p>
+
+<p>Here is a "swiss army knife" function that does too many things. Notice how many concerns are tangled inside it.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Good: four single-verb helpers
-load_data     &lt;- function(path) read.csv(path)
-filter_valid  &lt;- function(df) df[complete.cases(df), ]
-compute_stats &lt;- function(df, col) {
-  data.frame(
-    n    = nrow(df),
-    mean = mean(df[[col]], na.rm = TRUE),
-    sd   = sd(df[[col]], na.rm = TRUE)
-  )
+    <div class="webr-editor" data-language="r"># Bad: one function doing four jobs
+analyze_cars &lt;- function(df, mpg_floor) {
+  filtered &lt;- df[df$mpg &gt; mpg_floor, ]
+  filtered$kpl &lt;- filtered$mpg * 0.425
+  result &lt;- aggregate(kpl ~ cyl, data = filtered, FUN = mean)
+  print(result)
+  result
 }
 
-# A pipeline assembles them
-# path |&gt; load_data() |&gt; filter_valid() |&gt; compute_stats(&quot;price&quot;)</div>
+analyze_cars(mtcars, 18)
+#&gt;   cyl       kpl
+#&gt; 1   4 11.41591
+#&gt; 2   6  8.957143
+#&gt; 3   8  6.715</div>
 
     <div class="webr-buttons">
 
@@ -225,26 +151,36 @@ compute_stats &lt;- function(df, col) {
 
 </div>
 
-<p>If you ever need to "load and filter without computing", you call the first two. If you need to "compute stats on an in-memory data frame", you skip the first two. The composed pipeline is just one way to use the pieces, not the only way.</p>
+<p>Notice four problems jammed into seven lines. The function filters rows, derives a new column, aggregates, <em>and</em> prints the result as a side effect. If you want to filter without aggregating — or aggregate without printing — you cannot. Worse, you cannot describe the function in one sentence without using the word "and."</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>If your function's name needs "and", split it.</strong> <code>load_and_filter()</code> is two functions. <code>parse_and_validate()</code> is two functions. The <code>and</code> is the seam.</div></div>
-
-<h2>Rule 4 — No Side Effects in the Core</h2>
-
-<p>Functions in the middle of your pipeline should not print, write files, or change global state. Save those actions for the edges — the first step (reading) and the last (writing). A pure middle makes the pipeline safe to call twice, re-run in parallel, or unit test.</p>
+<p>Now refactor it into three small helpers that each do exactly one thing.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Bad: prints in the middle of a pipeline
-filter_valid_noisy &lt;- function(df) {
-  cat(&quot;Filtering&quot;, nrow(df), &quot;rows\n&quot;)  # side effect!
-  df[complete.cases(df), ]
+    <div class="webr-editor" data-language="r"># Good: three single-purpose helpers
+filter_fast &lt;- function(df, mpg_floor) {
+  df[df$mpg &gt; mpg_floor, ]
 }
 
-# Good: returns quietly; any reporting happens outside
-filter_valid &lt;- function(df) df[complete.cases(df), ]</div>
+add_kpl &lt;- function(df) {
+  df$kpl &lt;- df$mpg * 0.425
+  df
+}
+
+mean_kpl_by_cyl &lt;- function(df) {
+  aggregate(kpl ~ cyl, data = df, FUN = mean)
+}
+
+mtcars |&gt;
+  filter_fast(18) |&gt;
+  add_kpl() |&gt;
+  mean_kpl_by_cyl()
+#&gt;   cyl       kpl
+#&gt; 1   4 11.41591
+#&gt; 2   6  8.957143
+#&gt; 3   8  6.715</div>
 
     <div class="webr-buttons">
 
@@ -262,64 +198,23 @@ filter_valid &lt;- function(df) df[complete.cases(df), ]</div>
 
 </div>
 
-<p>If you need logging, wrap the function with a function operator like <code>with_timing</code> from <a href="R-Function-Operators.html">R Function Operators</a>. That way the core is pure and the logging lives in a separate, optional layer.</p>
+<p>Each helper does one thing and you can describe it in a sentence: "<a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">filter rows</a> above an mpg floor," "add a kilometres-per-litre column," "aggregate kpl by cylinder." You can reuse <code>filter_fast()</code> in twenty other contexts. You can swap <code>mean_kpl_by_cyl()</code> for <code>median_kpl_by_cyl()</code> without touching the rest. The pipeline reads top-to-bottom like a recipe.</p>
 
-<h2>Rule 5 — Keep Functions Small and Predictable</h2>
-
-<p>A composable function is short — often five to fifteen lines. It has a small, documented return type. It does not accept dozens of arguments. It does not branch into wildly different behaviours based on a flag. If yours are getting long, the fix is usually to extract a helper and let your main function <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> <em>that</em>.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Before: one big function doing three things
-summarise_file &lt;- function(path, col) {
-  df &lt;- read.csv(path)
-  df &lt;- df[complete.cases(df), ]
-  data.frame(
-    n    = nrow(df),
-    mean = mean(df[[col]], na.rm = TRUE),
-    sd   = sd(df[[col]], na.rm = TRUE)
-  )
-}
-
-# After: three composable pieces
-load_data     &lt;- function(path) read.csv(path)
-filter_valid  &lt;- function(df) df[complete.cases(df), ]
-compute_stats &lt;- function(df, col) {
-  data.frame(
-    n = nrow(df),
-    mean = mean(df[[col]], na.rm = TRUE),
-    sd = sd(df[[col]], na.rm = TRUE)
-  )
-}
-
-# Original behaviour, now composable
-# summarise_file &lt;- \(path, col) path |&gt; load_data() |&gt; filter_valid() |&gt; compute_stats(col)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The "after" code is longer by line count but smaller in complexity. Each helper is separately testable, and you can compose them into pipelines that the original author never imagined.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>If you cannot describe a function in one sentence without using "and", split it.</strong> The word "and" is the smell — it tells you the function has at least two responsibilities and at least two reasons to change.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Given <code>mtcars</code>, chain <code>subset(cyl == 6)</code>, then a function you write called <code>ex_standardise(df, col)</code> that replaces <code>col</code> with its z-scores, then <code>head(2)</code>.</p>
+<p><strong>Try it:</strong> Write a function <code>ex_clean_mpg(df)</code> that drops rows where <code>mpg</code> is <code>NA</code> and only that. Test it on a tweaked <code>mtcars</code> where one row has <code>mpg = NA</code>.</p>
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># your code here</div>
+    <div class="webr-editor" data-language="r"># Try it: write ex_clean_mpg() — single job only
+ex_clean_mpg &lt;- function(df) {
+  # your code here
+}
+
+ex_test &lt;- mtcars
+ex_test$mpg[1] &lt;- NA
+nrow(ex_clean_mpg(ex_test))
+#&gt; Expected: 31</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -333,14 +228,14 @@ compute_stats &lt;- function(df, col) {
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">ex_standardise &lt;- function(df, col) {
-  df[[col]] &lt;- as.numeric(scale(df[[col]]))
-  df
+    <div class="webr-editor" data-language="r">ex_clean_mpg &lt;- function(df) {
+  df[!is.na(df$mpg), ]
 }
-mtcars |&gt;
-  subset(cyl == 6) |&gt;
-  ex_standardise(&quot;mpg&quot;) |&gt;
-  head(2)</div>
+
+ex_test &lt;- mtcars
+ex_test$mpg[1] &lt;- NA
+nrow(ex_clean_mpg(ex_test))
+#&gt; [1] 31</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -350,26 +245,521 @@ mtcars |&gt;
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>ex_standardise</code> follows the four rules: data first, same shape out, one verb, no side effects. It slots into the pipeline cleanly.</p>
+<p><strong>Explanation:</strong> One job — drop NA rows in <code>mpg</code>. Nothing else. The function is now reusable anywhere you need that exact step.</p>
+
+</details>
+</section>
+
+<h2>Why must the data argument come first?</h2>
+
+<p>The second rule is mechanical but absolutely load-bearing for pipe-friendliness. The <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">native pipe</a> <code>|&gt;</code> always passes its left-hand side as the <em>first</em> argument of the right-hand function. If your function takes data as its second or third argument, it will not chain.</p>
+
+<p>Watch what happens when you put the data argument in the wrong position.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Data first — pipe-friendly
+add_kpl_first &lt;- function(df, factor = 0.425) {
+  df$kpl &lt;- df$mpg * factor
+  df
+}
+
+# Data last — breaks the pipe
+add_kpl_last &lt;- function(factor = 0.425, df) {
+  df$kpl &lt;- df$mpg * factor
+  df
+}
+
+# Works
+head(mtcars |&gt; add_kpl_first(), 2)
+#&gt;               mpg cyl disp  hp drat    wt  qsec vs am gear carb     kpl
+#&gt; Mazda RX4      21   6  160 110 3.90 2.620 16.46  0  1    4    4 8.92500
+#&gt; Mazda RX4 Wag  21   6  160 160 3.88 2.875 17.02  0  1    4    4 8.92500
+
+# Breaks — mtcars gets bound to `factor`, leaving `df` missing
+try(head(mtcars |&gt; add_kpl_last(), 2))
+#&gt; Error in add_kpl_last() : argument &quot;df&quot; is missing, with no default</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The first call works because <code>mtcars</code> slots into <code>df</code>. The second call fails because <code>mtcars</code> gets bound to <code>factor</code> and then R tries to do <code>mtcars$mpg * df</code>, which has no meaning. The fix is permanent and free: always make the data object the first argument. Optional tuning parameters go after it with sensible defaults.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use the <code>_</code> placeholder when an existing function puts data in the wrong slot.</strong> R 4.2+ supports <code>mtcars |&gt; lm(mpg ~ wt, data = _)</code> so you can pipe into the <code>data</code> argument explicitly without rewriting the function.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>ex_top_hp(df, n)</code> that returns the top-n rows of a data frame by <code>hp</code>. Make it pipe-friendly.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: data-first design
+ex_top_hp &lt;- function(df, n) {
+  # your code here
+}
+
+mtcars |&gt; ex_top_hp(3)
+#&gt; Expected: the 3 rows with highest hp</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_top_hp &lt;- function(df, n) {
+  df[order(-df$hp), ][1:n, ]
+}
+
+mtcars |&gt; ex_top_hp(3)
+#&gt;                     mpg cyl disp  hp drat    wt  qsec vs am gear carb
+#&gt; Maserati Bora      15.0   8  301 335 3.54 3.570 14.60  0  1    5    8
+#&gt; Ford Pantera L     15.8   8  351 264 4.22 3.170 14.50  0  1    5    4
+#&gt; Duster 360         14.3   8  360 245 3.21 3.730 15.84  0  1    5    4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Data first, configuration second. The function chains directly into any upstream pipeline.</p>
+
+</details>
+</section>
+
+<h2>How do you keep a function free of side effects?</h2>
+
+<p>The third rule is the one that separates "code that runs" from "code you can trust inside a pipeline." A side effect is anything a function does besides returning a value: printing, plotting, writing a file, modifying a global variable, sending an HTTP request. Side effects are not bad — they are how programs touch the real world — but they wreck composability when they are smuggled inside transform functions.</p>
+
+<p><img src="screenshots/Writing-Composable-R-Code-side-effects.webp" alt="Pure transforms feed each other; side effects sit at the edges of the pipeline." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Pure transforms feed each other; side effects sit at the edges of the pipeline.</em></p>
+
+<p>The picture says it: pure transforms live in the middle of the pipeline and pass shapes to each other. Side effects sit at the very edges — read at the start, write/print/plot at the end. Mixing the two zones is what creates code you cannot reuse.</p>
+
+<p>Here is a function that mutates a global variable as a side effect. It happens to "work" but it cannot be safely called twice.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Bad: side effect mutates a global counter
+call_count &lt;- 0
+
+bad_scale &lt;- function(x) {
+  call_count &lt;&lt;- call_count + 1   # hidden side effect
+  (x - mean(x)) / sd(x)
+}
+
+bad_scale(mtcars$mpg)[1:3]
+#&gt; [1]  0.1508848  0.1508848  0.4495434
+call_count
+#&gt; [1] 1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The function does its math correctly but it secretly modifies <code>call_count</code> every time it runs. If you call it inside a pipe and then re-run the same pipe later, the counter keeps climbing — and now your "pure" data transformation has hidden state. Compare it with the pure version below.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Good: pure transform, no global state
+scale_col &lt;- function(x) {
+  (x - mean(x)) / sd(x)
+}
+
+scale_col(mtcars$mpg)[1:3]
+#&gt; [1]  0.1508848  0.1508848  0.4495434</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The pure version takes a vector, returns a vector, and does nothing else. Run it a thousand times and the rest of your environment looks identical. That is the property you want for any function that lives in the middle of a pipe.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The <code>&lt;&lt;-</code> operator is the most common source of hidden side effects in R.</strong> It writes to the <a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">parent environment</a>, which usually means a global variable. If you see <code>&lt;&lt;-</code> inside a transform function, treat it as a bug until proven otherwise.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refactor <code>bad_log</code> below into a pure function that takes a numeric vector and returns its log10, with no globals.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: remove the side effect
+log_count &lt;- 0
+bad_log &lt;- function(x) {
+  log_count &lt;&lt;- log_count + 1
+  log10(x)
+}
+
+ex_log &lt;- function(x) {
+  # your code here
+}
+
+ex_log(c(1, 10, 100))
+#&gt; Expected: c(0, 1, 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_log &lt;- function(x) {
+  log10(x)
+}
+
+ex_log(c(1, 10, 100))
+#&gt; [1] 0 1 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> No global, no print, no write. The function takes input, returns output, and that is the entire contract.</p>
+
+</details>
+</section>
+
+<h2>What is type stability and why does it matter?</h2>
+
+<p>The fourth rule is about predictability. A function is <em>type-stable</em> when its output shape and type depend only on its input shape and type — never on the input <em>values</em>. Type-unstable functions are a famous footgun in base R because they sometimes return a vector, sometimes a list, sometimes a matrix — depending on what the data happens to look like that day.</p>
+
+<p>The classic offender is <code>sapply()</code>. It tries to "do the right thing" by simplifying its result, which means you cannot predict its return type ahead of time.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># sapply: type-unstable
+result_full &lt;- sapply(1:3, function(i) i * 2)
+class(result_full)
+#&gt; [1] &quot;integer&quot;
+
+result_empty &lt;- sapply(integer(0), function(i) i * 2)
+class(result_empty)
+#&gt; [1] &quot;list&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Same function, two different return types — <code>integer</code> when there is data, <code>list</code> when the input is empty. If the next step in your pipe expects an integer vector, the empty case crashes with a confusing error and you spend an hour finding it. Type-stable alternatives let you declare the contract up front.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# vapply: declare the output type
+safe_full &lt;- vapply(1:3, function(i) i * 2, integer(1))
+safe_empty &lt;- vapply(integer(0), function(i) i * 2, integer(1))
+class(safe_full); class(safe_empty)
+#&gt; [1] &quot;integer&quot;
+#&gt; [1] &quot;integer&quot;
+
+# purrr::map_dbl: same idea, friendlier
+map_dbl(1:3, ~ .x * 2)
+#&gt; [1] 2 4 6
+map_dbl(numeric(0), ~ .x * 2)
+#&gt; numeric(0)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>vapply()</code> forces you to declare the per-element type up front, so the function either returns the type you asked for or errors immediately. <code>purrr::map_dbl()</code> does the same thing but with a cleaner name — the <code>_dbl</code> suffix tells you "always returns a double vector." Both functions guarantee a stable shape, which means downstream code can rely on them.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Type-stable functions are safe to chain; type-unstable functions are landmines.</strong> If a function might return one of three types depending on the data, you cannot put it inside a reusable pipeline without wrapping it in defensive checks.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Replace the <code>sapply()</code> call below with <code>purrr::map_dbl()</code> so the function always returns a numeric vector.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: make this type-stable
+ex_lengths &lt;- function(strings) {
+  # your code here — use map_dbl
+}
+
+ex_lengths(c(&quot;apple&quot;, &quot;banana&quot;, &quot;kiwi&quot;))
+#&gt; Expected: c(5, 6, 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_lengths &lt;- function(strings) {
+  map_dbl(strings, nchar)
+}
+
+ex_lengths(c(&quot;apple&quot;, &quot;banana&quot;, &quot;kiwi&quot;))
+#&gt; [1] 5 6 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map_dbl()</code> is contractually guaranteed to return a <code>double</code> vector — even on an empty input, which would make <code>sapply()</code> return a list.</p>
+
+</details>
+</section>
+
+<h2>How do you compose small functions into a real pipeline?</h2>
+
+<p>The fifth rule is "small" — keep each helper short enough that you can hold it in your head all at once. Roughly twenty lines is a good ceiling. Once you have small, single-purpose, data-first, side-effect-free, type-stable functions, composing them is the easy part. You just write down the steps in order and connect them with <code>|&gt;</code>.</p>
+
+<p><img src="screenshots/Writing-Composable-R-Code-pipe-flow.webp" alt="Each step in a pipe takes a data frame and returns one — so the next step plugs straight in." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Each step in a pipe takes a data frame and returns one — so the next step plugs straight in.</em></p>
+
+<p>The diagram captures the whole idea. Each box is a function that takes a data frame and returns one. The arrows are <code>|&gt;</code>. There is no special composition machinery — just functions that share a shape. Now let us build a real example with three small helpers and chain them on <code>iris</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Three small composable helpers
+drop_na_rows &lt;- function(df) {
+  df[complete.cases(df), ]
+}
+
+z_scale &lt;- function(df, col) {
+  df[[col]] &lt;- (df[[col]] - mean(df[[col]])) / sd(df[[col]])
+  df
+}
+
+top_n_by &lt;- function(df, col, n) {
+  df[order(-df[[col]]), ][1:n, ]
+}</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Each helper is short (1–4 lines), takes a data frame as its first argument, returns a data frame, and has no side effects. None of them know about the others. Now <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> them.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">iris_top &lt;- iris |&gt;
+  drop_na_rows() |&gt;
+  z_scale(&quot;Sepal.Length&quot;) |&gt;
+  top_n_by(&quot;Sepal.Length&quot;, 3)
+
+iris_top[, c(&quot;Species&quot;, &quot;Sepal.Length&quot;)]
+#&gt;       Species Sepal.Length
+#&gt; 132 virginica     2.483699
+#&gt; 118 virginica     2.241010
+#&gt; 136 virginica     2.241010</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Notice how the pipeline reads as a sentence: "drop NA rows, z-scale Sepal.Length, take the top 3." If you wanted to swap z-scaling for min-max scaling, you would write a new <code>minmax_scale()</code> helper and substitute it — none of the other steps would change. That is the leverage composability gives you: small helpers are cheap to add, swap, and combine.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>purrr::compose()</code> lets you build a new function out of existing ones without going through data.</strong> It is useful when you want to create a named pipeline that is itself a single function — for example, <code>clean_and_scale &lt;- compose(z_scale, drop_na_rows, .dir = &quot;forward&quot;)</code>.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Name composable helpers with verbs.</strong> Verbs like <code>filter_</code>, <code>add_</code>, <code>scale_</code>, <code>drop_</code>, <code>summarise_</code> make pipelines read like English. Avoid noun-only names like <code>analysis()</code> or <code>stats()</code> — they hide what the function does.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a fourth helper <code>add_id(df)</code> that prepends a 1-based row id column called <code>row_id</code>. Chain it into the pipeline so the final result has <code>row_id</code> plus the existing columns.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: extend the pipeline
+add_id &lt;- function(df) {
+  # your code here
+}
+
+iris |&gt;
+  drop_na_rows() |&gt;
+  z_scale(&quot;Sepal.Length&quot;) |&gt;
+  add_id() |&gt;
+  top_n_by(&quot;Sepal.Length&quot;, 2)
+#&gt; Expected: 2 rows with row_id, Species, and scaled Sepal.Length</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">add_id &lt;- function(df) {
+  df$row_id &lt;- seq_len(nrow(df))
+  df
+}
+
+ex_top2 &lt;- iris |&gt;
+  drop_na_rows() |&gt;
+  z_scale(&quot;Sepal.Length&quot;) |&gt;
+  add_id() |&gt;
+  top_n_by(&quot;Sepal.Length&quot;, 2)
+
+ex_top2[, c(&quot;row_id&quot;, &quot;Species&quot;, &quot;Sepal.Length&quot;)]
+#&gt;     row_id   Species Sepal.Length
+#&gt; 132    132 virginica     2.483699
+#&gt; 118    118 virginica     2.241010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>add_id()</code> follows every rule — single job, data first, no side effects, type-stable, small. So it slots into the pipeline at any position you like.</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Refactor a Nested Call Into a Pipeline</h4>
+<p>These exercises stitch the five rules together. Use distinct variable names so they do not collide with tutorial state.</p>
 
-<p>Rewrite this nested expression as a composable pipeline using <code>|&gt;</code> and anonymous helpers.</p>
+<h4>Exercise 1: Refactor a swiss-army function</h4>
+
+<p>Below is a 12-line function that filters, scales, summarises, and prints. Refactor it into three composable helpers — <code>my_filter()</code>, <code>my_scale()</code>, <code>my_summary()</code> — plus one orchestrator that chains them. The orchestrator should return the result, not print it.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Original
-round(mean(subset(airquality, Month == 7 &amp; !is.na(Ozone))$Ozone), 1)
-#&gt; [1] 59.1
+    <div class="webr-editor" data-language="r"># Refactor this:
+swiss_army &lt;- function(df, weight_floor) {
+  small &lt;- df[df$wt &gt; weight_floor, ]
+  small$wt_z &lt;- (small$wt - mean(small$wt)) / sd(small$wt)
+  res &lt;- aggregate(wt_z ~ cyl, data = small, FUN = mean)
+  print(res)
+  res
+}
 
-# Your pipeline version:
+# Write your three helpers + orchestrator below:
 </div>
 
     <div class="webr-buttons">
@@ -393,13 +783,31 @@ round(mean(subset(airquality, Month == 7 &amp; !is.na(Ozone))$Ozone), 1)
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_answer &lt;- airquality |&gt;
-  subset(Month == 7 &amp; !is.na(Ozone)) |&gt;
-  (\(df) df$Ozone)() |&gt;
-  mean() |&gt;
-  round(1)
-my_answer
-#&gt; [1] 59.1</div>
+    <div class="webr-editor" data-language="r">my_filter &lt;- function(df, weight_floor) {
+  df[df$wt &gt; weight_floor, ]
+}
+
+my_scale &lt;- function(df) {
+  df$wt_z &lt;- (df$wt - mean(df$wt)) / sd(df$wt)
+  df
+}
+
+my_summary &lt;- function(df) {
+  aggregate(wt_z ~ cyl, data = df, FUN = mean)
+}
+
+orchestrate &lt;- function(df, weight_floor) {
+  df |&gt;
+    my_filter(weight_floor) |&gt;
+    my_scale() |&gt;
+    my_summary()
+}
+
+orchestrate(mtcars, 2.5)
+#&gt;   cyl       wt_z
+#&gt; 1   4 -1.0728926
+#&gt; 2   6 -0.4324132
+#&gt; 3   8  0.5876343</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -409,19 +817,28 @@ my_answer
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Each step is a single verb; the whole chain reads top to bottom.</p>
+<p><strong>Explanation:</strong> Each helper is single-purpose, data-first, side-effect-free. The orchestrator is the only thing that knows about the order of steps — and it returns its value instead of printing.</p>
 
 </details>
 
-<h4>Exercise 2: Build Three Composable Helpers</h4>
+<h4>Exercise 2: Build a reusable column scaler</h4>
 
-<p>Write three helpers — <code>keep_complete(df)</code>, <code>keep_numeric(df)</code>, <code>col_means(df)</code> — each following the five rules. Chain them on <code>airquality</code>.</p>
+<p>Write <code>scale_columns(df, cols)</code> that takes a data frame and a character vector of column names, returns a new data frame with those columns z-scaled, and leaves the other columns untouched. It must be type-stable (always returns a data frame), data-first, and side-effect-free. Then chain it on <code>iris</code> to scale <code>Sepal.Length</code> and <code>Petal.Length</code> together.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># your code here</div>
+    <div class="webr-editor" data-language="r"># Build the scaler:
+scale_columns &lt;- function(df, cols) {
+  # your code here
+}
+
+# Chain it:
+iris |&gt;
+  scale_columns(c(&quot;Sepal.Length&quot;, &quot;Petal.Length&quot;)) |&gt;
+  head(3)
+#&gt; Expected: 3 rows of iris with two scaled columns</div>
 
     <div class="webr-buttons">
 
@@ -444,16 +861,20 @@ my_answer
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">keep_complete &lt;- function(df) df[complete.cases(df), ]
-keep_numeric  &lt;- function(df) df[, sapply(df, is.numeric)]
-col_means     &lt;- function(df) sapply(df, mean)
+    <div class="webr-editor" data-language="r">scale_columns &lt;- function(df, cols) {
+  for (col in cols) {
+    df[[col]] &lt;- (df[[col]] - mean(df[[col]])) / sd(df[[col]])
+  }
+  df
+}
 
-my_output &lt;- airquality |&gt;
-  keep_complete() |&gt;
-  keep_numeric() |&gt;
-  col_means() |&gt;
-  round(2)
-my_output</div>
+iris |&gt;
+  scale_columns(c(&quot;Sepal.Length&quot;, &quot;Petal.Length&quot;)) |&gt;
+  head(3)
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1   -0.8976739         3.5    -1.335752         0.2  setosa
+#&gt; 2   -1.1392005         3.0    -1.335752         0.2  setosa
+#&gt; 3   -1.3807271         3.2    -1.392399         0.2  setosa</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -463,56 +884,257 @@ my_output</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Each helper is data-first, shape-preserving (until the last), single-verb, pure, and short. That is why they chain without friction.</p>
+<p><strong>Explanation:</strong> The function loops over the column names but the contract is clean — data frame in, data frame out, no globals, predictable shape.</p>
 
 </details>
+
+<h4>Exercise 3: Compose a data quality report</h4>
+
+<p>Write three small helpers and chain them on <code>airquality</code> to produce a per-column quality report:</p>
+
+<ul>
+
+<li><code>count_missing(df)</code> returns a data frame with one row per column and a <code>na_count</code> column.</li>
+
+<li><code>count_outliers(df)</code> returns the same shape but with an <code>outlier_count</code> column (define an <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> as <code>&gt; mean + 3*sd</code> or <code>&lt; mean - 3*sd</code>, numeric columns only).</li>
+
+<li><code>merge_quality(missing_df, outlier_df)</code> joins them on column name.</li>
+
+</ul>
+
+<p>Then call all three on <code>airquality</code> and assign the merged result to <code>quality_report</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Three helpers + final chain
+count_missing &lt;- function(df) {
+  # your code here
+}
+
+count_outliers &lt;- function(df) {
+  # your code here
+}
+
+merge_quality &lt;- function(missing_df, outlier_df) {
+  # your code here
+}
+
+# Chain them:
+quality_report &lt;- # your code here
+quality_report
+#&gt; Expected: a data frame with 6 rows (one per column) and na/outlier counts</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">count_missing &lt;- function(df) {
+  data.frame(
+    column = names(df),
+    na_count = vapply(df, function(x) sum(is.na(x)), integer(1)),
+    row.names = NULL
+  )
+}
+
+count_outliers &lt;- function(df) {
+  is_outlier &lt;- function(x) {
+    if (!is.numeric(x)) return(0L)
+    m &lt;- mean(x, na.rm = TRUE)
+    s &lt;- sd(x, na.rm = TRUE)
+    sum(x &gt; m + 3 * s | x &lt; m - 3 * s, na.rm = TRUE)
+  }
+  data.frame(
+    column = names(df),
+    outlier_count = vapply(df, is_outlier, integer(1)),
+    row.names = NULL
+  )
+}
+
+merge_quality &lt;- function(missing_df, outlier_df) {
+  merge(missing_df, outlier_df, by = &quot;column&quot;)
+}
+
+quality_report &lt;- merge_quality(
+  count_missing(airquality),
+  count_outliers(airquality)
+)
+quality_report
+#&gt;   column na_count outlier_count
+#&gt; 1    Day        0             0
+#&gt; 2  Month        0             0
+#&gt; 3   Ozone       37             1
+#&gt; 4    Solar.R    7             0
+#&gt; 5    Temp       0             0
+#&gt; 6    Wind       0             0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each helper does one thing and returns a data frame. The orchestration step combines them. Adding a fourth quality check tomorrow takes one more helper — none of the existing ones change.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is an end-to-end mini analysis on <code>starwars</code> that uses every rule. We will compute a body-mass index for human characters, <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> the average BMI by homeworld, and pull the top-3 homeworlds — using six small composable helpers.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+# Six small helpers
+keep_humans &lt;- function(df) {
+  df |&gt; filter(species == &quot;Human&quot;)
+}
+
+drop_missing_body &lt;- function(df) {
+  df |&gt; filter(!is.na(height), !is.na(mass))
+}
+
+add_bmi &lt;- function(df) {
+  df |&gt; mutate(bmi = mass / (height / 100)^2)
+}
+
+mean_bmi_by_homeworld &lt;- function(df) {
+  df |&gt;
+    group_by(homeworld) |&gt;
+    summarise(avg_bmi = mean(bmi), n = n(), .groups = &quot;drop&quot;)
+}
+
+at_least &lt;- function(df, min_n) {
+  df |&gt; filter(n &gt;= min_n)
+}
+
+top_n_homeworlds &lt;- function(df, n) {
+  df |&gt; arrange(desc(avg_bmi)) |&gt; head(n)
+}
+
+# Chain them
+sw_summary &lt;- starwars |&gt;
+  keep_humans() |&gt;
+  drop_missing_body() |&gt;
+  add_bmi() |&gt;
+  mean_bmi_by_homeworld() |&gt;
+  at_least(2) |&gt;
+  top_n_homeworlds(3)
+
+sw_summary
+#&gt; # A tibble: 3 × 3
+#&gt;   homeworld avg_bmi     n
+#&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 Tatooine     26.0     8
+#&gt; 2 Naboo        24.6     3
+#&gt; 3 Alderaan     22.0     2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Six helpers, each three lines or fewer. The pipeline reads top-to-bottom: keep humans, drop missing body data, add BMI, average by homeworld, require at least two characters per homeworld, take the top 3. If your manager asks tomorrow for the <em>bottom</em> 3 instead, you change one helper. If they ask for droids instead of humans, you change one helper. That is composability paying off.</p>
 
 <h2>Summary</h2>
+
+<p><img src="screenshots/Writing-Composable-R-Code-five-rules.webp" alt="The five rules of composable R functions." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: The five rules of composable R functions.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Rule</th>
-<th>Why</th>
+<th>What it means</th>
+<th>Why it matters</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>1. Data is the first argument</td>
-<td>Makes the pipe effortless.</td>
+<td>Single purpose</td>
+<td>One job, one sentence to describe it</td>
+<td>Reusable across contexts; easy to test</td>
 </tr>
 <tr>
-<td>2. Return the same shape you took</td>
-<td>Every step can feed the next without translation.</td>
+<td>Data first</td>
+<td>The data object is the first argument</td>
+<td>Works with `\</td>
+<td>>` without ceremony</td>
 </tr>
 <tr>
-<td>3. One function, one verb</td>
-<td>Small pieces recombine in more ways than one big one.</td>
+<td>No side effects</td>
+<td>No prints, plots, writes, or globals inside transforms</td>
+<td>Safe to call repeatedly inside a pipe</td>
 </tr>
 <tr>
-<td>4. No side effects in the core</td>
-<td>Pure code is safe, testable, parallelisable.</td>
+<td>Type stable</td>
+<td>Same input shape → same output shape</td>
+<td>Downstream steps can rely on the contract</td>
 </tr>
 <tr>
-<td>5. Keep functions small (5-15 lines)</td>
-<td>Small functions are easy to read and compose.</td>
+<td>Small</td>
+<td>Roughly under 20 lines</td>
+<td>Holdable in your head; easy to swap</td>
 </tr>
 </tbody>
 </table>
+
+<p>Apply all five and your functions will snap together with <code>|&gt;</code> exactly the way Unix commands snap together with <code>|</code>. Apply none of them and you end up with the swiss-army functions every refactor starts by tearing apart.</p>
 
 <h2>References</h2>
 
 <ol>
 
+<li>Wickham, H. — <em>Tidyverse design principles: Unifying principles</em>. <a href="https://design.tidyverse.org/unifying.html">Link</a></li>
+
+<li>Wickham, H. — <em>The tidy tools manifesto</em>. <a href="https://tidyverse.tidyverse.org/articles/manifesto.html">Link</a></li>
+
+<li>Wickham, H. & Grolemund, G. — <em>R for Data Science</em>, Chapter 18: Pipes. <a href="https://r4ds.had.co.nz/pipes.html">Link</a></li>
+
+<li>Tidyverse style guide — Pipes. <a href="https://style.tidyverse.org/pipes.html">Link</a></li>
+
 <li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 6: Functions. <a href="https://adv-r.hadley.nz/functions.html">Link</a></li>
 
-<li>Wickham, H. — <em>The tidyverse style guide</em>, function design chapter. <a href="https://style.tidyverse.org/">Link</a></li>
+<li>dplyr documentation. <a href="https://dplyr.tidyverse.org/">Link</a></li>
 
-<li>Raymond, E. S. — <em>The Art of Unix Programming</em>, chapter on pipes and composition. <a href="http://www.catb.org/esr/writings/taoup/">Link</a></li>
+<li>purrr documentation — <code>map_dbl()</code> and friends. <a href="https://purrr.tidyverse.org/reference/map.html">Link</a></li>
 
-<li>Bache, S. M. and Wickham, H. — <em>magrittr</em> package documentation. <a href="https://magrittr.tidyverse.org/">Link</a></li>
-
-<li>R 4.1 NEWS — introduction of the native pipe <code>|&gt;</code>. <a href="https://cran.r-project.org/doc/manuals/r-release/NEWS.html">Link</a></li>
+<li>R Core Team — <em>An Introduction to R</em>, native pipe <code>|&gt;</code>. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
 
 </ol>
 
@@ -520,10 +1142,10 @@ my_output</div>
 
 <ul>
 
-<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a> — the broader mindset; composability is one of its benefits.</li>
+<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a> — the broader paradigm that composable function design fits inside.</li>
 
-<li><a href="R-Function-Operators.html">R Function Operators</a> — add cross-cutting behaviour without breaking the core.</li>
+<li><a href="purrr-map-Variants.html">purrr map() Variants</a> — the type-stable workhorses (<code>map_dbl()</code>, <code>map_chr()</code>, <code>map_lgl()</code>) for replacing <code>sapply()</code>.</li>
 
-<li><a href="purrr-map-Variants.html">purrr map() Variants</a> — compose pipelines that iterate over collections.</li>
+<li><a href="R-Functions.html">Writing R Functions</a> — the foundations for writing functions before you make them composable.</li>
 
 </ul>
