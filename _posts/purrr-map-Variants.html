@@ -1,56 +1,49 @@
 ---
 title: "purrr map() in R: Every Variant Explained With the Mental Model That Makes Them Click"
-description: "Master every purrr map() variant — map, map2, pmap, imap, map_chr, map_dbl, map_dfr — with one mental model that makes the whole family make sense."
-keywords: "purrr map, map variants R, map2 pmap imap, map_chr map_dbl, purrr tutorial, R functional programming"
+description: "Learn purrr map() variants in R: map(), map2(), imap(), pmap(), walk(), and the type-suffix system. One mental model to pick the right function every time."
+keywords: "purrr map in R, purrr map2, pmap R, imap purrr, map_dbl, walk function R, purrr tutorial, functional programming R, tidyverse iteration, R for loops alternative"
 mathjax: false
 webr: true
 curriculum_id: "4.2.2"
 post_type: "C"
-auto_link_terms: "purrr map|map variants|map_chr|map_dbl|map2|pmap|imap"
-auto_link_case_sensitive: false
+auto_link_terms: "purrr map|map variants|purrr tutorial|map()|map2()|pmap()|imap()|walk()|map_dbl()|map_chr()"
+auto_link_case_sensitive: true
 sidebar_section: "Learn R"
 sidebar_title: "purrr map() Variants"
-sidebar_order: "34"
+sidebar_order: "33"
 ---
 <!-- md2html:generated -->
 
 <h1>purrr map() in R: Every Variant Explained With the Mental Model That Makes Them Click</h1>
 
-<p class="lead">The purrr <code>map()</code> family walks over a collection and applies a function to every element. Each variant changes only two things: what shape the <em>output</em> takes, and how many <em>inputs</em> you iterate in parallel.</p>
+<p class="lead">purrr's <strong>map family</strong> replaces <code>for</code> loops with composable one-liners — <code>map()</code> handles one input, <code>map2()</code> pairs two, <code>pmap()</code> scales to any number, and <code>_dbl</code>/<code>_chr</code>/<code>_lgl</code> suffixes guarantee the output type you expect.</p>
 
-<p>Once you see that every <code>map_*()</code> name is just a two-axis grid — "what type of thing do I want back?" crossed with "how many things am I iterating over?" — the whole package collapses into something you can recall without Googling. This tutorial teaches that grid, then walks through every variant with a runnable example.</p>
+<p>There are roughly 30 functions in the <code>map</code> family, but you don't need to memorise them. Once you see the two-dimensional grid behind the names — <strong>how many inputs</strong> on one axis, <strong>what output type</strong> on the other — every variant becomes obvious. This tutorial walks every useful member of the family with runnable examples so you leave with a working mental model, not a cheat-sheet.</p>
 
-<h2>How Does purrr's map() Improve on sapply()?</h2>
+<h2>What does map() actually do, and why replace for loops?</h2>
 
-<p><code>purrr::map()</code> is purrr's version of <code>lapply()</code> — it takes a list or vector, applies a function to each element, and returns a <em>list</em>. Why use it over base R's version? Two reasons: <strong>typed output variants</strong> and <strong>consistent behaviour across edge cases</strong>. <code>sapply()</code> might return a vector on your test data and a list on your production data. <code>map_dbl()</code> either returns a numeric vector or errors — no silent surprises.</p>
-
-<p>Here is the warm-up: apply <code>sqrt</code> to a list of numbers three different ways and see what each one returns.</p>
+<p>If you've ever written a <code>for</code> loop just to build up a list of results, <code>map()</code> is the cleaner replacement. It takes a vector, applies a function to every element, and collects the answers into a list — in one line, with no counter variable and no pre-allocation. Here's the side-by-side: compute the mean of every column in <code>mtcars</code>, first the long way, then the <code>map()</code> way.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
     <div class="webr-editor" data-language="r">library(purrr)
+library(dplyr)
 
-nums &lt;- list(a = 4, b = 16, c = 25)
+# The hand-rolled for loop
+col_means_loop &lt;- vector(&quot;list&quot;, length(mtcars))
+names(col_means_loop) &lt;- names(mtcars)
+for (col in names(mtcars)) {
+  col_means_loop[[col]] &lt;- mean(mtcars[[col]])
+}
+col_means_loop$mpg
+#&gt; [1] 20.09062
 
-map(nums, sqrt)
-#&gt; $a
-#&gt; [1] 2
-#&gt;
-#&gt; $b
-#&gt; [1] 4
-#&gt;
-#&gt; $c
-#&gt; [1] 5
-
-map_dbl(nums, sqrt)
-#&gt;  a  b  c
-#&gt;  2  4  5
-
-map_chr(nums, \(x) paste0(&quot;sqrt = &quot;, sqrt(x)))
-#&gt;          a          b          c
-#&gt; &quot;sqrt = 2&quot; &quot;sqrt = 4&quot; &quot;sqrt = 5&quot;</div>
+# The map() version — same result, one line
+col_means_list &lt;- map(mtcars, mean)
+col_means_list$mpg
+#&gt; [1] 20.09062</div>
 
     <div class="webr-buttons">
 
@@ -68,18 +61,1123 @@ map_chr(nums, \(x) paste0(&quot;sqrt = &quot;, sqrt(x)))
 
 </div>
 
-<p>Same iteration, three different output shapes: a list, a double vector, a character vector. The suffix after the underscore tells you what comes out. That single rule covers every <code>map_*()</code> variant — and it is already half of what you need to know about purrr.</p>
+<p>Both expressions produce the same <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of column means, but <code>map()</code> removes every piece of loop ceremony. You don't pre-allocate the container, you don't track an index, and you don't copy the result into a slot — <code>map()</code> returns the assembled list as its value, so you can pipe it straight into the next step.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>map_*() is a type contract, not a shortcut.</strong> When you write <code>map_dbl</code>, you are promising the function returns a length-1 numeric. If it ever returns something else — even once — purrr errors immediately with a clear message. <code>sapply</code> would have limped along and returned a list.</div></div>
+<p><img src="screenshots/purrr-map-Variants-for-loop-to-map.webp" alt="From a hand-rolled for loop to map(), map_dbl(), and walk() — same iteration pattern, different return types." class="img-responsive" loading="lazy" /></p>
 
-<h2>What Do the Typed Suffixes (map_dbl, map_chr, map_lgl) Mean?</h2>
+<p><em>Figure 1: The same iteration pattern — apply a function to every element — expressed three ways. The return type changes; the logic doesn't.</em></p>
 
-<p>The most common suffixes match R's atomic vector types. Each one expects the function to return exactly one value of that type per element.</p>
+<p>The second argument to <code>map()</code> is a function. You can pass a named function like <code>mean</code>, or inline a tiny one with R 4.1's backslash-lambda <code>\(x) ...</code>, or with purrr's formula shorthand <code>~ .x * 2</code> (where <code>.x</code> is the current element).</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Three ways to write &quot;double every value in 1:5&quot;
+doubled_named &lt;- map(1:5, function(x) x * 2)
+doubled_lambda &lt;- map(1:5, \(x) x * 2)
+doubled_formula &lt;- map(1:5, ~ .x * 2)
+
+identical(doubled_named, doubled_lambda)
+#&gt; [1] TRUE
+identical(doubled_lambda, doubled_formula)
+#&gt; [1] TRUE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>All three return the same 5-element list. Pick whichever reads best: use a named function when the logic has a name worth keeping, the <code>\(x)</code> lambda for anything longer than a single expression, and the <code>~ .x</code> formula for tiny one-liners.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Prefer the <a class="auto-link" href="R-Anonymous-Functions.html" title="R Anonymous Functions: \\(x) Syntax & When to Use Lambda Style">backslash lambda</a> for anything beyond a one-liner.</strong> The <code>\(x)</code> syntax is standard R 4.1+, supports multiple arguments cleanly, and readers unfamiliar with purrr's <code>.x</code> placeholder can still read it. Save the <code>~</code> formula shorthand for very short expressions.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>map()</code> to square every element of <code>1:5</code>. The result should be a list of 5 numbers.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: square each element of 1:5 using map()
+ex_squares &lt;- map(1:5, function(x) {
+  # your code here
+})
+
+ex_squares
+#&gt; Expected: list(1, 4, 9, 16, 25)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_squares &lt;- map(1:5, \(x) x ^ 2)
+ex_squares
+#&gt; [[1]]
+#&gt; [1] 1
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 4
+#&gt;
+#&gt; [[3]]
+#&gt; [1] 9
+#&gt;
+#&gt; [[4]]
+#&gt; [1] 16
+#&gt;
+#&gt; [[5]]
+#&gt; [1] 25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map()</code> applies <code>\(x) x ^ 2</code> to each element and wraps the five results in a list. If you want a plain numeric vector instead of a list, use <code>map_dbl()</code> — that's the next section.</p>
+
+</details>
+</section>
+
+<h2>How do the map_*() type suffixes guarantee the output you expect?</h2>
+
+<p><code>map()</code> always returns a list. Most of the time you actually want a plain atomic vector — a numeric, a character, or a logical. That's what the type-suffix variants are for. <code>map_dbl()</code> returns a double vector, <code>map_int()</code> an integer, <code>map_chr()</code> a character, <code>map_lgl()</code> a logical. They do the same iteration as <code>map()</code>, but they unwrap the result and check that every piece matches the promised type.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># map_dbl returns a named numeric vector
+col_means &lt;- map_dbl(mtcars, mean)
+col_means
+#&gt;        mpg        cyl       disp         hp       drat         wt       qsec
+#&gt;  20.090625   6.187500 230.721875 146.687500   3.596563   3.217250  17.848750
+#&gt;         vs         am       gear       carb
+#&gt;   0.437500   0.406250   3.687500   2.812500</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Compare that to the list you got in the last section — same numbers, but now you can drop the result straight into <code>sort()</code>, <code>plot()</code>, or arithmetic without unlisting first. The named-vector format also makes <code>col_means[&quot;mpg&quot;]</code> work cleanly.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># map_chr returns a character vector — great for formatted labels
+rounded_means &lt;- map_chr(mtcars, \(x) sprintf(&quot;%.1f&quot;, mean(x)))
+rounded_means
+#&gt;     mpg     cyl    disp      hp    drat      wt    qsec      vs      am
+#&gt;  &quot;20.1&quot;   &quot;6.2&quot; &quot;230.7&quot; &quot;146.7&quot;   &quot;3.6&quot;   &quot;3.2&quot;  &quot;17.8&quot;   &quot;0.4&quot;   &quot;0.4&quot;
+#&gt;    gear    carb
+#&gt;   &quot;3.7&quot;   &quot;2.8&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>map_chr()</code> ran <code>sprintf()</code> on each column's mean and collected the 11 strings into a single named character vector — ready for a plot legend, a report heading, or a <code>paste0()</code> concatenation.</p>
+
+<p><img src="screenshots/purrr-map-Variants-type-suffix-grid.webp" alt="The purrr map family arranged by input arity (rows) and output type (columns)." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: The map family is a 2D grid. Pick a row (how many inputs) and a column (output type) and the function name writes itself.</em></p>
+
+<p>The suffix isn't cosmetic — it's a promise the function enforces. If your function returns something that isn't the promised type, <code>map_dbl()</code> errors loudly rather than silently returning garbage.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># map_dbl fails fast when types don't match
+result &lt;- tryCatch(
+  map_dbl(list(1, &quot;two&quot;, 3), identity),
+  error = function(e) conditionMessage(e)
+)
+result
+#&gt; [1] &quot;Can't coerce from a string to a double vector.&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Instead of quietly coercing <code>&quot;two&quot;</code> into <code>NA</code> or a number, <code>map_dbl()</code> stops and tells you exactly which element broke the contract. That's a feature: an explicit failure beats a silent wrong answer every time.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The typed map variants are strict by design.</strong> If your function returns values of mixed or unpredictable type, use plain <code>map()</code> and convert afterwards. Don't wrap <code>map_dbl()</code> in <code>tryCatch()</code> to paper over type mismatches — fix the upstream function instead.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pick the suffix that matches your known output, not the loosest one that works.</strong> Using <code>map()</code> everywhere because "it always works" defeats the point — the suffixes exist so type errors surface at the iteration site, not three functions downstream where they're hard to debug.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>map_int()</code> to return the number of characters in each element of <code>c(&quot;dog&quot;, &quot;horse&quot;, &quot;bee&quot;)</code>. The answer should be an integer vector of length 3.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: string lengths with map_int
+ex_words &lt;- c(&quot;dog&quot;, &quot;horse&quot;, &quot;bee&quot;)
+ex_lengths &lt;- map_int(ex_words, function(w) {
+  # your code here
+})
+
+ex_lengths
+#&gt; Expected: c(3L, 5L, 3L)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_words &lt;- c(&quot;dog&quot;, &quot;horse&quot;, &quot;bee&quot;)
+ex_lengths &lt;- map_int(ex_words, \(w) nchar(w))
+ex_lengths
+#&gt; [1] 3 5 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>nchar()</code> returns an integer for each string, and <code>map_int()</code> collects the three answers into an integer vector. You could also write this as <code>map_int(ex_words, nchar)</code> — when the function is a one-argument named function, you can drop the lambda entirely.</p>
+
+</details>
+</section>
+
+<h2>When do you need map2() to iterate over two inputs in parallel?</h2>
+
+<p><code>map()</code> works beautifully when you're iterating over one vector. But plenty of problems pair two vectors — sample sizes with seeds, means with standard deviations, column names with column values. <code>map2()</code> is the version that walks two inputs in lockstep, feeding the <code>i</code>-th element of each to your function on every step.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Simulate 4 samples, each with its own mean and sd
+set.seed(101)
+means &lt;- c(0, 5, 10, 20)
+sds   &lt;- c(1, 2, 1, 5)
+
+sim_samples &lt;- map2(means, sds, \(m, s) rnorm(n = 5, mean = m, sd = s))
+sim_samples[[1]]
+#&gt; [1] -0.3260365  0.5524619 -0.6749438  0.2143595  0.3107692
+sim_samples[[4]]
+#&gt; [1] 14.73944 22.18163 18.81113 17.92391 18.38659</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Each call to <code>rnorm()</code> uses the matching element from both vectors — the first call gets <code>mean = 0, sd = 1</code>, the second gets <code>mean = 5, sd = 2</code>, and so on. The result is a length-4 list where each slot holds a 5-number sample from a different normal distribution.</p>
+
+<p>Inside the lambda, you can name the arguments anything (<code>m</code> and <code>s</code> here) or use purrr's formula shorthand where <code>.x</code> is the first input and <code>.y</code> is the second.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Elementwise product of two numeric vectors — return a plain numeric
+elem_prod &lt;- map2_dbl(c(1, 2, 3, 4), c(10, 20, 30, 40), \(a, b) a * b)
+elem_prod
+#&gt; [1]  10  40  90 160</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>map2_dbl()</code> works exactly like <code>map2()</code> but promises a double vector output — the same contract as <code>map_dbl()</code>, extended to two inputs. Every type suffix from the previous section has a <code>map2_</code> cousin.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For simple elementwise arithmetic, plain R vectorisation is faster.</strong> <code>c(1,2,3,4) * c(10,20,30,40)</code> returns the same answer without purrr. Reach for <code>map2()</code> when the per-element operation is a function call that isn't already vectorised — random draws, model fits, custom transformations.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Multiply <code>c(2, 4, 6)</code> by <code>c(10, 100, 1000)</code> elementwise and return the result as a double vector.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: elementwise multiply with map2_dbl
+ex_a &lt;- c(2, 4, 6)
+ex_b &lt;- c(10, 100, 1000)
+ex_prod &lt;- map2_dbl(ex_a, ex_b, function(x, y) {
+  # your code here
+})
+
+ex_prod
+#&gt; Expected: c(20, 400, 6000)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_a &lt;- c(2, 4, 6)
+ex_b &lt;- c(10, 100, 1000)
+ex_prod &lt;- map2_dbl(ex_a, ex_b, \(x, y) x * y)
+ex_prod
+#&gt; [1]   20  400 6000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map2_dbl()</code> pairs <code>ex_a[i]</code> with <code>ex_b[i]</code> for each <code>i</code>, multiplies them, and collects the three products into a double vector. The defining feature of every <code>map2_*</code> variant is that the function takes two arguments instead of one.</p>
+
+</details>
+</section>
+
+<h2>How does pmap() scale iteration to any number of arguments?</h2>
+
+<p>There's no <code>map3()</code> or <code>map4()</code> — because <code>pmap()</code> generalises the whole idea. Instead of accepting 2, 3, or 4 separate vectors, <code>pmap()</code> takes <strong>one list</strong> whose elements are the vectors you want to iterate over in parallel. Three inputs, ten inputs — same syntax.</p>
+
+<p>The cleanest pattern is to name the list elements to match your function's argument names. purrr will wire them up for you automatically.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Three paired vectors → named list → pmap
+set.seed(202)
+sim_list &lt;- pmap(
+  list(n = c(3, 4, 5), mean = c(0, 10, 20), sd = c(1, 2, 3)),
+  rnorm
+)
+sim_list
+#&gt; [[1]]
+#&gt; [1] -0.4304691  0.2572641  1.0844412
+#&gt;
+#&gt; [[2]]
+#&gt; [1]  8.970506  7.826228  9.977303 10.812235
+#&gt;
+#&gt; [[3]]
+#&gt; [1] 18.20688 24.50030 18.71374 21.45382 19.94457</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The first <code>rnorm()</code> call got <code>n = 3, mean = 0, sd = 1</code>; the second got <code>n = 4, mean = 10, sd = 2</code>; the third got <code>n = 5, mean = 20, sd = 3</code>. Because the list names match <code>rnorm</code>'s argument names, you didn't need a lambda at all — <code>pmap</code> passed them through directly.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Name your pmap input list to match the target function's arguments.</strong> It eliminates lambdas, makes the code self-documenting, and lets you reorder inputs safely. If your list elements aren't named, pmap falls back to positional matching (first list element → first function argument), which is more fragile.</div></div>
+
+<p>A really powerful variant: since a tibble is just a named list of equal-length vectors, you can pass a whole tibble of experiment specifications straight to <code>pmap()</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(tibble)
+
+# A tibble where each row is one experiment
+spec_tbl &lt;- tibble(
+  n    = c(10, 20, 50),
+  mean = c(0,  5,  10),
+  sd   = c(1,  2,  3)
+)
+
+set.seed(303)
+mean_results &lt;- pmap_dbl(spec_tbl, \(n, mean, sd) mean(rnorm(n, mean, sd)))
+mean_results
+#&gt; [1] 0.2194892 5.3821048 9.9112164</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Each row of <code>spec_tbl</code> became one call to the lambda; the lambda drew <code>n</code> random values from a normal with the row's <code>mean</code> and <code>sd</code>, then returned their observed mean. <code>pmap_dbl()</code> collected the three observed means into a numeric vector — and because it's <code>_dbl</code>, you get a flat atomic vector instead of a list of doubles.</p>
+
+<p>If you don't want to name arguments, purrr's formula shorthand supports positional placeholders <code>..1</code>, <code>..2</code>, <code>..3</code> for any number of inputs.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Positional shorthand — fine for quick work, noisier to read
+paste_out &lt;- pmap_chr(
+  list(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), c(1, 2, 3), c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;)),
+  ~ paste0(..1, ..2, ..3)
+)
+paste_out
+#&gt; [1] &quot;A1x&quot; &quot;B2y&quot; &quot;C3z&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>..1</code> is the first list element, <code>..2</code> the second, and so on. It works, but the named-argument style from earlier is usually easier to read once you have more than two inputs.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>pmap_chr()</code> to build sentences of the form <code>&quot;&lt;name&gt; scored &lt;score&gt; on the &lt;subject&gt; test&quot;</code> from three equal-length vectors.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: build sentences with pmap_chr
+ex_names    &lt;- c(&quot;Ada&quot;, &quot;Babbage&quot;, &quot;Curie&quot;)
+ex_scores   &lt;- c(92, 88, 97)
+ex_subjects &lt;- c(&quot;math&quot;, &quot;engineering&quot;, &quot;chemistry&quot;)
+
+ex_sentences &lt;- pmap_chr(
+  list(name = ex_names, score = ex_scores, subject = ex_subjects),
+  function(name, score, subject) {
+    # your code here
+  }
+)
+
+ex_sentences
+#&gt; Expected: &quot;Ada scored 92 on the math test&quot;, etc.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_names    &lt;- c(&quot;Ada&quot;, &quot;Babbage&quot;, &quot;Curie&quot;)
+ex_scores   &lt;- c(92, 88, 97)
+ex_subjects &lt;- c(&quot;math&quot;, &quot;engineering&quot;, &quot;chemistry&quot;)
+
+ex_sentences &lt;- pmap_chr(
+  list(name = ex_names, score = ex_scores, subject = ex_subjects),
+  \(name, score, subject) paste0(name, &quot; scored &quot;, score, &quot; on the &quot;, subject, &quot; test&quot;)
+)
+ex_sentences
+#&gt; [1] &quot;Ada scored 92 on the math test&quot;
+#&gt; [2] &quot;Babbage scored 88 on the engineering test&quot;
+#&gt; [3] &quot;Curie scored 97 on the chemistry test&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The named list wires <code>name</code>, <code>score</code>, and <code>subject</code> into the lambda by argument name, and <code>pmap_chr()</code> collects the three formatted strings into a character vector. Using a named list is much clearer than <code>..1</code>/<code>..2</code>/<code>..3</code> once you have more than two inputs.</p>
+
+</details>
+</section>
+
+<h2>What is imap() for, and why use it instead of manual indices?</h2>
+
+<p>Sometimes the function you're applying needs to know <strong>where</strong> each element came from — its position, its name, or both. You could do that with <code>map2()</code> by passing <code>seq_along(x)</code> as the second input, but <code>imap()</code> does it for you. It's exactly equivalent to <code>map2(.x, names(.x), .f)</code> when the input has names, and <code>map2(.x, seq_along(.x), .f)</code> when it doesn't.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Named input → .y is the name
+populations &lt;- list(tokyo = 37.4, delhi = 32.9, shanghai = 28.5)
+kv_strings &lt;- imap_chr(populations, \(val, key) paste0(key, &quot;: &quot;, val, &quot;M&quot;))
+kv_strings
+#&gt;             tokyo             delhi          shanghai
+#&gt;    &quot;tokyo: 37.4M&quot;    &quot;delhi: 32.9M&quot;  &quot;shanghai: 28.5M&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The lambda received two arguments: <code>val</code> (the list element) and <code>key</code> (the name). <code>imap_chr()</code> pasted them together and returned a named character vector. You didn't have to extract <code>names(populations)</code> or track an index counter — <code>imap</code> did it for you.</p>
+
+<p>If the input has no names, <code>imap()</code> uses the integer position instead.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Unnamed input → .y is the integer index
+idx_strings &lt;- imap_chr(c(&quot;red&quot;, &quot;green&quot;, &quot;blue&quot;), \(val, idx) paste0(idx, &quot;=&quot;, val))
+idx_strings
+#&gt; [1] &quot;1=red&quot;   &quot;2=green&quot; &quot;3=blue&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Same pattern, different second argument. <code>imap()</code> silently switches between "use names" and "use indices" depending on whether the input is named — so your code reads the same whether you're looping a named list or a plain vector.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>imap()</code> is the R equivalent of Python's <code>enumerate()</code>.</strong> Any time you find yourself writing <code>for (i in seq_along(x))</code> to get both the element and its position, reach for <code>imap</code> instead. It's one function call, it respects names when they exist, and it plugs straight into a tidyverse pipeline.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given a named numeric vector, build <code>&quot;city (value)&quot;</code> labels with <code>imap_chr()</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: label a named vector with imap_chr
+ex_cities &lt;- c(paris = 11, london = 9, berlin = 4)
+ex_labels &lt;- imap_chr(ex_cities, function(val, key) {
+  # your code here
+})
+
+ex_labels
+#&gt; Expected: &quot;paris (11)&quot; &quot;london (9)&quot; &quot;berlin (4)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_cities &lt;- c(paris = 11, london = 9, berlin = 4)
+ex_labels &lt;- imap_chr(ex_cities, \(val, key) paste0(key, &quot; (&quot;, val, &quot;)&quot;))
+ex_labels
+#&gt;        paris       london       berlin
+#&gt; &quot;paris (11)&quot; &quot;london (9)&quot; &quot;berlin (4)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>imap_chr()</code> hands the lambda both the value and its name on each iteration, and <code>paste0()</code> builds the label. This is the cleanest way to build "label: value" strings from a named vector.</p>
+
+</details>
+</section>
+
+<h2>When should you use walk() instead of map()?</h2>
+
+<p>Sometimes you iterate purely for a side effect — printing, saving a plot, writing a file, logging a message — and you don't care about the return value. Using <code>map()</code> for that works, but it allocates a list of <code>NULL</code>s you'll throw away and it prints that list if you run it at the console. <code>walk()</code> is the "for its side effects" variant: it calls the function on every element, ignores the <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">return values</a>, and returns the <strong>input</strong> invisibly so pipelines keep flowing.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Print a per-cylinder summary of mpg — side effect only
+mtcars_by_cyl &lt;- split(mtcars, mtcars$cyl)
+
+walk(mtcars_by_cyl, \(df) {
+  cat(&quot;cyl =&quot;, unique(df$cyl), &quot;— mean mpg =&quot;, round(mean(df$mpg), 1), &quot;\n&quot;)
+})
+#&gt; cyl = 4 — mean mpg = 26.7
+#&gt; cyl = 6 — mean mpg = 19.7
+#&gt; cyl = 8 — mean mpg = 15.1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Three lines of output, no list of <code>NULL</code>s cluttering your console. <code>walk()</code> evaluated the lambda for its printing effect, discarded the return values, and invisibly returned <code>mtcars_by_cyl</code> — so you could even pipe the result into another step if you wanted to.</p>
+
+<p>Like <code>map2()</code> and <code>pmap()</code>, <code>walk()</code> has <code>walk2()</code> and <code>pwalk()</code> siblings for two or n inputs.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Simulate &quot;write report&quot; — in WebR we print instead of writing files
+report_names &lt;- c(&quot;report_4cyl.txt&quot;, &quot;report_6cyl.txt&quot;, &quot;report_8cyl.txt&quot;)
+
+walk2(report_names, mtcars_by_cyl, \(fname, df) {
+  cat(&quot;--- Would write:&quot;, fname, &quot;---\n&quot;)
+  cat(&quot;Rows:&quot;, nrow(df), &quot;| Mean mpg:&quot;, round(mean(df$mpg), 1), &quot;\n\n&quot;)
+})
+#&gt; --- Would write: report_4cyl.txt ---
+#&gt; Rows: 11 | Mean mpg: 26.7
+#&gt;
+#&gt; --- Would write: report_6cyl.txt ---
+#&gt; Rows: 7 | Mean mpg: 19.7
+#&gt;
+#&gt; --- Would write: report_8cyl.txt ---
+#&gt; Rows: 14 | Mean mpg: 15.1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>In a real R session you'd call <code>write.csv(df, fname)</code> or <code>ggsave(fname, plot)</code> inside the lambda. Here we print what would happen so you can see the pairing — each filename lines up with its matching data frame, exactly as <code>map2()</code> would.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This page runs R in a browser sandbox with an in-memory virtual filesystem.</strong> Functions like <code>write.csv()</code> technically execute but the files vanish on page reload and there's no "Downloads" folder to find them in. That's why the example above prints instead of writing. In your local RStudio, <code>walk2(filenames, data_list, write.csv)</code> is the real thing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>walk()</code> to print each greeting in a list with a <code>— </code> prefix on its own line.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: walk() for printing side effects
+ex_greetings &lt;- list(&quot;Hello, Ada&quot;, &quot;Hola, Babbage&quot;, &quot;Bonjour, Curie&quot;)
+walk(ex_greetings, function(g) {
+  # your code here
+})
+
+#&gt; Expected:
+#&gt; — Hello, Ada
+#&gt; — Hola, Babbage
+#&gt; — Bonjour, Curie</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_greetings &lt;- list(&quot;Hello, Ada&quot;, &quot;Hola, Babbage&quot;, &quot;Bonjour, Curie&quot;)
+walk(ex_greetings, \(g) cat(&quot;—&quot;, g, &quot;\n&quot;))
+#&gt; — Hello, Ada
+#&gt; — Hola, Babbage
+#&gt; — Bonjour, Curie</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cat()</code> prints to the console and returns <code>NULL</code> — exactly the side-effect-only pattern <code>walk()</code> is designed for. Using <code>map()</code> here would work but would also print a useless list of three <code>NULL</code>s below the greetings.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstones combine multiple variants from the tutorial. Each is solvable with concepts you've already seen. Use distinct variable names (prefixed <code>my_</code>) so exercises don't overwrite tutorial state.</p>
+
+<h4>Exercise 1: Summary report from a list of data frames</h4>
+
+<p>You have a list of three small data frames. Use <code>map_int()</code> to compute each row count, then <code>imap_chr()</code> to build a one-line summary string per data frame, then <code>walk()</code> to print each summary. The final printed output should have three lines.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: combine map_int + imap_chr + walk
+my_dfs &lt;- list(
+  a = data.frame(x = 1:5),
+  b = data.frame(x = 1:10, y = 1:10),
+  c = data.frame(x = 1:3)
+)
+
+# Hint: 1) map_int() for row counts
+#       2) imap_chr() for &quot;df &lt;name&gt; has N rows&quot; strings
+#       3) walk() to print each
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_dfs &lt;- list(
+  a = data.frame(x = 1:5),
+  b = data.frame(x = 1:10, y = 1:10),
+  c = data.frame(x = 1:3)
+)
+
+my_rowcounts &lt;- map_int(my_dfs, nrow)
+my_summaries &lt;- imap_chr(my_rowcounts, \(n, name) paste0(&quot;df &quot;, name, &quot; has &quot;, n, &quot; rows&quot;))
+walk(my_summaries, \(line) cat(line, &quot;\n&quot;))
+#&gt; df a has 5 rows
+#&gt; df b has 10 rows
+#&gt; df c has 3 rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map_int(my_dfs, nrow)</code> returns a named integer vector of row counts. <code>imap_chr()</code> then turns each count into a sentence using the name of the data frame. Finally <code>walk()</code> prints each sentence as a side effect. You could chain these with <code>|&gt;</code> if you prefer a single expression.</p>
+
+</details>
+
+<h4>Exercise 2: Monte Carlo experiment grid with pmap()</h4>
+
+<p>You have a tibble of experiment specifications — six combinations of sample size, distribution mean, and standard deviation. For each row, draw a random sample from a normal distribution, compute its observed mean, and return all six observed means alongside the original specs.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: pmap + mutate for a Monte Carlo grid
+library(dplyr)
+
+my_spec &lt;- tibble(
+  n    = c(10, 10, 10, 100, 100, 100),
+  mean = c(0, 5, 10, 0, 5, 10),
+  sd   = c(1, 1, 1, 1, 1, 1)
+)
+
+set.seed(2026)
+
+# Hint: inside mutate(), use pmap_dbl() to walk n/mean/sd in parallel
+#       and return the observed mean of rnorm(n, mean, sd)
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+my_spec &lt;- tibble(
+  n    = c(10, 10, 10, 100, 100, 100),
+  mean = c(0, 5, 10, 0, 5, 10),
+  sd   = c(1, 1, 1, 1, 1, 1)
+)
+
+set.seed(2026)
+my_results &lt;- my_spec |&gt;
+  mutate(observed_mean = pmap_dbl(
+    list(n, mean, sd),
+    \(n, mean, sd) mean(rnorm(n, mean, sd))
+  ))
+my_results
+#&gt; # A tibble: 6 × 4
+#&gt;       n  mean    sd observed_mean
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;         &lt;dbl&gt;
+#&gt; 1    10     0     1        0.172
+#&gt; 2    10     5     1        4.85
+#&gt; 3    10    10     1       10.1
+#&gt; 4   100     0     1       -0.0551
+#&gt; 5   100     5     1        5.08
+#&gt; 6   100    10     1        9.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Inside <code>mutate()</code>, <code>pmap_dbl()</code> walks the three column vectors in parallel. On each iteration the lambda draws <code>n</code> values from <code>rnorm(mean, sd)</code> and returns the observed mean. With <code>n = 100</code> rows the observed means are much closer to the true means — the classic law-of-large-numbers effect.</p>
+
+</details>
+
+<h4>Exercise 3: Labelled output with imap() and walk2()</h4>
+
+<p>Given a list of model specifications (each a nested list with <code>family</code> and <code>formula</code>), build a labelled printout where each spec appears below a numbered heading like <code>=== Model 1: linear ===</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: imap + walk2 for labelled printout
+my_specs &lt;- list(
+  linear   = list(family = &quot;gaussian&quot;, formula = &quot;y ~ x&quot;),
+  logistic = list(family = &quot;binomial&quot;, formula = &quot;y ~ x1 + x2&quot;),
+  poisson  = list(family = &quot;poisson&quot;,  formula = &quot;y ~ x1 + x2 + x3&quot;)
+)
+
+# Hint: 1) imap_chr() to build the heading lines (use the list name + its position)
+#       2) walk2() to print each heading followed by the spec
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_specs &lt;- list(
+  linear   = list(family = &quot;gaussian&quot;, formula = &quot;y ~ x&quot;),
+  logistic = list(family = &quot;binomial&quot;, formula = &quot;y ~ x1 + x2&quot;),
+  poisson  = list(family = &quot;poisson&quot;,  formula = &quot;y ~ x1 + x2 + x3&quot;)
+)
+
+my_headings &lt;- imap_chr(my_specs, \(spec, name) {
+  paste0(&quot;=== Model &quot;, match(name, names(my_specs)), &quot;: &quot;, name, &quot; ===&quot;)
+})
+
+walk2(my_headings, my_specs, \(heading, spec) {
+  cat(heading, &quot;\n&quot;)
+  cat(&quot;  family:  &quot;, spec$family, &quot;\n&quot;)
+  cat(&quot;  formula: &quot;, spec$formula, &quot;\n\n&quot;)
+})
+#&gt; === Model 1: linear ===
+#&gt;   family:   gaussian
+#&gt;   formula:  y ~ x
+#&gt;
+#&gt; === Model 2: logistic ===
+#&gt;   family:   binomial
+#&gt;   formula:  y ~ x1 + x2
+#&gt;
+#&gt; === Model 3: poisson ===
+#&gt;   family:   poisson
+#&gt;   formula:  y ~ x1 + x2 + x3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>imap_chr()</code> builds one heading string per spec, using the list name as the model label. Then <code>walk2()</code> walks the headings and specs in parallel, printing each heading followed by the model's family and formula. This is the pattern you'd use to build progress logs or formatted reports.</p>
+
+</details>
+
+<h2>Complete Example: a mini Monte Carlo study</h2>
+
+<p>Here's how the pieces fit together in a realistic workflow. The goal is to compare how well the sample mean recovers the true mean at three different sample sizes (<code>n = 10, 50, 200</code>) for two distributions (standard normal and exponential).</p>
+
+<p>We'll use <code>pmap()</code> to iterate the experiment grid, <code>map_dbl()</code> to <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> each draw, and <code>walk()</code> to print a formatted per-distribution report.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tibble)
+
+# Build a 6-row experiment grid: 3 sample sizes × 2 distributions
+experiments &lt;- tibble(
+  dist      = rep(c(&quot;normal&quot;, &quot;exponential&quot;), each = 3),
+  n         = rep(c(10, 50, 200), times = 2),
+  true_mean = rep(c(0, 1), each = 3)    # N(0,1) has mean 0; Exp(1) has mean 1
+)
+
+set.seed(2026)
+
+# Run every experiment with pmap(): one random sample per row
+experiments &lt;- experiments |&gt;
+  mutate(
+    sample        = pmap(list(dist, n), \(dist, n) {
+      if (dist == &quot;normal&quot;) rnorm(n) else rexp(n, rate = 1)
+    }),
+    observed_mean = map_dbl(sample, mean),
+    observed_sd   = map_dbl(sample, sd),
+    abs_error     = abs(observed_mean - true_mean)
+  )
+
+# Show the results (drop the raw sample column for readability)
+experiments |&gt; select(-sample)
+#&gt; # A tibble: 6 × 5
+#&gt;   dist            n true_mean observed_mean observed_sd abs_error
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;     &lt;dbl&gt;         &lt;dbl&gt;       &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 normal         10         0         0.172       0.825    0.172
+#&gt; 2 normal         50         0         0.0311      1.01     0.0311
+#&gt; 3 normal        200         0        -0.0282      0.965    0.0282
+#&gt; 4 exponential    10         1         1.02        1.13     0.0247
+#&gt; 5 exponential    50         1         0.906       0.801    0.0943
+#&gt; 6 exponential   200         1         1.06        1.04     0.0605</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Every column in the results tibble came from a different map variant. <code>pmap()</code> ran the experiments, <code>map_dbl()</code> extracted the observed mean and SD from each sample, and plain vectorised arithmetic handled <code>abs_error</code>. Notice the <code>sample</code> column — it's a <strong>list-column</strong>, one random sample per row, preserved for inspection. That's the tidyverse's native way of holding "one object per row."</p>
+
+<p>Finally, print a per-distribution summary using <code>walk()</code> on a split of the tibble.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">walk(split(experiments, experiments$dist), \(df) {
+  cat(&quot;Distribution:&quot;, unique(df$dist), &quot;\n&quot;)
+  cat(&quot;  Mean absolute error by n:\n&quot;)
+  for (i in seq_len(nrow(df))) {
+    cat(&quot;    n =&quot;, df$n[i], &quot;: abs_error =&quot;, round(df$abs_error[i], 4), &quot;\n&quot;)
+  }
+  cat(&quot;\n&quot;)
+})
+#&gt; Distribution: exponential
+#&gt;   Mean absolute error by n:
+#&gt;     n = 10 : abs_error = 0.0247
+#&gt;     n = 50 : abs_error = 0.0943
+#&gt;     n = 200 : abs_error = 0.0605
+#&gt;
+#&gt; Distribution: normal
+#&gt;   Mean absolute error by n:
+#&gt;     n = 10 : abs_error = 0.172
+#&gt;     n = 50 : abs_error = 0.0311
+#&gt;     n = 200 : abs_error = 0.0282</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>This is the kind of workflow <code>purrr</code> is built for. Each map variant has one job — <code>pmap</code> for the experiment grid, <code>map_dbl</code> for the scalar summaries, <code>walk</code> for the side-effect printing — and they all <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> into a single readable pipeline.</p>
+
+<h2>Summary</h2>
+
+<p>Pick the variant by asking three questions: <strong>how many inputs?</strong>, <strong>do I need the index or name?</strong>, and <strong>do I want a return value or a side effect?</strong> The table below is the whole map family in one grid.</p>
+
+<p><img src="screenshots/purrr-map-Variants-decision-flow.webp" alt="Pick the right map variant in three questions: how many inputs, need index/name, return value or side effect." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: A three-question decision flow that narrows 30+ map functions down to one.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Suffix</th>
+<th>Variant</th>
+<th>Inputs</th>
 <th>Returns</th>
 <th>Use when</th>
 </tr>
@@ -87,542 +1185,100 @@ map_chr(nums, \(x) paste0(&quot;sqrt = &quot;, sqrt(x)))
 <tbody>
 <tr>
 <td><code>map()</code></td>
-<td>List</td>
-<td>The function returns arbitrary objects.</td>
+<td>1</td>
+<td>list</td>
+<td>Output type varies, or you want a list</td>
 </tr>
 <tr>
 <td><code>map_dbl()</code></td>
-<td>Numeric vector</td>
-<td>Function returns one number per element.</td>
+<td>1</td>
+<td>double vector</td>
+<td>Every call returns one double</td>
 </tr>
 <tr>
 <td><code>map_int()</code></td>
-<td>Integer vector</td>
-<td>Function returns one integer per element.</td>
+<td>1</td>
+<td>integer vector</td>
+<td>Every call returns one integer</td>
 </tr>
 <tr>
 <td><code>map_chr()</code></td>
-<td>Character vector</td>
-<td>Function returns one string per element.</td>
+<td>1</td>
+<td>character vector</td>
+<td>Every call returns one string</td>
 </tr>
 <tr>
 <td><code>map_lgl()</code></td>
-<td>Logical vector</td>
-<td>Function returns one TRUE/FALSE.</td>
+<td>1</td>
+<td>logical vector</td>
+<td>Every call returns <code>TRUE</code>/<code>FALSE</code></td>
 </tr>
 <tr>
-<td><code>map_dfr()</code></td>
-<td>Row-bound data frame</td>
-<td>Function returns a data frame per element.</td>
+<td><code>map2()</code> / <code>map2_*</code></td>
+<td>2</td>
+<td>list or typed vector</td>
+<td>Iterating two paired vectors</td>
 </tr>
 <tr>
-<td><code>map_dfc()</code></td>
-<td>Column-bound data frame</td>
-<td>Function returns a data frame per element.</td>
+<td><code>pmap()</code> / <code>pmap_*</code></td>
+<td>n (list)</td>
+<td>list or typed vector</td>
+<td>3+ inputs, or a tibble of specs</td>
+</tr>
+<tr>
+<td><code>imap()</code> / <code>imap_*</code></td>
+<td>1 + index</td>
+<td>list or typed vector</td>
+<td>You need the name or position alongside the value</td>
+</tr>
+<tr>
+<td><code>walk()</code></td>
+<td>1</td>
+<td>input (invisibly)</td>
+<td>Side effects only — printing, saving, logging</td>
+</tr>
+<tr>
+<td><code>walk2()</code> / <code>pwalk()</code></td>
+<td>2 or n</td>
+<td>input (invisibly)</td>
+<td>Multi-input side effects</td>
 </tr>
 </tbody>
 </table>
 
-<div class="webr-container">
+<p><strong>Key takeaways</strong></p>
 
-  <div class="webr-code-block">
+<ol>
 
-    <div class="webr-editor" data-language="r">library(purrr)
+<li><code>map()</code> is for one input; <code>map2()</code> pairs two; <code>pmap()</code> scales to any number.</li>
 
-words &lt;- list(&quot;apple&quot;, &quot;banana&quot;, &quot;cherry&quot;)
+<li>The <code>_dbl</code>/<code>_int</code>/<code>_chr</code>/<code>_lgl</code> suffix turns the list output into a flat atomic vector — and enforces the type.</li>
 
-map_int(words, nchar)
-#&gt; [1] 5 6 6
+<li><code>imap()</code> is the R equivalent of "enumerate" — use it whenever you'd reach for <code>seq_along()</code> or <code>names()</code> inside a manual loop.</li>
 
-map_lgl(words, \(w) startsWith(w, &quot;c&quot;))
-#&gt; [1] FALSE FALSE  TRUE
+<li><code>walk()</code> is for side effects: no list of <code>NULL</code>s, returns the input invisibly so pipelines keep flowing.</li>
 
-map_chr(words, toupper)
-#&gt; [1] &quot;APPLE&quot;  &quot;BANANA&quot; &quot;CHERRY&quot;</div>
+<li>When in doubt, name your <code>pmap()</code> list elements to match the target function's argument names — it eliminates lambdas entirely.</li>
 
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Pick the suffix that matches what your function actually returns. If you are unsure, start with plain <code>map()</code> — it always works because a list can hold anything — and switch to a typed variant once you trust the shape.</p>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Use <code>map_int()</code> to return the number of characters in each string of <code>c(&quot;one&quot;, &quot;three&quot;, &quot;five&quot;)</code>.</p>
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-# your code here
-#&gt; Expected: 3 5 4</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-map_int(c(&quot;one&quot;, &quot;three&quot;, &quot;five&quot;), nchar)
-#&gt; [1] 3 5 4</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>nchar</code> returns one integer per string; <code>map_int</code> stacks them into an integer vector.</p>
-
-</details>
-</section>
-
-<h2>When Do You Need map2() and pmap()?</h2>
-
-<p>Single-input <code>map()</code> covers "do X to each element". When your function needs <em>two</em> inputs walked in parallel, you need <code>map2()</code>. For three or more parallel inputs, use <code>pmap()</code>.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(purrr)
-
-names  &lt;- c(&quot;Ada&quot;, &quot;Ben&quot;, &quot;Cid&quot;)
-scores &lt;- c(92, 85, 78)
-
-map2_chr(names, scores, \(n, s) paste0(n, &quot;: &quot;, s))
-#&gt; [1] &quot;Ada: 92&quot; &quot;Ben: 85&quot; &quot;Cid: 78&quot;</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>map2()</code> walks position by position: first element of <code>names</code> with first element of <code>scores</code>, then second with second, and so on. The typed suffix (<code>_chr</code>, <code>_dbl</code>) works the same way as for <code>map()</code>.</p>
-
-<p>For three or more inputs, wrap them in a list and use <code>pmap()</code>. The function argument receives one element from each list on every call.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(purrr)
-
-products &lt;- list(
-  name  = c(&quot;Pen&quot;, &quot;Pad&quot;, &quot;Cap&quot;),
-  qty   = c(10, 5, 2),
-  price = c(1.50, 3.00, 12.00)
-)
-
-pmap_dbl(products, \(name, qty, price) qty * price)
-#&gt; [1] 15 15 24</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Because the argument names in the anonymous function match the list names, purrr binds them automatically. You can have as many parallel inputs as you like with <code>pmap()</code> — it is the most general form.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Think "parallel iteration" not "multiple arguments".</strong> <code>map2</code> and <code>pmap</code> iterate in lockstep — position 1 of every input, then position 2, and so on. They do not compute a cartesian product. For every combination, use <code>expand.grid()</code> first and then <code>pmap()</code>.</div></div>
-
-<h2>What Does imap() Give You That map() Does Not?</h2>
-
-<p><code>imap()</code> is <code>map()</code> with access to the <em>index or name</em> of each element. The function you pass takes two arguments: the value, and the name or position.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(purrr)
-
-stats &lt;- list(mean = 5.5, sd = 1.2, n = 100)
-
-imap_chr(stats, \(value, name) paste0(name, &quot; = &quot;, value))
-#&gt; [1] &quot;mean = 5.5&quot; &quot;sd = 1.2&quot;   &quot;n = 100&quot;</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>When the input is named, <code>imap</code> passes the name as the second argument. When the input is unnamed, it passes the integer position. Use it whenever you want to label or number each element of your output.</p>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Given <code>list(a = 10, b = 20, c = 30)</code>, use <code>imap_chr</code> to produce <code>&quot;a → 10&quot;</code>, <code>&quot;b → 20&quot;</code>, <code>&quot;c → 30&quot;</code>.</p>
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-ex_lst &lt;- list(a = 10, b = 20, c = 30)
-# your code here</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-imap_chr(ex_lst, \(v, n) paste0(n, &quot; → &quot;, v))
-#&gt;           a           b           c
-#&gt; &quot;a → 10&quot; &quot;b → 20&quot; &quot;c → 30&quot;</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>imap_chr</code> passes each value as <code>v</code> and each name as <code>n</code>; <code>paste0</code> glues them into a labelled string.</p>
-
-</details>
-</section>
-
-<h2>How Do You Build a Data Frame From a Map?</h2>
-
-<p><code>map_dfr()</code> row-binds the per-element data frames into one tall result. <code>map_dfc()</code> column-binds them into one wide result. Pair them with <code>imap_dfr()</code> if you need the element name as a column.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(purrr)
-
-groups &lt;- list(a = 1:3, b = 4:6, c = 7:9)
-
-imap_dfr(groups, \(vals, name) {
-  data.frame(group = name, value = vals)
-})
-#&gt;   group value
-#&gt; 1     a     1
-#&gt; 2     a     2
-#&gt; 3     a     3
-#&gt; 4     b     4
-#&gt; 5     b     5
-#&gt; 6     b     6
-#&gt; 7     c     7
-#&gt; 8     c     8
-#&gt; 9     c     9</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The anonymous function returns a small data frame per element; <code>imap_dfr()</code> stacks them vertically and tags each row with its source name. This pattern is how you turn a "list of things" into a tidy long-format table in one call.</p>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Use <code>map_dfr</code> to turn <code>list(x = 1:2, y = 3:4)</code> into a long data frame with columns <code>name</code> and <code>value</code>.</p>
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-# your code here</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-imap_dfr(list(x = 1:2, y = 3:4), \(v, n) data.frame(name = n, value = v))
-#&gt;   name value
-#&gt; 1    x     1
-#&gt; 2    x     2
-#&gt; 3    y     3
-#&gt; 4    y     4</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> Each list element becomes a two-column data frame; <code>imap_dfr</code> binds them by rows.</p>
-
-</details>
-</section>
-
-<h2>Practice Exercises</h2>
-
-<h4>Exercise 1: Typed Map Over a List of Samples</h4>
-
-<p>Given a list of three <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a>, return a double vector of their means using <code>map_dbl</code>.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(purrr)
-samples &lt;- list(a = c(1, 2, 3), b = c(10, 20, 30), c = c(5, 5, 5))
-# your code here
-#&gt; Expected: 2 20 5</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-samples &lt;- list(a = c(1, 2, 3), b = c(10, 20, 30), c = c(5, 5, 5))
-map_dbl(samples, mean)
-#&gt;  a  b  c
-#&gt;  2 20  5</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>mean</code> returns one double per vector; <code>map_dbl</code> stacks them into a typed numeric vector.</p>
-
-</details>
-
-<h4>Exercise 2: Combine map2 and pmap in One Pipeline</h4>
-
-<p>Build a data frame with columns <code>item</code>, <code>qty</code>, <code>price</code>, and <code>total</code> from three parallel vectors.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(purrr)
-item  &lt;- c(&quot;Pen&quot;, &quot;Pad&quot;, &quot;Cap&quot;)
-qty   &lt;- c(10, 5, 2)
-price &lt;- c(1.5, 3, 12)
-# your code here</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-item  &lt;- c(&quot;Pen&quot;, &quot;Pad&quot;, &quot;Cap&quot;)
-qty   &lt;- c(10, 5, 2)
-price &lt;- c(1.5, 3, 12)
-
-my_df &lt;- data.frame(
-  item  = item,
-  qty   = qty,
-  price = price,
-  total = pmap_dbl(list(qty, price), `*`)
-)
-my_df
-#&gt;   item qty price total
-#&gt; 1  Pen  10   1.5  15.0
-#&gt; 2  Pad   5   3.0  15.0
-#&gt; 3  Cap   2  12.0  24.0</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>pmap_dbl(list(qty, price), </code>*<code>)</code> multiplies position by position — exactly what you want for a line total.</p>
-
-</details>
-
-<h2>Summary</h2>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Variant</th>
-<th>Walks over</th>
-<th>Returns</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>map</code></td>
-<td>1 input</td>
-<td>List</td>
-</tr>
-<tr>
-<td><code>map_dbl</code></td>
-<td>1 input</td>
-<td>Double vector</td>
-</tr>
-<tr>
-<td><code>map_int</code></td>
-<td>1 input</td>
-<td>Integer vector</td>
-</tr>
-<tr>
-<td><code>map_chr</code></td>
-<td>1 input</td>
-<td>Character vector</td>
-</tr>
-<tr>
-<td><code>map_lgl</code></td>
-<td>1 input</td>
-<td>Logical vector</td>
-</tr>
-<tr>
-<td><code>map2</code></td>
-<td>2 inputs</td>
-<td>List</td>
-</tr>
-<tr>
-<td><code>map2_*</code></td>
-<td>2 inputs</td>
-<td>Typed vector</td>
-</tr>
-<tr>
-<td><code>pmap</code></td>
-<td>N inputs</td>
-<td>List</td>
-</tr>
-<tr>
-<td><code>imap</code></td>
-<td>1 input + index</td>
-<td>List</td>
-</tr>
-<tr>
-<td><code>map_dfr</code></td>
-<td>1 input</td>
-<td>Row-bound data frame</td>
-</tr>
-<tr>
-<td><code>map_dfc</code></td>
-<td>1 input</td>
-<td>Column-bound data frame</td>
-</tr>
-</tbody>
-</table>
-
-<p>The rule that ties them together: <strong>suffix = output type, prefix count = parallel inputs</strong>.</p>
+</ol>
 
 <h2>References</h2>
 
 <ol>
 
-<li><code>purrr</code> package documentation. <a href="https://purrr.tidyverse.org/">Link</a></li>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 9: Functionals. <a href="https://adv-r.hadley.nz/functionals.html">Link</a></li>
 
-<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 9: Functionals. <a href="https://adv-r.hadley.nz/functionals.html">Link</a></li>
+<li>Wickham, H. & Grolemund, G. — <em>R for Data Science</em>, 2nd Edition. Chapter 27: Iteration. <a href="https://r4ds.hadley.nz/iteration">Link</a></li>
 
-<li>Wickham, H. & Grolemund, G. — <em>R for Data Science</em>, Chapter 26: Iteration. <a href="https://r4ds.hadley.nz/iteration.html">Link</a></li>
+<li>purrr documentation — <code>map()</code> reference. <a href="https://purrr.tidyverse.org/reference/map.html">Link</a></li>
 
-<li><code>purrr</code> cheatsheet. <a href="https://github.com/rstudio/cheatsheets/blob/main/purrr.pdf">Link</a></li>
+<li>purrr documentation — <code>map2()</code> and <code>pmap()</code> reference. <a href="https://purrr.tidyverse.org/reference/map2.html">Link</a></li>
 
-<li>Jennifer Bryan — <em>Row-oriented workflows in R</em>. <a href="https://github.com/jennybc/row-oriented-workflows">Link</a></li>
+<li>purrr documentation — <code>imap()</code> reference. <a href="https://purrr.tidyverse.org/reference/imap.html">Link</a></li>
+
+<li>Stanford DCL — <em>Functional Programming with purrr</em>, parallel iteration chapter. <a href="https://dcl-prog.stanford.edu/purrr-parallel.html">Link</a></li>
+
+<li>Wickham, H. — <em>Advanced R</em>, 1st Edition archive on functional style. <a href="http://adv-r.had.co.nz/Functional-programming.html">Link</a></li>
 
 </ol>
 
@@ -630,11 +1286,11 @@ my_df
 
 <ul>
 
-<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a> — the broader mindset purrr sits inside.</li>
+<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a> — the broader paradigm that makes <code>map</code> feel natural: <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">first-class functions</a>, pure functions, and composition.</li>
 
-<li><a href="R-Anonymous-Functions.html">R Anonymous Functions</a> — the <code>\(x)</code> shorthand that makes purrr pipelines short.</li>
+<li><a href="R-Functions.html">Writing R Functions</a> — how to write clean functions for the <code>.f</code> argument you keep passing to every map variant.</li>
 
-<li><a href="furrr-Package-in-R.html">furrr Package in R</a> — <a class="auto-link" href="furrr-Package-in-R.html" title="furrr Package in R: Parallel purrr with future Backend">parallel purrr</a> with the same API.</li>
+<li><a href="dplyr-Basics.html">dplyr Basics</a> — the natural companion to purrr; <code>mutate()</code> + <code>pmap()</code> is the workflow for per-row computations on tibbles.</li>
 
 </ul>
 
