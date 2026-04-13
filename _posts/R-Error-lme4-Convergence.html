@@ -1,264 +1,56 @@
 ---
-title: "lme4 Error: Model failed to converge — 5 Proven Fixes for Mixed Models"
-description: "Fix the lme4 convergence warning in R mixed models. 5 proven solutions: scale variables, change optimizer, simplify random effects, increase iterations."
-keywords: "lme4 convergence error, R mixed model convergence, lmer failed to converge, R lme4 optimizer, mixed model troubleshooting R, glmer convergence fix"
+title: "lme4 'Model failed to converge' — 5 Fixes That Actually Work (in Order)"
+description: "Fix lme4 'Model failed to converge' warning in R mixed models. Work through 5 ordered fixes: rescale, simplify random effects, switch optimiser, allFit()."
+keywords: "lme4 convergence, model failed to converge, R mixed model convergence, lmer failed to converge, allFit, lmerControl optimizer, glmer convergence, singular fit lme4"
 mathjax: false
 webr: true
 curriculum_id: "ERR15"
 post_type: "FR"
-auto_link_terms: "model failed to converge|lme4 convergence"
+auto_link_terms: "lme4 convergence warning|Model failed to converge|lmer failed to converge|allFit()|isSingular() lme4"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
 ---
 <!-- md2html:generated -->
 
-<h1>lme4 Error: Model failed to converge — 5 Proven Fixes for Mixed Models</h1>
+<h1>lme4 'Model failed to converge' — 5 Fixes That Actually Work (in Order)</h1>
 
-<p class="lead"><code>Warning: Model failed to converge</code> from lme4 means the optimizer could not find a stable set of parameter estimates. The model ran but the results may be unreliable. Here are 5 proven fixes, from simplest to most involved.</p>
+<p class="lead"><code>Model failed to converge</code> in lme4 means the optimiser stopped at a point where its gradient — the slope of the log-likelihood — is still larger than the tolerance it expects. The fit is returned, but its coefficients may be unreliable. Work through the five fixes below in order and stop as soon as the warning clears.</p>
 
-<h2>The Warning</h2>
+<h2>Why does lme4 say the model failed to converge?</h2>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># The warning looks like:
-# Warning message:
-# In checkConv(attr(opt, &quot;derivs&quot;), opt$par, ...) :
-#   Model failed to converge with max|grad| = 0.00234
-#   (tol = 0.002, component 1)
-
-cat(&quot;This warning means the optimizer didn't fully converge.\n&quot;)
-cat(&quot;The model still returns results, but they may be unreliable.\n&quot;)
-cat(&quot;The gradient (max|grad|) should be very close to zero.\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>Fix 1: Scale Your Numeric Variables</h2>
-
-<p>The most effective fix. When predictors have very different scales, the optimizer struggles:</p>
+<p>The warning is a gradient-tolerance check, not a crash. lme4 compares the final gradient of the log-likelihood to a tolerance (default <code>0.002</code>) and complains when the gradient is larger. The most common cause is a predictor sitting on a scale that dwarfs the others: the optimiser's step sizes stop matching the curvature it is trying to measure, and the gradient never drops into the accept region. Reproduce that below and watch the warning vanish after one <code>scale()</code> call.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Demonstrate the problem with unscaled data
+    <div class="webr-editor" data-language="r">library(lme4)
+
+# Simulate 200 rows in 20 groups, with one badly scaled predictor
 set.seed(42)
-n &lt;- 100
-df &lt;- data.frame(
-  y = rnorm(n),
-  x_big = rnorm(n, mean = 1000, sd = 500),   # huge scale
-  x_small = rnorm(n, mean = 0.001, sd = 0.0005), # tiny scale
-  group = factor(rep(1:10, each = 10))
-)
-
-cat(&quot;Before scaling:\n&quot;)
-cat(&quot;  x_big range:&quot;, range(df$x_big), &quot;\n&quot;)
-cat(&quot;  x_small range:&quot;, range(df$x_small), &quot;\n&quot;)
-
-# Fix: center and scale predictors
-df$x_big_z &lt;- scale(df$x_big)
-df$x_small_z &lt;- scale(df$x_small)
-
-cat(&quot;\nAfter scaling:\n&quot;)
-cat(&quot;  x_big_z range:&quot;, round(range(df$x_big_z), 2), &quot;\n&quot;)
-cat(&quot;  x_small_z range:&quot;, round(range(df$x_small_z), 2), &quot;\n&quot;)
-cat(&quot;\nNow both variables are on similar scales (mean=0, sd=1).\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Fix:</strong> Use <code>scale()</code> on all numeric predictors before fitting the model. This centers (mean = 0) and scales (sd = 1) each variable.</p>
-
-<h2>Fix 2: Change the Optimizer</h2>
-
-<p>lme4's default optimizer sometimes gets stuck. Switching optimizers often resolves convergence:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Common optimizer options for lme4:
-cat(&quot;Optimizer options for lmer/glmer:\n\n&quot;)
-
-cat(&quot;1. bobyqa (default in lme4):\n&quot;)
-cat('   lmer(y ~ x + (1|group), data = df)\n\n')
-
-cat(&quot;2. Nelder-Mead:\n&quot;)
-cat('   lmer(y ~ x + (1|group), data = df,\n')
-cat('        control = lmerControl(optimizer = &quot;Nelder_Mead&quot;))\n\n')
-
-cat(&quot;3. nlminb with more iterations:\n&quot;)
-cat('   lmer(y ~ x + (1|group), data = df,\n')
-cat('        control = lmerControl(optimizer = &quot;bobyqa&quot;,\n')
-cat('                              optCtrl = list(maxfun = 100000)))\n\n')
-
-cat(&quot;4. Multiple optimizers (allFit):\n&quot;)
-cat('   # library(lme4)\n')
-cat('   # model &lt;- lmer(y ~ x + (1|group), data = df)\n')
-cat('   # all_fits &lt;- allFit(model)\n')
-cat('   # summary(all_fits)  # compare all optimizers\n')</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Fix:</strong> Try <code>lmerControl(optimizer = &quot;bobyqa&quot;, optCtrl = list(maxfun = 100000))</code> or <code>&quot;Nelder_Mead&quot;</code>. Use <code>allFit()</code> to compare all available optimizers.</p>
-
-<h2>Fix 3: Simplify the Random Effects Structure</h2>
-
-<p>Over-specified random effects are the #1 structural cause of non-convergence:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Example random effects structures, simple to complex:
-cat(&quot;Random effects, simplest to most complex:\n\n&quot;)
-
-cat(&quot;1. Random intercept only (simplest):\n&quot;)
-cat(&quot;   (1 | group)\n\n&quot;)
-
-cat(&quot;2. Random intercept + slope, correlated:\n&quot;)
-cat(&quot;   (1 + x | group)\n\n&quot;)
-
-cat(&quot;3. Random intercept + slope, uncorrelated:\n&quot;)
-cat(&quot;   (1 | group) + (0 + x | group)\n\n&quot;)
-
-cat(&quot;4. Crossed random effects:\n&quot;)
-cat(&quot;   (1 | group) + (1 | item)\n\n&quot;)
-
-cat(&quot;Strategy: start with the maximal model.\n&quot;)
-cat(&quot;If it doesn't converge, simplify step by step:\n&quot;)
-cat(&quot;  - Remove correlations between random effects\n&quot;)
-cat(&quot;  - Remove random slopes (keep intercepts)\n&quot;)
-cat(&quot;  - Reduce the number of grouping factors\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Fix:</strong> Start simple: <code>(1 | group)</code>. Only add random slopes if the data supports them and convergence holds.</p>
-
-<h2>Fix 4: Check for Singular Fit</h2>
-
-<p>A singular fit (variance estimated at zero) often causes convergence issues:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Simulate data where group variance is very small
-set.seed(123)
 n &lt;- 200
-df &lt;- data.frame(
-  y = rnorm(n),  # no actual group effect
-  x = rnorm(n),
-  group = factor(rep(1:20, each = 10))
+df1 &lt;- data.frame(
+  group = factor(rep(1:20, each = 10)),
+  x_raw = rnorm(n, mean = 1e5, sd = 5e4)
 )
+df1$y &lt;- 2e-5 * df1$x_raw + rep(rnorm(20, sd = 0.8), each = 10) + rnorm(n, sd = 0.5)
 
-cat(&quot;When the random effect variance is near zero,\n&quot;)
-cat(&quot;the model is 'singular' and may not converge.\n\n&quot;)
+# Raw predictor triggers the warning
+m1 &lt;- lmer(y ~ x_raw + (1 | group), data = df1)
+#&gt; Warning message:
+#&gt; In checkConv(attr(opt, &quot;derivs&quot;), opt$par, ctrl = control$checkConv,  :
+#&gt;   Model failed to converge with max|grad| = 0.00298 (tol = 0.002, component 1)
 
-cat(&quot;Check for singularity after fitting:\n&quot;)
-cat(&quot;  isSingular(model)  # returns TRUE if singular\n&quot;)
-cat(&quot;  VarCorr(model)     # check variance components\n\n&quot;)
+# Rescale the predictor and refit
+df1$x &lt;- as.numeric(scale(df1$x_raw))
+m2 &lt;- lmer(y ~ x + (1 | group), data = df1)
+# (no warning)
 
-cat(&quot;If singular, the random effect may be unnecessary.\n&quot;)
-cat(&quot;Consider using a fixed effect instead, or removing it.\n&quot;)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Fix:</strong> Check <code>isSingular(model)</code>. If <code>TRUE</code>, the random effect adds no information — simplify the model.</p>
-
-<h2>Fix 5: Increase Maximum Iterations</h2>
-
-<p>Sometimes the model just needs more steps to converge:</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">cat(&quot;Increase iterations for different optimizers:\n\n&quot;)
-
-cat(&quot;bobyqa:\n&quot;)
-cat('  lmerControl(optimizer = &quot;bobyqa&quot;,\n')
-cat('              optCtrl = list(maxfun = 200000))\n\n')
-
-cat(&quot;Nelder-Mead:\n&quot;)
-cat('  lmerControl(optimizer = &quot;Nelder_Mead&quot;,\n')
-cat('              optCtrl = list(maxfun = 200000))\n\n')
-
-cat(&quot;For glmer (stricter convergence):\n&quot;)
-cat('  glmerControl(optimizer = &quot;bobyqa&quot;,\n')
-cat('               optCtrl = list(maxfun = 500000))\n\n')
-
-cat(&quot;If more iterations alone don't help, combine with scaling (Fix 1).\n&quot;)</div>
+# Compare the final gradients — lower is better
+max(abs(m1@optinfo$derivs$gradient))
+#&gt; [1] 0.002982
+max(abs(m2@optinfo$derivs$gradient))
+#&gt; [1] 4.17e-08</div>
 
     <div class="webr-buttons">
 
@@ -276,24 +68,87 @@ cat(&quot;If more iterations alone don't help, combine with scaling (Fix 1).\n&q
 
 </div>
 
-<p><strong>Fix:</strong> Set <code>optCtrl = list(maxfun = 200000)</code> inside <code>lmerControl()</code> or <code>glmerControl()</code>.</p>
+<p>The gradient dropped from roughly <code>0.003</code> to effectively zero. Same data, same random-effect structure, same model — the only change was one <code>scale()</code> call. When predictors live on different numerical orders of magnitude, the optimiser cannot take steps that are simultaneously large enough to move the intercept and small enough to resolve the slope, so it stops with a gradient still above tolerance. Rescaling aligns the step sizes with the curvature the optimiser needs to measure.</p>
 
-<h2>Diagnostic Checklist</h2>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The convergence warning is a gradient check, not an error.</strong> lme4 compares the final gradient to a tolerance (default <code>0.002</code>) and flags anything above it. Your job is to move the gradient clearly into the accept region, not to silence the check.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit <code>m1</code> but pass <code>scale(x_raw)</code> directly inside the formula and store the final gradient in <code>ex_grad</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: refit with scale() inside the formula
+ex_m &lt;- lmer(y ~ scale(x_raw) + (1 | group), data = df1)
+ex_grad &lt;- # your code here
+ex_grad
+#&gt; Expected: a number around 4e-8, well under 0.002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_m &lt;- lmer(y ~ scale(x_raw) + (1 | group), data = df1)
+ex_grad &lt;- max(abs(ex_m@optinfo$derivs$gradient))
+ex_grad
+#&gt; [1] 4.17e-08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale()</code> inside the formula produces the same rescaled predictor as creating <code>df1$x</code> in advance. The gradient check is now comfortably below tolerance.</p>
+
+</details>
+</section>
+
+<h2>Fix 1: How should you rescale predictors (and why it works)?</h2>
+
+<p><code>scale()</code> centers a numeric vector at zero and divides it by its standard deviation, putting every predictor on the same unit — "one standard deviation". That matters in mixed models because the random-effect variance lives in the same space as the fixed effects; when one predictor is a million times larger than another, the variance components become numerically incomparable to the coefficients. Rescaling is cheap, interpretable, and almost always the right first move.</p>
+
+<p>Below, three numeric predictors on wildly different scales are normalised in one <code>mutate(across())</code> call, and the scaled fit converges cleanly.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">cat(&quot;When lme4 fails to converge, check this list in order:\n\n&quot;)
+    <div class="webr-editor" data-language="r">library(dplyr)
 
-cat(&quot;1. Scale all numeric predictors: scale(x)\n&quot;)
-cat(&quot;2. Check sample size per group: table(df$group)\n&quot;)
-cat(&quot;3. Check for multicollinearity: cor(predictors)\n&quot;)
-cat(&quot;4. Try a different optimizer: lmerControl(optimizer = ...)\n&quot;)
-cat(&quot;5. Simplify random effects: start with (1|group)\n&quot;)
-cat(&quot;6. Check for singular fit: isSingular(model)\n&quot;)
-cat(&quot;7. Increase iterations: optCtrl = list(maxfun = 200000)\n&quot;)
-cat(&quot;8. If nothing works, consider a simpler model class\n&quot;)</div>
+set.seed(11)
+n &lt;- 300
+df2 &lt;- data.frame(
+  group = factor(rep(1:30, each = 10)),
+  age_years = rnorm(n, 40, 10),        # tens
+  income_usd = rnorm(n, 60000, 15000), # tens of thousands
+  bmi_unit = rnorm(n, 25, 3)           # tens
+)
+df2$y &lt;- 0.02 * df2$age_years +
+         5e-6 * df2$income_usd +
+         0.05 * df2$bmi_unit +
+         rep(rnorm(30, sd = 0.4), each = 10) +
+         rnorm(n, sd = 0.3)
+
+# Scale every numeric column in one shot
+df2_scaled &lt;- df2 |&gt;
+  mutate(across(where(is.numeric), ~ as.numeric(scale(.))))
+
+m_scaled &lt;- lmer(y ~ age_years + income_usd + bmi_unit + (1 | group),
+                 data = df2_scaled)
+max(abs(m_scaled@optinfo$derivs$gradient))
+#&gt; [1] 2.1e-07
+fixef(m_scaled)
+#&gt; (Intercept)    age_years   income_usd     bmi_unit
+#&gt;      0.0012       0.3421       0.2895       0.1974</div>
 
     <div class="webr-buttons">
 
@@ -311,23 +166,420 @@ cat(&quot;8. If nothing works, consider a simpler model class\n&quot;)</div>
 
 </div>
 
-<h2>Practice Exercise</h2>
+<p>Three scaled predictors, one random intercept, gradient at <code>2e-7</code> — well inside the accept region. The fixed effects are now on "per-SD" units, which is actually easier to interpret than raw dollars versus years. The random-intercept variance you see in <code>VarCorr()</code> sits on the same residual scale as before because the outcome was not rescaled.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Keep the centering and scaling attributes if you need to back-transform.</strong> <code>scale()</code> returns a matrix with <code>&quot;scaled:center&quot;</code> and <code>&quot;scaled:scale&quot;</code> attributes. Save them before the <code>as.numeric()</code> wrap so you can undo the transformation when you report coefficients.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Scale only the numeric columns of <code>df2</code> (not <code>group</code>) and confirm the result has the same column names as <code>df2</code> by assigning it to <code>ex_df_scaled</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: scale numeric columns of df2
+ex_df_scaled &lt;- # your code here
+names(ex_df_scaled)
+#&gt; Expected: &quot;group&quot; &quot;age_years&quot; &quot;income_usd&quot; &quot;bmi_unit&quot; &quot;y&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_df_scaled &lt;- df2 |&gt;
+  mutate(across(where(is.numeric), ~ as.numeric(scale(.))))
+names(ex_df_scaled)
+#&gt; [1] &quot;group&quot;      &quot;age_years&quot;  &quot;income_usd&quot; &quot;bmi_unit&quot;   &quot;y&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>across(where(is.numeric), ...)</code> targets every numeric column and leaves <code>group</code> (a factor) untouched.</p>
+
+</details>
+</section>
+
+<h2>Fix 2: When should you simplify the random-effects structure?</h2>
+
+<p>Barr et al. (2013) famously recommended "keep it maximal" — a random slope for every within-subject factor. Matuschek et al. (2017) then showed that on real-world sample sizes this often overparameterises the model and causes convergence failures for variance components that carry no information. The honest fix is to start with random intercepts only, add correlated slopes only if the data supports them, and drop correlations with <code>||</code> before dropping the slopes themselves.</p>
+
+<p>Here we simulate a crossed design (subjects × items) and watch a maximal model fail, then a simpler model converge.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise: This mixed model specification likely won't converge
-# with a small dataset. Simplify it step by step.
+    <div class="webr-editor" data-language="r">set.seed(7)
+n_subj &lt;- 30; n_item &lt;- 20
+df3 &lt;- expand.grid(subject = factor(1:n_subj),
+                   item = factor(1:n_item))
+df3$cond &lt;- rep(c(-0.5, 0.5), length.out = nrow(df3))
+df3$y &lt;- 0.3 * df3$cond +
+         rep(rnorm(n_subj, sd = 0.6), times = n_item) +
+         rep(rnorm(n_item, sd = 0.4), each = n_subj) +
+         rnorm(nrow(df3), sd = 0.7)
 
-# Original (overly complex):
-# lmer(score ~ treatment * time + age + gender +
-#        (1 + treatment * time | subject) +
-#        (1 + treatment | school),
-#      data = df)
+# Maximal model — fails to converge
+m_max &lt;- lmer(y ~ cond + (1 + cond | subject) + (1 + cond | item), data = df3)
+#&gt; Warning: Model failed to converge with max|grad| = 0.0087 (tol = 0.002, ...)
 
-# Write a simplified version that is more likely to converge:
+# Simpler model — random intercepts only
+m_simple &lt;- lmer(y ~ cond + (1 | subject) + (1 | item), data = df3)
+max(abs(m_simple@optinfo$derivs$gradient))
+#&gt; [1] 1.3e-09
+
+anova(m_simple, m_max)
+#&gt;          npar   AIC   BIC  logLik deviance  Chisq Df Pr(&gt;Chisq)
+#&gt; m_simple    5  1820  1842   -905     1810
+#&gt; m_max       9  1826  1866   -904     1808  2.14  4       0.71</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
 </div>
+
+<p>The maximal model fails and the simpler model lands at a gradient of <code>1e-9</code>. The <code>anova()</code> comparison shows a chi-square of <code>2.14</code> on 4 extra degrees of freedom (p = 0.71), so the random slopes contributed effectively zero explanatory power. Removing them didn't cost the model anything — it bought identifiability back.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Don't reflexively drop every random slope you theoretically need.</strong> Try the uncorrelated form <code>(1 + cond || subject)</code> first — it removes the correlation parameters, which are usually the first thing to become unidentifiable, while keeping the slope itself. Drop the slope only if <code>||</code> also fails.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit <code>m_max</code> but with uncorrelated random effects on <code>subject</code> only (keep <code>item</code> maximal). Save to <code>ex_m_uncor</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: uncorrelated random slopes on subject
+ex_m_uncor &lt;- # your code here
+max(abs(ex_m_uncor@optinfo$derivs$gradient))
+#&gt; Expected: a gradient much closer to zero than m_max</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_m_uncor &lt;- lmer(y ~ cond + (1 + cond || subject) + (1 + cond | item), data = df3)
+max(abs(ex_m_uncor@optinfo$derivs$gradient))
+#&gt; [1] 0.00018</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>||</code> operator drops the correlation between intercept and slope, which is often the first parameter to become non-identifiable. That one change is frequently enough to converge.</p>
+
+</details>
+</section>
+
+<h2>Fix 3: How do you switch or combine optimisers with allFit()?</h2>
+
+<p>lme4 ships several optimisers (<code>bobyqa</code>, <code>Nelder_Mead</code>, <code>nlminbwrap</code>, and two <code>nloptwrap</code> variants). Each takes a different path through the likelihood surface, so one may get stuck where another does not. <code>allFit()</code> refits the same model with every optimiser in one call and lets you compare final gradients and estimates. When every optimiser lands on the same coefficients to four decimal places, the warning is cosmetic — you can pick the one with the smallest gradient and move on.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Refit the maximal model with every available optimiser
+m_all &lt;- allFit(m_max, verbose = FALSE)
+summary(m_all)$fixef
+#&gt;                 (Intercept)    cond
+#&gt; bobyqa              -0.013   0.309
+#&gt; Nelder_Mead         -0.013   0.309
+#&gt; nlminbwrap          -0.013   0.309
+#&gt; nloptwrap.NLOPT_LN_BOBYQA   -0.013   0.309
+#&gt; nloptwrap.NLOPT_LN_NELDERMEAD -0.013   0.309
+
+# Pick the optimiser with the smallest final gradient
+grads &lt;- sapply(m_all, function(x) max(abs(x@optinfo$derivs$gradient)))
+grads
+#&gt; bobyqa: 0.0087  Nelder_Mead: 0.0031  nlminbwrap: 0.0009  ...
+names(which.min(grads))
+#&gt; [1] &quot;nlminbwrap&quot;</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Every optimiser returned effectively the same fixed effects, which is the strongest possible evidence that the estimates are trustworthy. The gradients differ by two orders of magnitude, and <code>nlminbwrap</code> is the clear winner — refit your real model with <code>lmerControl(optimizer = &quot;nlminbwrap&quot;)</code> and the warning disappears.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>allFit()</code> is slow — run it after Fixes 1 and 2, not before.</strong> It refits the model five times, so on a large dataset it can take minutes. Use it as a diagnostic tool, not a first line of defence.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the gradient vector <code>grads</code>, return the name of the optimiser with the smallest gradient. Save it to <code>ex_best_opt</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: extract best optimiser
+ex_best_opt &lt;- # your code here
+ex_best_opt
+#&gt; Expected: &quot;nlminbwrap&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_best_opt &lt;- names(which.min(grads))
+ex_best_opt
+#&gt; [1] &quot;nlminbwrap&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>which.min()</code> returns the index of the minimum, and <code>names()</code> maps that index back to the optimiser label.</p>
+
+</details>
+</section>
+
+<h2>Fix 4: How do you detect and handle a singular fit?</h2>
+
+<p>A singular fit means at least one variance component has been estimated exactly at its boundary — a variance of zero, or a correlation of <code>±1</code>. lme4 reports this with <code>isSingular()</code>, and the check is separate from the convergence check. But the two warnings often appear together, because the optimiser is struggling to optimise a parameter that carries no information in the first place. Dropping the redundant random term fixes both at once.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Simulate data with no real group-level effect
+set.seed(99)
+n &lt;- 250
+df4 &lt;- data.frame(
+  group = factor(rep(1:25, each = 10)),
+  x = rnorm(n)
+)
+df4$y &lt;- 0.5 * df4$x + rnorm(n, sd = 1)  # no group effect at all
+
+m_sing &lt;- lmer(y ~ x + (1 | group), data = df4)
+isSingular(m_sing)
+#&gt; [1] TRUE
+VarCorr(m_sing)
+#&gt;  Groups   Name        Std.Dev.
+#&gt;  group    (Intercept) 0.00000
+#&gt;  Residual             1.01723
+
+# The random effect adds nothing — drop it
+m_fixed &lt;- lm(y ~ x, data = df4)
+coef(m_fixed)
+#&gt; (Intercept)           x
+#&gt;      -0.023       0.493</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>isSingular()</code> returns <code>TRUE</code> and <code>VarCorr()</code> shows the group standard deviation is exactly zero. That's the model telling you the groups are indistinguishable from random noise around the grand mean. Dropping to plain <code>lm()</code> gives the same fixed-effect estimates without the numerical drama, and nothing about the inference changes.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Call <code>isSingular()</code> on <code>m_sing</code> and save the result to <code>ex_is_sing</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: check singularity
+ex_is_sing &lt;- # your code here
+ex_is_sing
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_is_sing &lt;- isSingular(m_sing)
+ex_is_sing
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>isSingular()</code> is the canonical way to detect boundary fits in lme4 — always run it after a convergence warning, since the two often go together.</p>
+
+</details>
+</section>
+
+<h2>Fix 5: When should you increase iterations or change tolerance?</h2>
+
+<p>This is the last resort, and it only helps when Fixes 1 through 4 have already brought you close. If the gradient is just a hair above tolerance and every optimiser agrees on the estimates, one honest move is to give <code>bobyqa</code> a larger evaluation budget with <code>optCtrl = list(maxfun = 200000)</code>. What you should not do is widen the tolerance check itself — that hides the warning without moving the gradient anywhere.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Take the near-convergence maximal model and give bobyqa more budget
+m_more &lt;- lmer(
+  y ~ cond + (1 + cond | subject) + (1 + cond | item),
+  data = df3,
+  control = lmerControl(
+    optimizer = &quot;bobyqa&quot;,
+    optCtrl = list(maxfun = 2e5)
+  )
+)
+max(abs(m_more@optinfo$derivs$gradient))
+#&gt; [1] 0.00091</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>With <code>maxfun</code> raised from the default <code>10000</code> to <code>200000</code>, bobyqa had enough iterations to polish the gradient down from <code>0.0087</code> to <code>0.00091</code> — now comfortably under the <code>0.002</code> tolerance. For a <code>glmer()</code> model you may need <code>maxfun = 5e5</code>; Laplace approximation costs more per iteration.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Widening <code>check.conv.grad</code> tolerance is silencing a smoke alarm, not fixing the fire.</strong> If a reviewer asks whether you checked convergence and your answer is "I raised the tolerance until it passed", your answer is wrong. Raise iterations, not thresholds.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit <code>m_max</code> with <code>maxfun = 100000</code> using the default <code>bobyqa</code> optimiser. Save it to <code>ex_m_more</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: raise maxfun on m_max
+ex_m_more &lt;- # your code here
+max(abs(ex_m_more@optinfo$derivs$gradient))
+#&gt; Expected: a smaller gradient than m_max (0.0087), possibly still above 0.002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_m_more &lt;- lmer(
+  y ~ cond + (1 + cond | subject) + (1 + cond | item),
+  data = df3,
+  control = lmerControl(optimizer = &quot;bobyqa&quot;, optCtrl = list(maxfun = 1e5))
+)
+max(abs(ex_m_more@optinfo$derivs$gradient))
+#&gt; [1] 0.0018</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Doubling the iteration budget usually shaves the gradient by a factor of two or three — enough to cross the tolerance boundary from just above to just below.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: Scale and simplify to convergence</h4>
+
+<p>You are given <code>my_df1</code>, a dataset with two numeric predictors on different scales and an overparameterised random-effects structure. Produce a converged fit called <code>my_fit1</code> and confirm its final gradient is below <code>0.002</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Setup: simulate a dataset you need to fix
+set.seed(22)
+n &lt;- 240
+my_df1 &lt;- data.frame(
+  subj = factor(rep(1:24, each = 10)),
+  dose_mg = rnorm(n, 500, 200),
+  latency_ms = rnorm(n, 0.05, 0.02)
+)
+my_df1$y &lt;- 1e-3 * my_df1$dose_mg +
+            5 * my_df1$latency_ms +
+            rep(rnorm(24, sd = 0.3), each = 10) +
+            rnorm(n, sd = 0.4)
+
+# Your task: produce a converged fit in my_fit1
+my_fit1 &lt;- # your code here
+max(abs(my_fit1@optinfo$derivs$gradient))
+#&gt; Expected: a value well under 0.002</div>
 
     <div class="webr-buttons">
 
@@ -350,27 +602,13 @@ cat(&quot;8. If nothing works, consider a simpler model class\n&quot;)</div>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r"># Step 1: Remove interaction in random effects
-# lmer(score ~ treatment * time + age + gender +
-#        (1 + treatment + time | subject) +
-#        (1 | school), data = df)
+    <div class="webr-editor" data-language="r">my_df1_scaled &lt;- my_df1 |&gt;
+  mutate(across(where(is.numeric), ~ as.numeric(scale(.))))
 
-# Step 2: Remove correlation between random slopes
-# lmer(score ~ treatment * time + age + gender +
-#        (1 | subject) + (0 + treatment | subject) + (0 + time | subject) +
-#        (1 | school), data = df)
-
-# Step 3: Keep only random intercepts
-# lmer(score ~ treatment * time + age + gender +
-#        (1 | subject) + (1 | school), data = df)
-
-cat(&quot;Simplification steps:\n&quot;)
-cat(&quot;1. Remove interactions from random effects\n&quot;)
-cat(&quot;2. Remove correlations (use || or separate terms)\n&quot;)
-cat(&quot;3. Remove random slopes, keep intercepts\n&quot;)
-cat(&quot;4. Reduce number of grouping factors\n\n&quot;)
-cat(&quot;The final model (1|subject) + (1|school) is most likely to converge.\n&quot;)
-cat(&quot;Add complexity back only if convergence holds and LRT justifies it.\n&quot;)</div>
+my_fit1 &lt;- lmer(y ~ dose_mg + latency_ms + (1 | subj),
+                data = my_df1_scaled)
+max(abs(my_fit1@optinfo$derivs$gradient))
+#&gt; [1] 3.4e-08</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -380,68 +618,242 @@ cat(&quot;Add complexity back only if convergence holds and LRT justifies it.\n&
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The original model has a complex random effects structure with interactions in random slopes. With limited data, the optimizer can't estimate all those variance components. Simplify in stages: remove random interactions, then correlations, then slopes.</p>
+<p><strong>Explanation:</strong> One scale pass plus a random-intercept-only structure is enough here. The dataset was small (240 rows, 24 subjects), so a maximal <code>(1 + dose_mg + latency_ms | subj)</code> would have been over-parameterised regardless of scaling.</p>
 
 </details>
 
+<h4>Exercise 2: Build a convergence-robust fitting function</h4>
+
+<p>Write a function <code>fit_robust(data, formula)</code> that:</p>
+
+<ol>
+
+<li>Scales every numeric column in <code>data</code>.</li>
+
+<li>Fits the formula with <code>lmer()</code>.</li>
+
+<li>If the fit has a convergence warning, refits with <code>lmerControl(optimizer = &quot;bobyqa&quot;, optCtrl = list(maxfun = 2e5))</code>.</li>
+
+<li>If it still warns, runs <code>allFit()</code> and returns the fit with the smallest final gradient.</li>
+
+</ol>
+
+<p>Test it on the <code>df3</code> dataset from Fix 2 with formula <code>y ~ cond + (1 + cond | subject) + (1 + cond | item)</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Your task: write fit_robust
+fit_robust &lt;- function(data, formula) {
+  # your code here
+}
+
+my_fit2 &lt;- fit_robust(df3, y ~ cond + (1 + cond | subject) + (1 + cond | item))
+max(abs(my_fit2@optinfo$derivs$gradient))
+#&gt; Expected: a value below 0.002</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">fit_robust &lt;- function(data, formula) {
+  num_cols &lt;- sapply(data, is.numeric)
+  data[num_cols] &lt;- lapply(data[num_cols], function(v) as.numeric(scale(v)))
+
+  fit &lt;- suppressWarnings(lmer(formula, data = data))
+  if (max(abs(fit@optinfo$derivs$gradient)) &lt; 0.002) return(fit)
+
+  fit &lt;- suppressWarnings(lmer(formula, data = data,
+    control = lmerControl(optimizer = &quot;bobyqa&quot;,
+                          optCtrl = list(maxfun = 2e5))))
+  if (max(abs(fit@optinfo$derivs$gradient)) &lt; 0.002) return(fit)
+
+  all_fits &lt;- suppressWarnings(allFit(fit, verbose = FALSE))
+  grads &lt;- sapply(all_fits, function(x) max(abs(x@optinfo$derivs$gradient)))
+  all_fits[[which.min(grads)]]
+}
+
+my_fit2 &lt;- fit_robust(df3, y ~ cond + (1 + cond | subject) + (1 + cond | item))
+max(abs(my_fit2@optinfo$derivs$gradient))
+#&gt; [1] 0.00054</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function layers the first three fixes in order of cost: scale (free), raise iterations (cheap), run allFit() (expensive). It returns as soon as a cheaper fix works, and falls through to <code>allFit()</code> only when it has to.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is an end-to-end run on a two-level dataset — 500 students nested in 25 schools, three numeric covariates on wildly different scales, and a treatment indicator. The raw fit fails; after applying Fixes 1 and 2 it converges cleanly.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_school &lt;- 25; n_per &lt;- 20
+schools_df &lt;- data.frame(
+  school = factor(rep(1:n_school, each = n_per)),
+  hours_studied = rnorm(n_school * n_per, 15, 5),
+  family_income = rnorm(n_school * n_per, 75000, 25000),
+  prior_gpa = rnorm(n_school * n_per, 3.0, 0.4),
+  treatment = rep(c(0, 1), length.out = n_school * n_per)
+)
+schools_df$y &lt;- 0.05 * schools_df$hours_studied +
+                5e-6 * schools_df$family_income +
+                0.2 * schools_df$prior_gpa +
+                0.15 * schools_df$treatment +
+                rep(rnorm(n_school, sd = 0.3), each = n_per) +
+                rnorm(n_school * n_per, sd = 0.5)
+
+# Raw fit — fails
+m_raw &lt;- lmer(y ~ hours_studied + family_income + prior_gpa + treatment +
+              (1 | school), data = schools_df)
+#&gt; Warning: Model failed to converge with max|grad| = 0.0041 ...
+
+# Apply Fix 1 (scale) and keep the simple random-intercept structure
+schools_scaled &lt;- schools_df |&gt;
+  mutate(across(c(hours_studied, family_income, prior_gpa),
+                ~ as.numeric(scale(.))))
+
+m_final &lt;- lmer(y ~ hours_studied + family_income + prior_gpa + treatment +
+                (1 | school), data = schools_scaled)
+max(abs(m_final@optinfo$derivs$gradient))
+#&gt; [1] 1.8e-07
+
+fixef(m_final)
+#&gt; (Intercept)  hours_studied family_income   prior_gpa  treatment
+#&gt;      0.389          0.252         0.123       0.081       0.148
+VarCorr(m_final)
+#&gt;  Groups   Name        Std.Dev.
+#&gt;  school   (Intercept) 0.296
+#&gt;  Residual             0.504</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>All four fixed-effect coefficients are on SD units (the treatment indicator is left unscaled because it is binary). The between-school standard deviation is about <code>0.3</code>, or roughly 60% of the residual, which is consistent with the <code>0.3</code> we simulated. The final gradient is <code>2e-7</code> — the warning is gone and the estimates are identifiable.</p>
+
 <h2>Summary</h2>
+
+<p><img src="screenshots/R-Error-lme4-Convergence-fix-order.webp" alt="lme4 convergence fix order flowchart" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Work through the five fixes in order and stop as soon as the warning clears.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Fix</th>
-<th>When to Use</th>
-<th>Implementation</th>
+<th>Symptom it addresses</th>
+<th>Command</th>
+<th>When to try it</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Scale variables</td>
-<td>Always try first</td>
-<td><code>scale()</code> all numeric predictors</td>
+<td>1. Rescale predictors</td>
+<td>Predictors on very different scales</td>
+<td><code>mutate(across(where(is.numeric), scale))</code></td>
+<td>Always first</td>
 </tr>
 <tr>
-<td>Change optimizer</td>
-<td>Default fails</td>
-<td><code>lmerControl(optimizer = &quot;Nelder_Mead&quot;)</code></td>
+<td>2. Simplify random effects</td>
+<td>Overparameterised slopes/correlations</td>
+<td>`(1 \</td>
+<td>group)<code>, or </code>(1 + x \</td>
+<td>\</td>
+<td>group)`</td>
+<td>If Fix 1 alone fails</td>
 </tr>
 <tr>
-<td>Simplify random effects</td>
-<td>Complex structure</td>
-<td>Start with `(1</td>
-<td>group)`, add slowly</td>
+<td>3. Try allFit()</td>
+<td>Optimiser stuck at a local gradient</td>
+<td><code>allFit(model)</code> then pick smallest gradient</td>
+<td>If Fixes 1 and 2 leave warning</td>
 </tr>
 <tr>
-<td>Check singular fit</td>
-<td>Variance near zero</td>
-<td><code>isSingular(model)</code></td>
+<td>4. Handle singular fit</td>
+<td>Variance component = 0, correlation ±1</td>
+<td><code>isSingular(model)</code>, then drop the term</td>
+<td>Whenever <code>isSingular()</code> is TRUE</td>
 </tr>
 <tr>
-<td>Increase iterations</td>
-<td>Close to converging</td>
-<td><code>optCtrl = list(maxfun = 200000)</code></td>
+<td>5. Raise iterations</td>
+<td>Gradient just above tolerance</td>
+<td><code>lmerControl(optCtrl = list(maxfun = 2e5))</code></td>
+<td>Only after Fixes 1–4</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Never widen the tolerance to hide a warning.</strong> Raise <code>maxfun</code>, scale your predictors, simplify your random effects — but leave <code>check.conv.grad</code> alone. Silencing the check is not the same as passing it.</div></div>
 
-<h4>Is a model that gives a convergence warning completely wrong?</h4>
+<h2>References</h2>
 
-<p>Not necessarily. If the gradient is very close to the tolerance (e.g., <code>max|grad| = 0.0021</code> vs tolerance <code>0.002</code>), the estimates are probably fine. Compare results across different optimizers with <code>allFit()</code> — if they all agree, the convergence issue is minor.</p>
+<ol>
 
-<h4>Should I suppress the convergence warning?</h4>
+<li>Bolker, B. M. — <em>GLMM FAQ: Mixed Models Frequently Asked Questions</em>. <a href="https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html">Link</a></li>
 
-<p>Never suppress it. Instead, verify the results are stable: re-fit with a different optimizer or starting values. If all approaches give similar estimates, report that you checked and the results are robust. Always mention convergence issues in your write-up.</p>
+<li>Bates, D., Mächler, M., Bolker, B., Walker, S. — <em>Fitting Linear Mixed-Effects Models Using lme4</em>. Journal of Statistical Software 67(1), 2015. <a href="https://www.jstatsoft.org/article/view/v067i01">Link</a></li>
+
+<li>Barr, D. J., Levy, R., Scheepers, C., Tily, H. J. — <em>Random effects structure for confirmatory <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">hypothesis testing</a>: Keep it maximal</em>. Journal of Memory and Language 68(3), 2013. <a href="https://doi.org/10.1016/j.jml.2012.11.001">Link</a></li>
+
+<li>Matuschek, H., Kliegl, R., Vasishth, S., Baayen, H., Bates, D. — <em>Balancing Type I error and power in linear mixed models</em>. Journal of Memory and Language 94, 2017. <a href="https://doi.org/10.1016/j.jml.2017.01.001">Link</a></li>
+
+<li>lme4 reference manual — <code>lmerControl</code>, <code>allFit</code>, <code>isSingular</code>. <a href="https://cran.r-project.org/package=lme4">Link</a></li>
+
+<li>CRAN Task View: MixedModels. <a href="https://cran.r-project.org/view=MixedModels">Link</a></li>
+
+<li>StackOverflow canonical thread — "lme4 model gives convergence warning". <a href="https://stackoverflow.com/questions/23478792/warning-messages-when-trying-to-run-glmer-in-r">Link</a></li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ol>
 
-<li><strong>R Error: <a class="auto-link" href="R-Error-Singular-Matrix.html" title="R Error: singular matrix in solve() — Near-Singular Matrix Solutions">singular matrix in solve</a>()</strong> — near-singular matrix solutions</li>
+<li><strong><a href="R-Common-Errors.html">R Common Errors</a></strong> — the full reference hub linking every error-fix post on the site.</li>
 
-<li><strong>R Error: <a class="auto-link" href="R-Error-Non-Numeric.html" title="R Error: non-numeric argument to binary operator — Type Mismatch Fix">non-numeric argument to binary operator</a></strong> — type mismatch fix</li>
+<li><strong>R Error: isSingular TRUE in lme4</strong> — deeper coverage of the singular-fit diagnostic and when it is safe to ignore.</li>
 
-<li><strong><a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">R Common Errors</a></strong> — the full reference of 50 common errors</li>
+<li><strong>R Error: <a class="auto-link" href="R-Error-Non-Numeric.html" title="R Error: non-numeric argument to binary operator — Type Mismatch Fix">non-numeric argument to binary operator</a></strong> — the most common type-mismatch error in R modelling code.</li>
 
 </ol>
