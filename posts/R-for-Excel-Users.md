@@ -1,1165 +1,683 @@
 ---
-title: "R for Excel Users: The Complete Step-by-Step Transition Guide"
+title: "R for Excel Users: Your Entire Excel Workflow, Translated to R"
 slug: "R-for-Excel-Users"
-description: "Moving from Excel to R? This guide maps every Excel operation to its R equivalent — VLOOKUP to joins, pivot tables to group_by, conditional formatting to ggplot."
-keywords: "R for Excel users, Excel to R, VLOOKUP in R, pivot table in R, Excel functions in R, dplyr for Excel users, R transition guide, Excel to R mapping, group_by summarize R, ggplot for Excel users"
-auto_link_terms: "R for Excel users|Excel to R|VLOOKUP in R|pivot table in R|Excel functions in R|Excel to R transition|R for spreadsheet users"
+description: "Every common Excel operation — VLOOKUP, pivot tables, IF formulas, filters, and charts — mapped to its exact R equivalent with runnable side-by-side code."
+keywords: "R for Excel users, Excel to R, VLOOKUP in R, pivot table in R, dplyr for Excel users, Excel functions in R, IF formula R, SUMIF R, Excel to dplyr"
+auto_link_terms: "R for Excel users|Excel to R|VLOOKUP in R|pivot table in R|Excel to dplyr|R for spreadsheet users"
 auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-06"
-curriculum_id: "FR-clea-2"
-post_type: "C"
-fr_parent: "Data-Quality-Checking-in-R.html"
-sidebar_section: "Learn R"
-sidebar_title: "R for Excel Users"
+date: "2026-04-13"
+curriculum_id: "CAR8"
+post_type: "FR"
+fr_parent: "Is-R-Worth-Learning-in-2026.html"
 ---
 
+# R for Excel Users: Your Entire Excel Workflow, Translated to R
 
-# R for Excel Users: The Complete Step-by-Step Transition Guide
+<p class="lead">Every VLOOKUP, pivot table, IF formula, filter, sort, and chart you use in Excel has a direct one-line equivalent in R — and this guide maps each one, with runnable code you can edit in place.</p>
 
-<p class="lead">R for Excel users is a practical mapping of every common spreadsheet operation — filtering, sorting, VLOOKUP, pivot tables, IF formulas, and charts — to its R equivalent using base R, dplyr, tidyr, and ggplot2.</p>
+You already think in data. Every filter, sort, formula, and pivot you build in Excel is real analysis. R does the same jobs with code instead of clicks, which means the same logic runs again next week, next quarter, and on a dataset ten times the size — without rebuilding anything by hand.
 
-You already think in data. Every time you write a VLOOKUP, drag a formula down a column, or build a pivot table, you are doing data analysis. R does the same things — filtering rows, computing new columns, joining tables, summarizing groups, and making charts — but with code instead of mouse clicks.
+## How do you replace Excel's AutoFilter and sorting in R?
 
-The advantage is scale and reproducibility. R handles a million rows without freezing. A script you write today runs identically tomorrow on fresh data. And once you learn the pattern, you never rebuild the same pivot table by hand again.
-
-## Introduction
-
-If you have spent years in Excel, switching to R feels like learning a new language. That is because it is one. But here is the good news: every Excel concept you already know has a direct R equivalent. The mental model transfers. Only the syntax changes.
-
-This tutorial maps the Excel operations you use every day to their R counterparts. We cover AutoFilter (filtering and sorting), column formulas (calculated columns), VLOOKUP (joins), pivot tables (group and summarize), SUMIF/COUNTIF (conditional aggregation), Unpivot and Text-to-Columns (reshaping), and charts including conditional formatting equivalents.
-
-We use three packages: dplyr for data manipulation, tidyr for reshaping, and ggplot2 for visualization. All three run directly in your browser here — click Run on the first code block and work top to bottom. No installation needed.
-
-Let's load the packages and create a sample sales dataset that looks like a typical Excel spreadsheet.
+AutoFilter and Sort are where Excel users spend their mornings. In R both collapse into one readable line per operation. You don't click a dropdown, tick boxes, and lose the state next time the file opens — you write `filter()` and `arrange()` once, and the same logic runs every time on any dataset with the same columns. Here is the exact translation on a small sales dataset we will reuse throughout the guide.
 
 ```r
-# Load packages
+# Load the three packages we'll use throughout
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-# Create sample sales data (like an Excel spreadsheet)
-set.seed(101)
-sales <- data.frame(
-  order_id = 1:40,
-  date = rep(paste0("2024-", sprintf("%02d", 1:10), "-15"), 4),
-  region = rep(c("East", "West", "North", "South"), 10),
-  product = rep(c("Laptop", "Phone", "Tablet", "Monitor", "Keyboard"), 8),
-  quantity = sample(1:20, 40, replace = TRUE),
-  unit_price = sample(c(29.99, 199.99, 349.99, 499.99, 899.99), 40, replace = TRUE)
+# Sample sales data — think of this as an Excel sheet
+sales <- tibble(
+  order_id   = 1:10,
+  region     = c("East", "West", "East", "North", "South",
+                 "East", "West", "North", "South", "East"),
+  product    = c("Laptop", "Phone", "Laptop", "Tablet", "Phone",
+                 "Monitor", "Laptop", "Phone", "Tablet", "Monitor"),
+  quantity   = c(8, 3, 12, 5, 7, 2, 15, 9, 4, 6),
+  unit_price = c(999, 599, 999, 399, 599, 249, 999, 599, 399, 249)
 )
 
-head(sales, 6)
-#>   order_id       date region  product quantity unit_price
-#> 1        1 2024-01-15   East   Laptop        6     499.99
-#> 2        2 2024-02-15   West    Phone       12     199.99
-#> 3        3 2024-03-15  North   Tablet        8     349.99
-#> 4        4 2024-04-15  South  Monitor       15      29.99
-#> 5        5 2024-05-15   East Keyboard        3     899.99
-#> 6        6 2024-06-15   West   Laptop       18     499.99
+# Excel: AutoFilter → Region = "East" AND Quantity > 5
+east_bulk <- sales |> filter(region == "East" & quantity > 5)
+east_bulk
+#> # A tibble: 3 × 5
+#>   order_id region product  quantity unit_price
+#>      <int> <chr>  <chr>       <dbl>      <dbl>
+#> 1        1 East   Laptop          8        999
+#> 2        3 East   Laptop         12        999
+#> 3       10 East   Monitor         6        249
 ```
 
-This `sales` data frame is our working spreadsheet for the entire tutorial. Every code block below builds on it, just like adding sheets and formulas to an Excel workbook.
+Three rows come back — the same three that would stay visible if you clicked Region = East and typed `>5` into the Quantity filter. The difference is that this line is re-runnable tomorrow on a million rows, and it will never silently "forget" the filter because someone re-opened the file.
 
-
-## How Do You Filter and Sort Data Like Excel's AutoFilter?
-
-In Excel, you click the AutoFilter dropdown, check a few boxes, and the rows that do not match disappear. In R, you write `filter()` to keep rows that match a condition, and `arrange()` to sort.
-
-The key difference: Excel hides non-matching rows (they are still there). R creates a new data frame containing only the matching rows. The original stays untouched.
-
-Let's filter our sales data to find all orders from the West region with a unit price above $100. This is the equivalent of clicking AutoFilter on the "region" column, selecting "West", then filtering "unit_price" to show values greater than 100.
+Sorting is just as direct. `arrange()` takes one or more columns, and `desc()` flips the order.
 
 ```r
-# Filter: keep rows where region is "West" AND unit_price > 100
-filtered_sales <- sales |>
-  filter(region == "West", unit_price > 100)
-
-filtered_sales
-#>   order_id       date region product quantity unit_price
-#> 1        2 2024-02-15   West   Phone       12     199.99
-#> 2        6 2024-06-15   West  Laptop       18     499.99
-#> 3       12 2024-02-15   West  Laptop        5     899.99
-#> 4       16 2024-06-15   West   Phone        9     349.99
-#> ...
+# Excel: Sort by Quantity, largest first
+sorted_sales <- sales |> arrange(desc(quantity))
+head(sorted_sales, 4)
+#> # A tibble: 4 × 5
+#>   order_id region product quantity unit_price
+#>      <int> <chr>  <chr>      <dbl>      <dbl>
+#> 1        7 West   Laptop        15        999
+#> 2        3 East   Laptop        12        999
+#> 3        8 North  Phone          9        599
+#> 4        1 East   Laptop         8        999
 ```
 
-The comma inside `filter()` means AND — both conditions must be true. Use `|` for OR logic if you need either condition to match.
-
-Now let's sort the full dataset by unit_price in descending order, then by quantity ascending — the equivalent of Excel's multi-level Sort dialog.
-
-```r
-# Sort: descending by unit_price, then ascending by quantity
-sorted_sales <- sales |>
-  arrange(desc(unit_price), quantity)
-
-head(sorted_sales, 6)
-#>   order_id       date region  product quantity unit_price
-#> 1        5 2024-05-15   East Keyboard        3     899.99
-#> 2       12 2024-02-15   West   Laptop        5     899.99
-#> 3       25 2024-05-15   East Keyboard        7     899.99
-#> 4       32 2024-02-15   West   Laptop       11     899.99
-#> 5       10 2024-10-15   West  Monitor       10     499.99
-#> 6        1 2024-01-15   East   Laptop        6     499.99
-```
-
-The `desc()` wrapper reverses the sort direction. Without it, `arrange()` sorts ascending by default — just like clicking A-Z in Excel.
-
-[TIP]
-**filter() returns all matches, not just the first one.** Excel's AutoFilter shows all matching rows too, but VLOOKUP only returns the first match. When you switch from VLOOKUP-based filtering to R, remember that filter() gives you every row that qualifies.
-
-**Try it:** Filter `sales` to find orders where the product is "Tablet" OR "Monitor" and the quantity is greater than 5. Save the result as `ex_filtered`.
-
-```r
-# Try it: filter for Tablet/Monitor with quantity > 5
-ex_filtered <- sales |>
-  filter(
-    # your code here
-  )
-
-# Test:
-nrow(ex_filtered)
-#> Expected: a number (depends on random data, but should be > 0)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-ex_filtered <- sales |>
-  filter(product %in% c("Tablet", "Monitor"), quantity > 5)
-
-nrow(ex_filtered)
-#> [1] 8
-```
-
-**Explanation:** `%in%` checks membership in a vector — it is the R equivalent of selecting multiple items in an Excel AutoFilter dropdown.
-
-</details>
-
-
-## How Do You Create Calculated Columns Like Excel Formulas?
-
-In Excel, you type a formula in a new column and drag it down. In R, you use `mutate()` to add a calculated column to every row at once. No dragging required.
-
-Let's add two columns to our sales data: `total_sale` (quantity times unit_price) and `tax_amount` (8% of the total). This is like typing `=E2*F2` and `=G2*0.08` in Excel and filling down.
-
-```r
-# Add calculated columns (like Excel formulas dragged down)
-sales <- sales |>
-  mutate(
-    total_sale = quantity * unit_price,
-    tax_amount = total_sale * 0.08
-  )
-
-head(sales, 5)
-#>   order_id       date region  product quantity unit_price total_sale tax_amount
-#> 1        1 2024-01-15   East   Laptop        6     499.99    2999.94    239.995
-#> 2        2 2024-02-15   West    Phone       12     199.99    2399.88    191.990
-#> 3        3 2024-03-15  North   Tablet        8     349.99    2799.92    223.994
-#> 4        4 2024-04-15  South  Monitor       15      29.99     449.85     35.988
-#> 5        5 2024-05-15   East Keyboard        3     899.99    2699.97    215.998
-```
-
-Notice that `tax_amount` references `total_sale` — a column we just created in the same `mutate()` call. R evaluates columns in order, so later columns can use earlier ones.
-
-Now let's add a conditional column, the equivalent of Excel's IF function. We will classify each order as "High Value" or "Standard" based on whether the total sale exceeds $1,000.
-
-```r
-# Conditional column (like Excel's IF function)
-sales <- sales |>
-  mutate(
-    order_class = ifelse(total_sale > 1000, "High Value", "Standard")
-  )
-
-table(sales$order_class)
-#> High Value   Standard
-#>         28         12
-```
-
-`ifelse()` is R's direct equivalent of Excel's `=IF()`. For more than two outcomes, use `case_when()` — it works like nested IF statements but is far more readable.
+`arrange()` doesn't touch `sales` itself — it returns a sorted copy. That's a nice safety net: in Excel you have to remember to click "Sort" again on the original data to undo it. In R there is nothing to undo.
 
 [KEY INSIGHT]
-**In Excel, formulas recalculate every time a cell changes. In R, mutate() runs once and stores the result.** This means no circular references, no volatile formula chains, and no mystery recalculations slowing your file. You control exactly when calculations happen.
+**Filter picks rows, arrange reorders them.** Two verbs, one grammar — and both are re-runnable, which is what Excel sorts and filters are not.
 
-**Try it:** Create a column called `ex_size_label` that labels orders as "Small" when quantity is 5 or less, "Medium" when 6-12, and "Large" when above 12. Use `case_when()`.
+**Try it:** Write a pipeline that keeps only West region rows where `quantity >= 10`, and save it to `ex_west_bulk`.
 
 ```r
-# Try it: create ex_size_label with case_when()
-sales <- sales |>
-  mutate(
-    ex_size_label = case_when(
-      # your code here
-    )
-  )
+# Your turn:
+ex_west_bulk <- sales |>
+  filter(TRUE) # replace with your condition
 
-# Test:
-table(sales$ex_size_label)
-#> Expected: counts for Large, Medium, Small
+ex_west_bulk
+#> Expected: one row — order_id 7, West, Laptop, quantity 15
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-sales <- sales |>
-  mutate(
-    ex_size_label = case_when(
-      quantity <= 5  ~ "Small",
-      quantity <= 12 ~ "Medium",
-      TRUE           ~ "Large"
-    )
-  )
-
-table(sales$ex_size_label)
-#>  Large Medium  Small
-#>     12     15     13
+ex_west_bulk <- sales |>
+  filter(region == "West" & quantity >= 10)
+ex_west_bulk
+#> # A tibble: 1 × 5
+#>   order_id region product quantity unit_price
+#>      <int> <chr>  <chr>      <dbl>      <dbl>
+#> 1        7 West   Laptop        15        999
 ```
 
-**Explanation:** `case_when()` evaluates conditions top to bottom and assigns the first match. `TRUE ~ "Large"` acts as the else clause, catching everything not matched above.
+**Explanation:** `&` is the "AND" operator — both conditions must be true. Excel writes this as two separate AutoFilter dropdowns; R writes it as one line.
 
 </details>
 
+## How do you write Excel formulas as R columns?
 
-## How Do You Replicate VLOOKUP and INDEX-MATCH with R Joins?
+In Excel you add a calculated column by typing a formula into cell `F2` and dragging it down. In R you add calculated columns with `mutate()`. The formula is written once — not once per row.
 
-VLOOKUP is the most-used lookup function in Excel. You pick a key, point to a lookup table, and pull back a value from a matching row. In R, the equivalent is `left_join()` — and it is more powerful because it handles multiple keys and returns all matches, not just the first.
-
-Let's create a lookup table that maps each product to a category, then join it to our sales data. This is the exact equivalent of a VLOOKUP where your lookup table sits on a separate sheet.
+Let's compute a revenue column (`quantity * unit_price`) and a total with 8% sales tax.
 
 ```r
-# Create a lookup table (like a separate Excel sheet)
-categories <- data.frame(
-  product = c("Laptop", "Phone", "Tablet", "Monitor", "Keyboard"),
-  category = c("Computing", "Mobile", "Mobile", "Computing", "Accessories"),
-  weight_kg = c(2.1, 0.2, 0.5, 4.5, 0.8)
+# Excel: =D2*E2 dragged down for revenue
+sales_rev <- sales |>
+  mutate(
+    revenue        = quantity * unit_price,
+    total_with_tax = revenue * 1.08
+  )
+head(sales_rev, 3)
+#> # A tibble: 3 × 7
+#>   order_id region product quantity unit_price revenue total_with_tax
+#>      <int> <chr>  <chr>      <dbl>      <dbl>   <dbl>          <dbl>
+#> 1        1 East   Laptop         8        999    7992          8631.
+#> 2        2 West   Phone          3        599    1797          1941.
+#> 3        3 East   Laptop        12        999   11988         12947.
+```
+
+Notice how `total_with_tax` is computed from `revenue` in the *same* `mutate()` call. Excel can't do that without referencing another cell. R evaluates left-to-right inside one `mutate()`, so the second line sees the first.
+
+Nested IFs are the other classic Excel formula headache. The R replacement is `case_when()`, which reads top to bottom and returns the value for the first condition that matches — exactly the same semantics as a chain of IFs, but you can actually read it a week later.
+
+```r
+# Excel: =IF(revenue>10000,"High",IF(revenue>3000,"Medium","Low"))
+sales_tiered <- sales_rev |>
+  mutate(
+    tier = case_when(
+      revenue >  10000 ~ "High",
+      revenue >   3000 ~ "Medium",
+      TRUE             ~ "Low"
+    )
+  )
+sales_tiered |> select(order_id, region, product, revenue, tier)
+#> # A tibble: 10 × 5
+#>    order_id region product  revenue tier
+#>       <int> <chr>  <chr>      <dbl> <chr>
+#>  1        1 East   Laptop      7992 Medium
+#>  2        2 West   Phone       1797 Low
+#>  3        3 East   Laptop     11988 High
+#>  4        4 North  Tablet      1995 Low
+#>  5        5 South  Phone       4193 Medium
+#>  6        6 East   Monitor      498 Low
+#>  7        7 West   Laptop     14985 High
+#>  8        8 North  Phone       5391 Medium
+#>  9        9 South  Tablet      1596 Low
+#> 10       10 East   Monitor     1494 Low
+```
+
+The `TRUE ~ "Low"` line is the "everything else" catch-all — the same role as the final `ELSE` in a nested `IF`. Three clear rows beat one illegible `IF(IF(IF(...)))`.
+
+[TIP]
+**case_when reads top to bottom — first match wins.** Order your conditions from most specific to most general, or the general rule will eat the specific ones before they get a chance to match.
+
+**Try it:** Add an `ex_order_size` column using `case_when` that labels each row as `"Bulk"` when `quantity > 10` and `"Single"` otherwise.
+
+```r
+# Your turn:
+ex_tagged <- sales |>
+  mutate(
+    ex_order_size = "Single" # replace with case_when
+  )
+ex_tagged |> select(order_id, quantity, ex_order_size)
+#> Expected: two Bulk rows (orders 3 and 7), eight Single rows
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_tagged <- sales |>
+  mutate(
+    ex_order_size = case_when(
+      quantity > 10 ~ "Bulk",
+      TRUE          ~ "Single"
+    )
+  )
+ex_tagged |> select(order_id, quantity, ex_order_size) |> head(4)
+#> # A tibble: 4 × 3
+#>   order_id quantity ex_order_size
+#>      <int>    <dbl> <chr>
+#> 1        1        8 Single
+#> 2        2        3 Single
+#> 3        3       12 Bulk
+#> 4        4        5 Single
+```
+
+**Explanation:** A two-branch `case_when` is the same shape as `=IF(quantity>10, "Bulk", "Single")`, just written with `~` (read as "then") instead of commas.
+
+</details>
+
+## How do you replace VLOOKUP with R joins?
+
+VLOOKUP is the most-used Excel function for a reason: it lets you look up a key in another table and pull back a value. In R, that job belongs to `left_join()`. It's safer than VLOOKUP (joins on column names, not column numbers), handles multi-column keys, and doesn't silently break when someone inserts a column in the lookup sheet.
+
+```r
+# A lookup table — think of it as a second Excel sheet
+product_info <- tibble(
+  product  = c("Laptop", "Phone", "Tablet", "Monitor"),
+  category = c("Computing", "Mobile", "Mobile", "Computing"),
+  brand    = c("Acme", "Acme", "Zenon", "Zenon")
 )
 
-categories
-#>    product    category weight_kg
-#> 1   Laptop   Computing       2.1
-#> 2    Phone      Mobile       0.2
-#> 3   Tablet      Mobile       0.5
-#> 4  Monitor   Computing       4.5
-#> 5 Keyboard Accessories       0.8
+# Excel: =VLOOKUP(C2, ProductInfo!A:C, 2, FALSE) → category
+# Excel: =VLOOKUP(C2, ProductInfo!A:C, 3, FALSE) → brand
+sales_joined <- sales_tiered |>
+  left_join(product_info, by = "product")
+
+sales_joined |> select(order_id, product, category, brand, tier) |> head(4)
+#> # A tibble: 4 × 5
+#>   order_id product category  brand tier
+#>      <int> <chr>   <chr>     <chr> <chr>
+#> 1        1 Laptop  Computing Acme  Medium
+#> 2        2 Phone   Mobile    Acme  Low
+#> 3        3 Laptop  Computing Acme  High
+#> 4        4 Tablet  Mobile    Zenon Low
 ```
 
-Now perform the VLOOKUP — join the category information onto our sales data by matching the "product" column.
-
-```r
-# VLOOKUP equivalent: left_join by product
-sales_with_cat <- sales |>
-  left_join(categories, by = "product")
-
-head(sales_with_cat, 5)
-#>   order_id       date region  product quantity unit_price total_sale tax_amount order_class    category weight_kg
-#> 1        1 2024-01-15   East   Laptop        6     499.99    2999.94    239.995  High Value   Computing       2.1
-#> 2        2 2024-02-15   West    Phone       12     199.99    2399.88    191.990  High Value      Mobile       0.2
-#> 3        3 2024-03-15  North   Tablet        8     349.99    2799.92    223.994  High Value      Mobile       0.5
-#> 4        4 2024-04-15  South  Monitor       15      29.99     449.85     35.988   Standard   Computing       4.5
-#> 5        5 2024-05-15   East Keyboard        3     899.99    2699.97    215.998  High Value Accessories       0.8
-```
-
-Every sales row now has its category and weight — pulled from the lookup table. If a product had no match, those columns would show `NA` instead of an error. That is safer than VLOOKUP's `#N/A`.
-
-For INDEX-MATCH with multiple keys, just pass a vector of column names to the `by` argument. Here is an example joining on two columns at once.
-
-```r
-# Multi-key join (like INDEX-MATCH with two criteria)
-region_info <- data.frame(
-  region = c("East", "West", "North", "South"),
-  manager = c("Alice", "Bob", "Carol", "Dan"),
-  timezone = c("ET", "PT", "CT", "CT")
-)
-
-sales_joined <- sales_with_cat |>
-  left_join(region_info, by = "region")
-
-head(sales_joined[, c("order_id", "region", "product", "manager", "timezone")], 4)
-#>   order_id region  product manager timezone
-#> 1        1   East   Laptop   Alice       ET
-#> 2        2   West    Phone     Bob       PT
-#> 3        3  North   Tablet   Carol       CT
-#> 4        4  South  Monitor     Dan       CT
-```
+Two VLOOKUP formulas compressed into one `left_join()`. Every column from `product_info` comes across in a single call. And if a product in `sales` has no match in `product_info`, the joined row gets `NA` for the new columns — that's the exact behaviour Excel shows as `#N/A`.
 
 [WARNING]
-**VLOOKUP silently returns only the first match. left_join() returns ALL matches.** If your lookup table has duplicate keys, left_join() creates extra rows — one per match. Always check for duplicates with `categories |> count(product) |> filter(n > 1)` before joining.
+**Duplicate keys in the lookup silently inflate rows.** If `product_info` had two rows for "Laptop", every "Laptop" row in `sales` would be duplicated after the join. VLOOKUP hides this (it returns the first match only). `left_join()` shows you the truth. To mimic VLOOKUP, call `distinct(product_info, product, .keep_all = TRUE)` before the join.
 
-**Try it:** Create a `region_goals` table with columns `region` and `sales_target` (set targets of 50000, 40000, 45000, 35000 for East, West, North, South). Join it to `sales_with_cat` and save as `ex_with_goals`.
+**Try it:** Create a small `ex_region_manager` lookup with columns `region` and `manager` for the four regions (pick any names), then left-join it onto `sales` and save the result to `ex_sales_mgr`.
 
 ```r
-# Try it: create region_goals and join to sales_with_cat
-ex_region_goals <- data.frame(
-  region = c("East", "West", "North", "South"),
-  sales_target = c(50000, 40000, 45000, 35000)
+# Your turn:
+ex_region_manager <- tibble(
+  region  = c("East", "West", "North", "South"),
+  manager = c("", "", "", "") # fill in names
 )
 
-ex_with_goals <- sales_with_cat |>
-  # your code here
-  head()
+ex_sales_mgr <- sales # chain your left_join here
 
-# Test:
-"sales_target" %in% names(ex_with_goals)
-#> Expected: TRUE
+ex_sales_mgr |> select(order_id, region)
+#> Expected: each row has the manager name for its region
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-ex_region_goals <- data.frame(
-  region = c("East", "West", "North", "South"),
-  sales_target = c(50000, 40000, 45000, 35000)
+ex_region_manager <- tibble(
+  region  = c("East", "West", "North", "South"),
+  manager = c("Ava", "Ben", "Cleo", "Dan")
 )
 
-ex_with_goals <- sales_with_cat |>
-  left_join(ex_region_goals, by = "region")
+ex_sales_mgr <- sales |>
+  left_join(ex_region_manager, by = "region")
 
-head(ex_with_goals[, c("order_id", "region", "total_sale", "sales_target")], 4)
-#>   order_id region total_sale sales_target
-#> 1        1   East    2999.94        50000
-#> 2        2   West    2399.88        40000
-#> 3        3  North    2799.92        45000
-#> 4        4  South     449.85        35000
+ex_sales_mgr |> select(order_id, region, manager) |> head(3)
+#> # A tibble: 3 × 3
+#>   order_id region manager
+#>      <int> <chr>  <chr>
+#> 1        1 East   Ava
+#> 2        2 West   Ben
+#> 3        3 East   Ava
 ```
 
-**Explanation:** `left_join()` matches each sales row to its region's target. Every row keeps its original data plus the new `sales_target` column.
+**Explanation:** `left_join()` keeps every row from `sales` (the left side) and attaches the matching `manager` from the lookup. No match? You would get `NA` — exactly what `#N/A` means in Excel.
 
 </details>
 
+## How do you build a pivot table in R?
 
-## How Do You Build Pivot Tables with group_by and summarize?
+An Excel pivot table has three drag zones: Rows, Columns, and Values. The R equivalents are `group_by()` (rows and columns), `summarise()` (values), and `pivot_wider()` if you want the "Columns" zone to actually spread across the page.
 
-Pivot tables are the crown jewel of Excel analysis. You drag fields into Rows, Columns, and Values to instantly summarize thousands of rows. In R, the equivalent is `group_by()` followed by `summarise()`. The logic is identical — you just type the field names instead of dragging them.
-
-Let's build a pivot table that shows total sales and average order value by region. In Excel, you would drag "region" to Rows and "total_sale" to Values (twice — once as Sum, once as Average).
+Start with the simple case — total revenue and order count per region. That's SUMIF and COUNTIF in one pass.
 
 ```r
-# Pivot table: total and average sales by region
-region_summary <- sales_with_cat |>
+# Excel: Pivot table with Region in Rows, sum(revenue) and count in Values
+region_summary <- sales_joined |>
   group_by(region) |>
   summarise(
-    order_count = n(),
-    total_sales = sum(total_sale),
-    avg_order = mean(total_sale),
-    .groups = "drop"
-  ) |>
-  arrange(desc(total_sales))
-
+    total_revenue = sum(revenue),
+    orders        = n(),
+    .groups       = "drop"
+  )
 region_summary
-#>   region order_count total_sales avg_order
-#> 1 East            10       28749   2874.9
-#> 2 West            10       25399   2539.9
-#> 3 North           10       22599   2259.9
-#> 4 South           10       18249   1824.9
+#> # A tibble: 4 × 3
+#>   region total_revenue orders
+#>   <chr>          <dbl>  <int>
+#> 1 East           21972      4
+#> 2 North           7386      2
+#> 3 South           5789      2
+#> 4 West           16782      2
 ```
 
-The `n()` function counts rows in each group — equivalent to COUNT in a pivot table. `sum()`, `mean()`, `min()`, and `max()` cover the standard Value Field Settings.
+One pipeline, four rows back, and the same answer a 30-second pivot table trip would give you in Excel. Need to do this every Monday morning? Save the script. Need to do it on a new quarter's data? Change the input, re-run.
 
-Now let's add a second grouping variable, like dragging both "region" and "category" into the Rows area.
+Now the full crosstab — regions as rows, products as columns, revenue in the cells. In Excel this is "drag Product into Columns". In R it's `pivot_wider()` after the group.
 
 ```r
-# Multi-level pivot: region + category
-detailed_summary <- sales_with_cat |>
-  group_by(region, category) |>
-  summarise(
-    total_sales = sum(total_sale),
-    order_count = n(),
-    .groups = "drop"
-  )
-
-detailed_summary
-#>    region    category total_sales order_count
-#>  1 East    Accessories      5399.9          2
-#>  2 East    Computing        8999.8          3
-#>  3 East    Mobile           6999.8          3
-#>  ...
+# Excel: Pivot with Region in Rows, Product in Columns, sum(revenue) in Values
+region_product_crosstab <- sales_joined |>
+  group_by(region, product) |>
+  summarise(total = sum(revenue), .groups = "drop") |>
+  pivot_wider(names_from = product, values_from = total, values_fill = 0)
+region_product_crosstab
+#> # A tibble: 4 × 5
+#>   region Laptop Monitor Phone Tablet
+#>   <chr>   <dbl>   <dbl> <dbl>  <dbl>
+#> 1 East    19980    1992     0      0
+#> 2 North       0       0  5391   1995
+#> 3 South       0       0  4193   1596
+#> 4 West    14985       0  1797      0
 ```
 
-To get the cross-tab layout that Excel pivot tables display — categories across the top and regions down the side — use `pivot_wider()`.
-
-```r
-# Cross-tab layout (like Excel pivot table appearance)
-wide_summary <- detailed_summary |>
-  select(region, category, total_sales) |>
-  pivot_wider(
-    names_from = category,
-    values_from = total_sales,
-    values_fill = 0
-  )
-
-wide_summary
-#>   region Accessories Computing Mobile
-#> 1 East        5399.9   8999.8  6999.8
-#> 2 North       2699.9   7499.8  4199.9
-#> 3 South       1799.9   5249.9  3599.9
-#> 4 West        3599.9   6499.9  5399.9
-```
-
-Now it looks just like an Excel pivot table. The rows are regions, the columns are categories, and the values are total sales.
-
-[TIP]
-**Use across() to summarize multiple columns at once.** Instead of writing `sum(col1), sum(col2), sum(col3)`, write `across(c(total_sale, quantity), sum)`. This is like dragging several fields into the Values area simultaneously.
-
-**Try it:** Create a pivot table showing the count and mean `total_sale` grouped by `product`. Save it as `ex_product_pivot`.
-
-```r
-# Try it: pivot table by product
-ex_product_pivot <- sales_with_cat |>
-  group_by(product) |>
-  # your code here
-
-# Test:
-nrow(ex_product_pivot)
-#> Expected: 5 (one row per product)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-ex_product_pivot <- sales_with_cat |>
-  group_by(product) |>
-  summarise(
-    count = n(),
-    avg_sale = mean(total_sale),
-    .groups = "drop"
-  )
-
-ex_product_pivot
-#>   product  count avg_sale
-#> 1 Keyboard     8   4049.9
-#> 2 Laptop       8   5399.9
-#> 3 Monitor      8   2429.9
-#> 4 Phone        8   2879.9
-#> 5 Tablet       8   3149.9
-```
-
-**Explanation:** `group_by(product)` splits the data by product, then `summarise()` computes aggregates for each group — exactly like an Excel pivot table with "product" in Rows.
-
-</details>
-
-
-## How Do You Replace SUMIF, COUNTIF, and Other Conditional Functions?
-
-Excel has a family of conditional functions: SUMIF, COUNTIF, AVERAGEIF, and their multi-condition siblings SUMIFS, COUNTIFS, AVERAGEIFS. In R, you do not need separate functions for each operation. The pattern is always the same: filter the rows, then apply any summary function.
-
-Let's replicate SUMIF — sum total sales where the region is "East".
-
-```r
-# SUMIF equivalent: sum total_sale where region == "East"
-east_total <- sales_with_cat |>
-  filter(region == "East") |>
-  summarise(east_sales = sum(total_sale))
-
-east_total
-#>   east_sales
-#> 1    28749.2
-```
-
-In Excel you would write `=SUMIF(C:C,"East",H:H)`. In R, you filter first, then sum. The result is the same, but the R version reads like plain English.
-
-COUNTIF is even simpler. Let's count orders by category.
-
-```r
-# COUNTIF equivalent: count orders per category
-cat_counts <- sales_with_cat |>
-  count(category, name = "order_count")
-
-cat_counts
-#>      category order_count
-#> 1 Accessories           8
-#> 2   Computing          16
-#> 3      Mobile          16
-```
-
-The `count()` function is a shortcut for `group_by() |> summarise(n = n())`. It does exactly what COUNTIF does — counts how many rows match each unique value.
-
-For SUMIFS with multiple criteria, just add more conditions to `filter()`. Let's sum sales where the region is "East" AND the category is "Computing".
-
-```r
-# SUMIFS equivalent: multiple criteria
-multi_crit <- sales_with_cat |>
-  filter(region == "East", category == "Computing") |>
-  summarise(
-    total = sum(total_sale),
-    count = n(),
-    average = mean(total_sale)
-  )
-
-multi_crit
-#>     total count  average
-#> 1  8999.8     3  2999.93
-```
-
-One `filter()` call with two conditions replaces SUMIFS, COUNTIFS, and AVERAGEIFS all at once. You just change the summary function at the end.
-
-[NOTE]
-**Excel needs separate functions for each operation (SUMIF, COUNTIF, AVERAGEIF). R uses one pattern: filter the rows, then apply any function.** This means you learn one approach and it works for sum, count, average, median, standard deviation, or any custom calculation.
-
-**Try it:** Calculate the average `total_sale` for orders placed in months 1 through 3 (Q1). Hint: extract the month from the `date` column using `substr(date, 6, 7)`.
-
-```r
-# Try it: average total_sale for Q1 orders
-ex_q1_avg <- sales_with_cat |>
-  filter(
-    # your code here — extract month and check <= "03"
-  ) |>
-  summarise(avg_sale = mean(total_sale))
-
-# Test:
-ex_q1_avg
-#> Expected: a single-row data frame with avg_sale
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-ex_q1_avg <- sales_with_cat |>
-  filter(substr(date, 6, 7) <= "03") |>
-  summarise(avg_sale = mean(total_sale))
-
-ex_q1_avg
-#>   avg_sale
-#> 1  2816.57
-```
-
-**Explanation:** `substr(date, 6, 7)` extracts characters 6-7 from the date string (the month). Filtering for months "01" through "03" gives us Q1 orders, then `mean()` computes the average.
-
-</details>
-
-
-## How Do You Reshape Data Like Unpivot and Text-to-Columns?
-
-Excel's "Unpivot" (in Power Query) converts wide tables to long format. In R, `pivot_longer()` does the same thing. Going the other direction — long to wide — uses `pivot_wider()`. And for splitting a column into parts (like Text-to-Columns), R has `separate()`.
-
-Let's start with a wide quarterly sales table — the kind you might export from Excel — and reshape it to long format for analysis.
-
-```r
-# Wide quarterly data (typical Excel export format)
-quarterly <- data.frame(
-  product = c("Laptop", "Phone", "Tablet"),
-  Q1_sales = c(15000, 22000, 8000),
-  Q2_sales = c(18000, 19000, 12000),
-  Q3_sales = c(21000, 25000, 9000),
-  Q4_sales = c(24000, 28000, 14000)
-)
-
-quarterly
-#>   product Q1_sales Q2_sales Q3_sales Q4_sales
-#> 1  Laptop    15000    18000    21000    24000
-#> 2   Phone    22000    19000    25000    28000
-#> 3  Tablet     8000    12000     9000    14000
-```
-
-This wide format is great for reading but terrible for analysis. Let's unpivot it — turning the four quarter columns into two columns: `quarter` and `sales`.
-
-```r
-# Unpivot (pivot_longer) — wide to long
-quarterly_long <- quarterly |>
-  pivot_longer(
-    cols = Q1_sales:Q4_sales,
-    names_to = "quarter",
-    values_to = "sales"
-  ) |>
-  mutate(quarter = gsub("_sales", "", quarter))
-
-quarterly_long
-#>    product quarter sales
-#>  1 Laptop  Q1      15000
-#>  2 Laptop  Q2      18000
-#>  3 Laptop  Q3      21000
-#>  4 Laptop  Q4      24000
-#>  5 Phone   Q1      22000
-#>  6 Phone   Q2      19000
-#>  ...
-```
-
-Now every observation is one row. This long format is what ggplot2 and most R analysis functions expect.
-
-To go back to wide format — maybe for an Excel-style report — use `pivot_wider()`.
-
-```r
-# Re-pivot to wide (long to wide)
-quarterly_wide <- quarterly_long |>
-  pivot_wider(
-    names_from = quarter,
-    values_from = sales
-  )
-
-quarterly_wide
-#>   product    Q1    Q2    Q3    Q4
-#> 1 Laptop  15000 18000 21000 24000
-#> 2 Phone   22000 19000 25000 28000
-#> 3 Tablet   8000 12000  9000 14000
-```
-
-We are back to the original wide layout. This round-trip between wide and long is something you do constantly in R.
-
-For Excel's Text-to-Columns feature, use `separate()`. Let's split a combined "city-state" column into two separate columns.
-
-```r
-# Text-to-Columns equivalent: separate()
-orders_combined <- data.frame(
-  id = 1:4,
-  location = c("NYC-NY", "LA-CA", "CHI-IL", "HOU-TX"),
-  amount = c(500, 750, 300, 425)
-)
-
-split_data <- orders_combined |>
-  separate(location, into = c("city", "state"), sep = "-")
-
-split_data
-#>   id city state amount
-#> 1  1  NYC    NY    500
-#> 2  2   LA    CA    750
-#> 3  3  CHI    IL    300
-#> 4  4  HOU    TX    425
-```
-
-The `sep = "-"` argument tells R where to split — just like choosing the delimiter in Excel's Text-to-Columns wizard.
+`values_fill = 0` does the same job as ticking "Show zero for empty cells" in Excel's pivot options — the difference is that the setting lives inside the code, so it never gets lost.
 
 [KEY INSIGHT]
-**Excel forces you to commit to one layout. R lets you reshape freely.** Use `pivot_longer()` when you need data for analysis or plotting, and `pivot_wider()` when you need a presentation table. The data itself does not change — only its shape.
+**Pivot table = group_by + summarise + pivot_wider.** The first verb is the Rows box, the second is the Values box, and the third is the Columns box. Three verbs, and your pivot is reproducible forever.
 
-**Try it:** Take the `quarterly_long` data and create a new wide table where products are columns and quarters are rows (the transpose of the original). Save it as `ex_transposed`.
+**Try it:** Count how many orders were placed in each region. Save it to `ex_order_counts`.
 
 ```r
-# Try it: reshape so products become columns, quarters become rows
-ex_transposed <- quarterly_long |>
-  pivot_wider(
-    # your code here
-  )
+# Your turn:
+ex_order_counts <- sales # chain group_by + summarise here
 
-# Test:
-names(ex_transposed)
-#> Expected: "quarter" "Laptop" "Phone" "Tablet"
+ex_order_counts
+#> Expected: 4 rows — East 4, North 2, South 2, West 2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-ex_transposed <- quarterly_long |>
-  pivot_wider(
-    names_from = product,
-    values_from = sales
-  )
-
-ex_transposed
-#>   quarter Laptop Phone Tablet
-#> 1 Q1       15000 22000   8000
-#> 2 Q2       18000 19000  12000
-#> 3 Q3       21000 25000   9000
-#> 4 Q4       24000 28000  14000
+ex_order_counts <- sales |>
+  group_by(region) |>
+  summarise(orders = n(), .groups = "drop")
+ex_order_counts
+#> # A tibble: 4 × 2
+#>   region orders
+#>   <chr>   <int>
+#> 1 East        4
+#> 2 North       2
+#> 3 South       2
+#> 4 West        2
 ```
 
-**Explanation:** Swapping `names_from` and `values_from` arguments controls what becomes columns versus rows. This is the pivot table equivalent of swapping the Row and Column fields.
+**Explanation:** `n()` inside `summarise()` counts the rows in each group — that's COUNTIF with the "criteria" already split out by `group_by`.
 
 </details>
 
+## How do you reshape Excel data without copy-paste?
 
-## How Do You Create Charts That Replace Excel's Conditional Formatting and Graphs?
-
-Excel users rely on two visual tools: charts (bar, line, scatter, pie) and conditional formatting (color-coding cells based on values). In R, ggplot2 handles both. Charts are built with `geom_` layers, and conditional formatting translates to color aesthetics.
-
-Let's start with a bar chart of total sales by region — the equivalent of selecting your data and inserting a bar chart in Excel.
+Reshaping is the Excel operation people dread most. In Excel you either live with a wide layout, or you use Power Query's Unpivot (and hope it still works next week). In R, reshaping is just two functions: `pivot_longer()` takes wide data to long, `pivot_wider()` goes the other way. Here's a quarterly sales frame — the shape a finance team would email you — getting turned on its side.
 
 ```r
-# Bar chart: total sales by region (Excel Insert > Bar Chart)
-p1 <- ggplot(region_summary, aes(x = reorder(region, -total_sales), y = total_sales)) +
-  geom_col(fill = "steelblue") +
-  labs(
-    title = "Total Sales by Region",
-    x = "Region",
-    y = "Total Sales ($)"
-  ) +
-  theme_minimal()
+# Wide quarterly layout — typical Excel shape
+quarterly_wide <- tibble(
+  region = c("East", "West", "North", "South"),
+  Q1     = c(10000,  8000, 5000, 4000),
+  Q2     = c(12000,  9500, 6200, 4300),
+  Q3     = c(15000, 11000, 7100, 4800),
+  Q4     = c(18000, 12500, 8300, 5200)
+)
 
-print(p1)
+# Excel: Get & Transform → Unpivot other columns
+quarterly_long <- quarterly_wide |>
+  pivot_longer(
+    cols      = Q1:Q4,
+    names_to  = "quarter",
+    values_to = "revenue"
+  )
+head(quarterly_long, 5)
+#> # A tibble: 5 × 3
+#>   region quarter revenue
+#>   <chr>  <chr>     <dbl>
+#> 1 East   Q1        10000
+#> 2 East   Q2        12000
+#> 3 East   Q3        15000
+#> 4 East   Q4        18000
+#> 5 West   Q1         8000
 ```
 
-The `reorder()` function sorts bars by value — something Excel makes you do manually by sorting the source data.
-
-Now let's create a scatter plot with color-coded points by category. This is the R version of conditional formatting — instead of coloring cells, you color data points based on a variable.
-
-```r
-# Scatter plot with color by category (conditional formatting equivalent)
-p2 <- ggplot(sales_with_cat, aes(x = quantity, y = total_sale, color = category)) +
-  geom_point(size = 3, alpha = 0.7) +
-  labs(
-    title = "Order Size vs Total Sale",
-    x = "Quantity",
-    y = "Total Sale ($)",
-    color = "Category"
-  ) +
-  theme_minimal()
-
-print(p2)
-```
-
-Each point's color shows its category — Computing, Mobile, or Accessories. This is more informative than Excel's conditional formatting because you see the patterns across two dimensions at once.
-
-For the closest equivalent to Excel's heat-map-style conditional formatting, use a tile plot with a color gradient.
-
-```r
-# Heatmap: the closest to Excel conditional formatting
-heat_data <- sales_with_cat |>
-  group_by(region, product) |>
-  summarise(avg_sale = mean(total_sale), .groups = "drop")
-
-p3 <- ggplot(heat_data, aes(x = product, y = region, fill = avg_sale)) +
-  geom_tile(color = "white", linewidth = 0.5) +
-  scale_fill_gradient(low = "#f7fbff", high = "#08519c") +
-  labs(
-    title = "Average Sale by Region and Product",
-    fill = "Avg Sale ($)"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-print(p3)
-```
-
-The darker the tile, the higher the average sale. This gives you the same at-a-glance pattern recognition as Excel's conditional formatting, but in a proper visualization.
+Sixteen rows (four regions × four quarters), one row per quarter per region. Once data is in this "long" shape, every dplyr verb you already know works on it — and every ggplot2 chart expects it.
 
 [TIP]
-**ggplot2 separates data, aesthetics, and geometry.** Change `geom_col()` to `geom_line()` and you get a line chart. Change `fill = "steelblue"` to `fill = category` and you get grouped colors. In Excel, switching chart types often means rebuilding from scratch.
+**Long format is the shape dplyr and ggplot2 want.** When a pipeline feels awkward, there's a good chance the data is still wide. A single `pivot_longer()` at the top usually makes the next five lines write themselves.
 
-**Try it:** Create a bar chart showing total sales by product, with bars colored by `category`. Use `sales_with_cat` grouped by product and category. Save the plot as `ex_plot`.
+The sibling problem is Text to Columns: a single cell holds two pieces of information separated by a delimiter, and you need them in their own columns. `separate_wider_delim()` handles it in one line.
 
 ```r
-# Try it: bar chart of total sales by product, colored by category
-ex_plot_data <- sales_with_cat |>
-  group_by(product, category) |>
-  summarise(total = sum(total_sale), .groups = "drop")
+# Combined column — "Region-Product", like a sheet someone pasted together
+combo_tbl <- tibble(
+  combo   = c("East-Laptop", "West-Phone", "North-Tablet"),
+  revenue = c(19980, 1797, 1995)
+)
 
-ex_plot <- ggplot(ex_plot_data, aes(x = product, y = total, fill = category)) +
-  # your code here
+# Excel: Data → Text to Columns → Delimited → "-"
+combo_split <- combo_tbl |>
+  separate_wider_delim(
+    cols  = combo,
+    delim = "-",
+    names = c("region", "product")
+  )
+combo_split
+#> # A tibble: 3 × 3
+#>   region product revenue
+#>   <chr>  <chr>     <dbl>
+#> 1 East   Laptop    19980
+#> 2 West   Phone      1797
+#> 3 North  Tablet     1995
+```
 
-print(ex_plot)
+One function, one line, exactly the same result — and the next time a colleague sends you a sheet with the same layout, you re-run the same script.
+
+**Try it:** Given this wide two-month frame, reshape it to long format and save to `ex_long`.
+
+```r
+ex_wide <- tibble(
+  store = c("A", "B", "C"),
+  Jan   = c(100, 200, 150),
+  Feb   = c(110, 210, 160)
+)
+
+# Your turn:
+ex_long <- ex_wide # chain pivot_longer here
+
+ex_long
+#> Expected: 6 rows — one per (store, month)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-ex_plot_data <- sales_with_cat |>
-  group_by(product, category) |>
-  summarise(total = sum(total_sale), .groups = "drop")
-
-ex_plot <- ggplot(ex_plot_data, aes(x = product, y = total, fill = category)) +
-  geom_col() +
-  labs(title = "Total Sales by Product", x = "Product", y = "Total Sales ($)") +
-  theme_minimal()
-
-print(ex_plot)
+ex_long <- ex_wide |>
+  pivot_longer(cols = Jan:Feb, names_to = "month", values_to = "sales")
+ex_long
+#> # A tibble: 6 × 3
+#>   store month sales
+#>   <chr> <chr> <dbl>
+#> 1 A     Jan     100
+#> 2 A     Feb     110
+#> 3 B     Jan     200
+#> 4 B     Feb     210
+#> 5 C     Jan     150
+#> 6 C     Feb     160
 ```
 
-**Explanation:** `geom_col()` creates bars, and `fill = category` automatically assigns a different color to each category. ggplot2 handles the legend for you.
+**Explanation:** `cols = Jan:Feb` says "take these columns", `names_to` is where their names go, and `values_to` is where their numbers go.
 
 </details>
 
+## How do you replace Excel charts and conditional formatting?
 
-## Common Mistakes and How to Fix Them
+Excel charts are tied to the shape of a selection: click a range, pick a chart type, and hope the defaults are reasonable. ggplot2 is the opposite — you describe what you want (which columns, which geometry, which aesthetic) and the chart shape follows. The payoff is that you never have to rebuild a chart when the underlying data changes.
 
-### Mistake 1: Using = instead of == in filter()
-
-❌ **Wrong:**
 ```r
-# This assigns "East" to region, it does not filter!
-sales_with_cat |> filter(region = "East")
-#> Error: Problem with `filter()` input.
+# Excel: Insert → Bar Chart on the pivot table
+region_chart <- ggplot(region_summary, aes(x = region, y = total_revenue)) +
+  geom_col(fill = "#4C78A8") +
+  labs(
+    title = "Total revenue by region",
+    x     = NULL,
+    y     = "Revenue ($)"
+  ) +
+  theme_minimal()
+
+region_chart
 ```
 
-**Why it is wrong:** A single `=` is assignment in R. You need `==` for comparison. Excel uses `=` for both, which is why this trips up Excel users.
+Read the code as a sentence: "Plot `region_summary`, map `region` to the x-axis and `total_revenue` to the y-axis, draw columns, label them." Swap `geom_col()` for `geom_point()` and you get a dot plot. Swap `x = region` for `x = product` and you get a totally different chart — no rebuild, no resizing, no broken formulas.
 
-✅ **Correct:**
+Conditional formatting — the colour-by-value heatmap Excel gives you when you highlight a range and pick "Color Scales" — is just a fill aesthetic on a `geom_tile()` in ggplot2. The `gt` package does the same thing inside a table. Both are one-liners once you see the pattern.
+
+[NOTE]
+**Plots render directly below the code block.** Click Run and the chart appears in the output area — no PNG export, no file save, no "update linked chart" dialog.
+
+**Try it:** Build a bar chart of `total_revenue` per **product** (not region) using `sales_joined`. Hint: `group_by(product) |> summarise(total_revenue = sum(revenue))` first, then feed the result into `ggplot()`.
+
 ```r
-sales_with_cat |> filter(region == "East") |> nrow()
-#> [1] 10
+# Your turn:
+ex_product_chart <- sales_joined |>
+  group_by(product) |>
+  summarise(total_revenue = sum(revenue), .groups = "drop") # add ggplot here
+
+ex_product_chart
+#> Expected: a bar chart with four bars (Laptop, Monitor, Phone, Tablet)
 ```
 
-### Mistake 2: Forgetting to ungroup() after group_by()
+<details>
+<summary>Click to reveal solution</summary>
 
-❌ **Wrong:**
 ```r
-# Grouped data causes unexpected behavior in later operations
-grouped <- sales_with_cat |>
-  group_by(region) |>
-  summarise(total = sum(total_sale))
+ex_product_chart <- sales_joined |>
+  group_by(product) |>
+  summarise(total_revenue = sum(revenue), .groups = "drop") |>
+  ggplot(aes(x = product, y = total_revenue)) +
+  geom_col(fill = "#E45756") +
+  labs(title = "Revenue by product", x = NULL, y = "Revenue ($)") +
+  theme_minimal()
 
-# This mutate applies within leftover groups, not the full data
-grouped |> mutate(pct = total / sum(total))
-#> Might give unexpected results if groups persist
+ex_product_chart
 ```
 
-**Why it is wrong:** Some operations inherit the grouping. If you forget to ungroup, later calculations may operate within groups instead of on the full dataset. Use `.groups = "drop"` in `summarise()` or call `ungroup()` explicitly.
+**Explanation:** The pipe carries the summarised tibble straight into `ggplot()`. The same three-step pattern — group, summarise, plot — handles nearly every chart you'd draw in Excel.
 
-✅ **Correct:**
-```r
-sales_with_cat |>
-  group_by(region) |>
-  summarise(total = sum(total_sale), .groups = "drop") |>
-  mutate(pct = round(total / sum(total) * 100, 1))
-#>   region  total  pct
-#> 1 East    28749  30.2
-#> 2 North   22599  23.8
-#> 3 South   18249  19.2
-#> 4 West    25399  26.8
-```
-
-### Mistake 3: Joining on mismatched column types
-
-❌ **Wrong:**
-```r
-# One table has numeric IDs, the other has character IDs
-table_a <- data.frame(id = c(1, 2, 3), value = c("a", "b", "c"))
-table_b <- data.frame(id = c("1", "2", "3"), score = c(90, 85, 78))
-
-result <- left_join(table_a, table_b, by = "id")
-#> Warning: joining character and double columns
-```
-
-**Why it is wrong:** R may coerce types silently or produce `NA` matches. Excel's VLOOKUP has the same problem when mixing text and numbers, but R at least warns you.
-
-✅ **Correct:**
-```r
-table_a <- data.frame(id = c(1, 2, 3), value = c("a", "b", "c"))
-table_b <- data.frame(id = c(1, 2, 3), score = c(90, 85, 78))
-
-result <- left_join(table_a, table_b, by = "id")
-result
-#>   id value score
-#> 1  1     a    90
-#> 2  2     b    85
-#> 3  3     c    78
-```
-
-### Mistake 4: Using $ inside dplyr pipelines
-
-❌ **Wrong:**
-```r
-# $ references the original data, not the piped version
-sales_with_cat |>
-  filter(sales_with_cat$region == "East")
-```
-
-**Why it is wrong:** Inside a dplyr pipe, column names are bare (no `$`). Using `$` references the original data frame, which can cause subtle bugs if you have filtered or mutated rows earlier in the chain.
-
-✅ **Correct:**
-```r
-sales_with_cat |>
-  filter(region == "East") |>
-  nrow()
-#> [1] 10
-```
-
-### Mistake 5: Expecting approximate match behavior from left_join()
-
-❌ **Wrong assumption:**
-```r
-# You expect left_join to find the "closest" match like VLOOKUP's TRUE flag
-# left_join only does exact matching
-```
-
-**Why it is wrong:** Excel's VLOOKUP with the fourth argument set to TRUE performs approximate matching (finds the largest value less than or equal to the lookup value). R's `left_join()` does exact matching only. For approximate matching, use `findInterval()` or the `fuzzyjoin` package.
-
-✅ **Correct approach:**
-```r
-# For exact matching (most common case), left_join works perfectly
-sales_with_cat |>
-  left_join(categories, by = "product") |>
-  head(2)
-#>   order_id       date region product quantity unit_price ... category weight_kg
-#> 1        1 2024-01-15   East  Laptop        6     499.99 ... Computing      2.1
-#> 2        2 2024-02-15   West   Phone       12     199.99 ... Mobile         0.2
-```
-
+</details>
 
 ## Practice Exercises
 
-### Exercise 1: Complete Sales Summary Pipeline
+### Exercise 1: Quarterly tax totals by region
 
-Build a complete sales report. Start with `sales_with_cat`, filter to only "High Value" orders, group by region and category, calculate total sales and order count, then pivot to wide format so categories are columns. Save the final wide table as `my_report`.
+Using `sales`, keep only rows where `quantity > 1`, compute a `revenue` column, left-join the `ex_region_tax` lookup below, compute `tax = revenue * tax_rate`, summarise `total_tax` per region, and save the result to `my_tax_by_region`.
 
 ```r
-# Exercise 1: Build a sales report pipeline
-# Hint: chain filter() -> group_by() -> summarise() -> pivot_wider()
+ex_region_tax <- tibble(
+  region   = c("East", "West", "North", "South"),
+  tax_rate = c(0.08, 0.07, 0.06, 0.09)
+)
 
-# Write your code below:
+# Write your pipeline below:
 
+# my_tax_by_region
+#> Expected: 4 rows, one per region, with a total_tax column
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r
-my_report <- sales_with_cat |>
-  filter(order_class == "High Value") |>
-  group_by(region, category) |>
-  summarise(
-    total_sales = sum(total_sale),
-    orders = n(),
-    .groups = "drop"
+my_tax_by_region <- sales |>
+  filter(quantity > 1) |>
+  mutate(revenue = quantity * unit_price) |>
+  left_join(ex_region_tax, by = "region") |>
+  mutate(tax = revenue * tax_rate) |>
+  group_by(region) |>
+  summarise(total_tax = sum(tax), .groups = "drop")
+
+my_tax_by_region
+#> # A tibble: 4 × 2
+#>   region total_tax
+#>   <chr>      <dbl>
+#> 1 East      1757.8
+#> 2 North      443.2
+#> 3 South      521.0
+#> 4 West      1174.7
+```
+
+**Explanation:** Five verbs in one pipeline — filter, mutate, left_join, mutate, summarise. That's one "morning in Excel" compressed into a paragraph of code.
+
+</details>
+
+### Exercise 2: Region × tier crosstab
+
+Build a crosstab that shows total revenue per region and tier. Start from `sales`, add `revenue`, add a `tier` column using `case_when()` (Low < 3000, Medium 3000-10000, High > 10000), group by region and tier, summarise, and pivot wider so tiers become columns. Save the result to `my_crosstab`.
+
+```r
+# Write your pipeline below:
+
+# my_crosstab
+#> Expected: 4 rows (one per region), columns Low / Medium / High
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_crosstab <- sales |>
+  mutate(
+    revenue = quantity * unit_price,
+    tier    = case_when(
+      revenue >  10000 ~ "High",
+      revenue >=  3000 ~ "Medium",
+      TRUE             ~ "Low"
+    )
   ) |>
+  group_by(region, tier) |>
+  summarise(total = sum(revenue), .groups = "drop") |>
+  pivot_wider(names_from = tier, values_from = total, values_fill = 0)
+
+my_crosstab
+#> # A tibble: 4 × 4
+#>   region    Low Medium   High
+#>   <chr>   <dbl>  <dbl>  <dbl>
+#> 1 East     1992   7992  11988
+#> 2 North    1995   5391      0
+#> 3 South    1596   4193      0
+#> 4 West     1797      0  14985
+```
+
+**Explanation:** The full Excel pivot table — rows, values, columns — lives in one re-runnable pipeline. Drop in a different input next quarter and the crosstab rebuilds itself.
+
+</details>
+
+## Complete Example — A Monthly Sales Report in One Pipe
+
+Here is the point of doing all this: the whole report, in one pipeline. Filter, compute, tier, join, group, summarise, spread into a crosstab, and draw a chart. What takes a practised Excel user twenty minutes of clicking, copying, and re-formatting is twelve lines of code that run instantly on ten rows or ten million.
+
+```r
+# One pipeline, the whole report
+monthly_report <- sales |>
+  filter(quantity > 1) |>
+  mutate(
+    revenue = quantity * unit_price,
+    tier    = case_when(
+      revenue >  10000 ~ "High",
+      revenue >=  3000 ~ "Medium",
+      TRUE             ~ "Low"
+    )
+  ) |>
+  left_join(product_info, by = "product") |>
+  group_by(region, category) |>
+  summarise(total_revenue = sum(revenue), .groups = "drop") |>
   pivot_wider(
-    names_from = category,
-    values_from = c(total_sales, orders),
+    names_from  = category,
+    values_from = total_revenue,
     values_fill = 0
   )
 
-my_report
-#>   region total_sales_Accessories total_sales_Computing total_sales_Mobile ...
-#> 1 East                    5399.9               8999.8             6999.8 ...
-#> 2 North                   2699.9               5699.9             4199.9 ...
-#> ...
+monthly_report
+#> # A tibble: 4 × 3
+#>   region Computing Mobile
+#>   <chr>      <dbl>  <dbl>
+#> 1 East       19980      0
+#> 2 North          0   7386
+#> 3 South          0   5789
+#> 4 West       14985   1797
 ```
 
-**Explanation:** This pipeline replicates an entire Excel workflow: filter rows, build a pivot table with two value fields, then reshape for presentation. The `values_fill = 0` replaces any missing combinations with zero.
-
-</details>
-
-### Exercise 2: Dashboard KPIs and Visualization
-
-Calculate four KPIs from `sales_with_cat`: (1) total revenue, (2) average order value, (3) number of unique products sold, and (4) the top-selling region. Store them in a named list called `my_kpis`. Then create a ggplot bar chart showing total sales by region with a horizontal red dashed line at the overall average.
-
 ```r
-# Exercise 2: Calculate KPIs and create a chart
-# Hint: use summarise() for KPIs, geom_hline() for the average line
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-my_kpis <- list(
-  total_revenue = sum(sales_with_cat$total_sale),
-  avg_order_value = mean(sales_with_cat$total_sale),
-  unique_products = n_distinct(sales_with_cat$product),
-  top_region = sales_with_cat |>
-    group_by(region) |>
-    summarise(total = sum(total_sale), .groups = "drop") |>
-    slice_max(total, n = 1) |>
-    pull(region)
-)
-
-cat("Total Revenue:", my_kpis$total_revenue, "\n")
-cat("Avg Order Value:", round(my_kpis$avg_order_value, 2), "\n")
-cat("Unique Products:", my_kpis$unique_products, "\n")
-cat("Top Region:", my_kpis$top_region, "\n")
-#> Total Revenue: 94996.4
-#> Avg Order Value: 2374.91
-#> Unique Products: 5
-#> Top Region: East
-
-my_chart <- ggplot(region_summary, aes(x = reorder(region, -total_sales), y = total_sales)) +
-  geom_col(fill = "steelblue") +
-  geom_hline(yintercept = mean(region_summary$total_sales), color = "red",
-             linetype = "dashed", linewidth = 1) +
-  labs(title = "Sales by Region vs Average", x = "Region", y = "Total Sales ($)") +
+# And the chart — one extra pipe
+monthly_report |>
+  pivot_longer(-region, names_to = "category", values_to = "revenue") |>
+  ggplot(aes(x = region, y = revenue, fill = category)) +
+  geom_col(position = "dodge") +
+  labs(title = "Revenue by region and category", x = NULL, y = "Revenue ($)") +
   theme_minimal()
-
-print(my_chart)
 ```
 
-**Explanation:** The KPIs combine multiple summary functions. The chart uses `geom_hline()` to overlay a reference line — a common dashboard pattern that shows which regions are above or below average.
+Two things worth noticing. First, the report and the chart share the same pipeline — no copy-paste between sheets, no "link broken" dialogs. Second, everything upstream of `monthly_report` is reusable: swap in fresh data and the report rebuilds with zero manual work.
 
-</details>
-
-### Exercise 3: Data Cleaning and Analysis Pipeline
-
-Create a messy dataset, clean it, and analyze it — simulating a real Excel-to-R workflow. Start with the data below, then: (1) separate the `name_dept` column into `name` and `department`, (2) convert `salary` from character to numeric (remove the "$" and commas), (3) join a `dept_budget` lookup table, and (4) calculate each person's salary as a percentage of their department budget.
-
-```r
-# Exercise 3: Clean and analyze messy data
-my_messy <- data.frame(
-  id = 1:6,
-  name_dept = c("Alice-Sales", "Bob-Engineering", "Carol-Sales",
-                "Dan-Engineering", "Eve-Marketing", "Frank-Marketing"),
-  salary = c("$85,000", "$120,000", "$78,000", "$115,000", "$92,000", "$88,000")
-)
-
-my_dept_budget <- data.frame(
-  department = c("Sales", "Engineering", "Marketing"),
-  budget = c(200000, 300000, 250000)
-)
-
-# Hint: separate(), gsub(), as.numeric(), left_join(), mutate()
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r
-my_messy <- data.frame(
-  id = 1:6,
-  name_dept = c("Alice-Sales", "Bob-Engineering", "Carol-Sales",
-                "Dan-Engineering", "Eve-Marketing", "Frank-Marketing"),
-  salary = c("$85,000", "$120,000", "$78,000", "$115,000", "$92,000", "$88,000")
-)
-
-my_dept_budget <- data.frame(
-  department = c("Sales", "Engineering", "Marketing"),
-  budget = c(200000, 300000, 250000)
-)
-
-my_clean <- my_messy |>
-  separate(name_dept, into = c("name", "department"), sep = "-") |>
-  mutate(salary_num = as.numeric(gsub("[$,]", "", salary))) |>
-  left_join(my_dept_budget, by = "department") |>
-  mutate(pct_of_budget = round(salary_num / budget * 100, 1))
-
-my_clean[, c("name", "department", "salary_num", "budget", "pct_of_budget")]
-#>    name department salary_num budget pct_of_budget
-#> 1 Alice      Sales      85000 200000          42.5
-#> 2   Bob Engineering     120000 300000          40.0
-#> 3 Carol      Sales      78000 200000          39.0
-#> 4   Dan Engineering     115000 300000          38.3
-#> 5   Eve  Marketing      92000 250000          36.8
-#> 6 Frank  Marketing      88000 250000          35.2
-```
-
-**Explanation:** This pipeline combines four Excel operations: Text-to-Columns (`separate()`), Find-and-Replace + type conversion (`gsub()` + `as.numeric()`), VLOOKUP (`left_join()`), and a calculated column (`mutate()`). Each step would be a separate manual operation in Excel.
-
-</details>
-
-
-## Putting It All Together
-
-Let's build a complete analysis pipeline that demonstrates the full Excel-to-R workflow. We will take our raw sales data, enrich it, summarize it, and visualize it — all in one piped chain.
-
-This is the equivalent of opening an Excel file, adding VLOOKUP formulas, building a pivot table, and creating a chart. In R, it reads as a single continuous narrative.
-
-```r
-# Complete Excel-replacement pipeline
-# Step 1: Start with raw sales data
-# Step 2: Join product categories (VLOOKUP)
-# Step 3: Add calculated columns (formulas)
-# Step 4: Summarize by group (pivot table)
-# Step 5: Visualize (chart)
-
-final_summary <- sales |>
-  left_join(categories, by = "product") |>
-  mutate(
-    profit_estimate = total_sale * 0.15,
-    month = substr(date, 6, 7)
-  ) |>
-  group_by(category, month) |>
-  summarise(
-    revenue = sum(total_sale),
-    profit = sum(profit_estimate),
-    orders = n(),
-    .groups = "drop"
-  )
-
-head(final_summary, 8)
-#>   category    month revenue  profit orders
-#> 1 Accessories 01    2699.97 404.996      1
-#> 2 Accessories 03    1349.97 202.496      1
-#> 3 Accessories 05    5399.94 809.991      2
-#> 4 Accessories 07    2699.97 404.996      1
-#> 5 Computing   01     499.99  75.0        1
-#> 6 Computing   02    1799.98 269.997      2
-#> ...
-```
-
-Five Excel operations — VLOOKUP, formulas, grouping, aggregation, and month extraction — condensed into one readable pipeline. The data flows from top to bottom, each step transforming it for the next.
-
-Now let's visualize the result as a faceted chart — something Excel cannot do without copy-pasting multiple charts.
-
-```r
-# Faceted bar chart: revenue by month, one panel per category
-final_plot <- ggplot(final_summary, aes(x = month, y = revenue, fill = category)) +
-  geom_col() +
-  facet_wrap(~category, scales = "free_y") +
-  labs(
-    title = "Monthly Revenue by Product Category",
-    x = "Month",
-    y = "Revenue ($)"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "none")
-
-print(final_plot)
-```
-
-Each panel shows one category's monthly revenue. In Excel, you would need three separate charts or a complex combo chart. In ggplot2, `facet_wrap()` does it in one line.
-
+[WARNING]
+**Save your script, not the output.** The Excel habit is "save the workbook"; the R habit is "save the script that produces the output". Ship the code, rerun it on tomorrow's data, and the report regenerates itself. Hand-editing cells in the output breaks this the moment you rerun.
 
 ## Summary
 
-Here is a quick-reference table mapping every Excel operation covered in this guide to its R equivalent.
+Here is the full Excel-to-R translation table in one place. Bookmark this section — it's the fastest cheat-sheet you'll reach for in the first week.
 
-| Excel Operation | R Equivalent | Package |
+| Excel operation | R equivalent | Package |
 |---|---|---|
-| AutoFilter (filter rows) | `filter()` | dplyr |
-| Sort A-Z / Z-A | `arrange()`, `desc()` | dplyr |
-| Column formulas (drag down) | `mutate()` | dplyr |
-| IF() function | `ifelse()`, `case_when()` | base R / dplyr |
+| AutoFilter | `filter()` | dplyr |
+| Sort A-Z / Z-A | `arrange()` / `arrange(desc())` | dplyr |
+| Formula in a new column | `mutate()` | dplyr |
+| `IF()` | `if_else()` | dplyr |
+| Nested `IF()` / `IFS()` | `case_when()` | dplyr |
 | VLOOKUP / INDEX-MATCH | `left_join()` | dplyr |
-| Pivot Table (group + summarize) | `group_by() |> summarise()` | dplyr |
-| SUMIF / COUNTIF / AVERAGEIF | `filter() |> summarise()` | dplyr |
-| Unpivot (Power Query) | `pivot_longer()` | tidyr |
-| Pivot (wide layout) | `pivot_wider()` | tidyr |
-| Text-to-Columns | `separate()` | tidyr |
-| Bar / Line / Scatter charts | `geom_col()`, `geom_line()`, `geom_point()` | ggplot2 |
-| Conditional Formatting | Color aesthetics (`fill`, `color`) | ggplot2 |
-| Find and Replace | `gsub()`, `sub()` | base R |
-| CONCATENATE / TEXTJOIN | `paste()`, `paste0()` | base R |
+| SUMIF / COUNTIF / AVERAGEIF | `group_by()` + `summarise()` | dplyr |
+| Pivot table | `group_by()` + `summarise()` + `pivot_wider()` | dplyr + tidyr |
+| Unpivot (Get & Transform) | `pivot_longer()` | tidyr |
+| Text to Columns | `separate_wider_delim()` | tidyr |
+| Charts | `ggplot()` + `geom_*()` | ggplot2 |
+| Conditional formatting | `scale_fill_gradient()`, `gt` tables | ggplot2, gt |
 
-The pattern is consistent: where Excel uses mouse clicks and dialog boxes, R uses functions and pipes. Once you learn the handful of functions above, you can replace 90% of your Excel workflows.
+Three reasons the trip is worth it, once you have the map:
 
-
-## FAQ
-
-**Can R open Excel files directly?**
-
-Yes. The `readxl` package reads `.xlsx` and `.xls` files with `read_excel()`. For writing, use `writexl::write_xlsx()`. In this tutorial we created data inline for simplicity, but in practice you would start with `read_excel("myfile.xlsx")`.
-
-**Is R faster than Excel for large datasets?**
-
-Significantly. Excel slows down noticeably above 100,000 rows and has a hard limit of about 1.05 million rows. R handles millions of rows comfortably, and packages like `data.table` push performance even further. If your Excel file takes minutes to recalculate, R will likely finish in seconds.
-
-**Do I need to learn base R, or can I start with dplyr?**
-
-Start with dplyr and tidyr for data manipulation — their syntax is closer to how Excel users think. Learn base R gradually for things like `ifelse()`, `gsub()`, and indexing with brackets. You do not need to master base R before being productive.
-
-**How do I share R results with colleagues who use Excel?**
-
-Use `writexl::write_xlsx(my_data, "output.xlsx")` to export a data frame as an Excel file. For formatted tables, `openxlsx` gives you control over cell styles, headers, and sheet names. You can also export CSV files with `write.csv()`.
-
-**Can R replace Excel macros and VBA?**
-
-Yes, and more reliably. R scripts are plain text files that run identically every time. They are version-controllable, testable, and shareable. A 50-line R script can replace a 500-line VBA macro because R's data manipulation functions are more concise.
-
+1. **Reproducibility** — the same script runs the same way next week, next quarter, on next year's data. No "the filters got lost when I reopened it."
+2. **Scale** — dplyr handles millions of rows without freezing; Excel usually gives up around a hundred thousand.
+3. **Version control** — a script is a text file. Git can tell you exactly what changed, when, and by whom. A spreadsheet can't.
 
 ## References
 
-1. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
-2. dplyr documentation — Function reference for data manipulation. [Link](https://dplyr.tidyverse.org/reference/index.html)
-3. tidyr documentation — Pivoting and reshaping functions. [Link](https://tidyr.tidyverse.org/articles/pivot.html)
-4. ggplot2 documentation — Visualization reference. [Link](https://ggplot2.tidyverse.org/reference/index.html)
-5. Lander, J. — R for Excel Users workshop, RStudio Conference (2020). [Link](https://rstudio-conf-2020.github.io/r-for-excel/)
-6. Carlberg, C. — *R for Microsoft Excel Users: Making the Transition for Statistical Analysis*. Addison-Wesley (2018).
-7. R Core Team — *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-8. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
-
+1. dplyr documentation — verbs for data transformation. [Link](https://dplyr.tidyverse.org/)
+2. tidyr documentation — `pivot_longer()`, `pivot_wider()`, `separate_wider_delim()`. [Link](https://tidyr.tidyverse.org/)
+3. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. — *R for Data Science* (2nd ed.), chapters on data transformation and relational data. [Link](https://r4ds.hadley.nz/)
+4. Bryan, J. et al. — *R for Excel Users* (RStudio workshop materials). [Link](https://rstudio-conf-2020.github.io/r-for-excel/)
+5. ggplot2 documentation — the grammar of graphics in R. [Link](https://ggplot2.tidyverse.org/)
+6. Microsoft — Excel functions (by category) reference. [Link](https://support.microsoft.com/en-us/office/excel-functions-by-category-5f91f4e9-7b42-46d2-9bd1-63f26a86c0eb)
 
 ## Continue Learning
 
-Now that you can translate Excel operations into R, here are three tutorials to deepen your skills:
-
-1. **[Data Quality Checking in R](Data-Quality-Checking-in-R.html)** — Before any analysis, verify your dataset's structure, types, and values. Essential for data you just imported from Excel.
-2. **[Importing Data in R](Importing-Data-in-R.html)** — Learn to read CSV, Excel, JSON, and database files into R data frames.
-3. **[ggplot2 tutorials on r-statistics.co](index.html)** — Explore the full range of chart types available in ggplot2, from basic bar charts to advanced faceted visualizations.
+- **[dplyr filter() and select()](dplyr-filter-select.html)** — the two verbs that replace Excel's AutoFilter and column-hiding, explained in depth.
+- **[dplyr joins](dplyr-joins.html)** — every join type (inner, left, right, full, semi, anti) with the cases where each one beats VLOOKUP.
+- **[Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html)** — the bigger case for moving off spreadsheets, with data on where R pays off and where Excel still wins.
