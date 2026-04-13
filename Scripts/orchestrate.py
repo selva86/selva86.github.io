@@ -74,7 +74,31 @@ def write_queue(queue):
 
 
 # --- Git helpers ---
+def revert_churn_screenshots():
+    """Revert tracked-but-modified screenshot webps (non-deterministic mermaid
+    regeneration produces binary-different but content-equivalent files).
+    The current post's fresh diagrams are staged via publish(), so reverting
+    unstaged modifications is safe."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, cwd=REPO_ROOT
+    )
+    reverted = []
+    for line in result.stdout.splitlines():
+        # Only unstaged modifications (" M " prefix), only webp screenshots
+        if line.startswith(" M ") and line.endswith(".webp") and "screenshots/" in line:
+            fpath = line[3:].strip()
+            subprocess.run(
+                ["git", "checkout", "--", fpath],
+                capture_output=True, text=True, cwd=REPO_ROOT
+            )
+            reverted.append(fpath)
+    if reverted:
+        log(f"  Reverted {len(reverted)} churn webp(s): {', '.join(reverted)}")
+
+
 def check_git_clean():
+    revert_churn_screenshots()
     result = subprocess.run(
         ["git", "status", "--porcelain"],
         capture_output=True, text=True, cwd=REPO_ROOT
