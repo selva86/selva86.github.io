@@ -1288,6 +1288,9 @@ def build_post(
 
     meta, content = parse_front_matter(raw)
 
+    content = re.sub(r'^\s*\{%\s*raw\s*%\}\s*\n?', '', content)
+    content = re.sub(r'\n?\s*\{%\s*endraw\s*%\}\s*$', '', content)
+
     healed = heal_fragment(content)
     if healed != content:
         fm_match = re.match(r'^---\s*\n.*?\n---\s*\n', raw, re.DOTALL)

@@ -13,6 +13,8 @@ post_type: FR
 fr_parent: Reproducibility-Crisis.html
 ---
 
+{% raw %}
+
 # Open Science with R: OSF Integration, Preprints & Sharing Code
 
 <p class="lead">Open science with R means publishing your code and data alongside your paper so anyone can re-run, verify, and extend your work. The <strong>osfr</strong> package lets you do all of that from R itself — create projects on the Open Science Framework (OSF), upload data and scripts, and link them to a citable preprint with a permanent DOI.</p>
@@ -546,3 +548,5 @@ Pair that with a one-time PAT in your `.Renviron`, a CC-BY license at project cr
 - [R and the Reproducibility Crisis: 5 Habits That Make Your Research Replicable](Reproducibility-Crisis.html) — the parent post on why open science matters and the five habits behind it.
 - [Reproducible R Projects with renv and here](Reproducible-R-Projects.html) — pin your package versions and project paths so the bundle you upload to OSF actually re-runs on someone else's machine.
 - [Sharing R Code on GitHub](Sharing-R-Code-GitHub.html) — the version-control side of the same story, complementary to OSF for code-only releases.
+
+{% endraw %}

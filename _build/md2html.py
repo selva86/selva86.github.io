@@ -437,9 +437,10 @@ def convert(md_text):
             else:
                 fm_out.append(f'{key}: "{val}"')
     fm_out.append('---')
+    fm_out.append('{% raw %}')
     fm_out.append('<!-- md2html:generated -->')
 
-    rendered = '\n'.join(fm_out) + '\n\n' + '\n\n'.join(out)
+    rendered = '\n'.join(fm_out) + '\n\n' + '\n\n'.join(out) + '\n\n{% endraw %}'
 
     # Sanity check: any surviving raw callout token means a callout didn't render.
     # Abort the build — publishing a broken callout is worse than failing loudly.
