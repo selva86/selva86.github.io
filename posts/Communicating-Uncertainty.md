@@ -1,291 +1,575 @@
 ---
-title: "Communicating Uncertainty: Don't Mislead Your Audience with Data Viz"
+title: "Communicating Uncertainty in R: Visualise Confidence Without Misleading Anyone"
 slug: "Communicating-Uncertainty"
-description: "Learn to communicate uncertainty honestly in data visualization. Covers error bars, confidence intervals, p-values in charts, and misleading patterns."
-keywords: "communicating uncertainty, error bars R, confidence intervals visualization, misleading charts, data visualization ethics, uncertainty visualization"
+description: "Error bars and confidence bands can mislead as easily as they inform. Learn to choose the right uncertainty visualisation in R and words to match it honestly."
+keywords: "communicating uncertainty in R, error bars ggplot2, confidence intervals visualization, geom_ribbon, quantile dotplots, SD vs SE vs CI, misleading charts, uncertainty visualization"
+auto_link_terms: "communicating uncertainty|uncertainty visualization|error bars in R|confidence bands|quantile dotplots"
+auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-03-29"
+date: "2026-04-14"
 curriculum_id: "1.6.5"
 post_type: "C"
-auto_link_terms: "communicating uncertainty|error bars|misleading charts|uncertainty visualization"
-auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "Communicating Uncertainty"
 sidebar_order: 54
 ---
 
-# Communicating Uncertainty: Don't Mislead Your Audience with Data Viz
+# Communicating Uncertainty in R: Visualise Confidence Without Misleading Anyone
 
-<p class="lead">Every data point has uncertainty. When you make a chart without showing that uncertainty, you're telling your audience a lie of precision — making them think you know more than you actually do.</p>
+<p class="lead">A chart without uncertainty whispers a confident lie: "this is the exact value." Honest visualisation in R shows the wobble around every estimate so readers can judge how much to trust it.</p>
 
-A bar chart with no error bars implies "this is the exact value." A trend line with no confidence band implies "this is the definite trajectory." A map with sharp color boundaries implies "the line between red and blue counties is real." None of these are true. This guide teaches you to visualize data honestly — showing what you know, what you don't know, and how confident you are.
+This guide walks through how to draw error bars, confidence bands, and quantile dotplots in ggplot2, when each one helps, when it misleads, and the words you should pair with them so your audience reads your chart the way you mean it.
 
-## Why Uncertainty Matters
+## Why does showing uncertainty change what your chart says?
 
-Consider these two statements:
-
-1. "The treatment improved outcomes by 12%."
-2. "The treatment improved outcomes by 12% (95% CI: 2% to 22%, p = 0.02)."
-
-Statement 1 sounds definitive. Statement 2 tells you the improvement could be as small as 2% or as large as 22% — a huge range. The point estimate is the same, but the message is very different.
+Two studies report the same 12% improvement. One sampled 30 patients; the other sampled 500. Without uncertainty bars, the two results look identical and the smaller study punches above its weight. Add 95% confidence intervals and the picture flips: one estimate is rock solid, the other could swing anywhere from negligible to large. Here is the same data drawn both ways so you can feel the difference.
 
 ```r
-# The difference one number makes
-set.seed(42)
+library(ggplot2)
 
-# Two studies, same point estimate, different uncertainty
-study_a <- data.frame(
-  effect = 12, lower = 2, upper = 22, n = 30, label = "Study A (n=30)"
+study_results <- data.frame(
+  study  = c("Study A (n=30)", "Study B (n=500)"),
+  effect = c(12, 12),
+  lower  = c(2, 9),
+  upper  = c(22, 15)
 )
-study_b <- data.frame(
-  effect = 12, lower = 9, upper = 15, n = 500, label = "Study B (n=500)"
+study_results
+#>             study effect lower upper
+#> 1  Study A (n=30)     12     2    22
+#> 2 Study B (n=500)     12     9    15
+
+ggplot(study_results, aes(x = study, y = effect)) +
+  geom_col(fill = "#4e79a7", width = 0.6) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, linewidth = 0.8) +
+  labs(title = "Same effect, different certainty",
+       subtitle = "Bars show 95% confidence interval",
+       y = "Estimated improvement (%)", x = NULL) +
+  theme_minimal(base_size = 12)
+```
+
+Both studies report a 12% point estimate, but Study A's interval ranges from 2% to 22% — the true effect could be tiny or huge. Study B's interval is tight at 9% to 15%, so we can act on it with confidence. Strip the bars away and a reader sees two identical columns; add them, and the story is honest.
+
+**Try it:** Add an error bar layer to a one-row data frame. The mean is 50, the lower bound is 45, the upper bound is 55. Plot a single bar with the interval drawn on top.
+
+```r
+# Try it
+ex_means <- data.frame(group = "A", mean = 50, lower = 45, upper = 55)
+
+ex_p1 <- ggplot(ex_means, aes(x = group, y = mean)) +
+  geom_col(fill = "#59a14f", width = 0.4)
+  # add a geom_errorbar layer here
+
+ex_p1
+#> Expected: a single green bar with a vertical interval from 45 to 55 on top.
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_p1 <- ggplot(ex_means, aes(x = group, y = mean)) +
+  geom_col(fill = "#59a14f", width = 0.4) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.15, linewidth = 0.8) +
+  theme_minimal()
+ex_p1
+```
+
+**Explanation:** `geom_errorbar()` needs `ymin` and `ymax` aesthetics. The `width` argument controls the horizontal cap, not the bar width.
+
+</details>
+
+## What do error bars actually mean — SD, SE, or CI?
+
+The phrase "error bar" hides three very different things. Standard deviation tells you how much the raw data varies around its mean. Standard error tells you how precise that mean estimate is. A 95% confidence interval is the range you would expect the true population mean to live in if you repeated the experiment many times. Same data, three widths.
+
+![What each error bar type measures](screenshots/Communicating-Uncertainty-error-bar-types.webp)
+*Figure 1: What each error bar type measures, all from the same sample.*
+
+```r
+set.seed(1042)
+sample_x <- rnorm(50, mean = 100, sd = 15)
+n <- length(sample_x)
+m <- mean(sample_x)
+s <- sd(sample_x)
+se <- s / sqrt(n)
+ci95 <- 1.96 * se
+
+data.frame(
+  type  = c("SD", "SE", "95% CI"),
+  width = c(2 * s, 2 * se, 2 * ci95)
+)
+#>     type    width
+#> 1     SD 30.18450
+#> 2     SE  4.26877
+#> 3 95% CI  8.36679
+```
+
+The SD bar is roughly seven times wider than the CI bar. They answer different questions, so the choice changes the chart's meaning. SD bars say "look how spread out the data are." CI bars say "look how confident I am about the mean." Picking the wrong one is not a stylistic choice — it changes the claim.
+
+```r
+bar_widths <- data.frame(
+  type  = factor(c("SD", "SE", "95% CI"), levels = c("SD", "SE", "95% CI")),
+  mean  = m,
+  lower = c(m - s, m - se, m - ci95),
+  upper = c(m + s, m + se, m + ci95)
 )
 
-results <- rbind(study_a, study_b)
-
-cat("=== Same Effect, Different Certainty ===\n")
-cat(sprintf("%s: %.0f%% [%.0f%%, %.0f%%]\n",
-    results$label, results$effect, results$lower, results$upper))
-cat("\nBoth say '12% improvement' but Study B is far more precise.\n")
-cat("Without CIs, you can't tell the difference.\n")
+ggplot(bar_widths, aes(x = type, y = mean)) +
+  geom_point(size = 3, colour = "#4e79a7") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.15, linewidth = 0.8) +
+  labs(title = "Same sample, three different 'error bars'",
+       y = "Value", x = NULL) +
+  theme_minimal(base_size = 12)
 ```
 
-## Common Ways Charts Mislead
+Notice that the dot — the sample mean — is in the same place in all three columns. Only the bar width changes. A reader who does not know which type you are showing has no way to interpret the chart.
 
-### 1. Truncated Y-Axis
+[KEY INSIGHT]
+**An error bar without a label is unfinished.** Always state in the caption or legend whether the bar is SD, SE, or a CI at a specific confidence level — otherwise you are inviting readers to guess, and most will guess wrong.
+
+**Try it:** Compute a 99% confidence interval (use 2.576 instead of 1.96) for a fresh sample of 100 draws from N(50, 8). Save the half-width to `ex_ci99`.
 
 ```r
-# Misleading vs honest bar charts
-values <- c(98, 100, 99, 101, 100)
-labels <- c("Mon", "Tue", "Wed", "Thu", "Fri")
+# Try it
+set.seed(7)
+ex_x <- rnorm(100, mean = 50, sd = 8)
+# compute ex_ci99 (the half-width of the 99% CI for the mean)
+ex_ci99 <- NA
 
-par(mfrow = c(1, 2))
-
-# Misleading: truncated axis exaggerates differences
-barplot(values, names.arg = labels, main = "MISLEADING\n(truncated axis)",
-        ylim = c(96, 102), col = "#e15759")
-
-# Honest: full axis shows true scale
-barplot(values, names.arg = labels, main = "HONEST\n(full axis)",
-        ylim = c(0, 120), col = "#4e79a7")
+ex_ci99
+#> Expected: about 2.0 to 2.1
 ```
 
-### 2. Missing Error Bars
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-# Bar charts: with and without error bars
-set.seed(42)
-group_means <- c(45, 48, 52)
-group_ses <- c(5, 8, 12)  # Different precision levels
-group_names <- c("Control", "Treatment A", "Treatment B")
-
-par(mfrow = c(1, 2))
-
-# Without error bars — misleading
-bp <- barplot(group_means, names.arg = group_names,
-              main = "WITHOUT Error Bars\n(looks definitive)",
-              col = "#e15759", ylim = c(0, 70))
-
-# With error bars — honest
-bp <- barplot(group_means, names.arg = group_names,
-              main = "WITH Error Bars\n(shows uncertainty)",
-              col = "#4e79a7", ylim = c(0, 70))
-arrows(bp, group_means - group_ses, bp, group_means + group_ses,
-       angle = 90, code = 3, length = 0.1)
+ex_ci99 <- 2.576 * sd(ex_x) / sqrt(length(ex_x))
+ex_ci99
+#> [1] 2.057
 ```
 
-### 3. Cherry-Picked Time Ranges
+**Explanation:** The 99% interval is wider than the 95% interval because you trade certainty for precision. Same standard error, bigger multiplier.
+
+</details>
+
+## How do you add error bars and confidence bands in ggplot2?
+
+ggplot2 gives you two core tools. `geom_errorbar()` draws discrete bars on top of categorical summaries — useful for comparing group means. `geom_smooth()` or `geom_ribbon()` draws a continuous band around a fitted line — useful for regressions or trends. Pick the one that matches the shape of your data.
 
 ```r
-# Same data, different stories depending on date range
-set.seed(42)
-months <- 1:36
-values <- 50 + cumsum(rnorm(36, 0.2, 3))
+iris_summary <- aggregate(Sepal.Length ~ Species, data = iris,
+                          FUN = function(z) c(m = mean(z),
+                                              se = sd(z) / sqrt(length(z))))
+iris_summary <- data.frame(Species = iris_summary$Species,
+                           mean = iris_summary$Sepal.Length[, "m"],
+                           se   = iris_summary$Sepal.Length[, "se"])
+iris_summary$lower <- iris_summary$mean - 1.96 * iris_summary$se
+iris_summary$upper <- iris_summary$mean + 1.96 * iris_summary$se
+iris_summary
+#>      Species  mean         se    lower    upper
+#> 1     setosa 5.006 0.04984957 4.908295 5.103705
+#> 2 versicolor 5.936 0.07321149 5.792506 6.079494
+#> 3  virginica 6.588 0.08992695 6.411743 6.764257
 
-par(mfrow = c(1, 2))
-
-# Cherry-picked: only show the dip
-plot(months[24:36], values[24:36], type = "l", lwd = 2, col = "#e15759",
-     main = "CHERRY-PICKED\n(looks like decline)",
-     xlab = "Month", ylab = "Value")
-
-# Full picture
-plot(months, values, type = "l", lwd = 2, col = "#4e79a7",
-     main = "FULL PICTURE\n(clear upward trend)",
-     xlab = "Month", ylab = "Value")
+ggplot(iris_summary, aes(x = Species, y = mean, fill = Species)) +
+  geom_col(width = 0.6) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.15, linewidth = 0.8) +
+  labs(title = "Mean sepal length by species (95% CI)",
+       y = "Sepal length (cm)", x = NULL) +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
 ```
 
-## How to Show Uncertainty in R
+Each species gets one column (the mean) and one vertical interval (the 95% CI on that mean). Setosa and virginica are clearly different — their intervals do not even come close. Versicolor sits between them. Without the bars you would still see the ordering, but you would have no idea how confident the differences are.
 
-### Error Bars on Bar Charts
+For a continuous predictor, switch to `geom_smooth()`. The grey ribbon is the 95% confidence interval around the fitted regression line — wider where the data are sparse, narrower where the data are dense.
 
 ```r
-# Proper error bars: SE vs SD vs CI
-set.seed(42)
-n <- 30
-data_a <- rnorm(n, 50, 10)
-data_b <- rnorm(n, 55, 10)
-
-mean_a <- mean(data_a); mean_b <- mean(data_b)
-se_a <- sd(data_a)/sqrt(n); se_b <- sd(data_b)/sqrt(n)
-
-# Using 95% CI (±1.96 SE)
-ci_a <- 1.96 * se_a; ci_b <- 1.96 * se_b
-
-means <- c(mean_a, mean_b)
-cis <- c(ci_a, ci_b)
-
-bp <- barplot(means, names.arg = c("Group A", "Group B"),
-              main = "Group Comparison with 95% CI",
-              col = c("#4e79a7", "#f28e2b"), ylim = c(0, 75))
-arrows(bp, means - cis, bp, means + cis,
-       angle = 90, code = 3, length = 0.15, lwd = 2)
-
-# Always label what the error bars represent!
-legend("topleft", "Error bars = 95% CI", bty = "n", cex = 0.9)
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(colour = "#4e79a7", size = 2) +
+  geom_smooth(method = "lm", level = 0.95,
+              colour = "#e15759", fill = "#e15759", alpha = 0.2) +
+  labs(title = "MPG vs weight with 95% confidence band",
+       subtitle = "Ribbon shows 95% CI around the fitted line",
+       x = "Weight (1000 lbs)", y = "MPG") +
+  theme_minimal(base_size = 12)
 ```
 
-### Confidence Bands on Lines
+The ribbon balloons at the extremes of weight because we have fewer cars there — the model is less sure about the slope where data are thin. That balloon is information, not decoration. Readers who ignore the band see a single confident line; readers who read it see where the model knows what it is doing and where it is guessing.
+
+[TIP]
+**Always say what the ribbon is.** A grey band is meaningless without a caption stating the level (95%, 99%, 50%) and what it represents (CI on the mean, prediction interval, bootstrap interval). The default `geom_smooth` ribbon is a 95% CI on the fitted mean — not a prediction interval for new points.
+
+**Try it:** Repeat the mtcars regression plot with a 99% confidence band instead of 95%.
 
 ```r
-# Regression with confidence band
-x <- mtcars$wt
-y <- mtcars$mpg
-model <- lm(y ~ x)
+# Try it: change the smooth's confidence level to 0.99
+ex_p_smooth <- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(colour = "#4e79a7") +
+  geom_smooth(method = "lm")  # change the level here
 
-# Predict with confidence interval
-new_x <- data.frame(x = seq(min(x), max(x), length.out = 100))
-pred <- predict(model, new_x, interval = "confidence", level = 0.95)
-
-plot(x, y, pch = 19, col = "#4e79a7",
-     main = "MPG vs Weight with 95% Confidence Band",
-     xlab = "Weight (1000 lbs)", ylab = "MPG")
-lines(new_x$x, pred[,"fit"], col = "#e15759", lwd = 2)
-polygon(c(new_x$x, rev(new_x$x)),
-        c(pred[,"lwr"], rev(pred[,"upr"])),
-        col = rgb(0.88, 0.34, 0.35, 0.2), border = NA)
-legend("topright", c("Data", "Fit", "95% CI"),
-       pch = c(19, NA, 15), lty = c(NA, 1, NA),
-       col = c("#4e79a7", "#e15759", rgb(0.88,0.34,0.35,0.3)), bty = "n")
+ex_p_smooth
+#> Expected: a wider ribbon than the 95% version
 ```
 
-### Reporting P-Values in Visualizations
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-# Don't just put stars — show the actual values
-set.seed(42)
-g1 <- rnorm(25, 10, 3)
-g2 <- rnorm(25, 12, 3)
-g3 <- rnorm(25, 11, 3)
-
-test_12 <- t.test(g1, g2)
-test_13 <- t.test(g1, g3)
-test_23 <- t.test(g2, g3)
-
-cat("=== Reporting Comparisons ===\n")
-cat(sprintf("G1 vs G2: diff = %.1f, 95%% CI [%.1f, %.1f], p = %.3f\n",
-    diff(test_12$estimate), test_12$conf.int[1], test_12$conf.int[2], test_12$p.value))
-cat(sprintf("G1 vs G3: diff = %.1f, 95%% CI [%.1f, %.1f], p = %.3f\n",
-    diff(test_13$estimate), test_13$conf.int[1], test_13$conf.int[2], test_13$p.value))
-cat(sprintf("G2 vs G3: diff = %.1f, 95%% CI [%.1f, %.1f], p = %.3f\n",
-    diff(test_23$estimate), test_23$conf.int[1], test_23$conf.int[2], test_23$p.value))
-cat("\nAlways report: effect size, CI, AND p-value. Never just stars (**).\n")
+ex_p_smooth <- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(colour = "#4e79a7") +
+  geom_smooth(method = "lm", level = 0.99,
+              colour = "#e15759", fill = "#e15759", alpha = 0.2) +
+  theme_minimal()
+ex_p_smooth
 ```
 
-## The Error Bar Confusion
+**Explanation:** `level = 0.99` widens the ribbon because a 99% interval is more conservative than 95%. Same data, more cautious claim.
 
-Not all error bars are the same. Label yours clearly.
+</details>
 
-| Error Bar Type | Formula | Interpretation |
-|---------------|---------|---------------|
-| Standard Deviation (SD) | `sd(x)` | Shows spread of raw data |
-| Standard Error (SE) | `sd(x)/sqrt(n)` | Shows precision of the mean |
-| 95% Confidence Interval | `mean ± 1.96*SE` | 95% likely range for true mean |
-| Interquartile Range (IQR) | `Q3 - Q1` | Middle 50% of data |
+## When do error bars start lying?
+
+Error bars are not magic. The same chart with a 95% CI bar can still mislead if the y-axis is truncated, if the underlying distribution is hidden, or if the reader is invited to compare overlap in ways that do not match the statistics. These are the three traps to watch for.
+
+![Honest vs misleading uncertainty](screenshots/Communicating-Uncertainty-honest-vs-misleading.webp)
+*Figure 2: Three habits that flip a chart from honest to misleading.*
 
 ```r
-# Same data, four different "error bars"
-set.seed(42)
-x <- rnorm(50, mean = 100, sd = 15)
+days_df <- data.frame(
+  day   = factor(c("Mon", "Tue", "Wed", "Thu", "Fri"),
+                 levels = c("Mon", "Tue", "Wed", "Thu", "Fri")),
+  value = c(98, 100, 99, 101, 100)
+)
 
-m <- mean(x)
-s <- sd(x)
-se <- s / sqrt(length(x))
-ci <- 1.96 * se
-iqr_vals <- quantile(x, c(0.25, 0.75))
+p_truncated <- ggplot(days_df, aes(x = day, y = value)) +
+  geom_col(fill = "#e15759") +
+  coord_cartesian(ylim = c(96, 102)) +
+  labs(title = "Misleading: truncated y-axis",
+       subtitle = "Differences look huge", y = "Value", x = NULL) +
+  theme_minimal(base_size = 11)
 
-cat("=== Same Data, Different Measures ===\n")
-cat(sprintf("Mean:               %.1f\n", m))
-cat(sprintf("Mean ± SD:          %.1f to %.1f (range: %.1f)\n", m-s, m+s, 2*s))
-cat(sprintf("Mean ± SE:          %.1f to %.1f (range: %.1f)\n", m-se, m+se, 2*se))
-cat(sprintf("Mean ± 95%% CI:      %.1f to %.1f (range: %.1f)\n", m-ci, m+ci, 2*ci))
-cat(sprintf("IQR:                %.1f to %.1f (range: %.1f)\n", iqr_vals[1], iqr_vals[2],
-    diff(iqr_vals)))
-cat("\nSD bars are ~7x wider than CI bars. Always say which you're showing!\n")
+p_full <- ggplot(days_df, aes(x = day, y = value)) +
+  geom_col(fill = "#4e79a7") +
+  coord_cartesian(ylim = c(0, 120)) +
+  labs(title = "Honest: full y-axis",
+       subtitle = "Differences are tiny", y = "Value", x = NULL) +
+  theme_minimal(base_size = 11)
+
+p_truncated
+p_full
 ```
 
-## Exercises
+The numbers 98 to 101 are nearly identical. On the truncated chart the Friday bar looks twice the height of Monday. On the honest chart you can barely tell them apart. Both charts are technically accurate; only one is honest. Run the second `print(p_full)` to compare.
 
-### Exercise 1: Spot the Misleading Chart
-
-A news article shows a line chart of crime rates from 2020-2026 with a y-axis starting at 450 (actual range: 452-468). Is this misleading?
+The second trap is hidden distribution shape. A bar with a CI tells you where the mean is, but a mean of 50 can come from data clustered at 50 or from data split between 0 and 100. Showing the raw points alongside makes this visible.
 
 ```r
-cat("=== Answer ===\n")
-cat("Yes, this is potentially misleading.\n")
-cat("Range of 452-468 on a base of ~460 means a variation of ~3.5%.\n")
-cat("A truncated y-axis makes this look like a dramatic swing.\n\n")
-cat("Better approach:\n")
-cat("1. Show full y-axis (0-500) for absolute perspective\n")
-cat("2. OR explicitly label the axis break and note the scale\n")
-cat("3. OR show percent change instead of raw values\n")
-cat("4. Add context: is 3.5% variation meaningful or normal noise?\n")
+set.seed(2026)
+unimodal_x <- rnorm(60, mean = 50, sd = 5)
+bimodal_x  <- c(rnorm(30, mean = 30, sd = 3),
+                rnorm(30, mean = 70, sd = 3))
+
+dist_df <- data.frame(
+  value   = c(unimodal_x, bimodal_x),
+  pattern = rep(c("Unimodal", "Bimodal"), each = 60)
+)
+
+ggplot(dist_df, aes(x = pattern, y = value)) +
+  geom_jitter(width = 0.15, alpha = 0.6, colour = "#4e79a7") +
+  stat_summary(fun = mean, geom = "point", size = 3, colour = "#e15759") +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar",
+               width = 0.15, colour = "#e15759") +
+  labs(title = "Same mean, very different stories",
+       subtitle = "Bar charts hide what dot plots reveal",
+       y = "Value", x = NULL) +
+  theme_minimal(base_size = 12)
 ```
 
-### Exercise 2: Add Uncertainty to This Chart
+Both groups share roughly the same mean, but one cluster is tightly packed and the other is split into two camps. A bar chart with error bars would have shown you a single column with a moderate CI for each — and you would never have known the bimodal group was hiding two populations. Always sanity-check by plotting raw points when sample size allows it.
 
-Given three group means (A=25, B=30, C=28) and standard errors (2.1, 3.5, 1.8), create a bar chart with proper error bars.
+[WARNING]
+**Overlapping CIs do not mean "no significant difference".** Two 95% intervals can overlap and still be significantly different at p < 0.05, and non-overlap is not the same as significance. If you need a hypothesis test, run one — do not eyeball overlap.
+
+**Try it:** A colleague shows you a bar chart of monthly revenue where the y-axis starts at $98,000 and ends at $102,000. The bars look dramatically different. Should you trust the visual impression? Print "honest" or "misleading" with one sentence of reasoning.
 
 ```r
-means <- c(25, 30, 28)
-ses <- c(2.1, 3.5, 1.8)
-groups <- c("A", "B", "C")
-cis <- 1.96 * ses  # 95% CI
-
-bp <- barplot(means, names.arg = groups, col = c("#4e79a7","#f28e2b","#59a14f"),
-              ylim = c(0, 40), main = "Group Means with 95% CI",
-              ylab = "Score")
-arrows(bp, means - cis, bp, means + cis,
-       angle = 90, code = 3, length = 0.15, lwd = 2)
-text(bp, means + cis + 1.5,
-     sprintf("%.1f\n[%.1f, %.1f]", means, means-cis, means+cis),
-     cex = 0.8)
+# Try it
+ex_check <- ""  # set to "honest" or "misleading"
+ex_check
+#> Expected: "misleading" with a sentence about the truncated y-axis
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_check <- "misleading: the y-axis spans only $4k of a $100k base, so a 1% wobble looks like a giant swing"
+ex_check
+```
+
+**Explanation:** Truncated axes exaggerate small differences. The fix is to start at zero or label an axis break and show the percent change instead of raw dollars.
+
+</details>
+
+## What are quantile dotplots, gradient intervals, and honest captions?
+
+Even a perfectly drawn 95% CI is hard for non-statisticians to interpret. Research on how people read uncertainty shows that a row of discrete dots — each representing a chunk of probability — is more accurate for laypeople than a continuous ribbon. This is called frequency framing: humans count better than they integrate. Below is a hand-built quantile dotplot in ggplot2 with no extra packages.
+
+```r
+set.seed(99)
+qd_sample <- rnorm(5000, mean = 100, sd = 12)
+
+n_dots <- 20
+probs  <- (seq_len(n_dots) - 0.5) / n_dots
+qd_df  <- data.frame(
+  estimate = quantile(qd_sample, probs = probs),
+  row      = 1
+)
+head(qd_df, 4)
+#>      estimate row
+#> 2.5%  76.5921   1
+#> 7.5%  82.6038   1
+#> 12.5% 86.5447   1
+#> 17.5% 89.4810   1
+
+ggplot(qd_df, aes(x = estimate)) +
+  geom_dotplot(binwidth = 1.7, fill = "#4e79a7", colour = "white",
+               stackratio = 1.05, dotsize = 1) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  labs(title = "Quantile dotplot: 20 equally-likely outcomes",
+       subtitle = "Each dot represents a 5% slice of probability",
+       x = "Estimated value") +
+  theme_minimal(base_size = 12)
+```
+
+The plot answers questions a CI bar struggles with. "How likely is the value to be below 85?" Count the dots — about three out of twenty, so roughly 15%. "What is the most likely region?" The fattest stack. Readers who would freeze at the words "95% confidence interval" can read this chart immediately because it is just counting.
+
+[NOTE]
+**For richer uncertainty geoms, install ggdist locally.** Packages like `ggdist` add `stat_dotsinterval()`, `stat_lineribbon()`, and gradient intervals that go far beyond what base ggplot2 ships with. They run in your local R session — this tutorial sticks to base ggplot2 so every block is reproducible inline.
+
+The chart is only half of the message. Whatever words you wrap around it shape how readers interpret it. A neutral phrasing like "the data are consistent with an effect between 2% and 22%" is honest. A confident phrasing like "the treatment improves outcomes by 12%" is not, even if the chart is correct.
+
+| Avoid | Use instead |
+|---|---|
+| "shows", "proves", "demonstrates" | "estimates", "is consistent with", "suggests" |
+| "the effect is 12%" | "the estimated effect is 12% (95% CI: 2% to 22%)" |
+| "significant difference" | "the 95% CIs do not overlap; a t-test gives p = 0.02" |
+| "no effect" | "the data are consistent with effects between -3% and +5%" |
+
+[TIP]
+**Treat the caption as part of the chart.** Always state the sample size, the type of interval (SD, SE, CI), and the confidence level. A reader who skips the body should still know what they are looking at from the caption alone.
+
+**Try it:** Rewrite this misleading caption to be honest: *"Treatment X works — patients improved by 8 points."*
+
+```r
+# Try it
+ex_caption <- ""  # rewrite as an honest one-sentence caption
+ex_caption
+#> Expected: a sentence with sample size, point estimate, and a CI
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_caption <- "Patients on Treatment X improved by an estimated 8 points (n = 60, 95% CI: 2 to 14)."
+ex_caption
+```
+
+**Explanation:** The honest version names the sample size, replaces "works" with "improved by an estimated", and surfaces the interval so the reader knows how loose or tight the estimate is.
+
+</details>
+
+## Practice Exercises
+
+### Exercise 1: Four groups with honest captions
+
+You have four group means and standard errors: A=25/2.1, B=30/3.5, C=28/1.8, D=33/2.7 (all n=40). Build a ggplot bar chart with 95% CI error bars and add a subtitle stating sample size and interval type.
+
+```r
+# Exercise 1
+# Hint: build a data frame with group, mean, se, then compute lower/upper
+
+# your code here
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_groups <- data.frame(
+  group = c("A", "B", "C", "D"),
+  mean  = c(25, 30, 28, 33),
+  se    = c(2.1, 3.5, 1.8, 2.7)
+)
+my_groups$lower <- my_groups$mean - 1.96 * my_groups$se
+my_groups$upper <- my_groups$mean + 1.96 * my_groups$se
+
+my_plot1 <- ggplot(my_groups, aes(x = group, y = mean, fill = group)) +
+  geom_col(width = 0.6) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.15, linewidth = 0.8) +
+  labs(title = "Score by group",
+       subtitle = "n = 40 per group; bars show 95% CI",
+       y = "Score", x = NULL) +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+my_plot1
+```
+
+**Explanation:** Computing `lower` and `upper` from the SE keeps the plotting code readable. The subtitle is doing real work — it says how big the groups are and what the bars mean.
+
+</details>
+
+### Exercise 2: Build a quantile dotplot from scratch
+
+Draw 1000 samples from N(20, 4). Build a 20-dot quantile dotplot and add a vertical line at the sample mean.
+
+```r
+# Exercise 2
+# Hint: probs <- (seq_len(20) - 0.5) / 20; use quantile() then geom_dotplot()
+
+# your code here
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+set.seed(31)
+my_sample <- rnorm(1000, mean = 20, sd = 4)
+my_qdf <- data.frame(
+  estimate = quantile(my_sample, probs = (seq_len(20) - 0.5) / 20)
+)
+
+my_plot2 <- ggplot(my_qdf, aes(x = estimate)) +
+  geom_dotplot(binwidth = 0.55, fill = "#4e79a7", colour = "white",
+               stackratio = 1.05, dotsize = 1) +
+  geom_vline(xintercept = mean(my_sample), colour = "#e15759",
+             linewidth = 0.8, linetype = "dashed") +
+  scale_y_continuous(NULL, breaks = NULL) +
+  labs(title = "Quantile dotplot of N(20, 4)",
+       subtitle = "Each dot is a 5% slice of the distribution",
+       x = "Value") +
+  theme_minimal(base_size = 12)
+my_plot2
+```
+
+**Explanation:** The trick is computing 20 quantiles at the midpoints of equal probability slices. `geom_dotplot()` then stacks them with `stackratio` controlling vertical spacing.
+
+</details>
+
+### Exercise 3: Two-study side-by-side comparison
+
+Study A has n=30, mean=12, sd=10. Study B has n=500, mean=12, sd=10. Compute the 95% CI for each mean and draw a ggplot showing both as dot + interval.
+
+```r
+# Exercise 3
+# Hint: SE = sd / sqrt(n); CI = mean +/- 1.96 * SE
+
+# your code here
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+my_studies <- data.frame(
+  study = c("Study A (n=30)", "Study B (n=500)"),
+  mean  = c(12, 12),
+  sd    = c(10, 10),
+  n     = c(30, 500)
+)
+my_studies$se    <- my_studies$sd / sqrt(my_studies$n)
+my_studies$lower <- my_studies$mean - 1.96 * my_studies$se
+my_studies$upper <- my_studies$mean + 1.96 * my_studies$se
+
+my_plot3 <- ggplot(my_studies, aes(x = study, y = mean)) +
+  geom_point(size = 4, colour = "#4e79a7") +
+  geom_errorbar(aes(ymin = lower, ymax = upper),
+                width = 0.15, linewidth = 0.9, colour = "#4e79a7") +
+  labs(title = "Same point estimate, very different precision",
+       subtitle = "Bars show 95% CI on the mean",
+       y = "Estimated effect (%)", x = NULL) +
+  theme_minimal(base_size = 12)
+my_plot3
+```
+
+**Explanation:** Larger samples shrink the standard error by the square root of n, so Study B's interval is roughly four times tighter than Study A's even though the point estimate is identical.
+
+</details>
+
+## Complete Example
+
+Here is the whole pipeline end to end on the iris dataset: compute the mean and 95% CI of sepal length per species, draw a dot + interval plot, and write an honest caption.
+
+```r
+iris_ci <- aggregate(Sepal.Length ~ Species, data = iris,
+                     FUN = function(z) {
+                       n  <- length(z)
+                       m  <- mean(z)
+                       se <- sd(z) / sqrt(n)
+                       c(mean = m, lower = m - 1.96 * se, upper = m + 1.96 * se,
+                         n = n)
+                     })
+iris_ci <- data.frame(Species = iris_ci$Species,
+                      mean  = iris_ci$Sepal.Length[, "mean"],
+                      lower = iris_ci$Sepal.Length[, "lower"],
+                      upper = iris_ci$Sepal.Length[, "upper"],
+                      n     = iris_ci$Sepal.Length[, "n"])
+iris_ci
+#>      Species  mean    lower    upper  n
+#> 1     setosa 5.006 4.908295 5.103705 50
+#> 2 versicolor 5.936 5.792506 6.079494 50
+#> 3  virginica 6.588 6.411743 6.764257 50
+
+p_iris_ci <- ggplot(iris_ci, aes(x = Species, y = mean, colour = Species)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = lower, ymax = upper),
+                width = 0.12, linewidth = 0.9) +
+  labs(title = "Sepal length differs across iris species",
+       subtitle = "Estimates with 95% CI; n = 50 per species",
+       caption = "Source: Fisher's iris data. Bars show 95% CI on the mean.",
+       y = "Sepal length (cm)", x = NULL) +
+  scale_colour_brewer(palette = "Set2") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+p_iris_ci
+```
+
+The plot earns its honesty in three places: the subtitle states the sample size and interval type, the caption restates them for anyone who skipped the subtitle, and the dot + interval format keeps the focus on precision instead of bar volume. A reader sees the order of species, the gap between them, and how confident each estimate is, all in one glance.
 
 ## Summary
 
-| Misleading Practice | Why It's Wrong | How to Fix |
-|--------------------|---------------|-----------|
-| No error bars | Hides uncertainty | Add SE, SD, or CI bars (labeled) |
-| Truncated y-axis | Exaggerates differences | Start at 0 or label the break |
-| Cherry-picked dates | Tells a partial story | Show full timeline with context |
-| Stars instead of p-values | Loss of information | Report exact p, CI, and effect size |
-| Pie charts for comparison | Hard to compare angles | Use bar or dot charts instead |
-| Dual y-axes | Implies false correlation | Use separate panels |
+![Choosing an uncertainty visualisation](screenshots/Communicating-Uncertainty-decision-flow.webp)
+*Figure 3: A short decision tree for picking an uncertainty visualisation.*
 
-## FAQ
+- **Show the wobble, not just the point.** Every chart that claims an estimate should also show how much that estimate could move.
+- **SD, SE, and CI are different.** Pick deliberately and label what you picked.
+- **Truncated axes exaggerate.** Either start at zero or mark the break clearly.
+- **Bars hide distributions.** Plot raw points or use a quantile dotplot when the shape might matter.
+- **Captions are part of the chart.** State the sample size, the interval type, and the level. Replace "shows" and "proves" with "estimates" and "is consistent with".
+- **Overlap is not significance.** If you need a test, run one — do not eyeball intervals.
 
-**When should I use SD versus SE for error bars?**
-Use SD when you want to show the variability of the raw data (how spread out individual values are). Use SE or CI when you want to show precision of an estimate (how confident you are in the mean). In most scientific papers, 95% CI is preferred.
+## References
 
-**Are bar charts always bad for showing means?**
-Not always, but dot plots or box plots are usually better. Bar charts hide the distribution — a mean of 50 could come from data clustered at 50 or from half the data at 0 and half at 100. Box plots show the distribution directly.
-
-**How do I show uncertainty in maps or spatial data?**
-Use graduated colors with explicit legends showing the margin of error. Small-area estimates (like county-level) often have wide confidence intervals. Some cartographers use hatching or transparency to indicate uncertainty regions.
+1. Wilke, C. — *Fundamentals of Data Visualization*, Chapter 16: Visualizing uncertainty. [Link](https://clauswilke.com/dataviz/visualizing-uncertainty.html)
+2. Cookbook-R — Plotting means and error bars (ggplot2). [Link](http://www.cookbook-r.com/Graphs/Plotting_means_and_error_bars_(ggplot2)/)
+3. Cumming, G. & Finch, S. — Inference by eye: confidence intervals and how to read pictures of data. *American Psychologist*, 2005. [Link](https://www.apa.org/pubs/journals/releases/amp-60-2-170.pdf)
+4. ggplot2 reference — `geom_errorbar`, `geom_ribbon`, `geom_smooth`. [Link](https://ggplot2.tidyverse.org/reference/geom_linerange.html)
+5. Kay, M. — ggdist: Visualizations of Distributions and Uncertainty. [Link](https://mjskay.github.io/ggdist/)
+6. Hofman, J., Goldstein, D. & Hullman, J. — How visualizing inferential uncertainty can mislead readers about treatment effects. *CHI 2020*. [Link](https://dl.acm.org/doi/10.1145/3313831.3376454)
+7. R Core Team — `t.test()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
 
 ## Continue Learning
-- [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework for analysis
-- [Bias in Data & Models](Bias-in-Data-and-Models.html) — Detecting bias before it reaches your charts
-- [Reproducibility Crisis](Reproducibility-Crisis.html) — Why honest reporting matters for science
+
+- [Bias in Data and Models](Bias-in-Data-and-Models.html) — Sources of error your error bars do not show.
+- [R and the Reproducibility Crisis](Reproducibility-Crisis.html) — Why honest reporting matters at the publication level.
+- [Data Ethics for R Programmers](Data-Ethics-for-R-Programmers.html) — Questions to ask before you analyse.
