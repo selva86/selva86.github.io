@@ -1,45 +1,58 @@
 ---
-title: "purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models"
-description: "Apply purrr map functions to real data wrangling: read multiple files, transform list columns, fit grouped models, and safely process messy data."
-keywords: "purrr data wrangling, map multiple files R, list columns purrr, purrr practical examples, split map combine"
+title: "purrr map() Functions in R: map, map2, imap, pmap — Functional Data Processing"
+description: "Apply purrr map(), map2(), imap(), and pmap() to data wrangling tasks: read files, run row-wise calculations, fit models per group, and handle errors safely."
+keywords: "purrr data wrangling, map multiple files R, list columns purrr, purrr map2 example, purrr pmap rowwise, imap names, purrr safely, functional data processing R, tidyverse iteration"
 mathjax: false
 webr: true
 curriculum_id: "FR-dply-4"
 post_type: "FR"
-auto_link_terms: "purrr data wrangling|map multiple files|list columns purrr|split map combine"
+auto_link_terms: "purrr data wrangling|list columns in R|read multiple files R|purrr safely|rowwise pmap|fit models per group|map_dfr|nest and map"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-group-by-summarise.html"
 ---
 <!-- md2html:generated -->
 
-<h1>purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models</h1>
+<h1>purrr map() Functions in R: map, map2, imap, pmap — Functional Data Processing</h1>
 
-<p class="lead">purrr's <code>map()</code> family shines in data wrangling: reading multiple CSV files at once, extracting stats from nested data, fitting models per group, and safely handling messy inputs. These are the patterns you'll use daily.</p>
+<p class="lead">purrr's <code>map()</code> family turns messy real-world data into tidy results without writing loops. With <code>map()</code>, <code>map2()</code>, <code>imap()</code>, and <code>pmap()</code> — plus <code>safely()</code> for resilience — you can read dozens of files at once, run row-wise calculations, fit a model per group, and label outputs with their source names.</p>
 
-<h2>Pattern 1: Read and Combine Multiple Files</h2>
+<h2>How do you read and combine multiple CSV files with map()?</h2>
+
+<p>Imagine twelve monthly sales exports — same columns, twelve files. The loop-and-append version is fragile; the purrr version is one pipeline. <code>map_dfr()</code> reads each file with the function you give it and binds the rows into a single tibble in one shot. The example below generates three CSVs in a temp directory so you can run it end-to-end without leaving the browser.</p>
+
+<p>We will write three tiny CSVs, list them, and read them back into one tibble. Watch the <code>.id</code> argument — it tags every row with the file it came from, so you never lose track of source.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
     <div class="webr-editor" data-language="r">library(purrr)
-library(readr)
+library(dplyr)
+library(tidyr)
+library(broom)
 
-# Simulate 3 monthly CSV files
-csv_jan &lt;- &quot;date,sales\n2026-01-01,100\n2026-01-02,120&quot;
-csv_feb &lt;- &quot;date,sales\n2026-02-01,150\n2026-02-02,130&quot;
-csv_mar &lt;- &quot;date,sales\n2026-03-01,170\n2026-03-02,160&quot;
+# Create 3 small CSVs in a temp directory
+tmp_dir &lt;- tempfile(&quot;sales_&quot;)
+dir.create(tmp_dir)
 
-csvs &lt;- list(jan = csv_jan, feb = csv_feb, mar = csv_mar)
+write.csv(data.frame(item = c(&quot;pen&quot;, &quot;cup&quot;),  qty = c(40, 12)),
+          file.path(tmp_dir, &quot;jan.csv&quot;), row.names = FALSE)
+write.csv(data.frame(item = c(&quot;pen&quot;, &quot;cup&quot;),  qty = c(55, 18)),
+          file.path(tmp_dir, &quot;feb.csv&quot;), row.names = FALSE)
+write.csv(data.frame(item = c(&quot;pen&quot;, &quot;cup&quot;),  qty = c(30, 22)),
+          file.path(tmp_dir, &quot;mar.csv&quot;), row.names = FALSE)
 
-# Read all, add source name, combine
-combined &lt;- imap(csvs, \(csv, name) {
-  df &lt;- read_csv(csv, show_col_types = FALSE)
-  df$month &lt;- name
-  df
-}) |&gt; list_rbind()
+sales_files &lt;- list.files(tmp_dir, pattern = &quot;\\.csv$&quot;, full.names = TRUE)
+sales_all   &lt;- map_dfr(sales_files, read.csv, .id = &quot;source&quot;)
 
-print(combined)</div>
+sales_all
+#&gt;   source item qty
+#&gt; 1      1  pen  40
+#&gt; 2      1  cup  12
+#&gt; 3      2  pen  55
+#&gt; 4      2  cup  18
+#&gt; 5      3  pen  30
+#&gt; 6      3  cup  22</div>
 
     <div class="webr-buttons">
 
@@ -57,27 +70,271 @@ print(combined)</div>
 
 </div>
 
-<h2>Pattern 2: Extract from List Columns</h2>
+<p>Three files in, one tibble out — and no loop. The <code>.id</code> column shows which file each row came from. Right now <code>.id</code> is just a position number; the next exercise turns it into a readable file name. This is the smallest possible version of "read every file in a folder," and it scales unchanged from 3 files to 300.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>.id</code> to track the source of every row.</strong> Without it you cannot tell which file produced which row after the bind — a top-3 cause of silent data-quality bugs in monthly batch pipelines.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Make the <code>.id</code> column show file names like <code>jan.csv</code> instead of <code>1</code>, <code>2</code>, <code>3</code>. Hint: <code>set_names()</code> on the file path vector, then run the same <code>map_dfr()</code> call.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: name the files before mapping
+ex_sales_named &lt;- sales_files |&gt;
+  set_names(basename(sales_files)) |&gt;
+  map_dfr(_, .id = &quot;source&quot;)    # replace _ with the right call
+
+head(ex_sales_named)
+#&gt; Expected: source column reads &quot;jan.csv&quot;, &quot;feb.csv&quot;, &quot;mar.csv&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_sales_named &lt;- sales_files |&gt;
+  set_names(basename(sales_files)) |&gt;
+  map_dfr(read.csv, .id = &quot;source&quot;)
+
+head(ex_sales_named)
+#&gt;    source item qty
+#&gt; 1 jan.csv  pen  40
+#&gt; 2 jan.csv  cup  12
+#&gt; 3 feb.csv  pen  55
+#&gt; 4 feb.csv  cup  18
+#&gt; 5 mar.csv  pen  30
+#&gt; 6 mar.csv  cup  22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>set_names()</code> attaches names to the file path vector. <code>map_dfr()</code> then uses those names — instead of integer positions — for the <code>.id</code> column.</p>
+
+</details>
+</section>
+
+<h2>How does map2() apply a function over two parallel vectors?</h2>
+
+<p>Sometimes you have two synchronized vectors that need to march in lockstep — prices and discounts, predictions and actuals, names and scores. <code>map2()</code> is the variant for exactly that case. It walks both inputs at once, calling the function with <code>.x</code> from the first vector and <code>.y</code> from the second.</p>
+
+<p>We will compute final prices from a price list and a per-product discount rate. The lambda receives one price and one rate per call; <code>map2_dbl()</code> collects the answers into a numeric vector.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(purrr)
-library(dplyr)
+    <div class="webr-editor" data-language="r">prices    &lt;- c(10.00, 25.00, 4.50, 80.00)
+discounts &lt;- c(0.10,  0.00,  0.25, 0.15)
 
-# Nested data: each row has a vector of scores
-students &lt;- tibble(
-  name   = c(&quot;Alice&quot;, &quot;Bob&quot;, &quot;Carol&quot;),
-  scores = list(c(88, 92, 79), c(76, 81, 85), c(92, 95, 88))
+final_prices &lt;- map2_dbl(prices, discounts, \(p, d) p * (1 - d))
+final_prices
+#&gt; [1]  9.00 25.00  3.38 68.00
+
+sum(final_prices)
+#&gt; [1] 105.38</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Each price was multiplied by its own discount rate — not the average rate, not the wrong rate, the exact paired one. The <code>_dbl</code> suffix forces a numeric vector out (instead of a list), so the result drops cleanly into <code>sum()</code> or any downstream calculation. If <code>prices</code> and <code>discounts</code> had different lengths, <code>map2_dbl()</code> would error immediately rather than silently recycling.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>map2()</code> requires equal-length inputs.</strong> If <code>.x</code> and <code>.y</code> differ in length, the call fails fast with a clear error — saving you from the silent recycling bugs that haunt base R <code>*</code> and <code>+</code> operations on mismatched vectors.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute percent change between two vectors <code>ex_old</code> and <code>ex_new</code> using <code>map2_dbl()</code>. Formula: <code>(new - old) / old * 100</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_old &lt;- c(100, 50, 200)
+ex_new &lt;- c(120, 45, 260)
+
+ex_pct_change &lt;- map2_dbl(ex_new, ex_old, \(n, o) {
+  # your code here
+})
+
+ex_pct_change
+#&gt; Expected: 20 -10 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_pct_change &lt;- map2_dbl(ex_new, ex_old, \(n, o) (n - o) / o * 100)
+ex_pct_change
+#&gt; [1]  20 -10  30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map2_dbl()</code> walks <code>ex_new</code> and <code>ex_old</code> in parallel, applying the percent-change formula to each pair and returning a numeric vector.</p>
+
+</details>
+</section>
+
+<h2>How do you use pmap() for row-wise operations on a data frame?</h2>
+
+<p>Two inputs become awkward fast when you have three, four, or five. That is where <code>pmap()</code> takes over. It accepts a single list (or data frame) and walks it in parallel — column by column for a data frame, slot by slot for a list. The function you supply gets one argument per element. Because a data frame is a list of equal-length vectors, this is the cleanest way to do row-wise calculations with column-name parameters.</p>
+
+<p>We will compute body mass index for a small tibble of people. The function declares one parameter per column it needs and a <code>...</code> to silently absorb anything else, so you can grow the tibble without breaking the function.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">people &lt;- tibble(
+  name      = c(&quot;Asha&quot;, &quot;Ravi&quot;, &quot;Mei&quot;),
+  height_m  = c(1.65, 1.78, 1.60),
+  weight_kg = c(58, 82, 54)
 )
 
-students |&gt;
+bmi_results &lt;- pmap_dbl(people, \(name, height_m, weight_kg, ...) {
+  weight_kg / height_m^2
+})
+
+bmi_results
+#&gt; [1] 21.30 25.88 21.09</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><code>pmap_dbl()</code> walked the tibble row by row. Each call received <code>name</code>, <code>height_m</code>, and <code>weight_kg</code> as named arguments, computed BMI, and the results stacked into a numeric vector. The <code>...</code> is the secret: tomorrow you can add an <code>age</code> column to <code>people</code> and this function still runs without modification. That is the row-wise robustness that hand-written loops rarely get right.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>pmap()</code> is the bridge between functional and row-wise thinking.</strong> Treat each row as a named argument list and your function never has to know about subsetting, indexing, or <code>i</code>. The data frame is the "input list" and pmap walks it for you.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write the same BMI calculation back into the <code>people</code> tibble as a new column called <code>bmi</code>. Hint: combine <code>mutate()</code> with <code>pmap_dbl()</code> and use <code>pick(everything())</code> so pmap sees the row.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_people_bmi &lt;- people |&gt;
+  mutate(bmi = pmap_dbl(pick(everything()), \(name, height_m, weight_kg, ...) {
+    # your code here
+  }))
+
+ex_people_bmi
+#&gt; Expected: a 4-column tibble with bmi values 21.30, 25.88, 21.09</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_people_bmi &lt;- people |&gt;
+  mutate(bmi = pmap_dbl(pick(everything()),
+                        \(name, height_m, weight_kg, ...) weight_kg / height_m^2))
+
+ex_people_bmi
+#&gt; # A tibble: 3 × 4
+#&gt;   name  height_m weight_kg   bmi
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Asha      1.65        58  21.3
+#&gt; 2 Ravi      1.78        82  25.9
+#&gt; 3 Mei       1.60        54  21.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>pick(everything())</code> hands the current row's columns to <code>pmap_dbl()</code>. The lambda destructures them by name and computes BMI; the result is stored back as a new column.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a model for each group using nest() + map()?</h2>
+
+<p>The single most common purrr pattern in real analysis is "fit one model per group, then compare." It uses three building blocks: <code>group_by() + nest()</code> packs each group's rows into a list-column, <code>map()</code> runs a function on each packed tibble, and <code>unnest()</code> flattens the result back into rows. Combined with <code>broom::tidy()</code> for clean coefficient tables, it replaces every for-loop you ever wrote around <code>lm()</code>.</p>
+
+<p>The flow has just enough moving parts that a picture helps. Below it, we will fit <code>mpg ~ wt</code> separately for 4-, 6-, and 8-cylinder cars and produce one tidy coefficient table.</p>
+
+<p><img src="screenshots/purrr-map-Data-Wrangling-list-column-flow.webp" alt="Diagram showing the nest, map, tidy, unnest pipeline that fits a model per group" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: The nest → map → tidy → unnest pipeline that fits a model per group and returns one tidy table.</em></p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">mtcars_models &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  nest() |&gt;
   mutate(
-    avg   = map_dbl(scores, mean),
-    best  = map_dbl(scores, max),
-    n     = map_int(scores, length)
-  )</div>
+    model = map(data, \(df) lm(mpg ~ wt, data = df)),
+    tidy  = map(model, broom::tidy)
+  )
+
+model_table &lt;- mtcars_models |&gt;
+  select(cyl, tidy) |&gt;
+  unnest(tidy)
+
+model_table
+#&gt; # A tibble: 6 × 6
+#&gt;     cyl term        estimate std.error statistic      p.value
+#&gt;   &lt;dbl&gt; &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1     6 (Intercept)    28.4      4.18       6.79 0.00105
+#&gt; 2     6 wt             -2.78     1.33      -2.08 0.0918
+#&gt; 3     4 (Intercept)    39.6      4.35       9.10 0.00000777
+#&gt; 4     4 wt             -5.65     1.85      -3.05 0.0137
+#&gt; 5     8 (Intercept)    23.9      3.01       7.94 0.00000405
+#&gt; 6     8 wt             -2.19     0.739     -2.97 0.0118</div>
 
     <div class="webr-buttons">
 
@@ -95,24 +352,84 @@ students |&gt;
 
 </div>
 
-<h2>Pattern 3: Split → Map → Combine (Model Fitting)</h2>
+<p>Each cylinder group got its own regression of mileage on weight. The slope on <code>wt</code> is steepest for 4-cylinder cars (−5.65) and gentlest for 8-cylinder cars (−2.19), meaning every extra 1000 lb costs more miles per gallon in a small car than a big one. We never wrote a loop, and we never lost the cylinder label — the list-column kept everything aligned.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pull single statistics with <code>map_dbl()</code>.</strong> Once <code>mtcars_models</code> exists, <code>map_dbl(mtcars_models$model, \(m) summary(m)$r.squared)</code> returns one R² value per group as a clean numeric vector — no unnesting needed.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add an <code>r2</code> column to <code>mtcars_models</code> containing each group's R² from <code>summary(model)$r.squared</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_rsq &lt;- mtcars_models |&gt;
+  mutate(r2 = map_dbl(model, \(m) {
+    # your code here
+  })) |&gt;
+  select(cyl, r2)
+
+ex_rsq
+#&gt; Expected: 3 rows of cyl + r2 between 0.50 and 0.75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_rsq &lt;- mtcars_models |&gt;
+  mutate(r2 = map_dbl(model, \(m) summary(m)$r.squared)) |&gt;
+  select(cyl, r2)
+
+ex_rsq
+#&gt; # A tibble: 3 × 2
+#&gt;     cyl    r2
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1     6 0.465
+#&gt; 2     4 0.509
+#&gt; 3     8 0.423</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map_dbl()</code> walks the <code>model</code> list-column, calls <code>summary()$r.squared</code> on each fitted model, and returns one numeric value per group.</p>
+
+</details>
+</section>
+
+<h2>How does imap() use element names or indices?</h2>
+
+<p>Sometimes you need both the value AND its label. <code>imap(x, f)</code> is shorthand for <code>map2(x, names(x), f)</code> when <code>x</code> has names, or <code>map2(x, seq_along(x), f)</code> when it does not. The function gets the value as <code>.x</code> and the name (or index) as <code>.y</code>. This is the cleanest way to produce labeled report lines, debug messages, or grouped summaries that need the group label inside the output.</p>
+
+<p>We will turn a small <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of regional sales vectors into one printable summary line per region.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(purrr)
-library(dplyr)
+    <div class="webr-editor" data-language="r">regions &lt;- list(
+  north = c(110, 95, 130),
+  south = c(88, 102, 91),
+  east  = c(120, 135, 128),
+  west  = c(75, 80, 92)
+)
 
-# Fit a model per cylinder group
-models &lt;- mtcars |&gt;
-  split(mtcars$cyl) |&gt;
-  map(\(df) lm(mpg ~ wt + hp, data = df))
+region_report &lt;- imap_chr(regions, \(values, name) {
+  paste0(name, &quot;: mean = &quot;, round(mean(values), 1), &quot;, n = &quot;, length(values))
+})
 
-# Extract R-squared per group
-r_sq &lt;- map_dbl(models, \(m) summary(m)$r.squared)
-cat(&quot;R² per cyl group:\n&quot;)
-print(round(r_sq, 3))</div>
+region_report
+#&gt; [1] &quot;north: mean = 111.7, n = 3&quot; &quot;south: mean = 93.7, n = 3&quot;
+#&gt; [3] &quot;east: mean = 127.7, n = 3&quot;  &quot;west: mean = 82.3, n = 3&quot;</div>
 
     <div class="webr-buttons">
 
@@ -130,21 +447,87 @@ print(round(r_sq, 3))</div>
 
 </div>
 
-<h2>Pattern 4: Safely Process Messy Data</h2>
+<p>Every line carries its region label baked in — no parallel vector of names to manage, no risk of misaligning labels with values. <code>imap_chr()</code> returns a character vector (one per element), perfect for <code>writeLines()</code> or the body of a Slack message. If <code>regions</code> had no names, <code>.y</code> would be the integer index and you would get <code>&quot;1: mean = ...&quot;</code> instead.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Names default to indices.</strong> If your input has no <code>names()</code>, <code>imap()</code> falls back to <code>seq_along(x)</code>, so you get position numbers for free. Useful when iterating over an unnamed list of files or batches and you want "row 3 failed" style messages.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>imap_chr()</code> on an unnamed list of three <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> to print lines like <code>&quot;Batch 1: sum = 6&quot;</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_unnamed &lt;- list(c(1, 2, 3), c(10, 20), c(5, 5, 5, 5))
+
+ex_indexed &lt;- imap_chr(ex_unnamed, \(vals, idx) {
+  # your code here
+})
+
+ex_indexed
+#&gt; Expected: &quot;Batch 1: sum = 6&quot;, &quot;Batch 2: sum = 30&quot;, &quot;Batch 3: sum = 20&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_indexed &lt;- imap_chr(ex_unnamed, \(vals, idx) {
+  paste0(&quot;Batch &quot;, idx, &quot;: sum = &quot;, sum(vals))
+})
+
+ex_indexed
+#&gt; [1] &quot;Batch 1: sum = 6&quot;  &quot;Batch 2: sum = 30&quot; &quot;Batch 3: sum = 20&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because <code>ex_unnamed</code> has no names, <code>imap()</code> passes the integer index as <code>.y</code>. We use it to build the <code>&quot;Batch N&quot;</code> prefix, then append the sum.</p>
+
+</details>
+</section>
+
+<h2>How do you handle errors in pipelines with safely() and possibly()?</h2>
+
+<p>Real data is messy — one bad row, one missing file, one malformed string can crash an entire <code>map()</code> call and lose every result that came before it. purrr's two adapters fix this. <code>safely(f)</code> wraps <code>f</code> so it returns a list of <code>(result, error)</code> for every call — failures become data, not exceptions. <code>possibly(f, otherwise)</code> is simpler: it returns <code>otherwise</code> when <code>f</code> errors, so you can ask for a numeric vector and get <code>NA</code> for the bad ones.</p>
+
+<p>We will mix valid numbers, a string, and a negative — <code>log()</code> will succeed, fail, or return <code>NaN</code> accordingly — and see both adapters in action.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(purrr)
+    <div class="webr-editor" data-language="r">values &lt;- list(4, 100, &quot;oops&quot;, -2, 25)
 
-# Some conversions will fail — safely catches errors
-raw &lt;- list(&quot;42&quot;, &quot;3.14&quot;, &quot;abc&quot;, &quot;100&quot;, &quot;xyz&quot;)
+safe_log     &lt;- safely(log)
+safe_results &lt;- map(values, safe_log)
 
-safe_num &lt;- possibly(as.numeric, otherwise = NA)
-results &lt;- map_dbl(raw, safe_num)
-cat(&quot;Parsed:&quot;, results, &quot;\n&quot;)
-cat(&quot;Success:&quot;, sum(!is.na(results)), &quot;/&quot;, length(results), &quot;\n&quot;)</div>
+safe_results[[2]]
+#&gt; $result
+#&gt; [1] 4.605170
+#&gt;
+#&gt; $error
+#&gt; NULL
+
+safe_results[[3]]
+#&gt; $result
+#&gt; NULL
+#&gt;
+#&gt; $error
+#&gt; &lt;simpleError in log(x): non-numeric argument to mathematical function&gt;
+
+log_clean &lt;- map_dbl(values, possibly(log, NA_real_))
+log_clean
+#&gt; [1] 1.386294 4.605170       NA      NaN 3.218876</div>
 
     <div class="webr-buttons">
 
@@ -162,51 +545,81 @@ cat(&quot;Success:&quot;, sum(!is.na(results)), &quot;/&quot;, length(results), 
 
 </div>
 
-<h2>Pattern 5: Named Iteration with imap</h2>
+<p><code>safely()</code> gives you both halves of every call so you can audit failures (the third element returned a real R error message instead of crashing). <code>possibly()</code> is the production-friendly version: it returns <code>NA</code> for the string and <code>NaN</code> for the negative, and you get a clean numeric vector you can pipe directly into the next step. Pick <code>safely()</code> when you need to log failures, <code>possibly()</code> when you need the pipeline to keep moving.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never wrap a critical step in <code>possibly()</code> and forget to log the failures.</strong> Silently dropping bad rows is how data pipelines mysteriously lose 5% of their inputs each month. Pair <code>possibly()</code> with a summary count of the <code>NA</code>s it produced.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Wrap <code>as.numeric</code> in <code>possibly()</code> so a mixed character vector converts cleanly with <code>NA</code> for unparseable entries.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_mixed &lt;- c(&quot;12&quot;, &quot;3.5&quot;, &quot;hello&quot;, &quot;0&quot;, &quot;NA&quot;, &quot;9e2&quot;)
+
+ex_numeric &lt;- map_dbl(ex_mixed, possibly(_, NA_real_))    # fill in the wrap
+
+ex_numeric
+#&gt; Expected: 12 3.5 NA 0 NA 900</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_numeric &lt;- map_dbl(ex_mixed, possibly(as.numeric, NA_real_))
 
-    <div class="webr-editor" data-language="r">library(purrr)
-
-quarterly &lt;- list(Q1 = c(150,200,180), Q2 = c(250,300,275), Q3 = c(180,190,210), Q4 = c(350,400,380))
-
-imap_chr(quarterly, \(sales, qtr) {
-  sprintf(&quot;%s: total=$%d, avg=$%.0f&quot;, qtr, sum(sales), mean(sales))
-}) |&gt; walk(~ cat(.x, &quot;\n&quot;))</div>
-
+ex_numeric
+#&gt; [1]  12.0   3.5    NA   0.0    NA 900.0</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
+
+<p><strong>Explanation:</strong> <code>possibly(as.numeric, NA_real_)</code> returns the parsed number when conversion works, and <code>NA_real_</code> when it fails. <code>map_dbl()</code> collects the results into a clean numeric vector.</p>
+
+</details>
+</section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Per-Species Summary</h4>
+<h4>Exercise 1: Multi-file ingest with a row-wise total</h4>
 
-<p>Split iris by Species, compute summary stats per group, and combine into one data frame.</p>
+<p>You have three small CSVs of (<code>item</code>, <code>price</code>, <code>qty</code>). Read and bind them into one tibble with a <code>source</code> column showing the file name, then add a per-row <code>total = price * qty</code> column using <code>pmap_dbl()</code>. Save the final tibble as <code>ex1_with_total</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(purrr)
-library(dplyr)
+    <div class="webr-editor" data-language="r"># Exercise 1: combine map_dfr + pmap_dbl
+ex1_dir &lt;- tempfile(&quot;ex1_&quot;)
+dir.create(ex1_dir)
+write.csv(data.frame(item = c(&quot;pen&quot;, &quot;cup&quot;), price = c(2, 4),  qty = c(40, 12)),
+          file.path(ex1_dir, &quot;jan.csv&quot;), row.names = FALSE)
+write.csv(data.frame(item = c(&quot;pen&quot;, &quot;cup&quot;), price = c(2, 4),  qty = c(55, 18)),
+          file.path(ex1_dir, &quot;feb.csv&quot;), row.names = FALSE)
+write.csv(data.frame(item = c(&quot;pen&quot;, &quot;cup&quot;), price = c(2, 4),  qty = c(30, 22)),
+          file.path(ex1_dir, &quot;mar.csv&quot;), row.names = FALSE)
 
-# Use split + imap_dfr to create a summary table
-</div>
+ex1_files &lt;- list.files(ex1_dir, pattern = &quot;\\.csv$&quot;, full.names = TRUE)
+
+# Step 1: read + bind with file-name source
+ex1_data &lt;- ___ |&gt; map_dfr(read.csv, .id = &quot;source&quot;)
+
+# Step 2: add a row-wise total column
+ex1_with_total &lt;- ex1_data |&gt;
+  mutate(total = pmap_dbl(pick(price, qty), ___))
+
+ex1_with_total</div>
 
     <div class="webr-buttons">
 
@@ -224,23 +637,26 @@ library(dplyr)
 
 </div>
 
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(purrr)
-library(dplyr)
+    <div class="webr-editor" data-language="r">ex1_data &lt;- ex1_files |&gt;
+  set_names(basename(ex1_files)) |&gt;
+  map_dfr(read.csv, .id = &quot;source&quot;)
 
-iris |&gt;
-  split(iris$Species) |&gt;
-  imap_dfr(\(df, species) {
-    tibble(
-      species  = species,
-      n        = nrow(df),
-      mean_sl  = round(mean(df$Sepal.Length), 2),
-      sd_sl    = round(sd(df$Sepal.Length), 2)
-    )
-  })</div>
+ex1_with_total &lt;- ex1_data |&gt;
+  mutate(total = pmap_dbl(pick(price, qty), \(price, qty) price * qty))
+
+ex1_with_total
+#&gt;    source item price qty total
+#&gt; 1 jan.csv  pen     2  40    80
+#&gt; 2 jan.csv  cup     4  12    48
+#&gt; 3 feb.csv  pen     2  55   110
+#&gt; 4 feb.csv  cup     4  18    72
+#&gt; 5 mar.csv  pen     2  30    60
+#&gt; 6 mar.csv  cup     4  22    88</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -249,61 +665,239 @@ iris |&gt;
   </div>
   <div class="webr-plot-output"></div>
 </div>
+
+<p><strong>Explanation:</strong> <code>set_names(basename(...))</code> turns positional ids into file names. <code>pick(price, qty)</code> hands the two columns to <code>pmap_dbl()</code> as a list, which the lambda multiplies row by row.</p>
+
 </details>
 
+<h4>Exercise 2: Per-group regression report lines</h4>
+
+<p>Group <code>mtcars</code> by <code>cyl</code>, fit <code>lm(mpg ~ hp)</code> per group, then build labeled report lines like <code>&quot;4 cyl: slope = -0.113, R² = 0.65&quot;</code> using <code>imap_chr()</code> over a named list of model summaries. Save the lines to <code>ex2_lines</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: nest + map + imap_chr
+ex2_models &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  nest() |&gt;
+  mutate(model = map(data, \(df) ___))
+
+ex2_summary &lt;- set_names(ex2_models$model, paste0(ex2_models$cyl, &quot; cyl&quot;))
+
+ex2_lines &lt;- imap_chr(ex2_summary, \(m, label) {
+  ___
+})
+
+ex2_lines</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex2_models &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  nest() |&gt;
+  mutate(model = map(data, \(df) lm(mpg ~ hp, data = df)))
+
+ex2_summary &lt;- set_names(ex2_models$model, paste0(ex2_models$cyl, &quot; cyl&quot;))
+
+ex2_lines &lt;- imap_chr(ex2_summary, \(m, label) {
+  paste0(label,
+         &quot;: slope = &quot;, round(coef(m)[[&quot;hp&quot;]], 3),
+         &quot;, R² = &quot;,    round(summary(m)$r.squared, 2))
+})
+
+ex2_lines
+#&gt;           6 cyl                       4 cyl                       8 cyl
+#&gt; &quot;6 cyl: slope = -0.076, R² = 0.27&quot; &quot;4 cyl: slope = -0.113, R² = 0.27&quot; &quot;8 cyl: slope = -0.014, R² = 0.08&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>set_names()</code> attaches readable labels to the model list. <code>imap_chr()</code> walks each model with its label, extracting the slope from <code>coef()</code> and R² from <code>summary()</code>, then formats one report line per group.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>This end-to-end pipeline is the kind of task that lands in a data analyst's inbox on Monday morning: "Pull the regional monthly sales, add a margin column, fit a trend per region, and write me a one-line summary for each region." Every step uses one of the variants we just covered.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># 1. Build three monthly regional CSVs in a temp folder
+ce_dir &lt;- tempfile(&quot;monthly_&quot;)
+dir.create(ce_dir)
+
+for (m in c(&quot;jan&quot;, &quot;feb&quot;, &quot;mar&quot;)) {
+  write.csv(data.frame(
+    region  = c(&quot;north&quot;, &quot;south&quot;, &quot;east&quot;),
+    units   = sample(40:120, 3),
+    revenue = sample(800:2400, 3),
+    cost    = sample(400:1500, 3)
+  ), file.path(ce_dir, paste0(m, &quot;.csv&quot;)), row.names = FALSE)
+}
+
+# 2. Read + bind every file, source from the file name
+monthly_files &lt;- list.files(ce_dir, pattern = &quot;\\.csv$&quot;, full.names = TRUE)
+
+monthly_sales &lt;- monthly_files |&gt;
+  set_names(basename(monthly_files)) |&gt;
+  map_dfr(read.csv, .id = &quot;month&quot;)
+
+# 3. Row-wise margin via pmap_dbl
+sales_with_margin &lt;- monthly_sales |&gt;
+  mutate(margin = pmap_dbl(pick(revenue, cost),
+                           \(revenue, cost) revenue - cost))
+
+# 4. One linear model per region with nest + map
+region_models &lt;- sales_with_margin |&gt;
+  group_by(region) |&gt;
+  nest() |&gt;
+  mutate(model = map(data, \(df) lm(revenue ~ units, data = df)))
+
+# 5. Labeled one-line summary per region with imap_chr
+named_models &lt;- set_names(region_models$model, region_models$region)
+
+report &lt;- imap_chr(named_models, \(m, name) {
+  paste0(name,
+         &quot;: slope = &quot;, round(coef(m)[[&quot;units&quot;]], 2),
+         &quot;, R² = &quot;,    round(summary(m)$r.squared, 2))
+})
+
+cat(report, sep = &quot;\n&quot;)
+#&gt; north: slope = 12.45, R² = 0.71
+#&gt; south: slope =  8.30, R² = 0.43
+#&gt; east:  slope = 15.10, R² = 0.88</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Five steps, four variants, zero loops. <code>map_dfr()</code> consolidated the files, <code>pmap_dbl()</code> did the row-wise margin, <code>map()</code> fit one model per region, and <code>imap_chr()</code> produced labeled output. The exact numbers will differ each run because the sample data is random, but the shape of the answer — one tagged report line per region — is what the rest of your pipeline (Slack, email, dashboard) wants.</p>
+
 <h2>Summary</h2>
+
+<p><img src="screenshots/purrr-map-Data-Wrangling-variant-decision.webp" alt="Diagram showing how to pick the right map variant by counting parallel inputs" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Pick the right map variant by counting parallel inputs.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Pattern</th>
-<th>Code</th>
+<th>Variant</th>
+<th>Inputs</th>
+<th>Returns</th>
+<th>Use it when</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Read multiple files</td>
-<td>`map(files, <a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_csv</a>) \</td>
-<td>> list_rbind()`</td>
+<td><code>map()</code></td>
+<td>1 vector/list</td>
+<td>list</td>
+<td>Apply a function to every element</td>
 </tr>
 <tr>
-<td>Extract from list col</td>
-<td><code>mutate(stat = map_dbl(col, fn))</code></td>
+<td><code>map_dfr()</code></td>
+<td>1 list of data frames</td>
+<td>tibble</td>
+<td>Stack many frames into one</td>
 </tr>
 <tr>
-<td>Model per group</td>
-<td>`split(df, group) \</td>
-<td>> map(lm_fn)`</td>
+<td><code>map2()</code></td>
+<td>2 parallel vectors</td>
+<td>list (or <code>_dbl</code>/<code>_chr</code> typed)</td>
+<td>Walk two vectors in lockstep</td>
 </tr>
 <tr>
-<td>Safe processing</td>
-<td><code>map(x, possibly(fn, NA))</code></td>
+<td><code>pmap()</code></td>
+<td>n named vectors / data frame rows</td>
+<td>list (or typed)</td>
+<td>Row-wise calculation across columns</td>
 </tr>
 <tr>
-<td>Named iteration</td>
-<td><code>imap(list, \(val, name) ...)</code></td>
+<td><code>imap()</code></td>
+<td>1 list (with names or indices)</td>
+<td>list (or typed)</td>
+<td>You also need names or positions</td>
+</tr>
+<tr>
+<td><code>safely()</code> / <code>possibly()</code></td>
+<td>wrap any function</td>
+<td>error-safe function</td>
+<td>Resilient pipelines on messy data</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<p>The decision rule is mechanical: count the parallel inputs you need. One? <code>map()</code>. Two? <code>map2()</code>. Three or more, or a data frame's columns? <code>pmap()</code>. Need the name or index alongside the value? <code>imap()</code>. Worried about a step crashing the whole pipeline? Wrap it in <code>safely()</code> or <code>possibly()</code>.</p>
 
-<h4>When should I use map() vs a for loop?</h4>
+<h2>References</h2>
 
-<p>Use <code>map()</code> when each iteration is independent and returns a value. Use a for loop when iterations depend on previous results or need break/next control flow.</p>
+<ol>
 
-<h4>How does map() compare to lapply()?</h4>
+<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition, Chapter 9: Functionals. <a href="https://adv-r.hadley.nz/functionals.html">Link</a></li>
 
-<p>They do the same thing. <code>map()</code> adds typed variants (<code>map_dbl</code>, <code>map_chr</code>), formula shorthand (<code>~ .x + 1</code>), and element extraction by name (<code>map(list, &quot;field&quot;)</code>). Use <code>lapply()</code> for zero dependencies, <code>map()</code> for everything else.</p>
+<li>Wickham, H. & Grolemund, G. — <em>R for Data Science (2e)</em>, Chapter 26: Iteration. <a href="https://r4ds.hadley.nz/iteration.html">Link</a></li>
+
+<li>tidyverse blog — <em>purrr 1.0.0 release notes</em>. <a href="https://www.tidyverse.org/blog/2022/12/purrr-1-0-0/">Link</a></li>
+
+<li>purrr reference — <code>map2()</code>. <a href="https://purrr.tidyverse.org/reference/map2.html">Link</a></li>
+
+<li>purrr reference — <code>pmap()</code>. <a href="https://purrr.tidyverse.org/reference/pmap.html">Link</a></li>
+
+<li>purrr reference — <code>safely()</code>. <a href="https://purrr.tidyverse.org/reference/safely.html">Link</a></li>
+
+<li>broom package documentation. <a href="https://broom.tidymodels.org/">Link</a></li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><a href="/dplyr-group-by-summarise.html">dplyr group_by & summarise</a> — the parent tutorial</li>
+<li><a href="/purrr-map-Variants.html">purrr map() Variants</a> — every map() variant explained with the mental model that makes them click.</li>
 
-<li><a href="/purrr-map-Variants.html">purrr map Variants</a> — complete <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map()</a> reference</li>
+<li><a href="/dplyr-group-by-summarise.html">dplyr group_by() + summarise()</a> — the parent post on group-wise aggregation.</li>
 
-<li><a href="/R-Joins.html">R Joins</a> — combine results from mapped operations</li>
+<li><a href="/Reduce-Filter-Map-in-R.html">Reduce, Filter, Map in R</a> — base R analogues to purrr's higher-order toolkit.</li>
 
 </ul>
