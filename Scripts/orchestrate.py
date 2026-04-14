@@ -32,7 +32,7 @@ PROJECT_ROOT = REPO_ROOT.parent  # D:/09_rstatisticsco — where .claude/ lives
 QUEUE_FILE = REPO_ROOT / "post_queue.json"
 LOG_FILE = REPO_ROOT / "Scripts" / "orchestrate.log"
 LOCK_FILE = REPO_ROOT / "Scripts" / "orchestrate.lock"
-SESSION_TIMEOUT = 1800  # 30 minutes per post
+SESSION_TIMEOUT = 3000  # 50 minutes per post
 MAX_ATTEMPTS = 2
 
 
@@ -164,12 +164,42 @@ def git_checkout_modified():
 
 
 def cleanup_failed_session():
-    """Clean up all traces of a failed/timed-out claude session."""
-    git_clean_untracked()
-    git_checkout_modified()
-    # Remove mermaid temp files
-    for tmp in glob.glob(str(REPO_ROOT / "_build" / "mermaid" / "tmp*")):
-        os.remove(tmp)
+    """Clean up all traces of a failed/timed-out claude session.
+
+    Uses `git reset --hard HEAD` to revert any tracked-file changes
+    (staged or unstaged, modified or deleted) followed by a scoped
+    `git clean -fd` to remove untracked files from known write locations.
+    Robust against any porcelain status code, unlike per-pattern line
+    matching which missed edge cases (staged mods, deletions, MM)."""
+    subprocess.run(
+        ["git", "reset", "--hard", "HEAD"],
+        capture_output=True, text=True, cwd=REPO_ROOT
+    )
+    clean_dirs = [
+        "posts",
+        "_posts",
+        "post_plans",
+        "screenshots",
+        "_build/mermaid",
+        "www",
+    ]
+    subprocess.run(
+        ["git", "clean", "-fd"] + clean_dirs,
+        capture_output=True, text=True, cwd=REPO_ROOT
+    )
+    # Remove stray root-level untracked .html files from a crashed build.
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, cwd=REPO_ROOT
+    )
+    for line in status.stdout.splitlines():
+        if line.startswith("?? "):
+            path = line[3:].strip().strip('"')
+            if "/" not in path and path.endswith(".html"):
+                full = REPO_ROOT / path
+                if full.exists():
+                    full.unlink()
+    log("  cleanup_failed_session: tree reset to HEAD, untracked cleaned")
 
 
 # --- Find claude CLI ---
