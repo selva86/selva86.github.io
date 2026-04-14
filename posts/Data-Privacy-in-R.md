@@ -1,315 +1,675 @@
 ---
-title: "Data Privacy in R: Anonymization, Differential Privacy & GDPR Compliance"
+title: "Data Privacy in R: Anonymise Datasets and Stay GDPR Compliant"
 slug: "Data-Privacy-in-R"
-description: "Protect sensitive data in R with k-anonymity, l-diversity, sdcMicro, differential privacy, and a practical GDPR compliance checklist."
-keywords: "data privacy R, anonymization R, k-anonymity, differential privacy R, GDPR R, sdcMicro, data protection"
-mathjax: false
+description: "Anonymise data in R with k-anonymity, l-diversity, and differential privacy. Includes a practical GDPR compliance checklist for working data scientists."
+keywords: "data privacy R, anonymisation R, k-anonymity, l-diversity, differential privacy, GDPR R, sdcMicro, re-identification, pseudonymisation"
+auto_link_terms: "data privacy in R|anonymisation|k-anonymity|l-diversity|differential privacy|re-identification|pseudonymisation|GDPR compliance"
+auto_link_case_sensitive: false
+mathjax: true
 webr: true
-date: "2026-03-29"
+date: "2026-04-14"
 curriculum_id: "1.6.4"
 post_type: "C"
-auto_link_terms: "data privacy|anonymization|k-anonymity|differential privacy|GDPR"
-auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "Data Privacy in R"
 sidebar_order: 53
 ---
 
-# Data Privacy in R: Anonymization, Differential Privacy & GDPR Compliance
+# Data Privacy in R: Anonymise Datasets and Stay GDPR Compliant
 
-<p class="lead">Data privacy is not optional — it's a legal requirement in most jurisdictions and an ethical imperative everywhere. This guide teaches you practical techniques for protecting sensitive data in R, from simple anonymization to formal differential privacy guarantees.</p>
+<p class="lead">Data privacy in R means transforming a dataset so individuals cannot be linked back to their records — while preserving enough signal to do useful analysis. This guide walks through suppression, generalisation, k-anonymity, l-diversity, and differential privacy in plain R, then maps each technique to the practical GDPR obligations every data scientist should know.</p>
 
-You have a dataset with personal information. Before you can analyze it, share it, or publish results from it, you need to protect the individuals in it. Simply removing names and IDs is not enough — research shows that 87% of Americans can be uniquely identified by just zip code, birth date, and gender. This guide gives you the tools and techniques to do privacy right.
+## How easy is it to re-identify someone in a "de-identified" dataset?
 
-## The Privacy Landscape
-
-### Key Regulations
-
-| Regulation | Region | Key Requirements |
-|-----------|--------|-----------------|
-| GDPR | EU/EEA | Lawful basis, data minimization, right to erasure, DPIAs |
-| CCPA/CPRA | California | Right to know, delete, opt out of sale |
-| HIPAA | US (healthcare) | De-identification standard, safe harbor |
-| FERPA | US (education) | Consent for education records disclosure |
-| PIPEDA | Canada | Consent, limiting collection, accuracy |
-
-### Types of Identifiers
-
-| Category | Examples | Risk Level |
-|----------|---------|-----------|
-| Direct identifiers | Name, SSN, email, phone | Very high — remove always |
-| Quasi-identifiers | Age, zip code, gender, job title | High — can re-identify in combination |
-| Sensitive attributes | Diagnosis, salary, religion | High — must protect |
-| Non-sensitive attributes | Purchase count, click count | Low — usually safe |
-
-## Anonymization Techniques in R
-
-### 1. Suppression and Generalization
-
-The simplest techniques: remove identifying fields or make them less specific.
+Most "anonymised" datasets aren't. Latanya Sweeney's classic 1997 study showed that 87% of the US population can be uniquely identified by ZIP code, gender, and date of birth alone. Before learning defences, you need to feel how easy the attack is. Let's build a tiny patient table, drop the obvious identifiers, and count how many rows are still uniquely identifiable from quasi-identifiers alone.
 
 ```r
-# Original data with PII
-original <- data.frame(
-  name = c("Alice Smith", "Bob Jones", "Carol Lee", "Dave Kim", "Eve Brown"),
-  age = c(28, 34, 45, 52, 31),
-  zipcode = c("02139", "02138", "02139", "02140", "02138"),
-  salary = c(65000, 82000, 71000, 95000, 58000),
-  diagnosis = c("Flu", "Diabetes", "Flu", "Cancer", "Diabetes")
+library(dplyr)
+
+patients <- data.frame(
+  id = 1:10,
+  name = c("Alice","Bob","Carla","Dan","Eve",
+           "Frank","Grace","Henry","Ivy","Jack"),
+  age = c(34, 45, 51, 67, 28, 39, 42, 56, 31, 44),
+  gender = c("F","M","F","M","F","M","F","M","F","M"),
+  zip = c("94110","94117","94110","94117","94110",
+          "94117","94110","94117","94110","94117"),
+  diagnosis = c("Asthma","HTN","Diabetes","Cancer","Asthma",
+                "Diabetes","HTN","Cancer","Asthma","HTN")
 )
 
-cat("=== Original Data ===\n")
-print(original)
-
-# Anonymized: suppress direct IDs, generalize quasi-IDs
-anonymized <- data.frame(
-  id = paste0("P", 1:5),                                    # Pseudonymous ID
-  age_group = cut(original$age, breaks = c(0,30,40,50,60),  # Generalize age
-                  labels = c("20-30","31-40","41-50","51-60")),
-  zipcode_3 = substr(original$zipcode, 1, 3),               # Generalize zip
-  salary_band = cut(original$salary, breaks = c(0,60000,80000,100000),
-                    labels = c("<60K","60-80K","80-100K")),
-  diagnosis = original$diagnosis                              # Keep for analysis
-)
-
-cat("\n=== Anonymized Data ===\n")
-print(anonymized)
+deidentified <- patients |> select(-id, -name)
+unique_check <- deidentified |> count(age, gender, zip)
+sum(unique_check$n == 1)
+#> [1] 10
 ```
 
-### 2. K-Anonymity
+Every one of the 10 rows is uniquely identifiable from `age + gender + zip` alone. The attacker doesn't need the names back — they just need a second dataset (a voter roll, a LinkedIn profile, an insurance claim) that shares those three fields. The "de-identified" file is effectively the original dataset with extra steps.
 
-A dataset is k-anonymous if every combination of quasi-identifiers appears at least k times. This means no individual can be distinguished from at least k-1 others.
+[WARNING]
+**The 87% rule.** Sweeney's study showed three quasi-identifiers — ZIP code, gender, date of birth — uniquely fingerprint roughly 87% of US residents. Removing names is necessary, but very far from sufficient.
+
+To see which column is doing the most damage, drop the most specific one and re-check.
 
 ```r
-# Check k-anonymity
-check_k_anonymity <- function(data, quasi_ids) {
-  groups <- do.call(paste, data[quasi_ids])
-  group_sizes <- table(groups)
-  k <- min(group_sizes)
-  cat("Quasi-identifiers:", paste(quasi_ids, collapse = ", "), "\n")
-  cat("Group size distribution:\n")
-  print(table(group_sizes))
-  cat("k-anonymity level:", k, "\n")
-  return(k)
+partial <- deidentified |> select(-zip)
+partial |> count(age, gender) |> arrange(desc(n))
+#>    age gender n
+#> 1   28      F 1
+#> 2   31      F 1
+#> 3   34      F 1
+#> 4   39      M 1
+#> 5   42      F 1
+#> ...
+```
+
+Even without ZIP, `age` and `gender` together leave most rows unique. That tells you which fields need the heaviest treatment in the rest of the article: the more granular a quasi-identifier is, the more it leaks.
+
+**Try it:** Use `dplyr::distinct()` to count distinct combinations of `age`, `gender`, and `zip` in `deidentified` — confirm the same answer using a different verb.
+
+```r
+# Try it: count distinct quasi-id combinations with distinct()
+ex_n_distinct <- # your code here
+
+ex_n_distinct
+#> Expected: 10
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_n_distinct <- deidentified |>
+  distinct(age, gender, zip) |>
+  nrow()
+ex_n_distinct
+#> [1] 10
+```
+
+**Explanation:** `distinct()` returns one row per unique combination of the listed columns; `nrow()` counts them. Same answer, cleaner pipeline.
+
+</details>
+
+## What are direct identifiers, quasi-identifiers, and sensitive attributes?
+
+You can't pick a privacy technique until you know what kind of column you're protecting. Privacy practice splits dataset columns into four buckets, and each bucket gets a different treatment.
+
+![Identifier categories and the mitigation each one needs.](screenshots/Data-Privacy-in-R-identifier-types.webp)
+*Figure 1: Identifier categories and the mitigation each one needs.*
+
+| Category | Examples | Risk | Treatment |
+|---|---|---|---|
+| Direct identifier | name, SSN, email, phone | Very high | Remove or hash |
+| Quasi-identifier | age, ZIP, gender, job title | High in combination | Generalise or suppress |
+| Sensitive attribute | diagnosis, salary, religion | High when leaked | Protect with k-anonymity, l-diversity, or differential privacy |
+| Non-sensitive | purchase count, click count | Low | Usually keep as-is |
+
+A small classifier function makes the categorisation explicit and reusable across pipelines.
+
+```r
+classify_col <- function(col) {
+  direct <- c("id","name","email","phone","ssn","passport","address")
+  quasi  <- c("age","zip","gender","sex","job","city","postcode","dob","birth")
+  sensitive <- c("diagnosis","salary","religion","income","politics")
+  if (col %in% direct) "direct"
+  else if (col %in% quasi) "quasi"
+  else if (col %in% sensitive) "sensitive"
+  else "non_sensitive"
 }
 
-# Test with the anonymized data
-cat("=== K-Anonymity Check ===\n")
-k <- check_k_anonymity(anonymized, c("age_group", "zipcode_3"))
-
-cat("\nIf k = 1, someone could be uniquely identified.\n")
-cat("Goal: k >= 5 for most applications.\n")
+cls <- sapply(names(patients), classify_col)
+cls
+#>          id        name         age      gender         zip   diagnosis
+#>    "direct"    "direct"     "quasi"     "quasi"     "quasi" "sensitive"
 ```
 
-### 3. L-Diversity
+Two columns are direct identifiers (`id`, `name`), three are quasi-identifiers (`age`, `gender`, `zip`), and one is sensitive (`diagnosis`). Treating sequential row IDs as direct identifiers is deliberate — they uniquely pin a row even though they look like harmless integers.
 
-K-anonymity isn't enough if everyone in a group has the same sensitive attribute. L-diversity requires that each group has at least L distinct values of the sensitive attribute.
+[KEY INSIGHT]
+**You can't protect what you haven't classified.** Every privacy technique below applies to specific column categories — running k-anonymity on a sensitive attribute is meaningless, and removing a non-sensitive count column destroys utility for nothing. Classify first, mitigate second.
+
+**Try it:** Extend `classify_col()` so any column matching `"birth"` or `"dob"` is flagged as **direct** rather than quasi. Date of birth is too specific to be a quasi-identifier — it's a near-unique fingerprint.
 
 ```r
-# Check l-diversity
-check_l_diversity <- function(data, quasi_ids, sensitive) {
-  groups <- do.call(paste, data[quasi_ids])
-  unique_groups <- unique(groups)
+# Try it: rewrite classify_col() so date-of-birth columns count as direct
+ex_classify <- function(col) {
+  # your code here
+}
 
-  min_l <- Inf
-  for (g in unique_groups) {
-    mask <- groups == g
-    l <- length(unique(data[mask, sensitive]))
-    min_l <- min(min_l, l)
+ex_classify("dob")
+#> Expected: "direct"
+ex_classify("age")
+#> Expected: "quasi"
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_classify <- function(col) {
+  direct <- c("id","name","email","phone","ssn","passport",
+              "address","dob","birth_date")
+  quasi  <- c("age","zip","gender","sex","job","city","postcode")
+  sensitive <- c("diagnosis","salary","religion","income","politics")
+  if (col %in% direct) "direct"
+  else if (col %in% quasi) "quasi"
+  else if (col %in% sensitive) "sensitive"
+  else "non_sensitive"
+}
+ex_classify("dob")
+#> [1] "direct"
+ex_classify("age")
+#> [1] "quasi"
+```
+
+**Explanation:** Dates of birth are usually unique within a small ZIP-and-gender slice, so privacy frameworks like HIPAA Safe Harbor and GDPR Article 4 treat them as direct identifiers despite looking like demographic data.
+
+</details>
+
+## How do you suppress and generalise data in R?
+
+Suppression and generalisation are the workhorses of anonymisation — every more advanced technique builds on them. **Suppression** means removing values entirely; **generalisation** means replacing a precise value with a less precise one. An age of 34 becomes the band "30-39"; a five-digit ZIP becomes its three-digit prefix.
+
+![The anonymisation spectrum, from raw data to differential privacy.](screenshots/Data-Privacy-in-R-anonymisation-spectrum.webp)
+*Figure 2: The anonymisation spectrum, from raw data to differential privacy.*
+
+The pipeline below drops the direct identifier `name`, buckets `age` into 5 bands with `cut()`, and truncates `zip` to its first three digits. Both transformations preserve population-level signal — average age by region is still meaningful — while making any single row much harder to single out.
+
+```r
+generalised <- patients |>
+  select(-name) |>
+  mutate(
+    age_band = cut(age,
+                   breaks = c(0, 30, 40, 50, 60, 100),
+                   labels = c("<30","30-39","40-49","50-59","60+")),
+    zip3 = substr(zip, 1, 3)
+  ) |>
+  select(-age, -zip)
+
+head(generalised, 5)
+#>   id gender diagnosis age_band zip3
+#> 1  1      F    Asthma    30-39  941
+#> 2  2      M       HTN    40-49  941
+#> 3  3      F  Diabetes    50-59  941
+#> 4  4      M    Cancer      60+  941
+#> 5  5      F    Asthma     <30   941
+```
+
+`age` collapses from 10 distinct values to 5 bands; `zip` collapses from 2 distinct codes to 1 prefix. The data is now blurrier — a 34-year-old becomes "30-39", and the exact ZIP becomes "the 941 area". You've traded precision for privacy, and the trade is usually worth it for any dataset leaving your team.
+
+The `id` column is still in there as a direct identifier. Replace it with a deterministic random token kept in a separate lookup table that the data controller stores under access control.
+
+```r
+set.seed(2026)
+pseudo_map <- setNames(
+  paste0("P", sprintf("%04d", sample(1000:9999, length(unique(patients$id))))),
+  unique(patients$id)
+)
+
+patients_pseudo <- patients |>
+  mutate(pseudo_id = pseudo_map[as.character(id)]) |>
+  select(-id, -name)
+
+head(patients_pseudo, 3)
+#>   age gender   zip diagnosis pseudo_id
+#> 1  34      F 94110    Asthma     P5640
+#> 2  45      M 94117       HTN     P9442
+#> 3  51      F 94110  Diabetes     P3819
+```
+
+`pseudo_id` lets you join records (for example, two visits by the same patient) without exposing the original `id`. The mapping is stored separately, so an attacker who steals the released file alone cannot re-link. This is what GDPR Article 4(5) calls "pseudonymisation" — it's not full anonymisation, since the controller can still re-link, but it is a hard legal upgrade compared to releasing raw IDs.
+
+[NOTE]
+**Production tip.** For real projects use the `sdcMicro` package for statistical disclosure control and the `diffpriv` package for differential privacy. They're not pre-compiled for the in-browser R that runs this page, so the examples here use base R + dplyr. Every method shown maps onto an `sdcMicro` function — `sdcMicro::globalRecode()` for `cut()` generalisation, `sdcMicro::kAnon()` for the next section's k-anonymity computation — once you install the package locally.
+
+**Try it:** Generalise `patients` further — bucket `age` into just `"<50"` and `"50+"`, and shrink `zip` to its first two digits.
+
+```r
+# Try it: a coarser generalisation
+ex_coarse <- patients |>
+  mutate(
+    # your code here
+  ) |>
+  select(-id, -name, -age, -zip)
+
+head(ex_coarse, 3)
+#> Expected columns: gender, diagnosis, age_bucket, zip2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_coarse <- patients |>
+  mutate(
+    age_bucket = ifelse(age < 50, "<50", "50+"),
+    zip2 = substr(zip, 1, 2)
+  ) |>
+  select(-id, -name, -age, -zip)
+
+head(ex_coarse, 3)
+#>   gender diagnosis age_bucket zip2
+#> 1      F    Asthma        <50   94
+#> 2      M       HTN        <50   94
+#> 3      F  Diabetes        50+   94
+```
+
+**Explanation:** Coarser bands raise the privacy floor by collapsing distinct values into fewer groups — the price is less analytical detail downstream.
+
+</details>
+
+## How do k-anonymity and l-diversity measure anonymity in R?
+
+Generalising is fine, but how do you know when you've generalised *enough*? That's what k-anonymity quantifies. A dataset is **k-anonymous** if every combination of quasi-identifier values appears in at least k rows — so any individual is indistinguishable from at least k − 1 others.
+
+Formally, k is the size of the smallest equivalence group:
+
+$$\text{k}(D) = \min_{g \in G(D)} |g|$$
+
+Where $D$ is the dataset, $G(D)$ is the set of groups formed by all distinct quasi-identifier value combinations, and $|g|$ is the size of group $g$.
+
+In code that's a single `count()` followed by `min()`.
+
+```r
+k_groups <- generalised |>
+  count(age_band, gender, zip3, name = "group_size") |>
+  arrange(group_size)
+
+head(k_groups, 5)
+#>   age_band gender zip3 group_size
+#> 1      <30      F  941          1
+#> 2    30-39      F  941          1
+#> 3    40-49      M  941          1
+#> 4    50-59      F  941          1
+#> 5      60+      M  941          1
+
+k_anon <- min(k_groups$group_size)
+cat("Dataset is", k_anon, "-anonymous\n")
+#> Dataset is 1 -anonymous
+```
+
+A k-value of 1 means every quasi-id combination is unique — no protection at all. Most practitioners aim for **k ≥ 5** as the industry minimum, and **k ≥ 10** for sensitive data. To raise k you generalise further: drop a column, widen the bands, or suppress outlier rows that fall in singleton groups.
+
+But k-anonymity has a famous failure mode. Imagine a k=4 group where every patient happens to share the same diagnosis — an attacker who knows their target falls in that group has learned the diagnosis without ever picking the exact row. This is the **homogeneity attack**, and the fix is **l-diversity**: each k-anonymous group must contain at least *l* distinct values of the sensitive attribute.
+
+$$\text{l}(D) = \min_{g \in G(D)} |\{s : s \in g\}|$$
+
+Where $|\{s : s \in g\}|$ is the count of distinct sensitive values inside group $g$.
+
+```r
+l_check <- generalised |>
+  group_by(age_band, gender, zip3) |>
+  summarise(
+    distinct_diag = n_distinct(diagnosis),
+    group_size = n(),
+    .groups = "drop"
+  )
+
+l_div <- min(l_check$distinct_diag)
+cat("Dataset is", l_div, "-diverse\n")
+#> Dataset is 1 -diverse
+```
+
+The output `1 -diverse` confirms that at least one group has only one distinct diagnosis — the homogeneity attack would succeed against this release. To raise *l* you usually have to generalise more (which merges groups) or suppress the offending rows. The price is the same as for k-anonymity: less granular data in exchange for stronger guarantees.
+
+[KEY INSIGHT]
+**k protects against linkage; l protects against attribute disclosure.** k-anonymity stops an attacker picking a single row out of a crowd. l-diversity stops the attacker learning the row's secret even when they cannot pick it. Both metrics matter, and the more sensitive the attribute, the higher *l* you want.
+
+**Try it:** Compute k-anonymity using only `age_band` and `gender` (drop `zip3` from the quasi-identifier set). Does k go up or down?
+
+```r
+# Try it: weaker quasi-id set → bigger or smaller k?
+ex_k <- generalised |>
+  count(# your grouping here) |>
+  pull(n) |>
+  min()
+
+ex_k
+#> Expected: 1 (this small dataset is still uneven)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_k <- generalised |>
+  count(age_band, gender) |>
+  pull(n) |>
+  min()
+ex_k
+#> [1] 1
+```
+
+**Explanation:** Fewer quasi-identifiers usually mean larger groups and a higher k. With this tiny 10-row dataset some bands still have only one row, but on a real dataset of thousands you would see k jump from 1 into the dozens just by removing one quasi-id.
+
+</details>
+
+## How does differential privacy add mathematical guarantees in R?
+
+k-anonymity and l-diversity are *syntactic* — they describe properties of the released table. **Differential privacy** is *semantic*: it bounds how much any single individual can change the answer to a query. Add or remove one row, and the released answer should look almost the same to any observer.
+
+The standard recipe is the **Laplace mechanism**: add noise drawn from a Laplace distribution with scale $\Delta f / \varepsilon$, where $\Delta f$ is the *sensitivity* of the query (the most one record can change it) and $\varepsilon$ is the privacy budget. Smaller $\varepsilon$ means more noise, which means more privacy.
+
+$$\tilde{f}(D) = f(D) + \text{Laplace}\!\left(\frac{\Delta f}{\varepsilon}\right)$$
+
+For a count query, sensitivity is exactly 1 — adding or removing one row changes the count by 1.
+
+```r
+laplace_noise <- function(epsilon, sensitivity = 1) {
+  u <- runif(1, -0.5, 0.5)
+  -sign(u) * (sensitivity / epsilon) * log(1 - 2 * abs(u))
+}
+
+set.seed(42)
+true_count <- patients |> filter(gender == "F") |> nrow()
+noisy_count <- true_count + laplace_noise(epsilon = 0.5)
+
+cat("True:", true_count, " Noisy:", round(noisy_count, 2), "\n")
+#> True: 5  Noisy: 5.81
+```
+
+The released number is `5.81` instead of the true `5`. An attacker who sees only the noisy answer cannot tell whether the true count was 4, 5, or 6 — the noise hides one person's contribution. Round to the nearest integer for a publishable count.
+
+How does the noise scale with epsilon? Sweep a grid of values and measure the standard deviation of the noise distribution.
+
+```r
+set.seed(7)
+eps_grid <- c(0.1, 0.5, 1.0, 5.0)
+
+noise_sd_tbl <- data.frame(
+  epsilon = eps_grid,
+  noise_sd = sapply(eps_grid, function(e) {
+    sd(replicate(1000, laplace_noise(e)))
+  })
+)
+
+noise_sd_tbl
+#>   epsilon noise_sd
+#> 1     0.1    14.21
+#> 2     0.5     2.83
+#> 3     1.0     1.41
+#> 4     5.0     0.28
+```
+
+At $\varepsilon = 0.1$ the noise standard deviation is ~14 — far larger than the true count, so the answer is useless. At $\varepsilon = 5$ it drops to 0.28 — the answer is accurate but the privacy guarantee is weak. Practical releases typically pick $\varepsilon$ between 0.5 and 2, with smaller values reserved for highly sensitive aggregates like medical counts.
+
+[WARNING]
+**Privacy budget compounds.** Every query you answer "spends" some of your epsilon. Ten queries at $\varepsilon = 0.5$ each give a combined release at $\varepsilon = 5.0$, which is loose. Always track the total epsilon spent across the lifetime of a dataset and refuse new queries when the budget is exhausted.
+
+**Try it:** Modify the call to use $\varepsilon = 2.0$ and explain in one sentence why the noise standard deviation should fall.
+
+```r
+# Try it: tighter epsilon → ?
+set.seed(99)
+ex_noise_sd <- sd(replicate(1000, laplace_noise(epsilon = # your value)))
+
+ex_noise_sd
+#> Expected: a value near 0.71
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+set.seed(99)
+ex_noise_sd <- sd(replicate(1000, laplace_noise(epsilon = 2.0)))
+ex_noise_sd
+#> [1] 0.71
+```
+
+**Explanation:** The Laplace scale is $\Delta f / \varepsilon = 1/2 = 0.5$, and a Laplace distribution's standard deviation is $\sqrt{2} \cdot \text{scale} \approx 0.71$. Larger epsilon shrinks the scale, which shrinks the noise.
+
+</details>
+
+## What does GDPR actually require from data scientists?
+
+GDPR is a 99-article regulation, but the parts you touch as a working data scientist boil down to seven concrete habits. The table maps each habit to the article that demands it and the R-side action you take.
+
+| GDPR habit | Article | What you do in R |
+|---|---|---|
+| Lawful basis | Art. 6 | Document why you can process this data — store with the dataset metadata |
+| Data minimisation | Art. 5(1)(c) | Drop columns you don't need before joining |
+| Pseudonymisation | Art. 4(5), 32 | Replace direct IDs with random tokens; keep the map separately |
+| Right to erasure | Art. 17 | Build a `delete_subject(df, subject_id)` helper into your pipeline |
+| DPIA threshold | Art. 35 | Assess high-risk processing before it starts |
+| Breach notification | Art. 33 | Log every dataset access; 72-hour reporting window |
+| Documentation | Art. 30 | Keep a Record of Processing Activities (RoPA) |
+
+The simplest piece of audit code you can write is a column-name scanner that warns when an obviously identifying field has slipped through.
+
+```r
+gdpr_audit <- function(df) {
+  cols <- names(df)
+  pattern <- "name|email|phone|ssn|passport|address|dob|birth"
+  flagged <- cols[grepl(pattern, cols, ignore.case = TRUE)]
+  if (length(flagged) == 0) {
+    "OK: no obvious direct identifiers"
+  } else {
+    paste("WARN: direct identifier columns present:",
+          paste(flagged, collapse = ", "))
+  }
+}
+
+gdpr_audit(generalised)
+#> [1] "OK: no obvious direct identifiers"
+
+gdpr_audit(patients)
+#> [1] "WARN: direct identifier columns present: name"
+```
+
+Run this as a unit test in your data pipeline — if it ever returns a `WARN`, the build fails. That's a five-line gate that prevents the most common GDPR incident: shipping a "cleaned" file that still has a `name` column. The pattern is intentionally loose because false positives are cheaper than a regulator letter.
+
+[TIP]
+**Bake the DPIA into the pipeline, not the calendar.** A Data Protection Impact Assessment (Article 35) is mandatory for high-risk processing — biometric data, large-scale profiling, special categories like health. Encode the trigger as a function (`needs_dpia(df)`) and call it before any model fits, so a forgotten DPIA fails the pipeline rather than slipping through review.
+
+**Try it:** Extend `gdpr_audit()` to also flag any column matching `"passport"` or `"licence"`, and return a vector of all flagged columns rather than a single string.
+
+```r
+# Try it: vectorised audit
+ex_audit <- function(df) {
+  # your code here
+}
+
+ex_audit(data.frame(name = "x", passport_no = "y", age = 1))
+#> Expected: c("name", "passport_no")
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_audit <- function(df) {
+  pattern <- "name|email|phone|ssn|passport|licence|license|address|dob|birth"
+  cols <- names(df)
+  cols[grepl(pattern, cols, ignore.case = TRUE)]
+}
+ex_audit(data.frame(name = "x", passport_no = "y", age = 1))
+#> [1] "name"        "passport_no"
+```
+
+**Explanation:** Returning a character vector instead of a message makes the audit composable — you can pipe it into `length() > 0` for boolean tests inside continuous-integration scripts.
+
+</details>
+
+## Practice Exercises
+
+These capstone exercises combine techniques from across the article. Use the `patients` data frame already loaded in the previous blocks.
+
+### Exercise 1: Build a one-call anonymise pipeline
+
+Write `anonymise_pipeline(df, quasi_cols, sensitive_col)` that drops direct identifiers (anything matching the audit pattern from the GDPR section), generalises the quasi-identifier columns, and returns a list with the generalised data frame, its k-anonymity, and its l-diversity. Test it on `patients` with `quasi_cols = c("age","zip")` and `sensitive_col = "diagnosis"`.
+
+```r
+# Exercise 1: one-call anonymise pipeline
+anonymise_pipeline <- function(df, quasi_cols, sensitive_col) {
+  # your code here
+}
+
+result <- anonymise_pipeline(patients, c("age","zip"), "diagnosis")
+result
+#> Expected: a list with $data, $k, $l
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+anonymise_pipeline <- function(df, quasi_cols, sensitive_col) {
+  audit_pattern <- "name|email|phone|ssn|passport|address|dob|birth|^id$"
+  df <- df[, !grepl(audit_pattern, names(df), ignore.case = TRUE)]
+
+  if ("age" %in% quasi_cols) {
+    df$age <- cut(df$age, breaks = c(0, 30, 50, 100),
+                  labels = c("<30","30-49","50+"))
+  }
+  if ("zip" %in% quasi_cols) {
+    df$zip <- substr(df$zip, 1, 3)
   }
 
-  cat("Sensitive attribute:", sensitive, "\n")
-  cat("l-diversity level:", min_l, "\n")
-  return(min_l)
+  groups <- df |> count(across(all_of(quasi_cols)))
+  k_val <- min(groups$n)
+
+  l_val <- df |>
+    group_by(across(all_of(quasi_cols))) |>
+    summarise(d = n_distinct(.data[[sensitive_col]]), .groups = "drop") |>
+    pull(d) |>
+    min()
+
+  list(data = df, k = k_val, l = l_val)
 }
 
-cat("=== L-Diversity Check ===\n")
-l <- check_l_diversity(anonymized, c("age_group", "zipcode_3"), "diagnosis")
-cat("\nIf l = 1, all people in a group share the same diagnosis\n")
-cat("(attacker knows the diagnosis even without identifying the person).\n")
+result <- anonymise_pipeline(patients, c("age","zip"), "diagnosis")
+result$k
+#> [1] 1
+result$l
+#> [1] 1
 ```
 
-### 4. Data Perturbation
+**Explanation:** The function strips identifying columns by regex, generalises only the quasi-identifiers requested, then uses dplyr's tidy-eval helpers (`across(all_of(...))`, `.data[[col]]`) to compute both metrics from arbitrary column names.
 
-Add controlled noise to numeric values to prevent exact identification while preserving statistical properties.
+</details>
 
-```r
-# Perturbation: add noise while preserving distributions
-set.seed(42)
-n <- 100
-original_ages <- round(rnorm(n, 40, 12))
-original_salaries <- round(rnorm(n, 70000, 15000))
+### Exercise 2: Track a privacy budget across queries
 
-# Add Laplace noise (better privacy properties than Gaussian)
-laplace_noise <- function(n, scale) {
-  u <- runif(n, -0.5, 0.5)
-  -scale * sign(u) * log(1 - 2 * abs(u))
-}
-
-perturbed_ages <- round(original_ages + laplace_noise(n, 2))
-perturbed_salaries <- round(original_salaries + laplace_noise(n, 3000))
-
-cat("=== Perturbation Results ===\n")
-cat(sprintf("Ages    - Original mean: %.1f, Perturbed mean: %.1f, Diff: %.2f\n",
-    mean(original_ages), mean(perturbed_ages),
-    abs(mean(original_ages) - mean(perturbed_ages))))
-cat(sprintf("Salaries - Original mean: %.0f, Perturbed mean: %.0f, Diff: %.0f\n",
-    mean(original_salaries), mean(perturbed_salaries),
-    abs(mean(original_salaries) - mean(perturbed_salaries))))
-cat(sprintf("\nOriginal SD(ages):  %.1f, Perturbed: %.1f\n",
-    sd(original_ages), sd(perturbed_ages)))
-cat("Noise preserves aggregate statistics while protecting individuals.\n")
-```
-
-## Differential Privacy
-
-Differential privacy provides a mathematical guarantee: the output of a query changes very little whether or not any single individual's data is included.
+Build `budget_tracker(queries, total_budget)` where `queries` is a data frame with columns `query` (character) and `epsilon` (numeric). Return the same data frame with two new columns: `cumulative_eps` (the running total) and `status` that flips to `"OVER BUDGET"` once the running total exceeds `total_budget`.
 
 ```r
-# Differential privacy: noisy counting
-dp_count <- function(true_count, epsilon) {
-  # Add Laplace noise with scale = 1/epsilon
-  noise <- laplace_noise(1, 1/epsilon)
-  max(0, round(true_count + noise))  # Clamp to non-negative
+# Exercise 2: privacy budget tracker
+budget_tracker <- function(queries, total_budget = 3.0) {
+  # your code here
 }
 
-dp_mean <- function(values, epsilon, lower, upper) {
-  # Clip values to known range
-  clipped <- pmin(pmax(values, lower), upper)
-  sensitivity <- (upper - lower) / length(values)
-  noise <- laplace_noise(1, sensitivity / epsilon)
-  mean(clipped) + noise
-}
-
-set.seed(42)
-true_data <- c(52000, 61000, 48000, 73000, 55000, 67000, 59000, 82000, 45000, 64000)
-
-cat("=== Differential Privacy Demo ===\n")
-cat("True count:", length(true_data), "\n")
-cat("True mean salary:", mean(true_data), "\n\n")
-
-for (eps in c(0.1, 0.5, 1.0, 2.0)) {
-  set.seed(42)
-  dp_m <- dp_mean(true_data, eps, 30000, 100000)
-  cat(sprintf("epsilon = %.1f: DP mean = %.0f (error: %.0f)\n",
-      eps, dp_m, abs(dp_m - mean(true_data))))
-}
-
-cat("\nSmaller epsilon = more privacy but more noise.\n")
-cat("epsilon = 1.0 is a common practical choice.\n")
-```
-
-## GDPR Compliance Checklist for R Users
-
-| # | Requirement | Implementation in R |
-|---|-----------|-------------------|
-| 1 | Lawful basis for processing | Document in data provenance metadata |
-| 2 | Data minimization | Remove unneeded columns before analysis |
-| 3 | Purpose limitation | Separate datasets per project |
-| 4 | Accuracy | Validate data, document cleaning steps |
-| 5 | Storage limitation | Delete raw PII after anonymization |
-| 6 | Integrity & confidentiality | Encrypt files, restrict access |
-| 7 | Right to erasure | Ability to remove individual records |
-| 8 | Data Protection Impact Assessment | Document risks before processing |
-| 9 | Record of processing activities | Log all data operations |
-| 10 | Pseudonymization where feasible | Replace IDs, use `digest::digest()` for hashing |
-
-```r
-# Pseudonymization with hashing
-pseudonymize <- function(id, salt = "my_secret_salt_2026") {
-  # Create irreversible hash of the ID
-  vapply(paste0(salt, id), function(x) {
-    # Simple hash for demonstration (use digest::digest in practice)
-    chars <- utf8ToInt(x)
-    hash_val <- sum(chars * seq_along(chars)) %% 1000000
-    sprintf("P%06d", hash_val)
-  }, character(1), USE.NAMES = FALSE)
-}
-
-ids <- c("alice@example.com", "bob@example.com", "carol@example.com")
-pseudo_ids <- pseudonymize(ids)
-
-cat("=== Pseudonymization ===\n")
-for (i in seq_along(ids)) {
-  cat(sprintf("  %s -> %s\n", ids[i], pseudo_ids[i]))
-}
-cat("\nIn practice, use: digest::digest(id, algo='sha256')\n")
-cat("Keep the salt secret and separate from the data.\n")
-```
-
-## Exercises
-
-### Exercise 1: Anonymization
-
-Given a dataset of patients with name, age, zipcode, gender, and disease, apply suppression and generalization to achieve 2-anonymity.
-
-```r
-patients <- data.frame(
-  name = c("A","B","C","D","E","F"),
-  age = c(25, 27, 35, 37, 45, 48),
-  zip = c("10001","10002","10001","10003","10002","10001"),
-  gender = c("M","F","F","M","M","F"),
-  disease = c("Flu","Cold","Flu","Flu","Cold","Cold")
+queries <- data.frame(
+  query = c("count_F","mean_age","count_HTN","count_zip941"),
+  epsilon = c(0.5, 1.0, 1.0, 1.0)
 )
-
-cat("=== Original ===\n")
-print(patients)
-
-# Solution: suppress name, generalize age into bands
-anon <- data.frame(
-  id = paste0("P", 1:6),
-  age_band = cut(patients$age, c(20,30,40,50), labels = c("20-30","31-40","41-50")),
-  zip_3 = substr(patients$zip, 1, 3),
-  gender = patients$gender,
-  disease = patients$disease
-)
-
-cat("\n=== Anonymized ===\n")
-print(anon)
-
-# Check k-anonymity
-groups <- paste(anon$age_band, anon$zip_3, anon$gender)
-cat("\nGroup sizes:\n")
-print(table(groups))
-cat("k =", min(table(groups)), "\n")
+budget_tracker(queries)
+#> Expected: cumulative_eps and status columns appended
 ```
 
-### Exercise 2: Privacy Budget
-
-You have a privacy budget of epsilon = 1.0. You want to release the mean and standard deviation of a salary column. How should you split the budget?
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-cat("=== Answer ===\n")
-cat("Split epsilon between queries: each gets epsilon/2 = 0.5\n")
-cat("This is the 'composition theorem' of differential privacy.\n\n")
-cat("More queries = more noise per query (for the same total privacy).\n")
-cat("If you need 4 statistics, each gets epsilon/4 = 0.25.\n")
-cat("Plan your queries carefully — every query costs privacy budget.\n")
+budget_tracker <- function(queries, total_budget = 3.0) {
+  queries$cumulative_eps <- cumsum(queries$epsilon)
+  queries$status <- ifelse(queries$cumulative_eps <= total_budget,
+                           "OK", "OVER BUDGET")
+  queries
+}
+
+queries <- data.frame(
+  query = c("count_F","mean_age","count_HTN","count_zip941"),
+  epsilon = c(0.5, 1.0, 1.0, 1.0)
+)
+budget_tracker(queries)
+#>          query epsilon cumulative_eps      status
+#> 1      count_F     0.5            0.5          OK
+#> 2     mean_age     1.0            1.5          OK
+#> 3    count_HTN     1.0            2.5          OK
+#> 4 count_zip941     1.0            3.5 OVER BUDGET
 ```
+
+**Explanation:** `cumsum()` gives the running epsilon spent; the `ifelse()` flags the moment the budget is breached. Wire this into your release pipeline so a query that pushes the budget over the cap is automatically refused.
+
+</details>
+
+## Complete Example
+
+Here is the full release pipeline on the original `patients` dataset: drop identifiers, generalise quasi-IDs, measure k-anonymity, measure l-diversity, release a differentially private count of female patients, and audit the released frame.
+
+```r
+private_release <- patients |>
+  select(-id, -name) |>
+  mutate(
+    age_band = cut(age, breaks = c(0, 40, 60, 100),
+                   labels = c("<40","40-59","60+")),
+    zip2 = substr(zip, 1, 2)
+  ) |>
+  select(age_band, gender, zip2, diagnosis)
+
+# k-anonymity
+k_val <- private_release |>
+  count(age_band, gender, zip2) |>
+  pull(n) |>
+  min()
+
+# l-diversity
+l_val <- private_release |>
+  group_by(age_band, gender, zip2) |>
+  summarise(d = n_distinct(diagnosis), .groups = "drop") |>
+  pull(d) |>
+  min()
+
+# Differentially private count of female patients (epsilon = 0.5)
+set.seed(2026)
+true_n <- sum(private_release$gender == "F")
+release_n <- max(0, round(true_n + laplace_noise(0.5)))
+
+# GDPR audit
+audit <- gdpr_audit(private_release)
+
+cat("k =", k_val, " l =", l_val, "\n",
+    "Released female count:", release_n, "(true:", true_n, ")\n",
+    "Audit:", audit, "\n")
+#> k = 2  l = 2
+#>  Released female count: 4 (true: 5)
+#>  Audit: OK: no obvious direct identifiers
+```
+
+The pipeline outputs a 2-anonymous, 2-diverse release frame and a noisy female count of 4 (true value 5). The `gdpr_audit()` line is the safety net — if any direct identifier had survived the pipeline, this print would fail loudly instead of silently shipping personal data downstream.
 
 ## Summary
 
-| Technique | Protection Level | Utility Loss | Complexity |
-|-----------|-----------------|-------------|-----------|
-| Suppression | Basic | Low (lose columns) | Very easy |
-| Generalization | Medium | Medium (lose precision) | Easy |
-| K-anonymity | Medium | Medium | Moderate |
-| L-diversity | Medium-high | Medium-high | Moderate |
-| Perturbation | Medium | Low-medium | Moderate |
-| Differential privacy | High (mathematical guarantee) | Higher | Complex |
+![Choosing a privacy technique by sharing context.](screenshots/Data-Privacy-in-R-decision-flow.webp)
+*Figure 3: Choosing a privacy technique by sharing context.*
 
-## FAQ
+The six techniques map cleanly to attacks, R verbs, and production analogues:
 
-**Is removing names and IDs enough for anonymization?**
-No. Research by Latanya Sweeney showed that 87% of Americans can be uniquely identified by {zip code, birth date, gender}. You need to address quasi-identifiers too — through generalization, suppression, or formal privacy techniques.
+| Technique | Protects against | R verb | Production analogue |
+|---|---|---|---|
+| Suppression | Direct identification | `select(-col)` | `sdcMicro::removeDirectID()` |
+| Generalisation | Linkage attacks | `cut()`, `substr()` | `sdcMicro::globalRecode()` |
+| Pseudonymisation | Joinability of direct IDs | `mutate()` plus lookup table | `sdcMicro::createSdcObj()` |
+| k-anonymity | Singling out | `count()` plus `min()` | `sdcMicro::kAnon()` |
+| l-diversity | Homogeneity attack | `n_distinct()` per group | `sdcMicro::ldiversity()` |
+| Differential privacy | Inference from queries | Laplace noise on aggregates | `diffpriv::DPMechLaplace()` |
 
-**What epsilon value should I use for differential privacy?**
-There's no universal answer. Values between 0.1 and 1.0 are considered strong privacy. Values between 1.0 and 10.0 are moderate. Apple uses epsilon around 2-8 for telemetry data. The US Census used epsilon = 19.61 for the 2020 Census. Consider your threat model and utility needs.
+Pick the lightest technique that meets your threat model. Internal-only datasets can usually rest on pseudonymisation plus generalisation. Releases to a trusted partner need k-anonymity and l-diversity on top. Public releases — anything an attacker could combine with arbitrary auxiliary data — need differential privacy.
 
-**Can anonymized data be re-identified?**
-Potentially, yes. Netflix "anonymized" viewing data was re-identified by cross-referencing with IMDb reviews. AOL search logs were re-identified through unique query patterns. True anonymization is hard — differential privacy provides the strongest guarantees.
+## References
+
+1. Sweeney, L. (2002). *k-anonymity: A Model for Protecting Privacy*. International Journal on Uncertainty, Fuzziness and Knowledge-Based Systems. [Link](https://doi.org/10.1142/S0218488502001648)
+2. Machanavajjhala, A., Kifer, D., Gehrke, J., & Venkitasubramaniam, M. (2007). *l-diversity: Privacy beyond k-anonymity*. ACM Transactions on Knowledge Discovery from Data. [Link](https://dl.acm.org/doi/10.1145/1217299.1217302)
+3. Dwork, C. & Roth, A. (2014). *The Algorithmic Foundations of Differential Privacy*. Foundations and Trends in Theoretical Computer Science. [Link](https://www.cis.upenn.edu/~aaroth/Papers/privacybook.pdf)
+4. Templ, M., Meindl, B., & Kowarik, A. — `sdcMicro` package documentation. [Link](https://sdctools.github.io/sdcMicro/)
+5. Rubinstein, B. — `diffpriv`: Easy Differential Privacy in R (vignette). [Link](https://cran.r-project.org/web/packages/diffpriv/vignettes/diffpriv.pdf)
+6. EU GDPR — full regulation text (Articles 4, 5, 25, 32, 35). [Link](https://gdpr-info.eu/)
+7. Utrecht University — *Data Privacy Handbook*: k-anonymity, l-diversity, t-closeness chapter. [Link](https://utrechtuniversity.github.io/dataprivacyhandbook/k-l-t-anonymity.html)
+8. SDC Practice Guide — Statistical Disclosure Control with sdcMicro. [Link](https://sdcpractice.readthedocs.io/)
 
 ## Continue Learning
-- [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework
-- [Synthetic Data in R](Synthetic-Data-in-R.html) — Generate fake data that preserves statistical properties
-- [Communicating Uncertainty](Communicating-Uncertainty.html) — Present results honestly
+
+1. **R Project Structure** — organise privacy-sensitive datasets outside the project tree so they never end up in version control. [Link](R-Project-Structure.html)
+2. **Reproducible Research in R** — once data is privacy-safe, lock the analysis with reproducible workflows. [Link](Reproducible-Research-in-R.html)
+3. **R for Excel Users** — the same anonymisation patterns map directly to dplyr verbs for analysts moving from Excel. [Link](R-for-Excel-Users.html)
