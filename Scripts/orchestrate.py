@@ -278,6 +278,29 @@ def publish(entry):
         if line.startswith("_posts/") and line != f"_posts/{slug}.html":
             add_paths.append(line)
 
+    # Also capture publish side effects that aren't explicitly listed:
+    #   - root-level .html files auto-refreshed by sync_registries
+    #     (Related Tutorials, date bumps on sibling posts)
+    #   - OG images generated for the current post
+    #   - www/ assets created by the write/publish pipeline
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, cwd=REPO_ROOT
+    )
+    for line in status.stdout.splitlines():
+        path = line[3:].strip().strip('"')
+        if not path:
+            continue
+        is_root_html = "/" not in path and path.endswith(".html")
+        is_og_image = path.startswith("screenshots/og/")
+        is_www_asset = (
+            path.startswith("www/")
+            and not path.startswith("www/bootstrap")
+            and not path.startswith("www/navigation")
+        )
+        if is_root_html or is_og_image or is_www_asset:
+            add_paths.append(path)
+
     subprocess.run(
         ["git", "add"] + add_paths,
         capture_output=True, text=True, cwd=REPO_ROOT
