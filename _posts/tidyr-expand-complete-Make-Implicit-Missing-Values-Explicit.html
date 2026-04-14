@@ -1,60 +1,52 @@
 ---
 title: "tidyr expand() & complete() in R: Make Implicit Missing Values Explicit"
-description: "Learn how tidyr expand() generates all variable combinations and complete() fills missing rows with defaults. Practical R examples with before-and-after output."
-keywords: "tidyr expand, tidyr complete, expand R, complete R, implicit missing values, crossing nesting tidyr, fill missing combinations R, expand_grid tidyr, make missing values explicit R"
+description: "Learn tidyr expand() and complete() in R to turn implicit missing values into explicit NAs. Fill date gaps, build panel combinations, replace with fill list."
+keywords: "tidyr expand, tidyr complete, implicit missing values R, fill missing dates R, tidyr nesting, expand grid tidyr, tidyr fill argument, panel data R"
 mathjax: false
 webr: true
 curriculum_id: "FR-tidy-2"
 post_type: "FR"
-auto_link_terms: "expand()|complete()|crossing()|nesting()|implicit missing values|tidyr expand|tidyr complete"
-auto_link_case_sensitive: true
+auto_link_terms: "tidyr expand and complete|implicit missing values|make missing values explicit|filling missing combinations|complete() function tidyr|expand() function tidyr"
+auto_link_case_sensitive: false
 fr_parent: "pivot_longer-pivot_wider-Reshape-Data-in-R.html"
 ---
+{% raw %}
 <!-- md2html:generated -->
 
 <h1>tidyr expand() & complete() in R: Make Implicit Missing Values Explicit</h1>
 
-<p class="lead"><code>expand()</code> generates every combination of specified variables (including combinations absent from your data), and <code>complete()</code> does the same while filling new rows with default values — turning implicit <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> into explicit ones you can see and handle.</p>
+<p class="lead">Sometimes your data hides rows that should be there but aren't — a month with zero sales, a panel subject who skipped a visit, a date with no trades. These are implicit missing values, and they break plots, models, and joins silently. tidyr's <code>expand()</code> and <code>complete()</code> drag those gaps into the open as explicit NAs you can then fill.</p>
 
-<h2>Introduction</h2>
+<h2>Why should you care about implicit missing values?</h2>
 
-<p>Missing data comes in two forms. The first is the NA value you can see in a cell. The second is a row that simply does not exist. The second kind is invisible and far more dangerous.</p>
-
-<p>Imagine a sales table with three products across four quarters. If product C had zero revenue in Q2, the row for that combination might just be absent. Your group-wise mean now divides by three instead of four, and the result is silently wrong.</p>
-
-<p>The tidyr package provides <code>expand()</code> and <code>complete()</code> to tackle this problem. <code>expand()</code> builds the full grid of variable combinations so you can see what should exist. <code>complete()</code> goes further — it inserts the missing rows into your data and optionally fills them with default values.</p>
-
-<p>Every code block on this page runs in your browser. Click Run on the first block to load the libraries, then work through the rest top to bottom. Variables carry over between blocks.</p>
-
-<h2>What are implicit vs. explicit missing values?</h2>
-
-<p>An explicit missing value is an NA sitting in a cell you can see. An implicit missing value is a row that should exist but doesn't appear in the data at all. Both cause problems, but implicit missingness is harder to catch because nothing flags it.</p>
-
-<p>Let's create a small sales dataset with some missing product-quarter combinations.</p>
+<p>Picture a small sales table: three products, three months, but only five rows because some products didn't sell in some months. Nothing looks wrong until you plot monthly totals and a whole column is missing. Rows that should exist but don't are called implicit missing values. <code>complete()</code> turns them into real rows you can see and handle — here's the one-liner that does it.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(tidyr)
-library(dplyr)
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tidyr)
 
 sales &lt;- tibble(
-  product = c(&quot;A&quot;, &quot;A&quot;, &quot;A&quot;, &quot;B&quot;, &quot;B&quot;, &quot;C&quot;, &quot;C&quot;),
-  quarter = c(&quot;Q1&quot;, &quot;Q2&quot;, &quot;Q3&quot;, &quot;Q1&quot;, &quot;Q3&quot;, &quot;Q1&quot;, &quot;Q4&quot;),
-  revenue = c(120, 150, 90, 200, 180, 310, 275)
+  month   = c(&quot;Jan&quot;, &quot;Jan&quot;, &quot;Feb&quot;, &quot;Mar&quot;, &quot;Mar&quot;),
+  product = c(&quot;A&quot;,   &quot;B&quot;,   &quot;A&quot;,   &quot;B&quot;,   &quot;C&quot;),
+  units   = c(10,    5,     12,    6,     8)
 )
-sales
-#&gt; # A tibble: 7 x 3
-#&gt;   product quarter revenue
-#&gt;   &lt;chr&gt;   &lt;chr&gt;     &lt;dbl&gt;
-#&gt; 1 A       Q1          120
-#&gt; 2 A       Q2          150
-#&gt; 3 A       Q3           90
-#&gt; 4 B       Q1          200
-#&gt; 5 B       Q3          180
-#&gt; 6 C       Q1          310
-#&gt; 7 C       Q4          275</div>
+
+sales |&gt; complete(month, product)
+#&gt; # A tibble: 9 × 3
+#&gt;   month product units
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 Feb   A          12
+#&gt; 2 Feb   B          NA
+#&gt; 3 Feb   C          NA
+#&gt; 4 Jan   A          10
+#&gt; 5 Jan   B           5
+#&gt; 6 Jan   C          NA
+#&gt; 7 Mar   A          NA
+#&gt; 8 Mar   B           6
+#&gt; 9 Mar   C           8</div>
 
     <div class="webr-buttons">
 
@@ -72,26 +64,214 @@ sales
 
 </div>
 
-<p>There are 3 products and 4 quarters, so you'd expect 12 rows. Only 7 exist. The remaining 5 are implicit missing values — no row, no NA, no trace.</p>
+<p>Five rows went in, nine rows came out. The four new rows carry NA in the <code>units</code> column — those are the combinations that were missing entirely from the raw data. You can now spot them, fill them, or count them. Before <code>complete()</code> they were invisible.</p>
 
-<p>Now watch how this distorts a simple summary. The mean revenue per product should include those missing quarters as zeros (or NAs), but without the rows, the averages are inflated.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Implicit and explicit missing values are both missing, but only one is visible.</strong> An explicit NA is a row that exists with a missing value; an implicit miss is a row that doesn't exist at all — and the second kind silently corrupts every downstream calculation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 4-row tibble with three cities across two days (one city is missing on one day), then use <code>complete()</code> to make every city-day pair appear.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: complete city × day combinations
+temps &lt;- tibble(
+  city = c(&quot;Paris&quot;, &quot;Paris&quot;, &quot;Rome&quot;, &quot;Tokyo&quot;),
+  day  = c(&quot;Mon&quot;,   &quot;Tue&quot;,   &quot;Mon&quot;,  &quot;Tue&quot;),
+  temp = c(14,      16,      20,     22)
+)
+
+# Your code here:
+temps
+#&gt; Expected: 6 rows, with NA temps for Rome/Tue and Tokyo/Mon</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">temps |&gt; complete(city, day)
+#&gt; # A tibble: 6 × 3
+#&gt;   city  day    temp
+#&gt;   &lt;chr&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 Paris Mon      14
+#&gt; 2 Paris Tue      16
+#&gt; 3 Rome  Mon      20
+#&gt; 4 Rome  Tue      NA
+#&gt; 5 Tokyo Mon      NA
+#&gt; 6 Tokyo Tue      22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>complete(city, day)</code> asks tidyr for every unique city crossed with every unique day, keeps existing temperatures, and fills the rest with NA.</p>
+
+</details>
+</section>
+
+<h2>How does expand() build all combinations?</h2>
+
+<p>Before fixing implicit misses, it helps to see them. <code>expand()</code> is the inspection tool: given a data frame and a set of columns, it returns every unique combination of those columns — and <em>only</em> those columns. The row count of the result has nothing to do with the row count of the input.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
+    <div class="webr-editor" data-language="r">sales |&gt; expand(month, product)
+#&gt; # A tibble: 9 × 2
+#&gt;   month product
+#&gt;   &lt;chr&gt; &lt;chr&gt;
+#&gt; 1 Feb   A
+#&gt; 2 Feb   B
+#&gt; 3 Feb   C
+#&gt; 4 Jan   A
+#&gt; 5 Jan   B
+#&gt; 6 Jan   C
+#&gt; 7 Mar   A
+#&gt; 8 Mar   B
+#&gt; 9 Mar   C</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Notice the <code>units</code> column is gone — <code>expand()</code> returns the grid alone, not your data joined to it. Use this when you want a clean scaffold you can compare against the original. Think of it as the "what should exist" blueprint.</p>
+
+<p>If you want to build a grid from bare vectors — without any data frame involved — reach for <code>crossing()</code>. It's <code>expand()</code>'s standalone sibling and accepts named arguments directly.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">crossing(
+  month   = c(&quot;Jan&quot;, &quot;Feb&quot;, &quot;Mar&quot;),
+  product = c(&quot;A&quot;,   &quot;B&quot;,   &quot;C&quot;)
+)
+#&gt; # A tibble: 9 × 2
+#&gt;   month product
+#&gt;   &lt;chr&gt; &lt;chr&gt;
+#&gt; 1 Feb   A
+#&gt; 2 Feb   B
+#&gt; 3 Feb   C
+#&gt; 4 Jan   A
+#&gt; 5 Jan   B
+#&gt; 6 Jan   C
+#&gt; 7 Mar   A
+#&gt; 8 Mar   B
+#&gt; 9 Mar   C</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Same nine rows, but <code>crossing()</code> never touches the <code>sales</code> tibble. This matters when you want the full expected universe of values regardless of what the data contains — for example, every month in a fiscal year whether or not sales were logged.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>expand() reads columns from the data; crossing() takes bare vectors.</strong> Use <code>expand()</code> when the data is authoritative ("all months that appear"); use <code>crossing()</code> when you know the universe externally ("all 12 months of the fiscal year").</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>expand(sales, month, product)</code> together with <code>anti_join(sales)</code> to list exactly which (month, product) pairs are missing from the raw data.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: find missing combinations
+# Hint: expand() gives all pairs, anti_join drops the ones that already exist.
+
+# Your code here:
+
+#&gt; Expected: 4 rows — (Feb, B), (Feb, C), (Jan, C), (Mar, A)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
     <div class="webr-editor" data-language="r">sales |&gt;
-  group_by(product) |&gt;
-  summarise(
-    quarters_present = n(),
-    mean_revenue     = mean(revenue)
-  )
-#&gt; # A tibble: 3 x 3
-#&gt;   product quarters_present mean_revenue
-#&gt;   &lt;chr&gt;              &lt;int&gt;        &lt;dbl&gt;
-#&gt; 1 A                      3          120
-#&gt; 2 B                      2          190
-#&gt; 3 C                      2          292</div>
+  expand(month, product) |&gt;
+  anti_join(sales, by = c(&quot;month&quot;, &quot;product&quot;))
+#&gt; # A tibble: 4 × 2
+#&gt;   month product
+#&gt;   &lt;chr&gt; &lt;chr&gt;
+#&gt; 1 Feb   B
+#&gt; 2 Feb   C
+#&gt; 3 Jan   C
+#&gt; 4 Mar   A</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>expand()</code> lists every expected pair; <code>anti_join()</code> keeps only the expected pairs that don't appear in the original data.</p>
+
+</details>
+</section>
+
+<h2>How does complete() fill missing combinations?</h2>
+
+<p><code>complete()</code> is <code>expand()</code> plus <code>dplyr::full_join()</code> plus <code>tidyr::replace_na()</code> rolled into one call. You give it the columns to expand and it returns your original data with missing combinations inserted and optional default values filled in.</p>
+
+<p>The <code>fill</code> argument takes a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a>. Each name is a column; each value is what NAs in that column should become for the newly created rows.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">sales |&gt; complete(month, product, fill = list(units = 0))
+#&gt; # A tibble: 9 × 3
+#&gt;   month product units
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 Feb   A          12
+#&gt; 2 Feb   B           0
+#&gt; 3 Feb   C           0
+#&gt; 4 Jan   A          10
+#&gt; 5 Jan   B           5
+#&gt; 6 Jan   C           0
+#&gt; 7 Mar   A           0
+#&gt; 8 Mar   B           6
+#&gt; 9 Mar   C           8</div>
 
     <div class="webr-buttons">
 
@@ -109,161 +289,28 @@ sales
 
 </div>
 
-<p>Product B shows a mean of 190 across 2 quarters, but it should reflect all 4 quarters. The summary is technically correct for the rows present, yet misleading for business decisions.</p>
+<p>Same nine rows as before, but now the previously-NA <code>units</code> are zero — the right default when "no sale" means "zero units sold." You can pass several columns at once: <code>fill = list(units = 0, revenue = 0, discount = 0)</code>.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Implicit missing values silently inflate averages and deflate counts.</strong> If a row doesn't exist, aggregation functions skip it entirely. You must make these gaps explicit before summarizing.</div></div>
-
-<h2>How does expand() generate all combinations?</h2>
-
-<p><code>expand()</code> builds a tibble containing every unique combination of the columns you specify. It does not modify your original data — it returns a standalone grid showing what should exist.</p>
-
-<p>Let's see the full product-quarter grid for our sales data.</p>
+<p>What if the raw data already contains a real NA that you want to preserve — say, a genuinely unknown sale? By default <code>complete()</code> replaces it along with the new NAs. Set <code>explicit = FALSE</code> (tidyr 1.2+) and the fill list only touches the rows <code>complete()</code> just added.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">all_combos &lt;- sales |&gt;
-  expand(product, quarter)
-all_combos
-#&gt; # A tibble: 12 x 2
-#&gt;    product quarter
-#&gt;    &lt;chr&gt;   &lt;chr&gt;  
-#&gt;  1 A       Q1     
-#&gt;  2 A       Q2     
-#&gt;  3 A       Q3     
-#&gt;  4 A       Q4     
-#&gt;  5 B       Q1     
-#&gt;  6 B       Q2     
-#&gt;  7 B       Q3     
-#&gt;  8 B       Q4     
-#&gt;  9 C       Q1     
-#&gt; 10 C       Q2     
-#&gt; 11 C       Q3     
-#&gt; 12 C       Q4</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>expand()</code> found 3 unique products and 4 unique quarters and produced every combination — 12 rows. This grid is the reference for what a complete dataset looks like.</p>
-
-<p>You can pair <code>expand()</code> with <code>anti_join()</code> to identify exactly which combinations your data is missing.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">missing_combos &lt;- all_combos |&gt;
-  anti_join(sales, by = c(&quot;product&quot;, &quot;quarter&quot;))
-missing_combos
-#&gt; # A tibble: 5 x 2
-#&gt;   product quarter
-#&gt;   &lt;chr&gt;   &lt;chr&gt;  
-#&gt; 1 A       Q4     
-#&gt; 2 B       Q2     
-#&gt; 3 B       Q4     
-#&gt; 4 C       Q2     
-#&gt; 5 C       Q3</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Five combinations are missing from <code>sales</code>. This audit pattern — expand then <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">anti_join</a> — is one of the most practical uses of <code>expand()</code>.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use expand() with anti_join() to audit your data for gaps.</strong> Before any analysis, run this two-step check to see exactly which rows are missing.</div></div>
-
-<h2>How do crossing() and nesting() differ?</h2>
-
-<p><code>crossing()</code> and <code>nesting()</code> are standalone helper functions that build combination grids without needing a data frame. The difference is fundamental: <code>crossing()</code> produces the full cartesian product, while <code>nesting()</code> returns only combinations that already exist together.</p>
-
-<p>Let's compare them side by side using vectors pulled from our sales data.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">cross_result &lt;- crossing(
-  product = unique(sales$product),
-  quarter = unique(sales$quarter)
-)
-nrow(cross_result)
-#&gt; [1] 12
-
-nest_result &lt;- nesting(
-  product = sales$product,
-  quarter = sales$quarter
-)
-nrow(nest_result)
-#&gt; [1] 7</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><code>crossing()</code> gives 12 rows (all possible pairs). <code>nesting()</code> gives 7 rows (only the pairs already present in the data). Think of <code>crossing()</code> as "what could exist" and <code>nesting()</code> as "what does exist."</p>
-
-<p>You can mix them inside <code>expand()</code>. This is useful when some variable relationships are fixed (should be nested) and others should be crossed.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">stores &lt;- tibble(
-  store   = c(&quot;NYC&quot;, &quot;NYC&quot;, &quot;LA&quot;, &quot;LA&quot;),
-  region  = c(&quot;East&quot;, &quot;East&quot;, &quot;West&quot;, &quot;West&quot;),
-  product = c(&quot;A&quot;, &quot;B&quot;, &quot;A&quot;, &quot;C&quot;)
+    <div class="webr-editor" data-language="r">sales_na &lt;- tibble(
+  month   = c(&quot;Jan&quot;, &quot;Jan&quot;, &quot;Feb&quot;),
+  product = c(&quot;A&quot;,   &quot;B&quot;,   &quot;A&quot;),
+  units   = c(10,    NA,    12)   # Jan/B is a real unknown
 )
 
-mixed_expand &lt;- stores |&gt;
-  expand(nesting(store, region), product)
-mixed_expand
-#&gt; # A tibble: 6 x 3
-#&gt;   store region product
-#&gt;   &lt;chr&gt; &lt;chr&gt;  &lt;chr&gt;  
-#&gt; 1 LA    West   A      
-#&gt; 2 LA    West   B      
-#&gt; 3 LA    West   C      
-#&gt; 4 NYC   East   A      
-#&gt; 5 NYC   East   B      
-#&gt; 6 NYC   East   C</div>
+sales_na |&gt; complete(month, product, fill = list(units = 0), explicit = FALSE)
+#&gt; # A tibble: 4 × 3
+#&gt;   month product units
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 Feb   A          12
+#&gt; 2 Feb   B           0
+#&gt; 3 Jan   A          10
+#&gt; 4 Jan   B          NA</div>
 
     <div class="webr-buttons">
 
@@ -281,171 +328,89 @@ mixed_expand
 
 </div>
 
-<p><code>nesting(store, region)</code> preserves the real store-region pairs (NYC is always East, LA is always West). Those nested pairs are then crossed with every product. Without <code>nesting()</code>, you would get invalid combinations like NYC-West.</p>
+<p>Jan/B keeps its original NA because the row already existed in the data. Only Feb/B — a brand-new row — gets the default zero. This distinction matters when "we don't know" and "definitely zero" mean different things in your analysis.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>nesting() preserves real relationships; crossing() generates theoretical ones.</strong> Use nesting() for columns that belong together (store + region) and crossing() for columns that should combine freely (product x quarter).</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Default the fill value to whatever "no observation" means in your domain.</strong> Zero for counts and revenue, previous value for prices (chain <code>tidyr::fill()</code> after <code>complete()</code>), domain mean for survey responses. The wrong default silently biases every aggregate that follows.</div></div>
 
-<h2>How does complete() fill in missing rows?</h2>
-
-<p><code>complete()</code> combines three operations in one call: it expands the variable grid, joins it back to your data, and optionally replaces NAs. It is the workhorse for making implicit missing values explicit.</p>
-
-<p>Let's apply it to our sales data.</p>
-
+<section class="tryit-block">
+<p><strong>Try it:</strong> A <code>grades</code> tibble has four rows across three students and two exams but one pair is missing. Use <code>complete()</code> with <code>fill = list(score = 0)</code> so every student has every exam.</p>
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">sales_complete &lt;- sales |&gt;
-  complete(product, quarter)
-sales_complete
-#&gt; # A tibble: 12 x 3
-#&gt;    product quarter revenue
-#&gt;    &lt;chr&gt;   &lt;chr&gt;     &lt;dbl&gt;
-#&gt;  1 A       Q1          120
-#&gt;  2 A       Q2          150
-#&gt;  3 A       Q3           90
-#&gt;  4 A       Q4           NA
-#&gt;  5 B       Q1          200
-#&gt;  6 B       Q2           NA
-#&gt;  7 B       Q3          180
-#&gt;  8 B       Q4           NA
-#&gt;  9 C       Q1          310
-#&gt; 10 C       Q2           NA
-#&gt; 11 C       Q3           NA
-#&gt; 12 C       Q4          275</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Now all 12 rows exist. The 5 previously missing combinations appear with NA revenue. You can see and handle these gaps explicitly.</p>
-
-<p>For many analyses, NA is not the right default. You can use the <code>fill</code> parameter to specify a default value per column.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">sales_filled &lt;- sales |&gt;
-  complete(product, quarter, fill = list(revenue = 0))
-sales_filled
-#&gt; # A tibble: 12 x 3
-#&gt;    product quarter revenue
-#&gt;    &lt;chr&gt;   &lt;chr&gt;     &lt;dbl&gt;
-#&gt;  1 A       Q1          120
-#&gt;  2 A       Q2          150
-#&gt;  3 A       Q3           90
-#&gt;  4 A       Q4            0
-#&gt;  5 B       Q1          200
-#&gt;  6 B       Q2            0
-#&gt;  7 B       Q3          180
-#&gt;  8 B       Q4            0
-#&gt;  9 C       Q1          310
-#&gt; 10 C       Q2            0
-#&gt; 11 C       Q3            0
-#&gt; 12 C       Q4          275</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>Now the missing quarters show 0 revenue instead of NA. This is appropriate when absence means "no sales" rather than "unknown."</p>
-
-<p>There is an important subtlety: by default, <code>fill</code> replaces both new (implicit) and pre-existing (explicit) NAs. If your original data already has <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a> that mean "unknown" and you only want to fill the newly created rows, set <code>explicit = FALSE</code>.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">sales_with_na &lt;- tibble(
-  product = c(&quot;A&quot;, &quot;A&quot;, &quot;B&quot;),
-  quarter = c(&quot;Q1&quot;, &quot;Q2&quot;, &quot;Q1&quot;),
-  revenue = c(120, NA, 200)
+    <div class="webr-editor" data-language="r"># Try it: fill missing student-exam pairs with 0
+grades &lt;- tibble(
+  student = c(&quot;Ann&quot;, &quot;Ann&quot;, &quot;Ben&quot;, &quot;Cam&quot;),
+  exam    = c(&quot;E1&quot;,  &quot;E2&quot;,  &quot;E1&quot;,  &quot;E2&quot;),
+  score   = c(85,    90,    72,    88)
 )
 
-sales_explicit &lt;- sales_with_na |&gt;
-  complete(product, quarter, fill = list(revenue = 0), explicit = FALSE)
-sales_explicit
-#&gt; # A tibble: 4 x 3
-#&gt;   product quarter revenue
-#&gt;   &lt;chr&gt;   &lt;chr&gt;     &lt;dbl&gt;
-#&gt; 1 A       Q1          120
-#&gt; 2 A       Q2           NA
-#&gt; 3 B       Q1          200
-#&gt; 4 B       Q2            0</div>
+# Your code here:
 
+#&gt; Expected: 6 rows, Ben/E2 and Cam/E1 both showing score = 0</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">grades |&gt; complete(student, exam, fill = list(score = 0))
+#&gt; # A tibble: 6 × 3
+#&gt;   student exam  score
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 Ann     E1       85
+#&gt; 2 Ann     E2       90
+#&gt; 3 Ben     E1       72
+#&gt; 4 Ben     E2        0
+#&gt; 5 Cam     E1        0
+#&gt; 6 Cam     E2       88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
 </div>
 
-<p>Product A in Q2 already had an explicit NA, so it stays NA. Product B in Q2 was an implicit missing row, so it gets filled with 0. The <code>explicit = FALSE</code> flag protects your original missing values.</p>
+<p><strong>Explanation:</strong> <code>complete(student, exam)</code> builds every student-exam pair; the fill list replaces the NAs in the two newly added rows with zero.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>By default, fill replaces ALL NAs — both new and pre-existing.</strong> If your original NAs mean "unknown" (not "zero"), set <code>explicit = FALSE</code>. That fills only the newly created rows.</div></div>
+</details>
+</section>
 
-<h2>How do you complete time series with full_seq()?</h2>
+<h2>How do you fill missing dates in a time series?</h2>
 
-<p>When your data has dates or continuous numeric values, <code>expand()</code> and <code>complete()</code> only use the values already present. If dates 2026-01-01 and 2026-01-05 exist, the three days in between won't appear. The <code>full_seq()</code> helper generates a regular sequence from the min to the max.</p>
+<p>The most common real-world use of <code>complete()</code> is filling date gaps. Your data might log daily sales, website visits, or sensor readings — but on days with no activity, no row gets written. <code>complete()</code> plus <code>seq.Date()</code> rebuilds the full calendar.</p>
 
-<p>Let's create a dataset with daily measurements that has gaps.</p>
+<p>Pass the date sequence as a <strong>named argument</strong> to <code>complete()</code>. The name is the column; the value is the full range of values you want to see.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">daily_data &lt;- tibble(
-  date    = as.Date(c(&quot;2026-01-01&quot;, &quot;2026-01-03&quot;, &quot;2026-01-06&quot;, &quot;2026-01-07&quot;)),
-  reading = c(10.2, 11.5, 9.8, 12.1)
+    <div class="webr-editor" data-language="r">visits &lt;- tibble(
+  visit_date  = as.Date(c(&quot;2026-03-01&quot;, &quot;2026-03-02&quot;, &quot;2026-03-04&quot;,
+                          &quot;2026-03-05&quot;, &quot;2026-03-07&quot;)),
+  visit_count = c(12, 15, 9, 14, 20)
 )
 
-daily_complete &lt;- daily_data |&gt;
-  complete(date = full_seq(date, period = 1))
-daily_complete
-#&gt; # A tibble: 7 x 2
-#&gt;   date       reading
-#&gt;   &lt;date&gt;       &lt;dbl&gt;
-#&gt; 1 2026-01-01    10.2
-#&gt; 2 2026-01-02    NA  
-#&gt; 3 2026-01-03    11.5
-#&gt; 4 2026-01-04    NA  
-#&gt; 5 2026-01-05    NA  
-#&gt; 6 2026-01-06     9.8
-#&gt; 7 2026-01-07    12.1</div>
+visits |&gt;
+  complete(visit_date = seq.Date(min(visit_date), max(visit_date), by = &quot;day&quot;))
+#&gt; # A tibble: 7 × 2
+#&gt;   visit_date visit_count
+#&gt;   &lt;date&gt;           &lt;dbl&gt;
+#&gt; 1 2026-03-01          12
+#&gt; 2 2026-03-02          15
+#&gt; 3 2026-03-03          NA
+#&gt; 4 2026-03-04           9
+#&gt; 5 2026-03-05          14
+#&gt; 6 2026-03-06          NA
+#&gt; 7 2026-03-07          20</div>
 
     <div class="webr-buttons">
 
@@ -463,28 +428,27 @@ daily_complete
 
 </div>
 
-<p><code>full_seq(date, period = 1)</code> generates every date from Jan 1 to Jan 7 with a 1-day step. The three missing dates now appear with NA readings.</p>
+<p>The two missing days (March 3 and March 6) now appear as proper rows with NA visit counts. A downstream plot will draw gaps where there were gaps; a <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> model can now see that the <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> is regular.</p>
 
-<p>For <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>, you often want to carry forward the last known value instead of filling with a constant. Pair <code>complete()</code> with <code>fill()</code> to propagate values downward.</p>
+<p>A common next step is to carry the last observation forward. <code>tidyr::fill()</code> handles that — the <code>.direction = &quot;down&quot;</code> argument says "copy the previous non-NA value downward."</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">daily_filled &lt;- daily_data |&gt;
-  complete(date = full_seq(date, period = 1)) |&gt;
-  fill(reading, .direction = &quot;down&quot;)
-daily_filled
-#&gt; # A tibble: 7 x 2
-#&gt;   date       reading
-#&gt;   &lt;date&gt;       &lt;dbl&gt;
-#&gt; 1 2026-01-01    10.2
-#&gt; 2 2026-01-02    10.2
-#&gt; 3 2026-01-03    11.5
-#&gt; 4 2026-01-04    11.5
-#&gt; 5 2026-01-05    11.5
-#&gt; 6 2026-01-06     9.8
-#&gt; 7 2026-01-07    12.1</div>
+    <div class="webr-editor" data-language="r">visits |&gt;
+  complete(visit_date = seq.Date(min(visit_date), max(visit_date), by = &quot;day&quot;)) |&gt;
+  tidyr::fill(visit_count, .direction = &quot;down&quot;)
+#&gt; # A tibble: 7 × 2
+#&gt;   visit_date visit_count
+#&gt;   &lt;date&gt;           &lt;dbl&gt;
+#&gt; 1 2026-03-01          12
+#&gt; 2 2026-03-02          15
+#&gt; 3 2026-03-03          15
+#&gt; 4 2026-03-04           9
+#&gt; 5 2026-03-05          14
+#&gt; 6 2026-03-06          14
+#&gt; 7 2026-03-07          20</div>
 
     <div class="webr-buttons">
 
@@ -502,45 +466,201 @@ daily_filled
 
 </div>
 
-<p>Jan 2 carries forward Jan 1's reading (10.2). Jan 4 and Jan 5 carry forward Jan 3's reading (11.5). This last-observation-carried-forward pattern is standard in time series work.</p>
+<p>March 3 inherits March 2's count; March 6 inherits March 5's. That's last-observation-carried-forward, the workhorse of time-series imputation when "no data" really means "no change reported."</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pair complete() with full_seq() and fill() for time series gap-filling.</strong> Use <code>full_seq()</code> for the date grid, <code>complete()</code> to insert rows, and <code>fill()</code> to propagate last known values.</div></div>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>seq.Date() needs real Date objects, not strings.</strong> If <code>visit_date</code> is character, <code>complete()</code> will error out with a type mismatch. Wrap it with <code>as.Date()</code> first or parse it with <code>lubridate::ymd()</code>.</div></div>
 
-<h2>How does complete() work with grouped data?</h2>
-
-<p>When you apply <code>complete()</code> to a grouped data frame (created with <code>group_by()</code>), it operates within each group independently. Each group gets its own set of completed combinations.</p>
-
-<p>Let's say two stores carry different products. You want each store's data completed with all products that store carries.</p>
-
+<section class="tryit-block">
+<p><strong>Try it:</strong> A 4-row <code>prices</code> tibble logs the closing price on four days between March 1 and March 5 (March 3 is missing). Fill the calendar so every day between the min and max appears.</p>
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">store_sales &lt;- tibble(
-  store   = c(&quot;NYC&quot;, &quot;NYC&quot;, &quot;NYC&quot;, &quot;LA&quot;, &quot;LA&quot;),
-  product = c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;A&quot;, &quot;C&quot;),
-  quarter = c(&quot;Q1&quot;, &quot;Q1&quot;, &quot;Q1&quot;, &quot;Q1&quot;, &quot;Q1&quot;),
-  revenue = c(100, 150, 200, 300, 250)
+    <div class="webr-editor" data-language="r"># Try it: complete the date range
+prices &lt;- tibble(
+  date  = as.Date(c(&quot;2026-03-01&quot;, &quot;2026-03-02&quot;, &quot;2026-03-04&quot;, &quot;2026-03-05&quot;)),
+  price = c(100, 102, 105, 104)
 )
 
-store_complete &lt;- store_sales |&gt;
-  group_by(store) |&gt;
-  complete(product, quarter = c(&quot;Q1&quot;, &quot;Q2&quot;)) |&gt;
+# Your code here:
+
+#&gt; Expected: 5 rows, March 3 showing NA price</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">prices |&gt;
+  complete(date = seq.Date(min(date), max(date), by = &quot;day&quot;))
+#&gt; # A tibble: 5 × 2
+#&gt;   date       price
+#&gt;   &lt;date&gt;     &lt;dbl&gt;
+#&gt; 1 2026-03-01   100
+#&gt; 2 2026-03-02   102
+#&gt; 3 2026-03-03    NA
+#&gt; 4 2026-03-04   105
+#&gt; 5 2026-03-05   104</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>date = seq.Date(...)</code> as a named argument tells <code>complete()</code> the exact set of dates to expand to, regardless of what the data contains.</p>
+
+</details>
+</section>
+
+<h2>When should you use nesting() instead?</h2>
+
+<p>Sometimes two columns describe the same entity — a <code>patient_id</code> and their <code>diagnosis</code>, a <code>product_code</code> and its <code>category</code>, an <code>employee</code> and their <code>department</code>. These columns are linked, not independent, so you never want to mix one patient with another patient's diagnosis. That's exactly what raw <code>complete()</code> would do.</p>
+
+<p><code>nesting()</code> tells tidyr: "treat these columns as a unit — only the combinations that already appear together in the data are valid."</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">panel &lt;- tibble(
+  patient_id = c(1,      1,      2,      2,      3),
+  diagnosis  = c(&quot;flu&quot;,  &quot;flu&quot;,  &quot;covid&quot;,&quot;covid&quot;,&quot;flu&quot;),
+  visit      = c(&quot;V1&quot;,   &quot;V2&quot;,   &quot;V1&quot;,   &quot;V2&quot;,   &quot;V1&quot;),
+  score      = c(7,      8,      5,      6,      9)
+)
+
+# Wrong: every patient crossed with every diagnosis
+panel |&gt; complete(patient_id, diagnosis, visit)
+#&gt; # A tibble: 12 × 4
+#&gt;    patient_id diagnosis visit score
+#&gt;         &lt;dbl&gt; &lt;chr&gt;     &lt;chr&gt; &lt;dbl&gt;
+#&gt;  1          1 covid     V1       NA    &lt;-- patient 1 never had covid!
+#&gt;  2          1 covid     V2       NA
+#&gt;  3          1 flu       V1        7
+#&gt;  # ... 9 more rows
+
+# Right: keep (patient_id, diagnosis) pairs intact
+panel |&gt; complete(nesting(patient_id, diagnosis), visit)
+#&gt; # A tibble: 6 × 4
+#&gt;   patient_id diagnosis visit score
+#&gt;        &lt;dbl&gt; &lt;chr&gt;     &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1          1 flu       V1        7
+#&gt; 2          1 flu       V2        8
+#&gt; 3          2 covid     V1        5
+#&gt; 4          2 covid     V2        6
+#&gt; 5          3 flu       V1        9
+#&gt; 6          3 flu       V2       NA</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Raw <code>complete()</code> produced 12 nonsense rows that paired every patient with every diagnosis — including diagnoses they never had. <code>complete(nesting(patient_id, diagnosis), visit)</code> keeps each <code>(patient_id, diagnosis)</code> pair exactly as it appeared and crosses it with every visit. The only new row is patient 3's V2, which is genuinely missing.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>nesting() preserves linked variables while expanding everything else.</strong> Any time two columns describe the same entity — id and name, product and category, subject and cohort — wrap them in <code>nesting()</code> so tidyr treats them as a single unit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> An <code>hours</code> tibble logs how many hours each employee worked per month. Each employee belongs to exactly one department. Use <code>complete(nesting(employee, department), month, fill = list(hours = 0))</code> so every employee has every month, without mixing departments.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: panel with linked columns
+hours &lt;- tibble(
+  employee   = c(&quot;Ada&quot;, &quot;Ada&quot;, &quot;Ben&quot;, &quot;Cam&quot;),
+  department = c(&quot;Eng&quot;, &quot;Eng&quot;, &quot;Ops&quot;, &quot;Eng&quot;),
+  month      = c(&quot;Jan&quot;, &quot;Feb&quot;, &quot;Jan&quot;, &quot;Feb&quot;),
+  hours      = c(160,   150,   170,   155)
+)
+
+# Your code here:
+
+#&gt; Expected: 6 rows, (Ada, Eng) and (Ben, Ops) and (Cam, Eng) each × 2 months</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">hours |&gt; complete(nesting(employee, department), month, fill = list(hours = 0))
+#&gt; # A tibble: 6 × 4
+#&gt;   employee department month hours
+#&gt;   &lt;chr&gt;    &lt;chr&gt;      &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 Ada      Eng        Feb     150
+#&gt; 2 Ada      Eng        Jan     160
+#&gt; 3 Ben      Ops        Feb       0
+#&gt; 4 Ben      Ops        Jan     170
+#&gt; 5 Cam      Eng        Feb     155
+#&gt; 6 Cam      Eng        Jan       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>nesting(employee, department)</code> keeps each employee tied to their real department. The result has the three real employees crossed with two months, and the two genuinely missing rows fill to zero.</p>
+
+</details>
+</section>
+
+<h2>How do expand() and complete() work with groups?</h2>
+
+<p>When you apply <code>complete()</code> to a <code>group_by()</code>-ed tibble, it completes each group independently. That's exactly what you want for multi-site panels: every clinic, store, or region gets its own complete grid without cross-pollination.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">regional_sales &lt;- tibble(
+  region  = c(&quot;North&quot;, &quot;North&quot;, &quot;North&quot;, &quot;South&quot;, &quot;South&quot;),
+  product = c(&quot;A&quot;,     &quot;B&quot;,     &quot;A&quot;,     &quot;A&quot;,     &quot;B&quot;),
+  month   = c(&quot;Jan&quot;,   &quot;Jan&quot;,   &quot;Feb&quot;,   &quot;Jan&quot;,   &quot;Feb&quot;),
+  units   = c(10,      5,       12,      8,       6)
+)
+
+regional_sales |&gt;
+  group_by(region) |&gt;
+  complete(product, month, fill = list(units = 0)) |&gt;
   ungroup()
-store_complete
-#&gt; # A tibble: 10 x 4
-#&gt;    store product quarter revenue
-#&gt;    &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;     &lt;dbl&gt;
-#&gt;  1 LA    A       Q1          300
-#&gt;  2 LA    A       Q2           NA
-#&gt;  3 LA    C       Q1          250
-#&gt;  4 LA    C       Q2           NA
-#&gt;  5 NYC   A       Q1          100
-#&gt;  6 NYC   A       Q2           NA
-#&gt;  7 NYC   B       Q1          150
-#&gt;  8 NYC   B       Q2           NA
-#&gt;  9 NYC   C       Q1          200
-#&gt; 10 NYC   C       Q2           NA</div>
+#&gt; # A tibble: 8 × 4
+#&gt;   region product month units
+#&gt;   &lt;chr&gt;  &lt;chr&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 North  A       Feb      12
+#&gt; 2 North  A       Jan      10
+#&gt; 3 North  B       Feb       0
+#&gt; 4 North  B       Jan       5
+#&gt; 5 South  A       Feb       0
+#&gt; 6 South  A       Jan       8
+#&gt; 7 South  B       Feb       6
+#&gt; 8 South  B       Jan       0</div>
 
     <div class="webr-buttons">
 
@@ -558,256 +678,88 @@ store_complete
 
 </div>
 
-<p>NYC gets combinations for products A, B, C (its products). LA gets combinations for products A and C (its products). The grouping keeps each store's product list separate.</p>
+<p>North has all four <code>product × month</code> pairs, and so does South — each region independently. The grouping column <code>region</code> isn't expanded (you can't <code>complete()</code> a grouping column; tidyr will error if you try), which is the safe default.</p>
 
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You cannot complete a grouping column itself.</strong> If <code>store</code> is the grouping variable, it cannot also appear inside <code>complete()</code>. Move it outside the group or use <code>ungroup()</code> first if you need to cross it with other columns.</div></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by()</a> + complete() is ideal for multi-site panels.</strong> Each site gets its own complete grid with no cross-pollination. Remember to <code>ungroup()</code> afterwards unless downstream steps also need grouping.</div></div>
 
-<h2>Common Mistakes and How to Fix Them</h2>
+<section class="tryit-block">
+<p><strong>Try it:</strong> A <code>clinic_visits</code> tibble logs visits per clinic per date. Group by clinic and complete the date range so every clinic has every day between its min and max.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: per-clinic date completion
+clinic_visits &lt;- tibble(
+  clinic = c(&quot;A&quot;, &quot;A&quot;, &quot;A&quot;, &quot;B&quot;, &quot;B&quot;),
+  date   = as.Date(c(&quot;2026-03-01&quot;, &quot;2026-03-02&quot;, &quot;2026-03-04&quot;,
+                     &quot;2026-03-01&quot;, &quot;2026-03-03&quot;)),
+  count  = c(12, 15, 9, 20, 18)
+)
 
-<h4>Mistake 1: Forgetting that fill replaces existing NAs too</h4>
+# Your code here:
 
-<p>❌ <strong>Wrong:</strong></p>
+#&gt; Expected: each clinic's own day-by-day range filled with NAs where missing</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Original data has NA meaning &quot;unknown&quot;
-df &lt;- tibble(x = c(&quot;a&quot;, &quot;b&quot;), y = c(1, NA))
-df |&gt; complete(x, fill = list(y = 0))
-#&gt; Both the unknown NA and the new row get filled with 0</div>
-
+    <div class="webr-editor" data-language="r">clinic_visits |&gt;
+  group_by(clinic) |&gt;
+  complete(date = seq.Date(min(date), max(date), by = &quot;day&quot;)) |&gt;
+  ungroup()
+#&gt; # A tibble: 7 × 3
+#&gt;   clinic date       count
+#&gt;   &lt;chr&gt;  &lt;date&gt;     &lt;dbl&gt;
+#&gt; 1 A      2026-03-01    12
+#&gt; 2 A      2026-03-02    15
+#&gt; 3 A      2026-03-03    NA
+#&gt; 4 A      2026-03-04     9
+#&gt; 5 B      2026-03-01    20
+#&gt; 6 B      2026-03-02    NA
+#&gt; 7 B      2026-03-03    18</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
 
-<p><strong>Why it is wrong:</strong> The pre-existing NA in row 2 meant "we don't know this value," but <code>fill</code> overwrites it with 0. You lose the distinction between "missing" and "zero."</p>
+<p><strong>Explanation:</strong> Inside each group, <code>min(date)</code> and <code>max(date)</code> are computed on that group's rows only, so each clinic gets its own tightly-fit calendar.</p>
 
-<p>✅ <strong>Correct:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">df &lt;- tibble(x = c(&quot;a&quot;, &quot;b&quot;), y = c(1, NA))
-df |&gt; complete(x, fill = list(y = 0), explicit = FALSE)
-#&gt; Only newly created rows get 0; original NA stays NA</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Mistake 2: Using expand() when you meant complete()</h4>
-
-<p>❌ <strong>Wrong:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Trying to fill gaps in your data
-result &lt;- sales |&gt; expand(product, quarter)
-# result has NO revenue column — just the grid</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Why it is wrong:</strong> <code>expand()</code> returns only the combination grid. It does not bring along your data columns. You lose the revenue values entirely.</p>
-
-<p>✅ <strong>Correct:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">result &lt;- sales |&gt; complete(product, quarter)
-# result has all 12 rows WITH revenue (NA for missing combos)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Mistake 3: Not using full_seq() for date gaps</h4>
-
-<p>❌ <strong>Wrong:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Dates: Jan 1 and Jan 5
-date_data &lt;- tibble(date = as.Date(c(&quot;2026-01-01&quot;, &quot;2026-01-05&quot;)), val = c(10, 20))
-date_data |&gt; complete(date)
-#&gt; Only 2 rows — Jan 2, 3, 4 are still missing</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Why it is wrong:</strong> <code>complete(date)</code> only uses the dates already present. It doesn't know about the gap between Jan 1 and Jan 5.</p>
-
-<p>✅ <strong>Correct:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">date_data |&gt; complete(date = full_seq(date, period = 1))
-#&gt; 5 rows — Jan 1 through Jan 5</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h4>Mistake 4: Combinatorial explosion with high-cardinality columns</h4>
-
-<p>❌ <strong>Wrong:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># 1000 customers x 500 products x 12 months = 6 million rows
-big_data |&gt; complete(customer_id, product_id, month)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p><strong>Why it is wrong:</strong> Crossing three high-cardinality columns creates millions of rows, most of which are meaningless. Your R session may run out of memory.</p>
-
-<p>✅ <strong>Correct:</strong></p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r"># Only complete within meaningful groups
-big_data |&gt;
-  group_by(customer_id) |&gt;
-  complete(product_id, month)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
+</details>
+</section>
 
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Find missing combinations with expand()</h4>
+<p>Two capstone problems that combine several tools from this tutorial. The variable names start with <code>my_</code> so they don't collide with the tutorial's tibbles.</p>
 
-<p>A school tracks test scores for 3 students across 4 subjects. Some student-subject combinations are missing. Use <code>expand()</code> and <code>anti_join()</code> to find which combinations are absent.</p>
+<h4>Exercise 1: Fill a stock price panel</h4>
+
+<p>You have daily close prices for two tickers across five business days, but a few rows are missing. Produce a filled panel where every ticker has every date and any missing closes are carried forward from the previous day.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Exercise data
-scores &lt;- tibble(
-  student = c(&quot;Ali&quot;, &quot;Ali&quot;, &quot;Ali&quot;, &quot;Bo&quot;, &quot;Bo&quot;, &quot;Cal&quot;, &quot;Cal&quot;, &quot;Cal&quot;),
-  subject = c(&quot;Math&quot;, &quot;English&quot;, &quot;Science&quot;, &quot;Math&quot;, &quot;Science&quot;, &quot;Math&quot;, &quot;English&quot;, &quot;History&quot;),
-  score   = c(85, 90, 78, 92, 88, 76, 82, 91)
+    <div class="webr-editor" data-language="r">my_stocks &lt;- tibble(
+  ticker = c(&quot;AAPL&quot;, &quot;AAPL&quot;, &quot;AAPL&quot;, &quot;MSFT&quot;, &quot;MSFT&quot;, &quot;MSFT&quot;),
+  date   = as.Date(c(&quot;2026-03-02&quot;, &quot;2026-03-03&quot;, &quot;2026-03-06&quot;,
+                     &quot;2026-03-02&quot;, &quot;2026-03-04&quot;, &quot;2026-03-05&quot;)),
+  close  = c(180,    182,    185,    405,    410,    412)
 )
 
-# Find missing student-subject combinations
-# Hint: pipe scores into expand(), then use anti_join()
-</div>
+# Write your code below:
+
+#&gt; Expected: 10 rows (2 tickers × 5 dates), no NAs in close after carry-forward</div>
 
     <div class="webr-buttons">
 
@@ -830,16 +782,24 @@ scores &lt;- tibble(
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">all_expected &lt;- scores |&gt; expand(student, subject)
-missing_scores &lt;- all_expected |&gt; anti_join(scores, by = c(&quot;student&quot;, &quot;subject&quot;))
-missing_scores
-#&gt; # A tibble: 4 x 2
-#&gt;   student subject
-#&gt;   &lt;chr&gt;   &lt;chr&gt;  
-#&gt; 1 Ali     History
-#&gt; 2 Bo      English
-#&gt; 3 Bo      History
-#&gt; 4 Cal     Science</div>
+    <div class="webr-editor" data-language="r">my_stocks |&gt;
+  group_by(ticker) |&gt;
+  complete(date = seq.Date(as.Date(&quot;2026-03-02&quot;), as.Date(&quot;2026-03-06&quot;), by = &quot;day&quot;)) |&gt;
+  tidyr::fill(close, .direction = &quot;down&quot;) |&gt;
+  ungroup()
+#&gt; # A tibble: 10 × 3
+#&gt;    ticker date       close
+#&gt;    &lt;chr&gt;  &lt;date&gt;     &lt;dbl&gt;
+#&gt;  1 AAPL   2026-03-02   180
+#&gt;  2 AAPL   2026-03-03   182
+#&gt;  3 AAPL   2026-03-04   182
+#&gt;  4 AAPL   2026-03-05   182
+#&gt;  5 AAPL   2026-03-06   185
+#&gt;  6 MSFT   2026-03-02   405
+#&gt;  7 MSFT   2026-03-03   405
+#&gt;  8 MSFT   2026-03-04   410
+#&gt;  9 MSFT   2026-03-05   412
+#&gt; 10 MSFT   2026-03-06   412</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -849,21 +809,27 @@ missing_scores
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>expand()</code> creates all 12 student-subject pairs (3 x 4). <code>anti_join()</code> filters to only those pairs not present in the original data, revealing the 4 missing combinations.</p>
+<p><strong>Explanation:</strong> Group by ticker so each ticker expands independently, supply an explicit five-day sequence as the target range, then chain <code>fill()</code> to copy the last observed close forward over the NAs <code>complete()</code> inserted.</p>
 
 </details>
 
-<h4>Exercise 2: Complete with fill defaults</h4>
+<h4>Exercise 2: Find missing student-exam pairs without adding rows</h4>
 
-<p>Using the <code>scores</code> data from Exercise 1, use <code>complete()</code> with <code>fill</code> to add the missing student-subject rows with a default score of 0.</p>
+<p>Given a grades tibble that's incomplete, return a data frame listing only the <code>(student, exam)</code> pairs where no grade exists — without touching the original.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r"># Complete scores and fill missing with 0
-# Hint: complete(student, subject, fill = list(...))
-</div>
+    <div class="webr-editor" data-language="r">my_grades &lt;- tibble(
+  student = c(&quot;Ada&quot;, &quot;Ada&quot;, &quot;Ben&quot;, &quot;Cam&quot;, &quot;Cam&quot;),
+  exam    = c(&quot;Mid&quot;, &quot;Fin&quot;, &quot;Mid&quot;, &quot;Mid&quot;, &quot;Fin&quot;),
+  score   = c(85,    88,    72,    79,    81)
+)
+
+# Write your code below:
+
+#&gt; Expected: 1 row — (Ben, Fin)</div>
 
     <div class="webr-buttons">
 
@@ -886,24 +852,13 @@ missing_scores
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_complete_scores &lt;- scores |&gt;
-  complete(student, subject, fill = list(score = 0))
-my_complete_scores
-#&gt; # A tibble: 12 x 3
-#&gt;    student subject score
-#&gt;    &lt;chr&gt;   &lt;chr&gt;   &lt;dbl&gt;
-#&gt;  1 Ali     English    90
-#&gt;  2 Ali     History     0
-#&gt;  3 Ali     Math       85
-#&gt;  4 Ali     Science    78
-#&gt;  5 Bo      English     0
-#&gt;  6 Bo      History     0
-#&gt;  7 Bo      Math       92
-#&gt;  8 Bo      Science    88
-#&gt;  9 Cal     English    82
-#&gt; 10 Cal     History    91
-#&gt; 11 Cal     Math       76
-#&gt; 12 Cal     Science     0</div>
+    <div class="webr-editor" data-language="r">my_grades |&gt;
+  expand(student, exam) |&gt;
+  anti_join(my_grades, by = c(&quot;student&quot;, &quot;exam&quot;))
+#&gt; # A tibble: 1 × 2
+#&gt;   student exam
+#&gt;   &lt;chr&gt;   &lt;chr&gt;
+#&gt; 1 Ben     Fin</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -913,29 +868,42 @@ my_complete_scores
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>complete()</code> expands the grid to all 12 combinations and <code>fill = list(score = 0)</code> sets the missing scores to 0 instead of NA.</p>
+<p><strong>Explanation:</strong> <code>expand()</code> gives every expected student-exam pair; <code>anti_join()</code> keeps only the pairs that don't appear in the original data. No rows are added to <code>my_grades</code> itself.</p>
 
 </details>
 
-<h4>Exercise 3: Use nesting() to preserve relationships</h4>
+<h2>Complete Example</h2>
 
-<p>A dataset tracks employees within departments. Use <code>nesting()</code> inside <code>complete()</code> so that employee-department pairs stay intact, while crossing them with all months.</p>
+<p>Here is an end-to-end pipeline that ties everything together. The raw <code>regional_sales_raw</code> tibble has gaps across regions, products, and months. The goal is per-region monthly totals — and those totals will be wrong unless every region has a row for every product in every month.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">my_work &lt;- tibble(
-  dept     = c(&quot;Sales&quot;, &quot;Sales&quot;, &quot;Engineering&quot;, &quot;Engineering&quot;),
-  employee = c(&quot;Dana&quot;, &quot;Dana&quot;, &quot;Eve&quot;, &quot;Eve&quot;),
-  month    = c(&quot;Jan&quot;, &quot;Mar&quot;, &quot;Jan&quot;, &quot;Feb&quot;),
-  hours    = c(160, 155, 170, 165)
+    <div class="webr-editor" data-language="r">regional_sales_raw &lt;- tibble(
+  region  = c(&quot;North&quot;,&quot;North&quot;,&quot;North&quot;,&quot;North&quot;,&quot;South&quot;,&quot;South&quot;,&quot;South&quot;),
+  month   = c(&quot;Jan&quot;,  &quot;Jan&quot;,  &quot;Feb&quot;,  &quot;Mar&quot;,  &quot;Jan&quot;,  &quot;Feb&quot;,  &quot;Mar&quot;),
+  product = c(&quot;A&quot;,    &quot;B&quot;,    &quot;A&quot;,    &quot;B&quot;,    &quot;A&quot;,    &quot;B&quot;,    &quot;A&quot;),
+  units   = c(10,     5,      12,     6,      8,      9,      7)
 )
 
-# Complete so each employee has all 3 months, but don't create
-# invalid dept-employee combos (e.g., Dana in Engineering)
-# Hint: use nesting(dept, employee) inside complete()
-</div>
+regional_sales_full &lt;- regional_sales_raw |&gt;
+  group_by(region) |&gt;
+  complete(product, month, fill = list(units = 0)) |&gt;
+  ungroup()
+
+regional_sales_full |&gt;
+  group_by(region, month) |&gt;
+  summarise(total_units = sum(units), .groups = &quot;drop&quot;)
+#&gt; # A tibble: 6 × 3
+#&gt;   region month total_units
+#&gt;   &lt;chr&gt;  &lt;chr&gt;       &lt;dbl&gt;
+#&gt; 1 North  Feb            12
+#&gt; 2 North  Jan            15
+#&gt; 3 North  Mar             6
+#&gt; 4 South  Feb             9
+#&gt; 5 South  Jan             8
+#&gt; 6 South  Mar             7</div>
 
     <div class="webr-buttons">
 
@@ -953,168 +921,7 @@ my_complete_scores
 
 </div>
 
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_work_complete &lt;- my_work |&gt;
-  complete(nesting(dept, employee), month = c(&quot;Jan&quot;, &quot;Feb&quot;, &quot;Mar&quot;), fill = list(hours = 0))
-my_work_complete
-#&gt; # A tibble: 6 x 4
-#&gt;   dept        employee month hours
-#&gt;   &lt;chr&gt;       &lt;chr&gt;    &lt;chr&gt; &lt;dbl&gt;
-#&gt; 1 Engineering Eve      Jan     170
-#&gt; 2 Engineering Eve      Feb     165
-#&gt; 3 Engineering Eve      Mar       0
-#&gt; 4 Sales       Dana     Jan     160
-#&gt; 5 Sales       Dana     Feb       0
-#&gt; 6 Sales       Dana     Mar     155</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>nesting(dept, employee)</code> keeps the real pairs (Sales-Dana, Engineering-Eve). Those pairs are crossed with all 3 months. Without <code>nesting()</code>, you would get 12 rows including invalid combos like Sales-Eve.</p>
-
-</details>
-
-<h4>Exercise 4: Complete a date-gapped dataset</h4>
-
-<p>Daily temperature readings have gaps. Fill in the missing dates and carry forward the last known temperature.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">my_temps &lt;- tibble(
-  date = as.Date(c(&quot;2026-03-01&quot;, &quot;2026-03-03&quot;, &quot;2026-03-07&quot;)),
-  temp = c(15.2, 16.8, 14.5)
-)
-
-# 1. Complete with full_seq() to fill date gaps
-# 2. Use fill() to carry forward the last known temp
-# Hint: pipe complete() into fill()
-</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">my_temps_filled &lt;- my_temps |&gt;
-  complete(date = full_seq(date, period = 1)) |&gt;
-  fill(temp, .direction = &quot;down&quot;)
-my_temps_filled
-#&gt; # A tibble: 7 x 2
-#&gt;   date        temp
-#&gt;   &lt;date&gt;     &lt;dbl&gt;
-#&gt; 1 2026-03-01  15.2
-#&gt; 2 2026-03-02  15.2
-#&gt; 3 2026-03-03  16.8
-#&gt; 4 2026-03-04  16.8
-#&gt; 5 2026-03-05  16.8
-#&gt; 6 2026-03-06  16.8
-#&gt; 7 2026-03-07  14.5</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>full_seq(date, period = 1)</code> generates every date from Mar 1 to Mar 7. <code>complete()</code> adds the 4 missing dates with NA temps. <code>fill(.direction = &quot;down&quot;)</code> carries the last known temperature forward into the gaps.</p>
-
-</details>
-
-<h2>Putting It All Together</h2>
-
-<p>Let's walk through a realistic scenario from start to finish. You have messy quarterly sales data with gaps, and you need accurate per-product summaries.</p>
-
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">raw_sales &lt;- tibble(
-  product = c(&quot;Widget&quot;, &quot;Widget&quot;, &quot;Widget&quot;, &quot;Gadget&quot;, &quot;Gadget&quot;, &quot;Gizmo&quot;, &quot;Gizmo&quot;, &quot;Gizmo&quot;),
-  quarter = c(&quot;Q1&quot;, &quot;Q2&quot;, &quot;Q4&quot;, &quot;Q1&quot;, &quot;Q3&quot;, &quot;Q1&quot;, &quot;Q2&quot;, &quot;Q3&quot;),
-  revenue = c(5000, 6200, 4800, 8100, 7500, 3200, 3800, 4100)
-)
-
-# Step 1: Audit — what's missing?
-audit &lt;- raw_sales |&gt;
-  expand(product, quarter) |&gt;
-  anti_join(raw_sales, by = c(&quot;product&quot;, &quot;quarter&quot;))
-cat(&quot;Missing combinations:\n&quot;)
-print(audit)
-#&gt; Missing combinations:
-#&gt; # A tibble: 4 x 2
-#&gt;   product quarter
-#&gt;   &lt;chr&gt;   &lt;chr&gt;  
-#&gt; 1 Gadget  Q2     
-#&gt; 2 Gadget  Q4     
-#&gt; 3 Gizmo   Q4     
-#&gt; 4 Widget  Q3
-
-# Step 2: Fill gaps with zero revenue
-clean_sales &lt;- raw_sales |&gt;
-  complete(product, quarter, fill = list(revenue = 0))
-
-# Step 3: Summarize correctly
-summary_correct &lt;- clean_sales |&gt;
-  group_by(product) |&gt;
-  summarise(
-    total_revenue = sum(revenue),
-    mean_revenue  = mean(revenue),
-    quarters_sold = sum(revenue &gt; 0)
-  )
-summary_correct
-#&gt; # A tibble: 3 x 4
-#&gt;   product total_revenue mean_revenue quarters_sold
-#&gt;   &lt;chr&gt;           &lt;dbl&gt;        &lt;dbl&gt;         &lt;int&gt;
-#&gt; 1 Gadget          15600        3900.             2
-#&gt; 2 Gizmo           11100        2775.             3
-#&gt; 3 Widget          16000        4000.             3</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<p>The audit reveals 4 missing combinations. After completing the data with zero-revenue rows, the mean revenue per product accounts for all 4 quarters. Gadget's mean drops from 7800 (2 quarters) to 3900 (4 quarters) — a significant correction.</p>
+<p>Without the <code>complete()</code> step, North's March total would count only product B (six units) and omit product A entirely — even though the "correct" interpretation is that A sold zero units. After completion, the totals are consistent across regions, months, and products, and a downstream plot will show all three months for both regions without gaps in the x-axis.</p>
 
 <h2>Summary</h2>
 
@@ -1122,98 +929,79 @@ summary_correct
 <thead>
 <tr>
 <th>Function</th>
-<th>What it does</th>
-<th>Returns</th>
+<th>What it returns</th>
 <th>When to use</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>expand()</code></td>
-<td>Generates all unique combinations of columns</td>
-<td>Grid only (no data columns)</td>
-<td>Auditing: "what combos should exist?"</td>
+<td><code>expand(df, x, y)</code></td>
+<td>Grid of all x × y combinations only</td>
+<td>Inspect the full combination space or build a scaffold</td>
 </tr>
 <tr>
-<td><code>complete()</code></td>
-<td>Expands grid AND fills missing rows into your data</td>
-<td>Full data frame with NAs or defaults</td>
-<td>Fixing: "add the missing rows"</td>
+<td><code>complete(df, x, y)</code></td>
+<td>Original rows + missing combos with NA</td>
+<td>Turn implicit missing into explicit missing</td>
 </tr>
 <tr>
-<td><code>crossing()</code></td>
-<td>Cartesian product of vectors (standalone)</td>
-<td>Grid of all combos</td>
-<td>Building reference grids outside a data frame</td>
+<td><code>complete(..., fill = list())</code></td>
+<td>As above, NAs replaced with defaults</td>
+<td>Fill with domain-appropriate defaults</td>
 </tr>
 <tr>
-<td><code>nesting()</code></td>
-<td>Only combos already present (standalone)</td>
-<td>Grid of existing combos</td>
-<td>Preserving real relationships inside expand/complete</td>
+<td><code>complete(nesting(x, y), z)</code></td>
+<td>Only existing <code>(x, y)</code> pairs × z</td>
+<td>Panel data with linked columns</td>
 </tr>
 <tr>
-<td><code>full_seq()</code></td>
-<td>Regular sequence from min to max</td>
-<td>Numeric or date vector</td>
-<td>Filling gaps in dates or continuous values</td>
+<td><code>crossing(x, y)</code></td>
+<td>Grid from vectors (no data frame)</td>
+<td>Build a scaffold from scratch</td>
+</tr>
+<tr>
+<td><code>full_seq(x, period)</code></td>
+<td>Full numeric sequence</td>
+<td>Fill numeric gaps</td>
 </tr>
 </tbody>
 </table>
 
-<p><strong>Key takeaways:</strong></p>
+<p>Key takeaways:</p>
 
 <ul>
 
-<li>Implicit missing values are rows that don't exist. They silently distort summaries.</li>
+<li><a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">Tidy data</a> has a row for every combination that should exist — even if the measurement is NA.</li>
 
-<li><code>expand()</code> shows you the full grid. Pair with <code>anti_join()</code> to audit.</li>
+<li><code>complete()</code> equals <code>expand()</code> plus <code>dplyr::full_join()</code> plus <code>tidyr::replace_na()</code> in a single call.</li>
 
-<li><code>complete()</code> inserts missing rows. Use <code>fill</code> for default values.</li>
+<li>Use <code>nesting()</code> for columns that describe the same entity; pass raw arguments for genuinely independent columns.</li>
 
-<li>Set <code>explicit = FALSE</code> to protect pre-existing NAs from being overwritten.</li>
+<li>Pass sequences by name for dates (<code>seq.Date</code>) and numerics (<code>full_seq</code>) to expand to a known universe.</li>
 
-<li>Use <code>full_seq()</code> inside <code>complete()</code> for date and numeric gaps.</li>
-
-<li>Group with <code>group_by()</code> to complete within each group independently.</li>
+<li><code>group_by() |&gt; complete()</code> gives each group its own independent grid — ideal for multi-site panels.</li>
 
 </ul>
 
-<h2>FAQ</h2>
+<p><img src="screenshots/tidyr-expand-complete-Make-Implicit-Missing-Values-Explicit-progression.webp" alt="From raw data with gaps, expand() builds the full grid, complete() fills in explicit NAs, and a fill list replaces them with sensible defaults." class="img-responsive" loading="lazy" /></p>
 
-<h4>What is the difference between expand() and complete()?</h4>
-
-<p><code>expand()</code> returns only the combination grid — a tibble of variable combinations with no data columns attached. <code>complete()</code> returns your original data with missing rows added and optionally filled. Use <code>expand()</code> for auditing and <code>complete()</code> for fixing.</p>
-
-<h4>Can I use complete() with dates?</h4>
-
-<p>Yes. Wrap the date column in <code>full_seq(date, period = 1)</code> inside the <code>complete()</code> call. This generates every date between the min and max. Without <code>full_seq()</code>, <code>complete()</code> only uses the dates already present in your data.</p>
-
-<h4>Does complete() work with grouped data frames?</h4>
-
-<p>Yes. When the data frame is grouped with <code>group_by()</code>, <code>complete()</code> operates within each group independently. One restriction: you cannot complete a grouping column — it must stay outside the <code>complete()</code> call.</p>
-
-<h4>How do I avoid filling pre-existing NAs?</h4>
-
-<p>Set <code>explicit = FALSE</code> inside <code>complete()</code>. By default, the <code>fill</code> parameter replaces all NAs (both new and pre-existing). With <code>explicit = FALSE</code>, only newly created rows get the fill value, and your original NAs remain untouched.</p>
+<p><em>Figure 1: From raw data with gaps, expand() builds the full grid, complete() fills in explicit NAs, and a fill list replaces them with sensible defaults.</em></p>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Wickham, H. — tidyr <code>complete()</code> reference documentation. <a href="https://tidyr.tidyverse.org/reference/complete.html">Link</a></li>
+<li>tidyr documentation — <code>complete()</code>. <a href="https://tidyr.tidyverse.org/reference/complete.html">Link</a></li>
 
-<li>Wickham, H. — tidyr <code>expand()</code> reference documentation. <a href="https://tidyr.tidyverse.org/reference/expand.html">Link</a></li>
+<li>tidyr documentation — <code>expand()</code> and <code>crossing()</code>. <a href="https://tidyr.tidyverse.org/reference/expand.html">Link</a></li>
 
-<li>Wickham, H. & Grolemund, G. — <em>R for Data Science</em>, 2nd Edition. Chapter 18: Missing Values. <a href="https://r4ds.hadley.nz/missing-values">Link</a></li>
+<li>tidyr documentation — <code>full_seq()</code>. <a href="https://tidyr.tidyverse.org/reference/full_seq.html">Link</a></li>
 
-<li>tidyr CRAN package documentation (v1.3.2). <a href="https://cran.r-project.org/web/packages/tidyr/tidyr.pdf">Link</a></li>
+<li>Wickham, H. & Grolemund, G. — <em>R for Data Science (2e)</em>, Chapter 18: Missing values. <a href="https://r4ds.hadley.nz/missing-values.html">Link</a></li>
 
-<li>Nagraj, V.P. — Expand and Complete with tidyr. <a href="https://www.nagraj.net/notes/expand-and-complete/">Link</a></li>
+<li>tidyr 1.2.0 release notes — introduces the <code>explicit</code> argument. <a href="https://www.tidyverse.org/blog/2022/02/tidyr-1-2-0/">Link</a></li>
 
-<li>Verde Arregoitia, L.D. — You tidyr::complete() me. <a href="https://luisdva.github.io/rstats/complete/">Link</a></li>
-
-<li>tidyr GitHub source — complete.R. <a href="https://github.com/tidyverse/tidyr/blob/main/R/complete.R">Link</a></li>
+<li>tidyr documentation — <code>fill()</code> for carry-forward imputation. <a href="https://tidyr.tidyverse.org/reference/fill.html">Link</a></li>
 
 </ol>
 
@@ -1221,8 +1009,12 @@ summary_correct
 
 <ul>
 
-<li><strong><a href="pivot_longer-pivot_wider-Reshape-Data-in-R.html">Reshape Data with pivot_longer and pivot_wider</a></strong> — Convert between wide and long formats, the other essential tidyr skill.</li>
+<li><a href="pivot_longer-pivot_wider-Reshape-Data-in-R.html">pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind</a> — the parent reshaping guide that sets up why long data so often needs completing.</li>
 
-<li><strong><a href="tidyr-separate-unite-Split-Combine-Columns-in-R.html">Split and Combine Columns with separate and unite</a></strong> — Break apart and reassemble character columns using tidyr's modern splitting functions.</li>
+<li><a href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html">Missing Values in R: Detect, Count, Remove, and Impute NA</a> — once gaps are explicit NAs, learn how to count, visualise, and impute them.</li>
+
+<li><a href="tidyr-separate-unite-Split-Combine-Columns-in-R.html">tidyr separate() & unite() in R: Split & Combine Character Columns</a> — the sibling tidyr helper pair for splitting and rejoining character columns.</li>
 
 </ul>
+
+{% endraw %}
