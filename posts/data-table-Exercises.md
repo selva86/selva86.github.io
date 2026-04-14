@@ -1,35 +1,52 @@
 ---
 title: "data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step"
 slug: "data-table-Exercises"
-description: "Practise data.table with 12 hands-on high-performance data manipulation problems and worked R solutions. Progressive exercises from beginner to advanced."
-keywords: "data.table exercises, data.table practice, R data.table tutorial, data.table DT syntax, data.table by group, data.table join, data.table aggregation, setkey"
+description: "12 data.table exercises in R with step-by-step solutions — filter, group by, join, rolling join, reshape, and update by reference. Progressive difficulty."
+keywords: "data.table exercises, data.table practice, R data.table tutorial, data.table DT syntax, data.table by group, data.table join, data.table chaining, setkey, := operator, rolling join"
 mathjax: false
 webr: true
-date: "2026-04-06"
+date: "2026-04-14"
 curriculum_id: "E2.7"
 post_type: "EX"
 sidebar_title: "data.table (12 problems)"
-auto_link_terms: "data.table exercises|data.table practice|data.table problems"
+auto_link_terms: "data.table exercises|data.table practice|data.table problems|data.table tutorial"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-filter-select.html"
 ---
 
 
-# data.table Exercises: 12 High-Performance Data Manipulation Problems
+# data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step
 
-<p class="lead">Twelve hands-on exercises to master the <code>data.table</code> package in R — from basic row filtering and <code>by=</code> aggregation to chained operations, joins, rolling joins, reshaping, and update-by-reference with <code>:=</code>. Every exercise has a runnable solution you can execute right in your browser.</p>
+<p class="lead">Twelve hands-on exercises to master the <code>data.table</code> package in R — from row filtering and <code>by=</code> aggregation to chained operations, joins, rolling joins, reshaping, and update-by-reference with <code>:=</code>. Each problem has a starter block, a click-to-reveal solution, and an explanation so you can check your answer and learn the idiom.</p>
 
-## Introduction
+The first four exercises cover the essentials: filtering rows, picking columns, and computing summaries on a single table. The middle four use `by=` grouping, `.SD`, chaining, and update-by-reference. The last four tackle joins, rolling joins, reshaping, and group-wise windowed calculations — the moves you use in real analysis work. Write your own answer first, run it, compare with the reveal, and read the explanation.
 
-`data.table` is the fastest general-purpose data manipulation package in R. It handles millions of rows on a laptop, uses a compact `DT[i, j, by]` syntax, and modifies data in place to avoid memory copies. But the compactness is a double-edged sword — the syntax rewards practice. Reading one tutorial will not make you fluent. Solving problems will.
+## How do you load data.table and build the working datasets?
 
-These 12 exercises build that fluency. The first four cover the essentials: filtering rows, picking columns, and computing summaries on a single table. The middle four use `by=` grouping, `.SD`, chaining, and update-by-reference. The last four tackle joins, rolling joins, reshaping, and group-wise windowed calculations — the moves you use in real analysis work.
+Every exercise below builds on two tables: `dt_cars` (the built-in `mtcars` dataset with row names promoted to a `model` column) and `dt_iris` (the classic 150-flower measurements). Run the block once — all code on this page shares one R session, so later exercises can reference both tables without reloading.
 
-Each problem states the task, gives you a starter block to edit, and hides the solution behind a click-to-reveal. Write your own answer first, run it, compare with the reveal, then read the explanation. If you are new to data.table, skim the [Quick Reference](#quick-reference) below before starting. If you want a conceptual refresher on tidy data manipulation, the [parent dplyr filter and select tutorial](dplyr-filter-select.html) covers the equivalent tidyverse verbs.
+```r
+# Load data.table and build two working tables from built-in datasets
+library(data.table)
 
-All code on this page runs in a shared R session — variables you create in one block are available in the next. Use distinct names like `my_dt` and `my_result` in your answers so you do not overwrite variables from earlier blocks.
+dt_cars <- as.data.table(mtcars, keep.rownames = "model")
+dt_iris <- as.data.table(iris)
 
-## Quick Reference
+# Confirm shapes and types
+dim(dt_cars)
+#> [1] 32 12
+dim(dt_iris)
+#> [1] 150   5
+class(dt_cars)
+#> [1] "data.table" "data.frame"
+```
+
+`dt_cars` has 32 rows and 12 columns — the 12th column `model` was created from the row names. `dt_iris` has the classic 150 flower measurements across 5 columns. Both tables now carry the `data.table` class (plus `data.frame` for backward compatibility, which means any `data.frame` function still works on them).
+
+[NOTE]
+**data.table modifies objects in place.** Unlike base R or dplyr, operations with `:=` change the original table without assignment. If you want to preserve the original, run `copy()` first — we cover this trap in the Common Mistakes section.
+
+## What data.table syntax do you need to know?
 
 Here is a one-screen cheat sheet before you start. Skim it, then jump to Exercise 1.
 
@@ -50,29 +67,7 @@ Here is a one-screen cheat sheet before you start. Skim it, then jump to Exercis
 | Reshape wide to long | `melt()` | `melt(DT, id.vars="id")` |
 | Reshape long to wide | `dcast()` | `dcast(DT, id ~ var)` |
 
-[TIP]
-**Load data.table once, then reuse the tables for every exercise.** The first code block below loads the package and builds two working tables. Because all blocks on this page share one R session, later blocks can reference `dt_cars` and `dt_iris` without reloading.
-
-```r
-# Load data.table and build two working tables from built-in datasets
-library(data.table)
-
-dt_cars <- as.data.table(mtcars, keep.rownames = "model")
-dt_iris <- as.data.table(iris)
-
-# Confirm the shapes and types
-dim(dt_cars)
-#> [1] 32 12
-dim(dt_iris)
-#> [1] 150   5
-class(dt_cars)
-#> [1] "data.table" "data.frame"
-```
-
-Both tables now carry the `data.table` class (plus `data.frame` for backward compatibility). `dt_cars` has 32 rows and 12 columns — note the 12th column `model` was created from the row names. `dt_iris` has the classic 150 flower measurements. You are ready to begin.
-
-[NOTE]
-**data.table modifies objects in place.** Unlike base R or dplyr, operations with `:=` change the original table without assignment. If you want to preserve the original, run `copy()` first — we cover this in Mistake 1 below.
+The whole package boils down to one mental model — `DT[i, j, by]`: `i` picks rows, `j` operates on columns, and `by` groups. Every exercise below exercises one corner of that triple. Use distinct names like `my_dt` and `my_result` in your answers so you do not overwrite variables from earlier blocks.
 
 ## Exercise 1: Convert and filter rows
 
@@ -139,7 +134,7 @@ dim(my_result)
 
 </details>
 
-## Exercise 3: Compound conditions with %chin%
+## Exercise 3: Compound conditions with precedence
 
 From `dt_cars`, find rows where the car is a six-cylinder (`cyl == 6`) OR has a manual transmission (`am == 1`) AND has more than 100 horsepower. Then keep only the columns `model`, `cyl`, `hp`, and `am`. Save to `my_result`.
 
@@ -232,7 +227,7 @@ my_result
 #> 3:  virginica        6.588       2.974        5.552       2.026
 ```
 
-**Explanation:** `.SD` stands for "Subset of Data" — it is a data.table containing the current group's rows for the columns listed in `.SDcols`. `lapply(.SD, mean)` applies `mean()` to each column of that subset. Without `.SDcols`, `.SD` would include every non-grouping column, including `Species` if it were numeric. Virginica irises have petals roughly 3.8x longer than setosa.
+**Explanation:** `.SD` stands for "Subset of Data" — it is a data.table containing the current group's rows for the columns listed in `.SDcols`. `lapply(.SD, mean)` applies `mean()` to each column of that subset. Without `.SDcols`, `.SD` would include every non-grouping column. Virginica irises have petals roughly 3.8x longer than setosa.
 
 </details>
 
@@ -333,13 +328,13 @@ head(dt_cars[, .(model, cyl, mpg)], 3)
 #> 3: Honda Civic     4 30.4
 ```
 
-**Explanation:** `setorder()` sorts a data.table in place (no copy), using a fast radix algorithm. Prefix a column with `-` to sort it descending. `setkey()` tells data.table to keep the table indexed on `cyl`, which makes future filters like `dt_cars[.(4)]` or joins on `cyl` much faster. Note `setorder()` does not create a key, and `setkey()` also physically reorders rows — they are related but distinct.
+**Explanation:** `setorder()` sorts a data.table in place (no copy), using a fast radix algorithm. Prefix a column with `-` to sort it descending. `setkey()` tells data.table to keep the table indexed on `cyl`, which makes future filters like `dt_cars[.(4)]` or joins on `cyl` much faster. Note that `setkey()` also physically reorders rows — `setorder()` and `setkey()` are related but distinct.
 
 </details>
 
 ## Exercise 9: Join two data.tables
 
-Build two small tables from `starwars`-style data. Join them on `id` to see each person's planet name. Keep all rows from the people table (left join).
+Build two small tables from `starwars`-style data. Join them on `planet_id` to see each person's planet name. Keep all rows from the people table (left join).
 
 ```r
 # Starter data — run this first
@@ -367,12 +362,6 @@ Join `people` with `planets` on `planet_id` so every person keeps their row even
 <summary>Click to reveal solution</summary>
 
 ```r
-people <- data.table(id = c(1, 2, 3, 4),
-                     name = c("Luke", "Leia", "Han", "Chewie"),
-                     planet_id = c(10, 10, 20, 30))
-planets <- data.table(planet_id = c(10, 20),
-                      planet = c("Tatooine", "Corellia"))
-
 my_result <- planets[people, on = "planet_id"]
 my_result
 #>    planet_id   planet id   name
@@ -382,7 +371,7 @@ my_result
 #> 4:        30     <NA>  4 Chewie
 ```
 
-**Explanation:** In data.table's join syntax `X[Y, on=]`, the outer table `X` is joined FROM and the rows come from `Y`. So `planets[people, on="planet_id"]` returns all four people rows with matched planet columns attached. Chewie's row has `NA` for `planet` because no planet with id 30 exists. This is equivalent to `dplyr::left_join(people, planets, by="planet_id")`.
+**Explanation:** In data.table's join syntax `X[Y, on=]`, the outer table `X` is joined onto the rows of `Y`. So `planets[people, on="planet_id"]` returns all four people rows with matched planet columns attached. Chewie's row has `NA` for `planet` because no planet with id 30 exists. This is equivalent to `dplyr::left_join(people, planets, by="planet_id")`.
 
 </details>
 
@@ -414,11 +403,6 @@ Roll the `value` from `readings` forward onto each event, so each event gets the
 <summary>Click to reveal solution</summary>
 
 ```r
-readings <- data.table(t = c(1, 3, 7, 10), value = c(10, 30, 70, 100))
-events   <- data.table(t = c(2, 5, 9))
-setkey(readings, t)
-setkey(events, t)
-
 my_result <- readings[events, roll = TRUE]
 my_result
 #>    t value
@@ -516,7 +500,9 @@ my_result[Species == "setosa"][1:5]
 [TIP]
 **Use shift() with type="lead" to look ahead.** Pass `type = "lead"` for the opposite direction: row i receives row i+1's value. The last row of each group becomes `NA`.
 
-## Common Mistakes and How to Fix Them
+## What are the most common data.table mistakes?
+
+Four traps catch almost everyone the first week. Walk through each wrong/right pair so you can spot the pattern when you hit it in your own code.
 
 ### Mistake 1: Modifying a data.table inside a function without copy()
 
@@ -596,6 +582,45 @@ Correct:
 dt_cars[, .(avg = mean(mpg)), by = cyl]   # optimised group-by, returns a data.table
 ```
 
+## Complete Example
+
+Now let's stitch several exercises together into a realistic mini-analysis. Imagine you want to answer the question: *"Which transmission type is more fuel-efficient, and how does the answer change by cylinder count?"* The pipeline below filters, aggregates, joins a label table, sorts, and reshapes for plotting — all in one readable flow.
+
+```r
+# 1. Drop the very worst gas guzzlers so the summary is meaningful
+eff_cars <- dt_cars[mpg > 15]
+
+# 2. Mean mpg and car count by cylinder and transmission
+agg <- eff_cars[, .(mean_mpg = round(mean(mpg), 1), n = .N),
+                by = .(cyl, am)]
+
+# 3. Small reference table mapping am codes to readable labels
+grades <- data.table(am = c(0, 1), transmission = c("Automatic", "Manual"))
+
+# 4. Left join the label onto the aggregate
+joined <- grades[agg, on = "am"]
+
+# 5. Sort by cyl ascending, then mean_mpg descending
+setorder(joined, cyl, -mean_mpg)
+joined
+#>    am transmission cyl mean_mpg n
+#> 1:  1       Manual   4     28.8 8
+#> 2:  0   Automatic   4     22.9 3
+#> 3:  1       Manual   6     20.6 3
+#> 4:  0   Automatic   6     19.1 4
+#> 5:  0   Automatic   8     15.1 9
+
+# 6. Reshape wide: one column per transmission, one row per cylinder count
+wide <- dcast(joined, cyl ~ transmission, value.var = "mean_mpg")
+wide
+#>    cyl Automatic Manual
+#> 1:   4      22.9   28.8
+#> 2:   6      19.1   20.6
+#> 3:   8      15.1     NA
+```
+
+Manuals beat automatics in every cylinder class where both appear — by 6 mpg for 4-cylinder cars and 1.5 mpg for 6-cylinder. The 8-cylinder cars above 15 mpg are all automatics, so the `Manual` column is `NA` there. The final `wide` table is plot-ready: one row per x-axis category, one column per bar group. This filter → aggregate → join → reshape pattern is the 80% workflow of real `data.table` analysis.
+
 ## Summary
 
 | Concept | Key syntax | Exercises |
@@ -611,25 +636,7 @@ dt_cars[, .(avg = mean(mpg)), by = cyl]   # optimised group-by, returns a data.t
 | Reshape | `melt()`, `dcast()` | 11 |
 | Window / group-wise | `shift()`, `cumsum()` with `by=` | 12 |
 
-If you solved all 12 without peeking, you can handle 90% of real-world data.table tasks.
-
-## FAQ
-
-**Is data.table really faster than dplyr?**
-
-For filter, group-by, and join on large tables (1M+ rows), yes — often 2-10x faster. For small tables, the gap is invisible. The real win is memory: `:=` updates in place, so you can work with tables close to your RAM limit without running out.
-
-**How do I install data.table?**
-
-`install.packages("data.table")` in R. It is a zero-dependency package and installs in seconds. No system libraries needed.
-
-**Does := return the updated table?**
-
-It returns the table invisibly for chaining, but you should not assign the result. Call `DT[, col := value]` as a standalone statement. Assigning the result creates a second name for the same object, not a copy.
-
-**What does .SD mean?**
-
-"Subset of Data." Inside `j`, `.SD` is a data.table containing the current group's rows for the columns listed in `.SDcols`. It exists so you can write `lapply(.SD, fn)` to apply a function across many columns without listing them one by one.
+If you solved all 12 without peeking, you can handle 90% of real-world data.table tasks. If a few stumped you, revisit the relevant exercise and the Common Mistakes section — the traps caught you for a reason, and the second attempt is where the syntax sticks.
 
 ## References
 
