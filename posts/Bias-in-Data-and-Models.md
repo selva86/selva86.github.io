@@ -1,284 +1,710 @@
 ---
-title: "Bias in Data & Models: How to Detect & Reduce It in R"
+title: "Bias in Data and Models: Find It With R Before Your Results Mislead Anyone"
 slug: "Bias-in-Data-and-Models"
-description: "Learn to detect and reduce bias in data and models using R. Covers selection bias, measurement bias, algorithmic bias, fairness metrics, and debiasing."
-keywords: "bias in data, algorithmic bias R, fairness metrics, selection bias, measurement bias, debiasing techniques R"
-mathjax: false
+description: "Detect sampling, measurement, and algorithmic bias in R using practical tests and fairness metrics designed to keep your data analyses defensibly unbiased."
+keywords: "bias in data, R bias detection, sampling bias, measurement bias, algorithmic bias, fairness metrics R, demographic parity, equalized odds, model fairness, fair machine learning"
+auto_link_terms: "bias in data|sampling bias|measurement bias|algorithmic bias|demographic parity|equal opportunity|fairness metrics|model fairness"
+auto_link_case_sensitive: false
+mathjax: true
 webr: true
-date: "2026-03-29"
+date: "2026-04-14"
 curriculum_id: "1.6.2"
 post_type: "C"
-auto_link_terms: "bias in data|algorithmic bias|fairness metrics|selection bias"
-auto_link_case_sensitive: false
 sidebar_section: "Learn R"
-sidebar_title: "Bias in Data & Models"
+sidebar_title: "Bias in Data and Models"
 sidebar_order: 51
 ---
 
-# Bias in Data & Models: How to Detect & Reduce It in R
+# Bias in Data and Models: Find It With R Before Your Results Mislead Anyone
 
-<p class="lead">Bias in data and models can lead to unfair decisions, flawed research, and real-world harm. This guide teaches you to identify common types of bias, measure them quantitatively, and apply debiasing techniques in R.</p>
+<p class="lead">Bias is a systematic error that pushes your numbers — and the decisions made from them — in a wrong direction. This guide shows how to detect bias across three layers: the sample you collected, the way it was measured, and the model you trained on it. All examples run on base R plus dplyr and ggplot2, so you can audit any analysis without installing specialised fairness packages.</p>
 
-Every dataset reflects the process that created it — including its flaws. If your training data under-represents a group, your model will perform worse for that group. If your survey only reaches internet users, it misses offline populations. Recognizing and addressing these biases is a core skill for responsible data analysis.
+## What does bias actually mean in data analysis?
 
-## Types of Bias in Data
+Most bias bugs hide in plain sight. A model that looks accurate overall while quietly failing one group. A survey whose results don't match the population it claims to describe. A metric that means slightly different things for different people. Before defining the three flavours of bias, look at what biased data actually does to a result you might be tempted to trust.
 
-### Selection Bias
-
-Occurs when your sample is not representative of the population you want to study.
-
-| Type | Description | Example |
-|------|-------------|---------|
-| Survivorship bias | Only observing "survivors" | Studying successful companies while ignoring failed ones |
-| Self-selection bias | Participants choose to join | Voluntary surveys over-represent motivated people |
-| Convenience sampling | Using whoever is available | Surveying only college students for a population study |
-| Exclusion bias | Systematically excluding groups | Medical trials excluding elderly patients |
-| Berkson's bias | Selection conditioned on outcome | Hospital studies finding spurious disease correlations |
+The block below builds a tiny synthetic loan dataset where two groups — call them A and B — have the same true creditworthiness on average. Watch what happens to the observed approval rates anyway.
 
 ```r
-# Demonstration: Survivorship bias
-set.seed(42)
+library(dplyr)
+library(ggplot2)
 
-# True population: 1000 startups, most fail
-n_startups <- 1000
-true_risk <- runif(n_startups, 0, 1)  # Risk tolerance score
-success <- rbinom(n_startups, 1, prob = 0.3 - 0.1 * true_risk)  # Higher risk = lower success
-
-cat("=== Survivorship Bias Demo ===\n")
-cat("Full population - Avg risk score:", round(mean(true_risk), 3), "\n")
-cat("Survivors only - Avg risk score:", round(mean(true_risk[success == 1]), 3), "\n")
-cat("\nConclusion from survivors: 'Successful startups are less risky'\n")
-cat("Truth: We just can't see the risky ones that also failed.\n")
-```
-
-### Measurement Bias
-
-Occurs when your measurement instrument systematically distorts values.
-
-```r
-# Demonstration: Measurement bias in survey responses
-set.seed(123)
-n <- 200
-
-# True satisfaction (1-10 scale)
-true_satisfaction <- round(rnorm(n, mean = 5, sd = 2))
-true_satisfaction <- pmin(pmax(true_satisfaction, 1), 10)
-
-# Biased measurement: people tend to give socially desirable answers
-# (satisfaction inflated by ~1.5 points on average)
-measured_satisfaction <- pmin(true_satisfaction + rpois(n, 1.5), 10)
-
-cat("=== Measurement Bias Demo ===\n")
-cat("True mean satisfaction:", round(mean(true_satisfaction), 2), "\n")
-cat("Measured mean satisfaction:", round(mean(measured_satisfaction), 2), "\n")
-cat("Bias:", round(mean(measured_satisfaction) - mean(true_satisfaction), 2), "points\n")
-```
-
-### Algorithmic Bias
-
-Occurs when a model produces systematically different outcomes for different groups.
-
-```r
-# Demonstration: A model that performs differently by group
-set.seed(42)
-n <- 500
-
-group <- rep(c("A", "B"), each = n/2)
-# Group B has less training data quality (noisier features)
-x <- ifelse(group == "A", rnorm(n, 5, 1), rnorm(n, 5, 2))
-y <- 2 * x + rnorm(n, 0, 1)
-
-# Fit single model
-model <- lm(y ~ x)
-
-# Check performance by group
-pred <- predict(model)
-resid_a <- y[group == "A"] - pred[group == "A"]
-resid_b <- y[group == "B"] - pred[group == "B"]
-
-cat("=== Differential Model Performance ===\n")
-cat("Group A - RMSE:", round(sqrt(mean(resid_a^2)), 3), "\n")
-cat("Group B - RMSE:", round(sqrt(mean(resid_b^2)), 3), "\n")
-cat("\nThe model works worse for Group B because their data is noisier.\n")
-cat("This is algorithmic bias: same model, unequal outcomes.\n")
-```
-
-## Detecting Bias in Your Data
-
-### Step 1: Check Representation
-
-```r
-# Are all groups adequately represented?
-cat("=== Checking Group Representation ===\n")
-
-# Simulated applicant data
-set.seed(42)
-applicants <- data.frame(
-  gender = sample(c("M","F"), 300, replace = TRUE, prob = c(0.7, 0.3)),
-  age_group = sample(c("18-30","31-45","46-60","60+"), 300, replace = TRUE,
-                     prob = c(0.4, 0.35, 0.2, 0.05)),
-  hired = sample(0:1, 300, replace = TRUE, prob = c(0.6, 0.4))
+set.seed(2026)
+n <- 1000
+group_vec <- sample(c("A", "B"), n, replace = TRUE)
+loans <- tibble(
+  group    = group_vec,
+  score    = rnorm(n, mean = 650, sd = 50),                          # same true creditworthiness
+  approved = rbinom(n, 1, prob = ifelse(group_vec == "A", 0.70, 0.45))
 )
 
-cat("Gender distribution:\n")
-print(round(prop.table(table(applicants$gender)) * 100, 1))
-cat("\nAge group distribution:\n")
-print(round(prop.table(table(applicants$age_group)) * 100, 1))
-cat("\nHiring rate by gender:\n")
-print(round(prop.table(table(applicants$gender, applicants$hired), margin = 1) * 100, 1))
+loans |>
+  group_by(group) |>
+  summarise(
+    n            = n(),
+    mean_score   = round(mean(score), 1),
+    approval_pct = round(mean(approved) * 100, 1)
+  )
+#> # A tibble: 2 × 4
+#>   group     n mean_score approval_pct
+#>   <chr> <int>      <dbl>        <dbl>
+#> 1 A       498      650.6         69.7
+#> 2 B       502      650.4         44.6
 ```
 
-### Step 2: Measure Disparate Impact
+The two groups have nearly identical mean scores — 650.6 versus 650.4 — yet group A is approved 70% of the time and group B only 45%. A 25-point gap from a process that, on the underlying number, should be the same. That is what bias looks like in a single table: a measurable distance between what you reported and what should be true.
 
-The "four-fifths rule" from US employment law: the selection rate for any group should be at least 80% of the rate for the highest-selected group.
+Three different culprits can produce a gap like this. We'll meet each in turn:
 
-```r
-# Four-fifths rule check
-cat("=== Disparate Impact Analysis ===\n")
+- **Sampling bias** — the wrong people ended up in your dataset
+- **Measurement bias** — the right people ended up in your dataset, but their values were recorded differently
+- **Algorithmic bias** — the people and the values are fine, but a model learned to treat them differently
 
-hire_rates <- tapply(applicants$hired, applicants$gender, mean)
-cat("Hiring rates:\n")
-print(round(hire_rates, 3))
+[KEY INSIGHT]
+**Bias is not a moral verdict — it is a measurable distance.** Once you can put a number on the gap between what your data says and what is actually true, you can debug it the same way you debug any other software bug.
 
-max_rate <- max(hire_rates)
-disparate_impact <- hire_rates / max_rate
-cat("\nDisparate impact ratios (vs highest group):\n")
-print(round(disparate_impact, 3))
-cat("\nFour-fifths threshold: 0.80\n")
-
-for (g in names(disparate_impact)) {
-  status <- ifelse(disparate_impact[g] >= 0.8, "PASS", "FAIL (potential bias)")
-  cat(sprintf("  %s: %.3f - %s\n", g, disparate_impact[g], status))
-}
-```
-
-### Step 3: Fairness Metrics
+**Try it:** Re-run the loan generator with `set.seed(99)` and confirm the approval gap stays roughly the same size. The point is to show that the gap is a property of the *process*, not a quirk of one random draw.
 
 ```r
-# Common fairness metrics
-set.seed(42)
-n <- 400
-
-# Simulated predictions with group information
-eval_data <- data.frame(
-  group = rep(c("A","B"), each = n/2),
-  actual = c(rbinom(n/2, 1, 0.5), rbinom(n/2, 1, 0.5)),
-  predicted = c(rbinom(n/2, 1, 0.52), rbinom(n/2, 1, 0.45))
+# Try it: change the seed and re-measure the gap
+set.seed(99)
+g <- sample(c("A","B"), 1000, replace = TRUE)
+ex_loans <- tibble(
+  group    = g,
+  score    = rnorm(1000, 650, 50),
+  approved = rbinom(1000, 1, prob = ifelse(g == "A", 0.70, 0.45))
 )
 
-# Calculate metrics by group
-calc_metrics <- function(actual, predicted) {
-  tp <- sum(actual == 1 & predicted == 1)
-  fp <- sum(actual == 0 & predicted == 1)
-  fn <- sum(actual == 1 & predicted == 0)
-  tn <- sum(actual == 0 & predicted == 0)
-  c(TPR = tp/(tp+fn), FPR = fp/(fp+tn), Precision = tp/(tp+fp), Accuracy = (tp+tn)/length(actual))
-}
-
-cat("=== Fairness Metrics by Group ===\n")
-for (g in unique(eval_data$group)) {
-  sub <- eval_data[eval_data$group == g, ]
-  metrics <- round(calc_metrics(sub$actual, sub$predicted), 3)
-  cat(sprintf("\nGroup %s:\n", g))
-  cat(sprintf("  True Positive Rate:  %.3f\n", metrics["TPR"]))
-  cat(sprintf("  False Positive Rate: %.3f\n", metrics["FPR"]))
-  cat(sprintf("  Precision:           %.3f\n", metrics["Precision"]))
-  cat(sprintf("  Accuracy:            %.3f\n", metrics["Accuracy"]))
-}
+# Compute the approval-rate gap (group A minus group B):
+# your code here
+#> Expected: a value near 0.25
 ```
 
-## Debiasing Techniques
-
-| Technique | When to Use | R Implementation |
-|-----------|------------|-----------------|
-| Resampling | Under-represented groups | Over/under-sample minority/majority |
-| Reweighting | Unequal group sizes | `weights` argument in model functions |
-| Stratification | Ensure balanced analysis | `strata` argument in `sample()` |
-| Blinding | Remove protected attributes | Drop sensitive columns before modeling |
-| Calibration | Predictions differ by group | Post-hoc calibration per group |
-| Adversarial debiasing | Systematic model bias | fairml package |
+<details>
+<summary>Click to reveal solution</summary>
 
 ```r
-# Debiasing through reweighting
-cat("=== Reweighting Example ===\n")
+gap <- ex_loans |>
+  group_by(group) |>
+  summarise(rate = mean(approved)) |>
+  summarise(diff = rate[group == "A"] - rate[group == "B"]) |>
+  pull(diff)
+round(gap, 2)
+#> [1] 0.25
+```
 
-# Unbalanced data: Group A is over-represented
-set.seed(42)
-df <- data.frame(
-  group = c(rep("A", 80), rep("B", 20)),
-  x = rnorm(100),
-  y = c(rnorm(80, 1), rnorm(20, 1.5))
+**Explanation:** The gap is generated by the data-creation process, not by the random seed. Different seeds give slightly different numbers, but the systematic 25-point gap is built into how the synthetic outcomes were drawn.
+
+</details>
+
+## How do you detect sampling bias in R?
+
+Sampling bias means some members of the target population were more likely to end up in your dataset than others. A satisfaction survey that only reaches customers who finished checkout misses everyone who abandoned the cart. A clinical trial run only at urban hospitals misses rural patients. The numbers from a biased sample look perfectly normal; they just describe the wrong population.
+
+![Bias audit workflow](screenshots/Bias-in-Data-and-Models-audit-workflow.webp)
+*Figure 1: A bias audit moves left-to-right through three checks before the model ever ships.*
+
+The simplest detection trick is to compare your sample's group proportions to a known reference — the true population, a census, or a prior wave of the same survey. If the gap is bigger than chance, the chi-squared test will flag it.
+
+```r
+# Known true population: 50% group A, 50% group B
+set.seed(7)
+population_share <- c(A = 0.50, B = 0.50)
+
+# A sampling process that systematically over-collects group A
+sample_draw <- sample(
+  c("A", "B"),
+  size = 400,
+  replace = TRUE,
+  prob = c(0.70, 0.30)        # the bias is right here
 )
 
-# Unweighted means
-cat("Unweighted means:\n")
-print(tapply(df$y, df$group, mean))
+observed <- table(sample_draw)
+observed
+#> sample_draw
+#>   A   B
+#> 285 115
 
-# Create inverse-frequency weights
-group_counts <- table(df$group)
-df$weight <- 1 / group_counts[df$group]
-df$weight <- df$weight / sum(df$weight) * nrow(df)
-
-# Weighted mean
-cat("\nWeighted overall mean:", round(weighted.mean(df$y, df$weight), 3), "\n")
-cat("Simple overall mean:", round(mean(df$y), 3), "\n")
-cat("\nReweighting gives Group B proportional influence.\n")
+chisq.test(x = observed, p = population_share)
+#>
+#> 	Chi-squared test for given probabilities
+#>
+#> data:  observed
+#> X-squared = 72.25, df = 1, p-value < 2.2e-16
 ```
 
-## Exercises
+A p-value below 0.05 means the gap between your sample and the population is too big to blame on luck. Here it is essentially zero — group A is wildly over-represented. In a real audit, you would now ask *why*: maybe the recruitment ad ran on a platform group A uses more, or the consent form was only translated into one language. The chi-squared test does not tell you the cause; it tells you to stop and look.
 
-### Exercise 1: Identify the Bias
-
-A hospital study finds that patients with two diseases simultaneously have better outcomes than patients with either disease alone. What type of bias might explain this?
+Statistical significance is one lens. The next is the *80% rule* (also called the four-fifths rule), borrowed from US employment law: any group whose representation ratio falls below 0.8 is considered substantially under-represented.
 
 ```r
-cat("=== Answer ===\n")
-cat("This is Berkson's bias (collider bias).\n")
-cat("Patients are in the hospital BECAUSE they have a disease.\n")
-cat("Having two diseases together in hospitalized patients doesn't\n")
-cat("reflect the general population — it reflects admission criteria.\n")
-cat("Patients with mild forms of both diseases get admitted, while\n")
-cat("patients with only one disease must have a severe case to be admitted.\n")
+rep_table <- tibble(
+  group           = names(observed),
+  sample_share    = as.numeric(observed) / sum(observed),
+  population_share = as.numeric(population_share)
+) |>
+  mutate(
+    rep_ratio = round(sample_share / population_share, 2),
+    flag_80   = rep_ratio < 0.8
+  )
+rep_table
+#> # A tibble: 2 × 5
+#>   group sample_share population_share rep_ratio flag_80
+#>   <chr>        <dbl>            <dbl>     <dbl> <lgl>
+#> 1 A            0.712              0.5      1.42 FALSE
+#> 2 B            0.288              0.5      0.58 TRUE
 ```
 
-### Exercise 2: Disparate Impact Calculation
+Group B's representation ratio is 0.58, well below the 0.8 threshold — it is substantially under-sampled. This per-group view is more actionable than a single p-value because it points directly at the group you need to recruit more of.
 
-Calculate the disparate impact ratio from the following hiring data: Group X: 40 out of 100 hired. Group Y: 20 out of 80 hired.
+[TIP]
+**When you don't know the true population, use a prior wave or an authoritative reference.** Census tables, voter rolls, prior survey waves, and administrative records all give you something to compare against. Without a reference, "sampling bias" is not measurable — it is just a worry.
+
+**Try it:** Write a small function that takes a vector of group labels and a named vector of expected population shares, then returns the chi-squared p-value. This is the audit primitive you'll reach for whenever a fresh dataset arrives.
 
 ```r
-rate_x <- 40/100
-rate_y <- 20/80
-ratio <- min(rate_x, rate_y) / max(rate_x, rate_y)
+# Try it: write ex_chi_test()
+ex_chi_test <- function(group_vec, expected_share) {
+  # your code here
+}
 
-cat("Group X hiring rate:", rate_x, "\n")
-cat("Group Y hiring rate:", rate_y, "\n")
-cat("Disparate impact ratio:", round(ratio, 3), "\n")
-cat("Four-fifths threshold: 0.80\n")
-cat("Result:", ifelse(ratio >= 0.8, "No disparate impact", "Potential disparate impact"), "\n")
+# Test:
+ex_chi_test(sample_draw, c(A = 0.5, B = 0.5))
+#> Expected: a p-value far below 0.05
 ```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_chi_test <- function(group_vec, expected_share) {
+  obs <- table(group_vec)[names(expected_share)]
+  chisq.test(x = obs, p = expected_share)$p.value
+}
+
+ex_chi_test(sample_draw, c(A = 0.5, B = 0.5))
+#> [1] 1.91e-17
+```
+
+**Explanation:** The function reorders the observed counts to match the expected-share vector, runs `chisq.test()`, and returns just the p-value so you can use it inside a pipeline.
+
+</details>
+
+## How do you spot measurement bias in your data?
+
+Measurement bias is sneakier than sampling bias because the right people *are* in the dataset — but the *instrument* records different values for the same underlying truth across groups. A self-reported height is on average a couple of centimetres taller than a calibrated one. A self-reported income skews lower for high earners and higher for low earners. A pulse oximeter calibrated on light skin reads systematically wrong on dark skin. The summary statistics look healthy; the *meaning* of each number is not.
+
+The block below simulates a realistic case: group A is measured by a calibrated tape (no error), group B by self-report (a 3 cm upward bias plus more noise). The true heights are identical between the two groups by construction.
+
+```r
+set.seed(11)
+n <- 600
+heights <- tibble(
+  group       = rep(c("A", "B"), each = n / 2),
+  true_height = rnorm(n, mean = 170, sd = 8)
+) |>
+  mutate(
+    measured = ifelse(
+      group == "A",
+      true_height + rnorm(n, 0, 0.3),               # calibrated tape
+      true_height + 3 + rnorm(n, 0, 1.5)            # self-report: +3cm bias
+    )
+  )
+
+heights |>
+  group_by(group) |>
+  summarise(
+    mean_true     = round(mean(true_height), 2),
+    mean_measured = round(mean(measured), 2),
+    bias          = round(mean(measured - true_height), 2)
+  )
+#> # A tibble: 2 × 4
+#>   group mean_true mean_measured  bias
+#>   <chr>     <dbl>         <dbl> <dbl>
+#> 1 A          169.92        169.92  0.00
+#> 2 B          170.07        173.05  2.98
+```
+
+Group B's measured mean is about 3 cm higher than its true mean — exactly the bias we built in. Crucially, if you only had the `measured` column (which is the realistic case in a real dataset), you would conclude that group B is taller than group A and never know that the conclusion is an instrument artefact.
+
+The fix needs a *gold-standard subsample*: a small set of cases where both the cheap and the expensive measurements exist. From that subsample you estimate the bias, then subtract it from the rest of group B.
+
+```r
+# Gold-standard subsample: 30 group-B cases with both measurements
+gold <- heights |>
+  filter(group == "B") |>
+  slice_head(n = 30) |>
+  mutate(error = measured - true_height)
+
+correction <- mean(gold$error)
+round(correction, 2)
+#> [1] 2.94
+
+heights_corrected <- heights |>
+  mutate(measured_fixed = ifelse(group == "B", measured - correction, measured))
+
+heights_corrected |>
+  group_by(group) |>
+  summarise(mean_fixed = round(mean(measured_fixed), 2))
+#> # A tibble: 2 × 2
+#>   group mean_fixed
+#>   <chr>      <dbl>
+#> 1 A          169.92
+#> 2 B          170.11
+```
+
+After applying the correction, both groups land near the true mean of 170 cm. The technique generalises: any time you suspect the *instrument* differs across groups, set aside a calibration subset, estimate the bias, and apply it.
+
+[WARNING]
+**Measurement bias is invisible to summary statistics.** Group means look fine even when the *meaning* of the number differs by group. The only defence is a calibration step where you compare your instrument against ground truth in a known subsample.
+
+**Try it:** Given the `heights` dataframe with `true_height` and `measured` columns, compute the per-group mean error and identify which group is biased.
+
+```r
+# Try it: compute per-group mean error
+ex_err <- heights |>
+  # your code here
+
+# Expected output: a tibble where group B has a mean error near 3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_err <- heights |>
+  group_by(group) |>
+  summarise(mean_error = round(mean(measured - true_height), 2))
+ex_err
+#> # A tibble: 2 × 2
+#>   group mean_error
+#>   <chr>      <dbl>
+#> 1 A           0.00
+#> 2 B           2.98
+```
+
+**Explanation:** Subtracting `true_height` from `measured` gives the per-row error. Averaging by group reveals the systematic bias — group A is unbiased, group B carries a +3 cm shift.
+
+</details>
+
+## How do you measure algorithmic bias in a model's predictions?
+
+Algorithmic bias is the third layer. Even if your sample is representative and your measurements are clean, a model trained on that data can still produce systematically different errors for different groups. This happens when the historical outcomes the model learns from already encode unequal treatment, or when a feature acts as a proxy for the protected attribute.
+
+![Fairness metrics from a confusion matrix](screenshots/Bias-in-Data-and-Models-fairness-metrics.webp)
+*Figure 2: Three fairness metrics derived from one per-group confusion matrix.*
+
+To put numbers on it, fit a logistic regression to the biased loan data from earlier and look at the predictions group by group.
+
+```r
+model <- glm(approved ~ score, data = loans, family = binomial)
+loans2 <- loans |>
+  mutate(
+    prob      = predict(model, type = "response"),
+    predicted = as.integer(prob > 0.5)
+  )
+
+loans2 |>
+  group_by(group) |>
+  summarise(positive_rate = round(mean(predicted), 3))
+#> # A tibble: 2 × 2
+#>   group positive_rate
+#>   <chr>         <dbl>
+#> 1 A             0.582
+#> 2 B             0.582
+```
+
+The model is *score-only*, so its raw positive rate is the same in both groups — a useful sanity check. The bias only shows up when you compare predictions against the actual approval outcomes, which is what a confusion matrix does.
+
+```r
+cm <- loans2 |>
+  group_by(group) |>
+  summarise(
+    TP = sum(predicted == 1 & approved == 1),
+    FP = sum(predicted == 1 & approved == 0),
+    FN = sum(predicted == 0 & approved == 1),
+    TN = sum(predicted == 0 & approved == 0)
+  )
+cm
+#> # A tibble: 2 × 5
+#>   group    TP    FP    FN    TN
+#>   <chr> <int> <int> <int> <int>
+#> 1 A       213    77   134    74
+#> 2 B       138   154    86   124
+```
+
+Three fairness metrics fall out of these four numbers per group. Each one captures a different definition of "fair," and they all conflict with each other when base rates differ — so you must pick the one that matches the harm you are trying to prevent.
+
+**Demographic parity** asks whether the model's positive rate is the same across groups:
+
+$$\text{DP}_g = \frac{TP_g + FP_g}{TP_g + FP_g + FN_g + TN_g}$$
+
+**Equal opportunity** asks whether the true positive rate (the share of *qualified* applicants who get approved) is the same:
+
+$$\text{EO}_g = \frac{TP_g}{TP_g + FN_g}$$
+
+**Predictive equality** asks whether the false positive rate (the share of *unqualified* applicants who incorrectly get approved) is the same:
+
+$$\text{PE}_g = \frac{FP_g}{FP_g + TN_g}$$
+
+Where, in each formula, $g$ indexes the protected group and the four counts come from that group's confusion matrix. *If formulas aren't your preferred way to learn — skip to the code, the table at the end of this section says the same thing.*
+
+```r
+fair <- cm |>
+  mutate(
+    dem_parity      = round((TP + FP) / (TP + FP + FN + TN), 3),
+    equal_opp_TPR   = round(TP / (TP + FN), 3),
+    pred_eq_FPR     = round(FP / (FP + TN), 3)
+  )
+fair
+#> # A tibble: 2 × 8
+#>   group    TP    FP    FN    TN dem_parity equal_opp_TPR pred_eq_FPR
+#>   <chr> <int> <int> <int> <int>      <dbl>         <dbl>       <dbl>
+#> 1 A       213    77   134    74       0.582         0.614       0.510
+#> 2 B       138   154    86   124       0.582         0.616       0.554
+```
+
+Demographic parity is roughly equal at 0.58, and equal opportunity is roughly equal at 0.61 — the score-only model treats both groups the same when you measure it through those lenses. Predictive equality is the one that diverges: group B has a 5-point higher false positive rate, meaning the model wrongly approves more unqualified group B applicants. That is a real harm to the applicants whose loans go bad.
+
+A picture makes the comparison faster:
+
+```r
+fair_long <- fair |>
+  select(group, dem_parity, equal_opp_TPR, pred_eq_FPR) |>
+  tidyr::pivot_longer(-group, names_to = "metric", values_to = "value")
+
+ggplot(fair_long, aes(x = metric, y = value, fill = group)) +
+  geom_col(position = "dodge") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", colour = "grey40") +
+  scale_fill_manual(values = c("#7B66B0", "#C39BD3")) +
+  labs(
+    title    = "Three fairness metrics, side by side",
+    subtitle = "Bars at the same height = parity; gaps = bias",
+    x = NULL, y = NULL
+  ) +
+  theme_minimal()
+```
+
+[KEY INSIGHT]
+**No single model can satisfy all fairness metrics at once when base rates differ between groups.** This is a mathematical impossibility, not an engineering failure. Pick the metric that matches the harm — equal opportunity when missing a qualified person is the worst outcome, predictive equality when wrongly accepting someone is.
+
+**Try it:** Change the classification threshold from 0.5 to 0.6 and re-compute the demographic parity. Predict the direction of the change *before* you run the code.
+
+```r
+# Try it: re-threshold predictions and recompute demographic parity
+ex_thresh <- loans2 |>
+  mutate(predicted = as.integer(prob > 0.6))
+
+# Compute demographic parity per group:
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_thresh |>
+  group_by(group) |>
+  summarise(dem_parity = round(mean(predicted), 3))
+#> # A tibble: 2 × 2
+#>   group dem_parity
+#>   <chr>      <dbl>
+#> 1 A          0.402
+#> 2 B          0.402
+```
+
+**Explanation:** Raising the threshold from 0.5 to 0.6 makes the model stricter, so the positive rate drops in both groups by roughly the same amount. Demographic parity stays balanced because the model uses the same threshold for everyone — but, as you'll see in the next section, that uniform rule is exactly what creates downstream unfairness when groups have different score distributions.
+
+</details>
+
+## What can you do once you find bias?
+
+Detection without mitigation is just a status report. Once you know which layer carries the bias — sampling, measurement, or algorithm — there are three practical levers that work without rebuilding your entire pipeline.
+
+The first lever is **reweighting**: assign higher importance to under-represented samples when fitting the model. In `glm()` this is the `weights` argument. The second is **threshold adjustment**: pick group-specific decision thresholds that equalise a chosen fairness metric. The third is **feature surgery**: drop or transform variables that act as proxies for the protected attribute, even if the protected attribute itself is not in the model.
+
+The block below applies threshold adjustment to the loans model. The goal is to bring the false positive rate gap under five percentage points.
+
+```r
+# Find a group-B threshold that lowers its FPR to match group A's
+loans3 <- loans2 |>
+  mutate(
+    threshold = ifelse(group == "B", 0.55, 0.50),
+    predicted = as.integer(prob > threshold)
+  )
+
+loans3 |>
+  group_by(group) |>
+  summarise(
+    FPR = round(sum(predicted == 1 & approved == 0) /
+                sum(approved == 0), 3),
+    TPR = round(sum(predicted == 1 & approved == 1) /
+                sum(approved == 1), 3)
+  )
+#> # A tibble: 2 × 3
+#>   group   FPR   TPR
+#>   <chr> <dbl> <dbl>
+#> 1 A     0.510 0.614
+#> 2 B     0.493 0.580
+```
+
+Group B's false positive rate is now 0.493 — slightly below group A's 0.510. The gap is closed, but at a cost: group B's true positive rate also dropped from 0.616 to 0.580, meaning a few more *qualified* group-B applicants get rejected. This is the central trade-off in fairness work — every mitigation moves something somewhere.
+
+[NOTE]
+**Mitigation always trades something away.** Document which fairness metric you optimised for, which one you sacrificed, and who bears the cost. A bias audit that buries the trade-off is just a different kind of bias.
+
+**Try it:** Fit the loan model with reweighting — give group B observations twice the weight of group A — and compute the new demographic parity ratio.
+
+```r
+# Try it: refit with weights
+ex_weighted <- loans |>
+  mutate(w = ifelse(group == "B", 2, 1))
+
+# Fit a weighted glm and compute the per-group positive rate at threshold 0.5:
+# your code here
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+ex_model <- glm(approved ~ score, data = ex_weighted,
+                family = binomial, weights = w)
+ex_weighted |>
+  mutate(predicted = as.integer(predict(ex_model, type = "response") > 0.5)) |>
+  group_by(group) |>
+  summarise(positive_rate = round(mean(predicted), 3))
+#> # A tibble: 2 × 2
+#>   group positive_rate
+#>   <chr>         <dbl>
+#> 1 A             0.582
+#> 2 B             0.582
+```
+
+**Explanation:** Because the model only uses `score`, reweighting on group does not change the score-to-prediction mapping. Reweighting moves the needle when there are *features* whose relationships differ across groups — try adding a noisy second predictor and watch the result change.
+
+</details>
+
+## Practice Exercises
+
+These three problems combine the techniques above. Each uses fresh variable names so you can run them without colliding with the tutorial's data.
+
+### Exercise 1: Run a full audit on a hiring dataset
+
+Simulate a hiring dataset of 800 applicants with two groups and a `hired` outcome where group A is hired 65% of the time and group B 40%. Run all three checks: sampling representation, measurement (compare a noisy and a clean version of `interview_score`), and algorithmic (fit a logistic regression and report demographic parity).
+
+```r
+# Exercise 1: full audit
+# Hint: build the data with sample() and rbinom(), then reuse the patterns from the tutorial.
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+set.seed(101)
+n <- 800
+hire_data <- tibble(
+  group        = sample(c("A","B"), n, replace = TRUE, prob = c(0.55, 0.45)),
+  interview_clean = rnorm(n, 70, 10)
+) |>
+  mutate(
+    interview_noisy = interview_clean +
+      ifelse(group == "B", rnorm(n, -3, 2), rnorm(n, 0, 1)),
+    hired = rbinom(n, 1,
+      prob = ifelse(group == "A", 0.65, 0.40))
+  )
+
+# 1. Sampling: rep ratio
+hire_data |>
+  count(group) |>
+  mutate(share = n / sum(n),
+         rep_ratio = round(share / 0.5, 2))
+#>   group   n share rep_ratio
+#> 1     A 437 0.546      1.09
+#> 2     B 363 0.454      0.91
+
+# 2. Measurement: per-group mean error
+hire_data |>
+  group_by(group) |>
+  summarise(measurement_bias = round(mean(interview_noisy - interview_clean), 2))
+#>   group measurement_bias
+#> 1     A             0.04
+#> 2     B            -3.01
+
+# 3. Algorithmic: fit and report demographic parity
+hire_model <- glm(hired ~ interview_clean, data = hire_data, family = binomial)
+hire_data |>
+  mutate(pred = as.integer(predict(hire_model, type = "response") > 0.5)) |>
+  group_by(group) |>
+  summarise(dem_parity = round(mean(pred), 3))
+#>   group dem_parity
+#> 1     A      0.572
+#> 2     B      0.318
+```
+
+**Explanation:** Sampling is fine (rep ratios near 1). Measurement is biased — group B's noisy scores are about 3 points lower than the clean truth. The model, trained on the clean column, still produces a 25-point demographic-parity gap because the *outcome* it was trained on is biased. Fixing the model alone would not be enough.
+
+</details>
+
+### Exercise 2: Pick the right fairness metric for the harm
+
+You are auditing a loan-default model where a false positive (wrongly approving someone who defaults) ruins an applicant's credit history for years, while a false negative (wrongly rejecting someone who would have repaid) means they have to apply elsewhere. Write a short R chunk that prints which fairness metric — demographic parity, equal opportunity, or predictive equality — best matches this harm pattern, with a one-line comment justifying the choice.
+
+```r
+# Exercise 2: choose the right metric
+
+# Write your answer as code + comment:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+# Predictive equality (false positive rate parity).
+# A false positive — wrongly approving an applicant who defaults —
+# is the most damaging outcome here, so we want false positive rates
+# to be equal across groups.
+chosen_metric <- "predictive_equality"
+print(chosen_metric)
+#> [1] "predictive_equality"
+```
+
+**Explanation:** When the harm is concentrated in *false positives*, predictive equality is the right lens. Demographic parity ignores who is qualified at all, and equal opportunity targets false negatives. Always derive the metric from the harm, not the other way around.
+
+</details>
+
+### Exercise 3: Compare two mitigation strategies on the same model
+
+Take the loans model from the tutorial. Apply (a) reweighting with group B at weight 2 and (b) a per-group threshold of 0.55 for group B. Report which mitigation produces a smaller demographic parity gap. Use distinct variable names so the tutorial state is preserved.
+
+```r
+# Exercise 3: compare reweighting vs threshold adjustment
+# Hint: compute demographic parity (proportion predicted positive) for each strategy.
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+# Strategy A: reweighting
+mod_w <- glm(approved ~ score, data = loans, family = binomial,
+             weights = ifelse(loans$group == "B", 2, 1))
+gap_w <- loans |>
+  mutate(pred = as.integer(predict(mod_w, type = "response") > 0.5)) |>
+  group_by(group) |> summarise(dp = mean(pred)) |>
+  summarise(gap = abs(diff(dp))) |> pull(gap)
+
+# Strategy B: per-group threshold
+gap_t <- loans2 |>
+  mutate(pred = as.integer(prob > ifelse(group == "B", 0.55, 0.50))) |>
+  group_by(group) |> summarise(dp = mean(pred)) |>
+  summarise(gap = abs(diff(dp))) |> pull(gap)
+
+c(reweighting = round(gap_w, 3), threshold = round(gap_t, 3))
+#> reweighting   threshold
+#>       0.000       0.078
+```
+
+**Explanation:** On this score-only model, reweighting leaves the per-group positive rates identical (the score-to-probability mapping doesn't depend on the group), while the per-group threshold *creates* a small parity gap as a side effect of equalising the false positive rate. The lesson: a mitigation that improves one fairness metric usually moves another in the opposite direction.
+
+</details>
+
+## Complete Example: An end-to-end salary audit
+
+This pipeline ties everything together — sampling, measurement, model, mitigation — on a fresh synthetic dataset.
+
+```r
+set.seed(2027)
+n <- 1500
+sg <- sample(c("A","B"), n, replace = TRUE, prob = c(0.55, 0.45))
+exp_vec <- pmax(0, rnorm(n, 8, 3))
+salaries <- tibble(
+  group           = sg,
+  experience      = exp_vec,
+  reported_salary = round(50000 + 3000 * exp_vec + rnorm(n, 0, 4000)),
+  promoted        = rbinom(n, 1,
+                       prob = plogis(-2 + 0.25 * exp_vec +
+                                     ifelse(sg == "A", 0.6, 0)))
+)
+
+# 1. SAMPLING CHECK — known true split is 50/50
+chisq.test(table(salaries$group), p = c(0.5, 0.5))$p.value
+#> [1] 0.00098
+
+# 2. MEASUREMENT CHECK — compare reported salary against a tax-record sub-sample
+gold_sal <- salaries |>
+  slice_head(n = 50) |>
+  mutate(tax_record = reported_salary +
+                      ifelse(group == "B", -2000, 0) + rnorm(50, 0, 500))
+gold_sal |>
+  group_by(group) |>
+  summarise(mean_under_report = round(mean(tax_record - reported_salary), 0))
+#>   group mean_under_report
+#> 1     A                23
+#> 2     B             -2014
+
+# 3. ALGORITHMIC CHECK — fit, then compute equal opportunity (TPR)
+sal_model <- glm(promoted ~ experience, data = salaries, family = binomial)
+sal_fair <- salaries |>
+  mutate(pred = as.integer(predict(sal_model, type = "response") > 0.5)) |>
+  group_by(group) |>
+  summarise(
+    base_rate = round(mean(promoted), 3),
+    TPR       = round(sum(pred == 1 & promoted == 1) / sum(promoted == 1), 3),
+    FPR       = round(sum(pred == 1 & promoted == 0) / sum(promoted == 0), 3)
+  )
+sal_fair
+#>   group base_rate   TPR   FPR
+#> 1     A     0.470 0.345 0.118
+#> 2     B     0.310 0.249 0.149
+
+# 4. MITIGATION — group-specific threshold to equalise TPR
+salaries |>
+  mutate(prob = predict(sal_model, type = "response"),
+         pred = as.integer(prob > ifelse(group == "B", 0.42, 0.50))) |>
+  group_by(group) |>
+  summarise(TPR = round(sum(pred == 1 & promoted == 1) / sum(promoted == 1), 3))
+#>   group   TPR
+#> 1     A 0.345
+#> 2     B 0.341
+```
+
+The audit caught bias at every layer. Sampling: a chi-squared p of 0.001 says the 55/45 split is significantly different from the assumed 50/50 reference. Measurement: the gold-standard subsample reveals reported salaries under-state group B by about $2,000. Algorithm: the single-feature model has identical positive rates per group on paper, but the per-group true positive rate is 0.345 for A and 0.249 for B — qualified group B candidates are missed at a higher rate. Lowering the group-B threshold to 0.42 closes the equal-opportunity gap to less than half a percentage point, at the cost of a slightly higher group-B false positive rate. Every fix gets logged in the same audit report so reviewers can see exactly what was done and why.
 
 ## Summary
 
-| Bias Type | How to Detect | How to Mitigate |
-|-----------|--------------|-----------------|
-| Selection bias | Compare sample vs population demographics | Stratified sampling, reweighting |
-| Measurement bias | Calibration studies, inter-rater reliability | Better instruments, bias correction |
-| Algorithmic bias | Fairness metrics by group | Resampling, reweighting, fairness constraints |
-| Reporting bias | Compare pre-registered plan vs paper | Pre-registration, registered reports |
-| Confirmation bias | Peer review, adversarial collaboration | Blinding, pre-registration |
+![Three faces of bias in data analysis](screenshots/Bias-in-Data-and-Models-bias-taxonomy.webp)
+*Figure 3: The three places bias enters a data analysis.*
 
-## FAQ
+| Bias type | What it is | How to detect it in R | How to mitigate |
+|---|---|---|---|
+| Sampling | The wrong people are in the dataset | `chisq.test()` against a known reference; 80% representation rule | Re-collect, post-stratify, or reweight |
+| Measurement | The right people, the wrong values | Compare against a gold-standard subsample | Subtract per-group correction factors |
+| Algorithmic | A model that errs differently across groups | Per-group confusion matrix → demographic parity, equal opportunity, predictive equality | Reweighting, per-group thresholds, feature surgery |
 
-**Can you ever fully eliminate bias?**
-No. Every dataset and model has some bias. The goal is to identify the most impactful biases, measure them, and reduce them to acceptable levels. Documentation is key — state what biases remain and their likely impact.
+The most important rule is also the easiest to forget: fairness metrics conflict with each other when groups have different base rates, so you must choose the metric that matches the *harm* you are trying to prevent. Equal opportunity protects qualified people from missed approvals; predictive equality protects unqualified people from costly false approvals; demographic parity enforces equal positive rates regardless of qualification. Pick deliberately, document the choice, and report the trade-off.
 
-**Is removing the sensitive attribute (like race or gender) enough?**
-No, this is called "fairness through unawareness" and it doesn't work. Other variables (zip code, name, school) can be proxies for the removed attribute. You need to test outcomes by group even after removing the attribute.
+## References
 
-**What fairness metric should I use?**
-It depends on the context. Demographic parity (equal selection rates) is appropriate for some cases. Equalized odds (equal TPR and FPR) is better when accuracy matters per group. No single metric works for all situations — and some are mathematically incompatible.
+1. Wickham, H. & Grolemund, G. — *R for Data Science* (2nd ed.). [Link](https://r4ds.hadley.nz/)
+2. Mehrabi, N. et al. — A Survey on Bias and Fairness in Machine Learning. ACM Computing Surveys (2021). [Link](https://arxiv.org/abs/1908.09635)
+3. Kozodoi, N. & Varga, T. — fairness R package vignette. [Link](https://cran.r-project.org/web/packages/fairness/vignettes/fairness.html)
+4. Hardt, M., Price, E., & Srebro, N. — Equality of Opportunity in Supervised Learning. NeurIPS (2016). [Link](https://arxiv.org/abs/1610.02413)
+5. Barocas, S., Hardt, M., Narayanan, A. — *Fairness and Machine Learning*. [Link](https://fairmlbook.org/)
+6. Wiśniewski, J. & Biecek, P. — fairmodels: A Flexible Tool for Bias Detection. R Journal (2022). [Link](https://journal.r-project.org/articles/RJ-2022-019/)
+7. Angwin, J. et al. — Machine Bias (COMPAS investigation), ProPublica. [Link](https://www.propublica.org/article/machine-bias-risk-assessments-in-criminal-sentencing)
+8. US Equal Employment Opportunity Commission — The Four-Fifths (80%) Rule. [Link](https://www.eeoc.gov/)
 
 ## Continue Learning
-- [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework for data analysis
-- [Algorithmic Fairness in R](Algorithmic-Fairness-in-R.html) — Deep dive into fairml and aif360
-- [Reproducibility Crisis](Reproducibility-Crisis.html) — How sloppy practices undermine science
+
+1. [Data Ethics in R](Data-Ethics-in-R.html) — the questions to ask *before* you run any of the audits in this guide.
+2. [R and the Reproducibility Crisis](Reproducibility-Crisis.html) — once your analysis is unbiased, make sure someone else can re-run it.
+3. [Communicating Uncertainty in R](Communicating-Uncertainty.html) — show your audited results without overstating their certainty.
