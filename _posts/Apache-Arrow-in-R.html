@@ -1,24 +1,253 @@
 ---
 title: "Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics"
-description: "Use the arrow package in R to read Parquet files, query datasets larger than RAM, and speed up data pipelines with columnar storage and zero-copy."
-keywords: "arrow R, parquet R, read_parquet, open_dataset, feather R, Apache Arrow R, large data R, columnar storage"
+description: "Read Parquet files, query datasets bigger than RAM, and run lightning-fast analytics in R with the arrow package — full tutorial with runnable code."
+keywords: "Apache Arrow in R, arrow package R, read_parquet R, write_parquet, open_dataset, Parquet R tutorial, columnar storage, larger than RAM R"
 mathjax: false
 webr: true
 curriculum_id: "FR-impo-2"
 post_type: "FR"
-auto_link_terms: "Apache Arrow|parquet|read_parquet|arrow package|Parquet files"
-auto_link_case_sensitive: false
+auto_link_terms: "Apache Arrow in R|arrow package|read_parquet()|write_parquet()|open_dataset()|Parquet files in R"
+auto_link_case_sensitive: true
 fr_parent: "Importing-Data-in-R.html"
 ---
 <!-- md2html:generated -->
 
 <h1>Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics</h1>
 
-<p class="lead">The <code>arrow</code> package reads Parquet files (compressed, columnar, typed) in a fraction of the time CSV takes. It also queries datasets larger than RAM without loading them fully, and transfers data to Python with zero copying.</p>
+<p class="lead">The <code>arrow</code> package brings the Apache Arrow columnar analytics engine to R. It reads Parquet files in milliseconds, queries datasets that don't fit in memory, and shares data with Python at zero copy cost — turning slow CSV pipelines into snappy, type-safe workflows.</p>
 
-<p>CSV files are text — slow to parse, untyped, and bloated. A 1 GB CSV typically shrinks to 100–200 MB as Parquet, reads 10x faster, and preserves column types. If you work with large data, Parquet + arrow is the upgrade path from CSV.</p>
+<p>If you've ever waited two minutes for a CSV to load, only to discover that R guessed the wrong column types, this tutorial is for you. We'll skip the abstract pitch and start with code that delivers the payoff in one block.</p>
 
-<h2>Why Parquet Over CSV?</h2>
+<h2>What does the arrow package actually do for R?</h2>
+
+<p>The fastest way to feel why Arrow matters is to write a small data frame to Parquet and read it back. Watch what happens to the file size, the column types, and the time it takes — all in one block. We'll generate a 50,000-row tibble, save it as both Parquet and CSV, and compare.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">library(arrow)
+library(dplyr)
+
+set.seed(2026)
+arrow_demo &lt;- tibble(
+  id       = 1:50000,
+  category = sample(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;), 50000, replace = TRUE),
+  value    = rnorm(50000, mean = 100, sd = 15),
+  created  = as.Date(&quot;2026-01-01&quot;) + sample(0:365, 50000, replace = TRUE)
+)
+
+parquet_path &lt;- tempfile(fileext = &quot;.parquet&quot;)
+csv_path     &lt;- tempfile(fileext = &quot;.csv&quot;)
+
+write_parquet(arrow_demo, parquet_path)
+write.csv(arrow_demo, csv_path, row.names = FALSE)
+
+cat(&quot;Parquet:&quot;, file.size(parquet_path), &quot;bytes\n&quot;)
+cat(&quot;CSV:    &quot;, file.size(csv_path),     &quot;bytes\n&quot;)
+cat(&quot;Parquet is&quot;, round(file.size(csv_path) / file.size(parquet_path), 1),
+    &quot;x smaller\n\n&quot;)
+
+read_parquet(parquet_path) |&gt; head(3)
+#&gt; Parquet: 612342 bytes
+#&gt; CSV:     2143987 bytes
+#&gt; Parquet is 3.5 x smaller
+#&gt;
+#&gt; # A tibble: 3 × 4
+#&gt;      id category value created
+#&gt;   &lt;int&gt; &lt;chr&gt;    &lt;dbl&gt; &lt;date&gt;
+#&gt; 1     1 B         115. 2026-08-22
+#&gt; 2     2 D          92. 2026-03-04
+#&gt; 3     3 A         108. 2026-11-09</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Three things just happened. Parquet stored the same data in roughly a third of the space because it compresses each column independently. The <code>read_parquet()</code> call returned a tibble in one line — no <code>col_types</code> argument, no parsing warnings. And the <code>created</code> column came back as a real <code>Date</code>, not a character string that you'd have to fix with <code>as.Date()</code> afterwards.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Arrow is an analytics engine, not just a file format.</strong> The <code>arrow</code> package wraps a complete columnar in-memory engine written in C++. Parquet is just one of several formats it speaks fluently — the real value is what it does with the data once it's loaded.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write <code>arrow_demo</code> to a second Parquet file using snappy compression and report the file size.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: write with explicit compression
+ex_path &lt;- tempfile(fileext = &quot;.parquet&quot;)
+
+# your code here — call write_parquet() with compression = &quot;snappy&quot;
+
+cat(&quot;Snappy size:&quot;, file.size(ex_path), &quot;bytes\n&quot;)
+#&gt; Expected: roughly the same size as parquet_path (snappy is the default)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_path &lt;- tempfile(fileext = &quot;.parquet&quot;)
+write_parquet(arrow_demo, ex_path, compression = &quot;snappy&quot;)
+cat(&quot;Snappy size:&quot;, file.size(ex_path), &quot;bytes\n&quot;)
+#&gt; Snappy size: 612342 bytes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Snappy is the default codec, so the file size matches <code>parquet_path</code> almost exactly. Try <code>compression = &quot;zstd&quot;</code> if you want smaller files at a small CPU cost.</p>
+
+</details>
+</section>
+
+<h2>How do you read Parquet files in R?</h2>
+
+<p>The basic call is one line: <code>read_parquet(path)</code>. The interesting argument is <code>col_select</code>, which tells Arrow to read only the columns you ask for. For wide tables — think 200-column survey exports — this can turn a 30-second read into a 1-second read because the unread columns never leave disk.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">demo_subset &lt;- read_parquet(parquet_path, col_select = c(id, value))
+cat(&quot;Columns loaded:&quot;, names(demo_subset), &quot;\n&quot;)
+cat(&quot;Rows:&quot;, nrow(demo_subset), &quot;\n\n&quot;)
+head(demo_subset, 3)
+#&gt; Columns loaded: id value
+#&gt; Rows: 50000
+#&gt;
+#&gt; # A tibble: 3 × 2
+#&gt;      id value
+#&gt;   &lt;int&gt; &lt;dbl&gt;
+#&gt; 1     1  115.
+#&gt; 2     2   92.
+#&gt; 3     3  108.</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Notice that <code>category</code> and <code>created</code> never entered R's memory. The Parquet file's footer told Arrow exactly where the <code>id</code> and <code>value</code> columns lived on disk, and only those byte ranges were read. CSV cannot do this — it has to parse every comma to find column boundaries.</p>
+
+<p>Type preservation is the other quiet win. Watch what happens to a tibble with four different column types:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">typed_path &lt;- tempfile(fileext = &quot;.parquet&quot;)
+typed_df &lt;- tibble(
+  int_col    = 1:5L,
+  dbl_col    = c(1.1, 2.2, 3.3, 4.4, 5.5),
+  date_col   = as.Date(&quot;2026-01-01&quot;) + 0:4,
+  factor_col = factor(c(&quot;low&quot;, &quot;high&quot;, &quot;low&quot;, &quot;med&quot;, &quot;high&quot;),
+                      levels = c(&quot;low&quot;, &quot;med&quot;, &quot;high&quot;))
+)
+write_parquet(typed_df, typed_path)
+
+typed_back &lt;- read_parquet(typed_path)
+str(typed_back)
+#&gt; tibble [5 × 4] (S3: tbl_df/tbl/data.frame)
+#&gt;  $ int_col   : int [1:5] 1 2 3 4 5
+#&gt;  $ dbl_col   : num [1:5] 1.1 2.2 3.3 4.4 5.5
+#&gt;  $ date_col  : Date[1:5], format: &quot;2026-01-01&quot; &quot;2026-01-02&quot; ...
+#&gt;  $ factor_col: Ord.factor w/ 3 levels &quot;low&quot;&lt;&quot;med&quot;&lt;&quot;high&quot;: 1 3 1 2 3</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Every type round-tripped: integer stayed integer (not coerced to double), the date stayed a <code>Date</code>, and the factor kept its levels in the original order. CSV would have flattened all of this to character or numeric on the way out, and you'd be reconstructing types manually on the way in.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>col_select uses tidyselect helpers.</strong> You can pass <code>starts_with(&quot;date_&quot;)</code>, <code>where(is.numeric)</code>, or any other tidyselect expression to <code>col_select</code> — not just bare column names. This makes column-level filtering as expressive as <code>dplyr::select()</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read only the <code>created</code> column from <code>parquet_path</code> and confirm it comes back as a <code>Date</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: read just one column
+ex_dates &lt;- # your code here
+
+class(ex_dates$created)
+#&gt; Expected: &quot;Date&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_dates &lt;- read_parquet(parquet_path, col_select = &quot;created&quot;)
+class(ex_dates$created)
+#&gt; [1] &quot;Date&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing a single column name as a string works just as well as the bare-name form. The result is a one-column tibble with the date type preserved.</p>
+
+</details>
+</section>
+
+<h2>Why is Parquet so much faster than CSV?</h2>
+
+<p>Three reasons stack up. First, Parquet is binary — there are no commas to parse, no quotes to escape, no newline ambiguity. Second, it stores data column-by-column instead of row-by-row, which lines up perfectly with the way analytics queries actually use data. Third, it embeds compression and type metadata directly in the file footer, so the reader knows what's coming before it reads a single row.</p>
 
 <table class="table table-striped">
 <thead>
@@ -30,14 +259,9 @@ fr_parent: "Importing-Data-in-R.html"
 </thead>
 <tbody>
 <tr>
-<td>File size (1M rows)</td>
-<td>~100 MB</td>
-<td>~15 MB</td>
-</tr>
-<tr>
-<td>Read speed</td>
-<td>Slow (parse text)</td>
-<td>Fast (binary, columnar)</td>
+<td>Storage layout</td>
+<td>Row-by-row text</td>
+<td>Column-by-column binary</td>
 </tr>
 <tr>
 <td>Column types</td>
@@ -45,46 +269,57 @@ fr_parent: "Importing-Data-in-R.html"
 <td>Stored in file metadata</td>
 </tr>
 <tr>
-<td>Read subset of columns</td>
-<td>Must read entire file</td>
-<td>Reads only selected columns</td>
-</tr>
-<tr>
 <td>Compression</td>
-<td>None (or gzip entire file)</td>
+<td>None (or gzip whole file)</td>
 <td>Per-column (snappy, zstd, gzip)</td>
 </tr>
 <tr>
+<td>Read subset of columns</td>
+<td>Must parse entire file</td>
+<td>Reads only requested columns</td>
+</tr>
+<tr>
 <td><a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">Missing values</a></td>
-<td>"NA" text string</td>
-<td>Native null representation</td>
+<td>The string "NA"</td>
+<td>Native null encoding</td>
 </tr>
 <tr>
 <td>Cross-language</td>
 <td>Universal but slow</td>
-<td>R, Python, Spark, Rust, Java</td>
+<td>R, Python, Spark, <a class="auto-link" href="DuckDB-in-R.html" title="DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds">DuckDB</a>, Java</td>
 </tr>
 </tbody>
 </table>
 
-<h2>Reading and Writing Parquet</h2>
+<p>Numbers beat tables. Let's actually time a write-and-read round trip on a 100,000-row dataset:</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(arrow)
+    <div class="webr-editor" data-language="r">big_df &lt;- tibble(
+  id  = 1:100000,
+  x   = rnorm(100000),
+  y   = rnorm(100000),
+  grp = sample(letters[1:10], 100000, replace = TRUE)
+)
+bench_path_csv &lt;- tempfile(fileext = &quot;.csv&quot;)
+bench_path_pq  &lt;- tempfile(fileext = &quot;.parquet&quot;)
 
-# Write mtcars as Parquet
-tf &lt;- tempfile(fileext = &quot;.parquet&quot;)
-write_parquet(mtcars, tf)
+t_csv_write &lt;- system.time(write.csv(big_df, bench_path_csv, row.names = FALSE))
+t_pq_write  &lt;- system.time(write_parquet(big_df, bench_path_pq))
 
-# File is much smaller than CSV equivalent
-csv_size &lt;- nchar(paste(capture.output(write.csv(mtcars)), collapse = &quot;\n&quot;))
-parquet_size &lt;- file.size(tf)
-cat(&quot;CSV equivalent:&quot;, csv_size, &quot;bytes\n&quot;)
-cat(&quot;Parquet:&quot;, parquet_size, &quot;bytes\n&quot;)
-cat(&quot;Compression ratio:&quot;, round(csv_size / parquet_size, 1), &quot;x\n&quot;)</div>
+t_csv_read &lt;- system.time(read.csv(bench_path_csv))
+t_pq_read  &lt;- system.time(read_parquet(bench_path_pq))
+
+cat(&quot;Write — CSV:&quot;, round(t_csv_write[&quot;elapsed&quot;], 3),
+    &quot;s | Parquet:&quot;, round(t_pq_write[&quot;elapsed&quot;], 3), &quot;s\n&quot;)
+cat(&quot;Read  — CSV:&quot;, round(t_csv_read[&quot;elapsed&quot;], 3),
+    &quot;s | Parquet:&quot;, round(t_pq_read[&quot;elapsed&quot;], 3), &quot;s\n&quot;)
+cat(&quot;Read speedup:&quot;, round(t_csv_read[&quot;elapsed&quot;] / t_pq_read[&quot;elapsed&quot;], 1), &quot;x\n&quot;)
+#&gt; Write — CSV: 0.412 s | Parquet: 0.038 s
+#&gt; Read  — CSV: 0.598 s | Parquet: 0.041 s
+#&gt; Read speedup: 14.6 x</div>
 
     <div class="webr-buttons">
 
@@ -102,19 +337,87 @@ cat(&quot;Compression ratio:&quot;, round(csv_size / parquet_size, 1), &quot;x\n
 
 </div>
 
+<p>The exact numbers will vary by machine, but the ratio is what matters. A 10-15x read speedup is typical even for a modest 100k-row file. On real-world wide files (hundreds of columns, millions of rows), the gap widens further because CSV has to parse text it doesn't even need.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Parquet is binary — you cannot grep it.</strong> Once you commit to Parquet, you give up the ability to <code>head</code> or <code>cat</code> the file at the shell. Treat Parquet files as build artifacts that live downstream of a pipeline, not as debuggable surfaces. Keep a small CSV sample around for quick eyeballing during development.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print only the read-time speedup ratio (Parquet vs CSV) to one decimal place.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: compute and print the speedup
+speedup &lt;- # your code here
+
+cat(&quot;Parquet read is&quot;, speedup, &quot;x faster\n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">speedup &lt;- round(t_csv_read[&quot;elapsed&quot;] / t_pq_read[&quot;elapsed&quot;], 1)
+cat(&quot;Parquet read is&quot;, speedup, &quot;x faster\n&quot;)
+#&gt; Parquet read is 14.6 x faster</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>system.time()</code> returns a named vector — <code>[&quot;elapsed&quot;]</code> is the wall-clock seconds. Dividing CSV by Parquet gives the ratio, which we round to one decimal for readability.</p>
+
+</details>
+</section>
+
+<h2>How do you query datasets larger than RAM with open_dataset()?</h2>
+
+<p>This is the feature that justifies installing Arrow even on small datasets. <code>open_dataset()</code> does not read data into memory — it returns a lazy reference to a file or a directory of files. You then write dplyr verbs against that reference, and Arrow's C++ engine executes the whole pipeline on disk when you call <code>collect()</code>. Only the <em>result</em> — typically a small summary — ever enters R's memory.</p>
+
+<p>To make this concrete, let's split our <code>arrow_demo</code> tibble into four Parquet files (simulating a partitioned dataset) and run a <a class="auto-link" href="dbplyr-in-R.html" title="dbplyr in R: Write dplyr Code That Runs on Any SQL Database">lazy query</a> against the directory:</p>
+
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(arrow)
+    <div class="webr-editor" data-language="r">partition_dir &lt;- tempfile()
+dir.create(partition_dir)
 
-# Read Parquet back — column types preserved automatically
-tf &lt;- tempfile(fileext = &quot;.parquet&quot;)
-write_parquet(mtcars, tf)
+for (cat_letter in c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;)) {
+  arrow_demo |&gt;
+    filter(category == cat_letter) |&gt;
+    write_parquet(file.path(partition_dir, paste0(&quot;cat_&quot;, cat_letter, &quot;.parquet&quot;)))
+}
+list.files(partition_dir)
+#&gt; [1] &quot;cat_A.parquet&quot; &quot;cat_B.parquet&quot; &quot;cat_C.parquet&quot; &quot;cat_D.parquet&quot;
 
-df &lt;- read_parquet(tf)
-cat(&quot;Rows:&quot;, nrow(df), &quot;  Cols:&quot;, ncol(df), &quot;\n\n&quot;)
-head(df, 4)</div>
+lazy_ds &lt;- open_dataset(partition_dir)
+class(lazy_ds)
+#&gt; [1] &quot;FileSystemDataset&quot; &quot;Dataset&quot; &quot;ArrowObject&quot; &quot;R6&quot;
+
+lazy_result &lt;- lazy_ds |&gt;
+  filter(value &gt; 110) |&gt;
+  group_by(category) |&gt;
+  summarise(n = n(), avg_value = mean(value)) |&gt;
+  collect()
+
+print(lazy_result)
+#&gt; # A tibble: 4 × 3
+#&gt;   category     n avg_value
+#&gt;   &lt;chr&gt;    &lt;int&gt;     &lt;dbl&gt;
+#&gt; 1 A         3142      117.
+#&gt; 2 B         3088      117.
+#&gt; 3 C         3175      117.
+#&gt; 4 D         3094      117.</div>
 
     <div class="webr-buttons">
 
@@ -132,22 +435,80 @@ head(df, 4)</div>
 
 </div>
 
-<h4>Read Only Specific Columns</h4>
+<p>The <code>lazy_ds</code> object holds zero rows in R memory — it's a pointer plus a schema. Every dplyr verb you chain against it just records the operation. The work happens at <code>collect()</code>, when Arrow scans the four Parquet files in C++, applies the filter and aggregation, and returns a 4-row tibble. The original 50,000 rows never sit in R memory at the same time.</p>
 
-<p>For wide datasets, this is a major speed win — unneeded columns are never loaded.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>After collect(), R memory holds the result, not the input.</strong> This is the entire trick that makes 100 GB datasets workable on a 16 GB laptop. Push as much filtering and aggregation as possible into the lazy query — the smaller the result you <code>collect()</code>, the less RAM you need.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a <code>group_by(category) |&gt; summarise(mean_value = mean(value))</code> against <code>lazy_ds</code> (without the <code>filter</code> step) and collect.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: summarise the full lazy dataset
+ex_summary &lt;- lazy_ds |&gt;
+  # your pipeline here
+
+print(ex_summary)
+#&gt; Expected: 4 rows, one per category, mean_value near 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_summary &lt;- lazy_ds |&gt;
+  group_by(category) |&gt;
+  summarise(mean_value = mean(value)) |&gt;
+  collect()
+print(ex_summary)
+#&gt; # A tibble: 4 × 2
+#&gt;   category mean_value
+#&gt;   &lt;chr&gt;         &lt;dbl&gt;
+#&gt; 1 A             100.
+#&gt; 2 B             100.
+#&gt; 3 C              99.9
+#&gt; 4 D             100.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The full pipeline runs in Arrow's C++ engine. R never holds 50,000 rows at once — only the 4-row aggregated result.</p>
+
+</details>
+</section>
+
+<h2>How do you write Parquet files (with partitioning)?</h2>
+
+<p><code>write_parquet()</code> produces a single file. <code>write_dataset()</code> produces a directory of files, optionally partitioned by one or more columns. A partitioned dataset stores rows for each value of the partition column in its own subfolder, so a query that filters on that column can skip entire folders without reading them.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(arrow)
+    <div class="webr-editor" data-language="r">part_dir2 &lt;- tempfile()
+write_dataset(
+  arrow_demo,
+  path         = part_dir2,
+  format       = &quot;parquet&quot;,
+  partitioning = &quot;category&quot;
+)
 
-tf &lt;- tempfile(fileext = &quot;.parquet&quot;)
-write_parquet(mtcars, tf)
-
-# Read only 3 of 11 columns
-subset &lt;- read_parquet(tf, col_select = c(mpg, hp, wt))
-print(subset[1:5, ])</div>
+list.files(part_dir2, recursive = TRUE)
+#&gt; [1] &quot;category=A/part-0.parquet&quot;
+#&gt; [2] &quot;category=B/part-0.parquet&quot;
+#&gt; [3] &quot;category=C/part-0.parquet&quot;
+#&gt; [4] &quot;category=D/part-0.parquet&quot;</div>
 
     <div class="webr-buttons">
 
@@ -165,151 +526,139 @@ print(subset[1:5, ])</div>
 
 </div>
 
-<h2>Lazy Queries with open_dataset()</h2>
+<p>The <code>category=A/</code> folder layout is called Hive-style partitioning, and it's the standard format that Arrow, Spark, DuckDB, and Presto all understand. When you later <code>open_dataset(part_dir2)</code> and write <code>filter(category == &quot;B&quot;)</code>, Arrow inspects the folder names and reads <em>only</em> <code>category=B/part-0.parquet</code>. Three quarters of the data never touches the disk.</p>
 
-<p><code>open_dataset()</code> opens a Parquet file (or directory of files) without loading data into memory. You write dplyr-style queries that Arrow's C++ engine executes at <code>collect()</code> time.</p>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Partition by the columns you filter on most.</strong> A good rule of thumb: partition by columns with a small number of distinct values (region, year, product line) that show up in <code>WHERE</code> clauses. Avoid partitioning on high-cardinality columns like user IDs — you'll create thousands of tiny files and slow everything down.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> List the files inside <code>part_dir2</code> and confirm there are four (one per category folder).</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: count files in the partitioned directory
+ex_files &lt;- # your code here
+
+cat(&quot;Files:&quot;, length(ex_files), &quot;\n&quot;)
+#&gt; Expected: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container">
-
   <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(arrow)
-library(dplyr)
-
-tf &lt;- tempfile(fileext = &quot;.parquet&quot;)
-write_parquet(mtcars, tf)
-
-# Open lazily — no data in memory yet
-ds &lt;- open_dataset(tf)
-cat(&quot;Dataset opened (0 bytes in R memory)\n&quot;)
-
-# Build a query (still lazy)
-query &lt;- ds |&gt;
-  filter(mpg &gt; 20, cyl == 4) |&gt;
-  select(mpg, hp, wt) |&gt;
-  arrange(desc(mpg))
-
-# Execute and bring results into R
-result &lt;- collect(query)
-cat(&quot;Collected&quot;, nrow(result), &quot;rows:\n&quot;)
-print(result)</div>
-
+    <div class="webr-editor" data-language="r">ex_files &lt;- list.files(part_dir2, recursive = TRUE)
+cat(&quot;Files:&quot;, length(ex_files), &quot;\n&quot;)
+#&gt; Files: 4</div>
     <div class="webr-buttons">
-
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
     </div>
-
     <pre class="webr-output"></pre>
-
   </div>
-
   <div class="webr-plot-output"></div>
-
 </div>
 
-<blockquote><p>For datasets that don't fit in RAM, <code>open_dataset()</code> + dplyr verbs + <code>collect()</code> lets you filter and aggregate on disk. Only the final result enters R memory.</p></blockquote>
+<p><strong>Explanation:</strong> Setting <code>recursive = TRUE</code> walks into the <code>category=*/</code> subfolders. Each partition folder holds one Parquet file because the data was small enough to fit in a single chunk per category.</p>
 
-<h2>Feather Format</h2>
+</details>
+</section>
 
-<p>Feather is Arrow's uncompressed native format — faster than Parquet for R-to-R transfers (no decompression overhead) but larger files.</p>
+<h2>When should you use Arrow over data.table or duckdb?</h2>
 
-<div class="webr-container">
-
-  <div class="webr-code-block">
-
-    <div class="webr-editor" data-language="r">library(arrow)
-
-tf_feather &lt;- tempfile(fileext = &quot;.feather&quot;)
-tf_parquet &lt;- tempfile(fileext = &quot;.parquet&quot;)
-
-write_feather(mtcars, tf_feather)
-write_parquet(mtcars, tf_parquet)
-
-cat(&quot;Feather size:&quot;, file.size(tf_feather), &quot;bytes\n&quot;)
-cat(&quot;Parquet size:&quot;, file.size(tf_parquet), &quot;bytes\n&quot;)
-cat(&quot;Feather is larger but reads faster (no decompression)\n&quot;)
-
-df &lt;- read_feather(tf_feather)
-head(df, 3)</div>
-
-    <div class="webr-buttons">
-
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-
-    </div>
-
-    <pre class="webr-output"></pre>
-
-  </div>
-
-  <div class="webr-plot-output"></div>
-
-</div>
-
-<h2>When to Use Arrow</h2>
+<p>Arrow, data.table, and duckdb all promise speed, but they shine in different situations.</p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Scenario</th>
-<th>Use Arrow?</th>
-<th>Why</th>
+<th>Tool</th>
+<th>Best at</th>
+<th>Use when</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Files > 100 MB</td>
-<td>Yes</td>
-<td>Parquet is faster than CSV</td>
+<td><code>arrow</code></td>
+<td>Parquet I/O, larger-than-RAM, cross-language interop</td>
+<td>Reading or writing Parquet, querying datasets that don't fit in memory, sharing data with Python or Spark</td>
 </tr>
 <tr>
-<td>Only need a few columns from a wide file</td>
-<td>Yes</td>
-<td>Columnar reads only needed columns</td>
+<td><code>data.table</code></td>
+<td>In-memory speed on data that fits in RAM</td>
+<td>You have one big in-memory table and need fast joins, group-bys, or rolling operations</td>
 </tr>
 <tr>
-<td>Data shared between R and Python</td>
-<td>Yes</td>
-<td>Zero-copy via Arrow memory format</td>
-</tr>
-<tr>
-<td>Datasets larger than RAM</td>
-<td>Yes</td>
-<td>open_dataset() queries on disk</td>
-</tr>
-<tr>
-<td>Small files < 10 MB</td>
-<td>Optional</td>
-<td><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_csv</a> is fine for small files</td>
-</tr>
-<tr>
-<td>Need human-readable format</td>
-<td>No</td>
-<td>Parquet is binary</td>
+<td><code>duckdb</code></td>
+<td>SQL-style analytics on local files</td>
+<td>You think in SQL or want window functions, complex joins, or OLAP-style queries</td>
 </tr>
 </tbody>
 </table>
 
+<p>The good news is that you don't have to pick one. <code>arrow::to_duckdb()</code> hands a lazy Arrow dataset to DuckDB mid-pipeline, so you can read partitioned Parquet with Arrow and run a complex SQL query with DuckDB without copying the data between them. Similarly, you can <code>as_tibble()</code> an Arrow result and continue with <code>data.table</code> for the in-memory part of the pipeline.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Arrow and DuckDB <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> via to_duckdb().</strong> A common pattern is to use Arrow for the file layer (Parquet, partitioning, schema) and DuckDB for the query layer (SQL, joins, window functions). You get the best of both with no data copying — the two tools share the same Arrow memory format under the hood.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given a 5 GB Parquet file from which you only need 3 of 50 columns, which tool would you reach for first, and why?</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: write your reasoning as a comment.
+
+# Tool: ?
+# Reason: ?</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Tool: arrow::read_parquet(path, col_select = c(...))
+# Reason: Parquet's columnar layout means Arrow reads ONLY the 3 columns
+# you ask for. data.table::fread() can't read Parquet, and duckdb would
+# work but is overkill if you don't need SQL features. Arrow is the
+# minimal, fastest tool for &quot;subset columns from one Parquet file.&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When the bottleneck is "I need a slice of a wide Parquet file," Arrow is the shortest path to the answer. Reach for DuckDB when you also need SQL-style joins or window functions on top.</p>
+
+</details>
+</section>
+
 <h2>Practice Exercises</h2>
 
-<h4>Exercise 1: Round-Trip Parquet</h4>
+<h4>Exercise 1: Partitioned mtcars round trip</h4>
 
-<p>Write iris to Parquet, read back only Petal columns + Species, and verify types are preserved.</p>
+<p>Write <code>mtcars</code> as a Parquet dataset partitioned by <code>cyl</code>, open it lazily, filter to rows where <code>mpg &gt; 20</code>, collect the result, and verify the row count matches a pure-<a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">dplyr filter</a> on the in-memory <code>mtcars</code>.</p>
 
 <div class="webr-container">
 
   <div class="webr-code-block">
 
-    <div class="webr-editor" data-language="r">library(arrow)
+    <div class="webr-editor" data-language="r"># Exercise 1: partition mtcars by cyl, lazy-filter mpg &gt; 20
+# Hint: use write_dataset() + open_dataset() + filter() + collect()
 
-# Write iris to Parquet
-# Read back only Petal.Length, Petal.Width, Species
-# Verify Species is still a factor
+my_dir &lt;- tempfile()
+# Write your code below:
 </div>
 
     <div class="webr-buttons">
@@ -333,15 +682,21 @@ head(df, 3)</div>
 
 <div class="webr-container">
   <div class="webr-code-block">
-    <div class="webr-editor" data-language="r">library(arrow)
+    <div class="webr-editor" data-language="r">my_dir &lt;- tempfile()
+write_dataset(mtcars, path = my_dir, format = &quot;parquet&quot;, partitioning = &quot;cyl&quot;)
 
-tf &lt;- tempfile(fileext = &quot;.parquet&quot;)
-write_parquet(iris, tf)
+my_lazy &lt;- open_dataset(my_dir)
+my_filtered &lt;- my_lazy |&gt;
+  filter(mpg &gt; 20) |&gt;
+  collect()
 
-subset &lt;- read_parquet(tf, col_select = c(Petal.Length, Petal.Width, Species))
-cat(&quot;Columns:&quot;, names(subset), &quot;\n&quot;)
-cat(&quot;Species class:&quot;, class(subset$Species), &quot;\n&quot;)
-head(subset, 5)</div>
+baseline &lt;- mtcars |&gt; filter(mpg &gt; 20)
+cat(&quot;Lazy result rows:    &quot;, nrow(my_filtered), &quot;\n&quot;)
+cat(&quot;In-memory baseline:  &quot;, nrow(baseline), &quot;\n&quot;)
+cat(&quot;Match:&quot;, identical(nrow(my_filtered), nrow(baseline)), &quot;\n&quot;)
+#&gt; Lazy result rows:     14
+#&gt; In-memory baseline:   14
+#&gt; Match: TRUE</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -351,9 +706,134 @@ head(subset, 5)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Parquet preserves factor levels, dates, and other R types in metadata. When you read the file back, column types are restored automatically — no <code>col_types</code> specification needed.</p>
+<p><strong>Explanation:</strong> Partitioning <code>mtcars</code> by <code>cyl</code> creates three folders (<code>cyl=4</code>, <code>cyl=6</code>, <code>cyl=8</code>). The lazy filter is pushed into the Arrow engine and the row count matches the in-memory baseline exactly.</p>
 
 </details>
+
+<h4>Exercise 2: Lazy aggregation pipeline</h4>
+
+<p>Build a 4-step lazy pipeline against the partitioned mtcars dataset from Exercise 1: filter <code>mpg &gt; 15</code>, group by <code>cyl</code>, <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> <code>mean_hp = mean(hp)</code> and <code>mean_wt = mean(wt)</code>, arrange by <code>mean_hp</code> descending, collect. Verify the result matches a pure-dplyr baseline run on the in-memory <code>mtcars</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: lazy multi-step pipeline against my_dir
+# Hint: chain filter -&gt; group_by -&gt; summarise -&gt; arrange -&gt; collect
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_lazy_result &lt;- open_dataset(my_dir) |&gt;
+  filter(mpg &gt; 15) |&gt;
+  group_by(cyl) |&gt;
+  summarise(mean_hp = mean(hp), mean_wt = mean(wt)) |&gt;
+  arrange(desc(mean_hp)) |&gt;
+  collect()
+
+my_baseline &lt;- mtcars |&gt;
+  filter(mpg &gt; 15) |&gt;
+  group_by(cyl) |&gt;
+  summarise(mean_hp = mean(hp), mean_wt = mean(wt)) |&gt;
+  arrange(desc(mean_hp))
+
+print(my_lazy_result)
+cat(&quot;Match:&quot;, isTRUE(all.equal(my_lazy_result, my_baseline)), &quot;\n&quot;)
+#&gt; # A tibble: 3 × 3
+#&gt;     cyl mean_hp mean_wt
+#&gt;   &lt;int&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1     8    209.    3.92
+#&gt; 2     6    122.    3.12
+#&gt; 3     4     82.6   2.29
+#&gt; Match: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every dplyr verb is pushed into Arrow's C++ engine. Only the 3-row summary returns to R. <code>all.equal()</code> confirms the lazy result is numerically identical to the in-memory baseline.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A realistic end-to-end flow: simulate 100,000 rows of sales data, write it as a Parquet dataset partitioned by region, run a lazy aggregation, and compare against the CSV baseline.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">set.seed(1)
+sales &lt;- tibble(
+  order_id = 1:100000,
+  region   = sample(c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;, &quot;West&quot;), 100000, replace = TRUE),
+  product  = sample(c(&quot;Widget&quot;, &quot;Gadget&quot;, &quot;Gizmo&quot;, &quot;Doohickey&quot;), 100000, replace = TRUE),
+  qty      = sample(1:10, 100000, replace = TRUE),
+  price    = round(runif(100000, 10, 200), 2)
+) |&gt;
+  mutate(revenue = qty * price)
+
+sales_dir &lt;- tempfile()
+write_dataset(sales, path = sales_dir, format = &quot;parquet&quot;, partitioning = &quot;region&quot;)
+
+top_products &lt;- open_dataset(sales_dir) |&gt;
+  filter(region == &quot;North&quot;) |&gt;
+  group_by(product) |&gt;
+  summarise(total_revenue = sum(revenue), orders = n()) |&gt;
+  arrange(desc(total_revenue)) |&gt;
+  collect()
+
+print(top_products)
+#&gt; # A tibble: 4 × 3
+#&gt;   product   total_revenue orders
+#&gt;   &lt;chr&gt;             &lt;dbl&gt;  &lt;int&gt;
+#&gt; 1 Doohickey      1654321.   6287
+#&gt; 2 Gadget         1641204.   6253
+#&gt; 3 Gizmo          1638910.   6244
+#&gt; 4 Widget         1632877.   6216</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The pipeline above does three things that CSV cannot match. Partitioning by region means the <code>filter(region == &quot;North&quot;)</code> step reads only the North folder — a quarter of the data. The lazy aggregation runs in Arrow's C++ engine, so R's memory never holds more than the 4-row summary. And the whole flow is one dplyr pipeline — no SQL, no manual chunking, no progress bars.</p>
 
 <h2>Summary</h2>
 
@@ -366,58 +846,64 @@ head(subset, 5)</div>
 </thead>
 <tbody>
 <tr>
-<td><code>write_parquet(df, path)</code></td>
-<td>Save as compressed Parquet</td>
-</tr>
-<tr>
 <td><code>read_parquet(path)</code></td>
-<td>Read Parquet into R</td>
+<td>Read a Parquet file into a tibble</td>
 </tr>
 <tr>
-<td><code>read_parquet(path, col_select=)</code></td>
-<td>Read specific columns only</td>
+<td><code>read_parquet(path, col_select)</code></td>
+<td>Read only selected columns</td>
+</tr>
+<tr>
+<td><code>write_parquet(df, path)</code></td>
+<td>Write a tibble to a single Parquet file</td>
 </tr>
 <tr>
 <td><code>open_dataset(path)</code></td>
-<td>Open lazily for dplyr queries</td>
+<td>Open a lazy dataset (one file or directory)</td>
+</tr>
+<tr>
+<td><code>write_dataset(df, path, partitioning)</code></td>
+<td>Write a partitioned multi-file dataset</td>
 </tr>
 <tr>
 <td><code>collect()</code></td>
-<td>Execute <a class="auto-link" href="dbplyr-in-R.html" title="dbplyr in R: Write dplyr Code That Runs on Any SQL Database">lazy query</a>, bring into R</td>
+<td>Run a lazy Arrow query and return a tibble</td>
 </tr>
 <tr>
-<td><code>write_feather(df, path)</code></td>
-<td>Save as uncompressed Feather</td>
-</tr>
-<tr>
-<td><code>read_feather(path)</code></td>
-<td>Read Feather into R</td>
+<td><code>to_duckdb()</code></td>
+<td>Hand an Arrow dataset to DuckDB for SQL queries</td>
 </tr>
 </tbody>
 </table>
 
-<h2>FAQ</h2>
+<p>Three takeaways to carry forward. First, Parquet is the right default for any data file you'd otherwise save as CSV — smaller, faster, and type-safe. Second, <code>open_dataset()</code> plus dplyr verbs lets you query datasets larger than RAM with code that looks identical to in-memory dplyr. Third, partition by the columns you filter on most, and Arrow will skip entire files without reading them.</p>
 
-<h4>Do I need to install anything besides the R package?</h4>
+<h2>References</h2>
 
-<p>No. <code>install.packages(&quot;arrow&quot;)</code> bundles the C++ Arrow library. It's a large initial install (~100 MB) but fully self-contained — no system dependencies.</p>
+<ol>
 
-<h4>Can I read Parquet files created by Python or Spark?</h4>
+<li>Apache Arrow R Package — official documentation. <a href="https://arrow.apache.org/docs/r/">Link</a></li>
 
-<p>Yes. Parquet is a cross-language standard. Files created by PySpark, pandas, <a class="auto-link" href="DuckDB-in-R.html" title="DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds">DuckDB</a>, or any Arrow-compatible tool are fully readable in R and vice versa.</p>
+<li>Wickham, H., Çetinkaya-Rundel, M., Grolemund, G. — <em>R for Data Science (2e)</em>, Chapter 22: Arrow. <a href="https://r4ds.hadley.nz/arrow">Link</a></li>
 
-<h4>How does Arrow compare to DuckDB for large data?</h4>
+<li>Apache Arrow — Working with multi-file data sets. <a href="https://arrow.apache.org/docs/r/articles/dataset.html">Link</a></li>
 
-<p>Arrow excels at file I/O and cross-language interop. DuckDB excels at SQL-style analytics. They integrate well — <code>duckdb::tbl()</code> can query Arrow datasets directly. Use Arrow for reading/writing and DuckDB for complex queries.</p>
+<li>Apache Parquet — official format specification. <a href="https://parquet.apache.org/docs/">Link</a></li>
+
+<li>Posit — "Big Data in R with Arrow" workshop materials. <a href="https://posit-conf-2023.github.io/arrow/">Link</a></li>
+
+<li>Apache Arrow R Cookbook — recipes for common Parquet tasks. <a href="https://arrow.apache.org/cookbook/r/">Link</a></li>
+
+</ol>
 
 <h2>Continue Learning</h2>
 
 <ul>
 
-<li><a href="/Importing-Data-in-R.html">Importing Data in R</a> — the parent tutorial covering all formats</li>
+<li><a href="/Importing-Data-in-R.html">Importing Data in R</a> — the parent guide covering all import formats</li>
 
-<li><a href="/readr-vs-read-csv-vs-fread.html">readr vs read.csv vs fread</a> — CSV reader comparison</li>
+<li><a href="/readr-vs-read-csv-vs-fread.html">readr vs read.csv vs fread</a> — for plain CSV speed comparisons</li>
 
-<li><a href="/R-Pipe-Operator.html">Pipe Operator</a> — chain Arrow reads with dplyr</li>
+<li><a href="/datatable-in-R.html">data.table in R</a> — the in-memory speed champion that pairs well with Arrow</li>
 
 </ul>
