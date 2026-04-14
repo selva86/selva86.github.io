@@ -113,8 +113,22 @@ def check_git_clean():
         ["git", "status", "--porcelain"],
         capture_output=True, text=True, cwd=REPO_ROOT
     )
+    if not result.stdout.strip():
+        return True
+
+    # Light cleanup didn't suffice — fall back to the full reset used for
+    # failed sessions. Protects against leftover phantom files, mermaid
+    # render churn, and any other untracked state in known write dirs.
+    log("  Tree dirty — running cleanup_failed_session fallback:")
+    log(result.stdout.strip())
+    cleanup_failed_session()
+
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, cwd=REPO_ROOT
+    )
     if result.stdout.strip():
-        log("ERROR: Git working tree is dirty. Commit or stash before running.")
+        log("ERROR: Git working tree still dirty after cleanup. Aborting.")
         log(result.stdout.strip())
         return False
     return True
