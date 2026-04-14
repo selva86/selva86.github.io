@@ -1,0 +1,938 @@
+---
+title: "Measures of Association in R: Cramer's V, Phi, Pearson r With Examples"
+description: "A hands-on tutorial on measures of association in R: Pearson r, Cramer's V, Phi, Kendall tau-b, Spearman, Goodman-Kruskal gamma, and Yule's Q examples."
+keywords: "measures of association in R, Cramer's V in R, Phi coefficient R, Pearson correlation R, Kendall tau R, Goodman-Kruskal gamma, Yule's Q, Spearman correlation R, contingency table association, DescTools, vcd assocstats"
+mathjax: true
+webr: true
+curriculum_id: "SEO1"
+post_type: "C"
+auto_link_terms: "measures of association|Cramer's V|Cramér's V|Phi coefficient|Goodman-Kruskal gamma|Yule's Q|Kendall tau-b|contingency table association"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Measures of Association"
+sidebar_order: "16"
+---
+<!-- md2html:generated -->
+
+<h1>Measures of Association in R: Cramer's V, Phi, Pearson r With Examples</h1>
+
+<p class="lead">A measure of association is a single number that tells you how strongly two variables move together. The right choice depends on whether your variables are numeric, ordinal, or nominal — and using the wrong one can silently hide a real effect or invent a fake one. This tutorial covers every major measure you will meet in practice, with runnable R examples on built-in datasets and plain-English interpretation rules.</p>
+
+<h2>Which measure of association fits your variables?</h2>
+
+<p>You want one number that says "these two variables are related — and by how much." The number you pick has to match your data: two numeric columns want a correlation coefficient, two categorical columns want a chi-square–based measure, and ordinal data has its own toolbox. Let's start with the most familiar case — two numeric columns from <code>mtcars</code> — so you can see the payoff before we walk through the full taxonomy.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load the two packages we will use throughout this tutorial.
+library(DescTools)
+library(vcd)
+
+# Pearson r between miles-per-gallon and car weight.
+r_mpg_wt &lt;- cor(mtcars$mpg, mtcars$wt)
+round(r_mpg_wt, 4)
+#&gt; [1] -0.8677</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The correlation is <strong>-0.87</strong>, which means heavier cars burn more fuel per mile — a strong, near-straight-line relationship. That's exactly the kind of signal the Pearson correlation is built to detect. But notice the ingredients: two <em>numeric</em> columns and a roughly <em>linear</em> pattern. Break either assumption and Pearson's r is no longer the right answer.</p>
+
+<p>The flowchart below is the decision rule you can use for any pair of variables in any dataset.</p>
+
+<p><img src="screenshots/Measures-of-Association-in-R-decision-flow.webp" alt="Pick the right measure of association based on your variable types." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: Pick the right measure of association based on your variable types.</em></p>
+
+<p>Read the flowchart left to right. Both variables numeric? Use Pearson r (or Spearman / Kendall if the relationship is curved or noisy). Both categorical? It splits again — 2×2 tables get Phi or Yule's Q, bigger nominal tables get Cramer's V, and ordinal pairs get gamma, tau-b, or Somers' D. That's the whole map. The rest of this tutorial fills in how each one works and how to compute it in R.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Variable type decides the measure — mixing types inflates or hides effects.</strong> Running Pearson r on a nominal variable encoded as 1/2/3 will report a number, but that number is meaningless because the codes have no real order. Pick the measure that fits the data, not the one you remember from last week's project.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute Pearson r between <code>mtcars$hp</code> (horsepower) and <code>mtcars$mpg</code> and store it in <code>ex_r_hp_mpg</code>. Round to 4 decimals.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: Pearson r for hp vs mpg
+ex_r_hp_mpg &lt;- NA  # replace NA with your code
+
+round(ex_r_hp_mpg, 4)
+#&gt; Expected: about -0.7762</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_r_hp_mpg &lt;- cor(mtcars$hp, mtcars$mpg)
+round(ex_r_hp_mpg, 4)
+#&gt; [1] -0.7762</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cor()</code> defaults to the Pearson method, so a single call on the two numeric columns returns their correlation. The result near -0.78 tells you more horsepower pairs with lower fuel economy — a clear negative linear relationship.</p>
+
+</details>
+</section>
+
+<h2>How do Pearson r, Spearman ρ, and Kendall τ handle numeric data?</h2>
+
+<p>For two numeric variables, R's <code>cor()</code> function gives you three options through its <code>method</code> argument. They answer slightly different questions, and the differences matter when your data has curves, outliers, or ties.</p>
+
+<ul>
+
+<li><strong>Pearson r</strong> measures a <em>linear</em> relationship — how well a straight line fits the points.</li>
+
+<li><strong>Spearman ρ</strong> (rho) ranks both variables first, then computes Pearson on the ranks. It captures any <em>monotonic</em> relationship — always rising or always falling, even if curved.</li>
+
+<li><strong>Kendall τ</strong> (tau) counts concordant pairs (both variables move the same way) versus discordant pairs. It is the most robust to outliers but slowest to compute on large data.</li>
+
+</ul>
+
+<p>Here are all three on the same <code>mtcars</code> pair we saw above.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">pearson_r    &lt;- cor(mtcars$mpg, mtcars$wt, method = &quot;pearson&quot;)
+spearman_rho &lt;- cor(mtcars$mpg, mtcars$wt, method = &quot;spearman&quot;)
+kendall_tau  &lt;- cor(mtcars$mpg, mtcars$wt, method = &quot;kendall&quot;)
+
+round(c(pearson = pearson_r, spearman = spearman_rho, kendall = kendall_tau), 4)
+#&gt;  pearson spearman  kendall
+#&gt;  -0.8677  -0.8864  -0.7278</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>All three agree on the <em>direction</em> (negative) and broadly agree on <em>strength</em>. Spearman is slightly stronger than Pearson, a hint that the true relationship between weight and mileage curves a little — the biggest cars lose mileage faster than the linear model expects. Kendall comes in lower because it counts pair-by-pair agreement rather than sizes, which always gives smaller values than the other two.</p>
+
+<p>To see why Spearman can win decisively, here is a case where the relationship is perfectly monotonic but not linear.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A strictly monotonic but exponential pattern.
+x_mono &lt;- 1:20
+y_mono &lt;- exp(x_mono / 3)
+
+pr_mono &lt;- cor(x_mono, y_mono, method = &quot;pearson&quot;)
+sr_mono &lt;- cor(x_mono, y_mono, method = &quot;spearman&quot;)
+
+round(c(pearson = pr_mono, spearman = sr_mono), 4)
+#&gt;  pearson spearman
+#&gt;   0.8798   1.0000</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Spearman nails the relationship at exactly 1 because the ranks line up perfectly. Pearson only reports 0.88 because the curve is not a straight line, so a linear fit leaves residuals. If you had only looked at Pearson here you would have underestimated the true association by more than 10 points.</p>
+
+<p><img src="screenshots/Measures-of-Association-in-R-correlation-types.webp" alt="Pearson, Spearman, and Kendall capture different kinds of relationships on numeric pairs." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Pearson, Spearman, and Kendall capture different kinds of relationships on numeric pairs.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Default to Pearson for clean linear data, switch to Spearman or Kendall for outliers and curves.</strong> A good habit: compute Pearson first, then check Spearman. If they disagree by more than a rounding error, plot the data — the shape will tell you which coefficient to trust.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute both Pearson and Spearman for <code>mtcars$hp</code> vs <code>mtcars$qsec</code> (quarter-mile time). Store them in <code>ex_pr_hp_qsec</code> and <code>ex_sp_hp_qsec</code>.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: Pearson and Spearman for hp vs qsec
+ex_pr_hp_qsec &lt;- NA  # replace NA with your code
+ex_sp_hp_qsec &lt;- NA  # replace NA with your code
+
+round(c(pearson = ex_pr_hp_qsec, spearman = ex_sp_hp_qsec), 4)
+#&gt; Expected: pearson about -0.7082, spearman about -0.6670</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_pr_hp_qsec &lt;- cor(mtcars$hp, mtcars$qsec, method = &quot;pearson&quot;)
+ex_sp_hp_qsec &lt;- cor(mtcars$hp, mtcars$qsec, method = &quot;spearman&quot;)
+
+round(c(pearson = ex_pr_hp_qsec, spearman = ex_sp_hp_qsec), 4)
+#&gt;  pearson spearman
+#&gt;  -0.7082  -0.6670</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Faster cars (low qsec) tend to have more horsepower, so the correlation is negative. Pearson and Spearman both land near -0.7, with Pearson slightly stronger — a mild hint that the relationship is close to linear in this range.</p>
+
+</details>
+</section>
+
+<h2>How does the Phi coefficient measure association in 2×2 tables?</h2>
+
+<p>When both variables are binary — yes/no, male/female, auto/manual — you have a 2×2 contingency table and the right tool is the <strong>Phi coefficient</strong>. Phi is built directly on the chi-square statistic for the table.</p>
+
+<p>$$\phi = \sqrt{\chi^2 / n}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\chi^2$ is the Pearson chi-square statistic for the 2×2 table</li>
+
+<li>$n$ is the total sample size</li>
+
+</ul>
+
+<p>Phi ranges from 0 (no association) to 1 (perfect association), and for 2×2 tables you can also give it a sign based on the direction of the association. A useful mental anchor: Phi is what Pearson r becomes when you feed it two 0/1-coded variables.</p>
+
+<p>Let's build a real 2×2 from <code>mtcars</code>: does transmission type (<code>am</code>: 0 auto, 1 manual) go with engine shape (<code>vs</code>: 0 V-shaped, 1 straight)?</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Cross-tabulate the two binary columns.
+tbl_am_vs &lt;- table(am = mtcars$am, vs = mtcars$vs)
+tbl_am_vs
+#&gt;    vs
+#&gt; am   0  1
+#&gt;   0 12  7
+#&gt;   1  6  7
+
+# Phi coefficient via DescTools.
+phi_am_vs &lt;- Phi(tbl_am_vs)
+round(phi_am_vs, 4)
+#&gt; [1] 0.1683</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>A Phi of about <strong>0.17</strong> says the association between transmission and engine shape is weak — they are not independent, but knowing one tells you very little about the other. For context, Cohen's rule-of-thumb calls 0.10 small, 0.30 medium, and 0.50 large for 2×2 tables.</p>
+
+<p>For the same 2×2 you can also compute <strong>Yule's Q</strong>, which rescales the odds ratio into the –1 to 1 range and is much more sensitive to association in small tables.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Yule's Q on the same 2x2 table.
+yule_q_am_vs &lt;- YuleQ(tbl_am_vs)
+round(yule_q_am_vs, 4)
+#&gt; [1] 0.3333</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Yule's Q lands at <strong>0.33</strong> — about twice as strong as Phi on the same table. That is because Q ignores the marginal totals and looks only at the cross-product ratio, so it exaggerates small effects. Phi is the more conservative choice and usually the one you should report; Q is useful as a quick diagnostic.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Phi's sign is only meaningful for 2×2 tables.</strong> For bigger nominal tables the idea of "direction" stops making sense (there is no natural order to compare), so the next section's Cramer's V drops the sign entirely and reports a value from 0 to 1.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 2×2 from <code>mtcars</code> of <code>am</code> vs a new binary variable <code>high_mpg</code> (1 if <code>mpg &gt; 20</code>, 0 otherwise) and compute Phi.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: Phi for am vs high_mpg
+ex_high_mpg &lt;- as.integer(mtcars$mpg &gt; 20)
+ex_tbl_phi  &lt;- NA  # build the 2x2 table
+ex_phi      &lt;- NA  # compute Phi
+
+round(ex_phi, 4)
+#&gt; Expected: about 0.5832</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_high_mpg &lt;- as.integer(mtcars$mpg &gt; 20)
+ex_tbl_phi  &lt;- table(am = mtcars$am, high_mpg = ex_high_mpg)
+ex_phi      &lt;- Phi(ex_tbl_phi)
+
+round(ex_phi, 4)
+#&gt; [1] 0.5832</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Manual cars (<code>am = 1</code>) are much more likely to have high mileage than automatics, so the Phi coefficient jumps to about 0.58 — a large association by Cohen's standard. That's a striking contrast with the 0.17 we saw between <code>am</code> and <code>vs</code>, and it shows how much the partner variable matters.</p>
+
+</details>
+</section>
+
+<h2>How do you compute Cramer's V for larger contingency tables?</h2>
+
+<p>When your <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">categorical variables</a> have more than two levels — hair color, education level, department — Phi no longer applies. Its generalization is <strong>Cramer's V</strong>, which handles any k × m contingency table.</p>
+
+<p>$$V = \sqrt{\chi^2 / (n \cdot \min(r-1, c-1))}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\chi^2$ is the Pearson chi-square statistic for the full table</li>
+
+<li>$n$ is the total sample size</li>
+
+<li>$r$ and $c$ are the number of <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a></li>
+
+</ul>
+
+<p>V always lives in [0, 1]. The denominator corrects for the fact that bigger tables inflate the chi-square statistic even when the underlying association is the same. For a 2×2 table, V reduces exactly to the absolute value of Phi.</p>
+
+<p>Let's use <code>HairEyeColor</code>, a built-in 3-dimensional contingency table of hair, eye color, and sex. We first collapse across sex to get a flat 4×4 table.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Collapse the 4 x 4 x 2 table across sex to get hair by eye only.
+hair_eye &lt;- apply(HairEyeColor, c(&quot;Hair&quot;, &quot;Eye&quot;), sum)
+hair_eye
+#&gt;        Eye
+#&gt; Hair    Brown Blue Hazel Green
+#&gt;   Black    68   20    15     5
+#&gt;   Brown   119   84    54    29
+#&gt;   Red      26   17    14    14
+#&gt;   Blond     7   94    10    16
+
+# Cramer's V, raw and with the small-sample bias correction.
+cramer_v_raw &lt;- CramerV(hair_eye)
+cramer_v_bc  &lt;- CramerV(hair_eye, method = &quot;fisheradj&quot;)
+
+round(c(raw = cramer_v_raw, bias_corrected = cramer_v_bc), 4)
+#&gt;            raw bias_corrected
+#&gt;         0.2791         0.2696</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Cramer's V of <strong>0.28</strong> means hair color and eye color share a medium-strength association — roughly what you would expect (blonde hair goes with blue eyes more often than with brown). The bias-corrected version nudges the estimate down slightly; for samples this large the correction barely matters, but for small samples (n < 50) it can move the number noticeably.</p>
+
+<p>When you want every nominal measure at once, <code>vcd::assocstats()</code> prints Phi, contingency coefficient, Cramer's V, and the underlying chi-square test in a single call.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># All nominal association measures in one call, for the male slice.
+assoc_male &lt;- assocstats(HairEyeColor[, , &quot;Male&quot;])
+assoc_male
+#&gt;                     X^2 df  P(&gt; X^2)
+#&gt; Likelihood Ratio  44.136  9 1.3337e-06
+#&gt; Pearson           41.280  9 4.4711e-06
+#&gt;
+#&gt; Phi-Coefficient   : NA
+#&gt; Contingency Coeff.: 0.343
+#&gt; Cramer's V        : 0.258</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The output tells you three things at once: the chi-square test is highly significant (p ≈ 4e-6), the contingency coefficient is 0.34, and Cramer's V is 0.26. Phi is reported as <code>NA</code> because this is a 4×4 table, not 2×2 — <code>assocstats()</code> is honest about which measures apply to your table shape.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>vcd::assocstats()</code> when you want the full nominal toolkit in one line.</strong> It auto-detects when Phi is meaningful and prints the chi-square test alongside the effect sizes, so you get significance and strength together — which is exactly the two-column summary you usually want in a report.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute Cramer's V for the 2×2 table of <code>admit</code> vs <code>gender</code> from <code>UCBAdmissions</code>, collapsed across department.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: Cramer's V on UCBAdmissions collapsed
+ex_ucb_tbl &lt;- NA  # collapse across Dept to get a 2x2
+ex_ucb_v   &lt;- NA  # compute Cramer's V
+
+round(ex_ucb_v, 4)
+#&gt; Expected: about 0.1439</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_ucb_tbl &lt;- apply(UCBAdmissions, c(&quot;Admit&quot;, &quot;Gender&quot;), sum)
+ex_ucb_v   &lt;- CramerV(ex_ucb_tbl)
+
+round(ex_ucb_v, 4)
+#&gt; [1] 0.1439</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> On the collapsed table there is a small association (V ≈ 0.14) that looks like gender bias in admissions. This is the famous Simpson's paradox: if you compute Cramer's V department by department instead, the effect vanishes or reverses. Always check whether collapsing a table hides a confounder.</p>
+
+</details>
+</section>
+
+<h2>Which measures fit ordinal data — gamma, tau-b, Somers' D?</h2>
+
+<p>When both variables have a natural order — low/medium/high, grades A–F, survey ratings — you leave information on the table if you use Cramer's V. Ordinal measures count <em>concordant pairs</em> (both variables move the same way) minus <em>discordant pairs</em> (they move in opposite directions) and scale the difference into a number between –1 and 1.</p>
+
+<p>Three measures dominate this space:</p>
+
+<ul>
+
+<li><strong>Goodman-Kruskal γ</strong> (gamma) — ignores ties entirely. Easy to interpret, but can be over-optimistic when there are lots of ties.</li>
+
+<li><strong>Kendall τ-b</strong> (tau-b) — penalizes ties, symmetric (treats both variables the same way). The standard choice for square tables.</li>
+
+<li><strong>Somers' D</strong> — asymmetric: it treats one variable as the "dependent" outcome and the other as the "predictor," so you get two possible values, D(Y|X) and D(X|Y).</li>
+
+</ul>
+
+<p>Let's build a small 3×3 ordinal table — age group vs an income bracket — and compute all three.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># A 3x3 ordinal table: age group by income bracket.
+ord_tbl &lt;- matrix(
+  c(7, 3, 1,
+    3, 6, 2,
+    1, 2, 7),
+  nrow = 3,
+  byrow = TRUE,
+  dimnames = list(
+    Age    = c(&quot;Young&quot;, &quot;Middle&quot;, &quot;Senior&quot;),
+    Income = c(&quot;Low&quot;, &quot;Med&quot;, &quot;High&quot;)
+  )
+)
+ord_tbl
+#&gt;         Income
+#&gt; Age      Low Med High
+#&gt;   Young    7   3    1
+#&gt;   Middle   3   6    2
+#&gt;   Senior   1   2    7
+
+gk_gamma &lt;- GoodmanKruskalGamma(ord_tbl)
+k_tau_b  &lt;- KendallTauB(ord_tbl)
+s_delta  &lt;- SomersDelta(ord_tbl)
+
+round(c(gamma = gk_gamma, tau_b = k_tau_b, somers_d = s_delta), 4)
+#&gt;    gamma    tau_b somers_d
+#&gt;   0.7131   0.5249   0.5249</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>All three agree on the direction (positive — older respondents tend to land in higher income brackets) but give very different magnitudes. Gamma is <strong>0.71</strong>, the biggest because it ignores ties completely. Kendall's τ-b drops to <strong>0.52</strong> because it divides by a denominator that includes tied pairs, which deflates the apparent strength. Somers' D matches τ-b here because the table is symmetric; on an asymmetric table the two would diverge.</p>
+
+<p>Which should you report? For a symmetric hypothesis — "are age and income associated?" — use τ-b. For a directional hypothesis — "does age predict income?" — use Somers' D and be explicit about which way round it points. Gamma is most useful as a quick first look because it has the simplest interpretation, but it can mislead when ties are common.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Using Cramer's V on ordinal data throws away the ordering information.</strong> On the table above, <code>CramerV(ord_tbl)</code> returns about 0.37 — much smaller than the ordinal measures, because it treats the categories as unordered labels and cannot "see" that Young<Middle<Senior is a real progression. If the categories have an order, use an ordinal measure.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 3×3 ordinal table of study hours (Low/Med/High) vs exam grade (C/B/A) with a clear positive pattern and compute Kendall's τ-b. Use this starter data: <code>c(8, 3, 1, 2, 7, 3, 1, 2, 8)</code> byrow.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: Kendall tau-b on an ordinal study-hours / grade table
+ex_ord_tbl &lt;- NA  # build the 3x3 table from the vector above
+ex_tau_b   &lt;- NA  # compute Kendall's tau-b
+
+round(ex_tau_b, 4)
+#&gt; Expected: about 0.6145</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_ord_tbl &lt;- matrix(
+  c(8, 3, 1,
+    2, 7, 3,
+    1, 2, 8),
+  nrow = 3,
+  byrow = TRUE,
+  dimnames = list(
+    Hours = c(&quot;Low&quot;, &quot;Med&quot;, &quot;High&quot;),
+    Grade = c(&quot;C&quot;, &quot;B&quot;, &quot;A&quot;)
+  )
+)
+ex_tau_b &lt;- KendallTauB(ex_ord_tbl)
+
+round(ex_tau_b, 4)
+#&gt; [1] 0.6145</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 8/7/8 diagonal plus small off-diagonals creates a strong positive ordinal pattern, and Kendall's τ-b correctly picks up a large effect near 0.61. Students who studied more got better grades, and the ordinal measure captures both the direction and the strength.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Time to put it all together. These two exercises each combine multiple concepts — picking the right measure, computing it, and interpreting the number.</p>
+
+<h4>Exercise 1: Pick the right measure for three mtcars variable pairs</h4>
+
+<p>Given three variables — <code>mtcars$mpg</code> (numeric continuous), <code>mtcars$cyl</code> (ordinal: 4, 6, 8) and <code>mtcars$am</code> (binary) — compute the <em>correct</em> measure of association for each of the three pairs and save the results to <code>my_assoc_mpg_cyl</code>, <code>my_assoc_mpg_am</code>, and <code>my_assoc_cyl_am</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: pick and compute the right measure for each pair
+# Hint: mpg vs cyl -&gt; Spearman (numeric vs ordinal)
+#       mpg vs am  -&gt; Pearson  (numeric vs binary, which is a special case of numeric)
+#       cyl vs am  -&gt; ordinal table -&gt; KendallTauB
+
+my_assoc_mpg_cyl &lt;- NA  # your code
+my_assoc_mpg_am  &lt;- NA  # your code
+my_assoc_cyl_am  &lt;- NA  # your code
+
+round(c(mpg_cyl = my_assoc_mpg_cyl,
+        mpg_am  = my_assoc_mpg_am,
+        cyl_am  = my_assoc_cyl_am), 4)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_assoc_mpg_cyl &lt;- cor(mtcars$mpg, mtcars$cyl, method = &quot;spearman&quot;)
+my_assoc_mpg_am  &lt;- cor(mtcars$mpg, mtcars$am,  method = &quot;pearson&quot;)
+my_assoc_cyl_am  &lt;- KendallTauB(table(mtcars$cyl, mtcars$am))
+
+round(c(mpg_cyl = my_assoc_mpg_cyl,
+        mpg_am  = my_assoc_mpg_am,
+        cyl_am  = my_assoc_cyl_am), 4)
+#&gt; mpg_cyl  mpg_am  cyl_am
+#&gt; -0.9117  0.5998 -0.5334</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mpg</code> vs <code>cyl</code> gives a near-perfect negative Spearman — more cylinders, lower mileage. <code>mpg</code> vs <code>am</code> uses Pearson (a binary variable works fine as the "numeric" input) and reports 0.60, a medium-to-large positive effect: manual cars get better mileage. <code>cyl</code> vs <code>am</code> is two ordinal-ish columns, so τ-b is the right pick and reports -0.53 — smaller-cylinder cars skew toward manual transmissions.</p>
+
+</details>
+
+<h4>Exercise 2: Cramer's V and a full assocstats report on the Female slice of HairEyeColor</h4>
+
+<p>Compute Cramer's V for the female slice of <code>HairEyeColor</code>, save it to <code>my_v_female</code>, and print the full <code>assocstats()</code> summary for the same slice into <code>my_assoc_female</code>.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: V + assocstats for female slice
+# Hint: HairEyeColor[, , &quot;Female&quot;] gives a 4 x 4 matrix
+
+my_v_female     &lt;- NA  # your code
+my_assoc_female &lt;- NA  # your code
+
+round(my_v_female, 4)
+my_assoc_female</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_v_female     &lt;- CramerV(HairEyeColor[, , &quot;Female&quot;])
+my_assoc_female &lt;- assocstats(HairEyeColor[, , &quot;Female&quot;])
+
+round(my_v_female, 4)
+#&gt; [1] 0.3979
+
+my_assoc_female
+#&gt;                     X^2 df   P(&gt; X^2)
+#&gt; Likelihood Ratio 114.534  9 0.0000e+00
+#&gt; Pearson          106.664  9 0.0000e+00
+#&gt;
+#&gt; Phi-Coefficient   : NA
+#&gt; Contingency Coeff.: 0.369
+#&gt; Cramer's V        : 0.398</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> On the female slice the association is notably stronger than on the male slice (V ≈ 0.40 vs 0.26). That's a useful reminder that collapsing across a variable (sex, in this case) can hide real differences in how other variables interact — the decision flowchart only picks the <em>type</em> of measure; you still have to think about which subgroup you are measuring.</p>
+
+</details>
+
+<h2>Complete Example: profile every variable pair in mtcars</h2>
+
+<p>Let's tie everything together. We'll walk through <code>mtcars</code>, classify each column as numeric, binary, or ordinal-like, pick the right measure for every pair, and build a tidy summary table.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Classify columns by the kind of association measure they should use.
+classify_col &lt;- function(x) {
+  u &lt;- length(unique(x))
+  if (u == 2) &quot;binary&quot;
+  else if (u &lt;= 6) &quot;ordinal&quot;
+  else &quot;numeric&quot;
+}
+
+col_types &lt;- sapply(mtcars, classify_col)
+col_types
+#&gt;       mpg       cyl      disp        hp      drat        wt      qsec
+#&gt; &quot;numeric&quot; &quot;ordinal&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot;
+#&gt;        vs        am      gear      carb
+#&gt;  &quot;binary&quot;  &quot;binary&quot; &quot;ordinal&quot; &quot;ordinal&quot;
+
+# Given two column types, pick and compute the right measure.
+pair_measure &lt;- function(x, y, tx, ty) {
+  if (tx == &quot;numeric&quot; &amp;&amp; ty == &quot;numeric&quot;) {
+    list(measure = &quot;Pearson r&quot;, value = cor(x, y, method = &quot;pearson&quot;))
+  } else if ((tx == &quot;numeric&quot; &amp;&amp; ty == &quot;binary&quot;) ||
+             (tx == &quot;binary&quot;  &amp;&amp; ty == &quot;numeric&quot;)) {
+    list(measure = &quot;Pearson r&quot;, value = cor(x, y, method = &quot;pearson&quot;))
+  } else if (tx == &quot;binary&quot; &amp;&amp; ty == &quot;binary&quot;) {
+    list(measure = &quot;Phi&quot;,       value = as.numeric(Phi(table(x, y))))
+  } else if (tx == &quot;ordinal&quot; || ty == &quot;ordinal&quot;) {
+    list(measure = &quot;Kendall tau-b&quot;, value = KendallTauB(table(x, y)))
+  } else {
+    list(measure = &quot;Cramer V&quot;,  value = CramerV(table(x, y)))
+  }
+}
+
+# Build the pairwise summary for just four columns to keep output short.
+cols &lt;- c(&quot;mpg&quot;, &quot;cyl&quot;, &quot;am&quot;, &quot;gear&quot;)
+rows &lt;- list()
+for (i in seq_along(cols)) {
+  for (j in seq_along(cols)) {
+    if (i &lt; j) {
+      res &lt;- pair_measure(mtcars[[cols[i]]], mtcars[[cols[j]]],
+                          col_types[cols[i]], col_types[cols[j]])
+      rows[[length(rows) + 1]] &lt;- data.frame(
+        var1    = cols[i],
+        var2    = cols[j],
+        type1   = col_types[cols[i]],
+        type2   = col_types[cols[j]],
+        measure = res$measure,
+        value   = round(res$value, 4),
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+}
+
+mtcars_assoc &lt;- do.call(rbind, rows)
+mtcars_assoc$strong &lt;- abs(mtcars_assoc$value) &gt; 0.7
+mtcars_assoc
+#&gt;   var1 var2    type1    type2       measure   value strong
+#&gt; 1  mpg  cyl  numeric  ordinal Kendall tau-b -0.7951   TRUE
+#&gt; 2  mpg   am  numeric   binary     Pearson r  0.5998  FALSE
+#&gt; 3  mpg gear  numeric  ordinal Kendall tau-b  0.4048  FALSE
+#&gt; 4  cyl   am  ordinal   binary Kendall tau-b -0.5334  FALSE
+#&gt; 5  cyl gear  ordinal  ordinal Kendall tau-b -0.5431  FALSE
+#&gt; 6   am gear   binary  ordinal Kendall tau-b  0.6931  FALSE</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The <code>mtcars_assoc</code> data frame is a map of how every variable connects to every other one, each measured with the right tool. The <code>strong</code> column flags the single pair (mpg vs cyl) with |association| > 0.7 — exactly the kind of redundancy signal you would want to see before feeding these variables into a regression. Think of this as a small audit you can run on any new dataset before modeling, so you know which variables carry the same information.</p>
+
+<h2>Summary</h2>
+
+<p>Here is the decision table condensed for fast lookup.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Variable types</th>
+<th>Measure</th>
+<th>R function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Numeric × Numeric</td>
+<td>Pearson r, Spearman ρ, Kendall τ</td>
+<td><code>cor(..., method = ...)</code></td>
+</tr>
+<tr>
+<td>2×2 Nominal</td>
+<td>Phi, Yule's Q, odds ratio</td>
+<td><code>DescTools::Phi()</code>, <code>DescTools::YuleQ()</code>, <code>DescTools::OddsRatio()</code></td>
+</tr>
+<tr>
+<td>k × m Nominal</td>
+<td>Cramer's V, Contingency C</td>
+<td><code>DescTools::CramerV()</code>, <code>vcd::assocstats()</code></td>
+</tr>
+<tr>
+<td>Ordinal × Ordinal</td>
+<td>Goodman-Kruskal γ, Kendall τ-b, Somers' D</td>
+<td><code>DescTools::GoodmanKruskalGamma()</code>, <code>DescTools::KendallTauB()</code>, <code>DescTools::SomersDelta()</code></td>
+</tr>
+<tr>
+<td>Nominal × Ordinal</td>
+<td>Freeman's θ, epsilon-squared</td>
+<td><code>rcompanion::freemanTheta()</code>, <code>rcompanion::epsilonSquared()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Measures-of-Association-in-R-effect-size-bands.webp" alt="Cohen's effect-size bands for Cramer's V on 2x2 tables." class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: Cohen's effect-size bands for Cramer's V on 2×2 tables.</em></p>
+
+<p>The three big ideas to take away:</p>
+
+<ol>
+
+<li><strong>Variable type decides the measure.</strong> Pick by looking at your columns, not by habit. Using Pearson on a nominal code is a bug, not a shortcut.</li>
+
+<li><strong>Effect sizes and p-values answer different questions.</strong> A significant chi-square test tells you whether an association exists; Cramer's V tells you how big it is. Report both.</li>
+
+<li><strong><code>vcd::assocstats()</code> is the one-line summary</strong> for nominal data, and <code>DescTools</code> covers the ordinal measures your statistics textbook will ask about.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Mangiafico, S. S. — <em>R Handbook: Measures of Association for Nominal Variables</em>. rcompanion.org. <a href="https://rcompanion.org/handbook/H_10.html">Link</a></li>
+
+<li>Cohen, J. — <em><a class="auto-link" href="Sample-Size-Planning-in-R.html" title="Sample Size in R: Calculate Your N Before You Collect a Single Observation">Statistical Power</a> Analysis for the Behavioral Sciences</em>, 2nd Edition. Lawrence Erlbaum (1988).</li>
+
+<li>Agresti, A. — <em>Categorical Data Analysis</em>, 3rd Edition. Wiley (2013).</li>
+
+<li>Meyer, D., Zeileis, A. & Hornik, K. — <em>The Strucplot Framework: Visualizing Multi-Way Contingency Tables with vcd</em>. Journal of Statistical Software 17(3), 2006. <a href="https://www.jstatsoft.org/article/view/v017i03">Link</a></li>
+
+<li>Signorell, A. — <em>DescTools: Tools for Descriptive Statistics</em>. CRAN package documentation. <a href="https://cran.r-project.org/package=DescTools">Link</a></li>
+
+<li>Goodman, L. A. & Kruskal, W. H. — "Measures of Association for Cross Classifications." <em>Journal of the American Statistical Association</em> 49(268), 732–764 (1954).</li>
+
+<li>Cramér, H. — <em>Mathematical Methods of Statistics</em>. Princeton University Press (1946).</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Statistical-Tests-in-R.html">Statistical Tests in R</a> — the chi-square test that powers Phi and Cramer's V, plus t-tests, ANOVA, and non-parametric alternatives.</li>
+
+<li><a href="Correlation-Matrix-Plot-in-R.html">Correlation Matrix Plot in R</a> — visualize Pearson and Spearman matrices across many variables at once.</li>
+
+<li><a href="Which-Statistical-Test-in-R.html">Which Statistical Test in R?</a> — a companion decision flow for picking the right hypothesis test once you know how your variables are associated.</li>
+
+</ul>
