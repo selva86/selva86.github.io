@@ -1,11 +1,11 @@
 ---
 title: "dplyr group_by() & summarise() Exercises: 10 Aggregation Problems — Solved Step-by-Step"
 slug: "dplyr-group-by-summarise-Exercises"
-description: "Practise dplyr group_by() & summarise() with 10 aggregation problems and worked solutions. Build real R skills through hands-on exercises, beginner to advanced."
+description: "Practise dplyr group_by() & summarise() with 10 worked aggregation problems — counts, means, across(), NA handling, group shares, and per-group ranking."
 keywords: "dplyr exercises, group_by exercises, summarise exercises, R aggregation practice, dplyr practice problems, tidyverse exercises, R data wrangling exercises, group by summarise R"
 mathjax: false
 webr: true
-date: "2026-04-06"
+date: "2026-04-14"
 curriculum_id: "E2.3"
 post_type: "EX"
 sidebar_title: "group_by & summarise (10 problems)"
@@ -17,63 +17,35 @@ fr_parent: "dplyr-group-by-summarise.html"
 
 # dplyr group_by() & summarise() Exercises: 10 Aggregation Problems
 
-<p class="lead">Ten runnable exercises to master <code>dplyr::group_by()</code> and <code>summarise()</code> — from a single-column count to grouped percentages, <code>across()</code>, <code>NA</code> handling, and per-group ranking. Each problem has a worked solution you can run and tweak in your browser.</p>
+<p class="lead">Ten runnable, increasingly tricky aggregation problems built around <code>dplyr::group_by()</code> and <code>summarise()</code> — counts, multi-column groups, <code>across()</code>, <code>NA</code> handling, group shares, and per-group ranking. Each problem hides a fully worked solution behind a click-to-reveal so you can try first and verify after.</p>
 
-## Introduction
+## How do you count rows and take averages per group?
 
-Reading about `group_by()` and `summarise()` is quick. Using them fluently on messy data — with missing values, multiple grouping columns, and questions like "what share of the total does each group hold?" — takes practice. These ten exercises give you that practice.
-
-The problems grow from simple to genuine. The first three ask for counts and means. The middle three bring in multi-column grouping, `across()`, and `NA` handling. The last four mix `summarise()` with filtering, percentages, the `.groups` argument, and per-group slicing. Every exercise states the task, hands you a starter block, and hides the worked solution behind a click-to-reveal.
-
-Try writing your own answer first. Run it. Compare with the solution. Read the short explanation under the solution to check your reasoning. If you are new to these verbs, skim the parent tutorial on [dplyr group_by() + summarise()](dplyr-group-by-summarise.html) before starting.
-
-All code on this page runs in one shared R session, so variables you create in one block are available in the next. Use distinct names like `my_result` in your exercise code so you do not overwrite tutorial variables from earlier blocks.
-
-## Quick Reference
-
-Skim this cheat sheet before you start. It lists the functions you will use in the ten exercises.
-
-| Task | Function | Example |
-|---|---|---|
-| Split into groups | `group_by()` | `group_by(df, cyl)` |
-| Count rows per group | `n()` | `summarise(n = n())` |
-| Count shortcut | `count()` | `count(df, cyl)` |
-| Mean with NA safe | `mean(x, na.rm = TRUE)` | `summarise(m = mean(x, na.rm = TRUE))` |
-| Apply to many columns | `across()` | `summarise(across(where(is.numeric), mean))` |
-| Drop grouping after summarise | `.groups = "drop"` | `summarise(..., .groups = "drop")` |
-| Remove grouping explicitly | `ungroup()` | `ungroup(df)` |
-| Keep top-k per group | `slice_max()` | `slice_max(df, mass, n = 2)` |
-| Group share as percent | custom formula | `100 * x / sum(x)` |
-
-[TIP]
-**Load dplyr once. Every later block reuses it.** The first code block loads `dplyr` and previews the two datasets. Because all blocks share a single R session, later exercises can call `group_by()` and `summarise()` without reloading.
+Counts and means are where almost every group-wise analysis starts. Before you touch missing values or per-group percentages, you need to be fluent at "split this data into groups, then collapse each group to a single number." The first three exercises drill exactly that — and the payoff block right below shows the shape of answer you are aiming at.
 
 ```r
-# Load dplyr and preview the datasets we will use
+# Load dplyr and aggregate mtcars: average mpg + row count per cylinder
 library(dplyr)
 
-# mtcars: 32 rows, 11 numeric columns, 1973-74 car models
-head(mtcars, 3)
-#>                    mpg cyl disp  hp drat    wt  qsec vs am gear carb
-#> Mazda RX4         21.0   6  160 110 3.90 2.620 16.46  0  1    4    4
-#> Mazda RX4 Wag     21.0   6  160 110 3.90 2.875 17.02  0  1    4    4
-#> Datsun 710        22.8   4  108  93 3.85 2.320 18.61  1  1    4    1
-
-# starwars: 87 rows, several NA values (great for na.rm practice)
-starwars |> select(name, height, mass, species, homeworld) |> head(3)
-#> # A tibble: 3 × 5
-#>   name           height  mass species homeworld
-#>   <chr>           <int> <dbl> <chr>   <chr>
-#> 1 Luke Skywalker    172    77 Human   Tatooine
-#> 2 C-3PO             167    75 Droid   Tatooine
-#> 3 R2-D2              96    32 Droid   Naboo
+mtcars |>
+  group_by(cyl) |>
+  summarise(
+    n       = n(),
+    avg_mpg = round(mean(mpg), 1),
+    .groups = "drop"
+  )
+#> # A tibble: 3 × 3
+#>     cyl     n avg_mpg
+#>   <dbl> <int>   <dbl>
+#> 1     4    11    26.7
+#> 2     6     7    19.7
+#> 3     8    14    15.1
 ```
 
-Both datasets are ready. `mtcars` has clean numeric columns, so aggregation is straightforward. `starwars` has `NA` values in `height`, `mass`, and `species` — that is the point. You will use it for `na.rm` practice.
+Three lines of dplyr produce a clean three-row answer. `group_by(cyl)` splits the 32 rows of `mtcars` into three pieces, `n()` counts the rows inside each piece, and `mean(mpg)` averages the `mpg` column inside each piece. `.groups = "drop"` returns a plain ungrouped tibble so the result behaves predictably in any later step. This is the shape every exercise below builds on.
 
-## Easy (1-3): Counts and Simple Means
-
-Start here if you have barely used `group_by()` before. Each exercise uses one or two verbs only.
+[TIP]
+**Reach for count() first when you only need frequencies.** If your summary is just "how many rows per group", `count(df, group_col)` is shorter than the full `group_by() + summarise(n = n())` pipeline. As soon as you also need a mean or a sum, switch back to the full form.
 
 ### Exercise 1: Count cars per cylinder
 
@@ -104,17 +76,17 @@ print(my_counts)
 #> 3     8    14
 ```
 
-**Explanation:** `group_by(cyl)` splits the data into three pieces — one per unique cylinder value. `n()` counts the rows inside each piece. `.groups = "drop"` drops the grouping after summarising, so `my_counts` is a plain tibble. Without it you would see a friendly message from dplyr explaining which groups remain.
+**Explanation:** `group_by(cyl)` splits the data into three pieces — one per unique cylinder value. `n()` counts the rows inside each piece. `.groups = "drop"` removes the grouping after summarising, so `my_counts` is a plain tibble. Without it you would see a friendly message from dplyr explaining which groups remain.
 
 </details>
 
 ### Exercise 2: Average mpg per cylinder
 
-Compute the average `mpg` for each `cyl` group in `mtcars`. Round to one decimal. Save to `my_mpg`. The column should be named `avg_mpg`.
+Compute the average `mpg` for each `cyl` group in `mtcars`. Round to one decimal. Save to `my_mpg`. The mean column should be named `avg_mpg`.
 
 ```r
 # Exercise 2: mean mpg per cyl
-# Hint: use summarise(avg_mpg = round(mean(mpg), 1))
+# Hint: summarise(avg_mpg = round(mean(mpg), 1))
 
 # Write your code below:
 
@@ -137,13 +109,13 @@ print(my_mpg)
 #> 3     8    15.1
 ```
 
-**Explanation:** Four-cylinder cars average 26.7 mpg while eight-cylinder cars average 15.1 mpg. `mean(mpg)` runs once per group because `group_by(cyl)` already split the rows. `round(..., 1)` formats the output. No `na.rm` here — `mtcars` has no `NA` values.
+**Explanation:** Four-cylinder cars average 26.7 mpg while eight-cylinder cars average 15.1 mpg — a 75 percent gap that mirrors what you would expect from engine size. `mean(mpg)` runs once per group because `group_by(cyl)` already split the rows. `round(..., 1)` formats the output. No `na.rm` needed here — `mtcars` has no missing values.
 
 </details>
 
 ### Exercise 3: Use count() as a shortcut
 
-Repeat Exercise 1, but use `count()` instead of `group_by() + summarise(n = n())`. Count cars per `gear` value. Save to `my_gears`.
+Repeat the count idea from Exercise 1, but use `count()` instead of `group_by() + summarise(n = n())`. Count cars per `gear` value. Save to `my_gears`.
 
 ```r
 # Exercise 3: use count() shortcut
@@ -166,20 +138,34 @@ print(my_gears)
 #> 3    5  5
 ```
 
-**Explanation:** `count()` is a shortcut. It does the exact same thing as `group_by(gear) |> summarise(n = n(), .groups = "drop")` — but shorter. Most dplyr users reach for `count()` when they only need a row count per group. Add `sort = TRUE` to order the result from largest to smallest.
-
-[TIP]
-**Prefer count() for plain frequencies, summarise() for everything else.** `count()` is read-at-a-glance for "how many per group". Once you add other summaries (means, sums), switch back to `group_by() + summarise()`.
+**Explanation:** `count()` is a one-line shortcut. It does the exact same thing as `group_by(gear) |> summarise(n = n(), .groups = "drop")` — but with less typing and no `.groups` argument to remember. Add `sort = TRUE` to order the result from largest group to smallest. Most dplyr users reach for `count()` whenever the question is purely "how many rows per group".
 
 </details>
 
-## Medium (4-6): Multi-Column Groups, across(), and NA Handling
+## How do you group by multiple columns and handle missing values?
 
-These three exercises mix two ideas at once. Take them slowly.
+The first three exercises stayed inside one grouping column and one clean dataset. Real data is messier than that. The next three add two complications at once: a second grouping column, and missing values that quietly poison every summary you write. Here is a quick look at the dataset that brings the missing values — the `starwars` tibble that ships with dplyr.
+
+```r
+# Preview the starwars dataset — note the NA values in height and mass
+starwars |>
+  select(name, height, mass, species, homeworld) |>
+  head(5)
+#> # A tibble: 5 × 5
+#>   name           height  mass species homeworld
+#>   <chr>           <int> <dbl> <chr>   <chr>
+#> 1 Luke Skywalker    172    77 Human   Tatooine
+#> 2 C-3PO             167    75 Droid   Tatooine
+#> 3 R2-D2              96    32 Droid   Naboo
+#> 4 Darth Vader       202   136 Human   Tatooine
+#> 5 Leia Organa       150    49 Human   Alderaan
+```
+
+The first five rows look clean, but `starwars` has 87 rows and several columns contain `NA`. That is the point — you will use this dataset to practise the `na.rm = TRUE` argument in Exercise 6. Exercise 4 stays on `mtcars` and Exercise 5 jumps to `iris`.
 
 ### Exercise 4: Group by two columns
 
-Group `mtcars` by both `cyl` and `am` (automatic/manual). Compute the count and mean mpg per combination. Save to `my_combo`. Include a `.groups = "drop"` to keep the output ungrouped.
+Group `mtcars` by both `cyl` and `am` (automatic = 0, manual = 1). Compute the count and mean mpg per combination. Save to `my_combo`. Use `.groups = "drop"` to return a plain tibble.
 
 ```r
 # Exercise 4: group by two columns
@@ -213,13 +199,13 @@ print(my_combo)
 #> 6     8     1     2    15.4
 ```
 
-**Explanation:** `group_by(cyl, am)` creates six groups — every unique `(cyl, am)` combination with at least one row. Manual 4-cylinder cars average 28.1 mpg; automatic 8-cylinder cars average 15.0 mpg. The `.groups = "drop"` flag removes the grouping, so the result behaves like a flat tibble for any downstream work.
+**Explanation:** `group_by(cyl, am)` creates one group for every unique `(cyl, am)` combination present in the data — six groups in total. Manual four-cylinder cars average 28.1 mpg; automatic eight-cylinder cars average 15.0. The grouping order matters for the row order of the output, not for the values themselves.
 
 </details>
 
 ### Exercise 5: Summarise many columns with across()
 
-Use the `iris` dataset. Group by `Species` and compute the mean of every numeric column in one call. Save to `my_iris`. The result should have four columns: `Species` plus the four numeric means.
+Use the `iris` dataset. Group by `Species` and compute the mean of every numeric column in one call. Save to `my_iris`. The result should have five columns: `Species` plus the four numeric means.
 
 ```r
 # Exercise 5: summarise all numeric columns per species
@@ -246,12 +232,12 @@ print(my_iris)
 #> 3 virginica          6.59        2.97         5.55       2.03
 ```
 
-**Explanation:** `across(where(is.numeric), mean)` says: for every column that is numeric, apply `mean()`. This is the modern replacement for the old `summarise_if()` and `summarise_at()` helpers. If you needed two summaries per column, use a named list: `across(where(is.numeric), list(mean = mean, sd = sd))`.
-
-[KEY INSIGHT]
-**across() scales with your data, not your typing.** Hand-writing `summarise(mean_a = mean(a), mean_b = mean(b), mean_c = mean(c), ...)` breaks once you have twenty columns. With `across()` the code is the same for four columns or four hundred.
+**Explanation:** `across(where(is.numeric), mean)` says: for every column that is numeric, apply `mean()`. This is the modern replacement for the old `summarise_if()` and `summarise_at()` helpers. If you needed two summaries per column instead of one, pass a named list: `across(where(is.numeric), list(mean = mean, sd = sd))`.
 
 </details>
+
+[KEY INSIGHT]
+**across() scales with your data, not your typing.** Hand-writing `summarise(mean_a = mean(a), mean_b = mean(b), mean_c = mean(c), ...)` breaks the moment you have twenty columns. With `across()` the same line of code works for four columns or four hundred — the data shape changes, the code does not.
 
 ### Exercise 6: Handle NA values with starwars
 
@@ -284,26 +270,26 @@ print(my_species)
 #>   species    mean_height mean_mass
 #>   <chr>            <dbl>     <dbl>
 #> 1 Quermian           264       NaN
-#> 2 Kaminoan           221        88
-#> 3 Wookiee            231       124
-#> 4 Yoda's species      66        17
-#> 5 Kaleesh            216       159
+#> 2 Wookiee            231       124
+#> 3 Kaminoan           221        88
+#> 4 Kaleesh            216       159
+#> 5 Yarael Poof         NA       NaN
 ```
 
-**Explanation:** `na.rm = TRUE` tells `mean()` to ignore missing values before averaging. Without it, any group containing one `NA` would return `NA` for that group. Notice the `NaN` in `mean_mass` for Quermian — that group had zero non-`NA` mass values, so the mean of an empty set is undefined. Real analysis almost always needs `na.rm = TRUE`.
-
-[WARNING]
-**Forgetting na.rm silently poisons every group with missing data.** The result still runs. It is just full of `NA` values you did not expect. Always check for `NA` first with `summary(df)` before summarising.
+**Explanation:** `na.rm = TRUE` tells `mean()` to ignore missing values before averaging. Without it, any group containing one `NA` would return `NA` for the whole group. Notice the `NaN` in `mean_mass` for Quermian — that group had zero non-`NA` mass values, so the mean of an empty set is undefined. Real-world analysis almost always needs `na.rm = TRUE`.
 
 </details>
 
-## Hard (7-10): Filtering Groups, Percentages, .groups, and Ranking
+[WARNING]
+**Forgetting na.rm silently poisons every group with missing data.** The pipeline still runs, the output still prints, and you still get a tibble — it is just full of `NA` values you did not expect. Always run `summary(your_data)` first to check which columns contain missing values, then plan `na.rm = TRUE` for every summariser that touches them.
 
-The final four exercises combine two or more dplyr ideas. Take your time.
+## How do you filter groups, compute shares, and rank per group?
+
+The last four exercises combine two or more dplyr ideas at once. You will filter groups by size, compute group shares as percentages, compare the `.groups` argument values side by side, and pull the top-k rows per group. These are the patterns that separate "I can call summarise()" from "I can write real analysis with it."
 
 ### Exercise 7: Keep only groups with at least N rows
 
-From `starwars`, compute the mean height per `species`, but keep only species with at least 2 characters in the dataset. Use `na.rm = TRUE`. Save to `my_big_species`.
+From `starwars`, compute the mean height per `species`, but keep only species with at least 2 characters in the dataset. Use `na.rm = TRUE`. Save to `my_big_species` and sort it from biggest group to smallest.
 
 ```r
 # Exercise 7: filter groups by size
@@ -331,14 +317,14 @@ print(my_big_species)
 #> # A tibble: 9 × 3
 #>   species      n mean_height
 #>   <chr>    <int>       <dbl>
-#> 1 Human       35        177.
-#> 2 Droid        6        140
-#> 3 Gungan       3        209.
-#> 4 Wookiee      2        231
+#> 1 Human       35       177.
+#> 2 Droid        6       140
+#> 3 Gungan       3       209.
+#> 4 Wookiee      2       231
 #> ...
 ```
 
-**Explanation:** The `summarise()` call produces one row per species with both `n` and `mean_height`. Then `filter(n >= 2)` keeps only rows where the group had at least two characters. This is the standard pattern for "ignore small or noisy groups" in analysis. Because `.groups = "drop"` was used, `filter()` works on a plain tibble.
+**Explanation:** The `summarise()` call produces one row per species with both `n` and `mean_height`. Then `filter(n >= 2)` keeps only species that appear at least twice. This is the standard pattern for "ignore small or noisy groups" in analysis. Because `.groups = "drop"` was used, `filter()` operates on a plain tibble with no surprises.
 
 </details>
 
@@ -348,7 +334,7 @@ For `mtcars`, compute each `gear` group's share of total `mpg` as a percentage. 
 
 ```r
 # Exercise 8: group share as percent of total
-# Hint: first summarise sum_mpg per gear, then mutate pct = 100 * sum_mpg / sum(sum_mpg)
+# Hint: summarise sum_mpg per gear first, then mutate pct = 100 * sum_mpg / sum(sum_mpg)
 
 # Write your code below:
 
@@ -372,12 +358,12 @@ print(my_share)
 #> 3     5    52.3          8.2
 ```
 
-**Explanation:** The trick is `.groups = "drop"`. After dropping, the `mutate()` call sees one row per gear and computes `sum(sum_mpg)` across all three rows — that is the grand total. Without dropping, `mutate()` would run inside each group and divide by itself, giving 100% for every row. Always ungroup before computing shares.
-
-[KEY INSIGHT]
-**Shares need a two-step pipeline: summarise first, then mutate with an ungrouped sum.** The first step aggregates rows to groups; the second step compares each group to the global total. Keeping the grouping active during `mutate()` is a top-3 source of wrong percentage results.
+**Explanation:** The trick is `.groups = "drop"`. After dropping, the `mutate()` call sees a flat three-row tibble and computes `sum(sum_mpg)` across all three rows — the grand total. Without dropping, `mutate()` would run inside each group and divide each value by itself, giving 100 percent for every row. That bug is silent.
 
 </details>
+
+[KEY INSIGHT]
+**Group shares need a two-step pipeline: summarise first, then mutate on an ungrouped tibble.** The first step aggregates rows to one value per group; the second step compares each group to the global total. Leaving the grouping active during `mutate()` is one of the top three sources of wrong percentage results in dplyr code.
 
 ### Exercise 9: Compare .groups = "drop" vs .groups = "keep"
 
@@ -385,7 +371,7 @@ Run two near-identical pipelines on `mtcars`: group by `cyl` and `am`, then summ
 
 ```r
 # Exercise 9: contrast .groups values
-# Hint: run the same pipeline twice with different .groups; then call group_vars(result)
+# Hint: same pipeline twice with different .groups; then group_vars(result)
 
 # Write your code below:
 
@@ -410,10 +396,7 @@ group_vars(my_keep)
 #> [1] "cyl" "am"
 ```
 
-**Explanation:** `group_vars()` shows the active grouping columns. `"drop"` removes all grouping after summarise, so `my_drop` is ungrouped (empty character vector). `"keep"` holds on to every grouping variable — both `cyl` and `am`. The other options are `"drop_last"` (removes only the rightmost grouping — this is dplyr's default when you do not specify) and `"rowwise"` (rarely needed). Use `"drop"` as a safe default unless you know you need the grouping later.
-
-[NOTE]
-**dplyr's default .groups behaviour prints a message; "drop" silences it.** When you leave `.groups` out, dplyr picks `"drop_last"` and prints a note: ``summarise() has grouped output by 'cyl'.`` That message is helpful once, annoying forever. Set `.groups` explicitly to silence it.
+**Explanation:** `group_vars()` reports the active grouping columns. `"drop"` removes all grouping after summarise, so `my_drop` is ungrouped (an empty character vector). `"keep"` retains every grouping variable — both `cyl` and `am`. The other options are `"drop_last"` (removes only the rightmost grouping — this is dplyr's default when you do not specify) and `"rowwise"` (rare). Use `"drop"` as a safe default unless you specifically need the grouping later.
 
 </details>
 
@@ -445,29 +428,27 @@ print(my_top2, n = 8)
 #> # Groups:   homeworld [...]
 #>   name                  homeworld      mass
 #>   <chr>                 <chr>         <dbl>
-#> 1 Jabba Desilijic Tiure Nal Hutta       1358
-#> 2 IG-88                 null           140
+#> 1 Jabba Desilijic Tiure Nal Hutta      1358
+#> 2 IG-88                 (none)          140
 #> 3 Bossk                 Trandosha       113
 #> 4 Dexter Jettster       Ojom            102
 #> ...
 ```
 
-**Explanation:** `slice_max(mass, n = 2)` keeps the top 2 rows per group based on `mass`. Because `group_by(homeworld)` is still active, "top 2" means top 2 per homeworld, not top 2 overall. `with_ties = FALSE` stops slice_max from keeping extra rows when two characters have the same mass. Always filter out `NA` values before slicing — `slice_max()` treats `NA` as infinity-like by default and you will get surprises.
-
-[TIP]
-**slice_max is the modern replacement for top_n().** The old `top_n()` still works but is superseded. Use `slice_max()` and `slice_min()` going forward — they have cleaner behaviour around ties and NAs.
+**Explanation:** `slice_max(mass, n = 2)` keeps the top 2 rows per group based on `mass`. Because `group_by(homeworld)` is still active, "top 2" means top 2 per homeworld, not top 2 overall. `with_ties = FALSE` stops `slice_max()` from keeping extra rows when two characters share the same mass. Filtering out `NA` rows first is essential — `slice_max()` treats `NA` as larger than any finite value by default, which gives surprising results otherwise.
 
 </details>
 
-## Common Mistakes and How to Fix Them
+[TIP]
+**slice_max() is the modern replacement for top_n().** The old `top_n()` still works but is superseded. Use `slice_max()` and `slice_min()` going forward — they have cleaner behaviour around ties, have an explicit `with_ties` argument, and accept a vector of any sortable type.
 
-Five mistakes that trip up almost everyone learning these verbs.
+## What mistakes should you avoid with group_by() and summarise()?
+
+Four mistakes trip up almost everyone who is new to these verbs. Each one runs without an error message — that is what makes them dangerous. Read the wrong-then-right pattern below and keep an eye out for the same shapes in your own code.
 
 ### Mistake 1: Forgetting na.rm with missing data
 
-Missing values poison the whole group summary.
-
-The mean of a vector with even one `NA` is `NA`. Unless you tell R to ignore `NA`s, every group containing a missing value returns `NA`.
+The mean of a vector that contains even one `NA` is `NA`. Unless you tell R to ignore missing values, every group that contains a missing value returns `NA` for that group's summary.
 
 ```r
 # Wrong: silent NA pollution
@@ -481,22 +462,21 @@ starwars |>
 #> 1 Aleena      79
 #> 2 Besalisk   198
 #> 3 Cerean     198
-#> ...
 ```
 
 ```r
-# Correct: na.rm = TRUE
+# Right: na.rm = TRUE
 starwars |>
   group_by(species) |>
   summarise(m = mean(height, na.rm = TRUE), .groups = "drop") |>
   head(3)
 ```
 
-Always check `summary(your_data)` first. If any column has `NA`s, plan for `na.rm = TRUE` on every summariser that touches it.
+The fix is one extra argument. The habit is to always check `summary(your_data)` first — if any column has `NA` values, plan for `na.rm = TRUE` on every summariser that touches it.
 
 ### Mistake 2: Leaving groups attached after summarise
 
-A grouped tibble behaves differently in downstream verbs. Percentages, joins, and filters all change.
+A grouped tibble behaves differently in downstream verbs. Percentages, joins, and even `mutate()` all change their meaning when grouping is silently still active.
 
 ```r
 # Wrong: still grouped, so mutate computes per-group, not overall
@@ -509,7 +489,7 @@ bad |> mutate(pct = 100 * total_hp / sum(total_hp))
 ```
 
 ```r
-# Correct: drop groups, then mutate sees the whole tibble
+# Right: drop groups, then mutate sees the whole tibble
 good <- mtcars |>
   group_by(cyl) |>
   summarise(total_hp = sum(hp), .groups = "drop")
@@ -517,11 +497,11 @@ good <- mtcars |>
 good |> mutate(pct = 100 * total_hp / sum(total_hp))
 ```
 
-Use `.groups = "drop"` or call `ungroup()` explicitly when the grouped step is finished.
+Use `.groups = "drop"` or call `ungroup()` explicitly the moment your grouped step is finished.
 
 ### Mistake 3: Using mean() on non-numeric columns
 
-`across(everything(), mean)` crashes if any column is a character or factor.
+`across(everything(), mean)` errors out the instant any column is a character or factor. The fix is to scope `across()` to numeric columns only.
 
 ```r
 # Wrong: iris has a factor column
@@ -532,20 +512,20 @@ iris |>
 ```
 
 ```r
-# Correct: restrict to numeric columns
+# Right: restrict to numeric columns
 iris |>
   group_by(Species) |>
   summarise(across(where(is.numeric), mean), .groups = "drop")
 ```
 
-Use `where(is.numeric)` inside `across()` whenever you are not 100% sure every column is numeric.
+`where(is.numeric)` is a tidy-select helper that picks columns by type. Use it inside `across()` whenever you are not 100 percent sure every column is numeric.
 
-### Mistake 4: Not specifying .groups and being surprised by messages
+### Mistake 4: Not specifying .groups and being surprised by the message
 
-dplyr prints a helpful message when you leave `.groups` off, but readers often mistake it for an error.
+dplyr prints a helpful note when you leave `.groups` off, but new users often mistake the note for an error.
 
 ```r
-# Noisy (prints message but works)
+# Noisy (prints message but still works)
 mtcars |> group_by(cyl, am) |> summarise(n = n())
 #> `summarise()` has grouped output by 'cyl'. You can override using the `.groups` argument.
 ```
@@ -555,50 +535,157 @@ mtcars |> group_by(cyl, am) |> summarise(n = n())
 mtcars |> group_by(cyl, am) |> summarise(n = n(), .groups = "drop")
 ```
 
-Always set `.groups` explicitly. It documents your intent and silences the message.
+Always set `.groups` explicitly. It documents your intent in the code and silences the message.
+
+[NOTE]
+**dplyr's default `.groups` behaviour is `"drop_last"`, which prints a message; `"drop"` silences it.** When you leave `.groups` out of a multi-column grouping, dplyr keeps every grouping column except the last and prints a friendly note. That message is helpful once and annoying forever — set `.groups` explicitly in every pipeline.
+
+## Practice Exercises
+
+The ten numbered problems above ARE your practice. Below are two bonus capstone challenges that combine three or more concepts at once. Each one is harder than any single exercise above, and each one is solvable using only verbs you have already met.
+
+### Capstone 1: Top 3 homeworlds by average mass
+
+Using `starwars`, find the three homeworlds with the highest average character mass — but only consider homeworlds that have at least two characters. Drop any rows with missing `mass` or `homeworld` values. Save the result to `cap1_top_homeworlds` with three columns: `homeworld`, `n`, and `mean_mass`.
+
+```r
+# Capstone 1: top 3 homeworlds by average mass
+# Hint: filter NA, group_by(homeworld), summarise n + mean_mass,
+#       filter(n >= 2), slice_max(mean_mass, n = 3)
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+cap1_top_homeworlds <- starwars |>
+  filter(!is.na(mass), !is.na(homeworld)) |>
+  group_by(homeworld) |>
+  summarise(
+    n         = n(),
+    mean_mass = mean(mass),
+    .groups   = "drop"
+  ) |>
+  filter(n >= 2) |>
+  slice_max(mean_mass, n = 3, with_ties = FALSE)
+
+print(cap1_top_homeworlds)
+#> # A tibble: 3 × 3
+#>   homeworld     n mean_mass
+#>   <chr>     <int>     <dbl>
+#> 1 Kashyyyk      2     124
+#> 2 Kamino        3      88
+#> 3 Tatooine      8      85.4
+```
+
+**Explanation:** Four steps stacked into one pipeline. `filter()` drops the `NA` rows so `mean()` does not need `na.rm` and `slice_max()` does not get tricked by missing values. `group_by() |> summarise()` collapses to one row per homeworld with both the count and the mean. `filter(n >= 2)` excludes single-character homeworlds. `slice_max(mean_mass, n = 3)` returns the three biggest. This is the canonical pattern for "ranked groups, but only groups with enough support".
+
+</details>
+
+### Capstone 2: Per-cylinder/transmission share of total horsepower
+
+Using `mtcars`, group by both `cyl` and `am`. For each combination compute the total horsepower (`total_hp`), the mean mpg (`mean_mpg`), and that combination's share of grand-total horsepower as a percentage (`pct_of_grand_total`). Save the result to `cap2_share`. The percentage column should sum to 100.
+
+```r
+# Capstone 2: per-cyl/am share of total horsepower
+# Hint: group_by(cyl, am), summarise total_hp + mean_mpg with .groups = "drop",
+#       then mutate pct_of_grand_total = 100 * total_hp / sum(total_hp)
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r
+cap2_share <- mtcars |>
+  group_by(cyl, am) |>
+  summarise(
+    total_hp = sum(hp),
+    mean_mpg = round(mean(mpg), 1),
+    .groups  = "drop"
+  ) |>
+  mutate(pct_of_grand_total = round(100 * total_hp / sum(total_hp), 1)) |>
+  arrange(desc(pct_of_grand_total))
+
+print(cap2_share)
+#> # A tibble: 6 × 5
+#>     cyl    am total_hp mean_mpg pct_of_grand_total
+#>   <dbl> <dbl>    <dbl>    <dbl>              <dbl>
+#> 1     8     0     2330     15                 50.4
+#> 2     8     1      599     15.4               13.0
+#> 3     6     0      491     19.1               10.6
+#> 4     6     1      361     20.6                7.8
+#> 5     4     0      281     22.9                6.1
+#> 6     4     1      546     28.1               11.8
+```
+
+**Explanation:** `group_by(cyl, am)` makes six groups. `summarise()` collapses each group to one row containing total horsepower and mean mpg, then `.groups = "drop"` removes the grouping. The `mutate()` runs on a flat tibble, so `sum(total_hp)` is the grand total across all six rows — exactly what you want for the percentage. Automatic eight-cylinder cars alone account for 50 percent of the total horsepower in `mtcars`. Sorting by `pct_of_grand_total` makes the dominance obvious.
+
+</details>
+
+## Complete Example
+
+The exercises above each isolated one idea. Real analysis combines them. Here is a small, end-to-end fuel-economy report using `mtcars` that uses every core technique from this page in a single pipeline: multi-column grouping, multi-summary `summarise()`, `.groups = "drop"`, post-summarise `mutate()` with a global denominator, and a final sort.
+
+```r
+# Complete example: fuel-economy report by cylinder + transmission
+report <- mtcars |>
+  group_by(cyl, am) |>
+  summarise(
+    n            = n(),
+    mean_mpg     = round(mean(mpg), 1),
+    mean_hp      = round(mean(hp), 0),
+    .groups      = "drop"
+  ) |>
+  mutate(
+    pct_of_cars  = round(100 * n / sum(n), 1),
+    mpg_per_hp   = round(mean_mpg / mean_hp, 3)
+  ) |>
+  arrange(desc(mean_mpg))
+
+print(report)
+#> # A tibble: 6 × 7
+#>     cyl    am     n mean_mpg mean_hp pct_of_cars mpg_per_hp
+#>   <dbl> <dbl> <int>    <dbl>   <dbl>       <dbl>      <dbl>
+#> 1     4     1     8     28.1      81        25         0.347
+#> 2     4     0     3     22.9      84.7       9.4       0.27
+#> 3     6     1     3     20.6     132         9.4       0.156
+#> 4     6     0     4     19.1     115.       12.5       0.166
+#> 5     8     1     2     15.4     299.        6.2       0.052
+#> 6     8     0    12     15        194.      37.5       0.077
+```
+
+The report answers four questions in one tibble. *Counting* (Exercise 1, 4) gives `n` and the share `pct_of_cars`. *Multi-column grouping* (Exercise 4) splits the rows by cylinder and transmission. *Multiple summaries in one summarise()* (Exercise 5 in spirit) builds `mean_mpg` and `mean_hp` together. *Post-summarise mutate on an ungrouped tibble* (Exercise 8) computes the share of total cars and a derived `mpg_per_hp` efficiency metric. The sort then surfaces the headline finding: manual four-cylinder cars are the most fuel-efficient combination by both mean mpg and mpg-per-horsepower.
 
 ## Summary
 
-Ten verbs and patterns to keep in mind.
+Nine patterns to keep at your fingertips when reaching for `group_by()` and `summarise()`.
 
 | Pattern | Use when |
 |---|---|
 | `group_by() + summarise(n = n())` | Counting rows per group |
-| `count()` | Shortcut when you only need counts |
-| `summarise(across(where(is.numeric), mean))` | Many columns at once |
+| `count(df, group_col)` | Shortcut when you only need counts |
+| `summarise(across(where(is.numeric), mean))` | Many numeric columns at once |
 | `mean(x, na.rm = TRUE)` | Data has missing values |
-| `summarise(..., .groups = "drop")` | Default to drop grouping |
+| `summarise(..., .groups = "drop")` | Default to drop grouping after summarising |
 | `filter(n >= k)` after summarise | Exclude tiny or noisy groups |
-| Two-step share: summarise then mutate | Percentages of a total |
+| Two-step share: `summarise() |> mutate()` | Group share as percent of total |
 | `group_by() + slice_max(x, n = k)` | Top-k rows per group |
-| `ungroup()` before join/mutate | Avoid silent per-group behaviour |
-
-## FAQ
-
-### Why does summarise() print a .groups message?
-
-dplyr tells you which grouping it kept after summarising. By default it drops the last grouping variable. Set `.groups = "drop"`, `"keep"`, `"drop_last"`, or `"rowwise"` to make your choice explicit and silence the message.
-
-### What is the difference between summarise() with group_by() and mutate() with group_by()?
-
-`summarise()` collapses each group to one row. `mutate()` keeps every original row but runs the calculation per group. Use `summarise()` for group-level outputs (means, counts). Use `mutate()` to add a per-group value as a new column on the original data.
-
-### Should I use count() or summarise(n = n())?
-
-Use `count()` for plain frequencies — it is shorter. Use `summarise(n = n(), ...)` when you need counts alongside other summaries like means or sums. They produce the same count column either way.
-
-### Can I group by an expression, not just a column?
-
-Yes. `group_by(cyl, hp_class = hp > 150)` creates a new grouping variable on the fly from any expression. The computed variable appears as a column in the output and behaves like any other grouping variable.
+| `ungroup()` before any join or mutate | Avoid silent per-group behaviour |
 
 ## References
 
 1. dplyr — `summarise()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/summarise.html)
 2. dplyr — `group_by()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/group_by.html)
 3. dplyr — Grouped data vignette. [tidyverse.org](https://dplyr.tidyverse.org/articles/grouping.html)
-4. Wickham H. & Grolemund G. — *R for Data Science*, 2nd edition, Chapter 4 (Data transformation). [r4ds.hadley.nz](https://r4ds.hadley.nz/data-transform.html)
-5. dplyr — `across()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/across.html)
-6. dplyr — `slice_max()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/slice.html)
+4. dplyr — `across()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/across.html)
+5. dplyr — `slice_max()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/slice.html)
+6. Wickham H. & Grolemund G. — *R for Data Science*, 2nd edition, Chapter 4 (Data transformation). [r4ds.hadley.nz](https://r4ds.hadley.nz/data-transform.html)
 
 ## Continue Learning
 
