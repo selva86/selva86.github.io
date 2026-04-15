@@ -1294,8 +1294,8 @@ WEBR_BODY_BLOCK = """
   <script>mermaid.initialize({startOnLoad: true, theme: 'default'});</script>
 """
 
-ENGAGEMENT_HEAD_BLOCK = '    <link rel="stylesheet" href="www/engagement.css?v=1">'
-ENGAGEMENT_BODY_BLOCK = '    <script defer src="www/engagement.js?v=1"></script>'
+ENGAGEMENT_HEAD_BLOCK = '    <link rel="stylesheet" href="www/engagement.css?v=2">'
+ENGAGEMENT_BODY_BLOCK = '    <script defer src="www/engagement.js?v=2"></script>'
 
 DEFAULT_DESCRIPTION = "R Language Tutorials for Advanced Statistics"
 DEFAULT_KEYWORDS = "R, Tutorial, Machine learning, Statistics, Data Mining, Analytics, Data science, Linear Regression, Logistic Regression, Time series, Forecasting"

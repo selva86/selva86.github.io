@@ -357,6 +357,26 @@ def convert(md_text):
         # H1
         if line.startswith('# ') and not line.startswith('## '):
             out.append(f'<h1>{md_inline(line[2:].strip())}</h1>')
+            # Tutorial metadata strip. Emitted only when at least one field is
+            # present in frontmatter. engagement.js populates the visible text.
+            _meta_attrs = []
+            _diff = fm.get('difficulty')
+            _time = fm.get('time_estimate_min')
+            _exc = fm.get('exercise_count')
+            _xp_each = fm.get('xp_per_exercise')
+            if _diff:
+                _meta_attrs.append(f'data-difficulty="{html.escape(str(_diff))}"')
+            if _time:
+                _meta_attrs.append(f'data-time="{html.escape(str(_time))}"')
+            if _exc:
+                _meta_attrs.append(f'data-exercises="{html.escape(str(_exc))}"')
+                try:
+                    _xp_total = int(_exc) * int(_xp_each or 15)
+                    _meta_attrs.append(f'data-xp="{_xp_total}"')
+                except (TypeError, ValueError):
+                    pass
+            if _meta_attrs:
+                out.append(f'<div class="engagement-header" {" ".join(_meta_attrs)}></div>')
             i += 1
             continue
 

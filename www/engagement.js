@@ -103,11 +103,32 @@
                   document.querySelector('.col-sm-7') ||
                   document.querySelector('.col-sm-8') ||
                   document.body;
+    var meta = content.querySelector('.engagement-header');
+    if (meta && meta.parentElement === content) { meta.after(bar); return; }
     var lead = content.querySelector('p.lead');
     if (lead && lead.parentElement === content) { lead.after(bar); return; }
     var h1 = content.querySelector('h1');
     if (h1 && h1.parentElement === content) { h1.after(bar); return; }
     content.insertBefore(bar, content.firstChild);
+  }
+
+  function renderMetaStrip() {
+    var meta = document.querySelector('.engagement-header');
+    if (!meta) return;
+    var difficulty = meta.getAttribute('data-difficulty');
+    var time = meta.getAttribute('data-time');
+    var exercises = meta.getAttribute('data-exercises');
+    var xp = meta.getAttribute('data-xp');
+    var parts = [];
+    if (difficulty) {
+      var slug = difficulty.toLowerCase().replace(/[^a-z]/g, '');
+      parts.push('<span class="engagement-meta-diff engagement-meta-diff-' +
+                 escapeHtml(slug) + '">' + escapeHtml(difficulty) + '</span>');
+    }
+    if (time) parts.push('<span class="engagement-meta-time">~ ' + escapeHtml(time) + ' min</span>');
+    if (exercises) parts.push('<span class="engagement-meta-count">' + escapeHtml(exercises) + ' exercises</span>');
+    if (xp) parts.push('<span class="engagement-meta-xp">' + escapeHtml(xp) + ' XP</span>');
+    meta.innerHTML = parts.join('<span class="engagement-meta-dot">&middot;</span>');
   }
 
   function updateProgressBar(bar, ranIndices, total, flashIndex) {
@@ -216,6 +237,8 @@
     ranIndices.forEach(function (i) { ranMap[i] = true; });
     var seenPredictions = {};
     state.predictionsSeen.forEach(function (i) { seenPredictions[i] = true; });
+
+    renderMetaStrip();
 
     var bar = buildProgressBar(total);
     placeProgressBar(bar);
