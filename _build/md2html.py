@@ -25,6 +25,16 @@ def escape_html(text):
     """Escape HTML entities in code blocks."""
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
 
+_TITLE_RE = re.compile(r'title\s*=\s*"([^"]+)"')
+def extract_block_title(info_str):
+    """Pull a title="..." out of a fenced-code info string. Returns attribute fragment or ''."""
+    if not info_str:
+        return ''
+    m = _TITLE_RE.search(info_str)
+    if not m:
+        return ''
+    return f' data-block-title="{html.escape(m.group(1))}"'
+
 def md_inline(text):
     """Convert inline markdown: bold, italic, code, links."""
     # Code first (to avoid processing inside code)
@@ -135,7 +145,9 @@ def convert(md_text):
                 i += 1
             code_html = ''
             if i < len(lines) and lines[i].strip().startswith('```r'):
-                tryit_lang = lines[i].strip()[3:].strip()
+                tryit_info = lines[i].strip()[3:].strip()
+                tryit_lang = tryit_info.split()[0] if tryit_info else ''
+                tryit_title_attr = extract_block_title(tryit_info)
                 i += 1
                 code_lines = []
                 while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -146,7 +158,7 @@ def convert(md_text):
                 ecode = escape_html('\n'.join(code_lines))
                 if webr_enabled and tryit_lang == 'r':
                     code_html = (
-                        '<div class="webr-container">\n'
+                        f'<div class="webr-container"{tryit_title_attr}>\n'
                         '  <div class="webr-code-block">\n'
                         f'    <div class="webr-editor" data-language="r">{ecode}</div>\n'
                         '    <div class="webr-buttons">\n'
@@ -175,7 +187,9 @@ def convert(md_text):
                         i += 1
                         break
                     if cur_line.strip().startswith('```r'):
-                        d_lang = cur_line.strip()[3:].strip()
+                        d_info = cur_line.strip()[3:].strip()
+                        d_lang = d_info.split()[0] if d_info else ''
+                        d_title_attr = extract_block_title(d_info)
                         i += 1
                         dcode_lines = []
                         while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -185,7 +199,7 @@ def convert(md_text):
                             i += 1
                         dcode = escape_html('\n'.join(dcode_lines))
                         if webr_enabled and d_lang == 'r':
-                            details_block.append('<div class="webr-container">')
+                            details_block.append(f'<div class="webr-container"{d_title_attr}>')
                             details_block.append('  <div class="webr-code-block">')
                             details_block.append(f'    <div class="webr-editor" data-language="r">{dcode}</div>')
                             details_block.append('    <div class="webr-buttons">')
@@ -261,7 +275,9 @@ def convert(md_text):
                         break
                     # Check for code block inside details
                     if cur_line.strip().startswith('```r'):
-                        det_lang = cur_line.strip()[3:].strip()
+                        det_info = cur_line.strip()[3:].strip()
+                        det_lang = det_info.split()[0] if det_info else ''
+                        det_title_attr = extract_block_title(det_info)
                         i += 1
                         code_lines = []
                         while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -271,7 +287,7 @@ def convert(md_text):
                             i += 1  # skip closing ```
                         code = escape_html('\n'.join(code_lines))
                         if webr_enabled and det_lang == 'r':
-                            html_block.append(f'<div class="webr-container">')
+                            html_block.append(f'<div class="webr-container"{det_title_attr}>')
                             html_block.append(f'  <div class="webr-code-block">')
                             html_block.append(f'    <div class="webr-editor" data-language="r">{code}</div>')
                             html_block.append(f'    <div class="webr-buttons">')
@@ -300,7 +316,9 @@ def convert(md_text):
 
         # Fenced code block
         if line.strip().startswith('```'):
-            lang = line.strip()[3:].strip()
+            info = line.strip()[3:].strip()
+            lang = info.split()[0] if info else ''
+            top_title_attr = extract_block_title(info)
             i += 1
             code_lines = []
             while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -312,7 +330,7 @@ def convert(md_text):
 
             if lang == 'r' and webr_enabled:  # r-static falls through to static block below
                 ecode = escape_html(code)
-                out.append(f'<div class="webr-container">')
+                out.append(f'<div class="webr-container"{top_title_attr}>')
                 out.append(f'  <div class="webr-code-block">')
                 out.append(f'    <div class="webr-editor" data-language="r">{ecode}</div>')
                 out.append(f'    <div class="webr-buttons">')
