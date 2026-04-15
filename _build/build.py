@@ -873,6 +873,54 @@ WEBR_BODY_BLOCK = """
       banner.style.borderColor = '#e1e4e8';
     }
 
+    // Defensive ad scrub: third-party ad platforms (Ezoic/AdSense) can inject
+    // iframes, <ins> slots, or wrappers into content-shaped divs. Remove anything
+    // that lands inside a .webr-container — we never create iframes/<ins> ourselves.
+    (function () {
+      const AD_TAGS = { INS: 1, IFRAME: 1 };
+      const AD_PATTERN = /ezoic|ezojs|ezmob|adsbygoogle|google_ads|pagead|dfp-ad|gpt-ad/i;
+      function isAdNode(n) {
+        if (!n || n.nodeType !== 1) return false;
+        if (AD_TAGS[n.tagName]) return true;
+        const cls = (typeof n.className === 'string') ? n.className : '';
+        if (AD_PATTERN.test(cls)) return true;
+        if (n.id && AD_PATTERN.test(n.id)) return true;
+        return false;
+      }
+      function scrub(root) {
+        if (!root || !root.querySelectorAll) return;
+        root.querySelectorAll('.webr-container ins, .webr-container iframe').forEach(el => {
+          try { el.remove(); } catch (e) {}
+        });
+        root.querySelectorAll('.webr-container [class*="ezoic"], .webr-container [id*="ezoic"], .webr-container [class*="adsbygoogle"]').forEach(el => {
+          try { el.remove(); } catch (e) {}
+        });
+      }
+      scrub(document);
+      const adObs = new MutationObserver((mutations) => {
+        for (let i = 0; i < mutations.length; i++) {
+          const added = mutations[i].addedNodes;
+          for (let j = 0; j < added.length; j++) {
+            const node = added[j];
+            if (node.nodeType !== 1) continue;
+            const container = node.closest && node.closest('.webr-container');
+            if (container) {
+              if (isAdNode(node)) {
+                try { node.remove(); } catch (e) {}
+                continue;
+              }
+              if (node.querySelectorAll) {
+                node.querySelectorAll('ins, iframe, [class*="ezoic"], [id*="ezoic"], [class*="adsbygoogle"]').forEach(el => {
+                  try { el.remove(); } catch (e) {}
+                });
+              }
+            }
+          }
+        }
+      });
+      adObs.observe(document.documentElement, { childList: true, subtree: true });
+    })();
+
     // Smart preload: start downloading WebR when user scrolls near the first code block
     // This way WebR is often ready by the time they actually click Run
     const firstBlock = document.querySelector('.webr-container');
@@ -1037,9 +1085,21 @@ WEBR_BODY_BLOCK = """
       }
     }
 
-    // Lazy-init: only queue editors when they scroll into view
+    // Hybrid init: eagerly queue near-viewport editors, lazily observe the rest.
+    // Guards against IO-never-fires edge cases (hidden tabs, pre-paint observe,
+    // layout shifts from late-arriving content) that left editors dead on load.
     const allEditors = document.querySelectorAll('.webr-editor');
-    if ('IntersectionObserver' in window) {
+    const _eagerMargin = Math.max(window.innerHeight || 0, 800);
+    const _lazyEditors = [];
+    allEditors.forEach(el => {
+      const r = el.getBoundingClientRect();
+      const _inRange = (r.top - _eagerMargin) < (window.innerHeight || 0) && (r.bottom + _eagerMargin) > 0;
+      if (_inRange) initQueue.push(el);
+      else _lazyEditors.push(el);
+    });
+    if (initQueue.length > 0) processInitQueue();
+
+    if ('IntersectionObserver' in window && _lazyEditors.length > 0) {
       const editorObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
@@ -1047,15 +1107,41 @@ WEBR_BODY_BLOCK = """
             editorObserver.unobserve(entry.target);
           }
         });
-        // Start processing queue if not already running
         if (initQueue.length > 0) processInitQueue();
-      }, { rootMargin: '300px' }); // init 300px before visible
-      allEditors.forEach(el => editorObserver.observe(el));
+      }, { rootMargin: '500px' });
+      _lazyEditors.forEach(el => editorObserver.observe(el));
     } else {
-      // Fallback: queue all, process with yielding
-      allEditors.forEach(el => initQueue.push(el));
+      _lazyEditors.forEach(el => initQueue.push(el));
       processInitQueue();
     }
+
+    // Scroll/resize safety net: if anything is visible but uninitialized, init it.
+    // Covers cases where IO fails to fire (layout shifts, hidden-tab throttling).
+    let _scrollInitTimer = 0;
+    function _sweepVisibleUninit() {
+      const vh = window.innerHeight || 0;
+      let queued = 0;
+      document.querySelectorAll('.webr-editor:not(.cm-initialized)').forEach(el => {
+        if (el.dataset.cmInit) return;
+        const r = el.getBoundingClientRect();
+        if (r.top < vh + 500 && r.bottom > -500) {
+          initQueue.push(el);
+          queued++;
+        }
+      });
+      if (queued > 0) processInitQueue();
+    }
+    window.addEventListener('scroll', () => {
+      if (_scrollInitTimer) return;
+      _scrollInitTimer = setTimeout(() => { _scrollInitTimer = 0; _sweepVisibleUninit(); }, 200);
+    }, { passive: true });
+    window.addEventListener('resize', () => {
+      if (_scrollInitTimer) return;
+      _scrollInitTimer = setTimeout(() => { _scrollInitTimer = 0; _sweepVisibleUninit(); }, 200);
+    }, { passive: true });
+    // One delayed sweep after page settles (catches post-load layout shifts).
+    setTimeout(_sweepVisibleUninit, 600);
+    setTimeout(_sweepVisibleUninit, 2000);
 
     // Track which packages are already installed in this WebR session
     const installedPkgs = new Set(['base', 'stats', 'graphics', 'grDevices', 'utils', 'datasets', 'methods']);
