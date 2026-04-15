@@ -1,10 +1,16 @@
-/* Engagement Experiment — isolated prototype, loaded only on ggplot2-Scatter-Plots.html.
- * Builds a segmented progress bar and predict-and-reveal overlays for the first
- * three runnable code blocks. Fully namespaced under class prefix `engagement-`.
- * Rollback = delete this file + revert the fragment + rebuild.
+/* Engagement — progress bar, predict-and-reveal, completion card.
+ * Loaded on every WebR tutorial. Fully namespaced under class prefix `engagement-`.
+ * Per-post prediction data (optional) lives in window.RSC_PREDICTIONS (populated
+ * inline by a post when available); absent = no prediction layer for that page.
  */
 (function () {
   'use strict';
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
 
   var STORAGE_KEY = 'rsc-engagement-v1:' + location.pathname;
 
@@ -29,71 +35,31 @@
     }
   };
 
-  var NEXT_TUTORIAL = { url: 'ggplot2-Line-Charts.html', title: 'Line Charts' };
+  // Predictions keyed by visible-block index. Empty by default; each post can
+  // populate window.RSC_PREDICTIONS inline. Schema: { <idx>: { type, kind, content } }.
+  var PREDICTIONS = (typeof window !== 'undefined' &&
+                     typeof window.RSC_PREDICTIONS === 'object' &&
+                     window.RSC_PREDICTIONS) || {};
 
-  // Deterministic PRNG so silhouettes are stable across loads.
-  function mulberry32(seed) {
-    return function () {
-      var t = seed += 0x6D2B79F5;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-
-  // Hand-authored silhouette: faint scatter with a downward slope.
-  function buildScatterSilhouette(withColorGroups, seed) {
-    var dots = [];
-    var rng = mulberry32(seed || 42);
-    var palette = ['#0f172a', '#475569', '#94a3b8'];
-    for (var i = 0; i < 90; i++) {
-      var x = rng();
-      var noise = (rng() - 0.5) * 0.28;
-      var y = 1 - x * 0.82 + noise;
-      var cx = 28 + x * 384;
-      var cy = 18 + (1 - Math.max(0, Math.min(1, y))) * 136;
-      var fill = '#0f172a';
-      var opacity = 0.26;
-      if (withColorGroups) {
-        var group = Math.floor(x * 3);
-        fill = palette[group] || '#0f172a';
-        opacity = 0.34;
+  // Walk the sidebar and return the next tutorial link after the current page.
+  function discoverNextTutorial() {
+    var current = location.pathname.split('/').pop();
+    var links = document.querySelectorAll('#nav a, .col-sm-3 a');
+    var arr = Array.prototype.slice.call(links);
+    for (var i = 0; i < arr.length; i++) {
+      var href = arr[i].getAttribute('href') || '';
+      if (href === current || href.indexOf(current) >= 0) {
+        for (var j = i + 1; j < arr.length; j++) {
+          var next = arr[j].getAttribute('href') || '';
+          if (next && next.indexOf('.html') !== -1 && next !== current) {
+            return { url: next, title: arr[j].textContent.trim() };
+          }
+        }
+        break;
       }
-      dots.push(
-        '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) +
-        '" r="3.6" fill="' + fill + '" opacity="' + opacity + '"/>'
-      );
     }
-    return '<svg viewBox="0 0 440 180" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-           dots.join('') + '</svg>';
+    return null;
   }
-
-  // Predictions keyed by visible-block index (blocks that are children of .webr-container
-  // and NOT inside a <details> element). Block 2 is a try-it starter — skipped here.
-  var PREDICTIONS = {
-    0: {
-      type: 'TABLE',
-      kind: 'text',
-      content:
-        '      manufacturer  displ  hwy  drv     class     cyl\n' +
-        '142     subaru       2.5    27   4    subcompact    4\n' +
-        '89      honda        1.6    33   f    subcompact    4\n' +
-        '35      dodge        4.7    13   4    pickup        8\n' +
-        '77      ford         4.6    15   r    suv           8\n' +
-        '18      chevrolet    5.3    16   4    suv           8\n' +
-        '121     nissan       3.5    24   f    midsize       6'
-    },
-    1: {
-      type: 'PLOT',
-      kind: 'svg',
-      content: buildScatterSilhouette(false, 42)
-    },
-    3: {
-      type: 'PLOT',
-      kind: 'svg',
-      content: buildScatterSilhouette(true, 17)
-    }
-  };
 
   function getVisibleBlocks() {
     var all = Array.prototype.slice.call(document.querySelectorAll('.webr-container'));
@@ -213,15 +179,23 @@
     card.className = 'engagement-completion';
     card.setAttribute('role', 'status');
     card.setAttribute('aria-live', 'polite');
+
+    var h1El = document.querySelector('#content h1') || document.querySelector('h1');
+    var h1Text = (h1El && h1El.textContent ? h1El.textContent : 'this tutorial').trim();
+
+    var next = discoverNextTutorial();
+    var ctaHtml = next
+      ? '<a class="engagement-completion-cta" href="' + escapeHtml(next.url) + '">'
+        + '<span>Continue with ' + escapeHtml(next.title) + '</span>'
+        + '<span class="engagement-completion-cta-arrow">\u2192</span></a>'
+      : '';
+
     card.innerHTML =
       '<button class="engagement-completion-dismiss" type="button" aria-label="Dismiss">\u00d7</button>' +
       '<p class="engagement-completion-eyebrow">Tutorial Complete</p>' +
-      '<p class="engagement-completion-headline">You finished ggplot2 Scatter Plots</p>' +
+      '<p class="engagement-completion-headline">You finished ' + escapeHtml(h1Text) + '</p>' +
       '<p class="engagement-completion-stat">' + total + ' blocks run &middot; Great work</p>' +
-      '<a class="engagement-completion-cta" href="' + NEXT_TUTORIAL.url + '">' +
-        '<span>Continue with ' + NEXT_TUTORIAL.title + '</span>' +
-        '<span class="engagement-completion-cta-arrow">\u2192</span>' +
-      '</a>';
+      ctaHtml;
 
     card.querySelector('.engagement-completion-dismiss').addEventListener('click', function () {
       card.classList.remove('is-visible');

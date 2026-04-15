@@ -1294,6 +1294,9 @@ WEBR_BODY_BLOCK = """
   <script>mermaid.initialize({startOnLoad: true, theme: 'default'});</script>
 """
 
+ENGAGEMENT_HEAD_BLOCK = '    <link rel="stylesheet" href="www/engagement.css?v=1">'
+ENGAGEMENT_BODY_BLOCK = '    <script defer src="www/engagement.js?v=1"></script>'
+
 DEFAULT_DESCRIPTION = "R Language Tutorials for Advanced Statistics"
 DEFAULT_KEYWORDS = "R, Tutorial, Machine learning, Statistics, Data Mining, Analytics, Data science, Linear Regression, Logistic Regression, Time series, Forecasting"
 
@@ -1545,6 +1548,8 @@ def build_post(
     page_html = page_html.replace('{{MATHJAX}}', MATHJAX_BLOCK if mathjax else '')
     page_html = page_html.replace('{{WEBR_HEAD}}', WEBR_HEAD_BLOCK if webr else '')
     page_html = page_html.replace('{{WEBR_BODY}}', WEBR_BODY_BLOCK if webr else '')
+    page_html = page_html.replace('{{ENGAGEMENT_HEAD}}', ENGAGEMENT_HEAD_BLOCK if webr else '')
+    page_html = page_html.replace('{{ENGAGEMENT_BODY}}', ENGAGEMENT_BODY_BLOCK if webr else '')
 
     return page_html
 
