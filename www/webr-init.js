@@ -420,26 +420,42 @@
     }
 
     let _firstRunDone = false;
+    let _firstRunHint = null;
+    let _firstRunHintShownAt = 0;
+    const _HINT_MIN_DISPLAY = 2500; // ms — minimum time the hint stays visible
+
+    function removeFirstRunHint() {
+      if (!_firstRunHint || !_firstRunHint.parentNode) return;
+      const elapsed = Date.now() - _firstRunHintShownAt;
+      const remaining = Math.max(0, _HINT_MIN_DISPLAY - elapsed);
+      const h = _firstRunHint;
+      _firstRunHint = null;
+      setTimeout(() => {
+        h.classList.add('is-fading');
+        setTimeout(() => { if (h.parentNode) h.remove(); }, 400);
+      }, remaining);
+    }
 
     window.runWebR = async function(btn) {
+      // Show first-run hint on the very first Run click (regardless of WebR state)
+      if (!_firstRunDone) {
+        _firstRunDone = true;
+        const container = btn.closest('.webr-container');
+        const outputEl = container.querySelector('.webr-output');
+        if (outputEl) {
+          const hint = document.createElement('div');
+          hint.className = 'webr-first-run-hint';
+          hint.innerHTML = '<span class="webr-hint-spinner"></span> Setting up R environment — first run takes a moment';
+          outputEl.parentNode.insertBefore(hint, outputEl);
+          _firstRunHint = hint;
+          _firstRunHintShownAt = Date.now();
+          // Safety net: remove after 15s max
+          setTimeout(removeFirstRunHint, 15000);
+        }
+      }
+
       // Lazy-load WebR on first run
       if (!webRReady) {
-        // Show first-run hint message
-        if (!_firstRunDone) {
-          _firstRunDone = true;
-          const container = btn.closest('.webr-container');
-          const outputEl = container.querySelector('.webr-output');
-          if (outputEl) {
-            const hint = document.createElement('div');
-            hint.className = 'webr-first-run-hint';
-            hint.innerHTML = '<span class="webr-hint-spinner"></span> Setting up R environment — first run takes a moment';
-            outputEl.parentNode.insertBefore(hint, outputEl);
-            // Remove hint after WebR is ready (or after 15s max)
-            const removeHint = () => { if (hint.parentNode) hint.remove(); };
-            setTimeout(removeHint, 15000);
-            const _checkReady = setInterval(() => { if (webRReady) { clearInterval(_checkReady); setTimeout(removeHint, 1500); } }, 300);
-          }
-        }
         if (webRLoading) {
           // Already loading — queue this button to auto-run when ready
           pendingRunBtn = btn;
@@ -560,6 +576,9 @@
           });
         }
       }
+
+      // Remove first-run hint now that output has arrived
+      removeFirstRunHint();
 
       // Fade-in effect on the output panel.
       outputEl.classList.remove('is-loading');
