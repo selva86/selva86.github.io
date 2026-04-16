@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "Bar Charts"
 sidebar_order: 16
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Bar Charts: geom_bar(), geom_col(), Stacked, Dodged and Ordered

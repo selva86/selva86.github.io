@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "Lexical Scoping"
 sidebar_order: 23
+difficulty: "Advanced"
 ---
 
 # R Lexical Scoping: Why R Finds Variables Where It Does (And Not Where You Expect)

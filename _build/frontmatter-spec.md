@@ -15,6 +15,7 @@ description: "<meta description, 150-160 chars, includes primary keyword>"
 keywords: "<comma-separated SEO keywords>"
 mathjax: true/false
 webr: true
+difficulty: "Intermediate"
 date: "<YYYY-MM-DD>"
 curriculum_id: "<from curriculum-status.json, e.g. 1.2.3, ERR5, FR-func-1, or null>"
 post_type: "<C | FR | EX | PSEO>"
@@ -46,6 +47,10 @@ fr_parent: "<parent-slug.html — only for [FR], [EX], and [PSEO] posts>"
 | `sidebar_title` | Required | C, EX | Short title for sidebar display (e.g., "R Data Types", "dplyr (15 problems)"). |
 | `sidebar_order` | Required | C, EX | Position in sidebar section. Count existing items + 1. |
 | `fr_parent` | Required | FR, EX, PSEO | Parent post filename(s), pipe-separated. e.g., `R-Vectors.html` or `dplyr-filter-select.html\|dplyr-mutate-rename.html`. |
+| `difficulty` | Recommended | All | `Beginner`, `Intermediate`, or `Advanced`. Drives colored badge in tutorial header strip. |
+| `time_estimate_min` | Optional | All | Reading + practice time in minutes. Auto-derived from word count by md2html.py if omitted. |
+| `exercise_count` | Optional | All | Number of exercises. Auto-counted from `**Try it:**` + `### Exercise` patterns by md2html.py if omitted. |
+| `xp_per_exercise` | Optional | All | XP awarded per exercise. Default: 15. Total XP = exercise_count × xp_per_exercise. |
 
 ## auto_link_terms Rules
 

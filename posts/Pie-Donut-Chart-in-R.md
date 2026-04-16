@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: ggplot2-Bar-Charts.html
 sidebar_section: "Visualization"
 sidebar_title: "Pie & Donut Chart"
+difficulty: "Intermediate"
 ---
 
 # Pie Chart and Donut Chart in R with ggplot2

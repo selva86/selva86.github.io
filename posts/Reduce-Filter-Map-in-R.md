@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Advanced R"
 sidebar_title: "Reduce, Filter, Map"
 sidebar_order: 6
+difficulty: "Advanced"
 ---
 
 # Base R's Functional Triad: Reduce(), Filter(), Map() — Without purrr

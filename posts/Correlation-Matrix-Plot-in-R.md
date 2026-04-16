@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: ggplot2-Scatter-Plots.html
 sidebar_section: "Visualization"
 sidebar_title: "Correlation Matrix"
+difficulty: "Intermediate"
 ---
 
 # Correlation Matrix Plot in R: corrplot, ggcorrplot, and ggplot2

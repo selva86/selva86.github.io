@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "FR-inte-5"
 post_type: "FR"
 fr_parent: "R-Environments.html"
+difficulty: "Intermediate"
 ---
 
 # Active Bindings in R: makeActiveBinding() for Computed Variables

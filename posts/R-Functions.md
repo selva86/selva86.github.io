@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "Writing R Functions"
 sidebar_order: 16
+difficulty: "Beginner"
 ---
 
 # Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise

@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Data Wrangling"
 sidebar_title: "dplyr filter() & select()"
 sidebar_order: 3
+difficulty: "Intermediate"
 ---
 
 # dplyr filter() and select(): Subset Exactly the Data You Need, Every Time

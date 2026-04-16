@@ -13,6 +13,7 @@ auto_link_case_sensitive: true
 sidebar_section: "Learn R"
 sidebar_title: "R Function Operators"
 sidebar_order: 37
+difficulty: "Beginner"
 ---
 
 # R Function Operators: Transform Existing Functions Without Rewriting Them

@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "Bias in Data and Models"
 sidebar_order: 51
+difficulty: "Beginner"
 ---
 
 # Bias in Data and Models: Find It With R Before Your Results Mislead Anyone

@@ -11,6 +11,7 @@ date: 2026-04-14
 curriculum_id: FR-data-4
 post_type: FR
 fr_parent: Reproducibility-Crisis.html
+difficulty: "Intermediate"
 ---
 
 {% raw %}

@@ -11,6 +11,7 @@ date: "2026-04-11"
 curriculum_id: "FR-fund-1"
 post_type: "FR"
 fr_parent: "R-Data-Frames.html"
+difficulty: "Intermediate"
 ---
 
 # Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)

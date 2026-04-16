@@ -11,6 +11,7 @@ date: "2026-04-15"
 curriculum_id: "FR-cust-4"
 post_type: "FR"
 fr_parent: "ggplot2-Themes-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # 25 Best ggplot2 Extensions in R: ggrepel, ggforce, ggtext & Beyond

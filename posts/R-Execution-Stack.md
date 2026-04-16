@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "R execution stack|sys.call()|parent.frame()|sys.frame()"
 auto_link_case_sensitive: false
 fr_parent: "R-Environments.html"
+difficulty: "Intermediate"
 ---
 
 # R Execution Stack: sys.call(), parent.frame() & Call Stack Internals

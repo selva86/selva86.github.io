@@ -12,6 +12,7 @@ curriculum_id: E1.10
 post_type: EX
 sidebar_title: "R Subsetting Exercises"
 fr_parent: R-Vectors.html
+difficulty: "Intermediate"
 ---
 
 <p class="lead">Subsetting — pulling specific pieces out of vectors, lists, and data frames with <code>[]</code>, <code>[[]]</code>, and <code>$</code> — is one of the most-used skills in R, and one of the trickiest to master. These 10 exercises take you from basic vector indexing to nested list extraction, each with starter code and a full worked solution.</p>

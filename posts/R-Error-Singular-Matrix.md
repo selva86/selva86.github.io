@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "computationally singular|singular matrix error|rcond()|MASS::ginv()|multicollinearity in R"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R solve() Error: 'singular matrix' — Diagnose Multicollinearity and Fix It

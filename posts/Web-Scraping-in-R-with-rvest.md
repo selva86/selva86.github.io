@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "Web Scraping (rvest)"
 sidebar_order: 15
+difficulty: "Intermediate"
 ---
 
 # Web Scraping in R with rvest: Extract Any Table or Text in 10 Minutes

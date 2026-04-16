@@ -12,6 +12,7 @@ curriculum_id: "E3.4"
 post_type: "EX"
 sidebar_title: "ggplot2 Geoms (12 problems)"
 fr_parent: "ggplot2-Distribution-Charts.html"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Geom Exercises: 12 Problems — Every Chart Type in R — Solved Step-by-Step

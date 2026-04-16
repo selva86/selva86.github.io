@@ -11,6 +11,7 @@ date: "2026-04-06"
 curriculum_id: "FR-stri-1"
 post_type: "FR"
 fr_parent: "stringr-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # R Regular Expressions: Pattern Matching with stringr (20 Examples)

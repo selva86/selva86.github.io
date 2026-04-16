@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "Missing Values"
 sidebar_order: 12
+difficulty: "Intermediate"
 ---
 
 # Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook

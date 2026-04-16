@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: ggplot2-Scatter-Plots.html
 sidebar_section: "Visualization"
 sidebar_title: "Bubble Chart"
+difficulty: "Intermediate"
 ---
 
 # Bubble Chart in R: Add a Third Variable to Your Scatter Plot

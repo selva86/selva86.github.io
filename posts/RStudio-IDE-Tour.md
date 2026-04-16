@@ -13,6 +13,7 @@ auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "RStudio IDE Tour"
 sidebar_order: 3
+difficulty: "Beginner"
 ---
 
 # RStudio in 15 Minutes: The Only IDE Tour You'll Ever Need

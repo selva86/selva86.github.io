@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "R Fundamentals"
 sidebar_title: "R Data Types"
 sidebar_order: 5
+difficulty: "Beginner"
 ---
 
 # R Data Types: Which Type Is Your Variable? (And Why It Matters)

@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "algorithmic fairness|fairml|bias auditing|disparate impact"
 auto_link_case_sensitive: false
 fr_parent: "Data-Ethics-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # Algorithmic Fairness in R: fairml & aif360 for Bias Auditing

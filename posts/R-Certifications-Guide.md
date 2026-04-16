@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "R certifications|R programming certification|R certificate|DataCamp certification|Coursera R certificate"
 auto_link_case_sensitive: false
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R Certifications : Do They Actually Help You Get Hired? (Honest Review)

@@ -13,6 +13,7 @@ sidebar_title: "R Data Frames (15 problems)"
 auto_link_terms: "R data frames exercises|R data frame practice|R subset exercises"
 auto_link_case_sensitive: false
 fr_parent: "R-Data-Frames.html"
+difficulty: "Intermediate"
 ---
 
 # R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced — Solved Step-by-Step)

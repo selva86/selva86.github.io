@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "sensitivity analysis|sensitivity analysis in R|robustness check|specification curve|bootstrap stability|outlier sensitivity analysis"
 auto_link_case_sensitive: false
 fr_parent: "Statistical-Consulting-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?

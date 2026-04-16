@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "CAR8"
 post_type: "FR"
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R for Excel Users: Your Entire Excel Workflow, Translated to R

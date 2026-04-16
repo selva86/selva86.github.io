@@ -11,6 +11,7 @@ date: 2026-04-11
 curriculum_id: FR-fund-7
 post_type: FR
 fr_parent: Install-R-and-RStudio-2026.html
+difficulty: "Intermediate"
 ---
 
 # R Project Structure: The Setup That Eliminates setwd() Forever

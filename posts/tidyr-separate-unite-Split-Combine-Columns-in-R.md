@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: "pivot_longer-pivot_wider-Reshape-Data-in-R.html"
 sidebar_section: "Data Wrangling"
 sidebar_title: "separate() & unite()"
+difficulty: "Intermediate"
 ---
 
 

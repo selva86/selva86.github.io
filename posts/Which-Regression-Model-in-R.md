@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "choosing regression model|regression decision guide|which regression model|regression model selection|choosing the right regression"
 auto_link_case_sensitive: false
 fr_parent: "Choosing-the-Right-Statistical-Test-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # Which Regression Model in R? A Decision Framework From Data Type to Final Choice

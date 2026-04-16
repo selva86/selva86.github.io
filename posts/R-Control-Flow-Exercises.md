@@ -13,6 +13,7 @@ sidebar_title: "R Control Flow (12 problems)"
 auto_link_terms: "R control flow exercises|R if else exercises|R for loop exercises"
 auto_link_case_sensitive: false
 fr_parent: "R-Control-Flow.html"
+difficulty: "Intermediate"
 ---
 
 # R Control Flow Exercises: 12 if/else, Loop & Function Practice Problems — Solved Step-by-Step

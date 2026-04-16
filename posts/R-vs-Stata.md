@@ -11,6 +11,7 @@ date: "2026-03-29"
 curriculum_id: "CMP4"
 post_type: "FR"
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R vs Stata: Which Tool Do Economists Actually Use? (2026 Job Market Data)

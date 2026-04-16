@@ -13,6 +13,7 @@ auto_link_case_sensitive: true
 sidebar_section: "Visualization"
 sidebar_title: "Grammar of Graphics"
 sidebar_order: 6
+difficulty: "Intermediate"
 ---
 
 # ggplot2's Grammar of Graphics: The Mental Model That Makes Everything Click

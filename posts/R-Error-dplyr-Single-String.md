@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR11"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # dplyr group_by Error: 'must return a single string' — The .data[[]] Fix

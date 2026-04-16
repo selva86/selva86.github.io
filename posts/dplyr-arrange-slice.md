@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Data Wrangling"
 sidebar_title: "dplyr arrange & slice"
 sidebar_order: 6
+difficulty: "Intermediate"
 ---
 
 # dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want

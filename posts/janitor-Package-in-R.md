@@ -13,6 +13,7 @@ auto_link_case_sensitive: true
 fr_parent: "Data-Quality-Checking-in-R.html"
 sidebar_section: "Data Wrangling"
 sidebar_title: "janitor Package"
+difficulty: "Intermediate"
 ---
 
 # janitor Package in R: Clean Messy Data with 5 Lines of Code

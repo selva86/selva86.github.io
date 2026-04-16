@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "R6 Advanced"
 sidebar_order: 16
+difficulty: "Advanced"
 ---
 
 # Advanced R6 in R: Inheritance, Private Fields, and Computed Properties

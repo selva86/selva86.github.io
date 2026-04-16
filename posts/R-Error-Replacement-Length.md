@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR4"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R Error: 'replacement has length zero' — The Hidden NA That Breaks Assignment

@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Learn R"
 sidebar_title: "R's Condition System"
 sidebar_order: 33
+difficulty: "Beginner"
 ---
 
 # R's Condition System: Handle Errors, Warnings & Messages Like a Pro

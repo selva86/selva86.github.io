@@ -13,6 +13,7 @@ auto_link_case_sensitive: true
 sidebar_section: "Visualization"
 sidebar_title: "ggplot2 Scales"
 sidebar_order: 6
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Scales: Control Every Axis, Colour, and Size — The Full Reference

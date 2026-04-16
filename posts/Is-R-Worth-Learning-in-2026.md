@@ -13,6 +13,7 @@ auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "Is R Worth Learning?"
 sidebar_order: 1
+difficulty: "Beginner"
 ---
 
 # Is R Worth Learning in 2026? An Honest, Evidence-Based Answer

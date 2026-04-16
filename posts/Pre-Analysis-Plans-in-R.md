@@ -11,6 +11,7 @@ date: "2026-04-14"
 curriculum_id: "FR-data-3"
 post_type: "FR"
 fr_parent: "Reproducibility-Crisis.html"
+difficulty: "Intermediate"
 ---
 
 # Pre-Analysis Plans in R: Commit Before You Analyze

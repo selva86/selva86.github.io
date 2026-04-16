@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "R Function Factories"
 sidebar_order: 4
+difficulty: "Advanced"
 ---
 
 # R Function Factories: How to Build Customisable Functions That Generate Functions

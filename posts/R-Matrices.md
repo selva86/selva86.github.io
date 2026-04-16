@@ -11,6 +11,7 @@ date: "2026-04-11"
 curriculum_id: "FR-fund-2"
 post_type: "FR"
 fr_parent: "R-Data-Frames.html"
+difficulty: "Intermediate"
 ---
 
 # R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do

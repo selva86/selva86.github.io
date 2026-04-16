@@ -11,6 +11,7 @@ post_type: "FR"
 fr_parent: "RStudio-IDE-Tour.html"
 auto_link_terms: "Positron|Positron IDE|RStudio alternative"
 auto_link_case_sensitive: false
+difficulty: "Intermediate"
 ---
 
 # Positron vs RStudio: Should You Switch? A Feature-by-Feature Verdict

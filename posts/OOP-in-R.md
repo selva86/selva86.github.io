@@ -13,6 +13,7 @@ sidebar_title: "OOP in R: S3/S4/R6"
 sidebar_order: 10
 auto_link_terms: "R OOP|OOP in R|S3 class|S4 class|R6 class|R5 reference class|object-oriented programming in R|R OOP systems"
 auto_link_case_sensitive: false
+difficulty: "Advanced"
 ---
 
 # R OOP Systems Explained: S3, S4, R5, R6 — Pick the Right One in 3 Questions

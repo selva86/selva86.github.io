@@ -13,6 +13,7 @@ auto_link_case_sensitive: true
 sidebar_section: "Advanced R"
 sidebar_title: "S4 Classes"
 sidebar_order: 13
+difficulty: "Advanced"
 ---
 
 # S4 Classes in R: Formal Object-Oriented Programming With Type Checking

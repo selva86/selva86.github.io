@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR15"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # lme4 'Model failed to converge' — 5 Fixes That Actually Work (in Order)

@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Advanced R"
 sidebar_title: "Memoization in R"
 sidebar_order: 7
+difficulty: "Advanced"
 ---
 
 # Memoize R Functions: Cache Results and Call Expensive Code Only Once

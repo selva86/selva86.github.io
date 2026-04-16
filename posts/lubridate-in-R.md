@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "lubridate"
 sidebar_order: 10
+difficulty: "Intermediate"
 ---
 
 # lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever

@@ -11,6 +11,7 @@ date: 2026-04-14
 curriculum_id: FR-inte-3
 post_type: FR
 fr_parent: ggplot2-Distribution-Charts.html
+difficulty: "Intermediate"
 ---
 
 # ggdist Package in R: Visualize Distributions & Uncertainty (Raincloud Plots)

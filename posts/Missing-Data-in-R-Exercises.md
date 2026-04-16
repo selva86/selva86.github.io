@@ -12,6 +12,7 @@ sidebar_title: "Missing Data (10 problems)"
 auto_link_terms: "missing data exercises|NA exercises|is.na exercises|missing value practice|NA detection exercises"
 auto_link_case_sensitive: false
 fr_parent: "Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html"
+difficulty: "Intermediate"
 ---
 
 

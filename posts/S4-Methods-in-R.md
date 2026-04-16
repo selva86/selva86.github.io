@@ -13,6 +13,7 @@ auto_link_case_sensitive: true
 sidebar_section: "Learn R"
 sidebar_title: "S4 Methods & Dispatch"
 sidebar_order: 35
+difficulty: "Beginner"
 ---
 
 # S4 Multiple Dispatch in R: Dispatch on Two Arguments Simultaneously

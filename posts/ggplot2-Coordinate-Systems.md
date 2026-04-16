@@ -11,6 +11,7 @@ date: "2026-04-06"
 curriculum_id: "FR-ggpl-4"
 post_type: "FR"
 fr_parent: "ggplot2-Scales.html"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Coordinate Systems: coord_flip(), coord_polar(), and Beyond

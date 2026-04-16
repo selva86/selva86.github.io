@@ -11,6 +11,7 @@ date: "2026-04-12"
 curriculum_id: "FR-func-4"
 post_type: "FR"
 fr_parent: "purrr-map-Variants.html"
+difficulty: "Intermediate"
 ---
 
 # furrr Package in R: Parallel purrr with future Backend

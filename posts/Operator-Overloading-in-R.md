@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "Operator Overloading"
 sidebar_order: 17
+difficulty: "Advanced"
 ---
 
 # Operator Overloading in R: Give Your S3 Objects Intuitive Behaviour

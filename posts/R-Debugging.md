@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "Debugging R Code"
 sidebar_order: 27
+difficulty: "Advanced"
 ---
 
 # Debugging R: The Complete Toolkit — From traceback() to RStudio Breakpoints

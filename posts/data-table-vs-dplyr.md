@@ -11,6 +11,7 @@ date: "2026-04-14"
 curriculum_id: "FR-dply-3"
 post_type: "FR"
 fr_parent: "dplyr-filter-select.html"
+difficulty: "Intermediate"
 ---
 
 # data.table vs dplyr in R: Head-to-Head Performance Benchmark: Which Is Right for You?

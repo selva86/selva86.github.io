@@ -10,6 +10,7 @@ webr: true
 date: "2026-04-13"
 curriculum_id: "CAR2"
 post_type: "FR"
+difficulty: "Intermediate"
 ---
 
 # Learn R in 12 Months: A Week-by-Week Roadmap With No Wasted Time

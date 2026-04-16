@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: ggplot2-Bar-Charts.html
 sidebar_section: "Visualization"
 sidebar_title: "Waffle Chart"
+difficulty: "Intermediate"
 ---
 
 # Waffle Chart in R: Display Proportions as a Grid of Squares

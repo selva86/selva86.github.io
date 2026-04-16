@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "DuckDB"
 sidebar_order: 14
+difficulty: "Intermediate"
 ---
 
 # DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds

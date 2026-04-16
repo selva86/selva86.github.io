@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "Data Quality Checking"
 sidebar_order: 17
+difficulty: "Intermediate"
 ---
 
 

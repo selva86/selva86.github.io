@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "R Anonymous Functions"
 sidebar_order: 35
+difficulty: "Beginner"
 ---
 
 # R Anonymous Functions: The \\(x) Syntax That Replaces function(x)

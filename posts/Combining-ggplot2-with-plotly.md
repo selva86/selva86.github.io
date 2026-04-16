@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "ggplot2 + plotly Interactive"
 sidebar_order: 36
+difficulty: "Intermediate"
 ---
 
 # ggplot2 + plotly: Add Hover Tooltips and Zoom to Any Chart in One Line

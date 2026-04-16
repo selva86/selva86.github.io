@@ -13,6 +13,7 @@ sidebar_title: "R Basics (15 problems)"
 auto_link_terms: "R basics exercises|R beginner exercises|R practice problems"
 auto_link_case_sensitive: false
 fr_parent: "R-Syntax-101.html"
+difficulty: "Intermediate"
 ---
 
 # R Basics Exercises: 15 Practice Problems for Beginners (With Solutions)

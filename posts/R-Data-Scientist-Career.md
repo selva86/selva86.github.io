@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "CAR3"
 post_type: "FR"
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R Data Scientist Salary & Career Path : Real Numbers, Real Requirements

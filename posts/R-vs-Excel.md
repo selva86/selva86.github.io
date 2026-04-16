@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "R vs Excel|Excel vs R|moving from Excel to R|Excel to R migration|R for Excel users"
 auto_link_case_sensitive: false
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R vs Excel: 7 Signs Your Analysis Has Outgrown Spreadsheets

@@ -11,6 +11,7 @@ date: "2026-04-15"
 curriculum_id: "FR-cust-3"
 post_type: "FR"
 fr_parent: "Publication-Quality-Figures-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # gt Package: Beautiful Publication-Ready Tables in R

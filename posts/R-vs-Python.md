@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "CMP1"
 post_type: "FR"
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R vs Python for Data Science: Stop Debating and Read the Actual Data

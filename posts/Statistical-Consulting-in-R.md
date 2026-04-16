@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Statistics"
 sidebar_title: "Statistical Consulting"
 sidebar_order: 13
+difficulty: "Intermediate"
 ---
 
 

@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: Statistics
 sidebar_title: Measures of Association
 sidebar_order: 16
+difficulty: "Intermediate"
 ---
 
 # Measures of Association in R: Cramer's V, Phi, Pearson r With Examples

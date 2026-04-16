@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "NAs introduced by coercion|NAs by coercion|as.numeric() warning|coercion warning|non-numeric values in R|convert character to numeric|parse numeric in R"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R Warning: 'NAs introduced by coercion' — Find the Non-Numeric Values Fast

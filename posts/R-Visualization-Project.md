@@ -14,6 +14,7 @@ sidebar_section: "Practice Exercises"
 sidebar_title: "R Visualization Project (5 charts)"
 sidebar_order: 26
 fr_parent: "Publication-Quality-Figures-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # R Visualization Project: Reproduce 5 Real-World Charts from Scratch — Solved Step-by-Step

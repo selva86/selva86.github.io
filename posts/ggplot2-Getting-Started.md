@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "ggplot2 Getting Started"
 sidebar_order: 6
+difficulty: "Intermediate"
 ---
 
 # ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes — Zero Experience Needed

@@ -12,6 +12,7 @@ sidebar_title: "purrr (10 problems)"
 auto_link_terms: "purrr exercises|purrr practice problems|purrr map exercises|functional programming exercises R|map2 practice|pmap practice|map_dfr exercises"
 auto_link_case_sensitive: false
 fr_parent: "Functional-Programming-in-R.html"
+difficulty: "Intermediate"
 ---
 
 

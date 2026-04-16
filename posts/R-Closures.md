@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "R Closures"
 sidebar_order: 24
+difficulty: "Advanced"
 ---
 
 # R Closures: The Pattern Behind Shiny Reactive Logic and ggplot2 Themes

@@ -11,6 +11,7 @@ date: "2026-04-14"
 curriculum_id: "CAR11"
 post_type: "FR"
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R for Stata Users: The Command-by-Command Translation Guide

@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: "ggplot2-Distribution-Charts.html"
 sidebar_section: "Visualization"
 sidebar_title: "Violin Plot"
+difficulty: "Intermediate"
 ---
 
 # Violin Plot in R: Draw, Customize, and Combine with Boxplots

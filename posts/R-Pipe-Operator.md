@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Data Wrangling"
 sidebar_title: "R Pipe Operator"
 sidebar_order: 2
+difficulty: "Intermediate"
 ---
 
 # R Pipe Operator: %>% vs |> — The Complete Guide to Both Pipes

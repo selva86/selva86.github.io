@@ -12,6 +12,7 @@ curriculum_id: "4.1.2"
 post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "R Assignment Deep Dive"
+difficulty: "Advanced"
 ---
 
 # <- vs = vs <<- in R: The Definitive Guide to Assignment Operators

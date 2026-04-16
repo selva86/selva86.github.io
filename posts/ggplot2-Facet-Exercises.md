@@ -12,6 +12,7 @@ curriculum_id: "E3.5"
 post_type: "EX"
 sidebar_title: "ggplot2 Facets (8 problems)"
 fr_parent: "ggplot2-Facets.html"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Facet Exercises: 8 facet_wrap() & facet_grid() Practice Problems — Solved Step-by-Step

@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "cannot open the connection|cannot open connection|Error in file(file, \"rt\")"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R Error: 'cannot open the connection' — File Path Checklist That Fixes It

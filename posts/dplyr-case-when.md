@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "case_when()|dplyr case_when|conditional mutate|nested ifelse|case_match()"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-mutate-rename.html"
+difficulty: "Intermediate"
 ---
 
 # dplyr case_when() in R: Replace Nested if_else with Clean Conditional Logic

@@ -12,6 +12,7 @@ sidebar_title: "Data Import (10 problems)"
 auto_link_terms: "R data import exercises|read_csv exercises|readr practice|data import practice problems|read_delim exercises|col_types exercises"
 auto_link_case_sensitive: false
 fr_parent: "Importing-Data-in-R.html"
+difficulty: "Intermediate"
 ---
 
 

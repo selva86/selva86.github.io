@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR7"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R Error: 'non-numeric argument to binary operator' — Find the Hidden Character

@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "Tidy Data"
 sidebar_order: 11
+difficulty: "Intermediate"
 ---
 
 # Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable

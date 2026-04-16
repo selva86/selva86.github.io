@@ -11,6 +11,7 @@ date: "2026-04-12"
 curriculum_id: "FR-func-3"
 post_type: "FR"
 fr_parent: "Functional-Programming-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # Tail Call Optimization in R: Recursive Functions Without Stack Overflow

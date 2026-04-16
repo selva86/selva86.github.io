@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Functional Programming"
 sidebar_title: "Functional Programming"
 sidebar_order: 1
+difficulty: "Advanced"
 ---
 
 # Functional Programming in R: The Mindset That Makes Your Code 10× Cleaner

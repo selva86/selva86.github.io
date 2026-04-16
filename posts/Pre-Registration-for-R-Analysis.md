@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "pre-registration|preregistration|analysis plan|pre-analysis plan|AsPredicted|registered reports"
 auto_link_case_sensitive: false
 fr_parent: "Statistical-Consulting-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # Pre-Registration for R Analysis: OSF, AsPredicted & Analysis Plans

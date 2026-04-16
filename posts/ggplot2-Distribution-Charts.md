@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Visualization"
 sidebar_title: "Distribution Charts"
 sidebar_order: 13
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Distribution Charts: Histograms, Density, Boxplots — When to Use Each

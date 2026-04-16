@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: "ggplot2-Distribution-Charts.html"
 sidebar_section: "Visualization"
 sidebar_title: "Ridgeline Plot"
+difficulty: "Intermediate"
 ---
 
 # Ridgeline Plot in R: Compare Many Distributions with ggridges

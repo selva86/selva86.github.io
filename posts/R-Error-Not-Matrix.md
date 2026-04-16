@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR13"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R apply() Error: 'argument is not a matrix' — Try These Alternatives

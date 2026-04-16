@@ -13,6 +13,7 @@ sidebar_title: "R Vectors (12 problems)"
 auto_link_terms: "R vectors exercises|R vector practice|R indexing exercises"
 auto_link_case_sensitive: false
 fr_parent: "R-Vectors.html"
+difficulty: "Intermediate"
 ---
 
 # R Vectors Exercises: 12 Hands-On Problems with Step-by-Step Answers

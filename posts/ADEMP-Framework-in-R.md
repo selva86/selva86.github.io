@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "ADEMP framework|ADEMP|simulation study design|Monte Carlo simulation study|simulation performance measures"
 auto_link_case_sensitive: false
 fr_parent: "Statistical-Consulting-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # The ADEMP Framework in R: Design & Report Simulation Studies Properly

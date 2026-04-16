@@ -13,6 +13,7 @@ auto_link_case_sensitive: false
 sidebar_section: "Statistics"
 sidebar_title: "Statistical Report Writing"
 sidebar_order: 13
+difficulty: "Intermediate"
 ---
 
 # Write Statistical Reports in R That Non-Statisticians Actually Understand

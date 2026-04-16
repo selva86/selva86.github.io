@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Statistics"
 sidebar_title: "Missing Data Viz (naniar)"
 sidebar_order: 10
+difficulty: "Intermediate"
 ---
 
 

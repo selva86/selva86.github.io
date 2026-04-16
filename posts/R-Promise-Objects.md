@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "FR-inte-4"
 post_type: "FR"
 fr_parent: "R-Lexical-Scoping.html"
+difficulty: "Intermediate"
 ---
 
 # R Promise Objects: Lazy Evaluation & Force() Explained

@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "Getting Help in R"
 sidebar_order: 12
+difficulty: "Beginner"
 ---
 
 # Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours

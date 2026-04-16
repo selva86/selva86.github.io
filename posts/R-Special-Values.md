@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "R Special Values"
 sidebar_order: 11
+difficulty: "Beginner"
 ---
 
 # R's Four Special Values: NA, NULL, NaN, Inf — What Each One Actually Means

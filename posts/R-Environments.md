@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "R Environments"
 sidebar_order: 22
+difficulty: "Advanced"
 ---
 
 # R Environments: The Missing Piece That Makes Scoping, Closures & NSE Click

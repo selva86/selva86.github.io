@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Advanced R"
 sidebar_title: "R6 Classes"
 sidebar_order: 14
+difficulty: "Advanced"
 ---
 
 <p class="lead">R6 classes give you mutable objects in R — when you modify an R6 object, the change happens in place instead of creating a copy. This makes R6 the right choice when you need shared state, resource management, or objects that talk to external systems like databases and APIs.</p>

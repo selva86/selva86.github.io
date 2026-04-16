@@ -13,6 +13,7 @@ auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "Composable R Code"
 sidebar_order: 40
+difficulty: "Beginner"
 ---
 
 # Composable R Code: Design Functions That Chain Together Like Unix Pipes

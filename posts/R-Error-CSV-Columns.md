@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR17"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R read.csv Error: 'more columns than column names' — 4 Common CSV Problems Fixed

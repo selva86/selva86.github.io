@@ -11,6 +11,7 @@ date: "2026-04-14"
 curriculum_id: "FR-impo-2"
 post_type: "FR"
 fr_parent: "Importing-Data-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics

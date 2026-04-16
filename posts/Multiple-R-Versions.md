@@ -11,6 +11,7 @@ post_type: "FR"
 fr_parent: "Install-R-and-RStudio-2026.html"
 auto_link_terms: "rig|R version manager|renv|multiple R versions"
 auto_link_case_sensitive: false
+difficulty: "Intermediate"
 ---
 
 # Run Multiple R Versions Side-by-Side (and Switch Without Breaking Anything)

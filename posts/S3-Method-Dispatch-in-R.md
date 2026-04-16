@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "S3 Method Dispatch"
 sidebar_order: 12
+difficulty: "Advanced"
 ---
 
 # S3 Method Dispatch: Exactly How R Finds the Right Function for Your Object

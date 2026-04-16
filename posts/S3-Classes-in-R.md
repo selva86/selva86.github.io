@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "S3 Classes"
 sidebar_order: 10
+difficulty: "Advanced"
 ---
 
 # S3 Classes in R: Build a Custom Object System in Under 20 Lines of Code

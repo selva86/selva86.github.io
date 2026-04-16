@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "pivot_longer & pivot_wider"
 sidebar_order: 8
+difficulty: "Intermediate"
 ---
 
 # pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind

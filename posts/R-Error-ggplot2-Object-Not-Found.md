@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "ggplot2 object not found|ggplot object not found|ggplot2 aes error|.data pronoun|ggplot2 column not found"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 'object not found': Is It a Column Name or an R Variable?

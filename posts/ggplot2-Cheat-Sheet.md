@@ -11,6 +11,7 @@ date: "2026-04-06"
 curriculum_id: "CHT3"
 post_type: "FR"
 fr_parent: "ggplot2-Getting-Started.html"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Cheat Sheet: Quick Reference for Geoms, Scales, Themes and More

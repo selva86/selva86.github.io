@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "RStudio vs VS Code|best IDE for R|RStudio vs Positron|Positron IDE|R IDE comparison|VS Code for R"
 auto_link_case_sensitive: false
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # RStudio vs VS Code vs Positron for R: Which IDE Is Actually Best?

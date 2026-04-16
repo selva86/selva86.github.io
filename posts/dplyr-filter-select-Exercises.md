@@ -12,6 +12,7 @@ sidebar_title: "filter & select (12 problems)"
 auto_link_terms: "dplyr filter exercises|dplyr select exercises|filter and select exercises|filter practice problems|dplyr practice problems"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-filter-select.html"
+difficulty: "Intermediate"
 ---
 
 # dplyr filter() & select() Exercises: 12 Practice Problems

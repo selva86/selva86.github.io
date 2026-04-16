@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "R Memory & lobstr"
 sidebar_order: 36
+difficulty: "Beginner"
 ---
 
 # Measure R Memory Usage: lobstr Shows You Exactly What's in RAM

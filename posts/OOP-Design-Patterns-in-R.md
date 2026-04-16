@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "OOP design patterns in R|design patterns in R6|factory pattern in R|strategy pattern in R|observer pattern in R|singleton pattern in R|builder pattern in R"
 auto_link_case_sensitive: false
 fr_parent: "R6-Classes-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # OOP Design Patterns in R: Factory, Strategy & Observer in R6

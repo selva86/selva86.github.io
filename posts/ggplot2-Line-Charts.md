@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "Line Charts"
 sidebar_order: 15
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Line Charts: Connect Points, Group by Variable, and Style Lines

@@ -13,6 +13,7 @@ auto_link_case_sensitive: false
 fr_parent: "ggplot2-Scales.html"
 sidebar_section: "Visualization"
 sidebar_title: "Secondary Axis"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Secondary Axis in R: Add a Second Y-Axis the Right Way

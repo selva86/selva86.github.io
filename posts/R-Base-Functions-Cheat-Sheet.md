@@ -11,6 +11,7 @@ date: "2026-04-14"
 curriculum_id: "CHT10"
 post_type: "FR"
 fr_parent: "Getting-Help-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # R Base Functions Cheat Sheet: 100 Functions You'll Use in Real Work

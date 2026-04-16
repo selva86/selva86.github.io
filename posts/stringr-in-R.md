@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "stringr"
 sidebar_order: 9
+difficulty: "Intermediate"
 ---
 
 # stringr in R: 15 Functions That Handle Every String Task You'll Actually Encounter

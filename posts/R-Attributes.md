@@ -11,6 +11,7 @@ date: 2026-04-11
 curriculum_id: FR-fund-5
 post_type: FR
 fr_parent: R-Data-Types.html
+difficulty: "Intermediate"
 ---
 
 # R Attributes: The Hidden Metadata That Makes R Objects Behave Differently

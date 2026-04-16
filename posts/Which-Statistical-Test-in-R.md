@@ -11,6 +11,7 @@ date: "2026-04-06"
 curriculum_id: "DG1"
 post_type: "FR"
 fr_parent: "Choosing-Statistical-Test-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # Which Statistical Test in R? A Decision Flowchart That Answers in 5 Questions

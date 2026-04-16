@@ -12,6 +12,7 @@ sidebar_title: "dplyr (15 problems)"
 auto_link_terms: "dplyr exercises|dplyr practice problems|dplyr practice|data manipulation exercises|tidyverse exercises"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-filter-select.html"
+difficulty: "Intermediate"
 ---
 
 # dplyr Exercises: 15 Data Manipulation Practice Problems

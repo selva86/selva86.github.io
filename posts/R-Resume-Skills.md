@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "R skills resume|R resume skills|R programming on resume|R packages on resume|R portfolio|ATS R keywords"
 auto_link_case_sensitive: false
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R Skills on Your Resume: What Actually Gets You Interviews

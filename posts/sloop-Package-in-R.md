@@ -11,6 +11,7 @@ date: "2026-04-12"
 curriculum_id: "FR-oop-2"
 post_type: "FR"
 fr_parent: "OOP-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # sloop Package in R: otype(), ftype() — Inspect Any Object's OOP System

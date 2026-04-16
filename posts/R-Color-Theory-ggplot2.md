@@ -11,6 +11,7 @@ date: "2026-04-06"
 curriculum_id: "FR-ggpl-5"
 post_type: "FR"
 fr_parent: "ggplot2-Colours.html"
+difficulty: "Intermediate"
 ---
 
 # R Color Theory: Choose Palettes, Use ColorBrewer, and Design for Colorblind Readers

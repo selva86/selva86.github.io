@@ -11,6 +11,7 @@ date: 2026-04-11
 curriculum_id: FR-fund-4
 post_type: FR
 fr_parent: R-Data-Types.html
+difficulty: "Intermediate"
 ---
 
 # R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters

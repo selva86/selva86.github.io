@@ -13,6 +13,7 @@ sidebar_title: "R Strings (10 problems)"
 auto_link_terms: "R string exercises|stringr exercises|R regex exercises"
 auto_link_case_sensitive: false
 fr_parent: "R-Syntax-101.html"
+difficulty: "Intermediate"
 ---
 
 # R String Manipulation Exercises: 10 stringr Practice Problems Solved

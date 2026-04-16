@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "ggforce|ggforce package|facet_zoom()|geom_mark_ellipse()|geom_mark_hull()|geom_arc_bar()|geom_sina()|ggforce geoms"
 auto_link_case_sensitive: true
 fr_parent: "ggplot2-Facets.html"
+difficulty: "Intermediate"
 ---
 
 # ggforce Package in R: Zoom, Ellipses, Arcs & Advanced ggplot2 Geometries

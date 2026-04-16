@@ -11,6 +11,7 @@ date: 2026-04-11
 curriculum_id: FR-fund-6
 post_type: FR
 fr_parent: R-Data-Types.html
+difficulty: "Intermediate"
 ---
 
 # R Factors: The Data Type That Trips Up Almost Every R Beginner

@@ -12,6 +12,7 @@ sidebar_title: "tidyr Reshaping (10 problems)"
 auto_link_terms: "tidyr exercises|pivot_longer exercises|pivot_wider exercises|tidyr reshaping exercises|tidyr practice problems|reshape data exercises"
 auto_link_case_sensitive: false
 fr_parent: "pivot_longer-pivot_wider-Reshape-Data-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # tidyr Reshaping Exercises: 10 pivot_longer & pivot_wider Problems

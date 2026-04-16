@@ -76,6 +76,22 @@ def convert_table(lines):
 
 def convert(md_text):
     fm, body = parse_frontmatter(md_text)
+
+    # Auto-derive engagement fields if not explicit in frontmatter.
+    # exercise_count: count **Try it:** prompts + ### Exercise headings.
+    # time_estimate_min: word count / 200 wpm + 0.5 min per code block, rounded to 5.
+    if not fm.get('exercise_count'):
+        _tryit_n = len(re.findall(r'^\*\*Try it:', body, re.MULTILINE))
+        _exercise_n = len(re.findall(r'^### Exercise', body, re.MULTILINE))
+        _auto_ex = _tryit_n + _exercise_n
+        if _auto_ex > 0:
+            fm['exercise_count'] = _auto_ex
+    if not fm.get('time_estimate_min'):
+        _words = len(body.split())
+        _code_blocks = len(re.findall(r'^```r', body, re.MULTILINE))
+        _est = round((_words / 200 + _code_blocks * 0.5) / 5) * 5
+        fm['time_estimate_min'] = max(5, _est)
+
     lines = body.split('\n')
 
     # Auto-fix callout patterns so the parser's [TIP]-on-own-line rule matches.

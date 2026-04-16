@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "synthetic data|synthpop|simulated data|fake data generation"
 auto_link_case_sensitive: false
 fr_parent: "Data-Ethics-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # Synthetic Data Generation in R: Protect Privacy While Testing Models

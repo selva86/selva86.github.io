@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "Communicating Uncertainty"
 sidebar_order: 54
+difficulty: "Beginner"
 ---
 
 # Communicating Uncertainty in R: Visualise Confidence Without Misleading Anyone

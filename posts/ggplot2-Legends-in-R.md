@@ -13,6 +13,7 @@ auto_link_case_sensitive: false
 fr_parent: "ggplot2-Themes-in-R.html"
 sidebar_section: "Visualization"
 sidebar_title: "ggplot2 Legends"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Legends in R: Position, Remove, Rename & Customize Completely

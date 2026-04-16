@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "ggplot2 Facets"
 sidebar_order: 27
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Facets: Create Multi-Panel Plots That Reveal Patterns Invisible Elsewhere

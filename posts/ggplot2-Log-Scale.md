@@ -13,6 +13,7 @@ auto_link_case_sensitive: false
 fr_parent: "ggplot2-Scales.html"
 sidebar_section: "Visualization"
 sidebar_title: "Log Scale"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Log Scale in R: When & How to Transform Axes (with Examples)

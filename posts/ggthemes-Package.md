@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "ggthemes|ggthemes package|theme_economist()|theme_fivethirtyeight()|theme_wsj()|theme_tufte()|theme_stata()|theme_hc()"
 auto_link_case_sensitive: false
 fr_parent: "ggplot2-Themes-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # ggthemes Package in R: Economist, FiveThirtyEight & 20 More Ready-Made Themes

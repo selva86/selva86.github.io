@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "lubridate cheat sheet|lubridate reference|R date cheat sheet|R date time reference|lubridate functions"
 auto_link_case_sensitive: false
 fr_parent: "lubridate-in-R.html"
+difficulty: "Intermediate"
 ---
 
 

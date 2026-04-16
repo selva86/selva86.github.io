@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "aesthetics must be either length 1|aesthetics must be length 1|ggplot2 aesthetics error|ggplot2 length error|ggplot2 recycling rule|aes() length mismatch|inherit.aes = FALSE"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Error: 'Aesthetics must be length 1 or same as data' — Solved

@@ -13,6 +13,7 @@ post_type: "EX"
 sidebar_section: "Practice Exercises"
 sidebar_title: "R Date & Time (10 problems)"
 fr_parent: "R-Syntax-101.html"
+difficulty: "Intermediate"
 ---
 
 # R Date & Time Exercises: 10 lubridate Practice Problems with Solutions

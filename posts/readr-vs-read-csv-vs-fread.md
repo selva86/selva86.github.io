@@ -11,6 +11,7 @@ date: "2026-04-14"
 curriculum_id: "FR-impo-1"
 post_type: "FR"
 fr_parent: "Importing-Data-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # readr vs read.csv vs fread in R: Which Data Import Function Is Fastest?

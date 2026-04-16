@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Data Wrangling"
 sidebar_title: "dplyr group_by & summarise"
 sidebar_order: 5
+difficulty: "Intermediate"
 ---
 
 # dplyr group_by() + summarise(): The Combination That Answers Most Business Questions

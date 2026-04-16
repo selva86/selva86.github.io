@@ -11,6 +11,7 @@ date: "2026-04-06"
 curriculum_id: "FR-data-2"
 post_type: "FR"
 fr_parent: "DBI-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # dbplyr in R: Write dplyr Code That Runs on Any SQL Database

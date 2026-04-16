@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "dplyr across|across()|if_any()|if_all()|across mutate|across summarise|column-wise dplyr"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-mutate-rename.html"
+difficulty: "Intermediate"
 ---
 
 # dplyr across() in R: Apply the Same Function to Multiple Columns at Once

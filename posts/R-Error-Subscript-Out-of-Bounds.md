@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR2"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R Error: 'subscript out of bounds' — Find Which Index Is Wrong Instantly

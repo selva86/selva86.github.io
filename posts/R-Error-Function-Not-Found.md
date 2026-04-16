@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR10"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R Error: 'could not find function' — Package Not Loaded or Name Conflict?

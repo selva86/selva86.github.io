@@ -11,6 +11,7 @@ date: 2026-04-07
 curriculum_id: FR-char-11
 post_type: FR
 fr_parent: ggplot2-Bar-Charts.html
+difficulty: "Intermediate"
 ---
 
 # UpSet Plot in R: Visualize Set Intersections Beyond Venn Diagrams

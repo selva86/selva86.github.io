@@ -11,6 +11,7 @@ date: "2026-04-06"
 curriculum_id: "MOD4"
 post_type: "FR"
 fr_parent: "DuckDB-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop

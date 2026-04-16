@@ -12,6 +12,7 @@ curriculum_id: E3.1
 post_type: EX
 sidebar_title: "ggplot2 (15 problems)"
 fr_parent: ggplot2-Getting-Started.html
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Exercises: 15 Chart-Building Practice Problems (With Solutions)

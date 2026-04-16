@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Data Wrangling"
 sidebar_title: "Sample Size Planning"
 sidebar_order: 18
+difficulty: "Intermediate"
 ---
 
 # Sample Size in R: Calculate Your N Before You Collect a Single Observation

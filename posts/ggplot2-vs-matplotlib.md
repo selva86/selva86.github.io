@@ -11,6 +11,7 @@ date: "2026-04-15"
 curriculum_id: "CMP6"
 post_type: "FR"
 fr_parent: "ggplot2-Grammar-of-Graphics.html"
+difficulty: "Intermediate"
 ---
 
 # ggplot2 vs matplotlib: The Definitive Data Visualization Language Comparison: Which Is Right for You?

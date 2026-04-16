@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: ggplot2-Bar-Charts.html
 sidebar_section: "Visualization"
 sidebar_title: "Treemap"
+difficulty: "Intermediate"
 ---
 
 # Treemap in R with treemapify and ggplot2

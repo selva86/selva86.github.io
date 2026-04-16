@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: ggplot2-Bar-Charts.html
 sidebar_section: "Visualization"
 sidebar_title: "Lollipop Chart"
+difficulty: "Intermediate"
 ---
 
 # Lollipop Chart in R: A Cleaner Alternative to Bar Charts

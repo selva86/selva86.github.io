@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Advanced R"
 sidebar_title: "50 Common R Errors"
 sidebar_order: 30
+difficulty: "Advanced"
 ---
 
 # 50 R Errors Decoded: Plain-English Explanations and Exact Fixes

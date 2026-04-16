@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Statistics"
 sidebar_title: "Automated EDA"
 sidebar_order: 10
+difficulty: "Intermediate"
 ---
 
 # Automated EDA in R: Get a Full Data Profile in 5 Minutes (3 Packages Compared)

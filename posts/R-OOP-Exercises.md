@@ -12,6 +12,7 @@ sidebar_title: "OOP in R (8 problems)"
 auto_link_terms: "R OOP exercises|OOP in R exercises|S3 S4 R6 practice|R object-oriented programming exercises|R class practice problems"
 auto_link_case_sensitive: false
 fr_parent: "OOP-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # OOP in R Exercises: 8 S3, S4 & R6 Practice Problems — Solved Step-by-Step)

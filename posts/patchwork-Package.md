@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "patchwork (Combine Plots)"
 sidebar_order: 34
+difficulty: "Intermediate"
 ---
 
 # patchwork in R: Combine Multiple ggplot2 Plots With Aligned Axes and Shared Legends

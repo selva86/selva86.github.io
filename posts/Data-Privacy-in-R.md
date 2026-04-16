@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "Data Privacy in R"
 sidebar_order: 53
+difficulty: "Beginner"
 ---
 
 # Data Privacy in R: Anonymise Datasets and Stay GDPR Compliant

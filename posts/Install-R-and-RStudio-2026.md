@@ -13,6 +13,7 @@ auto_link_case_sensitive: false
 sidebar_section: "Learn R"
 sidebar_title: "Install R & RStudio"
 sidebar_order: 2
+difficulty: "Beginner"
 ---
 
 # Install R & RStudio in 2026: The Setup That Actually Works First Time

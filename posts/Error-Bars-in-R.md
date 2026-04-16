@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: ggplot2-Scatter-Plots.html
 sidebar_section: "Visualization"
 sidebar_title: "Error Bars"
+difficulty: "Intermediate"
 ---
 
 # Error Bars in R with ggplot2: SD, SE, and Confidence Intervals

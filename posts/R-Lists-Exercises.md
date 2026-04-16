@@ -13,6 +13,7 @@ sidebar_title: "R Lists (10 problems)"
 auto_link_terms: "R lists exercises|R list practice|R list subsetting"
 auto_link_case_sensitive: false
 fr_parent: "R-Lists.html"
+difficulty: "Intermediate"
 ---
 
 # R Lists Exercises: 10 Practice Problems with Full Solutions

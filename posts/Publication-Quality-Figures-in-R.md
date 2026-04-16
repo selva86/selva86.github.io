@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "Publication-Ready Figures"
 sidebar_order: 35
+difficulty: "Intermediate"
 ---
 
 # Publication-Ready ggplot2 Figures: The Checklist for Journals and Theses

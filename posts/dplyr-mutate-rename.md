@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Data Wrangling"
 sidebar_title: "dplyr mutate()"
 sidebar_order: 4
+difficulty: "Intermediate"
 ---
 
 # dplyr mutate(): Create New Columns, Transform Existing Ones — 8 Real Examples

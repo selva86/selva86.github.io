@@ -12,6 +12,7 @@ sidebar_title: "dplyr join() (10 problems)"
 auto_link_terms: "dplyr join exercises|join practice problems|dplyr joins practice|left_join exercises|inner_join exercises"
 auto_link_case_sensitive: false
 fr_parent: "R-Joins.html"
+difficulty: "Intermediate"
 ---
 
 

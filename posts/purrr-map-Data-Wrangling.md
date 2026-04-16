@@ -11,6 +11,7 @@ date: "2026-04-14"
 curriculum_id: "FR-dply-4"
 post_type: "FR"
 fr_parent: "dplyr-group-by-summarise.html"
+difficulty: "Intermediate"
 ---
 
 # purrr map() Functions in R: map, map2, imap, pmap — Functional Data Processing

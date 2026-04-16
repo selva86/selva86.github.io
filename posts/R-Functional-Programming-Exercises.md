@@ -12,6 +12,7 @@ sidebar_title: "Functional Programming (10 problems)"
 auto_link_terms: "functional programming exercises|R functional programming exercises|FP exercises R|functional programming practice problems"
 auto_link_case_sensitive: false
 fr_parent: "Functional-Programming-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # Advanced R Exercises: 10 Functional Programming Practice Problems — Solved Step-by-Step

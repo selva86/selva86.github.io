@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "R Fundamentals"
 sidebar_title: "R Syntax 101"
 sidebar_order: 1
+difficulty: "Beginner"
 ---
 
 # R Syntax 101: Write Your First Working Script in 10 Minutes

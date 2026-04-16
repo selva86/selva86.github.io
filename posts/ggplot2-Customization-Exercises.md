@@ -12,6 +12,7 @@ curriculum_id: "E3.3"
 post_type: "EX"
 sidebar_title: "ggplot2 Customization (10 problems)"
 fr_parent: "ggplot2-Themes-in-R.html"
+difficulty: "Intermediate"
 ---
 
 

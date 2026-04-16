@@ -12,6 +12,7 @@ curriculum_id: "E3.2"
 post_type: "EX"
 sidebar_title: "ggplot2 Aesthetics (10 problems)"
 fr_parent: "ggplot2-Aesthetics-aes-Map-Data.html"
+difficulty: "Intermediate"
 ---
 
 

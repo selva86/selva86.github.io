@@ -12,6 +12,7 @@ sidebar_title: "group_by & summarise (10 problems)"
 auto_link_terms: "dplyr group_by exercises|dplyr summarise exercises|group_by practice problems|summarise practice problems|dplyr aggregation exercises"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-group-by-summarise.html"
+difficulty: "Intermediate"
 ---
 
 

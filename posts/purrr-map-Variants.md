@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "purrr map() Variants"
 sidebar_order: 33
+difficulty: "Beginner"
 ---
 
 # purrr map() in R: Every Variant Explained With the Mental Model That Makes Them Click

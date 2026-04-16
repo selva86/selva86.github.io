@@ -13,6 +13,7 @@ auto_link_case_sensitive: false
 sidebar_section: "Visualization"
 sidebar_title: "ggplot2 Themes"
 sidebar_order: 6
+difficulty: "Intermediate"
 ---
 
 

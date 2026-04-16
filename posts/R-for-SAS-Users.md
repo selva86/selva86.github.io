@@ -11,6 +11,7 @@ date: "2026-04-14"
 curriculum_id: "CAR10"
 post_type: "FR"
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R for SAS Users: MAP Every SAS Procedure to Its R Equivalent

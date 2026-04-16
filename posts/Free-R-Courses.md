@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "free R courses|best free R courses|learn R for free|free R training|free R MOOC"
 auto_link_case_sensitive: false
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # 15 Best Free R Courses : Ranked Honestly by Learning Outcome

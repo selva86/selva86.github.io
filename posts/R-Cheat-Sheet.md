@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "CHT1"
 post_type: "FR"
 fr_parent: "Getting-Help-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # R Cheat Sheet: 200 Functions Across dplyr, ggplot2, Stats — Printable

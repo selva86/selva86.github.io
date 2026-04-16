@@ -13,6 +13,7 @@ sidebar_title: "R Functions (10 problems)"
 auto_link_terms: "R functions exercises|R function practice|R default arguments"
 auto_link_case_sensitive: false
 fr_parent: "R-Functions.html"
+difficulty: "Intermediate"
 ---
 
 # R Functions Exercises: 10 Problems — Write, Debug & Optimize Functions — Solved Step-by-Step

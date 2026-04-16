@@ -12,6 +12,7 @@ sidebar_title: "data.table (12 problems)"
 auto_link_terms: "data.table exercises|data.table practice|data.table problems|data.table tutorial"
 auto_link_case_sensitive: false
 fr_parent: "dplyr-filter-select.html"
+difficulty: "Intermediate"
 ---
 
 

@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "CAR1"
 post_type: "FR"
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # 50 R Interview Questions Answered: From Junior Analyst to Senior Data Scientist

@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Data Wrangling"
 sidebar_title: "Importing Data"
 sidebar_order: 1
+difficulty: "Intermediate"
 ---
 
 # Import Any Data Format Into R: CSV, Excel, JSON, and 12 Others

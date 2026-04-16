@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "Scatter Plots"
 sidebar_order: 14
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Scatter Plots: Map Color, Size, Shape and Add Trend Lines

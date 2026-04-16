@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "breaks are not unique|hist breaks error|R histogram error|breaks not unique"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R hist() Error: 'breaks are not unique' — Why Your Data Has No Spread

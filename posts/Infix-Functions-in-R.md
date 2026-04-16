@@ -11,6 +11,7 @@ date: "2026-04-12"
 curriculum_id: "FR-func-1"
 post_type: "FR"
 fr_parent: "R-Function-Operators.html"
+difficulty: "Intermediate"
 ---
 
 <p class="lead">An infix function in R is a function you call <em>between</em> its two arguments — like <code>x + y</code> or <code>a %in% b</code> — instead of the usual <code>func(x, y)</code> prefix style. You can define your own infix operators using the <code>%name%</code> syntax, turning any two-argument function into a clean, readable operator.</p>

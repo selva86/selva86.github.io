@@ -11,6 +11,7 @@ date: "2026-04-12"
 curriculum_id: "FR-func-2"
 post_type: "FR"
 fr_parent: "R-Function-Operators.html"
+difficulty: "Intermediate"
 ---
 
 # R Currying & Partial Application: purrr::partial() & rlang

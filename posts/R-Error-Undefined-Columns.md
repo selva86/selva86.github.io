@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR3"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R Error: 'undefined columns selected' — 3 Column-Subsetting Mistakes Fixed

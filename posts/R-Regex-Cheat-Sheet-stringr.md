@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "R regex cheat sheet|regex in R|regular expressions in R|R regex patterns|R pattern matching"
 auto_link_case_sensitive: false
 fr_parent: "stringr-in-R.html"
+difficulty: "Intermediate"
 ---
 
 

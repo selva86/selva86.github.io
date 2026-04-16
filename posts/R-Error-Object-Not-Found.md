@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR1"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R Error: 'object not found' — 7 Different Causes, 7 Different Fixes

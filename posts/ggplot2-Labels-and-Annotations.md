@@ -13,6 +13,7 @@ auto_link_case_sensitive: true
 sidebar_section: "Visualization"
 sidebar_title: "Labels & Annotations"
 sidebar_order: 6
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Labels and Annotations: Add Context Without Cluttering Your Chart

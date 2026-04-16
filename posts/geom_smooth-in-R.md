@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: ggplot2-Scatter-Plots.html
 sidebar_section: "Visualization"
 sidebar_title: "geom_smooth()"
+difficulty: "Intermediate"
 ---
 
 # geom_smooth in R: Add Trend Lines and Confidence Bands to Plots

@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "CMP2"
 post_type: "FR"
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R vs SPSS: Why 40% of SPSS Users Are Moving to R (And How to Join Them)

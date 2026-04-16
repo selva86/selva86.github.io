@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Statistics"
 sidebar_title: "Outlier Detection"
 sidebar_order: 10
+difficulty: "Intermediate"
 ---
 
 

@@ -13,6 +13,7 @@ sidebar_title: "ggplot2 Colours"
 sidebar_order: 6
 auto_link_terms: "ggplot2 colours|ggplot2 colors|scale_color_manual()|scale_fill_manual()|viridis palette|ColorBrewer palette|colour palettes in ggplot2"
 auto_link_case_sensitive: false
+difficulty: "Intermediate"
 ---
 
 # ggplot2 Colours: Choose Palettes That Are Beautiful, Accessible, and Honest

@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "R Fundamentals"
 sidebar_title: "R Lists"
 sidebar_order: 8
+difficulty: "Beginner"
 ---
 
 # R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)

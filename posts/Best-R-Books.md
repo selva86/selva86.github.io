@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "best R books|R programming books|R book recommendations|Advanced R book|R for Data Science book"
 auto_link_case_sensitive: false
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # Best R Books: A Curated Reading List That Won't Waste Your Time

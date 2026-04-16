@@ -11,6 +11,7 @@ date: 2026-04-11
 curriculum_id: FR-fund-3
 post_type: FR
 fr_parent: R-Vectors.html
+difficulty: "Intermediate"
 ---
 
 # R Subsetting: One Definitive Rule for [], [[]], $, and @ — No More Guessing

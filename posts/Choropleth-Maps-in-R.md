@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "Choropleth Maps (sf)"
 sidebar_order: 38
+difficulty: "Intermediate"
 ---
 
 # Choropleth Maps in R: ggplot2 + sf — Fill Countries, States, or Districts by Value

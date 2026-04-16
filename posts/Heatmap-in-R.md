@@ -13,6 +13,7 @@ post_type: "C"
 fr_parent: "ggplot2-Scatter-Plots.html"
 sidebar_section: "Visualization"
 sidebar_title: "Heatmap in R"
+difficulty: "Intermediate"
 ---
 
 # Heatmap in R: Build and Customize with ggplot2 geom_tile()

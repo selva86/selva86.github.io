@@ -12,6 +12,7 @@ auto_link_terms: "R apply exercises|apply family exercises|lapply exercises|sapp
 auto_link_case_sensitive: false
 sidebar_title: "R apply Family (12 problems)"
 fr_parent: "R-Functions.html"
+difficulty: "Intermediate"
 ---
 
 # R apply Family Exercises: 12 apply(), lapply(), sapply() Practice Problems — Solved Step-by-Step)

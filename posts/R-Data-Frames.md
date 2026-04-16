@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "R Fundamentals"
 sidebar_title: "R Data Frames"
 sidebar_order: 7
+difficulty: "Beginner"
 ---
 
 # R Data Frames: Every Operation You'll Need, With 10 Real Examples

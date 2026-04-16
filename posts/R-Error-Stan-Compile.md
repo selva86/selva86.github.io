@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "RStan failed to compile|Stan failed to compile|RStan compile error|rstan::stan_model()|cmdstanr"
 auto_link_case_sensitive: false
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # RStan 'failed to compile' Error — Every Known Fix in One Place

@@ -13,6 +13,7 @@ sidebar_title: "R Names & Values"
 sidebar_order: 28
 auto_link_terms: "copy-on-modify|copy on modify|R names and values|reference semantics in R|modify in place|lobstr package"
 auto_link_case_sensitive: false
+difficulty: "Beginner"
 ---
 
 # How R Stores Variables: The Copy-on-Modify Rule Every R User Should Know

@@ -11,6 +11,7 @@ date: 2026-04-07
 curriculum_id: FR-char-10
 post_type: FR
 fr_parent: ggplot2-Line-Charts.html
+difficulty: "Intermediate"
 ---
 
 # Sankey and Alluvial Charts in R with ggalluvial

@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "R Fundamentals"
 sidebar_title: "R Control Flow"
 sidebar_order: 9
+difficulty: "Beginner"
 ---
 
 # R Control Flow: if/else, for, and while — Stop Avoiding Loops

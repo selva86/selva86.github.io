@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Visualization"
 sidebar_title: "Spatial Data (sf)"
 sidebar_order: 35
+difficulty: "Intermediate"
 ---
 
 # Spatial Data in R with sf: Shapefiles, CRS Transformation, and ggplot2 Maps

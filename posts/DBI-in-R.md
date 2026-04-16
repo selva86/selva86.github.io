@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "DBI (Databases)"
 sidebar_order: 13
+difficulty: "Intermediate"
 ---
 
 # Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL

@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "ERR19"
 post_type: "FR"
 fr_parent: "R-Common-Errors.html"
+difficulty: "Intermediate"
 ---
 
 # R Memory Error: 'cannot allocate vector' — 5 Solutions From Quick to Complete

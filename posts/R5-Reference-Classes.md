@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "R5 reference classes|setRefClass|R5 class|reference classes in R|R5 OOP|R5 system"
 auto_link_case_sensitive: false
 fr_parent: "OOP-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # R5 Reference Classes in R: setRefClass() — Legacy OOP

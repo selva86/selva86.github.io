@@ -11,6 +11,7 @@ date: "2026-04-13"
 curriculum_id: "CMP15"
 post_type: "FR"
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R vs Julia for Statistics: Julia Is Faster — But Is That What Matters?

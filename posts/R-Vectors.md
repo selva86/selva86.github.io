@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "R Fundamentals"
 sidebar_title: "R Vectors"
 sidebar_order: 6
+difficulty: "Beginner"
 ---
 
 # R Vectors: The Foundation of Everything in R (Master This First)

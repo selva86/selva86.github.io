@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "Reproducibility Crisis"
 sidebar_order: 52
+difficulty: "Beginner"
 ---
 
 # R and the Reproducibility Crisis: 5 Habits That Make Your Research Replicable

@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Data Wrangling"
 sidebar_title: "REST APIs (httr2)"
 sidebar_order: 16
+difficulty: "Intermediate"
 ---
 
 

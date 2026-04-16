@@ -11,6 +11,7 @@ date: "2026-04-14"
 curriculum_id: "FR-tidy-2"
 post_type: "FR"
 fr_parent: "pivot_longer-pivot_wider-Reshape-Data-in-R.html"
+difficulty: "Intermediate"
 ---
 
 # tidyr expand() & complete() in R: Make Implicit Missing Values Explicit

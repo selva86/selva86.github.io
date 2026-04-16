@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "R internal functions|.Internal()|.Call()|.Primitive()"
 auto_link_case_sensitive: false
 fr_parent: "R-Environments.html"
+difficulty: "Intermediate"
 ---
 
 # R Internal Functions: .Internal(), .Call(), .External() — Low Level

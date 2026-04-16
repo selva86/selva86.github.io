@@ -13,6 +13,7 @@ post_type: "C"
 sidebar_section: "Learn R"
 sidebar_title: "Data Ethics"
 sidebar_order: 50
+difficulty: "Beginner"
 ---
 
 # Data Ethics for R Programmers: The Questions to Ask Before You Analyse

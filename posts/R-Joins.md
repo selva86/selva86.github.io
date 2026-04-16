@@ -13,6 +13,7 @@ post_type: C
 sidebar_section: "Data Wrangling"
 sidebar_title: "R Joins"
 sidebar_order: 7
+difficulty: "Intermediate"
 ---
 
 # R Joins With Visual Diagrams: Pick the Right Join Every Time

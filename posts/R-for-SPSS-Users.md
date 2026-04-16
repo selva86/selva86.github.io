@@ -11,6 +11,7 @@ post_type: "FR"
 auto_link_terms: "R for SPSS users|SPSS to R|convert SPSS to R|SPSS to R translation|read SPSS file in R"
 auto_link_case_sensitive: false
 fr_parent: "Is-R-Worth-Learning-in-2026.html"
+difficulty: "Intermediate"
 ---
 
 # R for SPSS Users: Translate Every SPSS Procedure to R in One Guide
