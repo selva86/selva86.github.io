@@ -295,7 +295,7 @@
           value: code,
           mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
           lineNumbers: true,
-          viewportMargin: Infinity,
+          viewportMargin: 20,
           tabSize: 2,
           theme: 'default',
           matchBrackets: true,
@@ -327,56 +327,61 @@
       editors[domIdx] = { cm, originalCode: code, el };
     }
 
-    // Yielding init: queue editors and init one at a time, yielding between each
+    // Yielding init: queue editors one at a time using requestIdleCallback.
+    // rIC naturally pauses during active scroll (browser is busy compositing)
+    // and fires during idle gaps, so editors init without freezing scrolling.
     const initQueue = [];
-    let _initRunning = false;
+    let _initScheduled = false;
+
     function processInitQueue() {
-      if (_initRunning || initQueue.length === 0) return;
-      _initRunning = true;
+      _initScheduled = false;
+      if (initQueue.length === 0) return;
       const el = initQueue.shift();
       initEditor(el);
-      _initRunning = false;
-      // Yield to main thread before next editor
-      if (initQueue.length > 0) {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(() => processInitQueue(), { timeout: 500 });
-        } else {
-          setTimeout(processInitQueue, 0);
-        }
+      if (initQueue.length > 0) scheduleNextInit();
+    }
+
+    function scheduleNextInit() {
+      if (_initScheduled) return;
+      _initScheduled = true;
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(processInitQueue, { timeout: 200 });
+      } else {
+        setTimeout(processInitQueue, 80);
       }
     }
 
-    // Interaction-triggered init: only eagerly init editors in the initial
-    // viewport (first ~3). All others init on first user interaction with
-    // their container (mousedown/touchstart/focusin). This eliminates the
-    // scroll freeze caused by bulk CodeMirror initialization.
+    // Eagerly init editors in the initial viewport, lazily observe the rest
+    // via IntersectionObserver (rootMargin 400px). Each queued editor inits
+    // one at a time, yielding to the main thread between each.
     const allEditors = document.querySelectorAll('.webr-editor');
-    const _eagerLimit = 3;
-    let _eagerCount = 0;
+    const _lazyEditors = [];
     allEditors.forEach(el => {
-      if (_eagerCount < _eagerLimit) {
-        const r = el.getBoundingClientRect();
-        const vh = window.innerHeight || 0;
-        if (r.top < vh + 200 && r.bottom > -200) {
-          initQueue.push(el);
-          _eagerCount++;
-          return;
-        }
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight || 0;
+      if (r.top < vh + 200 && r.bottom > -200) {
+        initQueue.push(el);
+      } else {
+        _lazyEditors.push(el);
       }
-      // Lazy: init on first interaction with this container
-      const container = el.closest('.webr-container');
-      if (!container) return;
-      function onInteract() {
-        container.removeEventListener('mousedown', onInteract, true);
-        container.removeEventListener('touchstart', onInteract, true);
-        container.removeEventListener('focusin', onInteract, true);
-        if (!el.dataset.cmInit) initEditor(el);
-      }
-      container.addEventListener('mousedown', onInteract, true);
-      container.addEventListener('touchstart', onInteract, { capture: true, passive: true });
-      container.addEventListener('focusin', onInteract, true);
     });
     if (initQueue.length > 0) processInitQueue();
+
+    if ('IntersectionObserver' in window && _lazyEditors.length > 0) {
+      const editorObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            initQueue.push(entry.target);
+            editorObserver.unobserve(entry.target);
+          }
+        });
+        if (initQueue.length > 0) scheduleNextInit();
+      }, { rootMargin: '400px' });
+      _lazyEditors.forEach(el => editorObserver.observe(el));
+    } else {
+      _lazyEditors.forEach(el => initQueue.push(el));
+      if (initQueue.length > 0) scheduleNextInit();
+    }
 
     // Track which packages are already installed in this WebR session
     const installedPkgs = new Set(['base', 'stats', 'graphics', 'grDevices', 'utils', 'datasets', 'methods']);
