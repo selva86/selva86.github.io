@@ -317,7 +317,7 @@ MATHJAX_BLOCK = """
     });
   </script>
   <script type="text/javascript" async
-    src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+    src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
   </script>
 """
 
@@ -331,20 +331,15 @@ WEBR_HEAD_BLOCK = """
       .CodeMirror-linenumber{padding:0 3px 0 5px;min-width:20px;text-align:right;color:#6e7681;white-space:nowrap;font-size:14px}
     </style>
     <!-- WebR Interactive R Code — external CSS deferred (non-render-blocking) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"></noscript>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css"></noscript>
     <link rel="stylesheet" href="www/webr.css?v=3" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="www/webr.css?v=3"></noscript>
 """
 
 WEBR_BODY_BLOCK = """
-  <!-- WebR Engine — CodeMirror deferred to avoid blocking -->
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/r/r.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
+  <!-- WebR Engine — CodeMirror (single combined bundle via jsdelivr) -->
+  <script defer src="https://cdn.jsdelivr.net/combine/npm/codemirror@5.65.16/lib/codemirror.min.js,npm/codemirror@5.65.16/mode/r/r.min.js,npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js,npm/codemirror@5.65.16/addon/edit/closebrackets.min.js,npm/codemirror@5.65.16/addon/selection/active-line.min.js,npm/codemirror@5.65.16/addon/mode/overlay.min.js"></script>
   <script type="module" src="www/webr-init.js?v=3"></script>
 """
 
