@@ -2,7 +2,7 @@
 """Convert a markdown post to _posts HTML fragment for r-statistics.co.
 Usage: python _build/md2html.py posts/Slug-Name.md
 """
-import sys, re, html
+import sys, re, html, os
 
 def parse_frontmatter(text):
     """Extract YAML frontmatter and body."""
@@ -20,6 +20,30 @@ def parse_frontmatter(text):
             elif val.lower() == 'false': val = False
             fm[key.strip()] = val
     return fm, body
+
+# Repo root for resolving image paths
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def _img_dimensions(src):
+    """Return 'width=\"W\" height=\"H\"' for a local image, or '' if unavailable."""
+    if src.startswith(('http://', 'https://', '//')):
+        return ''
+    img_path = os.path.join(_REPO_ROOT, src)
+    if not os.path.exists(img_path):
+        return ''
+    try:
+        from PIL import Image
+        with Image.open(img_path) as img:
+            return f'width="{img.width}" height="{img.height}"'
+    except Exception:
+        return ''
+
+def _img_tag(src, alt):
+    """Build an <img> tag with optional width/height, wrapped in a zoomable link."""
+    dims = _img_dimensions(src)
+    dim_attr = f' {dims}' if dims else ''
+    img = f'<img src="{src}" alt="{alt}" class="img-responsive img-zoomable" loading="lazy"{dim_attr} />'
+    return img
 
 def escape_html(text):
     """Escape HTML entities in code blocks."""
@@ -83,7 +107,7 @@ def md_inline(text):
             # Italic
             token = re.sub(r'\*(.+?)\*', r'<em>\1</em>', token)
             # Images (must come before links — ![alt](src) vs [text](url))
-            token = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', r'<img src="\2" alt="\1" class="img-responsive" loading="lazy" />', token)
+            token = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', lambda m: _img_tag(m.group(2), m.group(1)), token)
             # Links
             token = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', token)
             result.append(token)
@@ -391,9 +415,9 @@ def convert(md_text):
             i += 1
             continue
 
-        # H3 -> h4 (site convention)
+        # H3 -> h3
         if line.startswith('### '):
-            out.append(f'<h4>{md_inline(line[4:].strip())}</h4>')
+            out.append(f'<h3>{md_inline(line[4:].strip())}</h3>')
             i += 1
             continue
 
@@ -457,7 +481,7 @@ def convert(md_text):
             m = re.match(r'^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$', line)
             alt = m.group(1)
             src = m.group(2)
-            out.append(f'<p><img src="{src}" alt="{alt}" class="img-responsive" loading="lazy" /></p>')
+            out.append(f'<p>{_img_tag(src, alt)}</p>')
             i += 1
             continue
 
