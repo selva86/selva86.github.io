@@ -921,54 +921,6 @@ WEBR_BODY_BLOCK = """
       adObs.observe(document.documentElement, { childList: true, subtree: true });
     })();
 
-    // Hero-zone ad relocation: move Ezoic ads from inside/after H1
-    // to just before the first H2. CSS hides inside-H1 ads instantly;
-    // this JS relocates them so they render only in the final position.
-    (function () {
-      var AD_RE = /ezoic|ezojs|ezmob|adsbygoogle|google_ads|pagead/i;
-      function isAd(el) {
-        if (!el || el.nodeType !== 1) return false;
-        var c = (el.className || '') + ' ' + (el.id || '');
-        return AD_RE.test(c) || el.tagName === 'INS' || el.tagName === 'IFRAME';
-      }
-      var KEEP_RE = /engagement-header|engagement-progress|webr-runall-bar|lead/;
-      function relocate() {
-        var content = document.querySelector('#content')
-                   || document.querySelector('.col-sm-8')
-                   || document.querySelector('.col-sm-7');
-        if (!content) return false;
-        var h1 = content.querySelector('h1');
-        var h2 = content.querySelector('h2');
-        if (!h1 || !h2) return false;
-        var moved = false;
-        // 1. Ads inside H1
-        var h1Ads = h1.querySelectorAll('[class*="ezoic"], [id*="ezoic"], ins, iframe');
-        for (var i = 0; i < h1Ads.length; i++) {
-          h2.parentNode.insertBefore(h1Ads[i], h2);
-          moved = true;
-        }
-        // 2. Ad siblings between H1 and first H2
-        var node = h1.nextElementSibling;
-        while (node && node !== h2) {
-          var next = node.nextElementSibling;
-          if (isAd(node) && !KEEP_RE.test(node.className || '')) {
-            h2.parentNode.insertBefore(node, h2);
-            moved = true;
-          }
-          node = next;
-        }
-        return moved;
-      }
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () { relocate(); });
-      } else { relocate(); }
-      var heroObs = new MutationObserver(function () {
-        if (relocate()) heroObs.disconnect();
-      });
-      heroObs.observe(document.documentElement, { childList: true, subtree: true });
-      setTimeout(function () { heroObs.disconnect(); }, 30000);
-    })();
-
     // Smart preload: start downloading WebR when user scrolls near the first code block
     // This way WebR is often ready by the time they actually click Run
     const firstBlock = document.querySelector('.webr-container');
