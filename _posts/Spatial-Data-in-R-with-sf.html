@@ -1,0 +1,1493 @@
+---
+title: "Spatial Data in R with sf: Shapefiles, CRS Transformation, and ggplot2 Maps"
+description: "The sf package brings tidy spatial data to R. Read shapefiles with st_read(), transform CRS with st_transform(), and plot maps with geom_sf() in ggplot2."
+keywords: "sf package R, spatial data R, shapefiles in R, CRS transformation R, geom_sf ggplot2, st_read R, st_transform R, coordinate reference system R, simple features R, R mapping tutorial"
+mathjax: false
+webr: true
+curriculum_id: "C1"
+post_type: "C"
+auto_link_terms: "sf package|spatial data in R|st_read()|st_transform()|geom_sf()|simple features|CRS transformation|coordinate reference system"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Spatial Data (sf)"
+sidebar_order: "35"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Spatial Data in R with sf: Shapefiles, CRS Transformation, and ggplot2 Maps</h1>
+
+<p class="lead">The sf (simple features) package is R's modern standard for working with spatial data — points, lines, and polygons stored as <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frames. It replaces the older sp package and connects seamlessly with dplyr for data manipulation and ggplot2 for mapping.</p>
+
+<h2>What does spatial data look like in R?</h2>
+
+<p>Spatial data connects locations on Earth to attributes you care about — city populations, river lengths, country boundaries. In R, the sf package stores this data as a regular data frame with one special column: a geometry column that holds the coordinates.</p>
+
+<p>Let's create a simple spatial dataset and see what that looks like.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Load packages
+library(sf)
+library(ggplot2)
+library(dplyr)
+
+# Create a data frame of cities with coordinates
+cities &lt;- data.frame(
+  name = c(&quot;New York&quot;, &quot;Los Angeles&quot;, &quot;Chicago&quot;, &quot;Houston&quot;, &quot;Phoenix&quot;),
+  state = c(&quot;NY&quot;, &quot;CA&quot;, &quot;IL&quot;, &quot;TX&quot;, &quot;AZ&quot;),
+  pop_millions = c(8.3, 3.9, 2.7, 2.3, 1.6),
+  lon = c(-74.006, -118.244, -87.630, -95.370, -112.074),
+  lat = c(40.713, 34.052, 41.878, 29.760, 33.449)
+)
+
+# Convert to an sf object
+cities &lt;- st_as_sf(cities, coords = c(&quot;lon&quot;, &quot;lat&quot;), crs = 4326)
+
+# Print the result
+cities
+#&gt; Simple feature collection with 5 features and 3 fields
+#&gt; Geometry type: POINT
+#&gt; Dimension:     XY
+#&gt; Bounding box:  xmin: -118.244 ymin: 29.76 xmax: -74.006 ymax: 41.878
+#&gt; Geodetic CRS:  WGS 84
+#&gt;          name state pop_millions                   geometry
+#&gt; 1    New York    NY          8.3    POINT (-74.006 40.713)
+#&gt; 2 Los Angeles    CA          3.9   POINT (-118.244 34.052)
+#&gt; 3     Chicago    IL          2.7     POINT (-87.63 41.878)
+#&gt; 4     Houston    TX          2.3     POINT (-95.37 29.76)
+#&gt; 5     Phoenix    AZ          1.6  POINT (-112.074 33.449)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Notice how it looks just like a regular data frame — except for that <code>geometry</code> column on the right. Each row stores a <code>POINT</code> with longitude and latitude. The header tells you the CRS (WGS 84, which is standard GPS coordinates) and the bounding box (the rectangle that contains all your points).</p>
+
+<p>The built-in <code>plot()</code> function gives you a quick look at the data. It creates one panel per attribute column.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Quick plot — sf's built-in method
+plot(cities)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The plot shows three mini-maps (one for each attribute column). Each point is colored by the attribute value. This is useful for a quick sanity check, but for publication-quality maps you'll want ggplot2 — we'll get there in a later section.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>sf objects are just data frames with a geometry column.</strong> Every dplyr verb you already know — <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">filter()</a>, <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">mutate()</a>, <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise()</a>, <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">left_join()</a> — works on sf objects. The geometry column tags along automatically.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create an sf object called <code>ex_places</code> with 3 locations you know well. Include columns for "name" and "country", plus longitude and latitude. Set the CRS to 4326 and print it.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: create your own sf object
+ex_places &lt;- data.frame(
+  name = c(&quot;Place 1&quot;, &quot;Place 2&quot;, &quot;Place 3&quot;),
+  country = c(&quot;Country 1&quot;, &quot;Country 2&quot;, &quot;Country 3&quot;),
+  lon = c(0, 0, 0),   # replace with real coordinates
+  lat = c(0, 0, 0)    # replace with real coordinates
+)
+ex_places &lt;- st_as_sf(ex_places, coords = c(&quot;lon&quot;, &quot;lat&quot;), crs = 4326)
+ex_places
+#&gt; Expected: a 3-row sf object with POINT geometries</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_places &lt;- data.frame(
+  name = c(&quot;London&quot;, &quot;Tokyo&quot;, &quot;Sydney&quot;),
+  country = c(&quot;UK&quot;, &quot;Japan&quot;, &quot;Australia&quot;),
+  lon = c(-0.118, 139.692, 151.209),
+  lat = c(51.509, 35.690, -33.869)
+)
+ex_places &lt;- st_as_sf(ex_places, coords = c(&quot;lon&quot;, &quot;lat&quot;), crs = 4326)
+ex_places
+#&gt;     name   country                   geometry
+#&gt; 1 London        UK    POINT (-0.118 51.509)
+#&gt; 2  Tokyo     Japan   POINT (139.692 35.69)
+#&gt; 3 Sydney Australia  POINT (151.209 -33.869)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> st_as_sf() takes a regular data frame and converts the coordinate columns into a geometry column. The <code>crs = 4326</code> argument sets the coordinate reference system to WGS 84.</p>
+
+</details>
+</section>
+
+<h2>What are the sf geometry types?</h2>
+
+<p>sf supports several geometry types. The three you'll use most often are POINT (a single location), LINESTRING (a connected path), and POLYGON (a closed boundary). Each maps to a real-world feature.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Geometry</th>
+<th>Represents</th>
+<th>Real-world examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>POINT</td>
+<td>A single location</td>
+<td>City, sensor, tree</td>
+</tr>
+<tr>
+<td>LINESTRING</td>
+<td>A connected path</td>
+<td>Road, river, flight route</td>
+</tr>
+<tr>
+<td>POLYGON</td>
+<td>A closed area</td>
+<td>Country, lake, building footprint</td>
+</tr>
+<tr>
+<td>MULTIPOINT</td>
+<td>Multiple locations</td>
+<td>Chain of stores</td>
+</tr>
+<tr>
+<td>MULTILINESTRING</td>
+<td>Multiple paths</td>
+<td>River system with tributaries</td>
+</tr>
+<tr>
+<td>MULTIPOLYGON</td>
+<td>Multiple areas</td>
+<td>Hawaii (multiple islands, one state)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Let's create a LINESTRING to represent a simplified river path.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create a LINESTRING — a simplified river path
+river_coords &lt;- matrix(c(
+  -90, 45,   # start
+  -89, 43,   # bend 1
+  -88, 41,   # bend 2
+  -87, 40    # end
+), ncol = 2, byrow = TRUE)
+
+river_path &lt;- st_sf(
+  name = &quot;Example River&quot;,
+  geometry = st_sfc(st_linestring(river_coords), crs = 4326)
+)
+river_path
+#&gt; Simple feature collection with 1 feature and 1 field
+#&gt; Geometry type: LINESTRING
+#&gt; Geodetic CRS:  WGS 84
+#&gt;            name                       geometry
+#&gt; 1 Example River LINESTRING (-90 45, -89 43,...</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The river is stored as a sequence of coordinate pairs connected in order. Now let's make a POLYGON — a closed shape where the first and last coordinates must match.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create a POLYGON — a simplified lake boundary
+lake_coords &lt;- matrix(c(
+  -89.0, 42.0,
+  -88.0, 42.0,
+  -87.5, 41.5,
+  -88.0, 41.0,
+  -89.0, 41.0,
+  -89.5, 41.5,
+  -89.0, 42.0   # closes the ring (same as first point)
+), ncol = 2, byrow = TRUE)
+
+lake &lt;- st_sf(
+  name = &quot;Example Lake&quot;,
+  geometry = st_sfc(st_polygon(list(lake_coords)), crs = 4326)
+)
+lake
+#&gt; Simple feature collection with 1 feature and 1 field
+#&gt; Geometry type: POLYGON
+#&gt; Geodetic CRS:  WGS 84
+#&gt;           name                       geometry
+#&gt; 1 Example Lake POLYGON ((-89 42, -88 42, -...</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Now let's plot all three geometry types together to see how they layer.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Plot all three geometry types together
+ggplot() +
+  geom_sf(data = lake, fill = &quot;lightblue&quot;, color = &quot;steelblue&quot;) +
+  geom_sf(data = river_path, color = &quot;blue&quot;, linewidth = 1.2) +
+  geom_sf(data = cities |&gt; filter(name == &quot;Chicago&quot;),
+          color = &quot;red&quot;, size = 4) +
+  theme_minimal() +
+  labs(title = &quot;Three geometry types on one map&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The polygon (lake) renders as a filled shape, the linestring (river) as a line, and the point (Chicago) as a dot. ggplot2's geom_sf() figures out the correct visual representation automatically based on the geometry type.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>MULTI* types hold collections under one row.</strong> Hawaii is a MULTIPOLYGON because its multiple islands are stored as one feature. Use st_cast() to convert between single and multi types when needed.</div></div>
+
+<p><img src="screenshots/Spatial-Data-in-R-with-sf-geometry-types.webp" alt="sf Geometry Types" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 1: The four core geometry types in sf and how they nest: sfg → sfc → sf.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a POLYGON representing a triangle with vertices at (0,0), (1,0), (0.5,1), and back to (0,0). Store it in <code>ex_triangle</code> and plot it.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: create a triangle polygon
+ex_tri_coords &lt;- matrix(c(
+  # your coordinates here
+  0, 0,
+  0, 0,
+  0, 0,
+  0, 0  # close the ring
+), ncol = 2, byrow = TRUE)
+
+ex_triangle &lt;- st_sf(
+  geometry = st_sfc(st_polygon(list(ex_tri_coords)), crs = 4326)
+)
+plot(ex_triangle)
+#&gt; Expected: a triangle shape</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_tri_coords &lt;- matrix(c(
+  0, 0,
+  1, 0,
+  0.5, 1,
+  0, 0   # close the ring
+), ncol = 2, byrow = TRUE)
+
+ex_triangle &lt;- st_sf(
+  geometry = st_sfc(st_polygon(list(ex_tri_coords)), crs = 4326)
+)
+plot(ex_triangle)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A polygon ring must close — the last coordinate repeats the first. st_polygon() takes a list of matrices (outer ring + optional holes).</p>
+
+</details>
+</section>
+
+<h2>How do you read spatial data files into R?</h2>
+
+<p>In your own projects, you'll usually start by reading spatial files from disk. The sf package's st_read() function handles all major formats — shapefiles, GeoJSON, GeoPackage, KML, and more.</p>
+
+<p>Here's the pattern for the most common formats:</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Reading spatial files (run these in RStudio with real files)
+# Shapefile — point to the .shp file
+# my_shapefile &lt;- st_read(&quot;data/us_states/us_states.shp&quot;)
+
+# GeoJSON — single file
+# my_geojson &lt;- st_read(&quot;data/countries.geojson&quot;)
+
+# GeoPackage — modern alternative to shapefiles
+# my_gpkg &lt;- st_read(&quot;data/boundaries.gpkg&quot;, layer = &quot;states&quot;)</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>st_read() requires files on your local disk or a URL.</strong> The interactive code blocks on this page run in your browser and can't access local files. For the examples below, we create spatial data programmatically or convert from built-in R datasets. In your own RStudio projects, st_read("path/to/file.shp") is the standard entry point.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A shapefile is actually 4-6 files that must stay together.</strong> The .shp holds geometry, .dbf holds attributes, .shx is an index, and .prj stores the CRS. Move or delete any one of them and st_read() breaks. Modern alternatives like GeoPackage (.gpkg) bundle everything into a single file.</div></div>
+
+<p>A practical workaround for getting real map data without files is to convert R's built-in map data to sf. The <code>maps</code> package contains world, US state, and country boundaries.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Convert built-in map data to sf (works everywhere, no files needed)
+library(maps)
+
+world_sf &lt;- st_as_sf(maps::map(&quot;world&quot;, plot = FALSE, fill = TRUE))
+head(world_sf, 5)
+#&gt; Simple feature collection with 5 features and 1 field
+#&gt; Geometry type: MULTIPOLYGON
+#&gt; Bounding box:  xmin: -180 ymin: -42.64748 xmax: 180 ymax: 83.64513
+#&gt; Geodetic CRS:  WGS 84
+#&gt;                  ID                       geometry
+#&gt; 1       Aruba         MULTIPOLYGON (((-69.89912 ...
+#&gt; 2 Afghanistan         MULTIPOLYGON (((74.89131 ...
+#&gt; 3      Angola         MULTIPOLYGON (((23.9658 ...
+#&gt; 4    Anguilla         MULTIPOLYGON (((-63.00122 ...
+#&gt; 5     Albania         MULTIPOLYGON (((20.06396 ...</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Now <code>world_sf</code> is a proper sf object with MULTIPOLYGON geometries for each country. You can use it exactly like data loaded from a shapefile — filter countries, transform projections, or plot with ggplot2.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the US state map to an sf object using <code>maps::map(&quot;state&quot;, plot = FALSE, fill = TRUE)</code> and st_as_sf(). Print the first 3 rows.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: convert state map to sf
+ex_states &lt;- st_as_sf(maps::map(&quot;state&quot;, plot = FALSE, fill = TRUE))
+head(ex_states, 3)
+#&gt; Expected: 3-row sf object with state names and MULTIPOLYGON geometry</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_states &lt;- st_as_sf(maps::map(&quot;state&quot;, plot = FALSE, fill = TRUE))
+head(ex_states, 3)
+#&gt; Simple feature collection with 3 features and 1 field
+#&gt; Geometry type: MULTIPOLYGON
+#&gt; Geodetic CRS:  WGS 84
+#&gt;            ID                       geometry
+#&gt; 1    alabama MULTIPOLYGON (((-87.46201 30...
+#&gt; 2    arizona MULTIPOLYGON (((-114.6374 34...
+#&gt; 3   arkansas MULTIPOLYGON (((-94.05103 33...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> maps::map() returns map data in a legacy format. st_as_sf() converts it into a tidy sf object with a geometry column.</p>
+
+</details>
+</section>
+
+<h2>What is a coordinate reference system and why does it matter?</h2>
+
+<p>Every spatial dataset needs a coordinate reference system (CRS) — the set of rules that tells R how the numbers in your geometry column relate to actual locations on Earth. Without a CRS, your coordinates are just abstract numbers.</p>
+
+<p>There are two families of CRS to know:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Family</th>
+<th>Units</th>
+<th>Example</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Geographic</td>
+<td>Degrees (lon/lat)</td>
+<td>WGS 84 (EPSG:4326)</td>
+<td>Storing data, GPS coordinates, web maps</td>
+</tr>
+<tr>
+<td>Projected</td>
+<td>Meters or feet</td>
+<td>UTM, Albers (EPSG:5070)</td>
+<td>Measuring distances, computing areas, US maps</td>
+</tr>
+</tbody>
+</table>
+
+<p>Geographic CRS stores positions as longitude and latitude on the globe's curved surface. Projected CRS flattens the globe onto a 2D plane — like peeling an orange and pressing the skin flat. Each projection distorts <em>something</em> (area, shape, distance, or direction), so you pick the one that preserves what you care about.</p>
+
+<p>Let's check the CRS on our world map.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Check the CRS of our world map
+st_crs(world_sf)
+#&gt; Coordinate Reference System:
+#&gt;   User input: +proj=longlat +datum=WGS84
+#&gt;   wkt:
+#&gt; GEOGCRS[&quot;WGS 84&quot;, ...
+#&gt;     ID[&quot;EPSG&quot;,4326]]</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The output confirms this is WGS 84 (EPSG:4326) — the most common geographic CRS. If you create spatial data from coordinates and forget to set a CRS, you'll get <code>NA</code>. Let's see how to assign one.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create points WITHOUT a CRS (common mistake)
+pts_no_crs &lt;- st_as_sf(
+  data.frame(x = c(10, 20), y = c(50, 55)),
+  coords = c(&quot;x&quot;, &quot;y&quot;)
+)
+st_crs(pts_no_crs)
+#&gt; Coordinate Reference System: NA
+
+# Assign WGS84
+pts_no_crs &lt;- st_set_crs(pts_no_crs, 4326)
+st_crs(pts_no_crs)
+#&gt; Coordinate Reference System:
+#&gt;   User input: EPSG:4326
+#&gt;   ...</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>WGS 84 (EPSG:4326) is the GPS standard.</strong> Almost all web maps, GPS devices, and downloaded datasets use it. When you have lon/lat coordinates and aren't sure which CRS to assign, WGS 84 is almost always correct.</div></div>
+
+<p><img src="screenshots/Spatial-Data-in-R-with-sf-crs-workflow.webp" alt="CRS Transformation Workflow" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 2: Decision flow for checking, assigning, and transforming a CRS.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a data frame with 3 cities (include lon and lat columns), convert to sf with st_as_sf(), assign CRS 4326, and verify with st_crs().</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: create sf with CRS
+ex_cities_df &lt;- data.frame(
+  city = c(&quot;Berlin&quot;, &quot;Paris&quot;, &quot;Rome&quot;),
+  lon = c(13.405, 2.352, 12.496),
+  lat = c(52.520, 48.857, 41.903)
+)
+ex_cities_sf &lt;- st_as_sf(ex_cities_df, coords = c(&quot;lon&quot;, &quot;lat&quot;))
+# Assign CRS here
+# your code here
+st_crs(ex_cities_sf)
+#&gt; Expected: EPSG:4326</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_cities_df &lt;- data.frame(
+  city = c(&quot;Berlin&quot;, &quot;Paris&quot;, &quot;Rome&quot;),
+  lon = c(13.405, 2.352, 12.496),
+  lat = c(52.520, 48.857, 41.903)
+)
+ex_cities_sf &lt;- st_as_sf(ex_cities_df, coords = c(&quot;lon&quot;, &quot;lat&quot;), crs = 4326)
+st_crs(ex_cities_sf)
+#&gt; Coordinate Reference System:
+#&gt;   User input: EPSG:4326
+#&gt;   ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> You can set the CRS directly in st_as_sf() with the <code>crs</code> argument, or after the fact with st_set_crs(). Both work — setting it upfront is cleaner.</p>
+
+</details>
+</section>
+
+<h2>How do you transform between coordinate systems?</h2>
+
+<p>st_set_crs() <em>assigns</em> a CRS to data that doesn't have one (it labels the coordinates). st_transform() <em>reprojects</em> the data — it recalculates every coordinate into a different coordinate system. This is the function you'll use to switch between projections.</p>
+
+<p>A common scenario: your data is in WGS 84 (degrees), but you need meters for distance or area calculations. Let's transform the US states from WGS 84 to Albers Equal Area — a projection designed for the contiguous US that preserves area proportions.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Create US states sf object
+us_states &lt;- st_as_sf(maps::map(&quot;state&quot;, plot = FALSE, fill = TRUE))
+
+# Transform from WGS84 to Albers Equal Area (EPSG:5070)
+us_albers &lt;- st_transform(us_states, crs = 5070)
+
+# Compare the first state's coordinates
+head(st_coordinates(us_states[1, ]), 3)
+#&gt;          X        Y L1 L2
+#&gt; 1 -87.46201 30.38968  1  1
+#&gt; 2 -87.48493 30.37249  1  1
+#&gt; 3 -87.52503 30.37249  1  1
+
+head(st_coordinates(us_albers[1, ]), 3)
+#&gt;           X       Y L1 L2
+#&gt; 1  761750.1 -672580  1  1
+#&gt; 2  761476.5 -672771  1  1
+#&gt; 3  761043.8 -672619  1  1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The WGS 84 coordinates are in degrees (longitude, latitude). After transformation to Albers, they're in meters — much better for computing areas and distances.</p>
+
+<p>Let's see the visual difference between the two projections.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Compare projections side by side
+p1 &lt;- ggplot(us_states) +
+  geom_sf(fill = &quot;lightyellow&quot;, color = &quot;gray40&quot;) +
+  labs(title = &quot;WGS 84 (lon/lat)&quot;) +
+  theme_minimal()
+
+p2 &lt;- ggplot(us_albers) +
+  geom_sf(fill = &quot;lightyellow&quot;, color = &quot;gray40&quot;) +
+  labs(title = &quot;Albers Equal Area (EPSG:5070)&quot;) +
+  theme_minimal()
+
+p1</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>In the WGS 84 version, the map looks stretched east-west. The Albers projection gives the familiar, proportionally correct US shape.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r">p2</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pick the right projection for your goal.</strong> For US maps, EPSG:5070 (Albers Equal Area) preserves area proportions — ideal for choropleths. For world maps, try "+proj=robin" (Robinson) for balanced shape and area. For local measurements, UTM zones give accurate distances.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Transform <code>world_sf</code> to Mollweide projection using "+proj=moll" and plot it. The Mollweide projection is an equal-area projection often used for world maps.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: Mollweide world map
+ex_world_moll &lt;- st_transform(world_sf, crs = &quot;+proj=moll&quot;)
+ggplot(ex_world_moll) +
+  geom_sf() +
+  theme_minimal()
+#&gt; Expected: an oval-shaped world map</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_world_moll &lt;- st_transform(world_sf, crs = &quot;+proj=moll&quot;)
+ggplot(ex_world_moll) +
+  geom_sf(fill = &quot;lightgreen&quot;, color = &quot;gray40&quot;, linewidth = 0.2) +
+  labs(title = &quot;World Map — Mollweide Projection&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> st_transform() takes an sf object and reprojects it. The Mollweide projection creates the characteristic oval shape that preserves area — useful for showing relative country sizes accurately.</p>
+
+</details>
+</section>
+
+<h2>How do you create maps with geom_sf() in ggplot2?</h2>
+
+<p>geom_sf() is the ggplot2 layer built for sf objects. It automatically picks the right visual — polygons get filled, lines get stroked, points get plotted as dots. You use it exactly like any other ggplot layer, with aesthetic mappings for fill, color, size, and more.</p>
+
+<p>Let's create a basic map of US states and then build up from there.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Basic US state map with ggplot2
+ggplot(us_states) +
+  geom_sf(fill = &quot;steelblue&quot;, color = &quot;white&quot;, linewidth = 0.3) +
+  labs(title = &quot;US States&quot;) +
+  theme_void()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>theme_void() strips away axes and gridlines — perfect for maps where coordinate labels add clutter. Now let's layer two sf objects: states as polygons and cities as points on top.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Layer points on top of polygons
+major_cities &lt;- data.frame(
+  name = c(&quot;New York&quot;, &quot;Los Angeles&quot;, &quot;Chicago&quot;,
+           &quot;Houston&quot;, &quot;Phoenix&quot;, &quot;Seattle&quot;, &quot;Miami&quot;),
+  pop = c(8.3, 3.9, 2.7, 2.3, 1.6, 0.7, 0.4),
+  lon = c(-74.0, -118.2, -87.6, -95.4, -112.1, -122.3, -80.2),
+  lat = c(40.7, 34.1, 41.9, 29.8, 33.4, 47.6, 25.8)
+) |&gt;
+  st_as_sf(coords = c(&quot;lon&quot;, &quot;lat&quot;), crs = 4326)
+
+ggplot() +
+  geom_sf(data = us_states, fill = &quot;lightyellow&quot;, color = &quot;gray50&quot;) +
+  geom_sf(data = major_cities, aes(size = pop),
+          color = &quot;firebrick&quot;, alpha = 0.7) +
+  scale_size_continuous(range = c(2, 8), name = &quot;Population (M)&quot;) +
+  labs(title = &quot;Major US Cities by Population&quot;) +
+  theme_void()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>Each geom_sf() layer can come from a different sf object. ggplot2 handles CRS alignment automatically — if the layers have different projections, it reprojects to match the first one.</p>
+
+<p>Now let's build a choropleth map — states colored by a data variable.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Choropleth map: color states by a random variable
+set.seed(42)
+us_states &lt;- us_states |&gt;
+  mutate(value = runif(n(), 10, 100))
+
+ggplot(us_states) +
+  geom_sf(aes(fill = value), color = &quot;white&quot;, linewidth = 0.3) +
+  scale_fill_viridis_c(option = &quot;plasma&quot;, name = &quot;Value&quot;) +
+  labs(title = &quot;US States Choropleth&quot;,
+       subtitle = &quot;Colored by a simulated variable&quot;) +
+  theme_void()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p><a class="auto-link" href="R-Color-Theory-ggplot2.html" title="R Color Theory: Choose Palettes, Use ColorBrewer, and Design for Colorblind Readers">scale_fill_viridis_c()</a> provides colorblind-friendly palettes that work well for maps. The <code>option</code> argument lets you pick from "viridis", "magma", "plasma", "inferno", and "cividis".</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use coord_sf(xlim, ylim) to zoom without subsetting data.</strong> This crops the view while keeping all geometry intact — great for focusing on a region while maintaining clean polygon edges at the border.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a map of US states filled by the <code>value</code> column, add a title "My Choropleth", and use theme_void() for a clean look. Try a different color scale like scale_fill_distiller(palette = "YlOrRd").</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: custom choropleth
+ggplot(us_states) +
+  geom_sf(aes(fill = value)) +
+  # Add your color scale and theme here
+  theme_void()
+#&gt; Expected: a colored US map</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ggplot(us_states) +
+  geom_sf(aes(fill = value), color = &quot;white&quot;, linewidth = 0.3) +
+  scale_fill_distiller(palette = &quot;YlOrRd&quot;, direction = 1, name = &quot;Value&quot;) +
+  labs(title = &quot;My Choropleth&quot;) +
+  theme_void()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> scale_fill_distiller() adapts ColorBrewer palettes to continuous data. <code>direction = 1</code> reverses the default direction so higher values are darker.</p>
+
+</details>
+</section>
+
+<h2>How do you use dplyr verbs with sf objects?</h2>
+
+<p>One of sf's biggest advantages over older spatial packages is that it works natively with dplyr. You can filter(), mutate(), group_by(), and summarise() exactly like you would with a regular data frame — the geometry column comes along for the ride.</p>
+
+<p>Let's filter and transform our US states data.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Filter and mutate sf objects with dplyr
+# Add a region column first (simplified mapping)
+us_states &lt;- us_states |&gt;
+  mutate(
+    region = case_when(
+      ID %in% c(&quot;washington&quot;, &quot;oregon&quot;, &quot;california&quot;, &quot;nevada&quot;,
+                &quot;idaho&quot;, &quot;montana&quot;, &quot;wyoming&quot;, &quot;colorado&quot;,
+                &quot;utah&quot;, &quot;arizona&quot;, &quot;new mexico&quot;) ~ &quot;West&quot;,
+      ID %in% c(&quot;texas&quot;, &quot;oklahoma&quot;, &quot;arkansas&quot;, &quot;louisiana&quot;,
+                &quot;mississippi&quot;, &quot;alabama&quot;, &quot;tennessee&quot;, &quot;kentucky&quot;,
+                &quot;georgia&quot;, &quot;florida&quot;, &quot;south carolina&quot;,
+                &quot;north carolina&quot;, &quot;virginia&quot;, &quot;west virginia&quot;) ~ &quot;South&quot;,
+      ID %in% c(&quot;north dakota&quot;, &quot;south dakota&quot;, &quot;nebraska&quot;, &quot;kansas&quot;,
+                &quot;minnesota&quot;, &quot;iowa&quot;, &quot;missouri&quot;, &quot;wisconsin&quot;,
+                &quot;illinois&quot;, &quot;michigan&quot;, &quot;indiana&quot;, &quot;ohio&quot;) ~ &quot;Midwest&quot;,
+      TRUE ~ &quot;Northeast&quot;
+    )
+  )
+
+# Filter to just western states
+western_states &lt;- us_states |&gt;
+  filter(region == &quot;West&quot;)
+
+ggplot(western_states) +
+  geom_sf(fill = &quot;sandybrown&quot;, color = &quot;white&quot;) +
+  labs(title = &quot;Western US States&quot;) +
+  theme_void()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The geometry column survived the filter — no extra steps needed. Now here's the powerful part: summarise() on sf objects <em>dissolves</em> (merges) geometries by group. Individual state boundaries disappear and you get one polygon per group.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Dissolve states into regions with summarise()
+regions &lt;- us_states |&gt;
+  group_by(region) |&gt;
+  summarise(
+    n_states = n(),
+    avg_value = mean(value)
+  )
+
+regions
+#&gt; Simple feature collection with 4 features and 3 fields
+#&gt; Geometry type: MULTIPOLYGON
+#&gt;     region n_states avg_value                   geometry
+#&gt; 1 Midwest       12      55.2 MULTIPOLYGON (((-104.05...
+#&gt; 2 Northeast     13      48.7 MULTIPOLYGON (((-79.762...
+#&gt; 3    South      14      52.1 MULTIPOLYGON (((-106.63...
+#&gt; 4     West      11      58.3 MULTIPOLYGON (((-124.56...
+
+ggplot(regions) +
+  geom_sf(aes(fill = region), color = &quot;white&quot;, linewidth = 0.5) +
+  scale_fill_brewer(palette = &quot;Set2&quot;) +
+  labs(title = &quot;US Regions (dissolved from states)&quot;) +
+  theme_void()</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>The 49 individual state polygons merged into 4 region polygons. This is called "dissolving" in GIS terminology — sf does it automatically when you summarise by group.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>summarise() on sf objects merges geometries by group.</strong> This is how you go from detailed boundaries (counties) to aggregated regions (states) or from states to regions. The geometry dissolves and statistics aggregate in one step.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> <code>us_states</code> to keep only states in the "South" region, count how many there are with nrow(), then plot them.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r"># Try it: filter and count
+ex_south &lt;- us_states |&gt;
+  filter(region == &quot;South&quot;)
+nrow(ex_south)
+#&gt; Expected: 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">ex_south &lt;- us_states |&gt;
+  filter(region == &quot;South&quot;)
+nrow(ex_south)
+#&gt; [1] 14
+
+ggplot(ex_south) +
+  geom_sf(fill = &quot;coral&quot;, color = &quot;white&quot;) +
+  labs(title = paste(&quot;Southern States:&quot;, nrow(ex_south))) +
+  theme_void()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> filter() keeps rows matching a condition, and the geometry column stays attached. nrow() counts the remaining features.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h4>Exercise 1: City population map</h4>
+
+<p>Create an sf object of 5 world cities with columns for name, country, and population (in millions). Set the CRS to WGS 84. Then plot them on top of the world map using geom_sf(), sizing points by population and coloring them by country.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 1: City population map
+# Hint: create a data frame, convert with st_as_sf(), then layer two geom_sf() calls
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_cities &lt;- data.frame(
+  name = c(&quot;Tokyo&quot;, &quot;Delhi&quot;, &quot;Shanghai&quot;, &quot;São Paulo&quot;, &quot;Cairo&quot;),
+  country = c(&quot;Japan&quot;, &quot;India&quot;, &quot;China&quot;, &quot;Brazil&quot;, &quot;Egypt&quot;),
+  pop = c(37.4, 32.9, 29.2, 22.0, 21.3),
+  lon = c(139.7, 77.2, 121.5, -46.6, 31.2),
+  lat = c(35.7, 28.6, 31.2, -23.5, 30.0)
+) |&gt;
+  st_as_sf(coords = c(&quot;lon&quot;, &quot;lat&quot;), crs = 4326)
+
+ggplot() +
+  geom_sf(data = world_sf, fill = &quot;gray90&quot;, color = &quot;gray60&quot;, linewidth = 0.2) +
+  geom_sf(data = my_cities, aes(size = pop, color = country), alpha = 0.8) +
+  scale_size_continuous(range = c(3, 10), name = &quot;Population (M)&quot;) +
+  labs(title = &quot;World's Largest Cities&quot;) +
+  theme_void()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two geom_sf() layers stack the world polygons and city points. ggplot2 aligns the CRS automatically.</p>
+
+</details>
+
+<h4>Exercise 2: State area choropleth</h4>
+
+<p>Using the <code>us_albers</code> sf object (already projected), compute each state's area with st_area() and create a choropleth map colored by area. Add a title, use scale_fill_viridis_c(), and apply theme_void().</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 2: Area choropleth
+# Hint: mutate() with st_area(), then map fill to area
+# st_area() returns units — wrap in as.numeric() for ggplot
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">my_area_map &lt;- us_albers |&gt;
+  mutate(area_km2 = as.numeric(st_area(geometry)) / 1e6)
+
+ggplot(my_area_map) +
+  geom_sf(aes(fill = area_km2), color = &quot;white&quot;, linewidth = 0.2) +
+  scale_fill_viridis_c(option = &quot;viridis&quot;, name = &quot;Area (km²)&quot;,
+                       labels = scales::comma) +
+  labs(title = &quot;US States by Area&quot;) +
+  theme_void()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> st_area() computes the area of each polygon. We divide by 1e6 to convert from m² to km². The Albers projection preserves area proportions, so these calculations are accurate.</p>
+
+</details>
+
+<h4>Exercise 3: European map with labels</h4>
+
+<p>Transform <code>world_sf</code> to Robinson projection ("+proj=robin"). Filter to keep only European countries (use approximate bounding box: longitude -25 to 45, latitude 35 to 72). Create a styled map with geom_sf_text() for country labels.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># Exercise 3: European map with labels
+# Hint: filter by bounding box using st_crop() or by coordinates
+# geom_sf_text(aes(label = ID), size = 2) adds text labels
+
+# Write your code below:
+</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-editor" data-language="r">europe_bbox &lt;- st_bbox(c(xmin = -25, ymin = 35, xmax = 45, ymax = 72),
+                       crs = 4326)
+my_europe &lt;- world_sf |&gt;
+  st_crop(europe_bbox) |&gt;
+  st_transform(crs = &quot;+proj=robin&quot;)
+
+ggplot(my_europe) +
+  geom_sf(fill = &quot;lightblue&quot;, color = &quot;gray40&quot;, linewidth = 0.3) +
+  geom_sf_text(aes(label = ID), size = 2, color = &quot;gray20&quot;) +
+  labs(title = &quot;Europe — Robinson Projection&quot;) +
+  theme_void()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> st_crop() clips geometries to a bounding box (defined in the original CRS). After cropping, st_transform() reprojects to Robinson. geom_sf_text() places labels at each polygon's centroid.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Let's walk through a complete spatial analysis workflow — from raw data to a polished, publication-ready map.</p>
+
+<p>The goal: create a choropleth map of US states colored by area, with major cities overlaid as sized points, all in a proper equal-area projection.</p>
+
+<div class="webr-container">
+
+  <div class="webr-code-block">
+
+    <div class="webr-editor" data-language="r"># === Complete Spatial Data Workflow ===
+
+# Step 1: Get state boundaries and project to Albers
+states &lt;- st_as_sf(maps::map(&quot;state&quot;, plot = FALSE, fill = TRUE)) |&gt;
+  st_transform(crs = 5070)
+
+# Step 2: Compute area in square kilometers
+states &lt;- states |&gt;
+  mutate(area_km2 = as.numeric(st_area(geometry)) / 1e6)
+
+# Step 3: Create city points and project to match
+top_cities &lt;- data.frame(
+  name = c(&quot;New York&quot;, &quot;Los Angeles&quot;, &quot;Chicago&quot;,
+           &quot;Houston&quot;, &quot;Phoenix&quot;, &quot;Philadelphia&quot;),
+  pop = c(8.3, 3.9, 2.7, 2.3, 1.6, 1.6),
+  lon = c(-74.0, -118.2, -87.6, -95.4, -112.1, -75.2),
+  lat = c(40.7, 34.1, 41.9, 29.8, 33.4, 40.0)
+) |&gt;
+  st_as_sf(coords = c(&quot;lon&quot;, &quot;lat&quot;), crs = 4326) |&gt;
+  st_transform(crs = 5070)
+
+# Step 4: Build the map
+ggplot() +
+  # State polygons colored by area
+  geom_sf(data = states, aes(fill = area_km2),
+          color = &quot;white&quot;, linewidth = 0.3) +
+  # City points sized by population
+  geom_sf(data = top_cities, aes(size = pop),
+          color = &quot;firebrick&quot;, alpha = 0.8) +
+  # Color and size scales
+  scale_fill_viridis_c(
+    option = &quot;mako&quot;, direction = -1,
+    name = &quot;Area (km²)&quot;, labels = scales::comma
+  ) +
+  scale_size_continuous(range = c(2, 7), name = &quot;Pop. (millions)&quot;) +
+  # Labels and theme
+  labs(
+    title = &quot;US States by Area with Major Cities&quot;,
+    caption = &quot;Albers Equal Area projection (EPSG:5070)&quot;
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 14, face = &quot;bold&quot;),
+    legend.position = &quot;right&quot;
+  )
+#&gt; A choropleth map of US states shaded by area (darker = larger),
+#&gt; with red dots for major cities sized proportionally to population.</div>
+
+    <div class="webr-buttons">
+
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+
+    </div>
+
+    <pre class="webr-output"></pre>
+
+  </div>
+
+  <div class="webr-plot-output"></div>
+
+</div>
+
+<p>This workflow covers every core concept from the tutorial: creating sf objects, checking and transforming CRS, computing spatial measurements, layering multiple geometries, and styling with ggplot2.</p>
+
+<h2>Summary</h2>
+
+<p>Here's a quick reference for the sf functions covered in this tutorial:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>st_as_sf()</td>
+<td>Convert a data frame (with coordinate columns) to an sf object</td>
+</tr>
+<tr>
+<td>st_read() / st_write()</td>
+<td>Read/write spatial files (shapefiles, GeoJSON, GeoPackage)</td>
+</tr>
+<tr>
+<td>st_crs()</td>
+<td>Check the coordinate reference system</td>
+</tr>
+<tr>
+<td>st_set_crs()</td>
+<td>Assign a CRS to data that doesn't have one</td>
+</tr>
+<tr>
+<td>st_transform()</td>
+<td>Reproject data from one CRS to another</td>
+</tr>
+<tr>
+<td>st_area() / st_length()</td>
+<td>Compute geometric measurements (area, length)</td>
+</tr>
+<tr>
+<td>st_coordinates()</td>
+<td>Extract raw coordinate values</td>
+</tr>
+<tr>
+<td>st_crop()</td>
+<td>Clip geometries to a bounding box</td>
+</tr>
+<tr>
+<td>geom_sf()</td>
+<td>ggplot2 layer — automatically renders points, lines, or polygons</td>
+</tr>
+<tr>
+<td>coord_sf()</td>
+<td>Control map projection and extent in ggplot2</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Key takeaways:</strong></p>
+
+<ul>
+
+<li>sf objects are data frames with a geometry column — use them with any dplyr verb</li>
+
+<li>Always check your CRS with st_crs() before analysis or plotting</li>
+
+<li>Use st_set_crs() to <em>label</em> coordinates; use st_transform() to <em>reproject</em> them</li>
+
+<li>geographic CRS (WGS 84) stores degrees; projected CRS stores meters — pick projected for area/distance calculations</li>
+
+<li>geom_sf() in ggplot2 automatically handles geometry rendering and CRS alignment</li>
+
+<li>summarise() on sf objects dissolves (merges) geometries by group</li>
+
+<li>The <code>maps</code> package provides built-in boundary data you can convert with st_as_sf()</li>
+
+</ul>
+
+<p><img src="screenshots/Spatial-Data-in-R-with-sf-data-pipeline.webp" alt="Spatial Data Pipeline in R" class="img-responsive" loading="lazy" /></p>
+
+<p><em>Figure 3: A typical spatial data pipeline from reading to visualization.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Pebesma, E. — sf: Simple Features for R. CRAN. <a href="https://r-spatial.github.io/sf/">Link</a></li>
+
+<li>Pebesma, E. & Bivand, R. — <em>Spatial Data Science</em>. Chapter 7: Introduction to sf. <a href="https://r-spatial.org/book/07-Introsf.html">Link</a></li>
+
+<li>Wickham, H. — ggplot2: geom_sf() reference. <a href="https://ggplot2.tidyverse.org/reference/ggsf.html">Link</a></li>
+
+<li>EPSG.io — Coordinate Reference System database. <a href="https://epsg.io/">Link</a></li>
+
+<li>Lovelace, R., Nowosad, J., Muenchow, J. — <em>Geocomputation with R</em>. Chapter 2: Geographic data in R. <a href="https://r.geocompx.org/spatial-class">Link</a></li>
+
+<li>r-spatial.org — Drawing beautiful maps programmatically with R, sf and ggplot2. <a href="https://r-spatial.org/r/2018/10/25/ggplot2-sf.html">Link</a></li>
+
+<li>sf CRAN package documentation — Version 1.1-0. <a href="https://cran.r-project.org/web/packages/sf/sf.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Getting-Started.html">ggplot2 Getting Started</a> — Master the <a class="auto-link" href="ggplot2-Grammar-of-Graphics.html" title="ggplot2's Grammar of Graphics: The Mental Model That Makes Everything Click">grammar of graphics</a> that geom_sf() builds upon.</li>
+
+<li><a href="ggplot2-Colours.html">ggplot2 Colours</a> — Customize color palettes for choropleth maps and themed visualizations.</li>
+
+<li><a href="ggplot2-Themes-in-R.html">ggplot2 Themes</a> — Style your maps with custom themes for publication-quality output.</li>
+
+</ul>
+
+{% endraw %}
