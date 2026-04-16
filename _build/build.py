@@ -322,11 +322,19 @@ MATHJAX_BLOCK = """
 """
 
 WEBR_HEAD_BLOCK = """
-    <!-- WebR Interactive R Code — external CSS + deferred CodeMirror CSS -->
+    <!-- CodeMirror critical inline CSS — gutter measurement needs these BEFORE
+         CM5 JS runs; the deferred external CSS arrives too late. -->
+    <style>
+      .CodeMirror-gutters{position:absolute;left:0;top:0;min-height:100%;z-index:3;background:#020617;border-right:none;padding-right:10px}
+      .CodeMirror-gutter{white-space:normal;height:100%;display:inline-block;vertical-align:top;margin-bottom:-50px}
+      .CodeMirror-gutter-elt{position:absolute;cursor:default;z-index:4}
+      .CodeMirror-linenumber{padding:0 3px 0 5px;min-width:20px;text-align:right;color:#6e7681;white-space:nowrap;font-size:14px}
+    </style>
+    <!-- WebR Interactive R Code — external CSS deferred (non-render-blocking) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"></noscript>
-    <link rel="stylesheet" href="www/webr.css?v=1" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="www/webr.css?v=1"></noscript>
+    <link rel="stylesheet" href="www/webr.css?v=2" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/webr.css?v=2"></noscript>
 """
 
 WEBR_BODY_BLOCK = """
