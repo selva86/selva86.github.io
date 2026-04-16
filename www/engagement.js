@@ -129,11 +129,6 @@
     if (exercises) parts.push('<span class="engagement-meta-count">' + escapeHtml(exercises) + ' exercises</span>');
     if (xp) parts.push('<span class="engagement-meta-xp">' + escapeHtml(xp) + ' XP</span>');
     meta.innerHTML = parts.join('<span class="engagement-meta-dot">&middot;</span>');
-    // Reorder: strip belongs after <p class="lead">, not between H1 and lead
-    var lead = meta.parentElement && meta.parentElement.querySelector('p.lead');
-    if (lead && meta.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING) {
-      lead.after(meta);
-    }
   }
 
   function updateProgressBar(bar, ranIndices, total, flashIndex) {
