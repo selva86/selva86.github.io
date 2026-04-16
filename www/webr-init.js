@@ -329,10 +329,13 @@
 
     // Yielding init: queue editors and init one at a time, yielding between each
     const initQueue = [];
+    let _initRunning = false;
     function processInitQueue() {
-      if (initQueue.length === 0) return;
+      if (_initRunning || initQueue.length === 0) return;
+      _initRunning = true;
       const el = initQueue.shift();
       initEditor(el);
+      _initRunning = false;
       // Yield to main thread before next editor
       if (initQueue.length > 0) {
         if ('requestIdleCallback' in window) {
@@ -343,63 +346,37 @@
       }
     }
 
-    // Hybrid init: eagerly queue near-viewport editors, lazily observe the rest.
-    // Guards against IO-never-fires edge cases (hidden tabs, pre-paint observe,
-    // layout shifts from late-arriving content) that left editors dead on load.
+    // Interaction-triggered init: only eagerly init editors in the initial
+    // viewport (first ~3). All others init on first user interaction with
+    // their container (mousedown/touchstart/focusin). This eliminates the
+    // scroll freeze caused by bulk CodeMirror initialization.
     const allEditors = document.querySelectorAll('.webr-editor');
-    const _eagerMargin = Math.max(window.innerHeight || 0, 800);
-    const _lazyEditors = [];
+    const _eagerLimit = 3;
+    let _eagerCount = 0;
     allEditors.forEach(el => {
-      const r = el.getBoundingClientRect();
-      const _inRange = (r.top - _eagerMargin) < (window.innerHeight || 0) && (r.bottom + _eagerMargin) > 0;
-      if (_inRange) initQueue.push(el);
-      else _lazyEditors.push(el);
+      if (_eagerCount < _eagerLimit) {
+        const r = el.getBoundingClientRect();
+        const vh = window.innerHeight || 0;
+        if (r.top < vh + 200 && r.bottom > -200) {
+          initQueue.push(el);
+          _eagerCount++;
+          return;
+        }
+      }
+      // Lazy: init on first interaction with this container
+      const container = el.closest('.webr-container');
+      if (!container) return;
+      function onInteract() {
+        container.removeEventListener('mousedown', onInteract, true);
+        container.removeEventListener('touchstart', onInteract, true);
+        container.removeEventListener('focusin', onInteract, true);
+        if (!el.dataset.cmInit) initEditor(el);
+      }
+      container.addEventListener('mousedown', onInteract, true);
+      container.addEventListener('touchstart', onInteract, { capture: true, passive: true });
+      container.addEventListener('focusin', onInteract, true);
     });
     if (initQueue.length > 0) processInitQueue();
-
-    if ('IntersectionObserver' in window && _lazyEditors.length > 0) {
-      const editorObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            initQueue.push(entry.target);
-            editorObserver.unobserve(entry.target);
-          }
-        });
-        if (initQueue.length > 0) processInitQueue();
-      }, { rootMargin: '500px' });
-      _lazyEditors.forEach(el => editorObserver.observe(el));
-    } else {
-      _lazyEditors.forEach(el => initQueue.push(el));
-      processInitQueue();
-    }
-
-    // Scroll/resize safety net: if anything is visible but uninitialized, init it.
-    // Covers cases where IO fails to fire (layout shifts, hidden-tab throttling).
-    let _scrollInitTimer = 0;
-    function _sweepVisibleUninit() {
-      const vh = window.innerHeight || 0;
-      let queued = 0;
-      document.querySelectorAll('.webr-editor:not(.cm-initialized)').forEach(el => {
-        if (el.dataset.cmInit) return;
-        const r = el.getBoundingClientRect();
-        if (r.top < vh + 500 && r.bottom > -500) {
-          initQueue.push(el);
-          queued++;
-        }
-      });
-      if (queued > 0) processInitQueue();
-    }
-    window.addEventListener('scroll', () => {
-      if (_scrollInitTimer) return;
-      _scrollInitTimer = setTimeout(() => { _scrollInitTimer = 0; _sweepVisibleUninit(); }, 200);
-    }, { passive: true });
-    window.addEventListener('resize', () => {
-      if (_scrollInitTimer) return;
-      _scrollInitTimer = setTimeout(() => { _scrollInitTimer = 0; _sweepVisibleUninit(); }, 200);
-    }, { passive: true });
-    // One delayed sweep after page settles (catches post-load layout shifts).
-    setTimeout(_sweepVisibleUninit, 600);
-    setTimeout(_sweepVisibleUninit, 2000);
 
     // Track which packages are already installed in this WebR session
     const installedPkgs = new Set(['base', 'stats', 'graphics', 'grDevices', 'utils', 'datasets', 'methods']);
