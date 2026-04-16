@@ -46,7 +46,7 @@ function saveCollapsed(c) {
   var sidebarEl = document.getElementById('sidebar-nav');
   if (!sidebarEl) return;
 
-  fetch('www/sidebar.json?t=' + Date.now())
+  fetch('/www/sidebar.json')
     .then(function(r) { return r.json(); })
     .then(function(sections) {
       var visited = getVisited();
