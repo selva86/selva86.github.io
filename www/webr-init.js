@@ -63,18 +63,40 @@
           btn.disabled = false;
           setRunBtnText(btn, '\u25b6 Run');
         });
-        // Inject Run All bar at the top of content
+        // Inject Run All button into the engagement-header strip (or standalone fallback)
         const contentEl = document.getElementById('content');
-        const firstH1 = contentEl.querySelector('h1');
-        const runAllBar = document.createElement('div');
-        runAllBar.className = 'webr-runall-bar';
-        runAllBar.innerHTML = '<span class="webr-runall-label">R environment ready</span><button class="webr-runall-btn" onclick="runAllWebR(this)">\u25b6 Run All Code Blocks</button>';
-        if (firstH1 && firstH1.nextSibling) {
-          firstH1.parentNode.insertBefore(runAllBar, firstH1.nextSibling);
+        const engHeader = contentEl.querySelector('.engagement-header');
+        const runBtn = document.createElement('button');
+        runBtn.className = 'webr-runall-btn';
+        runBtn.onclick = function() { window.runAllWebR(this); };
+        runBtn.textContent = '\u25b6 Run All';
+        if (engHeader) {
+          const wrapper = document.createElement('span');
+          wrapper.className = 'webr-runall-inline';
+          const dot = document.createElement('span');
+          dot.className = 'engagement-meta-dot';
+          dot.innerHTML = '&middot;';
+          const label = document.createElement('span');
+          label.className = 'webr-runall-label';
+          label.textContent = 'R Ready';
+          wrapper.appendChild(dot);
+          wrapper.appendChild(label);
+          wrapper.appendChild(runBtn);
+          engHeader.appendChild(wrapper);
+          requestAnimationFrame(() => { wrapper.classList.add('visible'); });
         } else {
-          contentEl.insertBefore(runAllBar, contentEl.firstChild);
+          const firstH1 = contentEl.querySelector('h1');
+          const runAllBar = document.createElement('div');
+          runAllBar.className = 'webr-runall-bar';
+          runAllBar.innerHTML = '<span class="webr-runall-label">R environment ready</span>';
+          runAllBar.appendChild(runBtn);
+          if (firstH1 && firstH1.nextSibling) {
+            firstH1.parentNode.insertBefore(runAllBar, firstH1.nextSibling);
+          } else {
+            contentEl.insertBefore(runAllBar, contentEl.firstChild);
+          }
+          requestAnimationFrame(() => { runAllBar.classList.add('visible'); });
         }
-        requestAnimationFrame(() => { runAllBar.classList.add('visible'); });
         // Track WebR ready in GA4
         if (typeof gtag === 'function') {
           gtag('event', 'webr_ready', {
