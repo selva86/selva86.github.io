@@ -316,14 +316,15 @@ MATHJAX_BLOCK = """
       tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}
     });
   </script>
-  <script type="text/javascript"
+  <script type="text/javascript" async
     src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
   </script>
 """
 
 WEBR_HEAD_BLOCK = """
     <!-- WebR Interactive R Code -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"></noscript>
     <style>
       /* --- Loading banner: compact, collapses when ready --- */
       .webr-loading-banner {
@@ -919,11 +920,33 @@ WEBR_BODY_BLOCK = """
         .forEach(el => el.classList.remove('engagement-unrun-first'));
     }, true);
 
+    // Attach copy handler to a .webr-copy-btn element
+    function _attachCopyHandler(copyBtn) {
+      copyBtn.onclick = function() {
+        const c = this.closest('.webr-container');
+        const editorEl = c.querySelector('.webr-editor');
+        const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
+        const code = editors[idx] ? editors[idx].cm.getValue() : editorEl.textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          copyBtn.innerHTML = checkIcon;
+          copyBtn.classList.add('copied');
+          setTimeout(() => { copyBtn.innerHTML = copyIcon; copyBtn.classList.remove('copied'); }, 1500);
+        });
+      };
+    }
+
     _allContainers.forEach(container => {
       const codeBlock = container.querySelector('.webr-code-block');
       if (!codeBlock) return;
-      if (codeBlock.querySelector('.webr-header')) return; // idempotent
 
+      // Header pre-rendered in HTML — just attach copy handler
+      if (codeBlock.querySelector('.webr-header')) {
+        const existingCopy = codeBlock.querySelector('.webr-copy-btn');
+        if (existingCopy) _attachCopyHandler(existingCopy);
+        return;
+      }
+
+      // Fallback: build header dynamically (legacy pages without pre-rendered header)
       const header = document.createElement('div');
       header.className = 'webr-header';
 
@@ -937,28 +960,16 @@ WEBR_BODY_BLOCK = """
       const right = document.createElement('div');
       right.className = 'webr-header-right';
 
-      // Copy button — icon only, ghost
       const copyBtn = document.createElement('button');
       copyBtn.type = 'button';
       copyBtn.className = 'webr-copy-btn';
       copyBtn.setAttribute('aria-label', 'Copy code');
       copyBtn.title = 'Copy code';
       copyBtn.innerHTML = copyIcon;
-      copyBtn.onclick = function() {
-        const c = this.closest('.webr-container');
-        const editorEl = c.querySelector('.webr-editor');
-        const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
-        const code = editors[idx] ? editors[idx].cm.getValue() : editorEl.textContent;
-        navigator.clipboard.writeText(code).then(() => {
-          copyBtn.innerHTML = checkIcon;
-          copyBtn.classList.add('copied');
-          setTimeout(() => { copyBtn.innerHTML = copyIcon; copyBtn.classList.remove('copied'); }, 1500);
-        });
-      };
+      _attachCopyHandler(copyBtn);
       right.appendChild(copyBtn);
 
       // Move the existing Run button from the bottom bar to the header.
-      // This preserves its onclick binding and inner shortcut span.
       const runBtn = codeBlock.querySelector('.webr-buttons .webr-run-btn');
       if (runBtn) {
         runBtn.innerHTML = '\\u25b6 Run <span class="webr-run-shortcut">Ctrl+Enter</span>';
@@ -1364,7 +1375,7 @@ WEBR_BODY_BLOCK = """
   <script>mermaid.initialize({startOnLoad: true, theme: 'default'});</script>
 """
 
-ENGAGEMENT_HEAD_BLOCK = '    <link rel="stylesheet" href="www/engagement.css?v=2">'
+ENGAGEMENT_HEAD_BLOCK = '    <link rel="stylesheet" href="www/engagement.css?v=2" media="print" onload="this.media=\'all\'">\n    <noscript><link rel="stylesheet" href="www/engagement.css?v=2"></noscript>'
 ENGAGEMENT_BODY_BLOCK = '    <script defer src="www/engagement.js?v=3"></script>'
 
 DEFAULT_DESCRIPTION = "R Language Tutorials for Advanced Statistics"

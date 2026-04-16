@@ -27,13 +27,44 @@ def escape_html(text):
 
 _TITLE_RE = re.compile(r'title\s*=\s*"([^"]+)"')
 def extract_block_title(info_str):
-    """Pull a title="..." out of a fenced-code info string. Returns attribute fragment or ''."""
+    """Pull a title="..." out of a fenced-code info string. Returns (attr_fragment, title_text)."""
     if not info_str:
-        return ''
+        return '', 'Interactive R'
     m = _TITLE_RE.search(info_str)
     if not m:
-        return ''
-    return f' data-block-title="{html.escape(m.group(1))}"'
+        return '', 'Interactive R'
+    title = m.group(1)
+    return f' data-block-title="{html.escape(title)}"', title
+
+_COPY_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+
+def webr_container_html(ecode, title_attr, block_title='Interactive R'):
+    """Generate a full webr-container with pre-rendered header to prevent CLS."""
+    label = html.escape(block_title)
+    return (
+        f'<div class="webr-container"{title_attr}>\n'
+        f'  <div class="webr-code-block">\n'
+        f'    <div class="webr-header">'
+        f'<div class="webr-header-left">'
+        f'<span class="webr-header-badge">R</span>'
+        f'<span class="webr-header-label">{label}</span>'
+        f'</div>'
+        f'<div class="webr-header-right">'
+        f'<button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code">{_COPY_SVG}</button>'
+        f'<button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">'
+        f'&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button>'
+        f'</div>'
+        f'</div>\n'
+        f'    <div class="webr-editor" data-language="r">{ecode}</div>\n'
+        f'    <div class="webr-buttons">\n'
+        f'      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>\n'
+        f'      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>\n'
+        f'    </div>\n'
+        f'    <pre class="webr-output"></pre>\n'
+        f'  </div>\n'
+        f'  <div class="webr-plot-output"></div>\n'
+        f'</div>'
+    )
 
 def md_inline(text):
     """Convert inline markdown: bold, italic, code, links."""
@@ -163,7 +194,7 @@ def convert(md_text):
             if i < len(lines) and lines[i].strip().startswith('```r'):
                 tryit_info = lines[i].strip()[3:].strip()
                 tryit_lang = tryit_info.split()[0] if tryit_info else ''
-                tryit_title_attr = extract_block_title(tryit_info)
+                tryit_title_attr, tryit_title_text = extract_block_title(tryit_info)
                 i += 1
                 code_lines = []
                 while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -173,19 +204,7 @@ def convert(md_text):
                     i += 1  # skip closing ```
                 ecode = escape_html('\n'.join(code_lines))
                 if webr_enabled and tryit_lang == 'r':
-                    code_html = (
-                        f'<div class="webr-container"{tryit_title_attr}>\n'
-                        '  <div class="webr-code-block">\n'
-                        f'    <div class="webr-editor" data-language="r">{ecode}</div>\n'
-                        '    <div class="webr-buttons">\n'
-                        '      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>\n'
-                        '      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>\n'
-                        '    </div>\n'
-                        '    <pre class="webr-output"></pre>\n'
-                        '  </div>\n'
-                        '  <div class="webr-plot-output"></div>\n'
-                        '</div>'
-                    )
+                    code_html = webr_container_html(ecode, tryit_title_attr, tryit_title_text)
                 else:
                     code_html = f'<pre><code class="language-r">{ecode}</code></pre>'
 
@@ -205,7 +224,7 @@ def convert(md_text):
                     if cur_line.strip().startswith('```r'):
                         d_info = cur_line.strip()[3:].strip()
                         d_lang = d_info.split()[0] if d_info else ''
-                        d_title_attr = extract_block_title(d_info)
+                        d_title_attr, d_title_text = extract_block_title(d_info)
                         i += 1
                         dcode_lines = []
                         while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -215,17 +234,7 @@ def convert(md_text):
                             i += 1
                         dcode = escape_html('\n'.join(dcode_lines))
                         if webr_enabled and d_lang == 'r':
-                            details_block.append(f'<div class="webr-container"{d_title_attr}>')
-                            details_block.append('  <div class="webr-code-block">')
-                            details_block.append(f'    <div class="webr-editor" data-language="r">{dcode}</div>')
-                            details_block.append('    <div class="webr-buttons">')
-                            details_block.append('      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>')
-                            details_block.append('      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>')
-                            details_block.append('    </div>')
-                            details_block.append('    <pre class="webr-output"></pre>')
-                            details_block.append('  </div>')
-                            details_block.append('  <div class="webr-plot-output"></div>')
-                            details_block.append('</div>')
+                            details_block.append(webr_container_html(dcode, d_title_attr, d_title_text))
                         else:
                             details_block.append(f'<pre><code class="language-r">{dcode}</code></pre>')
                         continue
@@ -293,7 +302,7 @@ def convert(md_text):
                     if cur_line.strip().startswith('```r'):
                         det_info = cur_line.strip()[3:].strip()
                         det_lang = det_info.split()[0] if det_info else ''
-                        det_title_attr = extract_block_title(det_info)
+                        det_title_attr, det_title_text = extract_block_title(det_info)
                         i += 1
                         code_lines = []
                         while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -303,17 +312,7 @@ def convert(md_text):
                             i += 1  # skip closing ```
                         code = escape_html('\n'.join(code_lines))
                         if webr_enabled and det_lang == 'r':
-                            html_block.append(f'<div class="webr-container"{det_title_attr}>')
-                            html_block.append(f'  <div class="webr-code-block">')
-                            html_block.append(f'    <div class="webr-editor" data-language="r">{code}</div>')
-                            html_block.append(f'    <div class="webr-buttons">')
-                            html_block.append(f'      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>')
-                            html_block.append(f'      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>')
-                            html_block.append(f'    </div>')
-                            html_block.append(f'    <pre class="webr-output"></pre>')
-                            html_block.append(f'  </div>')
-                            html_block.append(f'  <div class="webr-plot-output"></div>')
-                            html_block.append(f'</div>')
+                            html_block.append(webr_container_html(code, det_title_attr, det_title_text))
                         else:
                             html_block.append(f'<pre><code class="language-r">{code}</code></pre>')
                         continue
@@ -334,7 +333,7 @@ def convert(md_text):
         if line.strip().startswith('```'):
             info = line.strip()[3:].strip()
             lang = info.split()[0] if info else ''
-            top_title_attr = extract_block_title(info)
+            top_title_attr, top_title_text = extract_block_title(info)
             i += 1
             code_lines = []
             while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -346,17 +345,7 @@ def convert(md_text):
 
             if lang == 'r' and webr_enabled:  # r-static falls through to static block below
                 ecode = escape_html(code)
-                out.append(f'<div class="webr-container"{top_title_attr}>')
-                out.append(f'  <div class="webr-code-block">')
-                out.append(f'    <div class="webr-editor" data-language="r">{ecode}</div>')
-                out.append(f'    <div class="webr-buttons">')
-                out.append(f'      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>')
-                out.append(f'      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>')
-                out.append(f'    </div>')
-                out.append(f'    <pre class="webr-output"></pre>')
-                out.append(f'  </div>')
-                out.append(f'  <div class="webr-plot-output"></div>')
-                out.append(f'</div>')
+                out.append(webr_container_html(ecode, top_title_attr, top_title_text))
             elif lang == 'r' or lang == 'r-static':
                 ecode = escape_html(code)
                 out.append(f'<pre><code class="language-r">{ecode}</code></pre>')
