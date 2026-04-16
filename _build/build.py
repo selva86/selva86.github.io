@@ -333,8 +333,8 @@ WEBR_HEAD_BLOCK = """
     <!-- WebR Interactive R Code — external CSS deferred (non-render-blocking) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css"></noscript>
-    <link rel="stylesheet" href="www/webr.css?v=3" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="www/webr.css?v=3"></noscript>
+    <link rel="stylesheet" href="www/webr.css?v=4" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/webr.css?v=4"></noscript>
 """
 
 WEBR_BODY_BLOCK = """
