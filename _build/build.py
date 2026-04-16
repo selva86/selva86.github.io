@@ -760,16 +760,6 @@ WEBR_HEAD_BLOCK = """
       /* Kbd hint */
       html.dark .webr-kbd-hint { color: #64748b; }
       html.dark .webr-kbd-hint kbd { background: #334155; border-color: #475569; color: #94a3b8; }
-
-      /* Hide Ezoic ads injected inside H1 — JS will relocate before first H2.
-         Once moved out of H1, descendant selector stops matching → auto-unhide. */
-      h1 [class*="ezoic"], h1 [id*="ezoic"], h1 ins, h1 iframe {
-        visibility: hidden !important;
-        height: 0 !important;
-        overflow: hidden !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
     </style>
 """
 
