@@ -433,7 +433,7 @@
           if (outputEl) {
             const hint = document.createElement('div');
             hint.className = 'webr-first-run-hint';
-            hint.textContent = '\u23f3 First run takes a few extra seconds while the R environment loads...';
+            hint.innerHTML = '<span class="webr-hint-spinner"></span> Setting up R environment — first run takes a moment';
             outputEl.parentNode.insertBefore(hint, outputEl);
             // Remove hint after WebR is ready (or after 15s max)
             const removeHint = () => { if (hint.parentNode) hint.remove(); };
