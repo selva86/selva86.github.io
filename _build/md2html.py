@@ -188,6 +188,7 @@ def convert(md_text):
 
     out = []
     i = 0
+    _pending_engagement = None  # deferred until after <p class="lead">
     webr_enabled = str(fm.get('webr', 'true')).lower() == 'true'
 
     while i < len(lines):
@@ -309,6 +310,10 @@ def convert(md_text):
             if single_line_match and '<details' not in stripped_line:
                 open_tag, inner, close_tag = single_line_match.groups()
                 out.append(f'{open_tag}{md_inline(inner)}{close_tag}')
+                # Flush deferred engagement-header after <p class="lead">
+                if _pending_engagement and 'class="lead"' in open_tag:
+                    out.append(_pending_engagement)
+                    _pending_engagement = None
                 i += 1
                 continue
             # Collect contiguous HTML lines
@@ -405,7 +410,9 @@ def convert(md_text):
                 except (TypeError, ValueError):
                     pass
             if _meta_attrs:
-                out.append(f'<div class="engagement-header" {" ".join(_meta_attrs)}></div>')
+                # Deferred: emit after the first <p class="lead"> to avoid
+                # layout shift (engagement.js used to reorder these at runtime).
+                _pending_engagement = f'<div class="engagement-header" {" ".join(_meta_attrs)}></div>'
             i += 1
             continue
 
