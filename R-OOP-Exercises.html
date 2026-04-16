@@ -597,6 +597,16 @@
       /* Kbd hint */
       html.dark .webr-kbd-hint { color: #64748b; }
       html.dark .webr-kbd-hint kbd { background: #334155; border-color: #475569; color: #94a3b8; }
+
+      /* Hide Ezoic ads injected inside H1 — JS will relocate before first H2.
+         Once moved out of H1, descendant selector stops matching → auto-unhide. */
+      h1 [class*="ezoic"], h1 [id*="ezoic"], h1 ins, h1 iframe {
+        visibility: hidden !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
     </style>
 
         <link rel="stylesheet" href="www/engagement.css?v=2">
@@ -1539,7 +1549,7 @@ c(hp = hero$hp, x = hero$x, y = hero$y)
 <li><a href="R6-Classes-in-R.html">R6 Classes in R</a> — when and why to reach for mutable reference objects in Shiny and beyond</li>
 
 </ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="S3-Method-Dispatch-in-R.html"><span class="rt-title">S3 Method Dispatch: Exactly How R Finds the Right Function for Your Object</span><span class="rt-meta">Advanced R &middot; 9 min read</span></a><a class="rt-card" href="sloop-Package-in-R.html"><span class="rt-title">sloop Package in R: otype(), ftype() — Inspect Any Object's OOP System</span><span class="rt-meta">8 min read</span></a><a class="rt-card" href="R6-Classes-in-R.html"><span class="rt-title">R6 Classes in R: When You Need Objects That Mutate In Place</span><span class="rt-meta">Advanced R &middot; 9 min read</span></a><a class="rt-card" href="R6-Advanced.html"><span class="rt-title">Advanced R6 in R: Inheritance, Private Fields, and Computed Properties</span><span class="rt-meta">Advanced R &middot; 8 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="R6-Advanced.html"><span class="rt-title">Advanced R6 in R: Inheritance, Private Fields, and Computed Properties</span><span class="rt-meta">Advanced R &middot; 8 min read</span></a><a class="rt-card" href="R5-Reference-Classes.html"><span class="rt-title">R5 Reference Classes in R: setRefClass() — Legacy OOP</span><span class="rt-meta">6 min read</span></a><a class="rt-card" href="OOP-Design-Patterns-in-R.html"><span class="rt-title">OOP Design Patterns in R: Factory, Strategy &amp; Observer in R6</span><span class="rt-meta">7 min read</span></a><a class="rt-card" href="Operator-Overloading-in-R.html"><span class="rt-title">Operator Overloading in R: Give Your S3 Objects Intuitive Behaviour</span><span class="rt-meta">Advanced R &middot; 9 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="R-Functional-Programming-Exercises.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Functional Programming (10 problems)</span></a>
 <a class="pn-link pn-next" href="R-Data-Import-Exercises.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Data Import (10 problems)</span></a>
@@ -1724,6 +1734,54 @@ c(hp = hero$hp, x = hero$x, y = hero$y)
         }
       });
       adObs.observe(document.documentElement, { childList: true, subtree: true });
+    })();
+
+    // Hero-zone ad relocation: move Ezoic ads from inside/after H1
+    // to just before the first H2. CSS hides inside-H1 ads instantly;
+    // this JS relocates them so they render only in the final position.
+    (function () {
+      var AD_RE = /ezoic|ezojs|ezmob|adsbygoogle|google_ads|pagead/i;
+      function isAd(el) {
+        if (!el || el.nodeType !== 1) return false;
+        var c = (el.className || '') + ' ' + (el.id || '');
+        return AD_RE.test(c) || el.tagName === 'INS' || el.tagName === 'IFRAME';
+      }
+      var KEEP_RE = /engagement-header|engagement-progress|webr-runall-bar|lead/;
+      function relocate() {
+        var content = document.querySelector('#content')
+                   || document.querySelector('.col-sm-8')
+                   || document.querySelector('.col-sm-7');
+        if (!content) return false;
+        var h1 = content.querySelector('h1');
+        var h2 = content.querySelector('h2');
+        if (!h1 || !h2) return false;
+        var moved = false;
+        // 1. Ads inside H1
+        var h1Ads = h1.querySelectorAll('[class*="ezoic"], [id*="ezoic"], ins, iframe');
+        for (var i = 0; i < h1Ads.length; i++) {
+          h2.parentNode.insertBefore(h1Ads[i], h2);
+          moved = true;
+        }
+        // 2. Ad siblings between H1 and first H2
+        var node = h1.nextElementSibling;
+        while (node && node !== h2) {
+          var next = node.nextElementSibling;
+          if (isAd(node) && !KEEP_RE.test(node.className || '')) {
+            h2.parentNode.insertBefore(node, h2);
+            moved = true;
+          }
+          node = next;
+        }
+        return moved;
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { relocate(); });
+      } else { relocate(); }
+      var heroObs = new MutationObserver(function () {
+        if (relocate()) heroObs.disconnect();
+      });
+      heroObs.observe(document.documentElement, { childList: true, subtree: true });
+      setTimeout(function () { heroObs.disconnect(); }, 30000);
     })();
 
     // Smart preload: start downloading WebR when user scrolls near the first code block

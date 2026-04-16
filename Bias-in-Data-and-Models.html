@@ -597,6 +597,16 @@
       /* Kbd hint */
       html.dark .webr-kbd-hint { color: #64748b; }
       html.dark .webr-kbd-hint kbd { background: #334155; border-color: #475569; color: #94a3b8; }
+
+      /* Hide Ezoic ads injected inside H1 — JS will relocate before first H2.
+         Once moved out of H1, descendant selector stops matching → auto-unhide. */
+      h1 [class*="ezoic"], h1 [id*="ezoic"], h1 ins, h1 iframe {
+        visibility: hidden !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
     </style>
 
         <link rel="stylesheet" href="www/engagement.css?v=2">
@@ -1801,7 +1811,7 @@ salaries |&gt;
 <li><a href="Communicating-Uncertainty.html">Communicating Uncertainty in R</a> — show your audited results without overstating their certainty.</li>
 
 </ol>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Data-Ethics-in-R.html"><span class="rt-title">Data Ethics for R Programmers: The Questions to Ask Before You Analyse</span><span class="rt-meta">Learn R &middot; 9 min read</span></a><a class="rt-card" href="Data-Privacy-in-R.html"><span class="rt-title">Data Privacy in R: Anonymise Datasets and Stay GDPR Compliant</span><span class="rt-meta">Learn R &middot; 11 min read</span></a><a class="rt-card" href="Pre-Analysis-Plans-in-R.html"><span class="rt-title">Pre-Analysis Plans in R: Commit Before You Analyze</span><span class="rt-meta">8 min read</span></a><a class="rt-card" href="Open-Science-with-R.html"><span class="rt-title">Open Science with R: OSF Integration, Preprints &amp; Sharing Code</span><span class="rt-meta">8 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Pre-Analysis-Plans-in-R.html"><span class="rt-title">Pre-Analysis Plans in R: Commit Before You Analyze</span><span class="rt-meta">8 min read</span></a><a class="rt-card" href="Data-Privacy-in-R.html"><span class="rt-title">Data Privacy in R: Anonymise Datasets and Stay GDPR Compliant</span><span class="rt-meta">Learn R &middot; 11 min read</span></a><a class="rt-card" href="Communicating-Uncertainty.html"><span class="rt-title">Communicating Uncertainty in R: Visualise Confidence Without Misleading Anyone</span><span class="rt-meta">Learn R &middot; 9 min read</span></a><a class="rt-card" href="Algorithmic-Fairness-in-R.html"><span class="rt-title">Algorithmic Fairness in R: fairml &amp; aif360 for Bias Auditing</span><span class="rt-meta">2 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="Data-Ethics-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Data Ethics</span></a>
 <a class="pn-link pn-next" href="Reproducibility-Crisis.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Reproducibility</span></a>
@@ -1995,6 +2005,54 @@ salaries |&gt;
         }
       });
       adObs.observe(document.documentElement, { childList: true, subtree: true });
+    })();
+
+    // Hero-zone ad relocation: move Ezoic ads from inside/after H1
+    // to just before the first H2. CSS hides inside-H1 ads instantly;
+    // this JS relocates them so they render only in the final position.
+    (function () {
+      var AD_RE = /ezoic|ezojs|ezmob|adsbygoogle|google_ads|pagead/i;
+      function isAd(el) {
+        if (!el || el.nodeType !== 1) return false;
+        var c = (el.className || '') + ' ' + (el.id || '');
+        return AD_RE.test(c) || el.tagName === 'INS' || el.tagName === 'IFRAME';
+      }
+      var KEEP_RE = /engagement-header|engagement-progress|webr-runall-bar|lead/;
+      function relocate() {
+        var content = document.querySelector('#content')
+                   || document.querySelector('.col-sm-8')
+                   || document.querySelector('.col-sm-7');
+        if (!content) return false;
+        var h1 = content.querySelector('h1');
+        var h2 = content.querySelector('h2');
+        if (!h1 || !h2) return false;
+        var moved = false;
+        // 1. Ads inside H1
+        var h1Ads = h1.querySelectorAll('[class*="ezoic"], [id*="ezoic"], ins, iframe');
+        for (var i = 0; i < h1Ads.length; i++) {
+          h2.parentNode.insertBefore(h1Ads[i], h2);
+          moved = true;
+        }
+        // 2. Ad siblings between H1 and first H2
+        var node = h1.nextElementSibling;
+        while (node && node !== h2) {
+          var next = node.nextElementSibling;
+          if (isAd(node) && !KEEP_RE.test(node.className || '')) {
+            h2.parentNode.insertBefore(node, h2);
+            moved = true;
+          }
+          node = next;
+        }
+        return moved;
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { relocate(); });
+      } else { relocate(); }
+      var heroObs = new MutationObserver(function () {
+        if (relocate()) heroObs.disconnect();
+      });
+      heroObs.observe(document.documentElement, { childList: true, subtree: true });
+      setTimeout(function () { heroObs.disconnect(); }, 30000);
     })();
 
     // Smart preload: start downloading WebR when user scrolls near the first code block
