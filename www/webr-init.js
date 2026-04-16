@@ -562,12 +562,11 @@
         }
       }
 
-      // Fade-in effect on the output panel and focus it for screen readers.
+      // Fade-in effect on the output panel.
       outputEl.classList.remove('is-loading');
       if (outputEl.textContent.length > 0) {
         outputEl.style.opacity = '0';
         requestAnimationFrame(() => { outputEl.style.opacity = '1'; });
-        try { outputEl.focus({ preventScroll: true }); } catch(e) {}
       }
 
       btn.disabled = false;
