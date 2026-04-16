@@ -563,6 +563,57 @@
         from { opacity: 0; transform: translateY(-4px); }
         to { opacity: 1; transform: translateY(0); }
       }
+
+      /* Stale output indicator — yellow dot on Run button */
+      .webr-run-btn.stale::after {
+        content: '';
+        width: 7px;
+        height: 7px;
+        background: #eab308;
+        border-radius: 50%;
+        display: inline-block;
+        margin-left: 2px;
+        vertical-align: middle;
+        animation: stalePulse 2s ease-in-out infinite;
+      }
+      @keyframes stalePulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .webr-run-btn.stale::after { animation: none; }
+      }
+
+      /* Long output collapse */
+      .webr-output.collapsed {
+        max-height: 160px !important;
+        overflow: hidden !important;
+        position: relative;
+      }
+      .webr-output.collapsed::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 40px;
+        background: linear-gradient(to bottom, transparent, #020617);
+        pointer-events: none;
+      }
+      .webr-collapse-toggle {
+        display: block;
+        width: 100%;
+        background: #020617;
+        border: none;
+        border-top: 1px solid rgba(51, 65, 85, 0.3);
+        color: #60a5fa;
+        font-size: 12px;
+        padding: 6px 16px;
+        cursor: pointer;
+        text-align: left;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      .webr-collapse-toggle:hover { color: #93c5fd; }
     </style>
 
         <link rel="stylesheet" href="www/engagement.css?v=2">
@@ -2180,6 +2231,11 @@ cat(&quot;\nKey finding: Engine displacement is the strongest predictor of&quot;
 <li><a href="Correlation-Matrix-Plot-in-R.html">Correlation Matrix Plot in R</a> — Deep dive into multi-variable correlation visualization and interpretation.</li>
 
 </ul>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Univariate-EDA-in-R.html"><span class="rt-title">Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling</span><span class="rt-meta">Visualization &middot; 10 min read</span></a><a class="rt-card" href="Exploratory-Data-Analysis-in-R.html"><span class="rt-title">EDA in R: A 7-Step Framework That Works on Every Dataset You'll Encounter</span><span class="rt-meta">Visualization &middot; 12 min read</span></a><a class="rt-card" href="Descriptive-Statistics-in-R.html"><span class="rt-title">Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing</span><span class="rt-meta">Visualization &middot; 11 min read</span></a></div></section>
+<nav class="prev-next-nav" aria-label="Post navigation">
+<a class="pn-link pn-prev" href="Univariate-EDA-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Univariate EDA</span></a>
+<a class="pn-link pn-next" href="ggplot2-Facets.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">ggplot2 Facets</span></a>
+</nav>
 
         </div>
 
@@ -2508,6 +2564,14 @@ cat(&quot;\nKey finding: Engine displacement is the strongest predictor of&quot;
       el.classList.add('cm-initialized');
       const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
       editors[domIdx] = { cm, originalCode: code, el };
+      // Stale output indicator: mark Run button when code changes after a run
+      cm.on('change', function() {
+        var c = el.closest('.webr-container');
+        var runBtn = c ? c.querySelector('.webr-run-btn') : null;
+        if (runBtn && runBtn.dataset.hasRun === '1') {
+          runBtn.classList.add('stale');
+        }
+      });
     }
 
     // Yielding init: queue editors and init one at a time, yielding between each
@@ -2682,7 +2746,9 @@ cat(&quot;\nKey finding: Engine displacement is the strongest predictor of&quot;
       // Clear output but keep panel visible — :empty::before shows placeholder.
       // IMPORTANT: use textContent = '' (no whitespace) so :empty pseudo matches.
       outputEl.textContent = '';
-      outputEl.classList.remove('has-content', 'has-error', 'has-message');
+      outputEl.classList.remove('has-content', 'has-error', 'has-message', 'collapsed');
+      var _oldToggle = container.querySelector('.webr-collapse-toggle');
+      if (_oldToggle) _oldToggle.remove();
       outputEl.classList.add('is-loading');
       if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
 
@@ -2775,6 +2841,29 @@ cat(&quot;\nKey finding: Engine displacement is the strongest predictor of&quot;
         try { outputEl.focus({ preventScroll: true }); } catch(e) {}
       }
 
+      // Mark this button as having run, and clear stale indicator
+      btn.dataset.hasRun = '1';
+      btn.classList.remove('stale');
+
+      // Collapse long output (>8 lines)
+      if (outputEl.classList.contains('has-content') || outputEl.classList.contains('has-error')) {
+        var _lines = outputEl.textContent.split('\n');
+        if (_lines.length > 8) {
+          outputEl.classList.add('collapsed');
+          var _toggle = document.createElement('button');
+          _toggle.type = 'button';
+          _toggle.className = 'webr-collapse-toggle';
+          _toggle.textContent = '\u25bc Show all ' + _lines.length + ' lines';
+          _toggle.onclick = function() {
+            var isCollapsed = outputEl.classList.toggle('collapsed');
+            _toggle.textContent = isCollapsed
+              ? '\u25bc Show all ' + _lines.length + ' lines'
+              : '\u25b2 Show less';
+          };
+          outputEl.parentNode.insertBefore(_toggle, outputEl.nextSibling);
+        }
+      }
+
       btn.disabled = false;
       setRunBtnText(btn, '\u25b6 Run');
       btn.classList.remove('running');
@@ -2791,8 +2880,12 @@ cat(&quot;\nKey finding: Engine displacement is the strongest predictor of&quot;
       const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
       editors[idx].cm.setValue(editors[idx].originalCode);
       outputEl.textContent = '';
-      outputEl.classList.remove('has-content', 'has-error', 'has-message', 'is-loading');
+      outputEl.classList.remove('has-content', 'has-error', 'has-message', 'is-loading', 'collapsed');
+      var _oldToggle = container.querySelector('.webr-collapse-toggle');
+      if (_oldToggle) _oldToggle.remove();
       if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
+      var runBtn = container.querySelector('.webr-run-btn');
+      if (runBtn) { delete runBtn.dataset.hasRun; runBtn.classList.remove('stale'); }
     };
 
     // Run all code blocks sequentially
