@@ -24,7 +24,7 @@ These three distributions anchor three different worlds. Weibull owns survival a
 
 The code below loads `ggplot2`, `tibble`, and `dplyr`, builds a grid of x-values, computes each distribution's density at comparable parameter settings, and plots all three on one chart with coloured lines.
 
-```r
+```r title="Three densities on one chart"
 # Plot all three densities on one chart
 library(ggplot2)
 library(tibble)
@@ -59,7 +59,7 @@ The Weibull curve rises to a peak near its scale and falls away, a finite mode a
 
 **Try it:** Re-plot the three densities with the uniform set to `min = 0, max = 10` instead of `(0, 3)`. What happens to the height of the rectangle, and why?
 
-```r
+```r title="Exercise: uniform density on 0 to 10"
 # Try it: change uniform range to (0, 10)
 ex_x <- seq(0.01, 5, length.out = 300)
 ex_df <- tibble(
@@ -73,7 +73,7 @@ ggplot(ex_df, aes(x, density)) + geom_line() + theme_minimal()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Uniform-0-to-10 solution"
 ex_x <- seq(0.01, 5, length.out = 300)
 ex_df <- tibble(
   x = ex_x,
@@ -93,7 +93,7 @@ The Weibull distribution is the default choice for time-to-failure data, light b
 
 Let's plot three Weibull densities at shape values 0.5, 1, and 3 with scale fixed at 1. Watch how the whole curve morphs from an exponential-looking decay to a near-bell shape.
 
-```r
+```r title="Weibull densities at three shapes"
 # Weibull densities at shape = 0.5, 1, 3
 wb_df <- tibble(
   x = rep(seq(0.01, 3, length.out = 300), 3),
@@ -130,7 +130,7 @@ Where:
 
 In R we can compute it directly from the d/p functions.
 
-```r
+```r title="Weibull hazard function curves"
 # Hazard function at the same three shapes
 t_grid <- seq(0.05, 3, length.out = 300)
 hazard_df <- tibble(
@@ -161,7 +161,7 @@ Each curve corresponds to one of the three segments of the classic "bathtub" rel
 
 Now let's simulate 500 failure times from a Weibull with shape = 2, scale = 1000 (a typical "wear-out" device with characteristic life of 1000 hours) and compare the sample mean and median to the theoretical values.
 
-```r
+```r title="Simulated vs theoretical mean and median"
 # Simulate 500 failure times and compare to theoretical summaries
 set.seed(101)
 failure_times <- rweibull(500, shape = 2, scale = 1000)
@@ -182,7 +182,7 @@ The sample estimates come within 2% of the analytical values, exactly what we ex
 
 **Try it:** Compute the 90th percentile of time-to-failure for a Weibull with shape = 2 and scale = 1000, the time by which 90% of items will have failed.
 
-```r
+```r title="Exercise: compute the B90 life"
 # Try it: find the B90 life
 ex_p <- 0.9
 ex_b90 <- # your code here
@@ -193,7 +193,7 @@ ex_b90
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="B90-life solution"
 ex_b90 <- qweibull(0.9, shape = 2, scale = 1000)
 ex_b90
 #> [1] 1517.427
@@ -209,7 +209,7 @@ The log-normal distribution is what you get when you multiply many small indepen
 
 The cleanest demonstration is to simulate a multiplicative growth process and watch the distribution of final values. Imagine 5,000 parallel "stocks", each compounded by small random monthly returns for 60 months. The final values should be log-normal.
 
-```r
+```r title="Multiplicative paths converge to log-normal"
 # Simulate 5000 multiplicative growth paths over 60 steps
 set.seed(202)
 n_paths <- 5000
@@ -244,7 +244,7 @@ The red density sits on top of the histogram because the Central Limit Theorem g
 
 Now let's use `dlnorm` and `plnorm` for the classic income question: if log-income has mean 10.5 and sd 0.7 (so typical income is around `exp(10.5) ≈ 36,000`), what fraction of the population earns more than 100,000?
 
-```r
+```r title="Income probability with plnorm"
 # Income example with the d/p/q family
 income_meanlog <- 10.5
 income_sdlog   <- 0.7
@@ -267,7 +267,7 @@ About 8% of the population earns above 100k, the median is 36,315, and the mean 
 
 **Try it:** Take 2000 samples from `rlnorm(meanlog = 1, sdlog = 0.5)` and check visually whether `log()` of those samples looks normal, using a QQ plot against the theoretical normal.
 
-```r
+```r title="Exercise: qqnorm on log of samples"
 # Try it: confirm log(rlnorm) is normal
 set.seed(303)
 ex_samples <- rlnorm(2000, meanlog = 1, sdlog = 0.5)
@@ -279,7 +279,7 @@ qqnorm(ex_logs); qqline(ex_logs, col = "red")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="log-samples solution"
 set.seed(303)
 ex_samples <- rlnorm(2000, meanlog = 1, sdlog = 0.5)
 ex_logs <- log(ex_samples)
@@ -297,7 +297,7 @@ The uniform distribution on `[min, max]` assigns equal probability density `1 / 
 
 Here's the d/p/q/r tour on `Uniform(0, 10)`.
 
-```r
+```r title="Uniform d, p, q, r quartet"
 # Density, CDF, quantile, random samples on Uniform(0, 10)
 dunif(3, min = 0, max = 10)             # density at x = 3
 #> [1] 0.1
@@ -321,7 +321,7 @@ Four lines give you density, cumulative probability, quantile, and random draws.
 
 The deeper reason the uniform matters is **inverse-transform sampling**: if `U ~ Uniform(0, 1)` and `F` is any continuous CDF, then `F^(-1)(U)` follows the distribution with CDF `F`. You can generate any distribution you want from uniform draws. Let's demonstrate with the exponential, whose inverse CDF is `-log(1 - u) / rate`.
 
-```r
+```r title="Inverse-transform sampling for exponential"
 # Generate exponential samples from uniform via inverse transform
 set.seed(505)
 rate <- 2
@@ -341,7 +341,7 @@ The QQ plot sits right on the diagonal, confirming both methods produce samples 
 
 **Try it:** Estimate π using 20,000 uniform draws in the unit square via the classic Monte Carlo method, count the fraction falling inside the quarter-circle of radius 1 and multiply by 4.
 
-```r
+```r title="Exercise: Monte Carlo estimate of pi"
 # Try it: Monte Carlo estimate of pi
 set.seed(606)
 n_mc <- 20000
@@ -355,7 +355,7 @@ pi_estimate
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pi-estimate solution"
 set.seed(606)
 n_mc <- 20000
 x_mc <- runif(n_mc)
@@ -390,7 +390,7 @@ And this cheat-sheet of visual and domain cues:
 
 When you're unsure, fit all three and compare log-likelihoods. Here's how to do that using method-of-moments estimators on a synthetic right-skewed dataset, simple, transparent, and fast.
 
-```r
+```r title="Fit all three, compare log-likelihoods"
 # Fit all three to a right-skewed dataset and compare log-likelihoods
 set.seed(707)
 skewed_data <- rweibull(500, shape = 2, scale = 10)  # true model: Weibull
@@ -433,7 +433,7 @@ The Weibull log-likelihood is the highest (least negative), log-normal is a clos
 
 **Try it:** Generate 200 samples from `Weibull(shape = 2, scale = 10)`, fit a log-normal to them via method-of-moments, and print the log-likelihood ratio vs the true Weibull fit.
 
-```r
+```r title="Exercise: log-normal fit on Weibull data"
 # Try it: see how badly the wrong model fits
 set.seed(808)
 ex_data <- rweibull(200, shape = 2, scale = 10)
@@ -448,7 +448,7 @@ sum(dlnorm(ex_data, ex_ln_meanlog, ex_ln_sdlog, log = TRUE))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="log-normal-misfit solution"
 set.seed(808)
 ex_data <- rweibull(200, shape = 2, scale = 10)
 ex_ln_meanlog <- mean(log(ex_data))
@@ -467,7 +467,7 @@ sum(dlnorm(ex_data, ex_ln_meanlog, ex_ln_sdlog, log = TRUE))
 
 You have 25 observed failure times (hours) of industrial pumps. Fit a Weibull by method-of-moments and compute the probability that a fresh pump survives past 2,000 hours.
 
-```r
+```r title="Exercise: pump survival past 2000 hours"
 # Exercise: Weibull fit + survival probability
 pump_hours <- c(1402, 1876, 2311, 1654, 1243, 2543, 1789, 1998, 1532, 1867,
                 2156, 2043, 1765, 1432, 1987, 2231, 1876, 1654, 1543, 2187,
@@ -485,7 +485,7 @@ p_survive_2000
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pump-survival solution"
 pump_hours <- c(1402, 1876, 2311, 1654, 1243, 2543, 1789, 1998, 1532, 1867,
                 2156, 2043, 1765, 1432, 1987, 2231, 1876, 1654, 1543, 2187,
                 1765, 1987, 2312, 1432, 1876)
@@ -510,7 +510,7 @@ c(shape = pump_shape, scale = pump_scale, p_survive_2000 = p_survive_2000)
 
 Simulate a single 100-step path where monthly log-returns follow `Normal(0, 0.02)`. Compute the 5th and 95th percentile of the final value analytically from the implied log-normal distribution (no need to simulate many paths).
 
-```r
+```r title="Exercise: 100-step wealth percentiles"
 # Exercise: analytical percentiles of final wealth
 # Hint: after n steps, log(final) ~ Normal(0, 0.02 * sqrt(n))
 # so final ~ LogNormal(meanlog = 0, sdlog = 0.02 * sqrt(n))
@@ -524,7 +524,7 @@ c(p05 = qlnorm(0.05, 0, final_sdlog),
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Wealth-percentiles solution"
 n_steps_lg <- 100
 final_sdlog <- 0.02 * sqrt(n_steps_lg)
 c(p05 = qlnorm(0.05, 0, final_sdlog),
@@ -541,7 +541,7 @@ c(p05 = qlnorm(0.05, 0, final_sdlog),
 
 Use 50,000 uniform draws to estimate the integral of `sin(x^2)` from 0 to 1, and report a 95% confidence interval around the estimate.
 
-```r
+```r title="Exercise: Monte Carlo integration with CI"
 # Exercise: Monte Carlo integration with CI
 # Hint: integral ≈ mean of f(runif()) on [0, 1];
 # CI from standard error of that mean.
@@ -558,7 +558,7 @@ c(estimate = est, lo = est - 1.96 * se, hi = est + 1.96 * se)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="MC-integration solution"
 set.seed(909)
 n_mc_int <- 50000
 u_mc <- runif(n_mc_int)
@@ -578,7 +578,7 @@ c(estimate = est, lo = est - 1.96 * se, hi = est + 1.96 * se)
 
 Let's tie everything together with a reliability engineer's workflow: simulate realistic lightbulb lifetimes, fit a Weibull, and estimate two quantities the business cares about, Mean Time To Failure (MTTF) and the B10 life (the age by which 10% of bulbs have failed).
 
-```r
+```r title="End-to-end lightbulb reliability study"
 # Lightbulb reliability study
 set.seed(2024)
 

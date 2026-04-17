@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Base R has `grepl`, `gsub`, `regmatches`, `substr`, `sub`, `nchar`, `toupper`, and more. They work, but they disagree with each other about argument order, return type, and what "no match" means. stringr fixes all of this with one rule: the string comes first, the pattern comes second, and the output shape is predictable. Let's see the payoff on a messy vector of product names.
 
-```r
+```r title="Trim whitespace and detect patterns"
 library(stringr)
 
 names <- c("  Laptop Pro 16  ", "USB-C Hub", "monitor-27in", "WiFi Router", NA)
@@ -45,7 +45,7 @@ stringr organizes its ~40 functions into seven families. You rarely need more th
 
 **Try it:** Use `str_detect()` on the vector below to return TRUE for elements that contain "fox".
 
-```r
+```r title="Exercise: detect fox in animals"
 library(stringr)
 animals <- c("red fox", "brown bear", "arctic fox", "deer")
 # Your str_detect() call
@@ -54,7 +54,7 @@ animals <- c("red fox", "brown bear", "arctic fox", "deer")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 library(stringr)
 animals <- c("red fox", "brown bear", "arctic fox", "deer")
 str_detect(animals, "fox")
@@ -68,7 +68,7 @@ str_detect(animals, "fox")
 
 `str_detect(string, pattern)` returns a logical vector, TRUE where the pattern matches, FALSE where it does not. It is the workhorse of every filter step that touches text.
 
-```r
+```r title="Filter gmail addresses"
 library(stringr)
 library(dplyr)
 
@@ -92,7 +92,7 @@ Two details worth memorizing. First, `\\.` matches a literal dot, because `.` in
 
 Three cousins of `str_detect` come up often:
 
-```r
+```r title="Starts which and count helpers"
 # str_starts / str_ends — cheaper than regex anchors for fixed prefixes
 str_starts(emails$address, "asha")
 #> [1]  TRUE FALSE FALSE FALSE FALSE
@@ -112,7 +112,7 @@ Use `str_detect` when you will feed the result to `filter()` or `if_else()`. Use
 
 **Try it:** Filter the tibble to rows where the `title` column contains the word "report", case-insensitive.
 
-```r
+```r title="Exercise: detect ignoring case"
 library(stringr); library(dplyr)
 docs <- tibble(
   id = 1:4,
@@ -124,7 +124,7 @@ docs <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 library(stringr); library(dplyr); library(tibble)
 docs <- tibble(
   id = 1:4,
@@ -145,7 +145,7 @@ Wrapping the pattern in `regex(..., ignore_case = TRUE)` tells stringr to match 
 
 When you need the matched text itself, not just TRUE/FALSE, use `str_extract` for a simple capture and `str_match` when you need named groups.
 
-```r
+```r title="Extract ISO dates from logs"
 library(stringr)
 
 logs <- c(
@@ -172,7 +172,7 @@ str_extract_all(logs, "\\d+")
 
 For structured extraction, use capture groups with `str_match`:
 
-```r
+```r title="Match with three capture groups"
 str_match(logs, "(\\d{4}-\\d{2}-\\d{2}) (\\w+) user=(\\d+)")
 #>      [,1]                             [,2]         [,3]   [,4]
 #> [1,] "2026-04-01 INFO user=42"       "2026-04-01" "INFO" "42"
@@ -189,7 +189,7 @@ Column 1 is the full match; columns 2+ are the capture groups in order. You can 
 
 **Try it:** Extract the phone number (10 digits, possibly with dashes) from each string below.
 
-```r
+```r title="Exercise: extract phone numbers"
 library(stringr)
 contacts <- c("call 555-123-4567 anytime", "fax: 9876543210", "no phone")
 # Use str_extract with a suitable regex
@@ -198,7 +198,7 @@ contacts <- c("call 555-123-4567 anytime", "fax: 9876543210", "no phone")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 library(stringr)
 contacts <- c("call 555-123-4567 anytime", "fax: 9876543210", "no phone")
 str_extract(contacts, "\\d{3}-?\\d{3}-?\\d{4}")
@@ -212,7 +212,7 @@ The pattern `\\d{3}-?\\d{3}-?\\d{4}` asks for three digits, an optional dash, th
 
 `str_replace(string, pattern, replacement)` swaps the **first** match; `str_replace_all` swaps every match. The replacement string can reference capture groups with `\\1`, `\\2`, etc.
 
-```r
+```r title="Replace dollar and comma in prices"
 library(stringr)
 
 prices <- c("$1,299", "$450", "$12,000")
@@ -229,7 +229,7 @@ The character class `[$,]` matches either a dollar sign or a comma. One `str_rep
 
 Capture groups make format-switching trivial:
 
-```r
+```r title="Reorder date parts with backreferences"
 dates_us <- c("04/01/2026", "12/25/2025", "07/04/2026")
 
 # Convert MM/DD/YYYY to YYYY-MM-DD (ISO)
@@ -241,7 +241,7 @@ str_replace(dates_us, "(\\d{2})/(\\d{2})/(\\d{4})", "\\3-\\1-\\2")
 
 For non-regex replacement, when your pattern contains special characters you do not want interpreted, wrap the pattern in `fixed()`:
 
-```r
+```r title="Fixed literal replacement"
 # Literal replacement of a dotted string
 str_replace("version 1.2.3", fixed("1.2.3"), "2.0.0")
 #> [1] "version 2.0.0"
@@ -253,7 +253,7 @@ Without `fixed()`, the dots would match any character and you might accidentally
 
 **Try it:** Normalize these filenames to lowercase kebab-case (lowercase, dashes not spaces).
 
-```r
+```r title="Exercise: slugify filenames"
 library(stringr)
 files <- c("Sales Report Q1.pdf", "Customer List 2024.csv")
 # Hint: str_replace_all(..., " ", "-") then str_to_lower()
@@ -262,7 +262,7 @@ files <- c("Sales Report Q1.pdf", "Customer List 2024.csv")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 library(stringr)
 files <- c("Sales Report Q1.pdf", "Customer List 2024.csv")
 files |>
@@ -278,7 +278,7 @@ files |>
 
 `str_split` cuts one string into pieces on a pattern; `str_c` is the opposite, glueing several vectors into one. Both are used constantly in data cleaning.
 
-```r
+```r title="Split addresses into matrix"
 library(stringr)
 
 addresses <- c(
@@ -300,7 +300,7 @@ parts
 
 Going the other way:
 
-```r
+```r title="Concatenate with sep and collapse"
 first <- c("Asha", "Bilal", "Cleo")
 last  <- c("Rao", "Khan", "Patel")
 
@@ -314,7 +314,7 @@ str_c(first, collapse = ", ")
 
 `sep` concatenates element-wise; `collapse` concatenates the whole vector into a single string. The two arguments compose, you can use both in one call when combining vectors and then flattening.
 
-```r
+```r title="Combine sep and collapse"
 str_c(first, last, sep = " ", collapse = "; ")
 #> [1] "Asha Rao; Bilal Khan; Cleo Patel"
 ```
@@ -323,7 +323,7 @@ str_c(first, last, sep = " ", collapse = "; ")
 
 **Try it:** Split each string on the colon, then build a named vector from the result.
 
-```r
+```r title="Exercise: split and name metadata"
 library(stringr)
 meta <- c("name: Asha", "age: 30", "city: Pune")
 # str_split on ": " then map to a named vector
@@ -332,7 +332,7 @@ meta <- c("name: Asha", "age: 30", "city: Pune")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 library(stringr)
 meta <- c("name: Asha", "age: 30", "city: Pune")
 parts <- str_split(meta, ": ", simplify = TRUE)
@@ -349,7 +349,7 @@ named
 
 Most real string cleanup involves four things: trimming whitespace, changing case, padding to a fixed width, and fixing length. stringr has one-liners for each.
 
-```r
+```r title="Trim squish and case helpers"
 library(stringr)
 
 messy <- c("  Asha  ", "BILAL", "cleo", "  Daan", "Edu ")
@@ -371,7 +371,7 @@ Pair `str_squish` with `str_to_title` as a one-stop cleanup for names. `str_squi
 
 Padding is the opposite problem: making short strings match a target width, typically for alignment.
 
-```r
+```r title="Pad identifiers with leading zeros"
 ids <- c("1", "12", "123", "1234")
 str_pad(ids, width = 5, side = "left", pad = "0")
 #> [1] "00001" "00012" "00123" "01234"
@@ -381,7 +381,7 @@ Zero-padded IDs are a classic need, think invoice numbers, customer codes, file 
 
 `str_length` answers "how many characters in this string?". It counts by code points, not bytes, so it is safe for non-ASCII text.
 
-```r
+```r title="Length of multibyte strings"
 str_length(c("hi", "hello", "नमस्ते"))
 #> [1] 2 5 6
 ```
@@ -393,7 +393,7 @@ str_length(c("hi", "hello", "नमस्ते"))
 
 **Try it:** Clean the vector below so every element is title-case, single-spaced, and trimmed.
 
-```r
+```r title="Exercise: squish and title case animals"
 library(stringr)
 raw <- c("  red fox  ", "BROWN  BEAR", "arctic     fox")
 # Hint: chain str_squish then str_to_title
@@ -402,7 +402,7 @@ raw <- c("  red fox  ", "BROWN  BEAR", "arctic     fox")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 library(stringr)
 raw <- c("  red fox  ", "BROWN  BEAR", "arctic     fox")
 raw |>
@@ -418,7 +418,7 @@ raw |>
 
 Every stringr function takes a pattern, and by default that pattern is regex. A short tour of the five regex features you will actually use:
 
-```r
+```r title="Tour of five regex features"
 library(stringr)
 
 x <- c("apple123", "banana45", "cherry", "PEACH-7", "Grape_12")
@@ -453,7 +453,7 @@ Five regex tools, five concepts. Most data-cleaning regex you will ever write is
 
 When regex feels like overkill, wrap the pattern in `fixed()` for literal matching or `coll()` for locale-aware matching. When the pattern needs options like case-insensitive or dotall, use `regex(..., ignore_case = TRUE)`.
 
-```r
+```r title="Case insensitive regex wrapper"
 # Case-insensitive search
 str_detect(c("Error", "ERROR", "error", "warn"), regex("error", ignore_case = TRUE))
 #> [1]  TRUE  TRUE  TRUE FALSE
@@ -463,7 +463,7 @@ str_detect(c("Error", "ERROR", "error", "warn"), regex("error", ignore_case = TR
 
 **Try it:** Use a regex to extract the hashtags from the tweet below into a character vector.
 
-```r
+```r title="Exercise: extract hashtags"
 library(stringr)
 tweet <- "Loving the new R release! #rstats #tidyverse #coding"
 # Hint: str_extract_all with "#\\w+"
@@ -472,7 +472,7 @@ tweet <- "Loving the new R release! #rstats #tidyverse #coding"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 library(stringr)
 tweet <- "Loving the new R release! #rstats #tidyverse #coding"
 str_extract_all(tweet, "#\\w+")[[1]]
@@ -488,7 +488,7 @@ str_extract_all(tweet, "#\\w+")[[1]]
 
 Given this log vector, extract a tibble with columns `timestamp`, `level`, `user_id`, and `message`.
 
-```r
+```r title="Practice one: parse log columns"
 library(stringr); library(tibble); library(dplyr)
 
 log <- c(
@@ -501,7 +501,7 @@ log <- c(
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Practice one solution"
 m <- str_match(log, "(\\S+ \\S+) \\[(\\w+)\\] user=(\\d+) (.*)")
 tibble(
   timestamp = m[, 2],
@@ -517,13 +517,13 @@ tibble(
 
 Take the messy vector and normalize each to the format `+1-AAA-BBB-CCCC`. Drop numbers that do not have exactly 10 digits.
 
-```r
+```r title="Practice two: normalise phone format"
 phones <- c("(555) 123-4567", "555.987.6543", "5551234567", "123-45", "+1 555 111 2222")
 ```
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Practice two solution"
 digits <- str_extract_all(phones, "\\d") |> sapply(function(x) str_c(x, collapse = ""))
 digits <- str_sub(digits, -10)  # keep last 10 digits
 ok <- str_length(digits) == 10
@@ -541,7 +541,7 @@ formatted
 
 Given a vector of tweets, return a tibble with columns `hashtag` and `count`, sorted descending.
 
-```r
+```r title="Practice three: count hashtags per tweet"
 tweets <- c(
   "Learning #rstats today #tidyverse",
   "#rstats community is the best #rstats",
@@ -552,7 +552,7 @@ tweets <- c(
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Practice three solution"
 library(tibble); library(dplyr)
 tags <- str_extract_all(tweets, "#\\w+") |> unlist()
 tibble(hashtag = tags) |>
@@ -565,7 +565,7 @@ tibble(hashtag = tags) |>
 
 Here is a full cleaning pipeline on a customer table with messy names, emails, and phone numbers.
 
-```r
+```r title="End-to-end customer cleanup"
 library(stringr); library(dplyr); library(tibble)
 
 raw <- tibble(

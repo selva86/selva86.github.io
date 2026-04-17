@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Because the same five lines copy-pasted four times is four places a bug can hide. A function turns that repetition into a single tested unit you can call with one line. Here's what the payoff looks like, a three-line function that replaces a block you'd otherwise write for every numeric vector.
 
-```r
+```r title="Define a z-score function"
 z_score <- function(x) {
   (x - mean(x)) / sd(x)
 }
@@ -40,7 +40,7 @@ If you've copy-pasted the same expression three times, stop and write a function
 
 **Try it:** Write a one-line function `ex_celsius_to_f` that converts Celsius to Fahrenheit (formula: `C * 9/5 + 32`) and call it on `c(0, 20, 100)`.
 
-```r
+```r title="Your turn: Celsius to Fahrenheit"
 ex_celsius_to_f <- function(c) {
   # your formula here
 }
@@ -51,7 +51,7 @@ ex_celsius_to_f <- function(c) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Celsius to Fahrenheit solution"
 ex_celsius_to_f <- function(c) {
   c * 9 / 5 + 32
 }
@@ -70,7 +70,7 @@ Every R function has three parts: a **name** (how you'll call it), a **signature
 
 *Figure 1: The four pieces of every R function, the name you bind it to, the argument list, the body, and the return value.*
 
-```r
+```r title="Summarise a vector with defaults"
 summarise_vector <- function(x, digits = 2) {
   result <- c(
     mean = mean(x),
@@ -92,7 +92,7 @@ A function in R is just an object like any other. `summarise_vector` is a variab
 
 **Try it:** Modify `summarise_vector` so it also returns the `min` and `max`. Call it `ex_summarise_v2` and run it on `c(4, 7, 9, 12, 15, 18)`.
 
-```r
+```r title="Your turn: add min and max"
 ex_summarise_v2 <- function(x, digits = 2) {
   # add min and max
 }
@@ -101,7 +101,7 @@ ex_summarise_v2 <- function(x, digits = 2) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Summarise with min and max"
 ex_summarise_v2 <- function(x, digits = 2) {
   result <- c(
     mean = mean(x),
@@ -128,7 +128,7 @@ When you call a function, R matches your arguments in three passes: **exact name
 
 *Figure 2: How R matches call-site arguments to a function's formal parameters, exact name wins, then partial, then position.*
 
-```r
+```r title="Match positional and named arguments"
 greet <- function(name, greeting = "Hello", punctuation = "!") {
   paste0(greeting, ", ", name, punctuation)
 }
@@ -150,14 +150,14 @@ Partial matching feels convenient but breaks when someone adds a new argument wi
 
 **Try it:** Call `greet` with `name = "Lin"` and greeting `"Hey"`, using the punctuation default. Save it to `ex_msg`.
 
-```r
+```r title="Your turn: call greet with named args"
 # ex_msg <- greet(...)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Call greet with named arguments"
 ex_msg <- greet(name = "Lin", greeting = "Hey")
 ex_msg
 #> [1] "Hey, Lin!"
@@ -170,7 +170,7 @@ Passing `name` and `greeting` by name lets R skip the positional order and leave
 
 R returns the value of the **last expression** in the function body automatically. `return()` exists mainly for **early exits**, bailing out before the end of the function. For the happy path, leave it off.
 
-```r
+```r title="Implicit versus early return"
 # Implicit return — the idiomatic R style
 abs_diff <- function(a, b) {
   abs(a - b)
@@ -195,7 +195,7 @@ Two idioms, one rule: use `return()` when you want to stop early. Don't sprinkle
 [KEY INSIGHT]
 A function always returns exactly one object. If you need to return multiple things, wrap them in a `list()`. R has no tuples, lists are how you bundle heterogeneous return values.
 
-```r
+```r title="Return a named list from a fit"
 fit_summary <- function(x, y) {
   m <- lm(y ~ x)
   list(
@@ -218,7 +218,7 @@ fit_summary(1:5, c(2, 4, 5, 4, 6))
 
 **Try it:** Write `ex_range_info(x)` that returns a list with `min`, `max`, and `span` (max minus min). Test on `c(4, 9, 2, 7)`.
 
-```r
+```r title="Your turn: build exrangeinfo"
 ex_range_info <- function(x) {
   # return a list with three elements
 }
@@ -227,7 +227,7 @@ ex_range_info <- function(x) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Range info list solution"
 ex_range_info <- function(x) {
   list(
     min  = min(x),
@@ -257,7 +257,7 @@ When a function needs a variable, R first looks **inside the function**, then in
 
 *Figure 3: R's scope chain. A name is resolved by walking outward from the function's own environment through each enclosing environment until it's found.*
 
-```r
+```r title="Access an outer variable via scope"
 multiplier <- 10
 
 scale_up <- function(x) {
@@ -275,7 +275,7 @@ Never rely on globals inside a function unless it's truly configuration (e.g., `
 
 The second half of lexical scoping is that assignments inside a function **stay inside**, they don't leak out.
 
-```r
+```r title="Local counter versus global"
 counter <- 0
 
 increment <- function() {
@@ -295,7 +295,7 @@ Each call to `increment()` creates its own local `counter`, uses it, and throws 
 
 **Try it:** Define `ex_g <- 100`. Write `ex_shift(x)` that returns `x + ex_g`. Call it with `x = 5`, then set `ex_g <- 200` and call again. What do you predict?
 
-```r
+```r title="Your turn: use an outer variable"
 ex_g <- 100
 ex_shift <- function(x) {
   # use ex_g via scoping
@@ -306,7 +306,7 @@ ex_shift <- function(x) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Outer variable scope solution"
 ex_g <- 100
 ex_shift <- function(x) {
   x + ex_g
@@ -325,7 +325,7 @@ ex_shift(5)
 
 R's built-in operators and most functions are already **vectorised**, they apply element-wise to whole vectors in a single, fast C call. A for-loop in R is dramatically slower because each iteration pays interpreter overhead. The rule: if a vectorised version exists, use it.
 
-```r
+```r title="Vectorised versus looped normalise"
 # Vectorised — fast, idiomatic
 normalise_vec <- function(x) {
   (x - min(x)) / (max(x) - min(x))
@@ -357,7 +357,7 @@ Loops aren't forbidden, they're the right tool when each iteration depends on th
 
 **Try it:** Write `ex_standardise(x)` that returns `(x - mean(x)) / sd(x)`, vectorised, one line. Test on `c(1, 2, 3, 4, 5)`.
 
-```r
+```r title="Your turn: standardise a vector"
 ex_standardise <- function(x) {
   # one line, vectorised
 }
@@ -366,7 +366,7 @@ ex_standardise <- function(x) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Standardise vector solution"
 ex_standardise <- function(x) {
   (x - mean(x)) / sd(x)
 }
@@ -381,7 +381,7 @@ ex_standardise(c(1, 2, 3, 4, 5))
 
 A function that accepts garbage and returns garbage is worse than one that crashes, the silent failure shows up three steps later with no trace of where it started. Validate at the top with `stopifnot()` or explicit `stop()` calls, so bad input fails immediately with a clear message.
 
-```r
+```r title="Validate inputs with stopifnot"
 z_score_safe <- function(x) {
   stopifnot(
     "x must be numeric" = is.numeric(x),
@@ -397,7 +397,7 @@ z_score_safe(c(10, 12, 15, 18, 20))
 
 Each named string in `stopifnot()` is both the condition's description and the error message shown when it fails. If a caller hands in a character vector, they get `Error: x must be numeric` instantly, not a cryptic NaN ten functions downstream.
 
-```r
+```r title="Trigger a validation failure"
 # Watch it fail fast:
 tryCatch(
   z_score_safe("hello"),
@@ -413,7 +413,7 @@ For more structured errors with classes and metadata, see `rlang::abort()`. For 
 
 **Try it:** Write `ex_mean_positive(x)` that returns `mean(x)` but uses `stopifnot()` to require `x` is numeric and all positive.
 
-```r
+```r title="Your turn: validate positive numbers"
 ex_mean_positive <- function(x) {
   # validate then compute
 }
@@ -422,7 +422,7 @@ ex_mean_positive <- function(x) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Positive-only mean solution"
 ex_mean_positive <- function(x) {
   stopifnot(
     "x must be numeric" = is.numeric(x),
@@ -445,7 +445,7 @@ These capstones combine multiple concepts from the sections above. Aim to write 
 
 Write `describe(x, digits = 3)` that returns a named list with `n`, `mean`, `sd`, `min`, `max`, and `range` of a numeric vector. Validate that `x` is numeric and non-empty. Round numeric results to `digits`.
 
-```r
+```r title="Exercise: write describe function"
 # Your solution
 describe <- function(x, digits = 3) {
   # ...
@@ -457,7 +457,7 @@ describe(c(2.1, 4.5, 6.8, 9.2, 11.5))
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="describe function solution"
 describe <- function(x, digits = 3) {
   stopifnot(
     "x must be numeric" = is.numeric(x),
@@ -481,7 +481,7 @@ describe(c(2.1, 4.5, 6.8, 9.2, 11.5))
 
 Write `scale_minmax(x, fallback = 0)` that rescales `x` to `[0, 1]`. If all values of `x` are identical (zero range), return a vector of `fallback` the same length as `x`. Use an early `return()`.
 
-```r
+```r title="Exercise: scaleminmax with fallback"
 scale_minmax <- function(x, fallback = 0) {
   # ...
 }
@@ -493,7 +493,7 @@ scale_minmax(c(5, 5, 5, 5), fallback = 0.5)
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="scaleminmax fallback solution"
 scale_minmax <- function(x, fallback = 0) {
   stopifnot(is.numeric(x), length(x) > 0)
   rng <- max(x) - min(x)
@@ -510,7 +510,7 @@ scale_minmax(c(5, 5, 5, 5), fallback = 0.5)
 
 Write `make_power(exp)` that returns a new function which raises its input to the power `exp`. Use it to build `square` and `cube`.
 
-```r
+```r title="Exercise: makepower factory"
 make_power <- function(exp) {
   # return a function of x
 }
@@ -524,7 +524,7 @@ cube(1:5)
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="makepower factory solution"
 make_power <- function(exp) {
   function(x) x ^ exp
 }
@@ -542,7 +542,7 @@ The inner function "remembers" `exp` because of lexical scoping, that's a closur
 
 Let's put everything together. We'll write `group_stats(df, group_col, value_col)`, a function that takes a data frame, groups by one column, and returns mean and sd for another. It validates inputs, uses sensible defaults, and has an early return for empty data.
 
-```r
+```r title="Build a grouped summary function"
 group_stats <- function(df, group_col, value_col, digits = 2) {
   stopifnot(
     "df must be a data frame" = is.data.frame(df),
@@ -570,7 +570,7 @@ group_stats(mtcars, "cyl", "mpg")
 
 One call, real output. The function is general, swap `"cyl"` for `"gear"` and `"mpg"` for `"hp"` and it just works. That reusability is the whole point.
 
-```r
+```r title="Call groupstats on mtcars"
 group_stats(mtcars, "gear", "hp")
 #>   group   mean    sd
 #> 1     3 176.13 49.00

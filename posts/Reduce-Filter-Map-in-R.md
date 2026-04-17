@@ -26,7 +26,7 @@ You've probably seen purrr's `map()`, `keep()`, and `reduce()` in tutorials. Bas
 
 We'll apply each function to the same input `nums <- 1:5` so the difference in what they produce is obvious from the output.
 
-```r
+```r title="Triad in three one-liners"
 nums <- 1:5
 
 # Reduce: collapse to a single value
@@ -56,7 +56,7 @@ Three functions, three distinct shapes of result. `Reduce` gave back one number,
 
 **Try it:** Given the vector `ex_nums <- c(2, 4, 6, 8)`, call all three functions: Reduce with `"+"`, Filter keeping values greater than 4, and Map doubling each value.
 
-```r
+```r title="Exercise: Triad on an even vector"
 # Try it: run the triad on ex_nums
 ex_nums <- c(2, 4, 6, 8)
 
@@ -71,7 +71,7 @@ ex_nums <- c(2, 4, 6, 8)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Triad on evens solution"
 ex_nums <- c(2, 4, 6, 8)
 Reduce("+", ex_nums)
 #> [1] 20
@@ -101,7 +101,7 @@ Map(function(x) x * 2, ex_nums)
 
 Let's see the sum version spelled out, then push the same pattern to something less obvious.
 
-```r
+```r title="Sum of one to four via Reduce"
 # Sum of 1..4 via Reduce
 Reduce("+", 1:4)
 #> [1] 10
@@ -109,7 +109,7 @@ Reduce("+", 1:4)
 
 That single line does the work of a for-loop with an accumulator. `Reduce` called `+` on 1 and 2, got 3, then called `+` on 3 and 3, got 6, then called `+` on 6 and 4, got 10. The same machinery works for any two-argument function, including ones that don't look like math.
 
-```r
+```r title="Paste letters into one string"
 # Glue characters into one string
 letters_vec <- c("a", "b", "c", "d")
 Reduce(paste, letters_vec)
@@ -120,7 +120,7 @@ Here `Reduce` folded `paste` across the letters, building up `"a b"`, then `"a b
 
 The real-world payoff is operations that need to combine *many* things pairwise. Intersecting three or more vectors is a classic case: `intersect` only takes two arguments at a time, so you'd have to chain it manually. `Reduce` handles the chaining for you.
 
-```r
+```r title="Intersect across three vectors"
 # Find values common to all three vectors
 sets <- list(c(1, 2, 3, 4),
              c(2, 3, 4, 5),
@@ -136,7 +136,7 @@ Reduce(intersect, sets)
 
 **Try it:** Use Reduce to compute the product of `1:5` without calling `prod()`.
 
-```r
+```r title="Exercise: Product via Reduce"
 # Try it: product via Reduce
 ex_result <- # your code here
 
@@ -147,7 +147,7 @@ ex_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Product solution"
 ex_result <- Reduce("*", 1:5)
 ex_result
 #> [1] 120
@@ -161,7 +161,7 @@ ex_result
 
 `Filter` takes a *predicate*, a function that returns `TRUE` or `FALSE` for each element, and hands back only the elements where the predicate was `TRUE`. Think of it as the functional cousin of `x[condition]`. It shines when the condition is easier to express as a function than as a boolean expression.
 
-```r
+```r title="Filter keeps even numbers"
 # Keep only even numbers
 Filter(function(x) x %% 2 == 0, 1:10)
 #>  [1]  2  4  6  8 10
@@ -171,7 +171,7 @@ The predicate here is `function(x) x %% 2 == 0`. `Filter` ran it on every elemen
 
 Filter is especially handy with heterogeneous lists, where writing a single boolean expression wouldn't even work because the elements aren't all the same type.
 
-```r
+```r title="Filter a mixed list by type"
 # Filter a mixed list by type
 mixed <- list(1, "a", TRUE, 3.14, "hi", 7L)
 Filter(is.numeric, mixed)
@@ -189,7 +189,7 @@ Notice that `is.numeric` caught the integer `7L` as well as the double `3.14`. `
 
 A practical example from everyday R work: suppose you've split a data frame into a list of sub-data-frames and want to discard the ones that are too small to analyse.
 
-```r
+```r title="Drop small data frames with Filter"
 # Drop data frames with fewer than 10 rows
 dfs <- split(iris, iris$Species)
 big_dfs <- Filter(function(d) nrow(d) >= 10, dfs)
@@ -204,7 +204,7 @@ All three species groups survived the filter because `iris` has 50 rows per spec
 
 **Try it:** Filter the words longer than 4 characters from `ex_words <- c("cat", "tiger", "dog", "cheetah", "ox")`.
 
-```r
+```r title="Exercise: Keep words over four letters"
 # Try it: keep long words
 ex_words <- c("cat", "tiger", "dog", "cheetah", "ox")
 
@@ -216,7 +216,7 @@ ex_long
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Long words solution"
 ex_words <- c("cat", "tiger", "dog", "cheetah", "ox")
 ex_long <- Filter(function(w) nchar(w) > 4, ex_words)
 ex_long
@@ -231,7 +231,7 @@ ex_long
 
 `Map` applies a function element-wise to one or more vectors and *always* returns a list. The "one or more" part is the key feature: with two inputs, `Map` walks them in parallel, passing the first elements of each to your function, then the second, and so on.
 
-```r
+```r title="Map over two vectors in parallel"
 # Parallel iteration over two vectors
 Map(function(x, y) x + y, 1:3, 4:6)
 #> [[1]]
@@ -248,7 +248,7 @@ Map(function(x, y) x + y, 1:3, 4:6)
 
 `sapply` does the same element-wise work but tries to simplify its result. Comparing them side-by-side makes the difference obvious.
 
-```r
+```r title="Map versus sapply return types"
 # Map vs sapply
 Map(function(x) x^2, 1:4)
 #> [[1]]
@@ -271,7 +271,7 @@ Same computation, different packaging. `sapply` collapsed the four scalars into 
 
 A natural fit for `Map` is applying a summary function to every column of a data frame at once.
 
-```r
+```r title="Column means with Map"
 # Mean of each numeric column in iris
 Map(mean, iris[1:4])
 #> $Sepal.Length
@@ -294,7 +294,7 @@ Because a data frame *is* a list of columns, `Map(mean, iris[1:4])` just runs `m
 
 **Try it:** Use Map to paste each element of `ex_first` with the corresponding element of `ex_last` into a full name.
 
-```r
+```r title="Exercise: Parallel paste of names"
 # Try it: parallel paste with Map
 ex_first <- c("Ada", "Alan", "Grace")
 ex_last  <- c("Lovelace", "Turing", "Hopper")
@@ -308,7 +308,7 @@ ex_names
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Parallel paste solution"
 ex_first <- c("Ada", "Alan", "Grace")
 ex_last  <- c("Lovelace", "Turing", "Hopper")
 ex_names <- Map(function(f, l) paste(f, l), ex_first, ex_last)
@@ -331,7 +331,7 @@ ex_names
 
 By default `Reduce` throws away the running result and gives you only the final value. Set `accumulate = TRUE` and it returns the running result at each step, a cumulative trace of the reduction. This unlocks a whole family of "running totals" without writing a loop.
 
-```r
+```r title="Running sum with accumulate"
 # Running sum of 1..5
 Reduce("+", 1:5, accumulate = TRUE)
 #> [1]  1  3  6 10 15
@@ -339,7 +339,7 @@ Reduce("+", 1:5, accumulate = TRUE)
 
 The first entry is `1` (just the first element), the second is `1+2=3`, the third is `3+3=6`, and so on until the final `15`. That's exactly what `cumsum(1:5)` produces, and for sums, products, mins, and maxes, the `cum*` shortcuts are shorter. `Reduce(accumulate=TRUE)` earns its keep when the step function is custom, like a running max:
 
-```r
+```r title="Running max via Reduce"
 # Running max via Reduce + accumulate
 Reduce(max, c(3, 1, 4, 1, 5, 9, 2, 6), accumulate = TRUE)
 #> [1] 3 3 4 4 5 9 9 9
@@ -349,7 +349,7 @@ Every position shows the largest value seen up to that point. The running max ne
 
 You can also fold from the right instead of the left by setting `right = TRUE`, which changes the associativity of the operation.
 
-```r
+```r title="Right-to-left reduction"
 # Right-to-left reduction
 Reduce("-", 1:4)
 #> [1] -8
@@ -365,7 +365,7 @@ Reduce("-", 1:4, right = TRUE)
 
 **Try it:** Use Reduce with `accumulate = TRUE` to compute the running minimum of `ex_stream <- c(8, 3, 5, 1, 4, 1, 2)`.
 
-```r
+```r title="Exercise: Running min with Reduce"
 # Try it: running min
 ex_stream <- c(8, 3, 5, 1, 4, 1, 2)
 
@@ -377,7 +377,7 @@ ex_running_min
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Running min solution"
 ex_stream <- c(8, 3, 5, 1, 4, 1, 2)
 ex_running_min <- Reduce(min, ex_stream, accumulate = TRUE)
 ex_running_min
@@ -407,7 +407,7 @@ Here is the direct mapping between the two families:
 
 The side-by-side below shows the same task written both ways. They produce the same answer, but the reading experience is different.
 
-```r
+```r title="Base Reduce versus purrr reduce"
 library(purrr)
 
 # Sum with base R
@@ -432,7 +432,7 @@ So when does base R's triad win? In three situations:
 
 **Try it:** Rewrite the purrr expression `keep(1:10, function(x) x > 5)` using base R's Filter.
 
-```r
+```r title="Exercise: Translate purrr to base"
 # Try it: purrr -> base R
 ex_big <- # your code here
 ex_big
@@ -442,7 +442,7 @@ ex_big
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Translate to base solution"
 ex_big <- Filter(function(x) x > 5, 1:10)
 ex_big
 #> [1]  6  7  8  9 10
@@ -458,7 +458,7 @@ ex_big
 
 Given `my_nums <- list(c(1, 2, 3), c(4, 5, 6), c(7, 8, 9))`, use Reduce to compute a single vector containing the element-wise sum: `c(12, 15, 18)`. Save the result to `my_result1`.
 
-```r
+```r title="Exercise: Element-wise sum of vectors"
 # Exercise 1: element-wise sum across a list of vectors
 # Hint: Reduce chains a two-argument function; "+" on two vectors adds element-wise
 
@@ -471,7 +471,7 @@ my_result1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Element-wise sum solution"
 my_nums <- list(c(1, 2, 3), c(4, 5, 6), c(7, 8, 9))
 my_result1 <- Reduce("+", my_nums)
 my_result1
@@ -486,7 +486,7 @@ my_result1
 
 Write a function `summarize_cols(df)` that returns a named list giving the mean of every *numeric* column in `df`. Use Filter to drop non-numeric columns, then Map to compute each mean. No for-loops. Test it on `iris`.
 
-```r
+```r title="Exercise: Summarise numeric columns"
 # Exercise 2: summarize only the numeric columns
 # Hint: Filter(is.numeric, df) keeps the numeric columns; Map(mean, ...) averages them
 
@@ -500,7 +500,7 @@ summarize_cols(iris)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Summarise numeric columns solution"
 summarize_cols <- function(df) {
   numeric_cols <- Filter(is.numeric, df)
   Map(mean, numeric_cols)
@@ -528,7 +528,7 @@ summarize_cols(iris)
 
 A vector `my_txn <- c(100, -40, -10, 50, -20, 75)` represents deposits (positive) and withdrawals (negative). Use Reduce with `accumulate = TRUE` to produce the balance after each transaction. Save the result to `my_balance`.
 
-```r
+```r title="Exercise: Running transaction balance"
 # Exercise 3: running balance
 # Hint: the step function is just "+", and accumulate = TRUE keeps every intermediate total
 
@@ -541,7 +541,7 @@ my_balance
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Running balance solution"
 my_txn <- c(100, -40, -10, 50, -20, 75)
 my_balance <- Reduce("+", my_txn, accumulate = TRUE)
 my_balance
@@ -556,7 +556,7 @@ my_balance
 
 Let's put all three functions together in one end-to-end pipeline. The task: given `iris` split by `Species`, drop any species group smaller than 10 rows (there won't be any, but we'll check anyway), compute the mean sepal length for each surviving group, and then combine those means into a single overall average.
 
-```r
+```r title="End-to-end iris species pipeline"
 # Step 1: split iris into a list of data frames, one per species
 species_dfs <- split(iris, iris$Species)
 

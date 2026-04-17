@@ -26,7 +26,7 @@ Most R users never think about environments. You type `x <- 5`, and `x` just exi
 
 Think of an environment like a named list with one extra field, a parent. When R looks up a variable, it peeks at the current environment's bindings first, then follows the parent pointer, then the parent's parent, and so on. The fastest way to see that structure is to build one with `rlang` and print it.
 
-```r
+```r title="Build an env with three bindings"
 library(rlang)
 
 # Create an environment and bind three variables into it
@@ -52,7 +52,7 @@ env_names(my_env)
 
 **Try it:** Build an environment called `ex_env` holding `a = 1`, `b = 2`, `c = 3`, and print its names.
 
-```r
+```r title="Exercise: env with a, b, c"
 # Try it
 ex_env <- new_environment(list(
   # your code here
@@ -65,7 +65,7 @@ env_names(ex_env)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-binding solution"
 ex_env <- new_environment(list(a = 1, b = 2, c = 3))
 env_names(ex_env)
 #> [1] "a" "b" "c"
@@ -79,7 +79,7 @@ env_names(ex_env)
 
 When a function references a name it didn't define itself, R doesn't give up, it walks the chain of parent environments until it either finds the name or runs out of parents. That walk is called **lexical scoping**, and every R expression depends on it.
 
-```r
+```r title="Lexical lookup through the search path"
 # Define x in the interactive workspace
 x <- 100
 
@@ -110,7 +110,7 @@ When `show_x()` runs, R can't find `x` in the function's own (empty) execution e
 
 **Try it:** Call `search()` and count how many environments R would walk through before hitting `package:base`.
 
-```r
+```r title="Exercise: length of search()"
 # Try it
 length(search())
 #> Expected: a number around 10 (depends on attached packages)
@@ -119,7 +119,7 @@ length(search())
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Search-length solution"
 length(search())
 #> [1] 10
 tail(search(), 1)
@@ -134,7 +134,7 @@ tail(search(), 1)
 
 R keeps four environments that every session has by name. You'll meet them in error messages, stack traces, and namespace warnings, worth knowing them on sight.
 
-```r
+```r title="Global, base, and empty environments"
 # The interactive workspace — where you type
 globalenv()
 #> <environment: R_GlobalEnv>
@@ -160,7 +160,7 @@ tryCatch(parent.env(emptyenv()),
 
 **Try it:** Print the parent of `baseenv()` and confirm it is `emptyenv()`.
 
-```r
+```r title="Exercise: base parent is emptyenv"
 # Try it
 identical(parent.env(baseenv()), emptyenv())
 #> Expected: TRUE
@@ -169,7 +169,7 @@ identical(parent.env(baseenv()), emptyenv())
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Base-parent solution"
 parent.env(baseenv())
 #> <environment: R_EmptyEnv>
 
@@ -185,7 +185,7 @@ identical(parent.env(baseenv()), emptyenv())
 
 Every time you call a function, R creates a brand-new environment to hold its arguments and locals, runs the function body against it, and throws it away when the function returns. That temporary home is called the **execution environment**, and it's why local variables never leak between calls.
 
-```r
+```r title="Inspect an execution environment"
 f <- function() {
   a <- 1
   b <- 2
@@ -209,7 +209,7 @@ Inside `f()`, `environment()` returns the execution environment that R just buil
 
 **Try it:** Write a function `ex_show_locals()` that defines two variables and prints `ls(environment())`.
 
-```r
+```r title="Exercise: list locals inside a function"
 # Try it
 ex_show_locals <- function() {
   # your code here
@@ -222,7 +222,7 @@ ex_show_locals()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="List-locals solution"
 ex_show_locals <- function() {
   first <- "hello"
   second <- "world"
@@ -241,7 +241,7 @@ ex_show_locals()
 
 A **closure** is a function that remembers the environment where it was defined. Because R ties a function's parent pointer to its birth environment, a function can carry private state with it, even after the factory that created it has finished running. This is how stateful helpers like counters, caches, and progress bars work.
 
-```r
+```r title="Counter closure remembers its count"
 make_counter <- function() {
   count <- 0
   function() {
@@ -273,7 +273,7 @@ env_print(fn_env(tally))
 
 **Try it:** Write `ex_make_adder(n)` that returns a function adding `n` to its input. Call it with `ex_make_adder(5)(10)`.
 
-```r
+```r title="Exercise: closure-based adder"
 # Try it
 ex_make_adder <- function(n) {
   # your code here
@@ -287,7 +287,7 @@ add_five(10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Closure-adder solution"
 ex_make_adder <- function(n) {
   function(x) x + n
 }
@@ -305,7 +305,7 @@ add_five(10)
 
 Environments are the only R data structure with **reference semantics**, assigning one environment to another name does not copy the contents. That makes them perfect for shared mutable state (caches, counters, registries) but also a common source of bugs for readers expecting copy-on-modify.
 
-```r
+```r title="Environments as reference-semantic caches"
 # Create an empty environment and use it like a mutable store
 cache <- new.env()
 cache$pi_approx <- 3.14159
@@ -339,7 +339,7 @@ Writing to `cache2$new_key` mutates the one shared environment, so `cache` sees 
 
 **Try it:** Add a new binding `capital <- "London"` to `cache` and verify it shows up in `cache2`.
 
-```r
+```r title="Exercise: add a binding via alias"
 # Try it
 cache$capital <- "London"
 # your verification here
@@ -349,7 +349,7 @@ cache$capital <- "London"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Aliased-binding solution"
 cache$capital <- "London"
 env_has(cache2, "capital")
 #> capital
@@ -366,7 +366,7 @@ env_has(cache2, "capital")
 
 Write `ex_env_chain(e)` that prints each environment from `e` up to `emptyenv()`. Test it on `globalenv()`.
 
-```r
+```r title="Exercise: print the parent chain"
 # Exercise 1: climb the parent ladder
 # Hint: use a repeat loop and identical(e, emptyenv())
 
@@ -381,7 +381,7 @@ ex_env_chain(globalenv())
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Parent-chain solution"
 ex_env_chain <- function(e) {
   repeat {
     print(e)
@@ -406,7 +406,7 @@ ex_env_chain(globalenv())
 
 Write `ex_make_bank(initial)` that returns a list of three closures, `deposit(n)`, `withdraw(n)`, and `balance()`, all sharing a single private balance variable.
 
-```r
+```r title="Exercise: bank with three closures"
 # Exercise 2: three closures, one shared env
 # Hint: define `bal <- initial`, return a list of inner functions
 
@@ -424,7 +424,7 @@ acct$balance()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bank-account solution"
 ex_make_bank <- function(initial) {
   bal <- initial
   list(
@@ -449,7 +449,7 @@ acct$balance()
 
 Write `ex_memoise(f)` that returns a wrapper which caches results in a private environment keyed by the input. Test it on a squaring function.
 
-```r
+```r title="Exercise: memoise with an env cache"
 # Exercise 3: memoisation via environment-as-cache
 # Hint: store each result as cache[[as.character(x)]]
 
@@ -466,7 +466,7 @@ fast_square(7)   # second call is an instant cache hit
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Memoise solution"
 ex_memoise <- function(f) {
   cache <- new.env()
   function(x) {
@@ -493,7 +493,7 @@ fast_square(7)   # cache hit
 
 Let's tie the whole chapter together by building a tiny logger factory. Each logger holds its own private environment containing a character vector of lines and a count, and exposes closures to append, count, and flush the log as a data frame.
 
-```r
+```r title="Logger factory with private state"
 make_logger <- function(name) {
   state <- new.env()
   state$lines <- character()

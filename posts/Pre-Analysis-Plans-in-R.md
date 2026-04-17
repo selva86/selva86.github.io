@@ -26,7 +26,7 @@ A PAP is short, structured, and almost boring on purpose. The point is not liter
 
 The six standard components fit comfortably in a named list. We'll wrap that list in a tibble so the structure prints cleanly in the console.
 
-```r
+```r title="Build a basic PAP list"
 library(tibble)
 
 pap <- list(
@@ -57,7 +57,7 @@ That is a complete pre-analysis plan, in fewer lines than most people's data-loa
 
 **Try it:** Add a seventh component called `sample_size_justification` with a short note like `"Power=0.80 to detect d=0.5, alpha=0.05, t-test"`, then re-render the tibble.
 
-```r
+```r title="Exercise: add sample size justification"
 # Try it: add the sample_size_justification component
 ex_pap <- list(
   research_question = "Does 200mg caffeine improve simple reaction time?",
@@ -76,7 +76,7 @@ enframe(ex_pap, name = "Component", value = "Specification")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sample-size-justification solution"
 ex_pap <- list(
   research_question = "Does 200mg caffeine improve simple reaction time?",
   hypotheses        = "Caffeine group will be faster than placebo (one-tailed)",
@@ -100,7 +100,7 @@ A vague hypothesis like "caffeine affects performance" is useless. After you see
 
 The trick is to encode each hypothesis as a structured list, not prose. Lists force you to fill in the missing fields.
 
-```r
+```r title="Lock hypotheses with direction"
 h1 <- list(
   id          = "H1",
   statement   = "Caffeine reduces mean reaction time vs placebo",
@@ -131,7 +131,7 @@ There are no escape hatches in those specs. `direction = "less"` means a faster 
 
 Now make the decision rule executable. A small helper takes a hypothesis spec plus a fitted model and returns a verdict string.
 
-```r
+```r title="Verdict function for hypotheses"
 check_hypothesis <- function(h, fit) {
   if (h$test != "t.test") return("skipped (non-t test)")
   p <- fit$p.value
@@ -156,7 +156,7 @@ The output is the whole point: a verdict that came out of a function you wrote *
 
 **Try it:** Add a third hypothesis `ex_h3` claiming caffeine *increases* reaction time (`direction = "greater"`), wrap it in a list, and call `check_hypothesis(ex_h3, fake_fit)`. Confirm the verdict flips to `"not supported"` because the same data can't support both directions.
 
-```r
+```r title="Exercise: opposite-direction hypothesis"
 # Try it: opposite-direction hypothesis
 ex_h3 <- list(
   id        = "H3",
@@ -171,7 +171,7 @@ check_hypothesis(ex_h3, fake_fit)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Opposite-direction solution"
 ex_h3 <- list(
   id        = "H3",
   statement = "Caffeine slows reaction time vs placebo",
@@ -195,7 +195,7 @@ Prose plans are easy to wiggle out of. Code is much harder. The trick that makes
 
 Start by simulating data that looks like what you expect to collect.
 
-```r
+```r title="Simulate caffeine study data"
 set.seed(2026)
 
 n_per_group <- 40
@@ -216,7 +216,7 @@ head(sim_data, 3)
 
 Now write the planned analysis as a function whose inputs and outputs are explicit. Every number you intend to report goes into the return value, nothing is computed ad-hoc later.
 
-```r
+```r title="Write the planned analysis function"
 planned_analysis <- function(data) {
   fit <- t.test(rt_ms ~ group, data = data, alternative = "less")
   list(
@@ -241,7 +241,7 @@ sim_results$p_value
 
 To freeze the function, write its source to a file and compute an MD5 checksum. The hash becomes the PAP's tamper-evident seal.
 
-```r
+```r title="Hash the analysis code"
 code_path <- tempfile(fileext = ".R")
 writeLines(deparse(planned_analysis), code_path)
 
@@ -258,7 +258,7 @@ The hash now lives inside the PAP itself. If anyone, including future-you, modif
 
 **Try it:** Modify `planned_analysis()` so it also returns the median reaction time per group (call it `ex_planned_analysis`). Recompute the hash. Confirm the new hash is different from `code_hash`.
 
-```r
+```r title="Exercise: add medians and re-hash"
 # Try it: add medians, re-hash
 ex_planned_analysis <- function(data) {
   fit <- t.test(rt_ms ~ group, data = data, alternative = "less")
@@ -283,7 +283,7 @@ identical(ex_hash, code_hash)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Medians-rehash solution"
 ex_planned_analysis <- function(data) {
   fit <- t.test(rt_ms ~ group, data = data, alternative = "less")
   list(
@@ -315,7 +315,7 @@ A PAP isn't real until it lives somewhere you can't quietly edit it. The standar
 
 The R-friendly way to produce that upload is to serialize the PAP list to JSON. Pretty-print it so a human reviewer can read it directly.
 
-```r
+```r title="Convert PAP to JSON"
 library(jsonlite)
 
 pap_json <- toJSON(pap, pretty = TRUE, auto_unbox = TRUE)
@@ -335,7 +335,7 @@ That string is the whole artifact. Save it to a file, upload it to OSF, copy the
 
 **Try it:** Add an `osf_link` field to the PAP with the placeholder URL `"https://osf.io/PLACEHOLDER"` and re-serialize. Confirm the new field appears in the JSON.
 
-```r
+```r title="Exercise: stamp the OSF link"
 # Try it: stamp the OSF link onto the PAP
 ex_pap_json <- pap
 ex_pap_json$osf_link <- # your code here
@@ -347,7 +347,7 @@ cat(toJSON(ex_pap_json, pretty = TRUE, auto_unbox = TRUE))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="OSF-stamp solution"
 ex_pap_json <- pap
 ex_pap_json$osf_link <- "https://osf.io/PLACEHOLDER"
 
@@ -372,7 +372,7 @@ Build the log as a small data frame with four columns: when, what, why, and how 
 ![The five stages of a pre-analysis plan workflow.](screenshots/Pre-Analysis-Plans-in-R-workflow.webp)
 *Figure 1: The five stages of a pre-analysis plan workflow, from writing the plan to logging deviations after data collection.*
 
-```r
+```r title="Log deviations with a data frame"
 deviations <- data.frame(
   date              = c("2026-04-15", "2026-04-22"),
   what_changed      = c("Switched from t-test to Welch t-test",
@@ -399,7 +399,7 @@ Two rows, four columns, every deviation accounted for. When you write the paper,
 
 **Try it:** Append a third deviation row dated `"2026-04-25"` documenting the addition of a `caffeine_tolerance` covariate. Use `rbind()`.
 
-```r
+```r title="Exercise: append a third deviation"
 # Try it: append a third deviation
 ex_deviations <- deviations
 new_row <- data.frame(
@@ -417,7 +417,7 @@ nrow(ex_deviations)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Third-deviation solution"
 ex_deviations <- deviations
 new_row <- data.frame(
   date              = "2026-04-25",
@@ -449,7 +449,7 @@ Given a list of hypothesis specs (use `hypotheses` from earlier in this tutorial
 
 Combine list iteration with `sprintf()` and `paste(..., collapse = "\n")`.
 
-```r
+```r title="Exercise: hypotheses as markdown"
 # Exercise: format hypotheses as a Markdown checklist
 # Hint: use sprintf() inside sapply(), then paste with collapse="\n"
 
@@ -464,7 +464,7 @@ cat(pap_to_markdown(hypotheses))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hypotheses-markdown solution"
 pap_to_markdown <- function(hs) {
   lines <- sapply(seq_along(hs), function(i) {
     h <- hs[[i]]
@@ -496,7 +496,7 @@ Write `pap_audit(pap, deviations, code_file)` that returns a small audit tibble 
 
 Use the PAP we built earlier and the `deviations` data frame as inputs.
 
-```r
+```r title="Exercise: PAP audit function"
 # Exercise: PAP audit function
 # Hint: tibble() takes named vectors; check pap$osf_link with is.null() and nzchar()
 
@@ -517,7 +517,7 @@ pap_audit(pap, deviations, audit_path)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="PAP-audit solution"
 pap_audit <- function(pap, deviations, code_file) {
   current_hash <- unname(tools::md5sum(code_file))
   tibble::tibble(
@@ -555,7 +555,7 @@ pap_audit(pap, deviations, audit_path)
 
 Here is the whole pipeline for a fictional study, *Does standing-desk usage reduce afternoon fatigue?*, from PAP to deviation log, in one self-contained script. Distinct variable names (`study_*`) keep it isolated from the tutorial state above.
 
-```r
+```r title="End-to-end standing-desk study"
 # 1. Build the PAP
 study_pap <- list(
   research_question = "Does daily standing-desk use reduce afternoon fatigue?",

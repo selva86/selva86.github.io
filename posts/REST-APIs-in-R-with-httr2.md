@@ -53,7 +53,7 @@ Getting started with httr2 takes three steps: install the package, create a requ
 
 Let's start with a simple GET request to httpbin.org, a free testing service that echoes back whatever you send it.
 
-```r
+```r title="First GET request with httr2"
 # Install and load httr2
 install.packages("httr2")
 library(httr2)
@@ -90,7 +90,7 @@ A status code of 200 means success. The response body shows the request headers 
 
 Now let's call a real API. The Dog CEO API returns a random dog image URL with no authentication required.
 
-```r
+```r title="Fetch a random dog image"
 # Get a random dog image
 dog_resp <- request("https://dog.ceo/api/breeds/image/random") |>
   req_perform()
@@ -114,7 +114,7 @@ Many APIs require query parameters, the `?key=value` pairs at the end of a URL. 
 
 Let's fetch weather data from the Open-Meteo API, which provides free weather forecasts without authentication. It requires latitude, longitude, and the variables you want as query parameters.
 
-```r
+```r title="Weather query parameters"
 # Fetch current temperature for London
 weather_resp <- request("https://api.open-meteo.com/v1/forecast") |>
   req_url_query(
@@ -137,7 +137,7 @@ The `req_url_query()` function builds the URL `https://api.open-meteo.com/v1/for
 
 Custom headers tell the server about your client. The most important ones are `Accept` (what format you want back) and `User-Agent` (who you are).
 
-```r
+```r title="Custom headers with reqheaders"
 # Add custom headers to a request
 header_resp <- request("https://httpbin.org/headers") |>
   req_headers(
@@ -161,7 +161,7 @@ GET requests retrieve data. POST requests send data to the server, for creating 
 
 Let's POST a JSON payload to httpbin.org, which echoes it back so you can verify what was sent.
 
-```r
+```r title="POST JSON body with reqbodyjson"
 # POST JSON data
 post_resp <- request("https://httpbin.org/post") |>
   req_body_json(list(
@@ -188,7 +188,7 @@ Notice that you did not need to call `req_method("POST")`. When you add a body w
 
 For APIs that expect form-encoded data (like HTML forms), use `req_body_form()` instead.
 
-```r
+```r title="POST form-encoded body"
 # POST form-encoded data
 form_resp <- request("https://httpbin.org/post") |>
   req_body_form(
@@ -208,7 +208,7 @@ The difference is the Content-Type header. `req_body_json()` sends `application/
 
 For PUT and DELETE requests, add `req_method()` to your pipe chain.
 
-```r
+```r title="PUT request with reqmethod"
 # PUT request (update a resource)
 put_resp <- request("https://httpbin.org/put") |>
   req_body_json(list(name = "Alice", language = "Python")) |>
@@ -229,7 +229,7 @@ Most production APIs require authentication. The three most common methods are A
 
 **API keys** are the simplest. The API gives you a string, and you include it in every request, either as a query parameter or a header. Here is the query parameter approach.
 
-```r
+```r title="API key via query parameter"
 # API key as a query parameter
 # Store your key in .Renviron: WEATHER_API_KEY=your_key_here
 api_key <- Sys.getenv("WEATHER_API_KEY")
@@ -241,7 +241,7 @@ key_resp <- request("https://api.example.com/data") |>
 
 **Bearer tokens** are used by APIs that issue short-lived access tokens. You include the token in the Authorization header. httr2 provides a convenience function for this.
 
-```r
+```r title="Bearer token authentication"
 # Bearer token authentication
 token <- Sys.getenv("MY_API_TOKEN")
 
@@ -254,7 +254,7 @@ The `req_auth_bearer_token()` function adds the header `Authorization: Bearer <t
 
 **OAuth 2.0** is the most complex authentication flow. It involves registering your app, redirecting the user to a login page, receiving an authorization code, and exchanging it for an access token. httr2 handles the entire flow.
 
-```r
+```r title="OAuth two authorization code flow"
 # OAuth 2.0 authorization code flow
 client <- oauth_client(
   id = Sys.getenv("OAUTH_CLIENT_ID"),
@@ -282,7 +282,7 @@ APIs fail. Servers go down, rate limits get hit, and networks drop. httr2 provid
 
 By default, httr2 converts any 4xx or 5xx HTTP status code into an R error. This means a failed request stops your script immediately instead of silently returning bad data. You can customize the error message to include details from the API's response body.
 
-```r
+```r title="Custom error messages with reqerror"
 # Custom error handling
 err_resp <- request("https://httpbin.org/status/404") |>
   req_error(body = function(resp) {
@@ -298,7 +298,7 @@ The `body` argument to `req_error()` is a function that receives the response an
 
 For transient errors (server overload, network timeouts), add `req_retry()` to automatically retry failed requests with exponential backoff.
 
-```r
+```r title="Automatic retries with backoff"
 # Automatic retries with backoff
 retry_resp <- request("https://httpbin.org/status/503") |>
   req_retry(
@@ -312,7 +312,7 @@ httr2 will attempt the request up to 3 times, waiting 1 second before the first 
 
 To prevent hitting rate limits in the first place, use `req_throttle()`. This limits how many requests httr2 sends per second.
 
-```r
+```r title="Rate limit with reqthrottle"
 # Rate limiting: max 1 request per second
 throttled_resp <- request("https://httpbin.org/get") |>
   req_throttle(rate = 1) |>  # 1 request per second
@@ -330,7 +330,7 @@ Many APIs return data in pages. A search might match 10,000 records, but the API
 
 Here is the manual approach using an offset-based API. This works with any API that accepts `page` or `offset` parameters.
 
-```r
+```r title="Manual pagination loop"
 # Manual pagination loop
 library(httr2)
 
@@ -364,7 +364,7 @@ This loop fetches 20 Pokemon per page, appending results to a list. It stops whe
 
 For APIs that follow standard pagination patterns, `req_perform_iterative()` automates the loop. You provide a callback that tells httr2 how to build the next request from the current response.
 
-```r
+```r title="Automatic pagination iterator"
 # Automatic pagination with req_perform_iterative()
 resps <- request("https://pokeapi.co/api/v2/pokemon") |>
   req_url_query(limit = 20) |>
@@ -404,7 +404,7 @@ The `iterate_with_offset()` helper increments the offset parameter by 20 each ti
 
 The `request()` function and all `req_*()` functions return a request object, they do not send anything. The request sits idle until you call `req_perform()`.
 
-```r
+```r title="Mistake: Forgetting reqperform"
 # Wrong: this creates a request object but never sends it
 resp <- request("https://httpbin.org/get") |>
   req_headers(Accept = "application/json")
@@ -415,7 +415,7 @@ class(resp)
 
 **Why it is wrong:** The variable `resp` contains a request, not a response. Calling `resp_body_json(resp)` on it will throw an error because it is not a response object.
 
-```r
+```r title="Correct: Add reqperform to send"
 # Correct: add req_perform() to send the request
 resp <- request("https://httpbin.org/get") |>
   req_headers(Accept = "application/json") |>
@@ -429,7 +429,7 @@ resp_status(resp)
 
 Some programmers extract the body as text and then call `jsonlite::fromJSON()`. This works but skips httr2's built-in parsing and error checking.
 
-```r
+```r title="Mistake: Manual jsonlite parsing"
 # Inefficient: manual JSON parsing
 raw_text <- resp_body_string(resp)
 data <- jsonlite::fromJSON(raw_text)
@@ -437,14 +437,14 @@ data <- jsonlite::fromJSON(raw_text)
 
 **Why it is wrong:** `resp_body_json()` handles character encoding, checks the Content-Type header, and integrates with httr2's error system. Manual parsing bypasses all of this.
 
-```r
+```r title="Correct: Use respbodyjson directly"
 # Correct: use resp_body_json() directly
 data <- resp_body_json(resp)
 ```
 
 ### Mistake 3: Hard-coding API keys in your script
 
-```r
+```r title="Mistake: Hardcoded API key"
 # Wrong: key visible in source code
 resp <- request("https://api.example.com/data") |>
   req_url_query(api_key = "sk-abc123secret") |>
@@ -453,7 +453,7 @@ resp <- request("https://api.example.com/data") |>
 
 **Why it is wrong:** If you commit this file to Git, your key is exposed to anyone with repository access. Automated scanners on GitHub detect leaked keys within minutes.
 
-```r
+```r title="Correct: Read key from environment"
 # Correct: read from environment variable
 resp <- request("https://api.example.com/data") |>
   req_url_query(api_key = Sys.getenv("MY_API_KEY")) |>
@@ -462,7 +462,7 @@ resp <- request("https://api.example.com/data") |>
 
 ### Mistake 4: Not throttling requests in a loop
 
-```r
+```r title="Mistake: No throttle in loop"
 # Wrong: hammering the API as fast as possible
 for (i in 1:1000) {
   resp <- request(paste0("https://api.example.com/item/", i)) |>
@@ -472,7 +472,7 @@ for (i in 1:1000) {
 
 **Why it is wrong:** Most APIs enforce rate limits (e.g., 60 requests per minute). Exceeding them results in 429 errors and potential IP bans.
 
-```r
+```r title="Correct: Throttle each request"
 # Correct: throttle requests
 for (i in 1:1000) {
   resp <- request(paste0("https://api.example.com/item/", i)) |>
@@ -483,7 +483,7 @@ for (i in 1:1000) {
 
 ### Mistake 5: Assuming every response contains valid data
 
-```r
+```r title="Mistake: Parse without status check"
 # Wrong: parsing without checking status
 resp <- request("https://api.example.com/data") |>
   req_error(is_error = ~ FALSE) |>  # suppress auto-errors
@@ -494,7 +494,7 @@ data <- resp_body_json(resp)  # might parse an error message as "data"
 
 **Why it is wrong:** If you suppress automatic error checking with `req_error(is_error = ~ FALSE)`, a 404 or 500 response still returns a body, but it contains an error message, not your data. Your downstream code processes garbage.
 
-```r
+```r title="Correct: Let httr2 auto-error"
 # Correct: check status before parsing
 resp <- request("https://api.example.com/data") |>
   req_perform()  # auto-throws on 4xx/5xx
@@ -508,7 +508,7 @@ data <- resp_body_json(resp)  # only reached if status is 2xx
 
 Use httr2 to call the Dog CEO API at `https://dog.ceo/api/breeds/image/random` and extract just the image URL from the response. Print it to the console.
 
-```r
+```r title="Exercise: Fetch dog image URL"
 # Exercise: fetch a random dog image URL
 # Hint: use request() |> req_perform() |> resp_body_json()
 
@@ -519,7 +519,7 @@ Use httr2 to call the Dog CEO API at `https://dog.ceo/api/breeds/image/random` a
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dog image URL solution"
 library(httr2)
 
 my_resp <- request("https://dog.ceo/api/breeds/image/random") |>
@@ -538,7 +538,7 @@ cat("Dog image URL:", my_data$message, "\n")
 
 Use the Open-Meteo API (`https://api.open-meteo.com/v1/forecast`) to fetch the current temperature for Paris (lat 48.8566, lon 2.3522) and Tokyo (lat 35.6762, lon 139.6503). Print both temperatures and which city is warmer.
 
-```r
+```r title="Exercise: Compare two city temperatures"
 # Exercise: compare temperatures in two cities
 # Hint: make two separate requests with req_url_query(latitude, longitude, current = "temperature_2m")
 
@@ -549,7 +549,7 @@ Use the Open-Meteo API (`https://api.open-meteo.com/v1/forecast`) to fetch the c
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-city temperatures solution"
 library(httr2)
 
 get_temp <- function(lat, lon, city) {
@@ -584,7 +584,7 @@ cat("Warmer city:", warmer, "\n")
 
 Send a POST request to `https://httpbin.org/post` with a JSON body containing your name and a list of three favourite R packages. Parse the response and verify that the echoed JSON matches what you sent.
 
-```r
+```r title="Exercise: POST JSON and verify echo"
 # Exercise: POST JSON data and verify the echo
 # Hint: use req_body_json(list(...)) and check resp_body_json()$json
 
@@ -595,7 +595,7 @@ Send a POST request to `https://httpbin.org/post` with a JSON body containing yo
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="POST JSON echo solution"
 library(httr2)
 
 my_payload <- list(
@@ -624,7 +624,7 @@ cat("Match:", identical(my_echo$name, "Student"), "\n")
 
 Fetch the first 60 Pokemon names from `https://pokeapi.co/api/v2/pokemon` using a manual pagination loop with `limit=20` per page. Store all names in a character vector and print the first 10.
 
-```r
+```r title="Exercise: Paginate sixty Pokemon names"
 # Exercise: paginate through 3 pages of the PokeAPI
 # Hint: use a while loop, increment offset by 20 each time, collect $results
 
@@ -635,7 +635,7 @@ Fetch the first 60 Pokemon names from `https://pokeapi.co/api/v2/pokemon` using 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sixty Pokemon solution"
 library(httr2)
 
 my_names <- character(0)
@@ -667,7 +667,7 @@ head(my_names, 10)
 
 Let's build a complete workflow: fetch current weather for five major cities, parse the responses, and assemble a clean summary table.
 
-```r
+```r title="End-to-end five-city weather dashboard"
 library(httr2)
 library(dplyr)
 library(purrr)

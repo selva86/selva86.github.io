@@ -35,7 +35,7 @@ ADEMP is not a checklist you fill out after the study is done. It is a thinking 
 
 Here is a quick reference for what each letter stands for and the question it answers.
 
-```r
+```r title="List the five ADEMP components"
 # The 5 ADEMP components
 ademp <- list(
   A = "Aims: What question does the simulation answer?",
@@ -62,7 +62,7 @@ The **Aims** component is where most people go wrong. A vague aim like "evaluate
 
 **Try it:** Create a named list called `ex_ademp` with five ADEMP components. The study compares the t-test and Wilcoxon test for detecting a mean difference under skewed data.
 
-```r
+```r title="Aim: what the simulation measures"
 # Try it: define ADEMP for a t-test vs Wilcoxon comparison
 ex_ademp <- list(
   A = # your aim here,
@@ -80,7 +80,7 @@ cat(length(ex_ademp), "components defined\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="DGM: rnorm data generator"
 ex_ademp <- list(
   A = "Compare power of t-test vs Wilcoxon for detecting mean shift under right-skewed errors",
   D = "Generate n=30 observations from a log-normal distribution with shift delta",
@@ -104,7 +104,7 @@ A good DGM has three properties. First, it is a standalone function with argumen
 
 Let's build a DGM for a simple linear regression scenario. The true model is $y = \beta_0 + \beta_1 x + \varepsilon$, where $\varepsilon \sim N(0, \sigma^2)$.
 
-```r
+```r title="Estimand target parameter"
 # Data-generating mechanism: linear regression
 generate_data <- function(n = 100, beta0 = 2, beta1 = 0.5, sigma = 1) {
   x <- rnorm(n, mean = 5, sd = 2)
@@ -134,7 +134,7 @@ The function `generate_data()` takes four arguments that correspond to simulatio
 
 **Try it:** Modify the DGM to add a binary confounder `z` (0 or 1, equal probability) that shifts the intercept by 1 unit. Generate one dataset with `n = 50` and confirm `z` is balanced.
 
-```r
+```r title="Estimator: OLS function"
 # Try it: add a binary confounder to the DGM
 ex_generate <- function(n = 50, beta0 = 2, beta1 = 0.5, sigma = 1) {
   x <- rnorm(n, mean = 5, sd = 2)
@@ -151,7 +151,7 @@ cat("Proportion z=1:", mean(ex_dat$z), "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Estimator: LAD function"
 ex_generate <- function(n = 50, beta0 = 2, beta1 = 0.5, sigma = 1) {
   x <- rnorm(n, mean = 5, sd = 2)
   z <- rbinom(n, size = 1, prob = 0.5)
@@ -176,7 +176,7 @@ The estimand is the true quantity your analysis targets. In a simulation, you kn
 
 The distinction matters because people confuse three related terms. The **estimand** is the true parameter (e.g., the population slope $\beta_1 = 0.5$). The **estimator** is the procedure that produces a number from data (e.g., OLS coefficient). The **estimate** is the actual number you get from one dataset (e.g., 0.47).
 
-```r
+```r title="runonerep for OLS and LAD"
 # The estimand is what you built into the DGM
 true_beta <- 0.5
 cat("Estimand (true slope):", true_beta, "\n")
@@ -205,7 +205,7 @@ One estimate tells you almost nothing. The error of 0.038 could be luck. You nee
 
 **Try it:** Define the estimand for a scenario where the DGM generates two groups (treatment and control) with means 10 and 12. The aim is to estimate the treatment effect.
 
-```r
+```r title="Exercise: Run a single rep"
 # Try it: what is the estimand?
 ex_mu_control <- 10
 ex_mu_treat <- 12
@@ -218,7 +218,7 @@ cat("Estimand (treatment effect):", ex_estimand, "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Single rep solution"
 ex_mu_control <- 10
 ex_mu_treat <- 12
 ex_estimand <- ex_mu_treat - ex_mu_control
@@ -239,7 +239,7 @@ The simulation loop is where everything comes together. You repeat the same sequ
 
 First, write a function that runs one replication. It generates a dataset, fits both methods, and returns the estimates in a named vector.
 
-```r
+```r title="Replicate 1000 simulation reps"
 # One replication: generate data, fit two methods, return estimates
 run_one_rep <- function(n = 100, beta1 = 0.5, sigma = 1) {
   dat <- generate_data(n = n, beta1 = beta1, sigma = sigma)
@@ -271,7 +271,7 @@ cat("LAD estimate:", round(one_rep["est_lad"], 4), "\n")
 
 Now use `replicate()` to run 1000 replications. The result is a matrix where each column is one replication.
 
-```r
+```r title="Performance: bias calculation"
 # Run 1000 replications
 set.seed(2024)
 n_reps <- 1000
@@ -290,7 +290,7 @@ Each of the 1000 columns holds one replication's output. Row 1 is the OLS estima
 
 **Try it:** Run the same simulation but with `n = 50` (smaller sample) for 500 replications. Compare the mean OLS estimate to the true value 0.5.
 
-```r
+```r title="Performance: empirical SE"
 # Try it: smaller sample simulation
 set.seed(777)
 ex_results <- replicate(500, run_one_rep(n = 50, beta1 = 0.5, sigma = 1))
@@ -301,7 +301,7 @@ cat("Mean OLS estimate (n=50):", round(mean(ex_results["est_ols", ]), 4), "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Performance: MSE calculation"
 set.seed(777)
 ex_results <- replicate(500, run_one_rep(n = 50, beta1 = 0.5, sigma = 1))
 cat("Mean OLS estimate (n=50):", round(mean(ex_results["est_ols", ]), 4), "\n")
@@ -328,7 +328,7 @@ $$\text{EmpSE} = \sqrt{\frac{1}{N_{\text{rep}}-1} \sum_{i=1}^{N_{\text{rep}}} (\
 
 Let's compute these for both methods from the simulation results.
 
-```r
+```r title="Coverage probability with MCSE"
 # Performance measures: bias, empirical SE, MSE
 true_beta <- 0.5
 
@@ -356,7 +356,7 @@ Both methods are nearly unbiased. OLS has a smaller empirical SE and lower MSE b
 
 Now compute **coverage** -- the proportion of replications where the 95% confidence interval contains the true value. We have the OLS standard errors from the simulation.
 
-```r
+```r title="Formatted performance table"
 # Coverage: proportion of 95% CIs that contain the true beta
 ols_lower <- results["est_ols", ] - 1.96 * results["se_ols", ]
 ols_upper <- results["est_ols", ] + 1.96 * results["se_ols", ]
@@ -375,7 +375,7 @@ The coverage is 0.948, which is close to the nominal 0.95. The MCSE of 0.007 tel
 
 Let's put everything together in a formatted table.
 
-```r
+```r title="Exercise: Compute MSE by hand"
 # Formatted performance comparison table
 perf_table <- data.frame(
   Method = c("OLS", "LAD"),
@@ -399,7 +399,7 @@ OLS wins on every measure under normal errors. This is expected because OLS is t
 
 **Try it:** Add RMSE (root mean squared error) to the performance table for both methods.
 
-```r
+```r title="MSE by hand solution"
 # Try it: compute RMSE for both methods
 ex_rmse_ols <- # your code here
 ex_rmse_lad <- # your code here
@@ -413,7 +413,7 @@ cat("RMSE LAD:", round(ex_rmse_lad, 4), "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mistake: Forgot set.seed"
 ex_rmse_ols <- sqrt(mse_ols)
 ex_rmse_lad <- sqrt(mse_lad)
 cat("RMSE OLS:", round(ex_rmse_ols, 4), "\n")
@@ -431,7 +431,7 @@ cat("RMSE LAD:", round(ex_rmse_lad, 4), "\n")
 ### Mistake 1: Not setting a seed before the simulation loop
 
 **Wrong:**
-```r
+```r title="Correct: set.seed for reproducibility"
 results_bad <- replicate(1000, run_one_rep(n = 100))
 # Different results every time you run this
 ```
@@ -439,7 +439,7 @@ results_bad <- replicate(1000, run_one_rep(n = 100))
 **Why it is wrong:** Without `set.seed()`, your results change every time. A reviewer cannot reproduce your exact numbers, and you cannot debug specific replications.
 
 **Correct:**
-```r
+```r title="Mistake: Wrong estimand truth"
 set.seed(2024)
 results_good <- replicate(1000, run_one_rep(n = 100))
 # Same results every time
@@ -450,7 +450,7 @@ cat("Reproducible mean:", round(mean(results_good["est_ols", ]), 4), "\n")
 ### Mistake 2: Using the wrong truth when computing bias
 
 **Wrong:**
-```r
+```r title="Correct: Estimand matches DGM"
 # Using the OLS estimate from the full data as "truth"
 full_fit <- lm(y ~ x, data = dat)
 wrong_truth <- coef(full_fit)[["x"]]
@@ -460,7 +460,7 @@ wrong_bias <- mean(results["est_ols", ] - wrong_truth)
 **Why it is wrong:** You are comparing one estimator's output to another estimator's output. Bias is defined relative to the estimand, which is the parameter you set in the DGM.
 
 **Correct:**
-```r
+```r title="Mistake: Too few replications"
 true_beta <- 0.5  # The value YOU set in generate_data()
 correct_bias <- mean(results["est_ols", ] - true_beta)
 cat("Correct bias:", round(correct_bias, 4), "\n")
@@ -470,7 +470,7 @@ cat("Correct bias:", round(correct_bias, 4), "\n")
 ### Mistake 3: Too few replications without checking MCSE
 
 **Wrong:**
-```r
+```r title="Correct: Enough replications"
 # Only 50 reps
 set.seed(1)
 small_sim <- replicate(50, run_one_rep(n = 100))
@@ -485,7 +485,7 @@ cat("Coverage (50 reps):", coverage_50, "\n")
 **Why it is wrong:** With 50 reps, the MCSE for coverage is $\sqrt{0.92 \times 0.08 / 50} = 0.038$. Your 92% could easily be 95% or 88%. The result is too noisy to draw conclusions.
 
 **Correct:**
-```r
+```r title="Mistake: Single scenario only"
 mcse_50 <- sqrt(coverage_50 * (1 - coverage_50) / 50)
 cat("MCSE with 50 reps:", round(mcse_50, 3), "\n")
 #> MCSE with 50 reps: 0.038
@@ -496,7 +496,7 @@ cat("Need at least 1000 reps for MCSE < 0.007\n")
 ### Mistake 4: Only testing one scenario
 
 **Wrong:**
-```r
+```r title="Correct: Multi-scenario design"
 # One fixed scenario: n=100, sigma=1
 results_one <- replicate(1000, run_one_rep(n = 100, sigma = 1))
 ```
@@ -504,7 +504,7 @@ results_one <- replicate(1000, run_one_rep(n = 100, sigma = 1))
 **Why it is wrong:** Your conclusion applies to exactly one combination of sample size and noise level. You cannot tell whether OLS still wins at n=20 or when sigma=5.
 
 **Correct:**
-```r
+```r title="Factorial design with expand.grid"
 # Factorial design: vary n and sigma
 scenarios <- expand.grid(n = c(50, 200), sigma = c(1, 3))
 cat("Scenarios to simulate:\n")
@@ -524,7 +524,7 @@ Design a simulation comparing `mean()` and `median()` for estimating the centre 
 
 Define all five ADEMP components, run 500 replications with n=50, and report bias and MSE for both methods.
 
-```r
+```r title="Run all scenarios loop"
 # Exercise 1: mean vs median under contamination
 # Hint: use rbinom() to pick contaminated observations, then
 # generate from N(5,1) or N(5,10) accordingly
@@ -536,7 +536,7 @@ Define all five ADEMP components, run 500 replications with n=50, and report bia
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Summarise scenario performance"
 # ADEMP:
 # A: Compare mean vs median for location estimation under contamination
 # D: 90% N(5,1) + 10% N(5,10), n=50
@@ -578,7 +578,7 @@ cat("Median -> Bias:", round(my_bias_med, 4), " MSE:", round(my_mse_med, 4), "\n
 
 Extend the tutorial simulation (OLS vs LAD) to a factorial design with `n = c(50, 200)` and `sigma = c(1, 3)`. Run 500 replications per scenario. Collect bias and empirical SE for both methods across all 4 scenarios in a data frame.
 
-```r
+```r title="Exercise: Add heavy-tail scenario"
 # Exercise 2: factorial design across n and sigma
 # Hint: use expand.grid() for scenarios, loop with mapply() or a for loop
 # Collect results into a data frame with columns: n, sigma, method, bias, empSE
@@ -590,7 +590,7 @@ Extend the tutorial simulation (OLS vs LAD) to a factorial design with `n = c(50
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Heavy-tail scenario solution"
 scenarios <- expand.grid(n = c(50, 200), sigma = c(1, 3))
 my_collector <- data.frame()
 
@@ -630,7 +630,7 @@ print(my_collector)
 
 Here is a complete ADEMP-structured simulation that compares OLS and robust regression (Huber M-estimator via iteratively reweighted least squares) under heteroskedastic errors.
 
-```r
+```r title="End-to-end ADEMP simulation report"
 # === COMPLETE ADEMP EXAMPLE ===
 
 # A - Aim: Compare OLS vs Huber M-estimation for slope recovery

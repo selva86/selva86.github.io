@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Picture a small sales table: three products, three months, but only five rows because some products didn't sell in some months. Nothing looks wrong until you plot monthly totals and a whole column is missing. Rows that should exist but don't are called implicit missing values. `complete()` turns them into real rows you can see and handle, here's the one-liner that does it.
 
-```r
+```r title="complete fills missing month-product pairs"
 library(dplyr)
 library(tidyr)
 
@@ -54,7 +54,7 @@ Five rows went in, nine rows came out. The four new rows carry NA in the `units`
 
 **Try it:** Build a 4-row tibble with three cities across two days (one city is missing on one day), then use `complete()` to make every city-day pair appear.
 
-```r
+```r title="Exercise: complete city by day"
 # Try it: complete city × day combinations
 temps <- tibble(
   city = c("Paris", "Paris", "Rome", "Tokyo"),
@@ -70,7 +70,7 @@ temps
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="City-day solution"
 temps |> complete(city, day)
 #> # A tibble: 6 × 3
 #>   city  day    temp
@@ -91,7 +91,7 @@ temps |> complete(city, day)
 
 Before fixing implicit misses, it helps to see them. `expand()` is the inspection tool: given a data frame and a set of columns, it returns every unique combination of those columns, and *only* those columns. The row count of the result has nothing to do with the row count of the input.
 
-```r
+```r title="expand returns the combination grid"
 sales |> expand(month, product)
 #> # A tibble: 9 × 2
 #>   month product
@@ -111,7 +111,7 @@ Notice the `units` column is gone, `expand()` returns the grid alone, not your d
 
 If you want to build a grid from bare vectors, without any data frame involved, reach for `crossing()`. It's `expand()`'s standalone sibling and accepts named arguments directly.
 
-```r
+```r title="crossing with bare vectors"
 crossing(
   month   = c("Jan", "Feb", "Mar"),
   product = c("A",   "B",   "C")
@@ -137,7 +137,7 @@ Same nine rows, but `crossing()` never touches the `sales` tibble. This matters 
 
 **Try it:** Use `expand(sales, month, product)` together with `anti_join(sales)` to list exactly which (month, product) pairs are missing from the raw data.
 
-```r
+```r title="Exercise: antijoin to find gaps"
 # Try it: find missing combinations
 # Hint: expand() gives all pairs, anti_join drops the ones that already exist.
 
@@ -149,7 +149,7 @@ Same nine rows, but `crossing()` never touches the `sales` tibble. This matters 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Missing-pairs solution"
 sales |>
   expand(month, product) |>
   anti_join(sales, by = c("month", "product"))
@@ -172,7 +172,7 @@ sales |>
 
 The `fill` argument takes a named list. Each name is a column; each value is what NAs in that column should become for the newly created rows.
 
-```r
+```r title="Fill missing combinations with zero"
 sales |> complete(month, product, fill = list(units = 0))
 #> # A tibble: 9 × 3
 #>   month product units
@@ -192,7 +192,7 @@ Same nine rows as before, but now the previously-NA `units` are zero, the right 
 
 What if the raw data already contains a real NA that you want to preserve, say, a genuinely unknown sale? By default `complete()` replaces it along with the new NAs. Set `explicit = FALSE` (tidyr 1.2+) and the fill list only touches the rows `complete()` just added.
 
-```r
+```r title="explicit FALSE keeps real NAs intact"
 sales_na <- tibble(
   month   = c("Jan", "Jan", "Feb"),
   product = c("A",   "B",   "A"),
@@ -216,7 +216,7 @@ Jan/B keeps its original NA because the row already existed in the data. Only Fe
 
 **Try it:** A `grades` tibble has four rows across three students and two exams but one pair is missing. Use `complete()` with `fill = list(score = 0)` so every student has every exam.
 
-```r
+```r title="Exercise: fill missing student-exam scores"
 # Try it: fill missing student-exam pairs with 0
 grades <- tibble(
   student = c("Ann", "Ann", "Ben", "Cam"),
@@ -232,7 +232,7 @@ grades <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Student-exam solution"
 grades |> complete(student, exam, fill = list(score = 0))
 #> # A tibble: 6 × 3
 #>   student exam  score
@@ -255,7 +255,7 @@ The most common real-world use of `complete()` is filling date gaps. Your data m
 
 Pass the date sequence as a **named argument** to `complete()`. The name is the column; the value is the full range of values you want to see.
 
-```r
+```r title="Complete a daily visit sequence"
 visits <- tibble(
   visit_date  = as.Date(c("2026-03-01", "2026-03-02", "2026-03-04",
                           "2026-03-05", "2026-03-07")),
@@ -280,7 +280,7 @@ The two missing days (March 3 and March 6) now appear as proper rows with NA vis
 
 A common next step is to carry the last observation forward. `tidyr::fill()` handles that, the `.direction = "down"` argument says "copy the previous non-NA value downward."
 
-```r
+```r title="Carry forward with tidyr::fill"
 visits |>
   complete(visit_date = seq.Date(min(visit_date), max(visit_date), by = "day")) |>
   tidyr::fill(visit_count, .direction = "down")
@@ -303,7 +303,7 @@ March 3 inherits March 2's count; March 6 inherits March 5's. That's last-observ
 
 **Try it:** A 4-row `prices` tibble logs the closing price on four days between March 1 and March 5 (March 3 is missing). Fill the calendar so every day between the min and max appears.
 
-```r
+```r title="Exercise: complete missing price dates"
 # Try it: complete the date range
 prices <- tibble(
   date  = as.Date(c("2026-03-01", "2026-03-02", "2026-03-04", "2026-03-05")),
@@ -318,7 +318,7 @@ prices <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Price-date solution"
 prices |>
   complete(date = seq.Date(min(date), max(date), by = "day"))
 #> # A tibble: 5 × 2
@@ -341,7 +341,7 @@ Sometimes two columns describe the same entity, a `patient_id` and their `diagno
 
 `nesting()` tells tidyr: "treat these columns as a unit, only the combinations that already appear together in the data are valid."
 
-```r
+```r title="nesting preserves linked columns"
 panel <- tibble(
   patient_id = c(1,      1,      2,      2,      3),
   diagnosis  = c("flu",  "flu",  "covid","covid","flu"),
@@ -379,7 +379,7 @@ Raw `complete()` produced 12 nonsense rows that paired every patient with every 
 
 **Try it:** An `hours` tibble logs how many hours each employee worked per month. Each employee belongs to exactly one department. Use `complete(nesting(employee, department), month, fill = list(hours = 0))` so every employee has every month, without mixing departments.
 
-```r
+```r title="Exercise: nested employee-department grid"
 # Try it: panel with linked columns
 hours <- tibble(
   employee   = c("Ada", "Ada", "Ben", "Cam"),
@@ -396,7 +396,7 @@ hours <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Employee-department solution"
 hours |> complete(nesting(employee, department), month, fill = list(hours = 0))
 #> # A tibble: 6 × 4
 #>   employee department month hours
@@ -417,7 +417,7 @@ hours |> complete(nesting(employee, department), month, fill = list(hours = 0))
 
 When you apply `complete()` to a `group_by()`-ed tibble, it completes each group independently. That's exactly what you want for multi-site panels: every clinic, store, or region gets its own complete grid without cross-pollination.
 
-```r
+```r title="Group-wise completion for multi-site panels"
 regional_sales <- tibble(
   region  = c("North", "North", "North", "South", "South"),
   product = c("A",     "B",     "A",     "A",     "B"),
@@ -449,7 +449,7 @@ North has all four `product × month` pairs, and so does South, each region inde
 
 **Try it:** A `clinic_visits` tibble logs visits per clinic per date. Group by clinic and complete the date range so every clinic has every day between its min and max.
 
-```r
+```r title="Exercise: per-clinic date completion"
 # Try it: per-clinic date completion
 clinic_visits <- tibble(
   clinic = c("A", "A", "A", "B", "B"),
@@ -466,7 +466,7 @@ clinic_visits <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Per-clinic solution"
 clinic_visits |>
   group_by(clinic) |>
   complete(date = seq.Date(min(date), max(date), by = "day")) |>
@@ -495,7 +495,7 @@ Two capstone problems that combine several tools from this tutorial. The variabl
 
 You have daily close prices for two tickers across five business days, but a few rows are missing. Produce a filled panel where every ticker has every date and any missing closes are carried forward from the previous day.
 
-```r
+```r title="Exercise: complete stocks with carry forward"
 my_stocks <- tibble(
   ticker = c("AAPL", "AAPL", "AAPL", "MSFT", "MSFT", "MSFT"),
   date   = as.Date(c("2026-03-02", "2026-03-03", "2026-03-06",
@@ -511,7 +511,7 @@ my_stocks <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stocks-carry-forward solution"
 my_stocks |>
   group_by(ticker) |>
   complete(date = seq.Date(as.Date("2026-03-02"), as.Date("2026-03-06"), by = "day")) |>
@@ -540,7 +540,7 @@ my_stocks |>
 
 Given a grades tibble that's incomplete, return a data frame listing only the `(student, exam)` pairs where no grade exists, without touching the original.
 
-```r
+```r title="Exercise: find one missing student-exam pair"
 my_grades <- tibble(
   student = c("Ada", "Ada", "Ben", "Cam", "Cam"),
   exam    = c("Mid", "Fin", "Mid", "Mid", "Fin"),
@@ -555,7 +555,7 @@ my_grades <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ben-Fin solution"
 my_grades |>
   expand(student, exam) |>
   anti_join(my_grades, by = c("student", "exam"))
@@ -573,7 +573,7 @@ my_grades |>
 
 Here is an end-to-end pipeline that ties everything together. The raw `regional_sales_raw` tibble has gaps across regions, products, and months. The goal is per-region monthly totals, and those totals will be wrong unless every region has a row for every product in every month.
 
-```r
+```r title="End-to-end regional sales pipeline"
 regional_sales_raw <- tibble(
   region  = c("North","North","North","North","South","South","South"),
   month   = c("Jan",  "Jan",  "Feb",  "Mar",  "Jan",  "Feb",  "Mar"),

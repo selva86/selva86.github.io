@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Most "anonymised" datasets aren't. Latanya Sweeney's classic 1997 study showed that 87% of the US population can be uniquely identified by ZIP code, gender, and date of birth alone. Before learning defences, you need to feel how easy the attack is. Let's build a tiny patient table, drop the obvious identifiers, and count how many rows are still uniquely identifiable from quasi-identifiers alone.
 
-```r
+```r title="Patient table with direct identifiers"
 library(dplyr)
 
 patients <- data.frame(
@@ -52,7 +52,7 @@ Every one of the 10 rows is uniquely identifiable from `age + gender + zip` alon
 
 To see which column is doing the most damage, drop the most specific one and re-check.
 
-```r
+```r title="Quasi-IDs alone still uniquely fingerprint"
 partial <- deidentified |> select(-zip)
 partial |> count(age, gender) |> arrange(desc(n))
 #>    age gender n
@@ -68,7 +68,7 @@ Even without ZIP, `age` and `gender` together leave most rows unique. That tells
 
 **Try it:** Use `dplyr::distinct()` to count distinct combinations of `age`, `gender`, and `zip` in `deidentified`, confirm the same answer using a different verb.
 
-```r
+```r title="Exercise: count distinct quasi-ID combinations"
 # Try it: count distinct quasi-id combinations with distinct()
 ex_n_distinct <- # your code here
 
@@ -79,7 +79,7 @@ ex_n_distinct
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Distinct combinations solution"
 ex_n_distinct <- deidentified |>
   distinct(age, gender, zip) |>
   nrow()
@@ -107,7 +107,7 @@ You can't pick a privacy technique until you know what kind of column you're pro
 
 A small classifier function makes the categorisation explicit and reusable across pipelines.
 
-```r
+```r title="Classify columns by identifier type"
 classify_col <- function(col) {
   direct <- c("id","name","email","phone","ssn","passport","address")
   quasi  <- c("age","zip","gender","sex","job","city","postcode","dob","birth")
@@ -131,7 +131,7 @@ Two columns are direct identifiers (`id`, `name`), three are quasi-identifiers (
 
 **Try it:** Extend `classify_col()` so any column matching `"birth"` or `"dob"` is flagged as **direct** rather than quasi. Date of birth is too specific to be a quasi-identifier, it's a near-unique fingerprint.
 
-```r
+```r title="Exercise: add dob to direct identifiers"
 # Try it: rewrite classify_col() so date-of-birth columns count as direct
 ex_classify <- function(col) {
   # your code here
@@ -146,7 +146,7 @@ ex_classify("age")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Classify columns solution"
 ex_classify <- function(col) {
   direct <- c("id","name","email","phone","ssn","passport",
               "address","dob","birth_date")
@@ -176,7 +176,7 @@ Suppression and generalisation are the workhorses of anonymisation, every more a
 
 The pipeline below drops the direct identifier `name`, buckets `age` into 5 bands with `cut()`, and truncates `zip` to its first three digits. Both transformations preserve population-level signal, average age by region is still meaningful, while making any single row much harder to single out.
 
-```r
+```r title="Generalise age bands and ZIP prefix"
 generalised <- patients |>
   select(-name) |>
   mutate(
@@ -200,7 +200,7 @@ head(generalised, 5)
 
 The `id` column is still in there as a direct identifier. Replace it with a deterministic random token kept in a separate lookup table that the data controller stores under access control.
 
-```r
+```r title="Pseudonymise IDs with a random map"
 set.seed(2026)
 pseudo_map <- setNames(
   paste0("P", sprintf("%04d", sample(1000:9999, length(unique(patients$id))))),
@@ -225,7 +225,7 @@ head(patients_pseudo, 3)
 
 **Try it:** Generalise `patients` further, bucket `age` into just `"<50"` and `"50+"`, and shrink `zip` to its first two digits.
 
-```r
+```r title="Exercise: coarser age and ZIP generalisation"
 # Try it: a coarser generalisation
 ex_coarse <- patients |>
   mutate(
@@ -240,7 +240,7 @@ head(ex_coarse, 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Coarser generalisation solution"
 ex_coarse <- patients |>
   mutate(
     age_bucket = ifelse(age < 50, "<50", "50+"),
@@ -271,7 +271,7 @@ Where $D$ is the dataset, $G(D)$ is the set of groups formed by all distinct qua
 
 In code that's a single `count()` followed by `min()`.
 
-```r
+```r title="Minimum group size gives k-anonymity"
 k_groups <- generalised |>
   count(age_band, gender, zip3, name = "group_size") |>
   arrange(group_size)
@@ -297,7 +297,7 @@ $$\text{l}(D) = \min_{g \in G(D)} |\{s : s \in g\}|$$
 
 Where $|\{s : s \in g\}|$ is the count of distinct sensitive values inside group $g$.
 
-```r
+```r title="Distinct sensitive values give l-diversity"
 l_check <- generalised |>
   group_by(age_band, gender, zip3) |>
   summarise(
@@ -318,7 +318,7 @@ The output `1 -diverse` confirms that at least one group has only one distinct d
 
 **Try it:** Compute k-anonymity using only `age_band` and `gender` (drop `zip3` from the quasi-identifier set). Does k go up or down?
 
-```r
+```r title="Exercise: k with weaker quasi-ID set"
 # Try it: weaker quasi-id set → bigger or smaller k?
 ex_k <- generalised |>
   count(# your grouping here) |>
@@ -332,7 +332,7 @@ ex_k
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Weaker quasi-ID k solution"
 ex_k <- generalised |>
   count(age_band, gender) |>
   pull(n) |>
@@ -355,7 +355,7 @@ $$\tilde{f}(D) = f(D) + \text{Laplace}\!\left(\frac{\Delta f}{\varepsilon}\right
 
 For a count query, sensitivity is exactly 1, adding or removing one row changes the count by 1.
 
-```r
+```r title="Laplace noise for differential privacy"
 laplace_noise <- function(epsilon, sensitivity = 1) {
   u <- runif(1, -0.5, 0.5)
   -sign(u) * (sensitivity / epsilon) * log(1 - 2 * abs(u))
@@ -373,7 +373,7 @@ The released number is `5.81` instead of the true `5`. An attacker who sees only
 
 How does the noise scale with epsilon? Sweep a grid of values and measure the standard deviation of the noise distribution.
 
-```r
+```r title="Noise SD shrinks with larger epsilon"
 set.seed(7)
 eps_grid <- c(0.1, 0.5, 1.0, 5.0)
 
@@ -399,7 +399,7 @@ At $\varepsilon = 0.1$ the noise standard deviation is ~14, far larger than the 
 
 **Try it:** Modify the call to use $\varepsilon = 2.0$ and explain in one sentence why the noise standard deviation should fall.
 
-```r
+```r title="Exercise: tighter epsilon noise"
 # Try it: tighter epsilon → ?
 set.seed(99)
 ex_noise_sd <- sd(replicate(1000, laplace_noise(epsilon = # your value)))
@@ -411,7 +411,7 @@ ex_noise_sd
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tighter epsilon solution"
 set.seed(99)
 ex_noise_sd <- sd(replicate(1000, laplace_noise(epsilon = 2.0)))
 ex_noise_sd
@@ -438,7 +438,7 @@ GDPR is a 99-article regulation, but the parts you touch as a working data scien
 
 The simplest piece of audit code you can write is a column-name scanner that warns when an obviously identifying field has slipped through.
 
-```r
+```r title="GDPR audit flags direct identifiers"
 gdpr_audit <- function(df) {
   cols <- names(df)
   pattern <- "name|email|phone|ssn|passport|address|dob|birth"
@@ -465,7 +465,7 @@ Run this as a unit test in your data pipeline, if it ever returns a `WARN`, the 
 
 **Try it:** Extend `gdpr_audit()` to also flag any column matching `"passport"` or `"licence"`, and return a vector of all flagged columns rather than a single string.
 
-```r
+```r title="Exercise: vectorised column audit"
 # Try it: vectorised audit
 ex_audit <- function(df) {
   # your code here
@@ -478,7 +478,7 @@ ex_audit(data.frame(name = "x", passport_no = "y", age = 1))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Vectorised audit solution"
 ex_audit <- function(df) {
   pattern <- "name|email|phone|ssn|passport|licence|license|address|dob|birth"
   cols <- names(df)
@@ -500,7 +500,7 @@ These capstone exercises combine techniques from across the article. Use the `pa
 
 Write `anonymise_pipeline(df, quasi_cols, sensitive_col)` that drops direct identifiers (anything matching the audit pattern from the GDPR section), generalises the quasi-identifier columns, and returns a list with the generalised data frame, its k-anonymity, and its l-diversity. Test it on `patients` with `quasi_cols = c("age","zip")` and `sensitive_col = "diagnosis"`.
 
-```r
+```r title="Exercise: one-call anonymise pipeline"
 # Exercise 1: one-call anonymise pipeline
 anonymise_pipeline <- function(df, quasi_cols, sensitive_col) {
   # your code here
@@ -514,7 +514,7 @@ result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Anonymise pipeline solution"
 anonymise_pipeline <- function(df, quasi_cols, sensitive_col) {
   audit_pattern <- "name|email|phone|ssn|passport|address|dob|birth|^id$"
   df <- df[, !grepl(audit_pattern, names(df), ignore.case = TRUE)]
@@ -554,7 +554,7 @@ result$l
 
 Build `budget_tracker(queries, total_budget)` where `queries` is a data frame with columns `query` (character) and `epsilon` (numeric). Return the same data frame with two new columns: `cumulative_eps` (the running total) and `status` that flips to `"OVER BUDGET"` once the running total exceeds `total_budget`.
 
-```r
+```r title="Exercise: privacy budget tracker"
 # Exercise 2: privacy budget tracker
 budget_tracker <- function(queries, total_budget = 3.0) {
   # your code here
@@ -571,7 +571,7 @@ budget_tracker(queries)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Privacy budget tracker solution"
 budget_tracker <- function(queries, total_budget = 3.0) {
   queries$cumulative_eps <- cumsum(queries$epsilon)
   queries$status <- ifelse(queries$cumulative_eps <= total_budget,
@@ -599,7 +599,7 @@ budget_tracker(queries)
 
 Here is the full release pipeline on the original `patients` dataset: drop identifiers, generalise quasi-IDs, measure k-anonymity, measure l-diversity, release a differentially private count of female patients, and audit the released frame.
 
-```r
+```r title="End-to-end private release"
 private_release <- patients |>
   select(-id, -name) |>
   mutate(

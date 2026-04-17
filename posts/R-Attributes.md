@@ -26,7 +26,7 @@ Let's start with a puzzle: the exact same twelve numbers, printed three differen
 
 This is the single idea the post rests on: **an R object is its values *plus* its attributes**, and attributes are the lever you pull to change how any function (print, subset, `mean`, `summary`) treats that object.
 
-```r
+```r title="One vector, three faces via dim"
 # One vector, three faces — only the attributes differ
 x <- 1:12
 print(x)
@@ -52,7 +52,7 @@ The values `1:12` never moved. Adding `dim(x) <- c(3, 4)` attached a 2-element i
 
 **Try it:** Given `y <- 1:24`, turn `y` into a 2x3x4 three-dimensional array in one line, then check its class.
 
-```r
+```r title="Exercise: reshape via dim attribute"
 # Try it: reshape via the dim attribute
 y <- 1:24
 # your code here
@@ -66,7 +66,7 @@ dim(y)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dim-reshape solution"
 y <- 1:24
 dim(y) <- c(2, 3, 4)
 class(y)
@@ -87,7 +87,7 @@ There are four functions you'll use every day: `attr()` for one specific attribu
 
 *Figure 1: Every R object has a values payload plus an attribute dictionary. The three most common attributes (`names`, `dim`, `class`) are what most print/subset methods key off.*
 
-```r
+```r title="attr, attributes, and structure"
 # Four ways to work with attributes
 v <- c(a = 1, b = 2, c = 3)            # names set at creation time
 
@@ -119,7 +119,7 @@ v
 
 The cleanest way to build an object with several attributes at once is `structure()`, which wraps value-plus-attributes into one call, the idiom you'll see in most package source code.
 
-```r
+```r title="structure() for one-shot creation"
 # structure() = create a value and attach attributes in one call
 m <- structure(1:6,
                dim = c(2, 3),
@@ -146,7 +146,7 @@ attributes(m)
 
 **Try it:** Create a 2x3 matrix `ex_m` whose values are `1:6` and which has row names `"row1", "row2"` and column names `"A", "B", "C"`, all via a single `structure()` call.
 
-```r
+```r title="Exercise: labelled matrix with structure"
 # Try it: one-shot matrix with dimnames
 ex_m <- NULL  # your code here
 
@@ -160,7 +160,7 @@ ex_m
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Labelled-matrix solution"
 ex_m <- structure(1:6,
                   dim = c(2, 3),
                   dimnames = list(c("row1", "row2"), c("A", "B", "C")))
@@ -191,7 +191,7 @@ Any attribute can carry any R value, `attr(x, "author") <- "Selva"` is perfectly
 
 *Figure 2: A length-12 vector becomes a 3x4 matrix, then a 2x2x3 array, purely by changing the `dim` attribute. Nothing in memory moves.*
 
-```r
+```r title="Flip class to change behavior"
 # Flipping class to trigger different behaviour
 d <- 19000                  # ordinary number
 class(d) <- "Date"          # set the class attribute
@@ -220,7 +220,7 @@ The `Date` example is the classic revelation: a `Date` is just a double counting
 
 **Try it:** Build a three-element factor `ex_f` with values `"S", "M", "L"` in that order, but do it by hand with `structure()`, not with `factor()`.
 
-```r
+```r title="Exercise: build factor from scratch"
 # Try it: build a factor from scratch
 ex_f <- NULL  # your code here — use structure()
 
@@ -235,7 +235,7 @@ class(ex_f)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Scratch-factor solution"
 ex_f <- structure(c(1L, 2L, 3L),
                   levels = c("S", "M", "L"),
                   class  = "factor")
@@ -254,7 +254,7 @@ class(ex_f)
 
 Here is the foot-gun that catches almost everyone: most arithmetic and coercion operations **drop** attributes. If you attach a `units` attribute to a numeric vector and then multiply it by 2, the attribute is gone. R's rule is that only "structural" attributes (the special ones: `names`, `dim`, `dimnames`) are preserved, everything else is discarded unless an operation has been written to carry it through.
 
-```r
+```r title="Arithmetic drops custom attributes"
 # Custom attributes get dropped by arithmetic
 v <- c(10, 20, 30)
 attr(v, "units")  <- "kg"
@@ -285,7 +285,7 @@ w * 10
 
 **Try it:** Create `ex_w <- c(x = 1, y = 2, z = 3)` with an extra `attr(ex_w, "source") <- "test"`. After running `ex_w + 1`, check which attributes survived.
 
-```r
+```r title="Exercise: which attributes survive"
 # Try it: which attributes survive + 1?
 ex_w <- c(x = 1, y = 2, z = 3)
 attr(ex_w, "source") <- "test"
@@ -298,7 +298,7 @@ attributes(ex_after)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Surviving-attributes solution"
 ex_w <- c(x = 1, y = 2, z = 3)
 attr(ex_w, "source") <- "test"
 ex_after <- ex_w + 1
@@ -315,7 +315,7 @@ attributes(ex_after)
 
 Five patterns cause most of the "why is my object behaving like that?" moments. Each has a one-line fix once you know the shape of the problem.
 
-```r
+```r title="Five common attribute pitfalls"
 # Pitfall 1: using attr() for names/dim/class instead of the accessor
 x <- 1:5
 attr(x, "names") <- c("a","b","c","d","e")    # works, but discouraged
@@ -357,7 +357,7 @@ Pitfalls 1 and 2 are about using the right accessor and validating length. Pitfa
 
 **Try it:** You have `m <- matrix(1:6, 2, 3, dimnames = list(c("r1","r2"), c("a","b","c")))`. Strip the `dimnames` but keep the `dim`, so it still prints as a 2x3 matrix but without row/column labels.
 
-```r
+```r title="Exercise: drop dimnames, keep dim"
 # Try it: drop dimnames, keep dim
 m <- matrix(1:6, 2, 3, dimnames = list(c("r1","r2"), c("a","b","c")))
 ex_plain <- NULL  # your code here
@@ -372,7 +372,7 @@ ex_plain
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drop-dimnames solution"
 m <- matrix(1:6, 2, 3, dimnames = list(c("r1","r2"), c("a","b","c")))
 ex_plain <- m
 dimnames(ex_plain) <- NULL
@@ -396,7 +396,7 @@ Two capstone exercises that combine attribute handling with real vector work.
 
 Starting from `1:9`, build `my_mat`, a 3x3 matrix whose rows are labelled `"r1","r2","r3"`, whose columns are labelled `"c1","c2","c3"`, and which has an extra custom attribute `experiment = "batch-01"`. All of it in a single `structure()` call.
 
-```r
+```r title="Exercise: labelled matrix with metadata"
 # Exercise 1: labelled matrix + custom attribute
 my_mat <- NULL
 
@@ -411,7 +411,7 @@ attributes(my_mat)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Labelled-with-metadata solution"
 my_mat <- structure(
   1:9,
   dim = c(3, 3),
@@ -446,7 +446,7 @@ attributes(my_mat)
 
 R Dates are secretly doubles. Without converting with `as.numeric()`, use attribute manipulation to show that `as.Date("2026-04-11")` is just the number of days since 1970-01-01 wearing a `class` hat. Save the raw number to `my_days` and confirm with `class()`.
 
-```r
+```r title="Exercise: unmask a Date value"
 # Exercise 2: unmask a Date
 d <- as.Date("2026-04-11")
 
@@ -461,7 +461,7 @@ class(my_days)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Unmask-Date solution"
 d <- as.Date("2026-04-11")
 my_days <- unclass(d)
 my_days
@@ -478,7 +478,7 @@ class(my_days)
 
 A small end-to-end flow that uses attributes to turn a numeric summary into a self-describing labelled object, the kind of pattern real R packages use to return results.
 
-```r
+```r title="Self-describing lab summary object"
 # Complete example: a self-describing summary object
 obs <- c(52.1, 49.7, 55.3, 48.8, 51.5, 50.0)
 

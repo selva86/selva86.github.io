@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Messy text is full of embedded values, order numbers, prices, phone fragments, and character classes are how regex tells them apart. A class like `\\d` matches any digit, `\\w` matches any word character (letters, digits, underscore), and `\\s` matches whitespace. Let's pull every run of digits out of realistic customer text and see the payoff immediately.
 
-```r
+```r title="Match one or more digits"
 # Example 1: Extract every run of digits from messy text
 library(stringr)
 
@@ -55,7 +55,7 @@ Each element of the result is a character vector of every match found in that st
 
 Sometimes you need to check whether a string is "clean", containing only alphabetic characters, nothing else. You combine a character class with anchors to lock the check to the whole string.
 
-```r
+```r title="Match alphabetic words from start"
 # Example 2: Check for letter-only strings
 words <- c("hello", "world123", "R", "data_frame", "clean")
 
@@ -75,7 +75,7 @@ The pattern `^[a-zA-Z]+$` says "from the very start to the very end, only letter
 
 Cleaning text often means stripping punctuation and special characters before further processing. The shorthand class `\\W` matches any non-word character, anything that is not a letter, digit, or underscore.
 
-```r
+```r title="Match non-word characters"
 # Example 3: Replace non-word runs with a single space
 cleaned <- str_replace_all(messy_text, "\\W+", " ")
 cleaned
@@ -91,7 +91,7 @@ Every run of non-word characters, colons, hashes, dollar signs, parentheses, dot
 
 The opposite approach is sometimes useful: pull everything that is *not* whitespace. The pattern `\\S+` matches one or more non-whitespace characters, which gives you a quick-and-dirty word tokeniser.
 
-```r
+```r title="Match non-whitespace runs"
 # Example 4: Tokenise by extracting non-whitespace runs
 tokens <- str_extract_all(messy_text[1], "\\S+")
 tokens
@@ -103,7 +103,7 @@ Each "word" (including punctuation attached to it) becomes a separate element. T
 
 **Try it:** Write code that extracts every run of lowercase vowels from the string `"Regular expressions are fun"`. Store the result in `ex_vowels`.
 
-```r
+```r title="Exercise: match vowel runs"
 # Try it: extract lowercase vowel runs
 vowel_text <- "Regular expressions are fun"
 
@@ -118,7 +118,7 @@ ex_vowels
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_vowels <- str_extract_all(vowel_text, "[aeiou]+")
 ex_vowels
 #> [[1]]
@@ -137,7 +137,7 @@ Quantifiers specify how many times the preceding element should repeat. The four
 
 Phone numbers sometimes have an area code in parentheses and sometimes don't. The `?` quantifier is perfect for "this bit may or may not be here."
 
-```r
+```r title="Match optional parentheses phone format"
 # Example 5: Match phones with an optional area code
 phones <- c("(555) 867-5309", "555-1234", "(800) 555-0199", "1234567890")
 
@@ -155,7 +155,7 @@ The pattern reads like a checklist: optional `(`, then exactly 3 digits, optiona
 
 When you need words of a specific length range, `{n,m}` is the right tool. This example extracts words that are 3 to 6 characters long.
 
-```r
+```r title="Match three to six letter words"
 # Example 6: Extract words of 3-6 characters
 sentence <- "I am a data scientist who uses R for analysis"
 
@@ -171,7 +171,7 @@ The `\\b` marks a word boundary (covered in the next H2). Without those boundari
 
 This is where most regex beginners get tripped up. Greedy quantifiers grab the *longest* possible match; lazy quantifiers (add `?` after the quantifier) grab the *shortest*. The difference is huge when extracting between delimiters.
 
-```r
+```r title="Greedy versus lazy HTML tags"
 # Example 7: Greedy vs lazy quantifiers
 html_text <- '<span class="bold">Hello</span> and <span class="italic">World</span>'
 
@@ -195,7 +195,7 @@ The greedy `.*` gobbled everything from the first `<` to the final `>`. The lazy
 
 Some codes follow an exact shape, US ZIP codes, for instance, are 5 digits, optionally followed by a dash and 4 more. The `{n}` quantifier enforces an exact count.
 
-```r
+```r title="Match ZIP and ZIP plus four"
 # Example 8: Validate US ZIP codes
 zips <- c("90210", "90210-1234", "9021", "902101234", "ABCDE")
 
@@ -213,7 +213,7 @@ The pattern reads as "start, exactly 5 digits, optionally a dash followed by exa
 
 **Try it:** Extract the content between the first pair of square brackets in the string `"[INFO] start [WARN] bad [ERROR] crash"`. Use a lazy quantifier so you only get the first bracketed word. Store the result in `ex_bracket`.
 
-```r
+```r title="Exercise: match bracketed text lazily"
 # Try it: extract first bracketed word
 bracket_text <- "[INFO] start [WARN] bad [ERROR] crash"
 
@@ -226,7 +226,7 @@ ex_bracket
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_bracket <- str_extract(bracket_text, "\\[.*?\\]")
 ex_bracket
 #> [1] "[INFO]"
@@ -244,7 +244,7 @@ Anchors don't match characters, they match *positions*. The caret `^` is "start 
 
 A single anchor at the start ensures your check applies to the beginning of the string, not just any position inside it.
 
-```r
+```r title="Match capital letter at start"
 # Example 9: Check for an initial capital letter
 sentences <- c("The quick brown fox", "jumped over", "A lazy dog",
                "123 numbers first", "lowercase start")
@@ -265,7 +265,7 @@ The pattern `^[A-Z]` says "at position zero, there must be an uppercase letter."
 
 The `$` anchor pins the pattern to the end of the string. Combined with `\\w+`, it captures the final word in one move.
 
-```r
+```r title="Match words ending a string"
 # Example 10: Get the last word of each sentence
 last_words <- str_extract(sentences, "\\w+$")
 last_words
@@ -278,7 +278,7 @@ last_words
 
 Word boundaries `\\b` prevent accidental partial matches. This is one of the most underused regex features, and forgetting it is the top cause of surprised bug reports on find-and-replace jobs.
 
-```r
+```r title="Match cat as whole word"
 # Example 11: Replace only the standalone word "cat"
 text_boundary <- "The cat sat on the caterpillar's mat near concatenate"
 
@@ -300,7 +300,7 @@ Without `\\b`, the pattern `"cat"` matches inside "caterpillar" and "concatenate
 
 Combining anchors with character classes gives you a validation pattern. This example checks for a basic email shape (enough for catching obvious non-emails, not for spec-perfect validation).
 
-```r
+```r title="Match full email format"
 # Example 12: Basic email validation
 emails <- c("alice@gmail.com", "bob AT yahoo", "carol@company.co.uk", "not-an-email")
 
@@ -318,7 +318,7 @@ The pattern breaks down as: one or more allowed characters before the `@`, a dom
 
 **Try it:** Detect which of the strings `c("running", "sing", "stop", "playing", "bring it")` end with the letters "ing". Store the logical vector in `ex_ing`.
 
-```r
+```r title="Exercise: match words ending in ing"
 # Try it: detect strings ending in "ing"
 ing_words <- c("running", "sing", "stop", "playing", "bring it")
 
@@ -331,7 +331,7 @@ ex_ing
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_ing <- str_detect(ing_words, "ing$")
 ex_ing
 #> [1]  TRUE  TRUE FALSE  TRUE FALSE
@@ -349,7 +349,7 @@ Parentheses `()` create capturing groups. Each group remembers the text it match
 
 When you need to split a match into components, groups do the work. Each parenthesised subpattern becomes its own column in the `str_match()` result.
 
-```r
+```r title="Capture phone number parts"
 # Example 13: Parse phones into area code + prefix + line
 phone_parts <- str_match(phones, "\\(?(\\d{3})\\)?[- ]?(\\d{3})[- ]?(\\d{4})")
 colnames(phone_parts) <- c("full_match", "area_code", "prefix", "line")
@@ -370,7 +370,7 @@ Each `(\\d{3})` captures exactly 3 digits. The non-capturing parts (parentheses,
 
 Backreferences let you rearrange captured groups inside a replacement string. `\\1` refers to the first group, `\\2` to the second, and so on.
 
-```r
+```r title="Swap first and last names"
 # Example 14: Swap "First Last" into "Last, First"
 names_vec <- c("John Smith", "Jane Doe", "Ada Lovelace")
 
@@ -388,7 +388,7 @@ The pattern `(\\w+) (\\w+)` captures two words separated by a space. In the repl
 
 The pipe `|` inside a group matches either alternative. Think of it as an OR operator for patterns.
 
-```r
+```r title="Alternate fruit names"
 # Example 15: Match fruits that are citrus or berry types
 fruits <- c("strawberry", "orange", "blueberry", "lemon", "grape",
             "grapefruit", "raspberry", "lime")
@@ -412,7 +412,7 @@ The group `(berry|orange|lemon|lime|grapefruit)` matches if *any* alternative ap
 
 Sometimes you need grouping for alternation or quantifiers but don't want that group to show up as a capture. The syntax `(?:...)` creates a non-capturing group.
 
-```r
+```r title="Non-capturing group for protocol"
 # Example 16: Non-capturing group for URL protocol
 urls <- c("http://example.com", "https://secure.org", "ftp://files.net")
 
@@ -429,7 +429,7 @@ Here `(https?)` captures "http" or "https" as a group, with the trailing `?` mak
 
 **Try it:** Extract the file extension from `"report_final.tar.gz"`, the *last* extension only. Use a capturing group and store the captured extension (not the leading dot) in `ex_ext`.
 
-```r
+```r title="Exercise: capture file extension"
 # Try it: extract final file extension
 filename <- "report_final.tar.gz"
 
@@ -443,7 +443,7 @@ ex_ext
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_ext_match <- str_match(filename, "\\.([a-zA-Z0-9]+)$")
 ex_ext <- ex_ext_match[, 2]
 ex_ext
@@ -464,7 +464,7 @@ Think of a lookaround as a security guard checking your ID at a door. The guard 
 
 Lookbehinds let you match text that follows a specific prefix without including the prefix in the result.
 
-```r
+```r title="Lookbehind for dollar prices"
 # Example 17: Extract numbers preceded by a dollar sign
 prices <- c("Price: $299.99", "Euro: 150.00", "Cost: $49", "Free: $0")
 
@@ -489,7 +489,7 @@ The `(?<=\\$)` assertion says "there must be a dollar sign immediately before th
 
 Lookaheads check what comes *after* the current position without consuming it.
 
-```r
+```r title="Lookahead for word before comma"
 # Example 18: Extract words immediately before a comma
 csv_line <- "apple, banana, cherry, date"
 
@@ -505,7 +505,7 @@ The pattern `\\w+(?=,)` matches one or more word characters that are followed by
 
 Negative lookbehinds exclude matches that have a specific prefix.
 
-```r
+```r title="Negative lookbehind for standalone numbers"
 # Example 19: Extract only positive numbers
 numbers_text <- "Scores: 42, -7, 100, -3, 88"
 
@@ -524,7 +524,7 @@ positive_nums
 
 You can stack multiple lookaheads to enforce several conditions from the same starting position. This is the classic regex technique for multi-rule validation.
 
-```r
+```r title="Multi-lookahead password strength"
 # Example 20: Check password requirements
 # At least 8 chars, one uppercase, one lowercase, one digit
 passwords <- c("Abcdef1!", "short1A", "nouppercase1", "NOLOWER1", "NoDigits!")
@@ -547,7 +547,7 @@ Each `(?=.*[X])` lookahead asserts "somewhere in this string, there is a charact
 
 **Try it:** Extract every word that is immediately followed by a question mark in the string `"Why? How? When do we start? Now!"`. Store the result in `ex_qwords`.
 
-```r
+```r title="Exercise: match words before question mark"
 # Try it: extract words before '?'
 q_text <- "Why? How? When do we start? Now!"
 
@@ -562,7 +562,7 @@ ex_qwords
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_qwords <- str_extract_all(q_text, "\\w+(?=\\?)")
 ex_qwords
 #> [[1]]
@@ -581,7 +581,7 @@ These capstone exercises combine multiple techniques from the tutorial. They're 
 
 Pull every 4-digit number (likely a year) out of a sentence. Make sure your pattern rejects 2-digit and 6-digit numbers even if they appear nearby. Store the result in `my_years`.
 
-```r
+```r title="Practice one: match four digit years"
 # Exercise 1: extract 4-digit years
 my_text <- "Events in 1969, 1989, and 2024 changed history. See page 42 or row 123456."
 
@@ -594,7 +594,7 @@ my_text <- "Events in 1969, 1989, and 2024 changed history. See page 42 or row 1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice one solution"
 my_years <- str_extract_all(my_text, "\\b\\d{4}\\b")
 my_years
 #> [[1]]
@@ -609,7 +609,7 @@ my_years
 
 Product codes follow the format `CAT-1234-XL`, a 2-3 letter category, dash, 4 digits, dash, 1-3 letter size. Extract all three components into separate columns using `str_match()`. Store the result in `my_parts`.
 
-```r
+```r title="Practice two: parse product codes"
 # Exercise 2: parse structured product codes
 my_codes <- c("SH-1001-M", "EL-2345-XL", "FD-9999-S", "HW-0042-XXL")
 
@@ -623,7 +623,7 @@ my_codes <- c("SH-1001-M", "EL-2345-XL", "FD-9999-S", "HW-0042-XXL")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice two solution"
 my_parts <- str_match(my_codes, "^([A-Z]{2,3})-(\\d{4})-([A-Z]{1,3})$")
 colnames(my_parts) <- c("full", "category", "number", "size")
 my_parts
@@ -642,7 +642,7 @@ my_parts
 
 Given a vector of email addresses, extract just the domain (everything after the `@`) using a lookbehind. Store the result in `my_domains`.
 
-```r
+```r title="Practice three: extract email domains"
 # Exercise 3: extract domains from emails
 my_emails <- c("alice@gmail.com", "bob@company.co.uk", "carol@university.edu")
 
@@ -656,7 +656,7 @@ my_emails <- c("alice@gmail.com", "bob@company.co.uk", "carol@university.edu")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice three solution"
 my_domains <- str_extract(my_emails, "(?<=@)[\\w.-]+")
 my_domains
 #> [1] "gmail.com"      "company.co.uk"  "university.edu"
@@ -670,7 +670,7 @@ my_domains
 
 Let's combine every technique from this tutorial in a realistic pipeline. You have a messy data frame of customer records where each row is a single pipe-delimited string, and you need to extract, validate, and clean several fields at once.
 
-```r
+```r title="End-to-end messy customer cleanup"
 # Complete example: clean a messy customer dataset
 library(dplyr)
 

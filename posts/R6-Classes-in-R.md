@@ -22,7 +22,7 @@ difficulty: "Advanced"
 
 S3 and S4 follow R's copy-on-modify rule, assign an object to a new variable, change one, and the other stays untouched. R6 breaks that rule deliberately. Both variables point to the *same* object, so a change through one is visible through the other. This is called **reference semantics**.
 
-```r
+```r title="Reference semantics with Counter"
 # R6 objects mutate in place — both variables see the change
 library(R6)
 
@@ -52,7 +52,7 @@ Think of it like a sticky note on a document. S3 photocopies the document every 
 
 Compare this directly with how a regular R list behaves:
 
-```r
+```r title="Copy-on-modify with plain list"
 # S3/base R: copy-on-modify — changes don't propagate
 s3_list <- list(count = 0)
 s3_copy <- s3_list
@@ -71,7 +71,7 @@ The list copy is independent, changing `s3_copy` didn't touch `s3_list`. That's 
 
 **Try it:** Create an R6 class called `Scoreboard` with a `score` field (starting at 0) and an `add_points(n)` method. Create one scoreboard, assign it to a second variable, add 10 points through the second variable, and verify the first variable also shows 10.
 
-```r
+```r title="Exercise: Build Scoreboard class"
 # Try it: build a Scoreboard with reference semantics
 Scoreboard <- R6Class("Scoreboard",
   public = list(
@@ -93,7 +93,7 @@ ex_s1$score
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Scoreboard class solution"
 Scoreboard <- R6Class("Scoreboard",
   public = list(
     score = 0,
@@ -119,7 +119,7 @@ ex_s1$score
 
 Every R6 class starts with a call to `R6Class()`. You give it a class name and a `public` list containing fields (data) and methods (functions). Methods access the object's own fields using `self$`.
 
-```r
+```r title="Person class with initialize"
 # Define a Person class with fields and methods
 Person <- R6Class("Person",
   public = list(
@@ -146,7 +146,7 @@ The `initialize()` method is R6's constructor, it runs automatically when you ca
 
 Methods can call other methods on the same object using `self$`. Let's add an `introduce()` method that builds on `greet()`:
 
-```r
+```r title="Methods calling other methods"
 # Methods can call other methods via self$
 Person <- R6Class("Person",
   public = list(
@@ -179,7 +179,7 @@ p1$introduce("R6 classes")
 
 **Try it:** Create a `Rectangle` class with `width` and `height` fields (set via initialize), and an `area()` method that returns `width * height`. Create a 5x3 rectangle and print its area.
 
-```r
+```r title="Exercise: Rectangle with area method"
 # Try it: build a Rectangle class
 Rectangle <- R6Class("Rectangle",
   public = list(
@@ -203,7 +203,7 @@ ex_rect$area()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rectangle area solution"
 Rectangle <- R6Class("Rectangle",
   public = list(
     width = NULL,
@@ -233,7 +233,7 @@ So far, every field has been public, anyone with a reference to the object can r
 
 R6 solves this with **private fields and methods**. They live in a separate `private` list and can only be accessed from *inside* the class using `private$`.
 
-```r
+```r title="BankAccount with private balance"
 # Private fields protect internal state
 BankAccount <- R6Class("BankAccount",
   public = list(
@@ -276,7 +276,7 @@ The balance can only change through `deposit()` and `withdraw()`, which enforce 
 
 What happens if you try to access the private field directly?
 
-```r
+```r title="Private fields hidden externally"
 # Private fields are NOT accessible from outside
 acct$balance
 #> NULL
@@ -292,7 +292,7 @@ You get `NULL`, not an error, just nothing. R6 doesn't expose private fields thr
 
 **Try it:** Add a private `transaction_log` list to BankAccount. Each deposit/withdrawal should append a string like "deposit: 50" to the log. Add a public `get_log()` method that returns the log.
 
-```r
+```r title="Exercise: Add transaction log"
 # Try it: add a transaction log to BankAccount
 BankAccount2 <- R6Class("BankAccount2",
   public = list(
@@ -328,7 +328,7 @@ ex_acct$get_log()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Transaction log solution"
 BankAccount2 <- R6Class("BankAccount2",
   public = list(
     owner = NULL,
@@ -371,7 +371,7 @@ ex_acct$get_log()
 
 Active bindings look like fields from the outside, you read and write them with `obj$field`, but behind the scenes they run a function. This gives you computed properties, validation, and read-only fields without changing how users interact with the object.
 
-```r
+```r title="Temperature active binding in Fahrenheit"
 # Active binding: computed Fahrenheit from Celsius
 Temperature <- R6Class("Temperature",
   public = list(
@@ -403,7 +403,7 @@ The `fahrenheit` binding works both ways, reading it converts from Celsius, and 
 
 Active bindings are also perfect for validation. Here's a class that rejects invalid age values:
 
-```r
+```r title="Validated active binding for age"
 # Active binding for validation
 ValidatedPerson <- R6Class("ValidatedPerson",
   public = list(
@@ -442,7 +442,7 @@ From the outside, `v$age` looks like a plain field. But setting `v$age <- -5` wo
 
 **Try it:** Create a `Circle` class where setting `radius` stores it in a private field, and a read-only `area` active binding returns `pi * radius^2`. Setting `area` directly should throw an error.
 
-```r
+```r title="Exercise: Circle with read-only area"
 # Try it: Circle with read-only area active binding
 Circle <- R6Class("Circle",
   public = list(
@@ -473,7 +473,7 @@ ex_circ$area
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Circle area solution"
 Circle <- R6Class("Circle",
   public = list(
     initialize = function(radius) {
@@ -509,7 +509,7 @@ ex_circ$area
 
 R6 supports single inheritance through the `inherit` argument. A child class gets all the parent's fields and methods, and can override any of them. Inside the child, `super$` accesses the parent's version of overridden methods.
 
-```r
+```r title="Animal and Dog inheritance"
 # Inheritance: Animal parent, Dog child
 Animal <- R6Class("Animal",
   public = list(
@@ -552,7 +552,7 @@ Dog inherits `speak()` from Animal without redefining it. The constructor calls 
 
 Inheritance can go multiple levels deep. Each class in the chain adds its own specialization:
 
-```r
+```r title="Multi-level GuideDog inheritance"
 # Multi-level inheritance
 GuideDog <- R6Class("GuideDog",
   inherit = Dog,
@@ -588,7 +588,7 @@ class(buddy)
 
 **Try it:** Create a `Vehicle` class with `make` and `year` fields, and a `describe()` method. Then create an `ElectricCar` class that inherits from Vehicle, adds a `battery_level` field (default 100), and overrides `describe()` to include the battery level.
 
-```r
+```r title="Exercise: Vehicle and ElectricCar"
 # Try it: Vehicle -> ElectricCar hierarchy
 Vehicle <- R6Class("Vehicle",
   public = list(
@@ -626,7 +626,7 @@ ex_car$describe()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Vehicle and ElectricCar solution"
 Vehicle <- R6Class("Vehicle",
   public = list(
     make = NULL,
@@ -671,7 +671,7 @@ Since R6 uses reference semantics, plain assignment (`y <- x`) doesn't copy, bot
 
 A **shallow clone** copies the object's own fields, but any R6 objects *inside* those fields are still shared:
 
-```r
+```r title="Shallow clone shares inner objects"
 # Shallow clone: inner R6 objects are still shared
 Player <- R6Class("Player",
   public = list(
@@ -710,7 +710,7 @@ Changing `t2$name` (a simple string) didn't affect `t1`, that field was copied. 
 
 To get fully independent copies, use `$clone(deep = TRUE)`:
 
-```r
+```r title="Deep clone creates independent copies"
 # Deep clone: everything is independent
 t3 <- t1$clone(deep = TRUE)
 t3$captain$score <- 0
@@ -730,7 +730,7 @@ Now `t3` has its own Player object. Changing the captain's score in `t3` doesn't
 
 **Try it:** Create two Player objects, put them in a Team, deep-clone the team, change one player's score in the clone, and verify the original team's players are unchanged.
 
-```r
+```r title="Exercise: Verify deep clone independence"
 # Try it: verify deep clone independence
 ex_p1 <- Player$new("Alice")
 ex_p2 <- Player$new("Bob")
@@ -756,7 +756,7 @@ ex_team1$players[[1]]$score
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Deep clone verification solution"
 ex_p1 <- Player$new("Alice")
 ex_p2 <- Player$new("Bob")
 
@@ -788,7 +788,7 @@ A **finalizer** is a method that runs automatically when an R6 object is garbage
 
 Define a finalizer by adding a `finalize` method to the private list:
 
-```r
+```r title="FileLogger with finalizer method"
 # Finalizer: clean up when the object is garbage collected
 FileLogger <- R6Class("FileLogger",
   public = list(
@@ -833,7 +833,7 @@ When `rm(logger)` removes the last reference and `gc()` runs garbage collection,
 
 **Try it:** Create a `TempData` class whose initializer stores a message and whose finalizer prints "Cleaning up: [message]". Create an instance, remove it with `rm()`, and call `gc()` to see the finalizer fire.
 
-```r
+```r title="Exercise: TempData cleanup finalizer"
 # Try it: finalizer that prints a cleanup message
 TempData <- R6Class("TempData",
   public = list(
@@ -859,7 +859,7 @@ gc()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="TempData finalizer solution"
 TempData <- R6Class("TempData",
   public = list(
     msg = NULL,
@@ -897,7 +897,7 @@ Build a `Stack` class with:
 - An active binding `size` that returns the current number of items
 - `pop()` should throw an error on an empty stack
 
-```r
+```r title="Exercise: Build Stack class"
 # Exercise 1: Build a Stack class
 # Hint: use private$items as a list, append with c()
 
@@ -908,7 +908,7 @@ Build a `Stack` class with:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stack class solution"
 Stack <- R6Class("Stack",
   public = list(
     initialize = function() {
@@ -968,7 +968,7 @@ Build a `Node` R6 class with `value` and `next_node` fields. Then build a `Linke
 - A `print_all()` method that walks the chain and prints each value
 - A `copy()` method that returns a deep clone (modifying the copy shouldn't affect the original)
 
-```r
+```r title="Exercise: LinkedList with R6 Nodes"
 # Exercise 2: LinkedList using R6 Nodes
 # Hint: Node holds a value and a reference to the next Node
 # Walk the chain with a while loop on current$next_node
@@ -980,7 +980,7 @@ Build a `Node` R6 class with `value` and `next_node` fields. Then build a `Linke
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="LinkedList solution"
 Node <- R6Class("Node",
   public = list(
     value = NULL,
@@ -1055,7 +1055,7 @@ Build a `Logger` class with:
 
 Then create a `VerboseLogger` that inherits from Logger and overrides `log()` to also print each message to the console immediately.
 
-```r
+```r title="Exercise: Logger and VerboseLogger"
 # Exercise 3: Logger + VerboseLogger inheritance
 # Hint: super$log() in VerboseLogger calls the parent's log method
 
@@ -1066,7 +1066,7 @@ Then create a `VerboseLogger` that inherits from Logger and overrides `log()` to
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Logger and VerboseLogger solution"
 Logger <- R6Class("Logger",
   public = list(
     initialize = function() {
@@ -1126,7 +1126,7 @@ vlog$print_logs()
 
 Let's build a complete `TaskManager` that combines every concept, R6 class definition, private fields, active bindings, inheritance, and finalizers.
 
-```r
+```r title="End-to-end Task and TaskManager"
 # Complete example: TaskManager with all R6 features
 Task <- R6Class("Task",
   public = list(
@@ -1229,7 +1229,7 @@ This example ties together every major R6 feature: private storage (`private$tas
 
 Now let's extend it with inheritance, a `PriorityTaskManager` that adds priority levels:
 
-```r
+```r title="PriorityTaskManager inheritance example"
 # Inheritance: PriorityTaskManager
 PriorityTaskManager <- R6Class("PriorityTaskManager",
   inherit = TaskManager,

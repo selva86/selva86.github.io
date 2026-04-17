@@ -36,7 +36,7 @@ This post shows you how to compute each, add them to ggplot2 charts, and which s
 
 Before adding error bars, you need a summary data frame with columns for the mean, and the upper/lower bounds of your error interval. `dplyr` makes this straightforward.
 
-```r
+```r title="Compute summary stats for error bars"
 library(ggplot2)
 library(dplyr)
 
@@ -67,7 +67,7 @@ summary_df
 
 `geom_errorbar()` draws vertical lines at `ymin` and `ymax`. Add it on top of `geom_point()` to show mean + uncertainty.
 
-```r
+```r title="Add error bars to a point plot"
 # Error bars showing ±SE
 p_errbar <- ggplot(summary_df, aes(x = Species, y = mean, color = Species)) +
   geom_errorbar(
@@ -97,7 +97,7 @@ The `width` argument controls the horizontal caps at the top and bottom of each 
 
 `geom_pointrange()` combines the dot and the interval into a single geom, cleaner code and a cleaner look, since it ensures the dot and bar are perfectly aligned.
 
-```r
+```r title="Combine dot and interval with pointrange"
 # geom_pointrange: dot + interval in one geom
 p_pointrange <- ggplot(summary_df, aes(x = Species, y = mean, color = Species)) +
   geom_pointrange(
@@ -131,7 +131,7 @@ Related geoms for comparison:
 
 Bar charts with error bars are common in scientific papers. The key: add `geom_errorbar()` *after* `geom_col()` so it renders on top.
 
-```r
+```r title="Error bars on a bar chart"
 # Bar chart with error bars
 p_bar <- ggplot(summary_df, aes(x = Species, y = mean, fill = Species)) +
   geom_col(width = 0.6, alpha = 0.85) +
@@ -162,7 +162,7 @@ Note: many visualization experts argue against bar charts with error bars, becau
 
 When your continuous variable is on the x-axis (e.g., effect sizes, regression coefficients), use `geom_errorbarh()`.
 
-```r
+```r title="Horizontal error bars for coefficients"
 # Horizontal error bars: regression-style coefficient plot
 coef_df <- data.frame(
   variable  = c("Petal.Length", "Petal.Width", "Sepal.Width", "Intercept"),
@@ -203,7 +203,7 @@ This "forest plot" style is standard for coefficient plots, meta-analyses, and e
 
 ## Complete Example: Multi-group Error Bar Plot
 
-```r
+```r title="Multi-group dodged error bars"
 # Multi-group: error bars with grouped points + dodge
 multi_df <- iris |>
   group_by(Species) |>
@@ -256,7 +256,7 @@ p_final
 
 ✅ Always add a caption or subtitle specifying the error measure:
 
-```r
+```r title="Common mistake: unlabelled error bars"
 labs(caption = "Error bars show 95% confidence intervals")
 # or
 labs(caption = "Error bars show ± 1 standard error")
@@ -271,7 +271,7 @@ SD and SE answer different questions. If you're making a claim about how precise
 - `width`, horizontal extent of the caps (set to 0 for no caps)
 - `linewidth`, thickness of the vertical line
 
-```r
+```r title="Common mistake: SD versus SE choice"
 # Both matter
 geom_errorbar(aes(ymin = lo, ymax = hi), width = 0.2, linewidth = 0.8)
 ```
@@ -280,7 +280,7 @@ geom_errorbar(aes(ymin = lo, ymax = hi), width = 0.2, linewidth = 0.8)
 
 When you have multiple groups per x-axis position, error bars stack on top of each other without `position_dodge()`.
 
-```r
+```r title="Common mistake: overlapping error bars"
 # Wrong: bars overlap
 geom_errorbar(aes(ymin = lo, ymax = hi))
 
@@ -301,7 +301,7 @@ Using `ToothGrowth`, compute mean tooth length (`len`) by supplement (`supp`) an
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="ToothGrowth CI error bars solution"
 library(ggplot2)
 library(dplyr)
 
@@ -342,7 +342,7 @@ Using the same `tg_summary` from Exercise 1, create a bar chart with error bars 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Faceted ToothGrowth bar solution"
 library(ggplot2)
 
 ggplot(tg_summary, aes(x = factor(dose), y = mean, fill = factor(dose))) +

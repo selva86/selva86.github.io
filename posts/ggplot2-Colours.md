@@ -37,7 +37,7 @@ Every colour in a ggplot2 chart starts with a mapping inside `aes()`. When you w
 
 Let's load the packages we need and see the default behaviour on the built-in `mpg` dataset.
 
-```r
+```r title="Load ggplot and mpg data"
 # Load libraries (all WebR-compatible)
 library(ggplot2)
 library(scales)
@@ -54,7 +54,7 @@ head(mpg, 4)
 
 The `mpg` dataset has 234 rows of fuel economy data. The `class` column is categorical (7 car types) and `hwy` is continuous (highway miles per gallon). Let's map each to colour.
 
-```r
+```r title="Default discrete colour palette"
 # Discrete colour: map class (character) to colour
 p_discrete <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2) +
@@ -65,7 +65,7 @@ print(p_discrete)
 
 ggplot2 assigned a different hue to each of the 7 car classes. The default discrete palette spreads colours evenly around the colour wheel, which works well for up to about 8 categories.
 
-```r
+```r title="Default continuous colour gradient"
 # Continuous colour: map hwy (numeric) to colour
 p_continuous <- ggplot(mpg, aes(x = displ, y = cty, color = hwy)) +
   geom_point(size = 2) +
@@ -84,7 +84,7 @@ For the continuous variable `hwy`, ggplot2 used a dark-to-light blue gradient. H
 
 **Try it:** Map `drv` (drive type: f, r, 4) to colour instead of `class`. How many colours appear?
 
-```r
+```r title="Exercise: colour by drive"
 # Try it: map drv to colour
 ex_plot1 <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point(size = 2)
@@ -96,7 +96,7 @@ ex_plot1 <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: colour by drive"
 ex_plot1 <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point(size = 2)
 print(ex_plot1)
@@ -113,7 +113,7 @@ Sometimes the default palette is not enough. You need exact colours for brand gu
 
 The function takes a `values` argument, a vector of colours. You can use colour names (`"steelblue"`), hex codes (`"#E41A1C"`), or a named vector that maps each level to a specific colour.
 
-```r
+```r title="Manual discrete colours with names"
 # Named vector: explicit mapping from level to colour
 custom_colors <- c(
   "compact"    = "#1B9E77",
@@ -140,7 +140,7 @@ Using a named vector is safer than a positional vector. With a named vector, eac
 
 The fill variant works the same way. Use `scale_fill_manual()` for bar charts, boxplots, and any geom that uses the `fill` aesthetic.
 
-```r
+```r title="Manual fill colours for bars"
 # scale_fill_manual() for bar chart
 p_fill <- ggplot(mpg, aes(x = class, fill = class)) +
   geom_bar() +
@@ -154,7 +154,7 @@ The colours match exactly because we reused the same named vector. The `fill` ae
 
 **Try it:** Create a bar chart of `drv` with 3 custom hex colours of your choice.
 
-```r
+```r title="Exercise: fill bars by drive"
 # Try it: custom fill for drv
 ex_bar <- ggplot(mpg, aes(x = drv, fill = drv)) +
   geom_bar()
@@ -166,7 +166,7 @@ ex_bar <- ggplot(mpg, aes(x = drv, fill = drv)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: fill by drive"
 ex_bar <- ggplot(mpg, aes(x = drv, fill = drv)) +
   geom_bar() +
   scale_fill_manual(values = c("4" = "#FF6B6B", "f" = "#4ECDC4", "r" = "#45B7D1"))
@@ -190,7 +190,7 @@ Cynthia Brewer designed the ColorBrewer palettes for cartography, but they are a
 
 Let's apply a qualitative Brewer palette to our scatter plot.
 
-```r
+```r title="Apply Brewer qualitative palette"
 # Qualitative Brewer palette
 p_brewer <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2) +
@@ -204,7 +204,7 @@ print(p_brewer)
 
 You can explore all available palettes with `RColorBrewer::display.brewer.all()`, or check the palette info table.
 
-```r
+```r title="List available Brewer palettes"
 # Show all Brewer palette names and their properties
 library(RColorBrewer)
 brewer_info <- brewer.pal.info
@@ -231,7 +231,7 @@ The `colorblind` column tells you which palettes are safe for colour-blind viewe
 
 Now let's try a diverging palette for data that has a natural midpoint. We will create a variable that measures each car's MPG relative to the group mean.
 
-```r
+```r title="Diverging palette around midpoint"
 # Diverging palette: deviation from mean
 mpg$hwy_dev <- mpg$hwy - mean(mpg$hwy)
 
@@ -248,7 +248,7 @@ Blue dots sit above average highway MPG, red dots below. The neutral midpoint (z
 
 **Try it:** Apply the diverging "PiYG" palette to the same plot. What colour represents above-average MPG now?
 
-```r
+```r title="Exercise: PiYG diverging palette"
 # Try it: PiYG diverging palette
 ex_div <- ggplot(mpg, aes(x = displ, y = cty, color = hwy_dev)) +
   geom_point(size = 2)
@@ -260,7 +260,7 @@ ex_div <- ggplot(mpg, aes(x = displ, y = cty, color = hwy_dev)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: PiYG diverging palette"
 ex_div <- ggplot(mpg, aes(x = displ, y = cty, color = hwy_dev)) +
   geom_point(size = 2) +
   scale_color_distiller(palette = "PiYG", direction = 1) +
@@ -284,7 +284,7 @@ This gives viridis three practical advantages. It still works when printed in gr
 
 The viridis package ships with 8 palette options: "viridis" (D), "magma" (A), "inferno" (B), "plasma" (C), "cividis" (E), "rocket" (F), "mako" (G), and "turbo" (H). Let's apply viridis to a continuous variable.
 
-```r
+```r title="Apply viridis continuous scale"
 # Viridis continuous palette
 p_viridis <- ggplot(mpg, aes(x = displ, y = cty, color = hwy)) +
   geom_point(size = 2) +
@@ -299,7 +299,7 @@ Dark purple represents the lowest highway MPG values, bright yellow the highest.
 
 Viridis also works for discrete data. Use `scale_color_viridis_d()` or `scale_fill_viridis_d()` for factors.
 
-```r
+```r title="Viridis discrete with plasma"
 # Viridis discrete palette with plasma option
 p_plasma <- ggplot(mpg, aes(x = class, fill = class)) +
   geom_bar() +
@@ -313,7 +313,7 @@ The plasma palette runs from deep purple through pink to yellow. Each of the 7 c
 
 Let's see all 8 viridis options side by side using the `show_col()` function from the scales package.
 
-```r
+```r title="Compare six viridis options"
 # Show 6 viridis palette options
 par(mfrow = c(2, 3))
 for (opt in c("viridis", "magma", "plasma", "inferno", "mako", "rocket")) {
@@ -328,7 +328,7 @@ Each row of swatches goes from dark to light. That monotonic luminance change is
 
 **Try it:** Apply the "mako" option to a continuous colour scale. Then try "turbo". Which one varies luminance more smoothly?
 
-```r
+```r title="Exercise: mako and turbo palettes"
 # Try it: compare mako and turbo
 ex_mako <- ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
   geom_point(size = 2)
@@ -341,7 +341,7 @@ ex_mako <- ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: mako and turbo"
 ex_mako <- ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
   geom_point(size = 2) +
   scale_color_viridis_c(option = "mako") +
@@ -362,7 +362,7 @@ The simplest check is to look at your palette's luminance values. If two colours
 
 Let's extract the default ggplot2 hue palette and check it.
 
-```r
+```r title="Preview default hue palette"
 # Extract default ggplot2 hue palette for 4 colours
 pal_default <- hue_pal()(4)
 print(pal_default)
@@ -374,7 +374,7 @@ show_col(pal_default)
 
 The default palette uses red, green, cyan, and purple. Red and green are the most dangerous pair for colour-blind viewers. Let's compare with a viridis palette of the same size.
 
-```r
+```r title="Preview viridis palette colours"
 # Viridis palette for 4 colours
 pal_viridis <- viridis_pal()(4)
 print(pal_viridis)
@@ -396,7 +396,7 @@ Here are practical rules for colour-blind-safe charts:
 - Add `shape` as a redundant aesthetic: `aes(color = group, shape = group)`
 - Test your palette by converting it to greyscale, if two colours merge, they will also merge for many colour-blind viewers
 
-```r
+```r title="Test palette in greyscale"
 # Practical test: convert palette to greyscale
 pal_test <- c("#E41A1C", "#377EB8", "#4DAF4A")  # red, blue, green
 cat("Original:", pal_test, "\n")
@@ -417,7 +417,7 @@ Red and green have similar greyscale brightness (90 vs 128), but they are more d
 
 **Try it:** Check whether the "Dark2" Brewer palette (4 colours) has distinct greyscale values.
 
-```r
+```r title="Exercise: Dark2 in greyscale"
 # Try it: greyscale test for Dark2
 ex_cb <- RColorBrewer::brewer.pal(4, "Dark2")
 # your code here — convert each colour to greyscale and print brightness
@@ -428,7 +428,7 @@ ex_cb <- RColorBrewer::brewer.pal(4, "Dark2")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Dark2 greyscale"
 ex_cb <- RColorBrewer::brewer.pal(4, "Dark2")
 for (hex in ex_cb) {
   rgb_vals <- col2rgb(hex)
@@ -450,7 +450,7 @@ for (hex in ex_cb) {
 ### Mistake 1: Using a qualitative palette for ordered data
 
 :x: **Wrong:**
-```r
+```r title="Mistake: qualitative on ordered data"
 # Ordered data (cylinder count) with qualitative palette
 ggplot(mpg, aes(x = displ, y = hwy, color = factor(cyl))) +
   geom_point() +
@@ -461,7 +461,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = factor(cyl))) +
 **Why it is wrong:** "Set2" assigns unrelated hues to each level. A reader cannot tell that 8 cylinders > 6 > 5 > 4 from the colours alone.
 
 :white_check_mark: **Correct:**
-```r
+```r title="Correct: viridis discrete for ordered"
 # Use a sequential palette for ordered data
 ggplot(mpg, aes(x = displ, y = hwy, color = factor(cyl))) +
   geom_point() +
@@ -473,7 +473,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = factor(cyl))) +
 ### Mistake 2: Using rainbow or jet palettes
 
 :x: **Wrong:**
-```r
+```r title="Mistake: using rainbow palette"
 # Rainbow palette — perceptually non-uniform
 ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
   geom_point() +
@@ -484,7 +484,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
 **Why it is wrong:** Rainbow palettes have uneven luminance. The yellow band looks brighter than blue or red, making mid-range values appear more prominent than they are. The palette also fails completely in greyscale.
 
 :white_check_mark: **Correct:**
-```r
+```r title="Correct: viridis continuous instead"
 ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
   geom_point() +
   scale_color_viridis_c() +
@@ -494,7 +494,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
 ### Mistake 3: Using scale_color_brewer() on continuous data
 
 :x: **Wrong:**
-```r
+```r title="Mistake: Brewer on continuous variable"
 # This will error: Brewer is for discrete data
 # ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
 #   geom_point() +
@@ -506,7 +506,7 @@ cat("Error: Continuous value supplied to discrete scale\n")
 **Why it is wrong:** `scale_color_brewer()` expects discrete (factor/character) data. For continuous data, you need `scale_color_distiller()` (interpolates Brewer palettes) or `scale_color_fermenter()` (binned Brewer palettes).
 
 :white_check_mark: **Correct:**
-```r
+```r title="Correct: use scale distiller"
 ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
   geom_point() +
   scale_color_distiller(palette = "Blues", direction = 1) +
@@ -516,7 +516,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = cty)) +
 ### Mistake 4: Putting a fixed colour inside aes()
 
 :x: **Wrong:**
-```r
+```r title="Mistake: colour blue inside aes"
 # "blue" is treated as a data variable, not a colour
 ggplot(mpg, aes(x = displ, y = hwy, color = "blue")) +
   geom_point()
@@ -526,7 +526,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = "blue")) +
 **Why it is wrong:** Anything inside `aes()` is interpreted as a data mapping. The string "blue" becomes a single-level factor, and ggplot2 maps it to the first default colour (salmon red).
 
 :white_check_mark: **Correct:**
-```r
+```r title="Correct: move blue outside aes"
 # Fixed colour goes OUTSIDE aes()
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(color = "blue")
@@ -535,7 +535,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 ### Mistake 5: Too many discrete colours
 
 :x: **Wrong:**
-```r
+```r title="Mistake: many groups one palette"
 # 15 colours — impossible to distinguish
 many_groups <- data.frame(
   x = 1:15, y = runif(15), group = paste0("G", 1:15)
@@ -548,7 +548,7 @@ ggplot(many_groups, aes(x = x, y = y, color = group)) +
 **Why it is wrong:** Humans can reliably distinguish about 6-8 colours at once. Beyond that, the chart becomes a guessing game between the legend and the data.
 
 :white_check_mark: **Correct:**
-```r
+```r title="Correct: bin or facet groups"
 # Bin or facet when you have too many categories
 many_groups$super_group <- ifelse(many_groups$x <= 5, "Low",
                             ifelse(many_groups$x <= 10, "Mid", "High"))
@@ -564,7 +564,7 @@ ggplot(many_groups, aes(x = x, y = y, color = super_group)) +
 
 Build a scatter plot of `mpg` with `hwy` on the y-axis and `displ` on the x-axis. Colour by `drv` (drive type) using the "Dark2" Brewer palette. Add `shape = drv` as a redundant encoding for colour-blind safety.
 
-```r
+```r title="Exercise one: Brewer with shape"
 # Exercise 1: Brewer palette + shape redundancy
 # Hint: map both color and shape to drv inside aes()
 
@@ -575,7 +575,7 @@ Build a scatter plot of `mpg` with `hwy` on the y-axis and `displ` on the x-axis
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: Brewer with shape"
 my_scatter <- ggplot(mpg, aes(x = displ, y = hwy, color = drv, shape = drv)) +
   geom_point(size = 2) +
   scale_color_brewer(palette = "Dark2") +
@@ -594,7 +594,7 @@ print(my_scatter)
 
 Create a tile plot using `geom_tile()` on the built-in `faithfuld` dataset (`waiting` on x, `eruptions` on y, `density` as fill). Apply `scale_fill_viridis_c()` with the "inferno" option. Customise the legend title to "Density" and set breaks at 0.01 and 0.02.
 
-```r
+```r title="Exercise two: viridis heatmap"
 # Exercise 2: heatmap with viridis
 # Hint: use geom_tile(aes(fill = density)) and scale_fill_viridis_c()
 
@@ -605,7 +605,7 @@ Create a tile plot using `geom_tile()` on the built-in `faithfuld` dataset (`wai
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: viridis heatmap"
 my_heatmap <- ggplot(faithfuld, aes(x = waiting, y = eruptions, fill = density)) +
   geom_tile() +
   scale_fill_viridis_c(option = "inferno",
@@ -625,7 +625,7 @@ print(my_heatmap)
 
 Create sample data where values diverge from zero: `data.frame(x = 1:20, y = rnorm(20))`. Plot with `geom_col()` and apply `scale_fill_gradient2()` with blue for negative, white for zero, and red for positive. Set `midpoint = 0`.
 
-```r
+```r title="Exercise three: diverging gradient"
 # Exercise 3: diverging gradient centred on zero
 # Hint: scale_fill_gradient2(low, mid, high, midpoint)
 set.seed(99)
@@ -637,7 +637,7 @@ set.seed(99)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: diverging gradient"
 set.seed(99)
 my_data <- data.frame(x = 1:20, y = rnorm(20))
 my_diverge <- ggplot(my_data, aes(x = x, y = y, fill = y)) +
@@ -658,7 +658,7 @@ print(my_diverge)
 
 Let's build a publication-quality chart that applies everything from this tutorial: viridis for perception, shape for redundancy, and a clean theme.
 
-```r
+```r title="Capstone: publication quality colours"
 # Complete example: publication-quality scatter
 set.seed(42)
 p_final <- ggplot(mpg, aes(x = displ, y = hwy, color = cty, shape = drv)) +

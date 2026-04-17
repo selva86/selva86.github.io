@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Most SAS-to-R guides start with philosophy. We'll start with the procedure you run a hundred times a week. Here's `PROC MEANS DATA=mtcars; CLASS cyl; VAR mpg; RUN;` rewritten in R using base R's `aggregate()`, same grouping, same statistics, same output shape. Run it. If the result looks like the PROC MEANS output you'd see in SAS, you already know more R than you think.
 
-```r
+```r title="PROC MEANS via aggregate formula"
 # SAS:  PROC MEANS DATA=mtcars MEAN STD N; CLASS cyl; VAR mpg; RUN;
 proc_means <- aggregate(
   mpg ~ cyl,
@@ -41,7 +41,7 @@ Three lines of R reproduced an entire PROC MEANS call. `aggregate()` takes a for
 [TIP]
 **Tidyverse fans can write the same thing as a top-to-bottom pipeline.** The dplyr equivalent, `mtcars |> group_by(cyl) |> summarise(...)`, produces the same table and is the dialect most modern R books teach. Pick whichever reads better to you.
 
-```r
+```r title="PROC MEANS via dplyr pipeline"
 # Same result, dplyr style
 library(dplyr)
 proc_means_dplyr <- mtcars |>
@@ -60,7 +60,7 @@ Same numbers, two dialects. Pick whichever reads better to you, most teams settl
 
 **Try it:** Reproduce `PROC MEANS DATA=mtcars; CLASS am; VAR hp; RUN;` in R. Save the result to `ex_means`.
 
-```r
+```r title="Exercise: PROC MEANS horsepower by transmission"
 # Try it: PROC MEANS for hp grouped by am
 ex_means <- aggregate(
   # your code here
@@ -72,7 +72,7 @@ ex_means
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Horsepower by transmission solution"
 ex_means <- aggregate(
   hp ~ am,
   data = mtcars,
@@ -108,7 +108,7 @@ The DATA step is the heart of SAS, it reads a row, modifies it, writes a row, re
 
 Let's build the same table in code. We'll start with a small students data frame, derive `adult` with `ifelse`, then add a multi-branch `grade` with `case_when` (the dplyr equivalent of nested `IF/ELSE IF`).
 
-```r
+```r title="DATA step with ifelse and case when"
 # DATA step equivalent: derive adult flag and a grade column
 students <- data.frame(
   name  = c("Alice", "Bob", "Carol", "Dave", "Eve"),
@@ -136,7 +136,7 @@ Two assignments built two new columns across the entire data frame at once. `ife
 
 Now the housekeeping verbs: drop, keep, rename. In SAS these are statements inside the DATA step; in R they're plain assignments to the data frame.
 
-```r
+```r title="Drop keep rename in three lines"
 # drop / keep / rename — three one-liners
 students2 <- students                      # data new; set students;
 students2$adult <- NULL                    # drop adult;
@@ -158,7 +158,7 @@ Three statements, three column edits. Setting a column to `NULL` deletes it; sub
 
 **Try it:** Add a `bonus` column equal to 10% of `score` to `students`, then keep only the rows where `score > 80`. Save the result to `ex_filter`.
 
-```r
+```r title="Exercise: derive bonus and filter"
 # Try it: derive bonus, then filter score > 80
 ex_filter <- students
 # your code here
@@ -170,7 +170,7 @@ ex_filter
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Derive bonus and filter solution"
 ex_filter <- students
 ex_filter$bonus <- ex_filter$score * 0.1
 ex_filter <- subset(ex_filter, score > 80)
@@ -199,7 +199,7 @@ Three of the most common PROCs after PROC MEANS, and all three have one-line rep
 
 Let's run all three. Start with PROC FREQ, a one-way frequency table, then a cross-tab with a chi-square test.
 
-```r
+```r title="PROC FREQ with table and chisq"
 # PROC FREQ DATA=mtcars; TABLES cyl; RUN;
 freq1 <- table(mtcars$cyl)
 freq1
@@ -222,7 +222,7 @@ chisq.test(cross_tab)$p.value
 
 PROC SORT next. Base R uses `order()`, which returns the row indices in sorted order; dplyr's `arrange()` reads more naturally for multi-key sorts.
 
-```r
+```r title="PROC SORT via order function"
 # PROC SORT DATA=mtcars; BY cyl DESCENDING mpg; RUN;
 sorted_df <- mtcars[order(mtcars$cyl, -mtcars$mpg), c("cyl", "mpg", "hp")]
 head(sorted_df, 6)
@@ -239,7 +239,7 @@ head(sorted_df, 6)
 
 Now PROC TRANSPOSE. Long-to-wide reshaping is the one place where SAS's syntax is famously confusing, and R's tidyr makes the same operation almost trivial.
 
-```r
+```r title="PROC TRANSPOSE via pivot wider"
 # PROC TRANSPOSE DATA=long OUT=wide; BY id; ID measure; VAR value; RUN;
 library(tidyr)
 long_df <- data.frame(
@@ -263,7 +263,7 @@ wide_df
 
 **Try it:** Build a cross-tabulation of `mtcars$cyl` against `mtcars$gear` and pull the chi-square p-value into a variable called `ex_freq`.
 
-```r
+```r title="Exercise: cross tab chi square p value"
 # Try it: cross-tab cyl x gear, save chi-square p-value
 ex_freq <- # your code here
 ex_freq
@@ -273,7 +273,7 @@ ex_freq
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cross tab p value solution"
 ex_freq <- chisq.test(table(mtcars$cyl, mtcars$gear))$p.value
 ex_freq
 #> [1] 0.0007115422
@@ -289,7 +289,7 @@ Every linear model in R uses the same formula interface: `outcome ~ predictor1 +
 
 PROC REG first, ordinary least squares regression.
 
-```r
+```r title="PROC REG becomes lm"
 # PROC REG DATA=mtcars; MODEL mpg = wt hp qsec; RUN;
 reg_model <- lm(mpg ~ wt + hp + qsec, data = mtcars)
 summary(reg_model)
@@ -310,7 +310,7 @@ The output is the same set of numbers PROC REG would print: estimates, standard 
 
 PROC LOGISTIC next. Same idea, different family.
 
-```r
+```r title="PROC LOGISTIC becomes glm binomial"
 # PROC LOGISTIC DATA=mtcars; MODEL am = mpg wt hp; RUN;
 logit_model <- glm(am ~ mpg + wt + hp, data = mtcars, family = binomial)
 round(coef(summary(logit_model)), 3)
@@ -328,7 +328,7 @@ round(exp(coef(logit_model)), 3)        # odds ratios
 
 PROC GLM gives you ANOVA. R's `aov()` does the same job.
 
-```r
+```r title="PROC GLM becomes aov"
 # PROC GLM DATA=mtcars; CLASS cyl; MODEL mpg = cyl; RUN;
 aov_model <- aov(mpg ~ factor(cyl), data = mtcars)
 summary(aov_model)
@@ -344,7 +344,7 @@ Wrapping `cyl` in `factor()` is the equivalent of declaring it on a `CLASS` stat
 
 **Try it:** Fit `lm(mpg ~ wt + cyl)` on `mtcars` and pull the coefficient on `wt` into `ex_lm`.
 
-```r
+```r title="Exercise: extract one coefficient"
 # Try it: fit a model and extract one coefficient
 ex_lm <- # your code here
 ex_lm
@@ -354,7 +354,7 @@ ex_lm
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extract coefficient solution"
 ex_lm <- coef(lm(mpg ~ wt + cyl, data = mtcars))["wt"]
 ex_lm
 #>        wt
@@ -379,7 +379,7 @@ ex_lm
 
 Let's run them on a small customers/orders pair so you can see the row counts change with each join type.
 
-```r
+```r title="MERGE with all x for left join"
 # Two small tables to join
 customers <- data.frame(id = 1:4, name = c("Alice", "Bob", "Carol", "Dave"))
 orders    <- data.frame(id = c(1, 2, 2, 4), amount = c(100, 250, 75, 300))
@@ -399,7 +399,7 @@ Five rows, because Bob has two orders and Carol has none. `all.x = TRUE` is the 
 
 The dplyr version reads the same way, just with the join verb in front of the data frames.
 
-```r
+```r title="dplyr inner join alternative"
 # Same job, dplyr style
 joined_inner <- inner_join(customers, orders, by = "id")
 joined_inner
@@ -417,7 +417,7 @@ Carol is gone, `inner_join()` keeps only the rows where `id` exists in both tabl
 
 **Try it:** Left-join `customers` and `orders` keeping only rows where `amount > 100`. Save the result to `ex_join`.
 
-```r
+```r title="Exercise: left join then filter"
 # Try it: left-join then filter
 ex_join <- # your code here
 ex_join
@@ -427,7 +427,7 @@ ex_join
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Left join and filter solution"
 ex_join <- left_join(customers, orders, by = "id") |>
   filter(amount > 100)
 ex_join
@@ -456,7 +456,7 @@ SAS macros are text generators, they paste code together at compile time, with `
 
 Here's a real macro you've probably written some version of: a reusable summary procedure that takes a dataset, a variable, and a class column.
 
-```r
+```r title="SAS macro becomes R function"
 # SAS:
 # %macro summarize(data=, var=, group=);
 #   PROC MEANS DATA=&data; CLASS &group; VAR &var; RUN;
@@ -486,7 +486,7 @@ The R version is shorter, easier to debug, and gives you a real return value you
 
 **Try it:** Write a function `ex_func(df, col, n)` that returns the top `n` rows of `df` ordered by descending `col`. Test it on `mtcars`, `"mpg"`, `3`.
 
-```r
+```r title="Exercise: top n function"
 # Try it: top-n function
 ex_func <- function(df, col, n) {
   # your code here
@@ -499,7 +499,7 @@ ex_func(mtcars, "mpg", 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top n function solution"
 ex_func <- function(df, col, n) {
   df[order(-df[[col]]), ][1:n, ]
 }
@@ -550,7 +550,7 @@ Bookmark this section. It covers the 20 procedures that account for most of the 
 
 **Try it:** Pick any unfamiliar PROC from the table above, look up its R equivalent, and run it on `iris`. Save whatever you compute to `ex_proc`. (No fixed answer, this one is for muscle memory.)
 
-```r
+```r title="Exercise: translate any PROC"
 # Try it: pick a PROC and translate it
 ex_proc <- # your code here
 ex_proc
@@ -559,7 +559,7 @@ ex_proc
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="PROC princomp translation solution"
 # Example: PROC PRINCOMP on iris
 ex_proc <- prcomp(iris[, 1:4], scale. = TRUE)
 summary(ex_proc)
@@ -582,7 +582,7 @@ These combine multiple concepts from the tutorial. Use distinct variable names s
 
 Take `airquality`, keep only rows where `Month == 5`, then compute the mean and SD of `Ozone` (ignoring `NA` values). Save the result to `my_summary`.
 
-```r
+```r title="Exercise: filter and summarise airquality"
 # Exercise 1: filter + summarise in one step
 # Hint: filter() + summarise() in dplyr, or subset() + sapply() in base R
 
@@ -593,7 +593,7 @@ Take `airquality`, keep only rows where `Month == 5`, then compute the mean and 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter and summarise airquality solution"
 my_summary <- airquality |>
   filter(Month == 5) |>
   summarise(
@@ -614,7 +614,7 @@ my_summary
 
 You have an employees data frame. Compute a `bonus` column equal to 10% of `salary` for employees earning more than 50000, then aggregate the average bonus by `dept`. Save the result to `my_bonus`.
 
-```r
+```r title="Exercise: bonus and group summary"
 # Exercise 2: DATA step logic + PROC MEANS in one pipeline
 employees <- data.frame(
   name   = c("Ana", "Ben", "Cara", "Dan", "Eli", "Faye"),
@@ -629,7 +629,7 @@ employees <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bonus and group summary solution"
 my_bonus <- employees |>
   filter(salary > 50000) |>
   mutate(bonus = salary * 0.10) |>
@@ -659,7 +659,7 @@ Translate the macro below to an R function called `lm_fit(data, dv, iv)` that fi
 %mend;
 ```
 
-```r
+```r title="Exercise: convert macro to function"
 # Exercise 3: convert a SAS macro to an R function
 
 # Write your function and call it below:
@@ -669,7 +669,7 @@ Translate the macro below to an R function called `lm_fit(data, dv, iv)` that fi
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Convert macro to function solution"
 lm_fit <- function(data, dv, iv) {
   formula <- as.formula(paste(dv, "~", iv))
   lm(formula, data = data)
@@ -710,7 +710,7 @@ RUN;
 
 Three SAS steps, three R steps. Watch how the DATA step, PROC MEANS, and PROC REG fold into a single readable pipeline.
 
-```r
+```r title="End-to-end SAS to R rewrite"
 # The same program in R
 sales <- data.frame(
   region  = c("N", "N", "S", "S", "E", "E", "W", "W"),

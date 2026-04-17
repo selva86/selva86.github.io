@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 The exercises below progress from basic date parsing to timezone conversions and interval calculations. Each one builds on a skill you'll use constantly when cleaning real-world data. Let's load lubridate and see it in action.
 
-```r
+```r title="Parse three date formats"
 # Load lubridate and parse a quick example
 library(lubridate)
 
@@ -44,7 +44,7 @@ The function name tells lubridate the order of components, `ymd()` expects year-
 
 Parse the string `"2024-03-15"` into a Date object called `my_date`. Print the result and confirm its class.
 
-```r
+```r title="Exercise: Parse with ymd"
 # Exercise 1: Parse a date with ymd()
 # Hint: use ymd() from lubridate
 
@@ -56,7 +56,7 @@ class(my_date)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ymd parse solution"
 my_date <- ymd("2024-03-15")
 my_date
 #> [1] "2024-03-15"
@@ -72,7 +72,7 @@ class(my_date)
 
 Parse these two strings into Date objects: `"March 15, 2024"` (US format) and `"15/03/2024"` (European format). Store them as `date_us` and `date_eu`.
 
-```r
+```r title="Exercise: US and European formats"
 # Exercise 2: Parse US and European date formats
 # Hint: which function handles month-day-year? Which handles day-month-year?
 
@@ -87,7 +87,7 @@ date_us == date_eu
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="US and European formats solution"
 date_us <- mdy("March 15, 2024")
 date_eu <- dmy("15/03/2024")
 
@@ -108,7 +108,7 @@ date_us == date_eu
 
 **Try it:** Parse the string `"07-Jan-2025"` into a Date object. Which lubridate function do you need?
 
-```r
+```r title="Exercise: Parse abbreviated month"
 # Try it: parse "07-Jan-2025"
 ex_date1 <- ___("07-Jan-2025")
 ex_date1
@@ -118,7 +118,7 @@ ex_date1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Abbreviated month solution"
 ex_date1 <- dmy("07-Jan-2025")
 ex_date1
 #> [1] "2025-01-07"
@@ -136,7 +136,7 @@ Once you have a Date object, you often need to pull out individual pieces, the y
 
 Using `my_date` (which holds 2024-03-15), extract the year, month number, and weekday name.
 
-```r
+```r title="Exercise: Extract date components"
 # Exercise 3: Extract date components
 # Hint: year(), month(), and wday() with label = TRUE
 
@@ -148,7 +148,7 @@ wday(___, label = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extract components solution"
 year(my_date)
 #> [1] 2024
 month(my_date)
@@ -166,7 +166,7 @@ wday(my_date, label = TRUE)
 
 Change the month of `my_date` to December (12) and print the result. What date do you get?
 
-```r
+```r title="Exercise: Modify month component"
 # Exercise 4: Modify a date component
 # Hint: use month() on the left side of <-
 
@@ -177,7 +177,7 @@ my_date
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Modify month solution"
 month(my_date) <- 12
 my_date
 #> [1] "2024-12-15"
@@ -192,7 +192,7 @@ my_date
 
 **Try it:** Use `quarter()` to find which quarter of the year today's date falls in.
 
-```r
+```r title="Exercise: Current quarter of today"
 # Try it: which quarter is today in?
 ex_q <- quarter(___)
 ex_q
@@ -202,7 +202,7 @@ ex_q
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Current quarter solution"
 ex_q <- quarter(today())
 ex_q
 #> [1] 2
@@ -220,7 +220,7 @@ Date arithmetic is where lubridate really shines. You can add or subtract period
 
 Starting from `"2024-01-31"`, add 90 days and separately add 1 month. Store the results as `result_days` and `result_months`. Are they the same?
 
-```r
+```r title="Exercise: days versus months arithmetic"
 # Exercise 5: days() vs months() arithmetic
 # Hint: create the base date, then add days(90) and months(1)
 
@@ -236,7 +236,7 @@ result_days == result_months
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="days versus months solution"
 base_date <- ymd("2024-01-31")
 result_days <- base_date + days(90)
 result_months <- base_date + months(1)
@@ -260,7 +260,7 @@ result_days == result_months
 
 How many days are there between January 1, 2024 and December 31, 2024? Store the answer as `diff_days`.
 
-```r
+```r title="Exercise: Days between two dates"
 # Exercise 6: Date difference in days
 # Hint: subtract two dates and convert to numeric
 
@@ -271,7 +271,7 @@ diff_days
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Days difference solution"
 diff_days <- as.numeric(ymd("2024-12-31") - ymd("2024-01-01"))
 diff_days
 #> [1] 365
@@ -283,7 +283,7 @@ diff_days
 
 **Try it:** What date is 100 days from today?
 
-```r
+```r title="Exercise: One hundred days ahead"
 # Try it: 100 days from today
 ex_future <- today() + days(___)
 ex_future
@@ -293,7 +293,7 @@ ex_future
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hundred days ahead solution"
 ex_future <- today() + days(100)
 ex_future
 #> [1] "2026-07-21"
@@ -311,7 +311,7 @@ Real-world data often includes timestamps with hours, minutes, and seconds, plus
 
 Parse `"2024-07-04 14:30:00"` as a datetime in UTC. Then convert it to `"America/New_York"` time. Store the results as `dt_utc` and `dt_ny`.
 
-```r
+```r title="Exercise: Parse datetime and convert zone"
 # Exercise 7: Parse datetime and convert timezone
 # Hint: ymd_hms() with tz argument, then with_tz()
 
@@ -325,7 +325,7 @@ dt_ny
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Datetime zone solution"
 dt_utc <- ymd_hms("2024-07-04 14:30:00", tz = "UTC")
 dt_ny <- with_tz(dt_utc, tzone = "America/New_York")
 
@@ -343,7 +343,7 @@ dt_ny
 
 Using `dt_utc` and `dt_ny` from Exercise 7, extract the hour from each. What's the difference?
 
-```r
+```r title="Exercise: Hour across timezones"
 # Exercise 8: Extract hour from different timezones
 # Hint: use hour() on both datetime objects
 
@@ -358,7 +358,7 @@ hour_utc - hour_ny
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hour across timezones solution"
 hour_utc <- hour(dt_utc)
 hour_ny <- hour(dt_ny)
 
@@ -379,7 +379,7 @@ hour_utc - hour_ny
 
 **Try it:** Use `force_tz()` to reinterpret `dt_utc` as if it were recorded in `"Asia/Tokyo"` time. Compare the result to `dt_utc`, is it the same instant?
 
-```r
+```r title="Exercise: forcetz changes the instant"
 # Try it: force_tz() vs with_tz()
 ex_tokyo <- force_tz(dt_utc, tzone = "Asia/Tokyo")
 ex_tokyo
@@ -391,7 +391,7 @@ ex_tokyo == dt_utc
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="forcetz instant solution"
 ex_tokyo <- force_tz(dt_utc, tzone = "Asia/Tokyo")
 ex_tokyo
 #> [1] "2024-07-04 14:30:00 JST"
@@ -413,7 +413,7 @@ Lubridate distinguishes between three ways to measure time spans: **durations** 
 
 Create an interval from `"2024-01-01"` to `"2024-06-30"`. Then check whether `"2024-03-15"` falls within that interval.
 
-```r
+```r title="Exercise: Interval membership test"
 # Exercise 9: Intervals and %within%
 # Hint: use %--% to create an interval, then %within% to test
 
@@ -426,7 +426,7 @@ check_date ___ int_half
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Interval membership solution"
 int_half <- ymd("2024-01-01") %--% ymd("2024-06-30")
 check_date <- ymd("2024-03-15")
 
@@ -442,7 +442,7 @@ check_date %within% int_half
 
 Calculate the exact age in complete years from the birthdate `"1995-08-22"` to today's date. Store the result as `my_age`.
 
-```r
+```r title="Exercise: Age in complete years"
 # Exercise 10: Calculate age in complete years
 # Hint: create an interval with %--%, then integer-divide by years(1)
 
@@ -454,7 +454,7 @@ my_age
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Age in years solution"
 birth <- ymd("1995-08-22")
 my_age <- (birth %--% today()) %/% years(1)
 my_age
@@ -470,7 +470,7 @@ my_age
 
 **Try it:** How many complete months are in the interval from `"2024-03-01"` to `"2024-11-15"`?
 
-```r
+```r title="Exercise: Complete months in interval"
 # Try it: complete months in an interval
 ex_months <- (ymd("2024-03-01") %--% ymd("2024-11-15")) %/% months(___)
 ex_months
@@ -480,7 +480,7 @@ ex_months
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Complete months solution"
 ex_months <- (ymd("2024-03-01") %--% ymd("2024-11-15")) %/% months(1)
 ex_months
 #> [1] 8
@@ -498,7 +498,7 @@ These capstone exercises combine multiple concepts from the problems above. They
 
 You have a vector of 5 date strings in different formats. Parse all of them into Date objects, sort them chronologically, and calculate the number of days between the earliest and latest dates.
 
-```r
+```r title="Exercise: Sort mixed date formats"
 # Capstone 1: Parse mixed formats and find the date span
 # Hint: use different lubridate parse functions for each format,
 # then combine into a vector, sort, and subtract
@@ -515,7 +515,7 @@ dates_raw <- c("2024-01-15", "March 3, 2024", "15/06/2024",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sort mixed formats solution"
 dates_raw <- c("2024-01-15", "March 3, 2024", "15/06/2024",
                "2024-09-01", "01-Dec-2024")
 
@@ -544,7 +544,7 @@ span
 
 Given a birthdate of `"1990-05-17"` and a target date of `"2026-04-12"`, compute the exact age as "X years, Y months, Z days" using lubridate's interval and period functions.
 
-```r
+```r title="Exercise: Exact age breakdown"
 # Capstone 2: Exact age breakdown
 # Hint: create an interval, convert to period with as.period(),
 # then extract year, month, day components
@@ -561,7 +561,7 @@ target <- ymd("2026-04-12")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exact age breakdown solution"
 bday <- ymd("1990-05-17")
 target <- ymd("2026-04-12")
 
@@ -583,7 +583,7 @@ paste(year(age_period), "years,",
 
 Let's tie everything together with a practical scenario. You're planning a conference on October 15, 2024. You need to compute key deadlines, show them in multiple timezones for international attendees, and track how many days remain.
 
-```r
+```r title="End-to-end conference timeline"
 # Event Planning Timeline
 library(lubridate)
 

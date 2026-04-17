@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 Every time you type `print(x)`, R doesn't just run one fixed function. It checks what *kind* of object `x` is, builds a method name from the generic and the class, and calls that specific function. This is S3 method dispatch, and it powers almost every interaction you have with R.
 
-```r
+```r title="Define greeting class with print method"
 # Create a custom "greeting" class
 greet <- structure("Hello from S3!", class = "greeting")
 
@@ -47,7 +47,7 @@ Same data, different output. When you called `print(greet)`, R saw that `greet` 
 
 So how does `print()` know to delegate? Let's look inside it.
 
-```r
+```r title="Create a generic with UseMethod"
 # print() is a "generic" — its entire body is one line
 print
 #> function (x, ...)
@@ -63,7 +63,7 @@ That single line, `UseMethod("print")`, is the engine. Every S3 generic function
 
 **Try it:** Create a custom `format.greeting()` method that returns the greeting wrapped in square brackets. Test it by calling `format()` on a greeting object.
 
-```r
+```r title="Exercise: write format method"
 # Try it: write format.greeting()
 format.greeting <- function(x, ...) {
   # your code here
@@ -77,7 +77,7 @@ format(greet)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: write format method"
 format.greeting <- function(x, ...) {
   paste0("[", x, "]")
 }
@@ -95,7 +95,7 @@ When `UseMethod("generic")` runs, R constructs candidate method names by pasting
 
 Let's build a custom generic to see this clearly.
 
-```r
+```r title="Dispatch describe on class"
 # Define a generic function
 describe <- function(x, ...) {
   UseMethod("describe")
@@ -120,7 +120,7 @@ describe(42)
 
 R constructed `describe.character` for the first call and `describe.numeric` for the second. But what happens when no class-specific method exists?
 
-```r
+```r title="Add default method fallback"
 # No describe.logical exists — R falls back to describe.default
 describe.default <- function(x, ...) {
   cat("I don't know what this is:", class(x), "\n")
@@ -146,7 +146,7 @@ Here's the full algorithm R follows:
 
 You can see just how many methods exist for common generics like `print()`.
 
-```r
+```r title="Count registered print methods"
 # How many print methods are registered?
 print_methods <- methods(print)
 length(print_methods)
@@ -167,7 +167,7 @@ That's over 200 methods for a single generic. Every time you call `print()`, R s
 
 **Try it:** Write a `describe.logical` method for the `describe` generic we created above. It should print "A logical value: TRUE" or "A logical value: FALSE". Verify it's called instead of the default.
 
-```r
+```r title="Exercise: add logical method"
 # Try it: write describe.logical()
 describe.logical <- function(x, ...) {
   # your code here
@@ -181,7 +181,7 @@ describe(TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: add logical method"
 describe.logical <- function(x, ...) {
   cat("A logical value:", x, "\n")
 }
@@ -197,7 +197,7 @@ describe(TRUE)
 
 An object's class isn't always a single string. It can be a character vector like `c("glm", "lm")`, and the order of that vector controls which method runs first. R walks the vector left to right, trying each one until it finds a match.
 
-```r
+```r title="Set class vector for inheritance"
 # An employee with multiple roles — order matters
 emp <- structure(
   list(name = "Ada", level = "senior", dept = "engineering"),
@@ -223,7 +223,7 @@ describe(emp)
 
 R tried `describe.senior_dev`, found it, and stopped. It never checked `describe.developer` or `describe.employee`. Now watch what happens when we change the class order.
 
-```r
+```r title="Reorder classes to change dispatch"
 # Same person, different class order
 emp2 <- emp
 class(emp2) <- c("employee", "developer", "senior_dev")
@@ -236,7 +236,7 @@ Now `describe.employee` fires first because `"employee"` is at position 1 in the
 
 This becomes important with built-in R objects too. Many base types carry implicit class vectors.
 
-```r
+```r title="Inspect class vectors of built-ins"
 # Integers have an implicit two-element class vector
 x_int <- 1L
 class(x_int)
@@ -264,7 +264,7 @@ That `c("glm", "lm")` class vector means: when you call `summary(fit)`, R first 
 
 **Try it:** Create an object with class `c("electric_car", "car")`. Define `describe.car` that prints the model, and `describe.electric_car` that prints the battery range. Predict which fires, then verify.
 
-```r
+```r title="Exercise: create electric car class"
 # Try it: which method fires?
 ex_tesla <- structure(
   list(model = "Model 3", range_km = 500),
@@ -287,7 +287,7 @@ describe(ex_tesla)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: electric car class"
 describe.electric_car <- function(x, ...) {
   cat("Electric car with", x$range_km, "km range\n")
 }
@@ -303,7 +303,7 @@ describe(ex_tesla)
 
 So far, when R finds a method, the dispatch stops. But sometimes you want a child method to do its own work *and then* pass control to the parent method. That's what `NextMethod()` does, it moves to the next class in the class vector and calls that method.
 
-```r
+```r title="Chain methods with NextMethod"
 # Build a pet hierarchy: puppy > dog > pet
 buddy <- structure(
   list(name = "Buddy", breed = "Golden Retriever", toy = "tennis ball"),
@@ -338,7 +338,7 @@ All three methods fired in sequence. `summary.puppy` ran first (because `"puppy"
 
 One crucial detail: `NextMethod()` doesn't restart dispatch from scratch. R internally tracks where it is in the class vector using a special `.Class` variable. Each `NextMethod()` call advances the position by one.
 
-```r
+```r title="Inspect dot Class inside methods"
 # Prove that NextMethod() passes the original object unchanged
 summary.dog <- function(x, ...) {
   cat("Breed:", x$breed, "\n")
@@ -367,7 +367,7 @@ Notice how `.Class` shrinks at each step. In `summary.puppy`, it's `c("puppy", "
 
 **Try it:** Add a `describe.puppy()` method that prints `"Puppy: <name>"` and then calls `NextMethod()` to also trigger `describe.dog()`. Verify both lines print.
 
-```r
+```r title="Exercise: use NextMethod chain"
 # Try it: chain describe.puppy -> describe.dog
 ex_pup <- structure(
   list(name = "Max", breed = "Beagle"),
@@ -392,7 +392,7 @@ describe(ex_pup)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: NextMethod chain"
 describe.puppy <- function(x, ...) {
   cat("Puppy:", x$name, "\n")
   NextMethod()
@@ -421,7 +421,7 @@ Not all dispatch goes through `UseMethod()`. R has two special categories of gen
 
 Let's see this in action with a custom `currency` class.
 
-```r
+```r title="Overload operators with Ops group"
 # A simple currency class
 currency <- function(amount, code = "USD") {
   structure(amount, class = "currency", currency = code)
@@ -456,7 +456,7 @@ One method handled both `+` and `>`. Inside the method, the special variable `.G
 
 The `Math` group works the same way for mathematical functions.
 
-```r
+```r title="Overload math with Math group"
 # Handle abs(), round(), floor(), etc. with one method
 Math.currency <- function(x, ...) {
   result <- NextMethod()
@@ -481,7 +481,7 @@ round(currency(19.999), digits = 1)
 
 **Try it:** Create a `Summary.currency` method that handles `sum()` and `max()`. Test it with a vector of currency values.
 
-```r
+```r title="Exercise: overload Summary group"
 # Try it: write Summary.currency
 Summary.currency <- function(..., na.rm = FALSE) {
   # your code here
@@ -499,7 +499,7 @@ max(ex_prices)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Summary group"
 Summary.currency <- function(..., na.rm = FALSE) {
   result <- NextMethod()
   currency(result, "USD")
@@ -520,7 +520,7 @@ When dispatch doesn't behave as expected, you need tools to see what R is doing 
 
 `methods()` is your first stop. It lists all methods for a generic or all methods defined for a class.
 
-```r
+```r title="List methods for a generic"
 # All methods for the summary() generic
 summary_methods <- methods(summary)
 length(summary_methods)
@@ -539,7 +539,7 @@ head(date_methods, 8)
 
 Some methods are hidden inside package namespaces. A `*` next to a method name in `methods()` output means it's not directly accessible. Use `getAnywhere()` to find it.
 
-```r
+```r title="Find hidden methods with getAnywhere"
 # Find a method hidden in a package namespace
 getAnywhere("residuals.lm")
 #> A single object matching 'residuals.lm' was found
@@ -550,7 +550,7 @@ getAnywhere("residuals.lm")
 
 For systematic debugging, you can trace the dispatch path manually. This function walks the class vector and checks whether each candidate method exists.
 
-```r
+```r title="Build a method dispatch tracer"
 # Manual dispatch tracer
 trace_dispatch <- function(generic, x) {
   classes <- c(class(x), "default")
@@ -573,7 +573,7 @@ trace_dispatch("summary", fit)
 
 The tracer shows exactly which method R would pick. Try it with different objects to see the full lookup path.
 
-```r
+```r title="Trace dispatch on data frame"
 # A data frame has a simple single class
 trace_dispatch("print", mtcars)
 #> Dispatch for print on class: data.frame
@@ -596,7 +596,7 @@ The ordered factor example is revealing: there's no `print.ordered`, so R falls 
 
 **Try it:** Use `methods()` to find all methods defined for the `Date` class. How many are there?
 
-```r
+```r title="Exercise: count methods on Date"
 # Try it: count Date methods
 ex_date_methods <- methods(class = "Date")
 # your code here — print the count
@@ -606,7 +606,7 @@ ex_date_methods <- methods(class = "Date")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: count Date methods"
 ex_date_methods <- methods(class = "Date")
 length(ex_date_methods)
 #> [1] 35
@@ -626,7 +626,7 @@ Create a `temperature` class that stores a numeric value and a unit (`"C"` or `"
 
 Verify that converting twice returns the original value.
 
-```r
+```r title="Exercise one: temperature class"
 # Exercise 1: Build the temperature class
 # Hint: store as a list with $value and $unit, set class = "temperature"
 
@@ -637,7 +637,7 @@ Verify that converting twice returns the original value.
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: temperature class"
 temperature <- function(value, unit = "C") {
   structure(list(value = value, unit = unit), class = "temperature")
 }
@@ -679,7 +679,7 @@ Build a 3-level class hierarchy: `shape` → `polygon` → `triangle`. Write an 
 
 Verify the full chain fires for a triangle with base = 10 and height = 6.
 
-```r
+```r title="Exercise two: shape hierarchy"
 # Exercise 2: Build the shape hierarchy
 # Hint: class vector should be c("triangle", "polygon", "shape")
 # Store area in the object so parent methods can read it
@@ -691,7 +691,7 @@ Verify the full chain fires for a triangle with base = 10 and height = 6.
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: shape hierarchy"
 area <- function(x, ...) UseMethod("area")
 
 area.triangle <- function(x, ...) {
@@ -732,7 +732,7 @@ Create a `money` class with an `Ops` group generic. Two money values can only be
 - `money(10, "USD") + money(5, "EUR")` → should error
 - `money(10, "USD") > money(5, "EUR")` → should return TRUE
 
-```r
+```r title="Exercise three: money with Ops"
 # Exercise 3: Build the money class with Ops
 # Hint: use .Generic to detect whether the operation is arithmetic vs comparison
 
@@ -743,7 +743,7 @@ Create a `money` class with an `Ops` group generic. Two money values can only be
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: money Ops"
 money <- function(amount, curr = "USD") {
   structure(list(amount = amount, curr = curr), class = "money")
 }
@@ -786,7 +786,7 @@ tryCatch(
 
 Let's build a complete `bank_account` class that demonstrates every dispatch concept from this tutorial: generics, class vectors, `NextMethod()`, and group generics.
 
-```r
+```r title="Define bank account constructor"
 # Constructor — returns an account with a subclass for the account type
 bank_account <- function(owner, balance = 0, type = "checking") {
   subclass <- paste0(type, "_account")
@@ -840,7 +840,7 @@ withdraw.savings_account <- function(account, amount, ...) {
 
 Now let's see the full system in action.
 
-```r
+```r title="Print checking and savings accounts"
 # Create accounts
 alice_checking <- bank_account("Alice", 500, "checking")
 bob_savings <- bank_account("Bob", 1000, "savings")
@@ -860,7 +860,7 @@ print(bob_savings)
 
 The savings account's print method called `NextMethod()` to get the base info, then added its own line. Now let's test withdrawals.
 
-```r
+```r title="Dispatch deposit and withdraw methods"
 # Checking account — no fee, falls through to bank_account method
 alice_checking <- deposit(alice_checking, 200)
 #> Deposited $ 200.00
@@ -884,7 +884,7 @@ print(bob_savings)
 
 Let's verify our dispatch paths with the tracing function from earlier.
 
-```r
+```r title="Verify dispatch on bank accounts"
 # Confirm the dispatch path for each account type
 trace_dispatch("withdraw", alice_checking)
 #> Dispatch for withdraw on class: checking_account, bank_account

@@ -47,7 +47,7 @@ Think of power as your study's sensitivity. A study with 80% power will detect a
 
 Let's build intuition with a quick simulation. We'll generate data from two groups with a known difference, run a t-test, and count how often it's significant across 1,000 repetitions. That proportion is our empirical power.
 
-```r
+```r title="Simulate power for t-test"
 # Load pwr package and set seed for reproducibility
 library(pwr)
 set.seed(123)
@@ -75,7 +75,7 @@ With n = 50 per group and a medium effect size (d = 0.5), we get about 70% power
 
 **Try it:** Change `n_per_group` to 64 in the code above. What empirical power do you get? Is it closer to 80%?
 
-```r
+```r title="Exercise: Power at n equals 64"
 # Try it: modify n_per_group and see how power changes
 ex_n <- 64
 ex_p_values <- replicate(1000, {
@@ -90,7 +90,7 @@ ex_p_values <- replicate(1000, {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Power at 64 solution"
 ex_n <- 64
 ex_p_values <- replicate(1000, {
   g1 <- rnorm(ex_n, mean = 0, sd = 1)
@@ -114,7 +114,7 @@ The trickiest part is specifying the effect size. Cohen's d is the standardised 
 ![The six-step sample size planning workflow](screenshots/Sample-Size-Planning-in-R-workflow.webp)
 *Figure 2: The six-step sample size planning workflow, from hypothesis to written justification.*
 
-```r
+```r title="Two-sample t-test sample size"
 # Two-sample t-test: how many participants per group do we need?
 # Effect size d = 0.5 (medium), alpha = 0.05, power = 0.80
 result_two_sample <- pwr.t.test(
@@ -143,7 +143,7 @@ The output tells you n = 63.77, always round up to the next whole number. The no
 
 Now compare a one-sample test (measuring against a known baseline) with a paired design (measuring the same people twice). Paired designs are far more efficient because within-person variation is removed.
 
-```r
+```r title="One-sample and paired designs"
 # One-sample t-test (comparing to a known value)
 n_one <- ceiling(pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80,
                              type = "one.sample")$n)
@@ -160,7 +160,7 @@ A paired design needs only 34 participants total for the same power. If your stu
 
 It's also useful to see how power changes as n increases. A power curve makes this visual and is useful for grant applications.
 
-```r
+```r title="Power curve across sample sizes"
 # Power curve: power vs. sample size for d = 0.5
 ns <- seq(10, 150, by = 5)
 powers <- sapply(ns, function(n) {
@@ -183,7 +183,7 @@ The curve shows how power rises steeply at small n and flattens out. Beyond n = 
 
 **Try it:** Calculate the sample size needed for a two-sample t-test with a small effect (d = 0.2) and 90% power. Save the result to `ex_n_small`.
 
-```r
+```r title="Exercise: Small effect high power"
 # Try it: pwr.t.test for d=0.2, power=0.90, two.sample
 ex_n_small <- ceiling(pwr.t.test(
   d = 0.2,
@@ -199,7 +199,7 @@ cat("N per group:", ex_n_small)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Small effect solution"
 ex_n_small <- ceiling(pwr.t.test(
   d = 0.2, sig.level = 0.05, power = 0.90, type = "two.sample"
 )$n)
@@ -217,7 +217,7 @@ Not every study compares means. `pwr` has dedicated functions for proportions (`
 
 For proportions, Cohen's h is the effect size: `ES.h(p1, p2)` computes it from two proportions directly. For ANOVA, Cohen's f is used (f = 0.10 small, 0.25 medium, 0.40 large). For chi-squared, Cohen's w (w = 0.10 small, 0.30 medium, 0.50 large).
 
-```r
+```r title="Sample size for two proportions"
 # --- Proportions: comparing two rates (e.g., 30% vs 45% conversion) ---
 h <- ES.h(p1 = 0.30, p2 = 0.45)          # Cohen's h
 n_prop <- ceiling(pwr.2p.test(h = h, sig.level = 0.05, power = 0.80)$n)
@@ -225,7 +225,7 @@ cat("Proportions — Cohen's h:", round(h, 3), "| N per group:", n_prop, "\n")
 #> Proportions — Cohen's h: 0.314 | N per group: 81
 ```
 
-```r
+```r title="ANOVA and chi-squared sample size"
 # --- One-way ANOVA: 3 groups, medium effect (f = 0.25) ---
 n_anova <- ceiling(pwr.anova.test(k = 3, f = 0.25, sig.level = 0.05, power = 0.80)$n)
 cat("ANOVA (3 groups) — N per group:", n_anova, "| Total:", n_anova * 3, "\n")
@@ -244,7 +244,7 @@ The chi-squared result (N = 1194) is a reminder that detecting small association
 
 **Try it:** A clinical study expects 40% of patients to respond to treatment A and 55% to treatment B. Calculate the sample size per group needed at 80% power.
 
-```r
+```r title="Exercise: Proportions 40 vs 55"
 # Try it: use ES.h() and pwr.2p.test()
 ex_h <- ES.h(p1 = 0.40, p2 = 0.55)
 ex_n_prop <- ceiling(pwr.2p.test(
@@ -260,7 +260,7 @@ cat("N per group:", ex_n_prop)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Proportions sample size solution"
 ex_h <- ES.h(p1 = 0.40, p2 = 0.55)
 ex_n_prop <- ceiling(pwr.2p.test(h = ex_h, sig.level = 0.05, power = 0.80)$n)
 cat("N per group:", ex_n_prop)
@@ -277,7 +277,7 @@ cat("N per group:", ex_n_prop)
 
 Here's a simulation for a two-sample t-test with a slight twist, slightly skewed (non-normal) data from a gamma distribution:
 
-```r
+```r title="Simulation power for gamma data"
 # Simulation-based power for non-normal data (gamma-distributed)
 set.seed(42)
 n_sim_runs <- 2000
@@ -302,7 +302,7 @@ The Wilcoxon test (a non-parametric alternative) yields about 62% power here, be
 
 **Try it:** Modify the simulation above to test a larger effect shift of 1.0. What power do you get? Save it to `ex_sim_power`.
 
-```r
+```r title="Exercise: Larger shift increases power"
 # Try it: change effect_shift to 1.0 and re-run the simulation
 ex_sim_power <- mean(replicate(1000, {
   g1 <- rgamma(50, shape = 2, rate = 1)
@@ -316,7 +316,7 @@ cat("Power with shift=1.0:", round(ex_sim_power, 3))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Larger shift solution"
 set.seed(99)
 ex_sim_power <- mean(replicate(1000, {
   g1 <- rgamma(50, shape = 2, rate = 1)
@@ -342,7 +342,7 @@ Calculating N is half the job. The other half is documenting it. Ethics boards, 
 
 Here's how to generate and format that justification directly from your `pwr` output:
 
-```r
+```r title="Build justification from pwr results"
 # Build the justification text from pwr results
 pwr_result <- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80, type = "two.sample")
 n_required <- ceiling(pwr_result$n)
@@ -368,7 +368,7 @@ That's your methods paragraph. Copy it directly into your ethics application or 
 
 **Try it:** Adapt the justification template above for a study comparing two proportions (40% vs 55% response rate, 15% dropout). Fill in `ex_justification`.
 
-```r
+```r title="Exercise: Proportion study justification"
 # Try it: write a justification for the proportion study
 ex_pwr_prop <- pwr.2p.test(h = ES.h(0.40, 0.55), sig.level = 0.05, power = 0.80)
 ex_n_prop2 <- ceiling(ex_pwr_prop$n)
@@ -386,7 +386,7 @@ cat(ex_justification)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Proportion justification solution"
 ex_pwr_prop <- pwr.2p.test(h = ES.h(0.40, 0.55), sig.level = 0.05, power = 0.80)
 ex_n_prop2 <- ceiling(ex_pwr_prop$n)
 ex_n_inflated <- ceiling(ex_n_prop2 / 0.85)
@@ -408,7 +408,7 @@ cat(ex_justification)
 ### Mistake 1: Treating `pwr` output as total N, not per-group N
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Treating n as total"
 result <- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80, type = "two.sample")
 cat("Recruit", ceiling(result$n), "participants total.")
 #> Recruit 64 participants total.  # WRONG — 64 is per group!
@@ -417,7 +417,7 @@ cat("Recruit", ceiling(result$n), "participants total.")
 **Why it's wrong:** The `NOTE: n is number in *each* group` line in the output is easy to miss. Recruiting only 64 total gives you 32 per group and roughly 55% power, far below target.
 
 ✅ **Correct:**
-```r
+```r title="Correct: n is per group"
 result <- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80, type = "two.sample")
 n_per_group <- ceiling(result$n)
 cat("Recruit", n_per_group, "per group,", n_per_group * 2, "total.\n")
@@ -435,13 +435,13 @@ cat("Recruit", n_per_group, "per group,", n_per_group * 2, "total.\n")
 ### Mistake 3: Forgetting dropout inflation
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Default medium effect"
 n_required <- ceiling(pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80)$n)
 cat("Target N:", n_required)   # 64 per group — no dropout buffer
 ```
 
 ✅ **Correct:**
-```r
+```r title="Correct: Inflate for dropout"
 n_required <- ceiling(pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80)$n)
 n_inflated <- ceiling(n_required / (1 - 0.15))   # 15% expected dropout
 cat("Recruit:", n_inflated, "per group to end with", n_required)
@@ -460,7 +460,7 @@ cat("Recruit:", n_inflated, "per group to end with", n_required)
 
 ✅ **Correct:** Apply a Bonferroni correction or use the family-wise error rate: `alpha_adjusted <- 0.05 / 5 = 0.01` per test, then recalculate N with the adjusted alpha.
 
-```r
+```r title="Correct: Bonferroni adjusted alpha"
 n_adjusted <- ceiling(pwr.t.test(d = 0.5, sig.level = 0.01, power = 0.80)$n)
 cat("N per group with Bonferroni (5 tests):", n_adjusted)
 #> N per group with Bonferroni (5 tests): 95
@@ -477,7 +477,7 @@ Your team is planning a study comparing mean systolic blood pressure between a t
 3. Inflate for dropout
 4. Print a justification sentence
 
-```r
+```r title="Exercise: Blood pressure pipeline"
 # Exercise 1: Full pipeline
 # Hint: Cohen's d = (mean difference) / SD
 
@@ -502,7 +502,7 @@ my_result <- pwr.t.test(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Blood pressure solution"
 my_d <- 8 / 15
 my_result <- pwr.t.test(d = my_d, sig.level = 0.05, power = 0.80, type = "two.sample")
 my_n <- ceiling(my_result$n)
@@ -525,7 +525,7 @@ cat(paste0(
 
 You're planning a study with three groups (control, low dose, high dose) where the outcome is highly skewed count data (Poisson distributed). The expected group means are 5, 7, and 10 counts respectively. Estimate the power of a Kruskal-Wallis test at n = 30 per group using simulation with 1,000 repetitions.
 
-```r
+```r title="Exercise: Kruskal-Wallis Poisson simulation"
 # Exercise 2: Simulation for Kruskal-Wallis on Poisson data
 set.seed(77)
 n_per <- 30
@@ -548,7 +548,7 @@ cat("Simulated power:", round(my_sim_power, 3))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Kruskal-Wallis simulation solution"
 set.seed(77)
 my_sim_power <- mean(replicate(1000, {
   g1 <- rpois(30, lambda = 5)
@@ -574,7 +574,7 @@ Let's walk through a realistic end-to-end scenario: a clinical trial comparing t
 
 The research team found a meta-analysis suggesting a mean difference of 10 mg/dL between the interventions, with a pooled SD of 18 mg/dL. The trial will run for 6 months with an expected 25% dropout. The primary analysis is a two-sample t-test at alpha = 0.05.
 
-```r
+```r title="End-to-end dietary trial"
 # Complete example: dietary intervention trial
 # Step 1: Effect size from prior literature
 trial_d <- 10 / 18

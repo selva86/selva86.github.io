@@ -32,7 +32,7 @@ ggplot2 makes bubble charts straightforward with `geom_point()`, the only differ
 
 A bubble chart is just `geom_point()` with `size` mapped to a variable inside `aes()`. Let's use the built-in `mtcars` dataset, where we'll show `wt` (weight) on x, `mpg` on y, and bubble size proportional to `hp` (horsepower).
 
-```r
+```r title="Basic bubble chart with ggplot2"
 library(ggplot2)
 library(ggrepel)
 
@@ -64,7 +64,7 @@ This is the most commonly misunderstood part of bubble charts. There are two siz
 
 Why does this matter? Human perception works in two dimensions, we perceive circle *area*, not radius. If value A is twice value B and you double the *radius*, the bubble looks four times bigger (because area = π r²). This creates a misleading chart.
 
-```r
+```r title="Compare scalesize versus scalesizearea"
 # Compare: scale_size vs scale_size_area
 # Use scale_size_area() when size = counts or totals (perceptually honest)
 p_area <- ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
@@ -92,7 +92,7 @@ p_area
 
 Color is the natural fourth channel. Add a categorical or continuous variable to the `color` aesthetic to encode group membership or gradient intensity.
 
-```r
+```r title="Add color for a fourth variable"
 # Map color to cylinder count (treated as factor for discrete colors)
 mtcars$cyl_f <- factor(mtcars$cyl, labels = c("4 cyl", "6 cyl", "8 cyl"))
 
@@ -122,7 +122,7 @@ Four variables, one chart: weight (x), mpg (y), horsepower (size), cylinders (co
 
 Labels on bubble charts overlap easily because bubbles are large and placed at arbitrary positions. `geom_text()` gives you labels but no overlap control. Use `ggrepel::geom_text_repel()` to automatically push labels away from each other and from the bubbles.
 
-```r
+```r title="Repel bubble labels with ggrepel"
 # Label car names, repel overlaps automatically
 p_label <- ggplot(mtcars, aes(x = wt, y = mpg, size = hp, color = cyl_f)) +
   geom_point(alpha = 0.7) +
@@ -159,7 +159,7 @@ When bubbles overlap, smaller ones get hidden behind larger ones. Two fixes work
 1. **Alpha transparency**, lets you see buried bubbles through the ones on top.
 2. **Reorder by size descending**, plot large bubbles first so small ones render on top.
 
-```r
+```r title="Fix overplotting with alpha and sort"
 # Sort so large bubbles are drawn first (small bubbles stay visible on top)
 mtcars_sorted <- mtcars[order(mtcars$hp, decreasing = TRUE), ]
 
@@ -188,7 +188,7 @@ The double `geom_point()` trick: the first call draws a white-bordered ghost (us
 
 Here's a full production-ready bubble chart with proper sizing, labeling, theme, and annotation.
 
-```r
+```r title="Polished bubble chart with labels"
 # Polished bubble chart: label only notable cars
 notable <- c("Toyota Corolla", "Datsun 710", "Cadillac Fleetwood",
              "Maserati Bora", "Honda Civic", "Ferrari Dino")
@@ -240,14 +240,14 @@ p_final
 
 ❌ Using `scale_size()` for counts makes large categories look disproportionately bigger.
 
-```r
+```r title="Common mistake: radius scaling"
 # Wrong: radius-based scaling distorts relative sizes
 scale_size(range = c(2, 14))
 ```
 
 ✅ Use `scale_size_area()` when size represents a count or total.
 
-```r
+```r title="Correct: area scaling for counts"
 # Correct: area-based scaling is perceptually honest
 scale_size_area(max_size = 14)
 ```
@@ -256,14 +256,14 @@ scale_size_area(max_size = 14)
 
 ❌ Plotting in default order buries small bubbles under large ones.
 
-```r
+```r title="Common mistake: unsorted bubble order"
 # Wrong: unsorted — large bubbles may hide small ones
 ggplot(mtcars, aes(x = wt, y = mpg, size = hp))
 ```
 
 ✅ Sort descending by size so large bubbles render first.
 
-```r
+```r title="Correct: sort descending by size"
 # Correct: large bubbles drawn first, small ones on top
 mtcars_sorted <- mtcars[order(mtcars$hp, decreasing = TRUE), ]
 ggplot(mtcars_sorted, aes(x = wt, y = mpg, size = hp))
@@ -273,14 +273,14 @@ ggplot(mtcars_sorted, aes(x = wt, y = mpg, size = hp))
 
 ❌ Plain `geom_text()` draws labels at exact coordinates, producing unreadable overlaps.
 
-```r
+```r title="Common mistake: overlapping text labels"
 # Wrong: labels pile up on top of each other
 geom_text(aes(label = car), size = 3)
 ```
 
 ✅ Use `ggrepel::geom_text_repel()` to push labels apart automatically.
 
-```r
+```r title="Correct: use ggrepel for labels"
 # Correct: labels repel each other and connect back to their points
 geom_text_repel(aes(label = car), size = 3, max.overlaps = 15)
 ```
@@ -289,7 +289,7 @@ geom_text_repel(aes(label = car), size = 3, max.overlaps = 15)
 
 Without `alpha`, overlapping bubbles are completely opaque, you lose the information underneath.
 
-```r
+```r title="Common mistake: no alpha transparency"
 # Wrong
 geom_point(color = "steelblue")
 
@@ -317,7 +317,7 @@ Using the built-in `LifeCycleSavings` dataset (savings rate, per-capita disposab
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="LifeCycleSavings bubble chart solution"
 library(ggplot2)
 
 df <- LifeCycleSavings
@@ -346,7 +346,7 @@ Extend Exercise 1 to label only the 5 countries with the highest `pop75` value u
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Top-five label repel solution"
 library(ggplot2)
 library(ggrepel)
 

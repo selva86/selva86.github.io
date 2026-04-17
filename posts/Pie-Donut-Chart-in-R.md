@@ -32,7 +32,7 @@ This post shows you how to build both in ggplot2, add proper labels, customize c
 
 In ggplot2, a pie chart is a stacked bar chart mapped to polar coordinates. The key insight: `coord_polar(theta = "y")` wraps the y-axis around into a circle. Each bar segment becomes a pie slice.
 
-```r
+```r title="Build a basic pie chart"
 library(ggplot2)
 
 # Sample data: fruit sales share
@@ -62,7 +62,7 @@ Three things happening here:
 
 Labels should show values directly on each slice. Position them at the center of each slice using `position_stack(vjust = 0.5)`.
 
-```r
+```r title="Add percentage labels to slices"
 # Add percentage labels inside slices
 fruit_df$pct_label <- paste0(fruit_df$share, "%")
 
@@ -92,7 +92,7 @@ The `color = "white"` on `geom_bar()` draws white dividing lines between slices,
 
 By default ggplot2 uses its standard discrete palette. For pie charts, pick colors with sufficient contrast between adjacent slices.
 
-```r
+```r title="Customise pie chart colours"
 # Custom palette with high contrast between slices
 my_colors <- c(
   "Apples"       = "#E53935",
@@ -126,7 +126,7 @@ p_colored
 
 A donut chart is a pie chart with a hole punched through the center. The trick is to set `x = 2` in `aes()` (instead of `x = ""`) and then restrict the x-axis range with `xlim(0.5, 2.5)`. The range from 0.5 to just below 2 becomes the "empty center".
 
-```r
+```r title="Turn the pie into a donut"
 # Donut chart: move x to 2, then xlim creates the hole
 p_donut <- ggplot(fruit_df, aes(x = 2, y = share, fill = category)) +
   geom_bar(stat = "identity", width = 1, color = "white", linewidth = 0.5) +
@@ -152,7 +152,7 @@ The donut hole size is controlled by `xlim()`. A wider range on the lower end (e
 
 The empty center of a donut chart is prime real estate for a summary statistic, a total, a percentage, or a key metric.
 
-```r
+```r title="Add a centre total annotation"
 # Donut with center annotation
 total_label <- paste0("Total\n", sum(fruit_df$share), "%")
 
@@ -200,7 +200,7 @@ The `annotate()` call places text at coordinates `(0, 0)`, the center of the pol
 
 ❌ Pie charts make it nearly impossible to compare slices with similar sizes.
 
-```r
+```r title="When pies fail to compare"
 # 8 slices with 12-14% share each — readers can't tell which is bigger
 data.frame(cat = LETTERS[1:8], pct = c(13,12,14,11,13,12,14,11))
 ```
@@ -211,14 +211,14 @@ data.frame(cat = LETTERS[1:8], pct = c(13,12,14,11,13,12,14,11))
 
 ❌ Using `theta = "x"` wraps the x-axis around, creating a compass rose, not a pie.
 
-```r
+```r title="Common mistake using theta x"
 # Wrong: wraps x-axis, gives wrong chart type
 coord_polar(theta = "x")
 ```
 
 ✅ Always use `theta = "y"` for pie and donut charts.
 
-```r
+```r title="Correct coordpolar with theta y"
 # Correct
 coord_polar(theta = "y")
 ```
@@ -255,7 +255,7 @@ Use `scale_fill_manual()` with colors of your choice. Add percentage labels insi
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Poll data pie chart solution"
 library(ggplot2)
 
 poll <- data.frame(
@@ -287,7 +287,7 @@ Convert the poll data from Exercise 1 into a donut chart. Add a center annotatio
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Poll data donut chart solution"
 library(ggplot2)
 
 poll <- data.frame(

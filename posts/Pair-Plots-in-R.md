@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 When you have four or more numeric variables, checking them two at a time with individual scatter plots gets tedious fast. A pair plot arranges every combination into one matrix: scatter plots, correlations, and density curves in a single function call. Patterns that would take a dozen individual plots to find jump out immediately.
 
-```r
+```r title="Pair plot of iris measurements"
 # Pair plot: all four measurements of iris flowers
 library(GGally)
 library(ggplot2)
@@ -44,7 +44,7 @@ That single line of code produced 16 panels. The diagonal shows how each variabl
 
 Here's how to read each region. The diagonal tells you whether a variable is roughly normal, skewed, or bimodal. The lower scatter plots reveal linearity, clusters, and outliers. The upper correlations quantify the direction and strength: values near +1 or -1 mean a strong linear relationship, while values near 0 mean little to no linear pattern.
 
-```r
+```r title="Verify correlation values"
 # Correlation between Petal.Length and Petal.Width
 cor(iris$Petal.Length, iris$Petal.Width)
 #> [1] 0.9628654
@@ -58,7 +58,7 @@ The first pair (Petal.Length and Petal.Width) has a correlation of 0.96, nearly 
 
 **Try it:** Create a pair plot of `mtcars` using columns mpg, disp, hp, and wt. Which pair has the strongest correlation?
 
-```r
+```r title="Exercise: mtcars pair plot"
 # Try it: pair plot of mtcars
 ex_mtcars_plot <- ggpairs(mtcars, columns = c("mpg", "disp", "hp", "wt"))
 ex_mtcars_plot
@@ -68,7 +68,7 @@ ex_mtcars_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mtcars pair plot solution"
 ggpairs(mtcars, columns = c("mpg", "disp", "hp", "wt"))
 #> The upper triangle shows:
 #>   disp vs wt: Cor = 0.888 (strongest positive)
@@ -84,7 +84,7 @@ ggpairs(mtcars, columns = c("mpg", "disp", "hp", "wt"))
 
 Not every column belongs in a pair plot. Identifier columns, date fields, or highly correlated duplicates just add noise. The `columns` argument lets you pick exactly which variables to display, either by position or by name.
 
-```r
+```r title="Select columns by name"
 # Select columns by name
 ggpairs(mtcars, columns = c("mpg", "disp", "hp", "wt", "qsec"))
 #> A 5x5 matrix: 25 panels showing all pairwise relationships
@@ -94,7 +94,7 @@ ggpairs(mtcars, columns = c("mpg", "disp", "hp", "wt", "qsec"))
 
 Using column names is clearer than positions, especially when you share code with collaborators. But numeric indices work just as well when you're exploring interactively.
 
-```r
+```r title="Select columns by index"
 # Select columns by index (first three iris measurements)
 ggpairs(iris, columns = 1:3)
 #> A 3x3 matrix with Sepal.Length, Sepal.Width, Petal.Length
@@ -108,7 +108,7 @@ Notice how the 3x3 matrix is easier to read than the 4x4 we started with. Each c
 
 **Try it:** Create a pair plot of `airquality` with just Ozone, Solar.R, Wind, and Temp. Which pair shows the clearest relationship?
 
-```r
+```r title="Exercise: airquality pair plot"
 # Try it: airquality pair plot
 ex_aq <- na.omit(airquality)
 ex_aq_plot <- ggpairs(ex_aq, columns = c("Ozone", "Solar.R", "Wind", "Temp"))
@@ -119,7 +119,7 @@ ex_aq_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="airquality pair plot solution"
 ex_aq <- na.omit(airquality)
 ggpairs(ex_aq, columns = c("Ozone", "Solar.R", "Wind", "Temp"))
 #> Upper triangle correlations:
@@ -136,7 +136,7 @@ ggpairs(ex_aq, columns = c("Ozone", "Solar.R", "Wind", "Temp"))
 
 The real power of pair plots kicks in when you map a categorical variable to color. Suddenly, what looked like one blob of data separates into distinct clusters, and relationships that seemed weak in the full data might be strong within each group.
 
-```r
+```r title="Color iris by Species"
 # Color by species — each species gets its own color
 ggpairs(
   iris,
@@ -158,7 +158,7 @@ The lower scatter plots are even more revealing. Petal.Length vs Petal.Width loo
 [KEY INSIGHT]
 **Color grouping can reveal Simpson's paradox.** A correlation that appears positive in the combined data may be negative within each subgroup (or vice versa). Always check grouped patterns before trusting overall correlations.
 
-```r
+```r title="Color mtcars by cylinder"
 # Color mtcars by cylinder count
 mtcars$cyl_f <- factor(mtcars$cyl)
 ggpairs(
@@ -175,7 +175,7 @@ Now you can see that 4-cylinder cars cluster in the high-mpg, low-weight corner 
 
 **Try it:** Color the `mtcars` pair plot by `gear` (as factor). Which relationship looks most different when grouped vs ungrouped?
 
-```r
+```r title="Exercise: Color by gear"
 # Try it: color by gear
 mtcars$ex_gear_f <- factor(mtcars$gear)
 ex_gear_plot <- ggpairs(
@@ -190,7 +190,7 @@ ex_gear_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Color by gear solution"
 mtcars$ex_gear_f <- factor(mtcars$gear)
 ggpairs(
   mtcars,
@@ -212,7 +212,7 @@ ggpairs(
 
 The default panels are a great starting point, but you can swap any of them out. The `upper`, `lower`, and `diag` arguments each accept a named list with keys for `continuous`, `combo`, and `discrete`, matching the variable-type combination in that cell.
 
-```r
+```r title="Custom upper, lower, diag panels"
 # Custom panels: correlation text above, smoothed lines below, histograms on diagonal
 ggpairs(
   iris,
@@ -244,7 +244,7 @@ Here are the most useful panel options for continuous variables:
 
 To pass extra arguments to a panel function, use `wrap()`. This is how you control things like smoothing method, point transparency, or color.
 
-```r
+```r title="wrap passes panel arguments"
 # wrap() passes parameters to the panel function
 ggpairs(
   iris,
@@ -265,7 +265,7 @@ The `wrap()` function is your gateway to fine-grained control. The first argumen
 
 **Try it:** Create a pair plot where the lower triangle shows 2D density contours (`"density"`) and the diagonal shows histograms (`"barDiag"`). Use iris columns 1:4.
 
-```r
+```r title="Exercise: Density and histogram"
 # Try it: density contours + histograms
 ex_custom <- ggpairs(
   iris,
@@ -280,7 +280,7 @@ ex_custom
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Density and histogram solution"
 ggpairs(
   iris,
   columns = 1:4,
@@ -300,7 +300,7 @@ ggpairs(
 
 Real datasets almost always have a mix of numeric and categorical columns. When ggpairs encounters this mix, it automatically chooses "combo" plots, visualizations designed for one numeric and one categorical variable.
 
-```r
+```r title="Mixed numeric and categorical"
 # Full iris dataset including Species (categorical)
 ggpairs(iris, aes(color = Species, alpha = 0.6))
 #> 5x5 matrix:
@@ -314,7 +314,7 @@ The combo panels are the interesting ones. When a numeric variable meets a categ
 
 You can customize these combo panels just like you customize continuous panels.
 
-```r
+```r title="Custom combo panels"
 # Custom combo panels
 ggpairs(
   iris,
@@ -344,7 +344,7 @@ Here are the combo panel options:
 
 **Try it:** Convert `mtcars$cyl` to a factor, then create a ggpairs plot with mpg, hp, wt, and cyl. What combo plots appear for the cyl column?
 
-```r
+```r title="Exercise: mtcars with factor cyl"
 # Try it: mixed types with mtcars
 ex_mt <- mtcars
 ex_mt$cyl <- factor(ex_mt$cyl)
@@ -356,7 +356,7 @@ ex_mixed
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mtcars with factor cyl solution"
 ex_mt <- mtcars
 ex_mt$cyl <- factor(ex_mt$cyl)
 ggpairs(ex_mt, columns = c("mpg", "hp", "wt", "cyl"))
@@ -373,7 +373,7 @@ ggpairs(ex_mt, columns = c("mpg", "hp", "wt", "cyl"))
 
 A pair plot built for exploration might look fine in RStudio, but presentations and reports need a cleaner look. Since ggpairs returns a ggplot-compatible object, you can add themes, adjust fonts, and modify text sizes just like any other ggplot.
 
-```r
+```r title="Minimal theme for presentations"
 # Clean theme for presentations
 ggpairs(
   iris,
@@ -395,7 +395,7 @@ The `axis.text` size is the most common adjustment. With 4+ variables, the defau
 
 You can also add a title using standard ggplot2 syntax.
 
-```r
+```r title="Title and black-white styling"
 # Title and further styling
 ggpairs(
   iris,
@@ -422,7 +422,7 @@ The combination of `theme_bw()` and a grey strip background produces a publicati
 
 **Try it:** Apply `theme_classic()` to a pair plot of iris (columns 1:4) and set the strip text to size 10 with bold face.
 
-```r
+```r title="Exercise: Classic theme pair plot"
 # Try it: classic theme
 ex_styled <- ggpairs(iris, columns = 1:4) +
   theme_classic() +
@@ -434,7 +434,7 @@ ex_styled
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Classic theme solution"
 ggpairs(iris, columns = 1:4) +
   theme_classic() +
   theme(strip.text = element_text(size = 10, face = "bold"))
@@ -452,7 +452,7 @@ ggpairs(iris, columns = 1:4) +
 
 Sample 200 rows from `diamonds` (use `set.seed(42)`), create a pair plot of price, carat, depth, and table colored by cut. Which variable is most strongly associated with price?
 
-```r
+```r title="Exercise: Diamonds pair plot"
 # Exercise 1: diamonds pair plot
 # Hint: use dplyr::slice_sample() to sample rows, then ggpairs() with aes(color = cut)
 library(dplyr)
@@ -465,7 +465,7 @@ set.seed(42)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Diamonds pair plot solution"
 library(dplyr)
 set.seed(42)
 my_diamonds <- diamonds |> slice_sample(n = 200)
@@ -487,7 +487,7 @@ ggpairs(
 
 Build a pair plot of mtcars with mpg, disp, hp, wt colored by gear (as factor). Customize: lower = smooth with lm method, upper = correlation, diagonal = density. Add `theme_minimal()`. Report the strongest and weakest correlations.
 
-```r
+```r title="Exercise: mtcars with lm lines"
 # Exercise 2: customized mtcars
 # Hint: use factor(gear) for color, wrap("smooth", method = "lm") for lower panels
 
@@ -498,7 +498,7 @@ Build a pair plot of mtcars with mpg, disp, hp, wt colored by gear (as factor). 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mtcars with lm solution"
 my_mt <- mtcars
 my_mt$gear <- factor(my_mt$gear)
 ggpairs(
@@ -523,7 +523,7 @@ ggpairs(
 
 Create a pair plot of `airquality` (complete cases only) with Ozone, Solar.R, Wind, and Temp. Use `wrap()` to make the lower scatter points semi-transparent (`alpha = 0.4`) and sized small (`size = 1.5`). Set the upper panel to show correlations. Which pair has the strongest relationship, and does Wind affect it?
 
-```r
+```r title="Exercise: airquality with wrap"
 # Exercise 3: airquality with wrap()
 # Hint: na.omit() first, then wrap("points", alpha = 0.4, size = 1.5) for lower
 
@@ -534,7 +534,7 @@ Create a pair plot of `airquality` (complete cases only) with Ozone, Solar.R, Wi
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="airquality wrap solution"
 my_aq <- na.omit(airquality)
 ggpairs(
   my_aq,
@@ -556,7 +556,7 @@ ggpairs(
 
 Let's bring everything together with a real-world analysis. We'll use the `msleep` dataset from ggplot2, mammalian sleep data, to explore how body size, brain size, and sleep patterns relate across different dietary groups.
 
-```r
+```r title="End-to-end mammal sleep analysis"
 # Complete example: mammalian sleep patterns by diet
 library(dplyr)
 

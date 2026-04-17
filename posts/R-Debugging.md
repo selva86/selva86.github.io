@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 Every debugging session answers three questions in order: *where* did the code fail, *what* was the state at that moment, and *why* was that state wrong? The R toolkit, `traceback()`, `browser()`, `debug()`, RStudio breakpoints, exists to answer them systematically. Below is a toy weighted-mean function that silently returns `NA`. Watch the three steps collapse into one block: observe the bad output, diagnose in one line, ship the fix.
 
-```r
+```r title="Weighted mean bug and safe fix"
 # A buggy function: weighted mean
 weighted_mean <- function(x, w) {
   sum(x * w) / sum(w)
@@ -56,7 +56,7 @@ That is the whole loop in miniature: locate the symptom, inspect the cause, ship
 
 **Try it:** Write `ex_is_adult(age)` that returns `TRUE` when `age >= 18`. The buggy version accepts string input like `"17"` and silently returns `FALSE` because R compares strings character-by-character. Find the bug and fix it.
 
-```r
+```r title="Exercise: find the string comparison bug"
 # Try it: find and fix the silent bug
 ex_is_adult <- function(age) {
   age >= 18
@@ -74,7 +74,7 @@ ex_is_adult(20)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="String comparison bug solution"
 ex_is_adult <- function(age) {
   age_num <- as.numeric(age)
   if (is.na(age_num)) stop("age must be numeric or a numeric string")
@@ -102,7 +102,7 @@ When an error happens inside a deep function call, R prints the error message bu
 
 Let's build a three-function chain, trigger an error, and read the stack. We capture the stack with `sys.calls()` inside a `tryCatch()` handler so the example runs in any R context, in an interactive session you would just type `traceback()` after the error instead.
 
-```r
+```r title="traceback captures the failing call chain"
 # A three-function chain with a hidden bug
 validate <- function(x) {
   if (!is.numeric(x)) stop("x must be numeric")
@@ -141,7 +141,7 @@ In an **interactive** R session, you'd simply type `traceback()` right after the
 
 Here is a subtler example, the bug is a bad list index, not a type error. The traceback still points at the exact failing frame:
 
-```r
+```r title="Deeper bug caught by traceback"
 # Deeper bug: bad list index
 inner_validate <- function(records, key) {
   records[[key]]$value  # fails if key not in records
@@ -170,7 +170,7 @@ The error message alone (`subscript out of bounds`) tells you *what* went wrong 
 
 **Try it:** You are shown the traceback below. Which user function should you inspect *first*?
 
-```r
+```r title="Exercise: read the traceback stack"
 # Try it: read the traceback
 # Imagine this is what traceback() printed after an error:
 #
@@ -188,7 +188,7 @@ ex_answer <- "clean_row"  # your answer here
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Traceback stack solution"
 ex_answer <- "clean_row"
 #> [1] "clean_row"
 ```
@@ -215,7 +215,7 @@ Here are the five single-letter commands you'll use 99% of the time, plus `where
 
 Let's use it on a budget function that silently returns the wrong total. In a real session you would uncomment the `browser()` call; the block below runs the function straight through so you can see the output, with a simulated `Browse[1]>` transcript in the comments showing what an interactive session would look like.
 
-```r
+```r title="Summarize budget with silent bug"
 # A function that silently returns the wrong total
 summarize_budget <- function(budget) {
   # browser()  # <-- in RStudio, uncomment this line to pause here
@@ -261,7 +261,7 @@ The `NA` in `budget$outflow` propagates through `sum()`, poisoning `expenses` an
 
 When a bug shows up on row 7 423 of 10 000, you cannot afford to press `n` seven thousand times. A conditional `browser()` pauses only when a predicate fires:
 
-```r
+```r title="Conditional browser on problematic element"
 # Only pause on the problematic element
 scan_values <- function(xs) {
   results <- numeric(length(xs))
@@ -289,7 +289,7 @@ With the conditional guard you get an interactive pause exactly when the state i
 
 **Try it:** The buggy `ex_compute_bmi(weight_kg, height_cm)` below uses centimetres when it should use metres. Insert a single *conditional* `browser()` call that only fires if the computed BMI is less than 1 (an impossibly low value that flags the unit mistake). You only need to write the line, you don't have to run it.
 
-```r
+```r title="Exercise: add a conditional browser line"
 # Try it: add one conditional browser() line
 ex_compute_bmi <- function(weight_kg, height_cm) {
   bmi <- weight_kg / height_cm^2
@@ -303,7 +303,7 @@ ex_compute_bmi(70, 175)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Conditional browser line solution"
 ex_compute_bmi <- function(weight_kg, height_cm) {
   bmi <- weight_kg / height_cm^2
   if (bmi < 1) browser()  # pause only on the impossible case
@@ -321,7 +321,7 @@ ex_compute_bmi(70, 175)
 
 `browser()` requires you to edit the function and add a line. `debug()` does the same thing from outside: `debug(fn)` marks `fn` so every subsequent call pauses at its first line, as if a `browser()` sat at the top. `debugonce(fn)` does the same but exactly once, after one call, the mark clears. For 95% of your debugging, reach for `debugonce()`, it is self-cleaning, so you cannot forget to turn it off.
 
-```r
+```r title="debug and debugonce step through"
 # A function with a subtle pricing bug
 discount_price <- function(price, pct) {
   discount <- price * pct         # bug: pct should be pct / 100
@@ -354,7 +354,7 @@ You spot the bug in two steps: step into the function, inspect `discount`, reali
 [TIP]
 **Prefer debugonce() over debug().** `debug(fn)` sets a *persistent* mark, every future call pauses until you remember to `undebug(fn)`. `debugonce(fn)` clears itself after one call. Over the course of a long session, the self-cleaning version saves you from the "why is my function pausing again?" surprise.
 
-```r
+```r title="Check and clear a debug mark"
 # Checking and clearing a debug mark
 is_marked <- isdebugged(discount_price)
 cat("Is discount_price marked for debugging?", is_marked, "\n")
@@ -375,7 +375,7 @@ cat("Is discount_price marked for debugging?", is_marked, "\n")
 
 **Try it:** You run `debugonce(score_round)` and then make three calls. Which call (first, second, or third) pauses inside the debugger?
 
-```r
+```r title="Exercise: predict which call pauses"
 # Try it: predict which call pauses
 score_round <- function(x) round(x * 10)
 
@@ -390,7 +390,7 @@ ex_which_pauses <- "A"   # your answer: "A", "B", or "C"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Which call pauses solution"
 ex_which_pauses <- "A"
 #> [1] "A"
 ```
@@ -403,7 +403,7 @@ ex_which_pauses <- "A"
 
 `traceback()`, `browser()`, and `debug()` are reactive, you invoke them after or around a specific call. `options(error = recover)` is proactive: it installs a *global* error handler so that any time *any* error occurs, R drops you into a frame-picker prompt listing every live call on the stack. You type a number to step into that frame and poke around post-mortem.
 
-```r
+```r title="options error recover as global handler"
 # Pretend we have the run -> process -> validate chain from earlier
 validate <- function(x) {
   if (!is.numeric(x)) stop("x must be numeric")
@@ -446,7 +446,7 @@ The win is that you did not know *which* call would fail or *where* to put a `br
 
 For batch scripts that run unattended, there is a runnable variant: `dump.frames()` saves the call-stack environments to disk so you can load them later in an interactive session with `debugger()`.
 
-```r
+```r title="Post mortem with dump frames"
 # Post-mortem debugging for batch scripts (runs in WebR too)
 risky_batch <- function() {
   a <- 1
@@ -479,7 +479,7 @@ tryCatch(
 
 **Try it:** Write the single line of R that sets up R to automatically dump every error's frames to disk so you can inspect them later with `debugger()`. (Hint: the value you assign to the `error` option can be an expression, and the batch-friendly one is `quote(dump.frames("last.dump", TRUE))`.)
 
-```r
+```r title="Exercise: one line error option"
 # Try it: one-liner for batch-script post-mortem
 # Fill in the expression after error =
 # options(error = ___)
@@ -489,7 +489,7 @@ ex_option_line <- "options(error = ___)"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Error option line solution"
 ex_option_line <- 'options(error = quote(dump.frames("last.dump", TRUE)))'
 #> [1] "options(error = quote(dump.frames(\"last.dump\", TRUE)))"
 ```
@@ -521,7 +521,7 @@ The debugger toolbar (above the console when paused) offers five buttons mapped 
 | Continue | Shift+F5 | `c` | Resume until the next breakpoint |
 | Stop | Shift+F8 | `Q` | Abort debugging and return to the top |
 
-```r
+```r title="RStudio breakpoint on a line"
 # A function you'd set a breakpoint on in RStudio
 deduct_tax <- function(gross, rate) {
   tax_due <- gross * rate
@@ -549,7 +549,7 @@ One more RStudio win: after a function errors at the top level, the console show
 
 **Try it:** You hit a breakpoint inside `deduct_tax(1000, 0.20)` at the `net <- gross - tax_due` line and want to check the value of `tax_due` before running that line. Which RStudio button, **Next (F10)**, **Step Into (Shift+F4)**, **Finish (Shift+F6)**, **Continue (Shift+F5)**, or **Stop (Shift+F8)**, should you press first?
 
-```r
+```r title="Exercise: pick the debugger button"
 # Try it: pick the button
 # You are paused at: net <- gross - tax_due
 # Goal: inspect tax_due, then advance one line
@@ -559,7 +559,7 @@ ex_button <- "Next"   # your answer
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Debugger button solution"
 ex_button <- "Next"
 #> [1] "Next"
 ```
@@ -572,7 +572,7 @@ ex_button <- "Next"
 
 The painful case: you run `lapply(rows, parse)` over 10 000 rows and one of them throws. You lose every result computed so far, and `traceback()` just points at `FUN(X[[i]])`, it does not tell you *which* `i`. Two patterns save you: wrap each call in `tryCatch()` to turn errors into tagged results, or use `purrr::safely()` for the idiomatic version.
 
-```r
+```r title="tryCatch wrapper for each element"
 # A mapper that throws on a bad element
 risky <- function(x) {
   if (x < 0) stop("negative input: ", x)
@@ -607,7 +607,7 @@ Every row gets processed, the loop never dies, and you end up with a clean split
 
 The `purrr` version is the same pattern without the hand-rolled bookkeeping. `safely()` takes a function and returns a new function that always returns `list(result, error)`, one is always `NULL`, the other always populated.
 
-```r
+```r title="purrr safely idiomatic mapper"
 # purrr::safely() is the idiomatic version
 library(purrr)
 
@@ -631,7 +631,7 @@ Two lines (`safe_risky <- safely(risky)`, `map(xs, safe_risky)`) replace the han
 [WARNING]
 **Plain browser() inside lapply() pauses for every element.** If you drop an unconditional `browser()` into a mapper, `lapply()` will open the interactive prompt for every single element, you'll give up and Ctrl+C out within 10 rows. Either make it conditional (`if (suspicious) browser()`) or use `safely()` to collect errors without pausing.
 
-```r
+```r title="Conditional browser inside a mapper"
 # Conditional browser inside a mapper — only pause on the bad row
 process_row <- function(row) {
   if (row$amount < 0) {
@@ -655,7 +655,7 @@ In an interactive session, that `browser()` would pause on row B and only row B,
 
 **Try it:** The `ex_parser(lines)` below parses each line of input as a number. It currently crashes on the first malformed line. Wrap the parser with `purrr::safely()` so the batch keeps running and collects errors. Return a list with `results` and `errors` components.
 
-```r
+```r title="Exercise: make parser resilient with safely"
 # Try it: make ex_parser resilient with safely()
 ex_parse_line <- function(line) {
   n <- as.numeric(line)
@@ -680,7 +680,7 @@ out <- ex_parser(lines)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Resilient parser solution"
 ex_parser <- function(lines) {
   safe_parse <- safely(ex_parse_line)
   out <- map(lines, safe_parse)
@@ -709,7 +709,7 @@ out$errors
 
 The `merge_reports()` function below fails when you try to merge two data frames. Use the `tryCatch(..., error = function(e) sys.calls())` pattern to capture the call stack, identify the failing frame, and ship a corrected version. Save the merged result to `my_merged`.
 
-```r
+```r title="Exercise: merge reports and diagnose"
 # Exercise: merge reports, diagnose the crash, fix it
 merge_reports <- function(new, old) {
   out <- old
@@ -737,7 +737,7 @@ my_merged <- NULL  # replace with your fix
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Merge reports diagnosis solution"
 # Step 1: capture the stack
 tryCatch(
   merge_reports(new_rep, old_rep),
@@ -776,7 +776,7 @@ print(my_merged)
 
 Write `find_bad_row(df, predicate)` that scans the rows of `df` and returns the **row index** of the first row where `predicate(row)` is `TRUE`. Use a conditional-pause pattern, simulated here with an immediate `return()` instead of a `browser()` call so it runs in WebR, so your function stops at the first match instead of scanning every row. Test it on `mtcars` by finding the first car with `mpg < 15`.
 
-```r
+```r title="Exercise: find first matching row"
 # Exercise: find the first row matching a predicate
 find_bad_row <- function(df, predicate) {
   # your code here — short-circuit on the first match
@@ -790,7 +790,7 @@ my_first_bad <- find_bad_row(mtcars, function(r) r$mpg < 15)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="First matching row solution"
 find_bad_row <- function(df, predicate) {
   for (i in seq_len(nrow(df))) {
     row_i <- df[i, , drop = FALSE]
@@ -818,7 +818,7 @@ rownames(mtcars)[my_first_bad]
 
 Write `robust_apply(xs, fn)` that calls `fn` on every element of `xs` and returns a list with two components: `results` (a list of successes tagged by index) and `errors` (a list of failures tagged by index and error message). It must work when 90% of elements fail. Use `purrr::safely()`. Test it on a function that only succeeds for even numbers.
 
-```r
+```r title="Exercise: build a resilient mapper"
 # Exercise: resilient mapper
 robust_apply <- function(xs, fn) {
   # your code here
@@ -838,7 +838,7 @@ my_result <- robust_apply(1:6, evens_only)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Resilient mapper solution"
 robust_apply <- function(xs, fn) {
   library(purrr)
   safe_fn <- safely(fn)
@@ -878,7 +878,7 @@ my_result$errors[[1]]$message
 
 Let's walk a silent bug through a whole pipeline from symptom to ship-ready fix, using the three tools you'd actually reach for: `tryCatch` + `sys.calls` to locate, a conditional pause pattern to inspect, and a strict input guard to fix. The pipeline grades students pass/fail; the symptom is that *everyone* is failing.
 
-```r
+```r title="End-to-end grade pipeline debug"
 # The buggy pipeline
 validate_score <- function(score) {
   if (score >= 60) "Pass" else "Fail"

@@ -23,7 +23,7 @@ difficulty: Intermediate
 
 The Poisson distribution answers one question: *given an average rate λ of events in a window, how likely is each count?* R gives you four functions, `dpois()`, `ppois()`, `qpois()`, `rpois()`, that cover exact probability, cumulative probability, quantiles, and random samples. Before the 10 problems, a single runnable block shows the two most common cases side by side so you can spot which function fits a new question at a glance.
 
-```r
+```r title="dpois and ppois one-liners"
 # Call centre — 4 calls/hour on average
 dpois(3, lambda = 4)     # P(exactly 3 calls in 1 hour)
 #> [1] 0.1953668
@@ -43,7 +43,7 @@ The first call asks "what is the probability of exactly 3 calls?" and the second
 
 **Try it:** Compute the probability of exactly 2 events when the average rate is λ = 5.
 
-```r
+```r title="Exercise: Exact probability with dpois"
 # Try it: exact probability with dpois
 ex_p <- dpois(___, lambda = ___)
 ex_p
@@ -53,7 +53,7 @@ ex_p
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exact probability solution"
 ex_p <- dpois(2, lambda = 5)
 ex_p
 #> [1] 0.08422434
@@ -77,7 +77,7 @@ Where:
 
 For a single k, one `dpois()` call is enough. For a range of counts, say "between 3 and 5 emails", pass a vector of k values and sum the result.
 
-```r
+```r title="Sum dpois across a range"
 # Emails — 3 per hour on average
 dpois(5, lambda = 3)                    # P(exactly 5 emails)
 #> [1] 0.1008188
@@ -94,7 +94,7 @@ The first call gives a direct mass at k = 5. The second passes a vector `3:5` to
 
 **Try it:** A bus arrives at a stop at a rate of 1.5 per 10 minutes. Compute P(exactly 2 arrivals in a 10-minute window).
 
-```r
+```r title="Exercise: Bus arrivals probability"
 # Try it: bus arrivals with dpois
 ex_bus <- dpois(___, lambda = ___)
 ex_bus
@@ -104,7 +104,7 @@ ex_bus
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bus arrivals solution"
 ex_bus <- dpois(2, lambda = 1.5)
 ex_bus
 #> [1] 0.2510214
@@ -120,7 +120,7 @@ ex_bus
 
 Two ways to get "at least 7":
 
-```r
+```r title="At-most and at-least with ppois"
 # Customer arrivals — 5 per hour on average
 p_at_most <- ppois(5, lambda = 5)
 p_at_most
@@ -141,7 +141,7 @@ The first line returns the probability of 5 or fewer arrivals, just over 61%, a 
 
 **Try it:** Defects arrive on a production line at λ = 2 per shift. Compute P(at least 3 defects in a shift).
 
-```r
+```r title="Exercise: At-least probability ppois"
 # Try it: at-least probability with ppois
 ex_defects <- ppois(___, lambda = ___, lower.tail = ___)
 ex_defects
@@ -151,7 +151,7 @@ ex_defects
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="At-least probability solution"
 ex_defects <- ppois(2, lambda = 2, lower.tail = FALSE)
 ex_defects
 #> [1] 0.3233236
@@ -165,7 +165,7 @@ ex_defects
 
 `qpois(p, lambda)` inverts `ppois()`, give it a cumulative probability and it returns the smallest count `k` where P(X ≤ k) reaches `p`. `rpois(n, lambda)` draws `n` random counts from the distribution, useful for simulation.
 
-```r
+```r title="Quantiles and simulation with qpois"
 # Website traffic — 10 visits/minute on average
 q95 <- qpois(0.95, lambda = 10)   # 95th-percentile traffic
 q95
@@ -184,7 +184,7 @@ The first call answers "what is the smallest visit count that covers 95% of minu
 
 **Try it:** Set `set.seed(7)` and simulate 10 counts with λ = 4. Report the sample mean.
 
-```r
+```r title="Exercise: Simulate and report mean"
 # Try it: simulate and report mean
 set.seed(7)
 ex_sim <- rpois(___, lambda = ___)
@@ -195,7 +195,7 @@ mean(ex_sim)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Simulate and mean solution"
 set.seed(7)
 ex_sim <- rpois(10, lambda = 4)
 ex_sim
@@ -216,7 +216,7 @@ Ten problems, arranged from easy to hard. Each uses distinct `my_*` variable nam
 
 A hospital emergency room averages 6 admissions per hour. Compute P(exactly 4 admissions in an hour). Save the answer to `my_p1`.
 
-```r
+```r title="Exercise 1: Exact count dpois"
 # Exercise 1: exact count with dpois
 # Hint: dpois(k, lambda) gives P(X = k)
 
@@ -228,7 +228,7 @@ print(my_p1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 1 solution"
 my_p1 <- dpois(4, lambda = 6)
 print(my_p1)
 #> [1] 0.1338526
@@ -242,7 +242,7 @@ print(my_p1)
 
 A website averages 2 outages per month. Compute P(at most 1 outage in a given month). Save to `my_p2`.
 
-```r
+```r title="Exercise 2: Cumulative probability ppois"
 # Exercise 2: cumulative probability with ppois
 # Hint: "at most k" means P(X <= k)
 
@@ -254,7 +254,7 @@ print(my_p2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 2 solution"
 my_p2 <- ppois(1, lambda = 2)
 print(my_p2)
 #> [1] 0.4060058
@@ -268,7 +268,7 @@ print(my_p2)
 
 A production unit averages 0.8 defects per unit. Compute P(at least 2 defects in a unit). Save to `my_p3`.
 
-```r
+```r title="Exercise 3: At-least complement"
 # Exercise 3: complement with ppois
 # Hint: use lower.tail = FALSE and pass q = 1
 
@@ -280,7 +280,7 @@ print(my_p3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 3 solution"
 my_p3 <- ppois(1, lambda = 0.8, lower.tail = FALSE)
 print(my_p3)
 #> [1] 0.1912079
@@ -294,7 +294,7 @@ print(my_p3)
 
 An insurer receives 5 claims per day on average. Compute P(between 3 and 7 claims, inclusive). Save to `my_p4`.
 
-```r
+```r title="Exercise 4: Range with sum of dpois"
 # Exercise 4: range using sum(dpois(a:b, lambda))
 # Hint: 3:7 is a vector of 5 values
 
@@ -306,7 +306,7 @@ print(my_p4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 4 solution"
 my_p4 <- sum(dpois(3:7, lambda = 5))
 print(my_p4)
 #> [1] 0.7419466
@@ -320,7 +320,7 @@ print(my_p4)
 
 A helpdesk receives 12 calls per hour on average. Find the smallest staff count `my_staff` such that P(calls ≤ my_staff) ≥ 0.95, enough capacity to cover 95% of hours.
 
-```r
+```r title="Exercise 5: Inverse CDF qpois"
 # Exercise 5: inverse CDF with qpois
 # Hint: qpois returns the smallest k with P(X <= k) >= p
 
@@ -332,7 +332,7 @@ print(my_staff)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 5 solution"
 my_staff <- qpois(0.95, lambda = 12)
 print(my_staff)
 #> [1] 18
@@ -350,7 +350,7 @@ ppois(18, lambda = 12)
 
 Simulate 10,000 hours of a call centre with λ = 8. Set `set.seed(44)`. Save the draws to `my_sim6` and compute the sample mean and variance, both should land near 8.
 
-```r
+```r title="Exercise 6: Mean-variance simulation"
 # Exercise 6: simulate and verify mean = variance = lambda
 set.seed(44)
 my_sim6 <- 
@@ -361,7 +361,7 @@ c(sample_mean = mean(my_sim6), sample_var = var(my_sim6))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 6 solution"
 set.seed(44)
 my_sim6 <- rpois(10000, lambda = 8)
 c(sample_mean = mean(my_sim6), sample_var = var(my_sim6))
@@ -377,7 +377,7 @@ c(sample_mean = mean(my_sim6), sample_var = var(my_sim6))
 
 Buses arrive at a stop at 2 per 15 minutes on average. Convert the rate to arrivals per hour (should be λ = 8) and compute P(at least 10 buses in a 60-minute window). Save to `my_p7`.
 
-```r
+```r title="Exercise 7: Scale lambda upper tail"
 # Exercise 7: scale lambda, then compute upper tail
 # Hint: 2 per 15 min = 8 per 60 min; then use ppois with lower.tail = FALSE
 
@@ -390,7 +390,7 @@ print(my_p7)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 7 solution"
 my_lambda7 <- 2 * 4           # 4 quarters in an hour => lambda = 8 / hour
 my_p7 <- ppois(9, lambda = my_lambda7, lower.tail = FALSE)
 print(my_p7)
@@ -405,7 +405,7 @@ print(my_p7)
 
 Plot the probability mass function of Poisson(λ = 7) over the range 0:20 using `barplot()`. Label the axes and highlight the mode bar in a distinct colour.
 
-```r
+```r title="Exercise 8: PMF barplot"
 # Exercise 8: PMF barplot
 # Hint: dpois(0:20, 7) gives you the full vector of masses
 
@@ -422,7 +422,7 @@ barplot(my_masses8, names.arg = my_x8,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 8 solution"
 my_x8 <- 0:20
 my_masses8 <- dpois(my_x8, lambda = 7)
 my_colours8 <- ifelse(my_masses8 == max(my_masses8), "steelblue", "grey70")
@@ -441,7 +441,7 @@ barplot(my_masses8, names.arg = my_x8,
 
 Over 10 time units you observed 25 events. Test the null hypothesis H0: λ = 2 against a two-sided alternative using `poisson.test()`. Save the result to `my_test9` and extract the p-value.
 
-```r
+```r title="Exercise 9: Exact rate test"
 # Exercise 9: exact rate test
 # Hint: poisson.test(x, T, r) where x = observed, T = time, r = null rate
 
@@ -453,7 +453,7 @@ my_test9$p.value
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 9 solution"
 my_test9 <- poisson.test(x = 25, T = 10, r = 2)
 print(my_test9)
 #>   Exact Poisson test
@@ -479,7 +479,7 @@ my_test9$p.value
 
 A hospital admits 30 patients per day on average. What is the smallest bed capacity `my_beds` such that the probability of overflow, P(admissions > my_beds), stays below 5%? Verify with a 10,000-day simulation (`set.seed(2026)`): the empirical overflow share should sit under 0.05.
 
-```r
+```r title="Exercise 10: Capacity planning"
 # Exercise 10: capacity planning, then verify by simulation
 # Hint: use qpois(0.95, 30), then check with rpois
 
@@ -497,7 +497,7 @@ print(my_overflow)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 10 solution"
 my_beds <- qpois(0.95, lambda = 30)
 print(my_beds)
 #> [1] 39
@@ -517,7 +517,7 @@ print(my_overflow)
 
 A real capacity study combines every function you just practised. Walk through a full hour-by-hour ER admissions analysis: compute the theoretical moments, cap capacity at the 95th percentile, simulate a week of hours to sanity-check the distribution, then test the rate against a historical baseline using 72 hours of recent data.
 
-```r
+```r title="End-to-end ER admissions workflow"
 # Scenario: ER admissions, lambda = 6 per hour
 er_lambda <- 6
 

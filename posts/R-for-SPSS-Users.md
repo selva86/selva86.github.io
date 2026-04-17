@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 You probably ran your first SPSS analysis as a t-test. Let's start there. SPSS uses the `T-TEST` procedure with `GROUPS=` or `PAIRS=` subcommands; R uses one function, `t.test()`, with a formula or two vectors. The output looks different, but the numbers, t, degrees of freedom, p-value, mean difference, are identical. Run the block below and compare it to any SPSS output you have handy.
 
-```r
+```r title="SPSS paired T-TEST becomes t.test"
 # SPSS:  T-TEST PAIRS = group1 WITH group2 (PAIRED).
 # R equivalent: paired t-test on the built-in 'sleep' dataset
 group1 <- sleep$extra[sleep$group == 1]
@@ -46,7 +46,7 @@ Every value SPSS prints in its t-test output viewer appears here: `t = -4.06`, `
 
 **Try it:** Run a one-sample t-test asking whether the mean of `sleep$extra` differs from 0 (the SPSS equivalent of `T-TEST /TESTVAL=0 /VARIABLES=extra.`).
 
-```r
+```r title="Exercise: one-sample t-test"
 # Try it: one-sample t-test
 ex_t1 <- t.test(  # your code here
 )
@@ -57,7 +57,7 @@ ex_t1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="One-sample solution"
 ex_t1 <- t.test(sleep$extra, mu = 0)
 ex_t1
 #> 
@@ -81,7 +81,7 @@ ex_t1
 
 Your existing data lives in `.sav` files. The `haven` package reads them directly and, critically, preserves the metadata SPSS users care about: variable labels, value labels, and user-defined missings. The older `foreign::read.spss` strips most of this; use `haven` instead.
 
-```r
+```r title="Read an SPSS .sav file with haven"
 library(haven)
 
 # Real-world usage (commented out — needs an actual .sav file on disk):
@@ -110,7 +110,7 @@ head(spss_data[, 1:5], 3)
 
 **Try it:** Write the single line of R code that would read a file called `survey.sav` (sitting in your working directory) into an object called `ex_survey`.
 
-```r
+```r title="Exercise: one-line read of survey.sav"
 # Try it: one-line read of survey.sav
 ex_survey <- # your code here
 #> Expected: ex_survey is a tibble loaded from survey.sav
@@ -119,7 +119,7 @@ ex_survey <- # your code here
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Read-sav solution"
 ex_survey <- read_sav("survey.sav")
 #> (No printed output — assigns the loaded data to ex_survey)
 ```
@@ -132,7 +132,7 @@ ex_survey <- read_sav("survey.sav")
 
 `DESCRIPTIVES`, `FREQUENCIES`, and `CROSSTABS` are the three SPSS procedures you run before any model. Their R equivalents are `summary()`, `table()` plus `prop.table()`, and `table()` plus `chisq.test()`. The `psych::describe()` function adds skew, kurtosis, and standard error, closer to what SPSS prints by default in DESCRIPTIVES.
 
-```r
+```r title="DESCRIPTIVES via psych::describe"
 library(psych)
 
 # SPSS: DESCRIPTIVES VARIABLES = mpg hp wt.
@@ -175,7 +175,7 @@ chisq.test(ct)
 
 **Try it:** Build a frequency table for `mtcars$gear` and store it as `ex_gear`.
 
-```r
+```r title="Exercise: frequency table for gear"
 # Try it: frequency table for gear
 ex_gear <- # your code here
 ex_gear
@@ -185,7 +185,7 @@ ex_gear
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Gear-frequency solution"
 ex_gear <- table(mtcars$gear)
 ex_gear
 #> 
@@ -201,7 +201,7 @@ ex_gear
 
 Base R's `aov()` is the workhorse for analysis of variance. There's one major catch: SPSS's UNIANOVA defaults to **Type III** sums of squares; R's `aov()` and `summary.aov()` give you **Type I** (sequential) sums of squares. For balanced designs the two answers are identical. For unbalanced designs they can differ enough to flip a conclusion. To match SPSS exactly, use `car::Anova()` with `type = "III"` and switch to sum-to-zero contrasts.
 
-```r
+```r title="ONEWAY and UNIANOVA to aov and Anova"
 library(car)
 
 mtcars$cyl_f <- factor(mtcars$cyl)
@@ -238,7 +238,7 @@ The one-way result is unambiguous: `F(2, 29) = 39.7, p < .001`, the same numbers
 
 **Try it:** Run Tukey's HSD post-hoc on `fit_one` (the SPSS `/POSTHOC = TUKEY` equivalent) and store the result as `ex_tukey`.
 
-```r
+```r title="Exercise: Tukey HSD on fitone"
 # Try it: Tukey HSD on fit_one
 ex_tukey <- # your code here
 ex_tukey
@@ -248,7 +248,7 @@ ex_tukey
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tukey solution"
 ex_tukey <- TukeyHSD(fit_one)
 ex_tukey
 #>   Tukey multiple comparisons of means
@@ -271,7 +271,7 @@ ex_tukey
 
 SPSS `REGRESSION /DEPENDENT y /ENTER x1 x2.` becomes `lm(y ~ x1 + x2, data = df)`. The `summary()` output gives you everything from the SPSS "Model Summary" and "Coefficients" tables in one printout: coefficients, standard errors, t-values, p-values, R², adjusted R², residual standard error, and the F statistic. Use `confint()` for the 95% confidence intervals SPSS prints next to each coefficient.
 
-```r
+```r title="REGRESSION to lm with summary"
 # SPSS: REGRESSION /DEPENDENT mpg /ENTER wt hp /CI(95).
 fit_lm <- lm(mpg ~ wt + hp, data = mtcars)
 summary(fit_lm)
@@ -308,7 +308,7 @@ Each row of the `Coefficients:` block maps to a row in the SPSS "Coefficients" t
 
 **Try it:** Fit a simple regression of `mpg` on `wt` only (one predictor), store as `ex_simple`, and print its `summary()`.
 
-```r
+```r title="Exercise: one-predictor regression"
 # Try it: simple regression
 ex_simple <- # your code here
 summary(ex_simple)
@@ -318,7 +318,7 @@ summary(ex_simple)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Simple-regression solution"
 ex_simple <- lm(mpg ~ wt, data = mtcars)
 summary(ex_simple)
 #> 
@@ -338,7 +338,7 @@ summary(ex_simple)
 
 SPSS `FACTOR /VARIABLES = ... /EXTRACTION = ML /ROTATION = VARIMAX` translates to `psych::fa()`. The `psych` package was built specifically to give SPSS-style psychometric output in R, so the rotated loading matrix you get back will feel familiar. The built-in `bfi` dataset (25 personality items from the International Personality Item Pool) is perfect for a realistic five-factor demonstration.
 
-```r
+```r title="FACTOR to psych::fa with varimax"
 # bfi is built into psych: 25 items measuring the Big Five
 items <- na.omit(bfi[, 1:25])
 
@@ -367,7 +367,7 @@ The sorted loading matrix groups items by their dominant factor, `N1`–`N5` clu
 
 **Try it:** Re-run the factor analysis with oblimin rotation (SPSS's default oblique rotation) and store the result as `ex_fa`.
 
-```r
+```r title="Exercise: factor analysis with oblimin"
 # Try it: factor analysis with oblimin rotation
 ex_fa <- # your code here
 ex_fa
@@ -377,7 +377,7 @@ ex_fa
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Oblimin solution"
 ex_fa <- fa(items, nfactors = 5, rotate = "oblimin", fm = "ml")
 ex_fa
 #> Factor Analysis using method =  ml
@@ -398,7 +398,7 @@ ex_fa
 
 SPSS `RELIABILITY /VARIABLES = ... /STATISTICS = ALPHA` becomes `psych::alpha()`. The output gives you raw alpha, standardized alpha, average inter-item correlation, item-total statistics, and the "alpha if item dropped" column, the same five blocks SPSS users are used to seeing. Use `check.keys = TRUE` so psych auto-flips reverse-coded items (in SPSS you'd do this by hand with RECODE).
 
-```r
+```r title="RELIABILITY to psych::alpha"
 # SPSS: RELIABILITY /VARIABLES = A1 A2 A3 A4 A5 /STATISTICS = ALPHA.
 agree_alpha <- alpha(bfi[, 1:5], check.keys = TRUE)
 agree_alpha
@@ -432,7 +432,7 @@ The first block prints raw alpha (`0.70`), standardized alpha (`0.71`), and Gutt
 
 **Try it:** Compute Cronbach's alpha on the Conscientiousness subscale (`bfi[, 6:10]`) and store the result as `ex_alpha`.
 
-```r
+```r title="Exercise: alpha for Conscientiousness items"
 # Try it: alpha for Conscientiousness items
 ex_alpha <- # your code here
 ex_alpha
@@ -442,7 +442,7 @@ ex_alpha
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Conscientiousness-alpha solution"
 ex_alpha <- alpha(bfi[, 6:10], check.keys = TRUE)
 ex_alpha
 #> Reliability analysis   
@@ -462,7 +462,7 @@ These capstone exercises combine procedures from multiple sections. Use distinct
 
 Fit a regression of `mpg` on `wt`, `hp`, and `cyl` using mtcars. Store the model as `my_fit`. Print the `summary()` and `confint()`. Identify which predictor has the largest absolute t-value.
 
-```r
+```r title="Exercise: three-predictor regression"
 # Exercise 1: multi-predictor regression
 # Hint: lm() takes a formula y ~ x1 + x2 + x3
 
@@ -474,7 +474,7 @@ confint(my_fit)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-predictor solution"
 my_fit <- lm(mpg ~ wt + hp + cyl, data = mtcars)
 summary(my_fit)
 #> Coefficients:
@@ -499,7 +499,7 @@ confint(my_fit)
 
 For the Extraversion items (`bfi[, 11:15]`), compute Cronbach's alpha and a one-factor `fa()` solution. Save the alpha as `my_alpha` and the factor analysis as `my_fa`. Inspect `my_fa$Vaccounted` to see what proportion of the items' variance the single factor explains.
 
-```r
+```r title="Exercise: alpha plus 1-factor fa"
 # Exercise 2: alpha + 1-factor fa on the same scale
 # Hints:
 #   alpha(items, check.keys = TRUE)
@@ -513,7 +513,7 @@ my_fa$Vaccounted
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Alpha-plus-fa solution"
 extra_items <- na.omit(bfi[, 11:15])
 
 my_alpha <- alpha(extra_items, check.keys = TRUE)
@@ -538,7 +538,7 @@ my_fa$Vaccounted
 
 Here's an end-to-end mini-workflow on the bfi Agreeableness scale: descriptives → reliability → 1-factor solution → regression of total score on age. What would be five separate dialog boxes in SPSS is one short R script you can re-run on new data tomorrow.
 
-```r
+```r title="End-to-end Agreeableness scale analysis"
 # Step 1: pull a clean working subset
 agree <- na.omit(bfi[, c("A1", "A2", "A3", "A4", "A5", "age")])
 

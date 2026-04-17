@@ -26,7 +26,7 @@ Most tutorials hand you a p-value and tell you "less than 0.05 means significant
 
 Here is a complete one-sample t-test asking, "Is the average miles-per-gallon of the 32 cars in `mtcars` different from 20?" Watch the output, every later section explains one piece of it.
 
-```r
+```r title="One-sample t-test on mtcars mpg"
 # Five-step hypothesis test in one block
 # H0: mean mpg = 20      H1: mean mpg != 20
 payoff_test <- t.test(mtcars$mpg, mu = 20)
@@ -58,7 +58,7 @@ The sample mean (20.09) is essentially on top of our hypothesised 20, the t stat
 
 **Try it:** Re-run the same test against `mu = 25` instead of 20. Predict before running: do you expect the p-value to go up or down?
 
-```r
+```r title="Exercise: predict p-value at mu 25"
 # Try it: change mu and predict the direction
 ex_test <- t.test(mtcars$mpg, mu = ___)  # replace ___ with 25
 ex_test$p.value
@@ -68,7 +68,7 @@ ex_test$p.value
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mu-25 solution"
 ex_test <- t.test(mtcars$mpg, mu = 25)
 ex_test$p.value
 #> [1] 7.139703e-06
@@ -87,7 +87,7 @@ The null hypothesis (H₀) is always the boring, conservative claim, *no differe
 
 Let's compare 4-cylinder and 6-cylinder cars in `mtcars`. The question is whether their mean mpg differs. H₀: μ₄ = μ₆. H₁: μ₄ ≠ μ₆. The `~` formula in `t.test()` says "split mpg by cyl group."
 
-```r
+```r title="Two-sample Welch t-test by cyl"
 # Two-sample t-test, two-sided
 # H0: mean mpg is the same in 4-cyl and 6-cyl groups
 cars_4_6 <- subset(mtcars, cyl %in% c(4, 6))
@@ -108,7 +108,7 @@ The mean mpg gap is about 6.9 mpg, the t statistic is 4.7, and the p-value is 0.
 
 Now suppose your scientific question was specifically directional: "Do 4-cyl cars have *higher* mpg than 6-cyl?" You'd use a one-sided test. R defaults to two-sided; switch with `alternative = "greater"`.
 
-```r
+```r title="One-sided alternative greater"
 # One-sided alternative: 4-cyl > 6-cyl
 cars_4_6_one <- t.test(mpg ~ cyl, data = cars_4_6, alternative = "greater")
 cars_4_6_one$p.value
@@ -122,7 +122,7 @@ The one-sided p-value is exactly half the two-sided value because the t distribu
 
 **Try it:** Write H₀ and H₁ for "do automatic and manual cars (`am` = 0 vs 1) differ in mpg?" Then run the two-sided t-test and report the decision at α = 0.05.
 
-```r
+```r title="Exercise: t-test mpg by transmission"
 # Try it: am vs mpg
 # H0: ____________________
 # H1: ____________________
@@ -136,7 +136,7 @@ ex_am$p.value
 
 H₀: mean mpg is the same for automatic and manual transmissions (μ_auto = μ_manual). H₁: the means differ.
 
-```r
+```r title="Transmission solution"
 ex_am <- t.test(mpg ~ am, data = mtcars)
 ex_am$p.value
 #> [1] 0.001373638
@@ -162,7 +162,7 @@ The numerator is the raw distance between the sample and H₀. The denominator, 
 
 Let's compute the t statistic by hand from `mtcars$mpg` against μ₀ = 20 and confirm it matches `t.test()`.
 
-```r
+```r title="Manual t statistic vs t.test"
 # Manual t statistic vs t.test()
 x <- mtcars$mpg
 n <- length(x)
@@ -187,7 +187,7 @@ The two numbers agree exactly. The mean (20.09) sits 0.085 standard errors away 
 
 **Try it:** Compute the t statistic by hand for `iris$Sepal.Length` against μ₀ = 5.5, then verify with `t.test()`.
 
-```r
+```r title="Exercise: manual t for sepal length"
 # Try it: manual t for iris
 ex_x <- iris$Sepal.Length
 # your code: compute ex_t manually using mean, sd, length
@@ -200,7 +200,7 @@ t.test(ex_x, mu = 5.5)$statistic
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sepal-length solution"
 ex_x <- iris$Sepal.Length
 ex_t <- (mean(ex_x) - 5.5) / (sd(ex_x) / sqrt(length(ex_x)))
 ex_t
@@ -224,7 +224,7 @@ In words: "*If H₀ were true*, how often would the test statistic land at least
 
 You can compute it yourself from the t statistic. For a two-sided test, find the area in both tails beyond `|t|` of the t distribution with `n − 1` degrees of freedom.
 
-```r
+```r title="Manual two-sided p-value via pt"
 # Manual two-sided p-value via pt()
 t_val <- t_obj$statistic           # from previous block: 0.08506046
 df <- n - 1                        # 31
@@ -241,7 +241,7 @@ Identical, as it must be. The p-value isn't magic, it's a direct lookup against 
 
 To make the conditional-probability definition concrete, here's a simulation: draw 10,000 datasets where H₀ truly holds (samples from `N(0, 1)` tested against μ₀ = 0), run a t-test on each, and look at the resulting p-values. If the p-value really is "a tail probability under H₀," its distribution should be uniform on [0, 1].
 
-```r
+```r title="p-value uniformity under H0"
 # Simulation: distribution of p-values when H0 is true
 set.seed(2024)
 null_pvals <- replicate(10000, {
@@ -269,7 +269,7 @@ About 4.89% of p-values fall below 0.05, exactly what "5% false-positive rate at
 
 **Try it:** Predict the proportion of simulated p-values that fall below 0.10 when H₀ is true, then verify by running the simulation.
 
-```r
+```r title="Exercise: predict fraction below 0.10"
 # Try it: predict, then check
 # Prediction: about ___% of p-values fall below 0.10
 mean(null_pvals < 0.10)
@@ -279,7 +279,7 @@ mean(null_pvals < 0.10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ten-percent solution"
 # Under H0, p-values are uniform on [0,1], so P(p < 0.10) ≈ 0.10
 mean(null_pvals < 0.10)
 #> [1] 0.1006
@@ -300,7 +300,7 @@ A **Type I error** is rejecting H₀ when it's actually true, a false positive. 
 
 Let's verify the Type I rate empirically. Simulate 1,000 t-tests under H₀ and count the false positives.
 
-```r
+```r title="Type I error rate simulation"
 # Type I error rate simulation
 set.seed(42)
 type1_rejects <- replicate(1000, {
@@ -316,7 +316,7 @@ Roughly 5.2% of tests rejected even though H₀ was true. That's α in action, i
 
 Now power. Simulate the same test but with a true mean of 0.5 (so H₀: μ = 0 is false) and count the correct rejections.
 
-```r
+```r title="Power simulation at true mean 0.5"
 # Power simulation: true mean = 0.5, H0: mu = 0
 set.seed(42)
 power_rejects <- replicate(1000, {
@@ -335,7 +335,7 @@ About 76% of tests correctly rejected H₀, that's our empirical power. The othe
 
 **Try it:** Re-run the power simulation with `n = 50` (instead of 30). Predict before running: does power go up or down?
 
-```r
+```r title="Exercise: power at sample size 50"
 # Try it: predict, then run
 ex_power <- replicate(1000, {
   ex_s <- rnorm(___, mean = 0.5, sd = 1)  # n = 50
@@ -348,7 +348,7 @@ mean(ex_power)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="n-50 power solution"
 set.seed(42)
 ex_power <- replicate(1000, {
   ex_s <- rnorm(50, mean = 0.5, sd = 1)
@@ -377,7 +377,7 @@ Test choice is dictated by the data structure and the question, not preference. 
 
 Here's one call to each of four common tests, on appropriate data, so you can see the consistent output structure.
 
-```r
+```r title="Four common tests, one interface"
 # Four tests, one consistent interface
 t_demo     <- t.test(extra ~ group, data = sleep)             # paired/group means
 prop_demo  <- prop.test(x = c(45, 60), n = c(100, 100))       # two proportions
@@ -401,7 +401,7 @@ Notice every result object exposes `$p.value`, `$statistic`, and (for most) `$co
 
 **Try it:** A team A/B-tested a checkout button: 24 of 200 control users converted (12%) and 30 of 200 treatment users converted (15%). Pick the right test, justify in one line, and run it.
 
-```r
+```r title="Exercise: A/B conversion-rate test"
 # Try it: A/B test on conversion rates
 # Test choice: ____________________
 # Justification: ____________________
@@ -415,7 +415,7 @@ ex_ab$p.value
 
 Test choice: `prop.test()`. Justification: we're comparing two independent sample *proportions* with reasonably large n, which is exactly what `prop.test()` is for.
 
-```r
+```r title="A/B-conversion solution"
 ex_ab <- prop.test(x = c(24, 30), n = c(200, 200))
 ex_ab$p.value
 #> [1] 0.4655113
@@ -433,7 +433,7 @@ These problems combine multiple concepts from the tutorial. They use distinct va
 
 Using `iris`, test whether the mean petal length of `versicolor` is *greater* than 4.0 cm at α = 0.01. Save the t statistic to `my_t` and the p-value to `my_p`. State your decision in one sentence.
 
-```r
+```r title="Exercise: versicolor one-sided petal test"
 # Exercise: one-sided t-test on iris versicolor petal length
 # Hint: subset to versicolor first, then use t.test(..., mu = 4.0, alternative = "greater")
 
@@ -444,7 +444,7 @@ Using `iris`, test whether the mean petal length of `versicolor` is *greater* th
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Versicolor-petal solution"
 versicolor_petal <- iris$Petal.Length[iris$Species == "versicolor"]
 my_test <- t.test(versicolor_petal, mu = 4.0, alternative = "greater")
 my_t <- my_test$statistic
@@ -463,7 +463,7 @@ c(t = unname(my_t), p = my_p)
 
 Run a power study. For sample sizes n = 10, 20, 50, 100, simulate 500 datasets where the true mean is 0.4 (testing against H₀: μ = 0) and compute the empirical power at α = 0.05. Store the result in `power_study` as a data frame with columns `n` and `power`.
 
-```r
+```r title="Exercise: power vs sample size"
 # Exercise: power vs sample size
 # Hint: nest replicate() inside sapply() over the n values
 
@@ -474,7 +474,7 @@ Run a power study. For sample sizes n = 10, 20, 50, 100, simulate 500 datasets w
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Power-study solution"
 set.seed(2025)
 n_values <- c(10, 20, 50, 100)
 powers <- sapply(n_values, function(n_i) {
@@ -502,7 +502,7 @@ power_study
 
 Question: in the `airquality` dataset, does mean ozone differ between May and August? Walk through the full framework, then write up the result the way a paper would.
 
-```r
+```r title="End-to-end May vs August ozone test"
 # 1. State H0 and H1
 # H0: mean ozone in May = mean ozone in August
 # H1: they differ (two-sided)

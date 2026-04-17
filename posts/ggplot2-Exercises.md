@@ -39,7 +39,7 @@ Work through them in order (they progress from easier to harder) or jump to the 
 
 **Expected output:** Three colored clusters of points, clearly separated by species.
 
-```r
+```r title="Exercise 1: Iris scatter starter"
 library(ggplot2)
 
 # Your code here
@@ -53,7 +53,7 @@ p1
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Iris scatter by species solution"
 library(ggplot2)
 
 p1 <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
@@ -78,7 +78,7 @@ p1
 
 **Task:** Create a scatter plot of `wt` (x) vs `mpg` (y). Add a linear regression smooth line (`method = "lm"`) with a 95% confidence band. Color the points by `cyl` (treated as a factor).
 
-```r
+```r title="Exercise 2: wt-mpg starter"
 # Your code here
 # Hint: factor(cyl) converts cyl to discrete for coloring
 # Hint: geom_smooth(method = "lm", formula = y ~ x)
@@ -87,7 +87,7 @@ p1
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="wt-mpg scatter with lm solution"
 library(ggplot2)
 
 ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
@@ -117,7 +117,7 @@ ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
 
 **Task:** Compute the average highway MPG (`hwy`) for each `manufacturer`. Create a horizontal bar chart ordered from highest to lowest average MPG. Show bars in a single color of your choice.
 
-```r
+```r title="Exercise 3: Ordered bar starter"
 # Hint: use dplyr to summarise, then reorder()
 # Hint: coord_flip() for horizontal bars
 ```
@@ -125,7 +125,7 @@ ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Ordered manufacturer MPG bar solution"
 library(ggplot2)
 library(dplyr)
 
@@ -154,7 +154,7 @@ ggplot(mpg_avg, aes(x = manufacturer, y = avg_hwy)) +
 
 **Task:** Create a grouped bar chart showing the average `mpg` for each combination of `cyl` (x-axis) and `am` (0 = automatic, 1 = manual, used for fill grouping). Use `position_dodge()`.
 
-```r
+```r title="Exercise 4: Grouped bar starter"
 # Hint: am should be a factor for discrete fill
 # Hint: position_dodge(0.8) separates grouped bars
 ```
@@ -162,7 +162,7 @@ ggplot(mpg_avg, aes(x = manufacturer, y = avg_hwy)) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Grouped bar by cylinder solution"
 library(ggplot2)
 library(dplyr)
 
@@ -194,7 +194,7 @@ ggplot(mt_sum, aes(x = cyl, y = avg_mpg, fill = am)) +
 
 **Task:** Plot `unemploy` (number unemployed) over `date` as a line chart. Add a horizontal reference line at the mean of `unemploy`. Color the area below the line using `geom_area()`.
 
-```r
+```r title="Exercise 5: Time series starter"
 # Hint: geom_area(alpha = 0.2) fills under the line
 # Hint: geom_hline(yintercept = mean(economics$unemploy), ...)
 ```
@@ -202,7 +202,7 @@ ggplot(mt_sum, aes(x = cyl, y = avg_mpg, fill = am)) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Unemployment with mean line solution"
 library(ggplot2)
 
 mean_unemploy <- mean(economics$unemploy)
@@ -233,7 +233,7 @@ ggplot(economics, aes(x = date, y = unemploy)) +
 
 **Task:** For each month (5-9), plot `Temp` (y) vs day number (x) as a line. Use `facet_wrap(~ Month)` with 1 row. Give each month a descriptive label using `labeller`.
 
-```r
+```r title="Exercise 6: Faceted line starter"
 # Hint: airquality already has Day and Month columns
 # Hint: labeller = labeller(Month = c("5"="May","6"="Jun",...))
 ```
@@ -241,7 +241,7 @@ ggplot(economics, aes(x = date, y = unemploy)) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Faceted temperature by month solution"
 library(ggplot2)
 
 month_labels <- c("5" = "May", "6" = "Jun", "7" = "Jul",
@@ -271,7 +271,7 @@ ggplot(airquality, aes(x = Day, y = Temp)) +
 
 **Task:** Plot a histogram of `price` (log10-transformed for readability). Overlay a density curve using `geom_density()`. Use `aes(y = after_stat(density))` to put histogram and density on the same scale.
 
-```r
+```r title="Exercise 7: Histogram starter"
 # Hint: scale_x_log10() transforms the x axis
 # Hint: after_stat(density) rescales histogram counts to density
 ```
@@ -279,7 +279,7 @@ ggplot(airquality, aes(x = Day, y = Temp)) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Log10 histogram with density solution"
 library(ggplot2)
 
 ggplot(diamonds, aes(x = price)) +
@@ -305,7 +305,7 @@ ggplot(diamonds, aes(x = price)) +
 
 **Task:** Create a boxplot of `Sepal.Width` for each `Species`. Overlay individual data points using `geom_jitter()`. Color by Species, use a custom palette.
 
-```r
+```r title="Exercise 8: Boxplot jitter starter"
 # Hint: add geom_jitter() after geom_boxplot()
 # Hint: width = 0.2 in geom_jitter() reduces horizontal spread
 ```
@@ -313,7 +313,7 @@ ggplot(diamonds, aes(x = price)) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Boxplot with jitter solution"
 library(ggplot2)
 
 ggplot(iris, aes(x = Species, y = Sepal.Width, fill = Species, color = Species)) +
@@ -339,7 +339,7 @@ ggplot(iris, aes(x = Species, y = Sepal.Width, fill = Species, color = Species))
 
 **Task:** Create a heatmap showing average daily temperature by month (rows) and week of month (columns). Compute week of month as `ceiling(Day / 7)`. Use `geom_tile()` with a sequential blue color scale.
 
-```r
+```r title="Exercise 9: Heatmap starter"
 # Hint: mutate(Week = ceiling(Day / 7))
 # Hint: scale_fill_gradient(low = "white", high = "#1565C0")
 ```
@@ -347,7 +347,7 @@ ggplot(iris, aes(x = Species, y = Sepal.Width, fill = Species, color = Species))
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Temperature heatmap solution"
 library(ggplot2)
 library(dplyr)
 
@@ -383,14 +383,14 @@ ggplot(air_heat, aes(x = factor(Week), y = Month_lab, fill = avg_temp)) +
 
 **Task:** Create scatter plots of `displ` (x) vs `hwy` (y) faceted by `drv` (drive type). Add a LOESS smooth to each facet. Use `facet_grid(drv ~ .)` for a vertical layout.
 
-```r
+```r title="Exercise 10: Faceted scatter starter"
 # Hint: facet_grid(drv ~ .) creates one row per drv level
 ```
 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Faceted displ-hwy scatter solution"
 library(ggplot2)
 
 drv_labels <- c("4" = "4-Wheel Drive", "f" = "Front-Wheel", "r" = "Rear-Wheel")
@@ -418,7 +418,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 **Task:** Compute the average `qsec` (quarter-mile time) per number of cylinders. Create a horizontal lollipop chart ordered by `qsec` descending (slowest cars at top). Color lollipops by whether `qsec` is above or below the overall mean.
 
-```r
+```r title="Exercise 11: Lollipop starter"
 # Hint: geom_segment(aes(x = cyl, xend = cyl, y = mean_qsec, yend = qsec))
 #       where mean_qsec is the overall mean (reference line)
 ```
@@ -426,7 +426,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Lollipop by cylinder solution"
 library(ggplot2)
 library(dplyr)
 
@@ -464,7 +464,7 @@ ggplot(qsec_df, aes(x = cyl, y = avg_qsec, color = above)) +
 
 **Task:** Recreate the scatter plot from Exercise 1, but apply a fully custom theme. Requirements: dark grey background (#2b2b2b), white text, no gridlines, white axis lines, legend at bottom.
 
-```r
+```r title="Exercise 12: Custom theme starter"
 # Hint: theme() with panel.background, text, axis.line, legend.position
 # Hint: theme_dark() as a starting point, then override specific elements
 ```
@@ -472,7 +472,7 @@ ggplot(qsec_df, aes(x = cyl, y = avg_qsec, color = above)) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Dark custom theme solution"
 library(ggplot2)
 
 dark_theme <- theme(
@@ -507,7 +507,7 @@ ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
 
 **Task:** Filter `economics_long` to the variables `unemploy` and `pop`. Plot a stacked area chart over time using `geom_area()` with `position = "stack"`. Use a two-color palette.
 
-```r
+```r title="Exercise 13: Stacked area starter"
 # Hint: filter(variable %in% c("unemploy", "pop"))
 # Hint: geom_area(aes(fill = variable), position = "stack")
 ```
@@ -515,7 +515,7 @@ ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Economics stacked area solution"
 library(ggplot2)
 library(dplyr)
 
@@ -546,7 +546,7 @@ ggplot(econ_sub, aes(x = date, y = value01, fill = variable)) +
 
 **Task:** Create a scatter plot of `wt` vs `mpg`. Label the 3 most fuel-efficient and 3 least fuel-efficient cars using `geom_text()` or `ggrepel::geom_text_repel()`. Add `geom_smooth(method = "lm")`.
 
-```r
+```r title="Exercise 14: Label top and bottom"
 # Hint: slice_max(mpg, n = 3) and slice_min(mpg, n = 3)
 # Hint: bind the two subsets, then label only those rows
 ```
@@ -554,7 +554,7 @@ ggplot(econ_sub, aes(x = date, y = value01, fill = variable)) +
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Annotated mtcars scatter solution"
 library(ggplot2)
 library(ggrepel)
 library(dplyr)
@@ -596,7 +596,7 @@ ggplot(mt, aes(x = wt, y = mpg)) +
 
 This combines everything, multiple geom layers, color scales, transparency, and theme customization.
 
-```r
+```r title="Exercise 15: Violin layer starter"
 # Hint: use geom_violin() + geom_boxplot(width = 0.1) + geom_jitter()
 # Hint: all three share aes(x = factor(Month), y = Temp)
 ```
@@ -604,7 +604,7 @@ This combines everything, multiple geom layers, color scales, transparency, and 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Violin, box, and jitter solution"
 library(ggplot2)
 
 airquality$Month_f <- factor(airquality$Month,

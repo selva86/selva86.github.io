@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Every problem on this page reuses four tiny hand-built tables: `employees`, `departments`, `salaries`, and `projects`. They are deliberately small so you can eyeball every row and spot join bugs by hand. The keys are picked to expose the situations that trip learners up, employees with no department, departments with no employees, and a table that uses a different column name for its foreign key. Run the setup block once, then work through the problems in order.
 
-```r
+```r title="Build the four practice tables"
 # Setup: load dplyr and build four small tables
 library(dplyr)
 
@@ -82,7 +82,7 @@ These three exercises use one join each. If you get them right, you understand t
 
 Join `employees` to `departments` so every row has a `dept_name`. Drop any employee whose `dept_id` is missing from `departments`. Save to `ans1`. Expected: **4 rows** (Dan is dropped because dept 30 is not in `departments`).
 
-```r
+```r title="Exercise: inner-join employees and departments"
 # Exercise 1: inner join employees and departments on dept_id
 # Hint: inner_join() keeps only matching keys
 
@@ -93,7 +93,7 @@ Join `employees` to `departments` so every row has a `dept_name`. Drop any emplo
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Inner-join solution"
 ans1 <- employees |> inner_join(departments, by = "dept_id")
 ans1
 #> # A tibble: 4 × 4
@@ -113,7 +113,7 @@ ans1
 
 Same tables, same key. This time keep every employee, even those without a department. Save to `ans2`. Expected: **5 rows** (Dan stays, with `dept_name = NA`).
 
-```r
+```r title="Exercise: left-join for every employee"
 # Exercise 2: left_join - keep every employee
 # Hint: left_join() keeps all rows from the left table
 
@@ -124,7 +124,7 @@ Same tables, same key. This time keep every employee, even those without a depar
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Left-join solution"
 ans2 <- employees |> left_join(departments, by = "dept_id")
 ans2
 #> # A tibble: 5 × 4
@@ -145,7 +145,7 @@ ans2
 
 Join `departments` and `salaries` on `dept_id`. Show every department and every salary record, even orphans. Save to `ans3`. Expected: **4 rows** (depts 10 and 20 match; dept 40 is in departments only; dept 30 is in salaries only).
 
-```r
+```r title="Exercise: full-join departments and salaries"
 # Exercise 3: full_join - keep everything from both tables
 # Hint: full_join() returns the union of keys
 
@@ -156,7 +156,7 @@ Join `departments` and `salaries` on `dept_id`. Show every department and every 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Full-join solution"
 ans3 <- departments |> full_join(salaries, by = "dept_id")
 ans3
 #> # A tibble: 4 × 3
@@ -182,7 +182,7 @@ First, use `right_join()` to join `employees` to `departments` on `dept_id`. Sav
 
 Then rewrite the same result using `left_join()` by swapping the arguments. Save to `ans4b`. The two should contain the same rows.
 
-```r
+```r title="Exercise: right-join versus left-join"
 # Exercise 4: right_join vs left_join equivalence
 # Hint: right_join(A, B) == left_join(B, A) with columns reordered
 
@@ -193,7 +193,7 @@ Then rewrite the same result using `left_join()` by swapping the arguments. Save
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Right-versus-left solution"
 ans4a <- employees |> right_join(departments, by = "dept_id")
 ans4a
 #> # A tibble: 5 × 4
@@ -225,7 +225,7 @@ ans4b
 
 Build a single table that has every employee, their department name, and their department's average salary. Use two joins. Save to `ans5`. Expected: **5 rows** (Dan has a salary but no dept name; Cara and Asha share dept 10).
 
-```r
+```r title="Exercise: chain three tables with left-join"
 # Exercise 5: chain employees -> departments -> salaries
 # Hint: two left_join() calls in one pipe
 
@@ -236,7 +236,7 @@ Build a single table that has every employee, their department name, and their d
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Chained-join solution"
 ans5 <- employees |>
   left_join(departments, by = "dept_id") |>
   left_join(salaries,    by = "dept_id")
@@ -259,7 +259,7 @@ ans5
 
 The `employees` table uses `emp_id`. The `projects` table uses `employee_id`. Join them so every employee gets their project list. Keep every employee, even those with no project. Save to `ans6`. Expected: **6 rows** (Asha has 2 projects; Cara has 1; Bo, Dan, Evi have `NA` project rows; the orphan project "Ghost" is dropped).
 
-```r
+```r title="Exercise: join on mismatched key names"
 # Exercise 6: join on mismatched column names
 # Hint: use by = c("emp_id" = "employee_id")
 
@@ -270,7 +270,7 @@ The `employees` table uses `emp_id`. The `projects` table uses `employee_id`. Jo
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Renamed-key solution"
 ans6 <- employees |>
   left_join(projects, by = c("emp_id" = "employee_id"))
 ans6
@@ -296,7 +296,7 @@ ans6
 
 Two tiny tables are built inline below. `sales_q` has one row per (region, quarter). `targets_q` has the target for each (region, quarter). Inner join them on **both** keys. Save to `ans7`. Expected: **3 rows** (three combinations match; two targets rows have no matching sales).
 
-```r
+```r title="Exercise: join on region and quarter"
 # Exercise 7: join on multiple keys
 # Hint: by = c("region", "quarter")
 
@@ -319,7 +319,7 @@ targets_q <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multi-key solution"
 ans7 <- sales_q |> inner_join(targets_q, by = c("region", "quarter"))
 ans7
 #> # A tibble: 3 × 4
@@ -344,7 +344,7 @@ Use `semi_join()` to return only employees who have **at least one project**. Sa
 
 Then use `anti_join()` to return employees with **no projects**. Save to `ans8b`. Expected: **3 rows** (Bo, Dan, Evi).
 
-```r
+```r title="Exercise: semi-join and anti-join"
 # Exercise 8: semi_join keeps matches; anti_join keeps non-matches
 # Hint: both filter employees without adding project columns
 
@@ -355,7 +355,7 @@ Then use `anti_join()` to return employees with **no projects**. Save to `ans8b`
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Semi-and-anti solution"
 ans8a <- employees |> semi_join(projects, by = c("emp_id" = "employee_id"))
 ans8a
 #> # A tibble: 2 × 3
@@ -387,7 +387,7 @@ The `coupons` table below has **duplicated keys**, the same `customer_id` appear
 
 Then ask yourself: is this a bug or expected behaviour?
 
-```r
+```r title="Exercise: duplicate-key row explosion"
 # Exercise 9: duplicate keys create a row explosion
 # Hint: left_join() multiplies rows when the right side has duplicates
 
@@ -408,7 +408,7 @@ coupons <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Row-explosion solution"
 ans9 <- customers |> left_join(coupons, by = "customer_id")
 ans9
 #> # A tibble: 5 × 3
@@ -431,7 +431,7 @@ Two new tables below share the key `product_id`. Both sides have duplicates, `or
 
 Do the naive join first and observe the row count. Then fix it by deduplicating `prices` to keep only the latest price per product, and join again. Save the fixed result to `ans10`. Expected after the fix: **3 rows**, one per order.
 
-```r
+```r title="Exercise: fix many-to-many with slicemax"
 # Exercise 10: many-to-many explosion and its fix
 # Hint: use slice_max() on the right table before joining
 
@@ -455,7 +455,7 @@ prices <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Slice-max solution"
 # Naive join: 4 rows (the explosion)
 naive <- orders |> left_join(prices, by = "product_id")
 nrow(naive)
@@ -492,7 +492,7 @@ Four mistakes catch almost every dplyr learner. Each one has a simple fix.
 
 Leaving `by =` out lets dplyr guess keys by common column names. That works today, until a future table gains a shared column (`updated_at`, `id`) that was not meant as a join key.
 
-```r
+```r title="Common mistake: joining without by"
 # Joins on ALL shared columns - silently changes as schemas evolve
 employees |> left_join(departments)
 #> Joining with `by = join_by(dept_id)`
@@ -511,7 +511,7 @@ Since dplyr 1.1.0, `left_join()` warns when the right side has duplicate keys an
 
 If the left key is `character` ("101") and the right key is `numeric` (101), every join returns zero matches without an error. Check key types before joining:
 
-```r
+```r title="Check that key types match"
 typeof(orders$product_id)
 #> [1] "double"
 typeof(prices$product_id)
@@ -531,7 +531,7 @@ If they differ, coerce one side with `as.character()` or `as.integer()`.
 
 Now combine what you practised into one pipeline. The goal is a single report that, for every employee, shows their department name, department salary, and the list of projects they are on. Missing data should show `"—"` instead of `NA` for readability.
 
-```r
+```r title="End-to-end employee report"
 full_report <- employees |>
   left_join(departments, by = "dept_id") |>
   left_join(salaries,    by = "dept_id") |>

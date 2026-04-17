@@ -26,7 +26,7 @@ There are roughly 30 functions in the `map` family, but you don't need to memori
 
 If you've ever written a `for` loop just to build up a list of results, `map()` is the cleaner replacement. It takes a vector, applies a function to every element, and collects the answers into a list, in one line, with no counter variable and no pre-allocation. Here's the side-by-side: compute the mean of every column in `mtcars`, first the long way, then the `map()` way.
 
-```r
+```r title="Column means via loop and map"
 library(purrr)
 library(dplyr)
 
@@ -52,7 +52,7 @@ Both expressions produce the same named list of column means, but `map()` remove
 
 The second argument to `map()` is a function. You can pass a named function like `mean`, or inline a tiny one with R 4.1's backslash-lambda `\(x) ...`, or with purrr's formula shorthand `~ .x * 2` (where `.x` is the current element).
 
-```r
+```r title="Three lambda styles for map"
 # Three ways to write "double every value in 1:5"
 doubled_named <- map(1:5, function(x) x * 2)
 doubled_lambda <- map(1:5, \(x) x * 2)
@@ -71,7 +71,7 @@ All three return the same 5-element list. Pick whichever reads best: use a named
 
 **Try it:** Use `map()` to square every element of `1:5`. The result should be a list of 5 numbers.
 
-```r
+```r title="Exercise: square each element with map"
 # Try it: square each element of 1:5 using map()
 ex_squares <- map(1:5, function(x) {
   # your code here
@@ -84,7 +84,7 @@ ex_squares
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Square each element solution"
 ex_squares <- map(1:5, \(x) x ^ 2)
 ex_squares
 #> [[1]]
@@ -111,7 +111,7 @@ ex_squares
 
 `map()` always returns a list. Most of the time you actually want a plain atomic vector, a numeric, a character, or a logical. That's what the type-suffix variants are for. `map_dbl()` returns a double vector, `map_int()` an integer, `map_chr()` a character, `map_lgl()` a logical. They do the same iteration as `map()`, but they unwrap the result and check that every piece matches the promised type.
 
-```r
+```r title="map double returns numeric vector"
 # map_dbl returns a named numeric vector
 col_means <- map_dbl(mtcars, mean)
 col_means
@@ -123,7 +123,7 @@ col_means
 
 Compare that to the list you got in the last section, same numbers, but now you can drop the result straight into `sort()`, `plot()`, or arithmetic without unlisting first. The named-vector format also makes `col_means["mpg"]` work cleanly.
 
-```r
+```r title="map character for formatted labels"
 # map_chr returns a character vector — great for formatted labels
 rounded_means <- map_chr(mtcars, \(x) sprintf("%.1f", mean(x)))
 rounded_means
@@ -140,7 +140,7 @@ rounded_means
 
 The suffix isn't cosmetic, it's a promise the function enforces. If your function returns something that isn't the promised type, `map_dbl()` errors loudly rather than silently returning garbage.
 
-```r
+```r title="map double fails fast on bad types"
 # map_dbl fails fast when types don't match
 result <- tryCatch(
   map_dbl(list(1, "two", 3), identity),
@@ -160,7 +160,7 @@ Instead of quietly coercing `"two"` into `NA` or a number, `map_dbl()` stops and
 
 **Try it:** Use `map_int()` to return the number of characters in each element of `c("dog", "horse", "bee")`. The answer should be an integer vector of length 3.
 
-```r
+```r title="Exercise: string lengths with map integer"
 # Try it: string lengths with map_int
 ex_words <- c("dog", "horse", "bee")
 ex_lengths <- map_int(ex_words, function(w) {
@@ -174,7 +174,7 @@ ex_lengths
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="String lengths solution"
 ex_words <- c("dog", "horse", "bee")
 ex_lengths <- map_int(ex_words, \(w) nchar(w))
 ex_lengths
@@ -189,7 +189,7 @@ ex_lengths
 
 `map()` works beautifully when you're iterating over one vector. But plenty of problems pair two vectors, sample sizes with seeds, means with standard deviations, column names with column values. `map2()` is the version that walks two inputs in lockstep, feeding the `i`-th element of each to your function on every step.
 
-```r
+```r title="map two simulates paired specs"
 # Simulate 4 samples, each with its own mean and sd
 set.seed(101)
 means <- c(0, 5, 10, 20)
@@ -206,7 +206,7 @@ Each call to `rnorm()` uses the matching element from both vectors, the first ca
 
 Inside the lambda, you can name the arguments anything (`m` and `s` here) or use purrr's formula shorthand where `.x` is the first input and `.y` is the second.
 
-```r
+```r title="Elementwise product with map two double"
 # Elementwise product of two numeric vectors — return a plain numeric
 elem_prod <- map2_dbl(c(1, 2, 3, 4), c(10, 20, 30, 40), \(a, b) a * b)
 elem_prod
@@ -220,7 +220,7 @@ elem_prod
 
 **Try it:** Multiply `c(2, 4, 6)` by `c(10, 100, 1000)` elementwise and return the result as a double vector.
 
-```r
+```r title="Exercise: elementwise multiply with map two"
 # Try it: elementwise multiply with map2_dbl
 ex_a <- c(2, 4, 6)
 ex_b <- c(10, 100, 1000)
@@ -235,7 +235,7 @@ ex_prod
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Elementwise multiply solution"
 ex_a <- c(2, 4, 6)
 ex_b <- c(10, 100, 1000)
 ex_prod <- map2_dbl(ex_a, ex_b, \(x, y) x * y)
@@ -253,7 +253,7 @@ There's no `map3()` or `map4()`, because `pmap()` generalises the whole idea. In
 
 The cleanest pattern is to name the list elements to match your function's argument names. purrr will wire them up for you automatically.
 
-```r
+```r title="pmap over three paired vectors"
 # Three paired vectors → named list → pmap
 set.seed(202)
 sim_list <- pmap(
@@ -278,7 +278,7 @@ The first `rnorm()` call got `n = 3, mean = 0, sd = 1`; the second got `n = 4, m
 
 A really powerful variant: since a tibble is just a named list of equal-length vectors, you can pass a whole tibble of experiment specifications straight to `pmap()`.
 
-```r
+```r title="pmap on a tibble of specs"
 library(tibble)
 
 # A tibble where each row is one experiment
@@ -298,7 +298,7 @@ Each row of `spec_tbl` became one call to the lambda; the lambda drew `n` random
 
 If you don't want to name arguments, purrr's formula shorthand supports positional placeholders `..1`, `..2`, `..3` for any number of inputs.
 
-```r
+```r title="pmap character with positional shorthand"
 # Positional shorthand — fine for quick work, noisier to read
 paste_out <- pmap_chr(
   list(c("A", "B", "C"), c(1, 2, 3), c("x", "y", "z")),
@@ -312,7 +312,7 @@ paste_out
 
 **Try it:** Use `pmap_chr()` to build sentences of the form `"<name> scored <score> on the <subject> test"` from three equal-length vectors.
 
-```r
+```r title="Exercise: build sentences with pmap character"
 # Try it: build sentences with pmap_chr
 ex_names    <- c("Ada", "Babbage", "Curie")
 ex_scores   <- c(92, 88, 97)
@@ -332,7 +332,7 @@ ex_sentences
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Build sentences solution"
 ex_names    <- c("Ada", "Babbage", "Curie")
 ex_scores   <- c(92, 88, 97)
 ex_subjects <- c("math", "engineering", "chemistry")
@@ -355,7 +355,7 @@ ex_sentences
 
 Sometimes the function you're applying needs to know **where** each element came from, its position, its name, or both. You could do that with `map2()` by passing `seq_along(x)` as the second input, but `imap()` does it for you. It's exactly equivalent to `map2(.x, names(.x), .f)` when the input has names, and `map2(.x, seq_along(.x), .f)` when it doesn't.
 
-```r
+```r title="imap over a named list"
 # Named input → .y is the name
 populations <- list(tokyo = 37.4, delhi = 32.9, shanghai = 28.5)
 kv_strings <- imap_chr(populations, \(val, key) paste0(key, ": ", val, "M"))
@@ -368,7 +368,7 @@ The lambda received two arguments: `val` (the list element) and `key` (the name)
 
 If the input has no names, `imap()` uses the integer position instead.
 
-```r
+```r title="imap on unnamed vector uses index"
 # Unnamed input → .y is the integer index
 idx_strings <- imap_chr(c("red", "green", "blue"), \(val, idx) paste0(idx, "=", val))
 idx_strings
@@ -382,7 +382,7 @@ Same pattern, different second argument. `imap()` silently switches between "use
 
 **Try it:** Given a named numeric vector, build `"city (value)"` labels with `imap_chr()`.
 
-```r
+```r title="Exercise: label named vector with imap"
 # Try it: label a named vector with imap_chr
 ex_cities <- c(paris = 11, london = 9, berlin = 4)
 ex_labels <- imap_chr(ex_cities, function(val, key) {
@@ -396,7 +396,7 @@ ex_labels
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Label named vector solution"
 ex_cities <- c(paris = 11, london = 9, berlin = 4)
 ex_labels <- imap_chr(ex_cities, \(val, key) paste0(key, " (", val, ")"))
 ex_labels
@@ -412,7 +412,7 @@ ex_labels
 
 Sometimes you iterate purely for a side effect, printing, saving a plot, writing a file, logging a message, and you don't care about the return value. Using `map()` for that works, but it allocates a list of `NULL`s you'll throw away and it prints that list if you run it at the console. `walk()` is the "for its side effects" variant: it calls the function on every element, ignores the return values, and returns the **input** invisibly so pipelines keep flowing.
 
-```r
+```r title="walk for per cylinder summary"
 # Print a per-cylinder summary of mpg — side effect only
 mtcars_by_cyl <- split(mtcars, mtcars$cyl)
 
@@ -428,7 +428,7 @@ Three lines of output, no list of `NULL`s cluttering your console. `walk()` eval
 
 Like `map2()` and `pmap()`, `walk()` has `walk2()` and `pwalk()` siblings for two or n inputs.
 
-```r
+```r title="walk two over filenames and frames"
 # Simulate "write report" — in WebR we print instead of writing files
 report_names <- c("report_4cyl.txt", "report_6cyl.txt", "report_8cyl.txt")
 
@@ -453,7 +453,7 @@ In a real R session you'd call `write.csv(df, fname)` or `ggsave(fname, plot)` i
 
 **Try it:** Use `walk()` to print each greeting in a list with a `— ` prefix on its own line.
 
-```r
+```r title="Exercise: walk for printing greetings"
 # Try it: walk() for printing side effects
 ex_greetings <- list("Hello, Ada", "Hola, Babbage", "Bonjour, Curie")
 walk(ex_greetings, function(g) {
@@ -469,7 +469,7 @@ walk(ex_greetings, function(g) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="walk printing greetings solution"
 ex_greetings <- list("Hello, Ada", "Hola, Babbage", "Bonjour, Curie")
 walk(ex_greetings, \(g) cat("—", g, "\n"))
 #> — Hello, Ada
@@ -489,7 +489,7 @@ These capstones combine multiple variants from the tutorial. Each is solvable wi
 
 You have a list of three small data frames. Use `map_int()` to compute each row count, then `imap_chr()` to build a one-line summary string per data frame, then `walk()` to print each summary. The final printed output should have three lines.
 
-```r
+```r title="Exercise: combine map integer imap walk"
 # Exercise 1: combine map_int + imap_chr + walk
 my_dfs <- list(
   a = data.frame(x = 1:5),
@@ -508,7 +508,7 @@ my_dfs <- list(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Row count summaries solution"
 my_dfs <- list(
   a = data.frame(x = 1:5),
   b = data.frame(x = 1:10, y = 1:10),
@@ -531,7 +531,7 @@ walk(my_summaries, \(line) cat(line, "\n"))
 
 You have a tibble of experiment specifications, six combinations of sample size, distribution mean, and standard deviation. For each row, draw a random sample from a normal distribution, compute its observed mean, and return all six observed means alongside the original specs.
 
-```r
+```r title="Exercise: pmap for Monte Carlo grid"
 # Exercise 2: pmap + mutate for a Monte Carlo grid
 library(dplyr)
 
@@ -553,7 +553,7 @@ set.seed(2026)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Monte Carlo grid solution"
 library(dplyr)
 
 my_spec <- tibble(
@@ -588,7 +588,7 @@ my_results
 
 Given a list of model specifications (each a nested list with `family` and `formula`), build a labelled printout where each spec appears below a numbered heading like `=== Model 1: linear ===`.
 
-```r
+```r title="Exercise: imap and walk two printouts"
 # Exercise 3: imap + walk2 for labelled printout
 my_specs <- list(
   linear   = list(family = "gaussian", formula = "y ~ x"),
@@ -606,7 +606,7 @@ my_specs <- list(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Labelled printout solution"
 my_specs <- list(
   linear   = list(family = "gaussian", formula = "y ~ x"),
   logistic = list(family = "binomial", formula = "y ~ x1 + x2"),
@@ -645,7 +645,7 @@ Here's how the pieces fit together in a realistic workflow. The goal is to compa
 
 We'll use `pmap()` to iterate the experiment grid, `map_dbl()` to summarise each draw, and `walk()` to print a formatted per-distribution report.
 
-```r
+```r title="End-to-end mini Monte Carlo study"
 library(dplyr)
 library(tibble)
 
@@ -686,7 +686,7 @@ Every column in the results tibble came from a different map variant. `pmap()` r
 
 Finally, print a per-distribution summary using `walk()` on a split of the tibble.
 
-```r
+```r title="walk split by distribution results"
 walk(split(experiments, experiments$dist), \(df) {
   cat("Distribution:", unique(df$dist), "\n")
   cat("  Mean absolute error by n:\n")

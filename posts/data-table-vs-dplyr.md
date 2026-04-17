@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Both packages solve the same problem, wrangling rectangular data, but they pick opposite trade-offs. dplyr reads like English verbs chained with a pipe; data.table compresses the same idea into a single bracket expression. The fastest way to feel the difference is to run the *same* task in both and look at the code side by side. Below is a group-by-and-summarise on the built-in `mtcars` dataset, written each way.
 
-```r
+```r title="Mean mpg by cylinder, both packages"
 library(data.table)
 library(dplyr)
 
@@ -57,7 +57,7 @@ Same answer, two very different shapes. The data.table version fits on a single 
 
 **Try it:** Write the dplyr equivalent of `mt_dt[, .(mean_hp = mean(hp)), by = gear]`. Compute mean horsepower for each gear count.
 
-```r
+```r title="Exercise: mean hp by gear"
 # Try it: dplyr version of mean hp by gear
 ex_result <- mt_tbl |>
   # your code here
@@ -70,7 +70,7 @@ ex_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean-hp solution"
 ex_result <- mt_tbl |>
   group_by(gear) |>
   summarise(mean_hp = mean(hp))
@@ -102,7 +102,7 @@ The cleanest way to learn either package is to map every dplyr verb to its data.
 
 Let's start with filtering and selecting columns. The same task, keep light, fuel-efficient cars and show only three columns, looks like this in both packages.
 
-```r
+```r title="Filter and select in both syntaxes"
 # Filter + select: light fuel-efficient cars
 light_dt <- mt_dt[
   wt < 2.5 & mpg > 25,
@@ -138,7 +138,7 @@ Both produce the same five cars. dplyr's pipeline reads top-to-bottom: add a mod
 
 Now let's add a column. This is where the two packages really diverge. dplyr's `mutate()` returns a *new* tibble; data.table's `:=` operator updates the original object **in place**, with no copy.
 
-```r
+```r title="Add a column by reference vs copy"
 # Add a kilometers-per-litre column
 mt_dt[, kpl := round(mpg * 0.425, 2)]   # modifies mt_dt in place
 head(mt_dt[, .(mpg, kpl)], 3)
@@ -166,7 +166,7 @@ Notice the assignment styles. data.table's `:=` returns nothing visible, it chan
 
 **Try it:** Use both packages to keep only `mtcars` rows where `mpg > 25`, returning just the `mpg` and `cyl` columns.
 
-```r
+```r title="Exercise: filter and select light cars"
 # Try it: filter mpg > 25, keep mpg and cyl
 ex_dt  <- mt_dt[ , ]        # fix me
 ex_tbl <- mt_tbl |>         # fix me
@@ -179,7 +179,7 @@ list(dt = ex_dt, tbl = ex_tbl)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter-select solution"
 ex_dt  <- mt_dt[mpg > 25, .(mpg, cyl)]
 ex_tbl <- mt_tbl |>
   filter(mpg > 25) |>
@@ -197,7 +197,7 @@ list(dt = ex_dt, tbl = ex_tbl)
 
 Speed is the headline reason people reach for data.table. The package is written in C, sorts with radix sort (one of the fastest known sort algorithms), and updates columns in place, three things that compound on large data. Let's measure it on a million-row synthetic dataset.
 
-```r
+```r title="Group-by benchmark on one million rows"
 # Build a 1M-row dataset and benchmark a group-by-and-summarise
 set.seed(2026)
 n <- 1e6
@@ -230,7 +230,7 @@ On this run, data.table finished the same job in roughly a third of the time. Th
 
 Here is a quick memory check using base R's `object.size()`. Numbers will vary slightly across runs.
 
-```r
+```r title="Compare result-table memory"
 # Peak memory of the two result tables
 format(object.size(res_dt),  units = "Kb")
 #> [1] "1 Kb"
@@ -248,7 +248,7 @@ The result objects are tiny because the summary collapses 1M rows down to 26. Bu
 
 **Try it:** Use `system.time()` to benchmark a sum-by-group on a 100k-row table, you should see both packages finish in a fraction of a second.
 
-```r
+```r title="Exercise: time both on 100k rows"
 # Try it: build 100k rows and time both packages
 set.seed(42)
 ex_n <- 1e5
@@ -263,7 +263,7 @@ ex_tbl2 <- as_tibble(ex_dt2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Timing solution"
 system.time(ex_dt2[, .(s = sum(v)), by = g])["elapsed"]
 #> elapsed 
 #>   0.005
@@ -280,7 +280,7 @@ system.time(ex_tbl2 |> group_by(g) |> summarise(s = sum(v)))["elapsed"]
 
 Joins are the second place where data.table's speed advantage shows up clearly. dplyr ships the familiar SQL family, `inner_join()`, `left_join()`, `right_join()`, `full_join()`, `anti_join()`, `semi_join()`. data.table uses bracket notation: `X[Y, on = "id"]`, optionally with a sorted `setkey()` for extra speed. Same operation, different spelling.
 
-```r
+```r title="Inner join in both packages"
 # Set up two small tables
 orders_dt <- data.table(
   order_id = 1:5,
@@ -326,7 +326,7 @@ Both joins return the same five rows with order, customer, and amount glued toge
 
 **Try it:** Write a left join, keep all `orders_dt` rows even when no customer matches, using both packages.
 
-```r
+```r title="Exercise: left-join orders to customers"
 # Try it: left join orders to customers
 ex_joined_dt  <- customers_dt[orders_dt, ]            # fix me
 ex_joined_tbl <- orders_tbl |> left_join(customers_tbl)  # fix me
@@ -338,7 +338,7 @@ list(dt = ex_joined_dt, tbl = ex_joined_tbl)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Left-join solution"
 ex_joined_dt  <- customers_dt[orders_dt, on = "cust_id"]
 ex_joined_tbl <- orders_tbl |> left_join(customers_tbl, by = "cust_id")
 
@@ -369,7 +369,7 @@ There is no universal winner. The right choice depends on three things: how big 
 
 There is a third path that gets surprisingly little attention: **dtplyr**. It lets you write dplyr code that runs on a data.table backend. You wrap your data in `lazy_dt()`, then chain dplyr verbs as usual. Internally, dtplyr translates the pipeline to data.table syntax and runs it. You get most of data.table's speed without giving up dplyr's readability.
 
-```r
+```r title="dtplyr bridges the two packages"
 library(dtplyr)
 
 # Wrap an existing data.table in a lazy_dt
@@ -395,7 +395,7 @@ The key call is `as_tibble()` (or `as.data.table()`) at the end, that is what tr
 
 **Try it:** Take a small dplyr pipeline and rewrite it using `lazy_dt()`.
 
-```r
+```r title="Exercise: convert pipeline to dtplyr"
 # Try it: convert this dplyr pipeline to dtplyr
 ex_lazy <- mt_dt |>
   filter(mpg > 20) |>          # fix me: wrap mt_dt with lazy_dt() first
@@ -409,7 +409,7 @@ ex_lazy
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="dtplyr solution"
 ex_lazy <- lazy_dt(mt_dt) |>
   filter(mpg > 20) |>
   group_by(cyl) |>
@@ -435,7 +435,7 @@ These capstone exercises combine multiple concepts. Use distinct variable names 
 
 On `mtcars`, group by `cyl`, compute mean mpg and a count, then keep only groups with more than 5 cars. Write it in both packages and check the answers match.
 
-```r
+```r title="Exercise: group, summarise, then filter"
 # Exercise 1: group, summarise, then filter on count
 my_mt_dt  <- as.data.table(mtcars)
 my_mt_tbl <- as_tibble(mtcars)
@@ -449,7 +449,7 @@ my_mt_tbl <- as_tibble(mtcars)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Group-filter solution"
 my_mt_dt[, .(mean_mpg = mean(mpg), n = .N), by = cyl][n > 5]
 #>      cyl mean_mpg     n
 #>    <num>    <num> <int>
@@ -477,7 +477,7 @@ my_mt_tbl |>
 
 Generate 200k rows of synthetic sales data with `region`, `qty`, and `sales` columns. For each region, compute the mean and standard deviation of `sales` for rows where `qty > 5`. Write the data.table one-liner and the dplyr pipeline.
 
-```r
+```r title="Exercise: filter then group on 200k rows"
 # Exercise 2: filter then group-summarise on 200k rows
 set.seed(7)
 my_sales_n <- 2e5
@@ -497,7 +497,7 @@ my_sales_tbl <- as_tibble(my_sales_dt)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter-then-group solution"
 my_sales_dt[qty > 5, .(mean_sales = mean(sales), sd_sales = sd(sales)), by = region]
 #>    region mean_sales sd_sales
 #>    <char>      <num>    <num>
@@ -528,7 +528,7 @@ my_sales_tbl |>
 
 Inner-join an orders table to a customers table, then summarise total spend per customer in both packages.
 
-```r
+```r title="Exercise: join then summarise"
 # Exercise 3: join then summarise
 my_orders <- data.table(
   order_id = 1:8,
@@ -549,7 +549,7 @@ my_customers <- data.table(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Join-summarise solution"
 my_customers[my_orders, on = "cust_id"][, .(total = sum(amount)), by = name]
 #>      name total
 #>    <char> <num>
@@ -577,7 +577,7 @@ as_tibble(my_orders) |>
 
 Let's tie everything together with a small end-to-end pipeline on a synthetic e-commerce dataset. The task: filter to last-quarter orders, compute revenue, group by region, summarise total revenue and average order value, and sort descending. Same task in both packages, side by side.
 
-```r
+```r title="End-to-end e-commerce pipeline"
 # Build a 10k-row synthetic e-commerce dataset
 set.seed(2026)
 sales <- data.table(

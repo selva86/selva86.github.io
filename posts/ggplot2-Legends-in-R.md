@@ -28,7 +28,7 @@ This tutorial gives you full control over ggplot2 legends. You will learn how to
 
 All code runs interactively in the browser. We use ggplot2 and the built-in `mpg` dataset throughout. Let's start by loading our library and creating a base plot that we will reuse across sections.
 
-```r
+```r title="Base mpg scatter with class colour"
 # Load ggplot2 and create a reusable base plot
 library(ggplot2)
 
@@ -49,7 +49,7 @@ The rule is simple: any variable mapped inside `aes()` generates a legend. Any a
 
 Let's see this in action. Our `p_base` plot maps `colour = class` inside `aes()`, so a colour legend appears. Now compare that with setting `colour` to a fixed value outside `aes()`.
 
-```r
+```r title="Fixed colour outside aes removes legend"
 # Fixed colour outside aes() — no legend generated
 p_no_legend <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(colour = "steelblue", size = 2.5)
@@ -68,7 +68,7 @@ When you map the same variable to multiple aesthetics, say `colour = class` and 
 
 **Try it:** Create a scatter plot of `mpg` mapping `drv` to `shape`. Verify that a shape legend appears on the right.
 
-```r
+```r title="Map shape to drive type"
 # Try it: map drv to shape
 ex_shape <- ggplot(mpg, aes(x = displ, y = hwy, shape = drv)) +
   geom_point(size = 2.5)
@@ -82,7 +82,7 @@ ex_shape
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Move legend to the bottom"
 ex_shape <- ggplot(mpg, aes(x = displ, y = hwy, shape = drv)) +
   geom_point(size = 2.5)
 ex_shape
@@ -100,7 +100,7 @@ The `theme(legend.position)` argument accepts `"top"`, `"bottom"`, `"left"`, `"r
 
 Moving the legend to the top or bottom works well when you have a wide plot and the legend has many items. Let's move our base plot's legend to the bottom.
 
-```r
+```r title="Legend inside the plotting area"
 # Move legend to the bottom
 p_base +
   theme(legend.position = "bottom")
@@ -112,7 +112,7 @@ The legend switches to horizontal layout automatically when placed at the top or
 
 For more precise control, you can place the legend inside the plot area. In ggplot2 3.5+, use `legend.position = "inside"` combined with `legend.position.inside` to set the exact coordinates (values from 0 to 1, where `c(0, 0)` is bottom-left and `c(1, 1)` is top-right).
 
-```r
+```r title="Remove legend with position none"
 # Place legend inside the plot at the top-right corner
 p_base +
   theme(
@@ -132,7 +132,7 @@ The white background with a subtle border prevents the legend from blending into
 
 **Try it:** Place the legend at the bottom-left inside the plot area. Use coordinates `c(0.15, 0.25)`.
 
-```r
+```r title="Plot with colour and size legends"
 # Try it: legend inside at bottom-left
 p_base +
   theme(
@@ -146,7 +146,7 @@ p_base +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hide size legend with guides none"
 p_base +
   theme(
     legend.position = "inside",
@@ -167,7 +167,7 @@ There are three ways to remove legends, and each serves a different purpose. Pic
 
 **Method 1: Remove all legends at once.** Use `theme(legend.position = "none")`. This is the nuclear option, every legend disappears.
 
-```r
+```r title="Hide legend with show.legend false"
 # Remove all legends
 p_base +
   theme(legend.position = "none")
@@ -177,7 +177,7 @@ p_base +
 
 **Method 2: Remove one specific legend.** Use `guides()` to target a single aesthetic. This is what you want when your plot has multiple legends and you only need to drop one.
 
-```r
+```r title="Rename legend title with labs"
 # Plot with two legends: colour and size
 p_two <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cty)) +
   geom_point(alpha = 0.7)
@@ -191,7 +191,7 @@ p_two +
 
 **Method 3: Suppress a single layer's legend contribution.** Use `show.legend = FALSE` inside a geom. This is useful when you have overlapping layers and one layer adds unwanted entries.
 
-```r
+```r title="Relabel items with scale labels"
 # Two layers: points + smooth. Suppress smooth's legend entry.
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2) +
@@ -207,7 +207,7 @@ The `show.legend = FALSE` on `geom_smooth()` prevents the smooth lines from addi
 
 **Try it:** Create a plot with both `colour = class` and `size = displ` mapped. Then remove only the size legend using `guides()`.
 
-```r
+```r title="Reorder factor with SUV first"
 # Try it: remove only the size legend
 ex_remove <- ggplot(mpg, aes(x = cty, y = hwy, colour = class, size = displ)) +
   geom_point(alpha = 0.6)
@@ -221,7 +221,7 @@ ex_remove
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Style legend title and text"
 ex_remove <- ggplot(mpg, aes(x = cty, y = hwy, colour = class, size = displ)) +
   geom_point(alpha = 0.6) +
   guides(size = "none")
@@ -240,7 +240,7 @@ The legend title defaults to the variable name, `class`, `drv`, `cyl`. That is r
 
 **Rename the title** with `labs()`. This is the quickest approach and handles most cases.
 
-```r
+```r title="Exercise: Combine position and rename"
 # Rename the colour legend title
 p_base +
   labs(colour = "Vehicle Class")
@@ -252,7 +252,7 @@ The `labs()` function accepts the aesthetic name as the argument. Use `labs(fill
 
 **Rename individual labels** with `scale_colour_discrete(labels = ...)`. This changes the text next to each key without affecting the underlying data.
 
-```r
+```r title="Exercise solution: Bottom legend with title"
 # Rename specific labels
 p_base +
   labs(colour = "Vehicle Class") +
@@ -268,7 +268,7 @@ p_base +
 
 **Reorder legend items** by changing the factor levels of the variable. The legend order follows the factor level order.
 
-```r
+```r title="Horizontal legend layout"
 # Reorder legend: put SUV first, then pickup, then the rest
 mpg_reordered <- mpg
 mpg_reordered$class <- factor(
@@ -291,7 +291,7 @@ Releveling the factor changes both the legend order and the colour assignment. I
 
 **Try it:** Rename the fill legend title to "Drive Type" using `labs()` on a bar chart of `mpg` counted by `drv`.
 
-```r
+```r title="Wrap legend into two rows"
 # Try it: rename the fill legend title
 ex_rename <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar()
@@ -305,7 +305,7 @@ ex_rename
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Override aesthetics in legend keys"
 ex_rename <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar() +
   labs(fill = "Drive Type")
@@ -324,7 +324,7 @@ The `theme()` function controls every visual property of the legend: fonts, colo
 
 Let's start with styling the legend text. You can make the title bold and larger, and the labels italic or a different colour.
 
-```r
+```r title="Continuous colour bar with guidecolorbar"
 # Style legend title and labels
 p_base +
   labs(colour = "Vehicle Class") +
@@ -340,7 +340,7 @@ The `element_text()` function accepts `face` (bold, italic, bold.italic), `size`
 
 Next, let's customize the legend keys, the small coloured squares or circles next to each label.
 
-```r
+```r title="Exercise: Customise the colour bar"
 # Change legend key background and size
 p_base +
   labs(colour = "Vehicle Class") +
@@ -356,7 +356,7 @@ The default grey key background (`legend.key = element_rect(fill = "grey95")`) c
 
 You can also change the legend direction from vertical (the default for side placement) to horizontal. This is especially useful when the legend sits at the top or bottom.
 
-```r
+```r title="Exercise solution: Wide horizontal colorbar"
 # Horizontal legend
 p_base +
   labs(colour = "Vehicle Class") +
@@ -375,7 +375,7 @@ When you have many legend items, a single horizontal row can get cramped. Combin
 
 **Try it:** Make the legend keys 1.5 cm wide and remove the grey key background.
 
-```r
+```r title="Mistake: Fixed colour hides the legend"
 # Try it: wider keys, no background
 p_base +
   theme(
@@ -388,7 +388,7 @@ p_base +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Correct: Map colour inside aes"
 p_base +
   theme(
     legend.key.width = unit(1.5, "cm"),
@@ -408,7 +408,7 @@ The `guides()` function assigns a guide type to each aesthetic, and `guide_legen
 
 **Control the legend layout** with `nrow` and `ncol` inside `guide_legend()`. This is essential when a horizontal legend has too many items for one row.
 
-```r
+```r title="Mistake: Blanket legend position none"
 # Wrap legend into 2 rows
 p_base +
   labs(colour = "Vehicle Class") +
@@ -422,7 +422,7 @@ Two rows keep the legend compact without making the text too small. For 10+ item
 
 **Override the appearance of legend keys** with `override.aes`. This is the solution when your plot uses tiny or transparent points that are hard to read in the legend.
 
-```r
+```r title="Correct: Target one guide at a time"
 # Points are small and transparent in the plot,
 # but large and opaque in the legend
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
@@ -437,7 +437,7 @@ Without `override.aes`, the legend keys would be just as tiny and faded as the p
 
 **Use guide_colorbar() for continuous scales.** When you map a continuous variable to colour, ggplot2 shows a colour bar instead of discrete keys. You can control its dimensions and appearance.
 
-```r
+```r title="Mistake: Labs versus scale label conflict"
 # Continuous colour scale with a customized colour bar
 p_cont <- ggplot(mpg, aes(x = displ, y = hwy, colour = cty)) +
   geom_point(size = 2.5) +
@@ -463,7 +463,7 @@ The wide, thin bar works well at the bottom of a plot. Adjust `barwidth` and `ba
 
 **Try it:** Create a colour legend laid out in 3 columns using `guide_legend(ncol = 3)`.
 
-```r
+```r title="Correct: Set labels in the scale"
 # Try it: 3-column legend layout
 p_base +
   guides(colour = guide_legend(ncol = 3)) +
@@ -476,7 +476,7 @@ p_base +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mistake: Limits drops legend entries"
 p_base +
   guides(colour = guide_legend(ncol = 3)) +
   theme(legend.position = "bottom")
@@ -495,7 +495,7 @@ p_base +
 This is the most common legend problem. You set a colour directly, then wonder why no legend appears.
 
 ❌ **Wrong:**
-```r
+```r title="Correct: Use breaks not limits"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(colour = "red", size = 2)
 # No legend appears — colour is not mapped to data.
@@ -504,7 +504,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 **Why it is wrong:** ggplot2 only creates legends for aesthetics mapped inside `aes()`. Setting `colour = "red"` applies a fixed colour to all points with no data mapping.
 
 ✅ **Correct:**
-```r
+```r title="Exercise one: Rename and reorder factor"
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2)
 # Legend appears because colour is mapped to the class variable.
@@ -515,7 +515,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 When your plot has both a colour and a size legend, `theme(legend.position = "none")` removes both.
 
 ❌ **Wrong:**
-```r
+```r title="Exercise one solution: Reordered drivetrain legend"
 ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cty)) +
   geom_point() +
   theme(legend.position = "none")
@@ -525,7 +525,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cty)) +
 **Why it is wrong:** `legend.position = "none"` is a blanket removal. It does not discriminate between aesthetics.
 
 ✅ **Correct:**
-```r
+```r title="Exercise two: Bar chart drivetrain legend"
 ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cty)) +
   geom_point() +
   guides(size = "none")
@@ -537,7 +537,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cty)) +
 `labs()` sets the legend title, not the individual labels. Using it and expecting label changes leads to confusion.
 
 ❌ **Wrong:**
-```r
+```r title="Exercise two solution: Styled bar chart legend"
 p_base +
   labs(colour = c("2-Seater", "Compact", "Midsize"))
 # This does NOT rename individual labels.
@@ -547,7 +547,7 @@ p_base +
 **Why it is wrong:** `labs()` expects a single string for the title. Pass a named vector to `scale_colour_discrete(labels = ...)` instead.
 
 ✅ **Correct:**
-```r
+```r title="Exercise three: Override aesthetics in legend"
 p_base +
   labs(colour = "Vehicle Class") +
   scale_colour_discrete(
@@ -562,7 +562,7 @@ p_base +
 Changing the order of `scale_colour_discrete(limits = ...)` reorders the legend but does not reassign colours. The safest approach is to relevel the factor in the data.
 
 ❌ **Wrong:**
-```r
+```r title="Exercise three solution: Large solid legend keys"
 p_base +
   scale_colour_discrete(limits = c("suv", "pickup"))
 # Only suv and pickup appear in the legend.
@@ -572,7 +572,7 @@ p_base +
 **Why it is wrong:** `limits` restricts the scale to the values you list. Any value not in `limits` is treated as `NA` and removed.
 
 ✅ **Correct:**
-```r
+```r title="Capstone step one: Map colour and shape"
 mpg_fixed <- mpg
 mpg_fixed$class <- factor(mpg$class,
   levels = c("suv", "pickup", "minivan", "midsize",
@@ -594,7 +594,7 @@ Build a scatter plot of `mpg` with `colour = class` and `size = displ`. Apply al
 - Make the colour legend horizontal with 2 rows
 - Add a white background with a grey border
 
-```r
+```r title="Capstone step two: Rename legend titles"
 # Exercise 1: combine position, rename, and layout
 # Hint: use theme() for position, labs() for titles,
 # guides() with guide_legend(nrow=2) for layout
@@ -606,7 +606,7 @@ Build a scatter plot of `mpg` with `colour = class` and `size = displ`. Apply al
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step three: Move legend to bottom"
 my_plot1 <- ggplot(mpg, aes(x = cty, y = hwy, colour = class, size = displ)) +
   geom_point(alpha = 0.7) +
   labs(colour = "Vehicle Class", size = "Engine Size (L)") +
@@ -635,7 +635,7 @@ Create a stacked bar chart of `mpg` counting cars by `class`, filled by `drv`. T
 - Place the legend at the bottom
 - Set the legend key background to white
 
-```r
+```r title="Capstone step four: Style title and keys"
 # Exercise 2: styled bar chart legend
 # Hint: labs(fill = NULL) removes the title,
 # scale_fill_discrete(labels=) renames labels
@@ -647,7 +647,7 @@ Create a stacked bar chart of `mpg` counting cars by `class`, filled by `drv`. T
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step five: Override legend aesthetics"
 my_plot2 <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar() +
   labs(fill = NULL) +
@@ -671,7 +671,7 @@ my_plot2
 
 Let's build a publication-ready scatter plot from scratch with a fully customized legend. This combines every technique from the tutorial: positioning, renaming, label control, key styling, and layout.
 
-```r
+```r title="Capstone: Publication-ready legend layout"
 # Complete example: publication-ready legend
 mpg_pub <- mpg
 mpg_pub$class <- factor(mpg$class,

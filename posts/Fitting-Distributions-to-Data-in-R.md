@@ -22,7 +22,7 @@ difficulty: Intermediate
 
 Start with the simplest case: a column of positive continuous numbers. The `groundbeef` dataset that ships with the package records serving sizes in grams for 254 ground-beef patties. Suppose you suspect the data is gamma-distributed. A single call to `fitdist()` estimates the parameters by maximum likelihood and returns everything you need to judge the fit.
 
-```r
+```r title="Fit gamma with fitdistrplus"
 library(fitdistrplus)
 data(groundbeef)
 serving <- groundbeef$serving
@@ -45,7 +45,7 @@ One line and you have two parameter estimates (shape = 1.63, rate = 0.022), thei
 
 With the fit object in hand, the next question is always *does it actually fit?* That's what the plot method answers.
 
-```r
+```r title="Four-panel diagnostic plot"
 plot(fg)
 ```
 
@@ -56,7 +56,7 @@ The call draws four panels: a histogram with the fitted density on top, the empi
 
 **Try it:** Fit a Weibull distribution to the same `serving` vector and store it in `ex_fw`. Print its summary.
 
-```r
+```r title="Exercise: Fit Weibull to serving"
 # Try it: fit a Weibull to serving
 ex_fw <- # your code here
 
@@ -67,7 +67,7 @@ summary(ex_fw)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Weibull fit solution"
 ex_fw <- fitdist(serving, "weibull")
 summary(ex_fw)
 #> Fitting of the distribution ' weibull ' by maximum likelihood
@@ -88,7 +88,7 @@ Guessing a distribution is wasteful when a 20-line plot can narrow the candidate
 
 The function `descdist()` computes the sample skewness and kurtosis, plots the point, and optionally adds a bootstrap cloud so you can see how stable the pick is.
 
-```r
+```r title="Describe data with descdist"
 descdist(serving, boot = 500)
 #> summary statistics
 #> ------
@@ -108,7 +108,7 @@ The observation (0.74 skew, 3.29 kurtosis) lands near the gamma and lognormal cu
 
 **Try it:** Run `descdist()` on `log(serving)` with 300 bootstrap replicates. Where does the bootstrap cloud land relative to the Normal point?
 
-```r
+```r title="Exercise: descdist on log serving"
 # Try it: descdist on log-transformed serving
 ex_log_serving <- log(serving)
 # Call descdist with boot = 300
@@ -117,7 +117,7 @@ ex_log_serving <- log(serving)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Log descdist solution"
 ex_log_serving <- log(serving)
 descdist(ex_log_serving, boot = 300)
 #> estimated skewness:  -0.63
@@ -143,7 +143,7 @@ Most of the time MLE is the right default, it is statistically efficient and giv
 
 Here are MLE and MME side by side on the gamma fit:
 
-```r
+```r title="MLE versus MME estimates"
 fg_mle <- fitdist(serving, "gamma", method = "mle")
 fg_mme <- fitdist(serving, "gamma", method = "mme")
 
@@ -157,7 +157,7 @@ The two methods disagree because the sample's first two moments don't perfectly 
 
 Quantile matching looks similar but constrains specific percentiles:
 
-```r
+```r title="Quantile matching with qme"
 fg_qme <- fitdist(serving, "gamma", method = "qme", probs = c(0.25, 0.75))
 fg_qme$estimate
 #>    shape      rate
@@ -169,7 +169,7 @@ fg_qme$estimate
 
 **Try it:** Fit `serving` with `method = "mge"` and `gof = "CvM"` (Cramer-von Mises distance). Store it in `ex_fg_mge` and print the estimate.
 
-```r
+```r title="Exercise: MGE with CvM distance"
 # Try it: MGE fit minimising CvM distance
 ex_fg_mge <- # your code here
 ex_fg_mge$estimate
@@ -179,7 +179,7 @@ ex_fg_mge$estimate
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="MGE CvM solution"
 ex_fg_mge <- fitdist(serving, "gamma", method = "mge", gof = "CvM")
 ex_fg_mge$estimate
 #>    shape      rate
@@ -199,7 +199,7 @@ Once you have a few candidates, you need a principled way to pick a winner. The 
 
 Let's fit the three standard candidates, Weibull, gamma, lognormal, and stack them on one plot.
 
-```r
+```r title="Overlay empirical versus theoretical CDFs"
 fw <- fitdist(serving, "weibull")
 fln <- fitdist(serving, "lnorm")
 # fg already fitted earlier
@@ -212,7 +212,7 @@ cdfcomp(list(fw, fg, fln),
 
 Visuals alone are easy to misread, so pair them with `gofstat()`:
 
-```r
+```r title="Goodness-of-fit statistics table"
 gof <- gofstat(list(fw, fg, fln),
                fitnames = c("Weibull", "Gamma", "Lognormal"))
 gof
@@ -235,7 +235,7 @@ All three statistics (Kolmogorov-Smirnov, Cramer-von Mises, Anderson-Darling) me
 
 **Try it:** Compute the AIC gap between gamma and weibull using the fit objects. Store it in `ex_aic_gap`.
 
-```r
+```r title="Exercise: AIC gap gamma versus Weibull"
 # Try it: AIC difference between gamma and weibull
 ex_aic_gap <- # your code here
 ex_aic_gap
@@ -245,7 +245,7 @@ ex_aic_gap
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="AIC gap solution"
 ex_aic_gap <- fw$aic - fg$aic
 ex_aic_gap
 #> [1] 2.844
@@ -259,7 +259,7 @@ ex_aic_gap
 
 Count data, number of insurance claims per policy, arrivals per hour, visits per patient, lives on the non-negative integers and needs a discrete distribution. `fitdist()` handles these identically: just pass a discrete distribution name.
 
-```r
+```r title="Fit Poisson and negative binomial"
 set.seed(37)
 counts <- rnbinom(500, size = 2, mu = 5)
 
@@ -282,7 +282,7 @@ The Poisson's AIC is 476 points higher than the negative binomial's, an overwhel
 
 **Try it:** Compute the variance-to-mean ratio of the `counts` vector. Store it in `ex_vmr`.
 
-```r
+```r title="Exercise: Variance to mean ratio"
 # Try it: variance-to-mean ratio
 ex_vmr <- # your code here
 ex_vmr
@@ -292,7 +292,7 @@ ex_vmr
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Variance ratio solution"
 ex_vmr <- var(counts) / mean(counts)
 ex_vmr
 #> [1] 3.507
@@ -306,7 +306,7 @@ ex_vmr
 
 Parameter estimates are themselves random variables, a different sample from the same population would have given different numbers. The summary output reports asymptotic standard errors, but those rely on large-sample theory that can mislead for small or awkward datasets. A bootstrap gives you confidence intervals without that assumption.
 
-```r
+```r title="Bootstrap parameter uncertainty"
 boot_fg <- bootdist(fg, niter = 200)
 summary(boot_fg)
 #> Parametric bootstrap medians and 95% percentile CI
@@ -322,7 +322,7 @@ summary(boot_fg)
 
 **Try it:** Extract the 95% CI for the gamma `rate` from the bootstrap quantile function. Store the lower and upper bounds in `ex_rate_ci`.
 
-```r
+```r title="Exercise: Rate quantile interval"
 # Try it: 95% CI for rate using quantile()
 ex_rate_ci <- quantile(boot_fg, probs = c(0.025, 0.975))
 # Extract rate row and print
@@ -331,7 +331,7 @@ ex_rate_ci <- quantile(boot_fg, probs = c(0.025, 0.975))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rate interval solution"
 ex_rate_ci <- quantile(boot_fg, probs = c(0.025, 0.975))$quantiles["rate", ]
 ex_rate_ci
 #>    p=0.025    p=0.975
@@ -348,7 +348,7 @@ ex_rate_ci
 
 Fit gamma, Weibull, and lognormal distributions to the `airquality$Wind` vector. Report which distribution has the lowest AIC and store the name as a string in `my_best`.
 
-```r
+```r title="Exercise: Best fit for wind"
 # Exercise 1: three fits on airquality$Wind
 # Hint: drop NAs with na.omit(), fit three, compare $aic
 
@@ -360,7 +360,7 @@ my_best
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Wind AIC solution"
 wind <- na.omit(airquality$Wind)
 my_fits <- list(
   gamma    = fitdist(wind, "gamma"),
@@ -385,7 +385,7 @@ my_best
 
 Simulate 500 draws from a `lognormal(meanlog = 2, sdlog = 0.6)`, then fit both gamma and lognormal and confirm the lognormal wins via `gofstat()`.
 
-```r
+```r title="Exercise: Gamma versus lognormal fit"
 # Exercise 2: simulation study
 set.seed(7)
 my_sim <- rlnorm(500, meanlog = 2, sdlog = 0.6)
@@ -397,7 +397,7 @@ my_sim <- rlnorm(500, meanlog = 2, sdlog = 0.6)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Lognormal comparison solution"
 set.seed(7)
 my_sim <- rlnorm(500, meanlog = 2, sdlog = 0.6)
 
@@ -417,7 +417,7 @@ gofstat(list(fg_sim, fln_sim), fitnames = c("Gamma", "Lognormal"))
 
 Simulate 400 draws from `rnbinom(400, size = 2, mu = 8)` and fit both Poisson and negative binomial. Verify NB wins by a large AIC margin.
 
-```r
+```r title="Exercise: Overdispersed count fit"
 # Exercise 3: count overdispersion
 set.seed(11)
 my_counts <- rnbinom(400, size = 2, mu = 8)
@@ -428,7 +428,7 @@ my_counts <- rnbinom(400, size = 2, mu = 8)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Negative binomial AIC solution"
 set.seed(11)
 my_counts <- rnbinom(400, size = 2, mu = 8)
 
@@ -447,7 +447,7 @@ fp_c$aic - fnb_c$aic
 
 Here is the full workflow applied to a fresh column: the sepal length of the built-in `iris` flowers.
 
-```r
+```r title="End-to-end iris sepal fit"
 sepal <- iris$Sepal.Length
 
 # Step 1: describe

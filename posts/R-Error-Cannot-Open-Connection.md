@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The error message looks scary because it says "connection," but in R-speak a "connection" just means *the open handle to a file or URL*. R never got that far. Reproducing the error and printing one line of diagnostic info is enough to know which checklist item to chase next.
 
-```r
+```r title="Reproduce the connection error"
 # Reproduce the error and capture the diagnostic in one shot
 bad_path <- "not-here.csv"
 
@@ -51,7 +51,7 @@ The error message itself tells you nothing actionable, it just says "I tried, it
 
 **Try it:** Create a real file with `tempfile()` + `writeLines()`, then re-run the diagnostic block on its path. Watch `file.exists()` flip from `FALSE` to `TRUE`.
 
-```r
+```r title="Exercise: diagnose an existing path"
 # Try it: re-run the diagnostic on a path that DOES exist
 ex_path <- tempfile(fileext = ".csv")
 # your code here: write a line into ex_path, then print exists/resolved
@@ -62,7 +62,7 @@ ex_path <- tempfile(fileext = ".csv")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Existing-path solution"
 ex_path <- tempfile(fileext = ".csv")
 writeLines("a,b\n1,2", ex_path)
 
@@ -80,7 +80,7 @@ cat("Resolved to: ", normalizePath(ex_path), "\n", sep = "")
 
 This is cause number one, the file you wrote is real and lives somewhere on disk, but R is looking in a different folder. Relative paths like `"data.csv"` are resolved against R's current working directory, and that directory is rarely what you assume.
 
-```r
+```r title="Inspect and change working directory"
 # What does R think "here" means right now?
 original_wd <- getwd()
 cat("R is currently in: ", original_wd, "\n\n", sep = "")
@@ -110,7 +110,7 @@ There's a sneaky variant of this bug. Inside an R Markdown or Quarto document, t
 
 **Try it:** Build an absolute path with `here::here()` (mocked here as a `file.path()` call since `here` isn't preloaded in WebR) for a file at `data/sales.csv` under a project root of `/projects/analysis`.
 
-```r
+```r title="Exercise: build a project path"
 # Try it: construct an absolute project-relative path
 ex_built <- # your code here
 
@@ -121,7 +121,7 @@ cat(ex_built, "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Project-path solution"
 # In a real project: here::here("data", "sales.csv")
 # Mocked equivalent for the WebR sandbox:
 ex_built <- file.path("/projects/analysis", "data", "sales.csv")
@@ -137,7 +137,7 @@ cat(ex_built, "\n")
 
 The working directory checks out, but R still can't find the file. Time to check whether the *name* matches what R sees on disk. Three things go wrong here: typos, hidden file extensions, and case sensitivity.
 
-```r
+```r title="List files by extension pattern"
 # Step 1: confirm the file actually exists at the path you typed
 wanted <- "Data.CSV"
 cat("Looking for: ", wanted, "\n", sep = "")
@@ -162,7 +162,7 @@ Two platform-specific gotchas catch beginners constantly. On **Linux and macOS**
 
 **Try it:** Write a real temp file, then call `file.exists()` on it AND on a similarly-named-but-typo path. Confirm one returns `TRUE` and the other `FALSE`.
 
-```r
+```r title="Exercise: file.exists catches typos"
 # Try it: prove file.exists() catches typos
 ex_tmp <- tempfile(fileext = ".csv")
 # your code here: write to ex_tmp, then test ex_tmp and a typo'd version
@@ -173,7 +173,7 @@ ex_tmp <- tempfile(fileext = ".csv")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Typo-detection solution"
 ex_tmp <- tempfile(fileext = ".csv")
 writeLines("x,y\n1,2", ex_tmp)
 
@@ -191,7 +191,7 @@ cat("Typo'd:    ", file.exists(paste0(ex_tmp, "x")), "\n", sep = "")
 
 Windows uses `\` as its path separator, but R uses `\` as its **string escape character**. So when you paste a Windows path straight into a string literal, R thinks `\U`, `\n`, and `\t` are escape sequences, and either parses your path wrong or refuses to parse it at all. There are three clean fixes.
 
-```r
+```r title="Three ways to write Windows paths"
 # All three of these point to the SAME file on disk
 forward  <- "C:/Users/you/Documents/data.csv"           # forward slashes (works on every OS)
 doubled  <- "C:\\Users\\you\\Documents\\data.csv"       # doubled backslashes (the escape-safe form)
@@ -217,7 +217,7 @@ All four lines produce paths Windows can resolve to the same file. `forward` is 
 
 **Try it:** Build a Windows-style absolute path to `report.xlsx` in `C:\Users\you\Reports` using `file.path()`.
 
-```r
+```r title="Exercise: build a Windows path"
 # Try it: build a Windows path from pieces
 ex_winpath <- # your code here
 
@@ -228,7 +228,7 @@ cat(ex_winpath, "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Windows-path solution"
 ex_winpath <- file.path("C:", "Users", "you", "Reports", "report.xlsx")
 cat(ex_winpath, "\n")
 #> C:/Users/you/Reports/report.xlsx
@@ -242,7 +242,7 @@ cat(ex_winpath, "\n")
 
 You've confirmed the path is right and the file exists, but R *still* can't read it. This is the "permission" branch of the checklist. The file is locked by another program, the OS denies your user read access, or the drive containing it has gone offline.
 
-```r
+```r title="Test read permission with file.access"
 # Create a real, readable file so we have something to inspect
 real_file <- tempfile(fileext = ".csv")
 writeLines("col1,col2\n10,20", real_file)
@@ -272,7 +272,7 @@ Three real-world causes account for almost every permission failure: the file is
 
 **Try it:** Call `file.access()` with read mode on a path that doesn't exist. Confirm it returns `-1`, not `0`.
 
-```r
+```r title="Exercise: file.access on missing path"
 # Try it: file.access on a non-existent path
 ex_missing <- "definitely-not-real-path.csv"
 # your code here: print the file.access return value
@@ -283,7 +283,7 @@ ex_missing <- "definitely-not-real-path.csv"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Missing-path solution"
 ex_missing <- "definitely-not-real-path.csv"
 cat("file.access returned: ", file.access(ex_missing, mode = 4), "\n", sep = "")
 #> file.access returned: -1
@@ -297,7 +297,7 @@ cat("file.access returned: ", file.access(ex_missing, mode = 4), "\n", sep = "")
 
 Six checklist items add up to a lot of typing. The fix is to wrap them in a single function and call it the moment the error appears. The function below prints the input, the resolved path, existence, parent-directory contents, read permission, and a one-line verdict, every checklist item in 15 lines.
 
-```r
+```r title="All-in-one diagnosepath function"
 # Save this in your .Rprofile and call it whenever the error appears
 diagnose_path <- function(p) {
   cat("--- diagnose_path('", p, "') ---\n", sep = "")
@@ -337,7 +337,7 @@ Every line of output corresponds to a checklist item from the previous sections.
 
 **Try it:** Call `diagnose_path()` on a fresh `tempfile()` path (the path is reserved but no file exists yet) and read the verdict.
 
-```r
+```r title="Exercise: run diagnosepath"
 # Try it: run diagnose_path on a tempfile that doesn't exist on disk yet
 ex_diag <- tempfile(fileext = ".csv")
 # your code here
@@ -348,7 +348,7 @@ ex_diag <- tempfile(fileext = ".csv")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Run-diagnose solution"
 ex_diag <- tempfile(fileext = ".csv")
 diagnose_path(ex_diag)
 #> --- diagnose_path('/tmp/RtmpXXXXXX/fileXXXXXX.csv') ---
@@ -371,7 +371,7 @@ diagnose_path(ex_diag)
 
 Write `safe_read_csv(path)` that reads the CSV if it exists, but if the path is missing it should print every same-extension file in the parent directory (so the user can spot the typo) and return `NULL`. Combine `file.exists()`, `dirname()`, `tools::file_ext()`, and `list.files()`.
 
-```r
+```r title="Exercise: safereadcsv wrapper"
 # Exercise: safe_read_csv that helps when the file is missing
 # Hint: get the extension with tools::file_ext(path), then list.files(dir, pattern = ext)
 
@@ -388,7 +388,7 @@ print(is.null(my_result))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="safereadcsv solution"
 safe_read_csv <- function(path) {
   if (file.exists(path)) return(read.csv(path))
 
@@ -424,7 +424,7 @@ print(is.null(my_result))
 
 Write `try_paths(name, dirs)` that takes a filename and a vector of candidate directories, and returns the **first existing path** (or `NULL` if none match). Useful when a file might live in `data/`, `inputs/`, or a network share, and you don't want to handcode the lookup.
 
-```r
+```r title="Exercise: search candidate directories"
 # Exercise: search candidate dirs for the first hit
 # Hint: build candidate paths with file.path(dirs, name), keep the ones where file.exists() is TRUE
 
@@ -443,7 +443,7 @@ cat("Found: ", if (is.null(my_hit)) "nothing" else my_hit, "\n", sep = "")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="trypaths solution"
 try_paths <- function(name, dirs) {
   candidates <- file.path(dirs, name)
   hits <- candidates[file.exists(candidates)]
@@ -468,7 +468,7 @@ cat("Found: ", my_hit, "\n", sep = "")
 
 Pull every checklist item together: write a CSV from `mtcars`, then read it back through `diagnose_path()` so the diagnostic confirms each step before the read happens. This is the pattern to use any time you're about to do a `read.*` call you don't trust.
 
-```r
+```r title="End-to-end write and read"
 # Step 1: write a real file we control
 cars_path <- file.path(tempdir(), "mtcars-export.csv")
 write.csv(mtcars, cars_path, row.names = FALSE)

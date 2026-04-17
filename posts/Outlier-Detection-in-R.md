@@ -43,7 +43,7 @@ An outlier is a data point that sits unusually far from the bulk of the data. "U
 
 Why does it matter? Because outliers pull statistical summaries toward themselves. The mean is especially vulnerable. The median is not. Let's see this in action.
 
-```r
+```r title="Mean versus median with one outlier"
 # Create exam scores with one extreme value
 scores <- c(72, 78, 81, 85, 88, 90, 92, 95, 210)
 
@@ -69,7 +69,7 @@ Outliers fall into three categories, and each demands a different response:
 
 **Try it:** Create a vector called `ex_temps` with values 20, 22, 21, 23, 22, 100. Compute the mean and median. Which one better represents the typical value?
 
-```r
+```r title="Exercise: Mean versus median on temps"
 # Try it: mean vs median with an outlier
 ex_temps <- c(20, 22, 21, 23, 22, 100)
 
@@ -83,7 +83,7 @@ median(ex_temps)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean versus median solution"
 ex_temps <- c(20, 22, 21, 23, 22, 100)
 mean(ex_temps)
 #> [1] 34.66667
@@ -102,7 +102,7 @@ A boxplot is the fastest way to see outliers. The box shows the middle 50% of da
 
 Let's use the built-in `airquality` dataset. The `Ozone` column has real outliers from New York air monitoring in 1973.
 
-```r
+```r title="Boxplot of ozone concentrations"
 # Boxplot of Ozone readings
 boxplot(airquality$Ozone,
         main = "Ozone Concentration (ppb)",
@@ -112,7 +112,7 @@ boxplot(airquality$Ozone,
 
 The dots above the upper whisker are observations with unusually high ozone concentrations. But a boxplot only shows you that outliers exist, it does not tell you their values. For that, use `boxplot.stats()`.
 
-```r
+```r title="Extract outliers with boxplot.stats"
 # Extract outlier values programmatically
 ozone_stats <- boxplot.stats(airquality$Ozone)
 ozone_outliers <- ozone_stats$out
@@ -133,7 +133,7 @@ The `$out` element returns the actual outlier values. Here, three ozone readings
 
 **Try it:** Make a boxplot of `airquality$Wind` and use `boxplot.stats()` to find any outlier values.
 
-```r
+```r title="Exercise: Boxplot outliers for wind"
 # Try it: boxplot + outlier extraction for Wind
 boxplot(airquality$Wind, main = "Wind Speed", col = "lightyellow")
 ex_wind_out <- boxplot.stats(airquality$Wind)$out
@@ -144,7 +144,7 @@ ex_wind_out
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Wind outliers solution"
 boxplot(airquality$Wind, main = "Wind Speed", col = "lightyellow")
 ex_wind_out <- boxplot.stats(airquality$Wind)$out
 ex_wind_out
@@ -174,7 +174,7 @@ Where:
 
 Let's compute the fences by hand for the `Ozone` column.
 
-```r
+```r title="Manual IQR fence calculation"
 # Manual IQR fence calculation
 ozone <- airquality$Ozone[!is.na(airquality$Ozone)]
 
@@ -201,7 +201,7 @@ The lower fence is negative, which means no ozone reading can fall below it (ozo
 
 Now let's flag and count the outliers.
 
-```r
+```r title="Flag ozone outliers beyond fence"
 # Flag outliers
 iqr_outliers <- ozone[ozone < lower | ozone > upper]
 iqr_outliers
@@ -218,7 +218,7 @@ Two values exceed the upper fence: 135 and 168 ppb. Notice this differs slightly
 
 **Try it:** Compute the IQR fences for `airquality$Solar.R` (remove NAs first). How many outliers does the method flag?
 
-```r
+```r title="Exercise: IQR fences for solar radiation"
 # Try it: IQR fences for Solar.R
 ex_solar <- airquality$Solar.R[!is.na(airquality$Solar.R)]
 ex_Q1 <- quantile(ex_solar, 0.25)
@@ -233,7 +233,7 @@ ex_IQR <- ex_Q3 - ex_Q1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Solar IQR fences solution"
 ex_solar <- airquality$Solar.R[!is.na(airquality$Solar.R)]
 ex_Q1 <- quantile(ex_solar, 0.25)
 ex_Q3 <- quantile(ex_solar, 0.75)
@@ -269,7 +269,7 @@ Where:
 
 Use Z-scores when your data is roughly bell-shaped (normal). If the data is heavily skewed, like income, house prices, or page views, the mean and standard deviation are themselves distorted by outliers, and the IQR method is safer.
 
-```r
+```r title="Z-score outliers beyond three sigma"
 # Z-score outlier detection
 z_scores <- (ozone - mean(ozone)) / sd(ozone)
 
@@ -286,7 +286,7 @@ Only one value (168) exceeds the |z| > 3 threshold. The IQR method flagged two v
 
 Let's compare the two methods side by side.
 
-```r
+```r title="Compare IQR and Z-score counts"
 # Compare methods
 cat("IQR outliers:", iqr_outliers, "\n")
 #> IQR outliers: 135 168
@@ -309,7 +309,7 @@ With a threshold of 2, Z-scores flag three values, more than IQR. With a thresho
 
 **Try it:** Compute Z-scores for `airquality$Temp`. Are any temperatures beyond +/- 2 standard deviations?
 
-```r
+```r title="Exercise: Z-scores on temperature"
 # Try it: Z-scores for Temp
 ex_temp <- airquality$Temp
 ex_z <- (ex_temp - mean(ex_temp)) / sd(ex_temp)
@@ -322,7 +322,7 @@ ex_z <- (ex_temp - mean(ex_temp)) / sd(ex_temp)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Temperature Z-scores solution"
 ex_temp <- airquality$Temp
 ex_z <- (ex_temp - mean(ex_temp)) / sd(ex_temp)
 ex_temp_out <- ex_temp[abs(ex_z) > 2]
@@ -354,7 +354,7 @@ Where:
 
 Let's compute Mahalanobis distances for the `airquality` dataset using four numeric columns.
 
-```r
+```r title="Mahalanobis for multivariate outliers"
 # Mahalanobis distance for multivariate outlier detection
 aq_complete <- airquality[complete.cases(airquality), c("Ozone", "Solar.R", "Wind", "Temp")]
 
@@ -378,7 +378,7 @@ Three rows are multivariate outliers. The chi-squared threshold with 4 degrees o
 
 Let's inspect what makes those rows unusual.
 
-```r
+```r title="Inspect multivariate outlier rows"
 # Inspect multivariate outliers
 aq_complete[maha_outliers, ]
 #>    Ozone Solar.R Wind Temp
@@ -392,7 +392,7 @@ The exact rows will show combinations where values are jointly extreme, high ozo
 
 **Try it:** Compute Mahalanobis distances for `mtcars[, c("mpg", "hp", "wt")]`. How many cars are multivariate outliers at p < 0.001?
 
-```r
+```r title="Exercise: Mahalanobis on mtcars"
 # Try it: Mahalanobis on mtcars
 ex_cars <- mtcars[, c("mpg", "hp", "wt")]
 ex_maha <- mahalanobis(ex_cars,
@@ -408,7 +408,7 @@ ex_threshold <- qchisq(0.999, df = 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mtcars Mahalanobis solution"
 ex_cars <- mtcars[, c("mpg", "hp", "wt")]
 ex_maha <- mahalanobis(ex_cars,
                        center = colMeans(ex_cars),
@@ -431,7 +431,7 @@ cat("Cars:", rownames(mtcars)[ex_maha_out], "\n")
 ### Mistake 1: Removing outliers without checking if they are errors
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Blind outlier deletion"
 # See outlier dots on boxplot, immediately remove
 clean_data <- data[!data$value %in% boxplot.stats(data$value)$out, ]
 ```
@@ -439,7 +439,7 @@ clean_data <- data[!data$value %in% boxplot.stats(data$value)$out, ]
 **Why it is wrong:** Deleting a value without checking whether it is a typo, instrument error, or genuine observation throws away potentially valuable data. If the value is real, you have biased your analysis.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Inspect before removing"
 # First inspect the outliers
 outlier_rows <- data[data$value %in% boxplot.stats(data$value)$out, ]
 print(outlier_rows)
@@ -449,7 +449,7 @@ print(outlier_rows)
 ### Mistake 2: Using Z-scores on heavily skewed data
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Z-scores on skewed income"
 # Income is right-skewed, but we use Z-scores anyway
 income <- c(30000, 35000, 40000, 42000, 1000000)
 z <- (income - mean(income)) / sd(income)
@@ -460,7 +460,7 @@ income[abs(z) > 3]
 **Why it is wrong:** The million-dollar income inflates the mean and SD so much that even the million itself does not reach |z| > 3. The outlier hides behind its own distortion.
 
 ✅ **Correct:**
-```r
+```r title="Correct: IQR for skewed data"
 # Use IQR for skewed data
 Q1 <- quantile(income, 0.25)
 Q3 <- quantile(income, 0.75)
@@ -472,7 +472,7 @@ income[income > upper]
 ### Mistake 3: Applying univariate methods to multivariate problems
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Univariate misses joint extremes"
 # Check each column separately
 outliers_x <- x[abs(scale(x)) > 3]
 outliers_y <- y[abs(scale(y)) > 3]
@@ -482,7 +482,7 @@ outliers_y <- y[abs(scale(y)) > 3]
 **Why it is wrong:** A person who is 5'2" and 250 lbs looks fine on height alone and fine on weight alone, but the combination is a clear outlier. Univariate methods cannot see joint extremes.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Mahalanobis for joint extremes"
 # Use Mahalanobis distance for multiple variables
 d <- mahalanobis(cbind(x, y), colMeans(cbind(x, y)), cov(cbind(x, y)))
 outliers <- which(d > qchisq(0.999, df = 2))
@@ -491,7 +491,7 @@ outliers <- which(d > qchisq(0.999, df = 2))
 ### Mistake 4: Removing outliers to improve results
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: p-hacking by trimming"
 # Regression p-value is 0.06, so remove outliers until p < 0.05
 model <- lm(y ~ x, data = data[-c(17, 23), ])
 ```
@@ -499,7 +499,7 @@ model <- lm(y ~ x, data = data[-c(17, 23), ])
 **Why it is wrong:** This is p-hacking. You are selecting the subset of data that gives you the answer you want. The result is no longer valid statistical inference.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Report both models"
 # Report both: with and without outliers
 model_full <- lm(y ~ x, data = data)
 model_trimmed <- lm(y ~ x, data = data[-c(17, 23), ])
@@ -513,7 +513,7 @@ model_trimmed <- lm(y ~ x, data = data[-c(17, 23), ])
 
 Detect outliers in `mtcars$qsec` (quarter-mile time) using both the IQR fence method and Z-scores (|z| > 2). Which method flags more points?
 
-```r
+```r title="Exercise: IQR versus Z-score on qsec"
 # Exercise 1: IQR vs Z-score on qsec
 # Hint: compute IQR fences, then Z-scores, compare the results
 
@@ -524,7 +524,7 @@ Detect outliers in `mtcars$qsec` (quarter-mile time) using both the IQR fence me
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="qsec comparison solution"
 my_qsec <- mtcars$qsec
 
 # IQR method
@@ -553,7 +553,7 @@ cat("Z-score outliers (|z|>2):", my_z_out, "\n")
 
 Write a function `my_detect_outliers(x, method)` that accepts a numeric vector and a method string ("iqr" or "zscore"). It should return the outlier values. Use a 1.5 * IQR threshold for "iqr" and |z| > 3 for "zscore".
 
-```r
+```r title="Exercise: Flexible outlier detector"
 # Exercise 2: flexible outlier detector
 # Hint: use if/else inside the function to pick the method
 
@@ -569,7 +569,7 @@ my_detect_outliers(airquality$Ozone[!is.na(airquality$Ozone)], "iqr")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Flexible detector solution"
 my_detect_outliers <- function(x, method = "iqr") {
   if (method == "iqr") {
     q1 <- quantile(x, 0.25)
@@ -598,7 +598,7 @@ my_detect_outliers(airquality$Ozone[!is.na(airquality$Ozone)], "zscore")
 
 For each species in the `iris` dataset, compute Mahalanobis distances using all four numeric columns. Flag multivariate outliers at p < 0.001. Which species has the most outliers?
 
-```r
+```r title="Exercise: Mahalanobis per iris species"
 # Exercise 3: Mahalanobis by species
 # Hint: split iris by Species, loop or use lapply, compute mahalanobis() per group
 
@@ -609,7 +609,7 @@ For each species in the `iris` dataset, compute Mahalanobis distances using all 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Per-species Mahalanobis solution"
 my_species <- split(iris[, 1:4], iris$Species)
 my_results <- lapply(names(my_species), function(sp) {
   my_df <- my_species[[sp]]
@@ -633,7 +633,7 @@ my_results <- lapply(names(my_species), function(sp) {
 
 Let's walk through a complete outlier analysis on the `airquality` dataset, from detection to decision.
 
-```r
+```r title="End-to-end airquality outlier analysis"
 # Step 1: Univariate detection (IQR) on Ozone
 aq_clean <- airquality[complete.cases(airquality), ]
 

@@ -34,7 +34,7 @@ Before the exercises, we build three small tables with deliberate NA patterns. T
 
 The `sales` table has missing values in `revenue` and `units`. The `survey` table has NAs scattered across `age`, `score`, and `group`. The `weather_data` table has missing `temp` and `rainfall` readings.
 
-```r
+```r title="Build sales, survey, weather with NAs"
 # Setup: load libraries and create three datasets with NAs
 library(dplyr)
 library(tidyr)
@@ -108,7 +108,7 @@ These three exercises focus on finding and counting NAs. If you get them right, 
 
 Use `is.na()` and `sum()` to count the total number of NA values in the entire `sales` table. Save the result to `ans1`. Expected: **4**.
 
-```r
+```r title="Exercise: Count total NAs in sales"
 # Exercise 1: count total NAs in sales
 # Hint: is.na() returns TRUE/FALSE, sum() counts TRUEs
 
@@ -119,7 +119,7 @@ Use `is.na()` and `sum()` to count the total number of NA values in the entire `
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Total NAs in sales solution"
 ans1 <- sum(is.na(sales))
 ans1
 #> [1] 4
@@ -133,7 +133,7 @@ ans1
 
 Use `colSums()` with `is.na()` to count the number of NA values in each column of `survey`. Save the result to `ans2`. Expected: `id = 0, group = 0, age = 3, score = 2`.
 
-```r
+```r title="Exercise: NAs per column in survey"
 # Exercise 2: count NAs per column in survey
 # Hint: colSums(is.na(...))
 
@@ -144,7 +144,7 @@ Use `colSums()` with `is.na()` to count the number of NA values in each column o
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="NAs per column solution"
 ans2 <- colSums(is.na(survey))
 ans2
 #> id group   age score
@@ -159,7 +159,7 @@ ans2
 
 Use `complete.cases()` to find which rows in `weather_data` have no NAs. Save the complete rows to `ans3`. Expected: **2 rows** (Oslo-Jan and Lima-Feb).
 
-```r
+```r title="Exercise: Complete rows in weatherdata"
 # Exercise 3: keep only complete rows in weather_data
 # Hint: complete.cases() returns TRUE for rows with no NAs
 
@@ -170,7 +170,7 @@ Use `complete.cases()` to find which rows in `weather_data` have no NAs. Save th
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Complete rows in weatherdata solution"
 ans3 <- weather_data[complete.cases(weather_data), ]
 ans3
 #> # A tibble: 2 x 4
@@ -195,7 +195,7 @@ Detection done. These three exercises remove rows based on different criteria. P
 
 Use `na.omit()` to remove every row that contains at least one NA from `sales`. Save to `ans4`. Expected: **2 rows**.
 
-```r
+```r title="Exercise: Drop any NA with na.omit"
 # Exercise 4: remove all rows with NA from sales
 # Hint: na.omit() drops any row with at least one NA
 
@@ -206,7 +206,7 @@ Use `na.omit()` to remove every row that contains at least one NA from `sales`. 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="na.omit on sales solution"
 ans4 <- na.omit(sales)
 ans4
 #> # A tibble: 2 x 4
@@ -224,7 +224,7 @@ ans4
 
 Use `filter()` with `!is.na()` to keep only the rows of `survey` where `score` is not missing. Save to `ans5`. Expected: **6 rows**.
 
-```r
+```r title="Exercise: Keep rows where score is present"
 # Exercise 5: keep rows where score is not NA
 # Hint: filter(survey, !is.na(column_name))
 
@@ -235,7 +235,7 @@ Use `filter()` with `!is.na()` to keep only the rows of `survey` where `score` i
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter by score solution"
 ans5 <- survey |> filter(!is.na(score))
 ans5
 #> # A tibble: 6 x 4
@@ -257,7 +257,7 @@ ans5
 
 Use `complete.cases()` on just the `temp` and `rainfall` columns of `weather_data` to keep rows where both measurements exist. Save to `ans6`. Expected: **2 rows**.
 
-```r
+```r title="Exercise: Complete cases on specific columns"
 # Exercise 6: complete cases for specific columns only
 # Hint: complete.cases() accepts a subset of columns
 
@@ -268,7 +268,7 @@ Use `complete.cases()` on just the `temp` and `rainfall` columns of `weather_dat
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Complete cases on specific columns solution"
 ans6 <- weather_data |>
   filter(complete.cases(pick(temp, rainfall)))
 ans6
@@ -294,7 +294,7 @@ Removing rows wastes data. These four exercises replace NAs with computed values
 
 Replace the NA values in `sales$revenue` with the mean of the non-missing revenue values. Use base R (no dplyr). Save the modified data frame to `ans7`. Expected: the two NA revenues become **457.5**.
 
-```r
+```r title="Exercise: Mean impute revenue in base R"
 # Exercise 7: mean imputation on sales$revenue using base R
 # Hint: use is.na() to index, mean(..., na.rm = TRUE) to compute
 
@@ -305,7 +305,7 @@ Replace the NA values in `sales$revenue` with the mean of the non-missing revenu
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean impute revenue solution"
 ans7 <- sales
 ans7$revenue[is.na(ans7$revenue)] <- mean(ans7$revenue, na.rm = TRUE)
 ans7
@@ -328,7 +328,7 @@ ans7
 
 Use `mutate()` with `replace()` to replace NA values in `survey$age` with the median age. Save to `ans8`. Expected: the three NA ages become **29** (the median of 22, 25, 29, 34, 41).
 
-```r
+```r title="Exercise: Median impute age with dplyr"
 # Exercise 8: median imputation on survey$age using dplyr
 # Hint: mutate(age = replace(age, is.na(age), median(age, na.rm = TRUE)))
 
@@ -339,7 +339,7 @@ Use `mutate()` with `replace()` to replace NA values in `survey$age` with the me
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Median impute age solution"
 ans8 <- survey |>
   mutate(age = replace(age, is.na(age), median(age, na.rm = TRUE)))
 ans8
@@ -367,7 +367,7 @@ ans8
 
 Use `group_by()` and `mutate()` to replace NA values in `survey$score` with the mean score of each respondent's `group`. Save to `ans9`. Expected: group A mean score is 77.25 and group B mean score is 82.
 
-```r
+```r title="Exercise: Group-wise mean impute score"
 # Exercise 9: group-wise mean imputation on survey$score
 # Hint: group_by(group) then mutate with replace and mean
 
@@ -378,7 +378,7 @@ Use `group_by()` and `mutate()` to replace NA values in `survey$score` with the 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Group-wise mean impute score solution"
 ans9 <- survey |>
   group_by(group) |>
   mutate(score = replace(score, is.na(score), mean(score, na.rm = TRUE))) |>
@@ -405,7 +405,7 @@ ans9
 
 Build a complete cleaning pipeline for `sales`. In one dplyr chain: (1) add a column `na_count` that counts NAs per row, (2) impute `revenue` NAs with the column mean, (3) impute `units` NAs with the column median, (4) verify zero NAs remain. Save the final cleaned table to `ans10`. Expected: **6 rows, 5 columns, 0 NAs** in revenue and units.
 
-```r
+```r title="Exercise: Count plus impute plus verify"
 # Exercise 10: full pipeline — count, impute, verify
 # Hint: rowwise na_count, then mutate with replace for each column
 
@@ -416,7 +416,7 @@ Build a complete cleaning pipeline for `sales`. In one dplyr chain: (1) add a co
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Count plus impute plus verify solution"
 ans10 <- sales |>
   mutate(
     na_count = rowSums(is.na(pick(revenue, units))),
@@ -453,14 +453,14 @@ sum(is.na(ans10$units))
 ### Mistake 1: Using == NA instead of is.na()
 
 Bad:
-```r
+```r title="Common mistake: Compare with == NA"
 x <- c(1, NA, 3)
 x == NA
 #> [1] NA NA NA
 ```
 
 Good:
-```r
+```r title="Correct: Use is.na to detect"
 x <- c(1, NA, 3)
 is.na(x)
 #> [1] FALSE  TRUE FALSE
@@ -471,14 +471,14 @@ is.na(x)
 ### Mistake 2: Forgetting na.rm = TRUE in aggregation
 
 Bad:
-```r
+```r title="Common mistake: mean without na.rm"
 values <- c(10, NA, 30)
 mean(values)
 #> [1] NA
 ```
 
 Good:
-```r
+```r title="Correct: Pass na.rm = TRUE"
 values <- c(10, NA, 30)
 mean(values, na.rm = TRUE)
 #> [1] 20
@@ -489,7 +489,7 @@ mean(values, na.rm = TRUE)
 ### Mistake 3: Imputing before understanding the missingness pattern
 
 Bad:
-```r
+```r title="Common mistake: Blind column-wide imputation"
 # Blindly fill every NA with the column mean
 df <- df |> mutate(across(where(is.numeric), ~replace(.x, is.na(.x), mean(.x, na.rm = TRUE))))
 ```

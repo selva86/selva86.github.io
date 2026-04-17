@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 CSV is the workhorse format, flat, text-based, universal. R gives you three main choices: base `read.csv()`, tidyverse `readr::read_csv()`, and `data.table::fread()`. All three return a data frame; they differ in speed, defaults, and output class.
 
-```r
+```r title="readcsv with readr basics"
 library(readr)
 sales <- read_csv("sales.csv")
 sales
@@ -46,7 +46,7 @@ sales
 
 **Try it:** Load a CSV with the `readr` package and check its column types with `spec()`.
 
-```r
+```r title="Exercise: Inline CSV type spec"
 # tiny inline example
 library(readr)
 ex_text <- "id,name,score\n1,Alice,92\n2,Bob,87"
@@ -58,7 +58,7 @@ spec(ex_df)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Inline CSV type spec solution"
 library(readr)
 ex_text <- "id,name,score\n1,Alice,92\n2,Bob,87"
 ex_df <- read_csv(ex_text)
@@ -77,7 +77,7 @@ spec(ex_df)
 
 Real-world CSVs are rarely clean. These five arguments solve 90% of import headaches.
 
-```r
+```r title="European decimals with readdelim"
 # Handle European-style decimal commas and semicolons
 library(readr)
 read_delim("a;b\n1,5;2,3\n3,1;4,7",
@@ -89,7 +89,7 @@ read_delim("a;b\n1,5;2,3\n3,1;4,7",
 #> 1   1.5   2.3
 ```
 
-```r
+```r title="Skip rows and force types"
 # Skip junk header rows, force column types
 read_csv("junk\njunk\na,b\n1,x\n2,y",
          skip = 2,
@@ -101,7 +101,7 @@ read_csv("junk\njunk\na,b\n1,x\n2,y",
 #> 2     2 y
 ```
 
-```r
+```r title="Treat custom strings as NA"
 # Treat custom strings as NA
 read_csv("a,b\n1,good\n-999,missing\n3,N/A",
          na = c("-999", "N/A"))
@@ -120,7 +120,7 @@ The core arguments: `delim`, `locale`, `skip`, `col_types`, `na`. Memorize these
 
 **Try it:** Parse a CSV where missing values are encoded as "NA", "NULL", and "-".
 
-```r
+```r title="Exercise: Multiple NA strings"
 read_csv("id,score\n1,85\n2,NA\n3,NULL\n4,-", na = c("NA", "NULL", "-"))
 
 ```
@@ -128,7 +128,7 @@ read_csv("id,score\n1,85\n2,NA\n3,NULL\n4,-", na = c("NA", "NULL", "-"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multiple NA strings solution"
 library(readr)
 read_csv("id,score\n1,85\n2,NA\n3,NULL\n4,-",
          na = c("NA", "NULL", "-"))
@@ -148,7 +148,7 @@ Passing a character vector to `na` tells `read_csv()` to treat every one of thos
 
 Excel files (.xlsx, .xls) need the `readxl` package, installed with tidyverse, but you call it directly. It handles multi-sheet workbooks and preserves cell types better than any CSV export would.
 
-```r
+```r title="Read Excel sheets and ranges"
 library(readxl)
 # read the first sheet
 df <- read_excel("data.xlsx")
@@ -171,7 +171,7 @@ No external dependencies (no Java, no libreoffice), `readxl` is pure C++ under t
 
 **Try it:** List the sheets in a hypothetical workbook with `excel_sheets()`.
 
-```r
+```r title="Exercise: List Excel sheet names"
 # excel_sheets("myfile.xlsx")
 # returns a character vector of sheet names
 
@@ -180,7 +180,7 @@ No external dependencies (no Java, no libreoffice), `readxl` is pure C++ under t
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="List Excel sheet names solution"
 library(readxl)
 # Write a two-sheet workbook to a temp file so we can read it back
 tmp <- tempfile(fileext = ".xlsx")
@@ -197,7 +197,7 @@ excel_sheets(tmp)
 
 The `jsonlite` package parses JSON into a data frame when the shape is tabular, or a nested list when it isn't. It's fast and handles both local files and API responses.
 
-```r
+```r title="Parse tabular JSON with fromJSON"
 library(jsonlite)
 json_text <- '[
   {"id": 1, "name": "Ann", "active": true},
@@ -213,7 +213,7 @@ fromJSON(json_text)
 
 When the JSON is nested, `fromJSON()` returns a list of lists/data frames that you navigate with `$`. Pass `flatten = TRUE` to unnest embedded objects into columns automatically.
 
-```r
+```r title="Flatten nested JSON objects"
 nested <- '[
   {"id": 1, "profile": {"age": 30, "city": "NYC"}},
   {"id": 2, "profile": {"age": 25, "city": "LA"}}
@@ -226,7 +226,7 @@ fromJSON(nested, flatten = TRUE)
 
 **Try it:** Parse a tiny JSON array of three objects and check the class of the result.
 
-```r
+```r title="Exercise: JSON class check"
 library(jsonlite)
 ex_json <- '[{"a":1},{"a":2},{"a":3}]'
 class(fromJSON(ex_json))
@@ -236,7 +236,7 @@ class(fromJSON(ex_json))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="JSON class check solution"
 library(jsonlite)
 ex_json <- '[{"a":1},{"a":2},{"a":3}]'
 result <- fromJSON(ex_json)
@@ -256,7 +256,7 @@ result
 
 Migrants from other stats software can keep their existing files. The `haven` package reads (and writes) SPSS `.sav`, Stata `.dta`, and SAS `.sas7bdat` files directly.
 
-```r
+```r title="Read SPSS, Stata, and SAS"
 library(haven)
 # SPSS
 spss_df <- read_sav("survey.sav")
@@ -275,7 +275,7 @@ sas_df <- read_sas("registry.sas7bdat")
 
 **Try it:** Check what class `read_sav()` returns (conceptually, it's a tibble with `haven_labelled` columns).
 
-```r
+```r title="Exercise: SPSS read class"
 # class(read_sav("myfile.sav"))
 # typically: c("tbl_df", "tbl", "data.frame")
 
@@ -284,7 +284,7 @@ sas_df <- read_sas("registry.sas7bdat")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="SPSS read class solution"
 library(haven)
 # Write an SPSS file from a built-in dataset, then read it back
 tmp <- tempfile(fileext = ".sav")
@@ -300,7 +300,7 @@ class(read_sav(tmp))
 
 When your file is hundreds of megabytes or you're iterating many times, `fread()` from the `data.table` package is the fastest tool in R. It auto-detects delimiters, types, and headers with a single call.
 
-```r
+```r title="fread for big CSVs"
 library(data.table)
 big <- fread("large.csv")
 class(big)
@@ -309,7 +309,7 @@ class(big)
 
 `fread()` returns a `data.table` (a high-performance subclass of data frame). If you want a plain data frame or tibble, wrap the call: `as.data.frame(fread(...))` or `tibble::as_tibble(fread(...))`.
 
-```r
+```r title="fread with select and nrows"
 # Read only specific columns — memory saver on wide files
 fread("large.csv", select = c("date", "value"))
 
@@ -324,7 +324,7 @@ For files over 1 GB, `fread()` will often be 5-10× faster than `read_csv()` and
 
 **Try it:** Use `fread()` on inline text with `text = ...`.
 
-```r
+```r title="Exercise: fread on inline text"
 library(data.table)
 fread(text = "x,y\n1,10\n2,20\n3,30")
 
@@ -333,7 +333,7 @@ fread(text = "x,y\n1,10\n2,20\n3,30")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="fread inline text solution"
 library(data.table)
 fread(text = "x,y\n1,10\n2,20\n3,30")
 #>    x  y
@@ -349,7 +349,7 @@ The `text =` argument lets `fread()` parse a literal string just like it would a
 
 When the source of data is another R session, use R-native formats. `saveRDS()`/`readRDS()` save *one object* and let the caller name it on load. `save()`/`load()` save *multiple named objects* and restore them under their original names.
 
-```r
+```r title="saveRDS and save workspace"
 # Save a single object
 saveRDS(mtcars, "mtcars.rds")
 cars2 <- readRDS("mtcars.rds")
@@ -373,7 +373,7 @@ x
 
 **Try it:** Save a small vector to an RDS file and read it back.
 
-```r
+```r title="Exercise: Round-trip saveRDS"
 saveRDS(c(1, 2, 3), tempfile(fileext = ".rds"))
 # readRDS(path) returns c(1, 2, 3)
 
@@ -382,7 +382,7 @@ saveRDS(c(1, 2, 3), tempfile(fileext = ".rds"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Round-trip saveRDS solution"
 path <- tempfile(fileext = ".rds")
 saveRDS(c(1, 2, 3), path)
 readRDS(path)
@@ -401,7 +401,7 @@ Given a workbook with sheets "Q1", "Q2", "Q3", "Q4", read all four sheets and co
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Combine quarterly sheets solution"
 library(readxl)
 library(dplyr)
 sheets <- c("Q1", "Q2", "Q3", "Q4")
@@ -421,7 +421,7 @@ A CSV has 3 junk rows, semicolon delimiters, comma decimals, and "NULL" as missi
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Messy European CSV solution"
 library(readr)
 read_delim("messy.csv",
            delim = ";",
@@ -435,7 +435,7 @@ read_delim("messy.csv",
 
 Parse this JSON into a data frame with columns `id`, `name`, `tags` (a list-column).
 
-```r
+```r title="Starter JSON with nested tags"
 json <- '[
   {"id": 1, "name": "Ann", "tags": ["r", "stats"]},
   {"id": 2, "name": "Bo",  "tags": ["sql"]}
@@ -445,7 +445,7 @@ json <- '[
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Parse JSON with list-column solution"
 library(jsonlite)
 df <- fromJSON(json, simplifyDataFrame = TRUE)
 df
@@ -463,7 +463,7 @@ str(df$tags)
 
 A realistic import pipeline: detect the file extension, route to the right reader, and return a tibble.
 
-```r
+```r title="End-to-end importany dispatcher"
 library(readr)
 library(readxl)
 library(jsonlite)

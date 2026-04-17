@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The default ggplot2 theme is fine for exploration, but presentations and reports call for something more polished. The ggthemes package bundles ready-made themes modelled after well-known publications and software. Let's see the difference one line makes.
 
-```r
+```r title="Economist theme with matching palette"
 library(ggplot2)
 library(ggthemes)
 
@@ -41,7 +41,7 @@ That single addition, `theme_economist()`, transformed a plain ggplot into somet
 
 For comparison, here's the same plot with the default theme.
 
-```r
+```r title="Plain ggplot2 baseline for comparison"
 base_plot
 #> The standard ggplot2 gray-panel look — functional but plain
 ```
@@ -53,7 +53,7 @@ The difference is dramatic. The default theme works for quick exploration, but g
 
 **Try it:** Apply `theme_fivethirtyeight()` to `base_plot` and see how the style changes.
 
-```r
+```r title="FiveThirtyEight theme scatter"
 # Try it: apply FiveThirtyEight's theme
 ex_fte <- base_plot +
   # your code here
@@ -65,7 +65,7 @@ ex_fte
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Wall Street Journal theme line chart"
 ex_fte <- base_plot +
   theme_fivethirtyeight() +
   scale_colour_fivethirtyeight()
@@ -84,7 +84,7 @@ Four ggthemes themes model real-world publications. Each has a distinct personal
 
 The Economist theme uses a bold blue-gray background with minimal gridlines. It pairs perfectly with bar charts, which The Economist uses heavily.
 
-```r
+```r title="Stata theme boxplot"
 econ_data <- data.frame(
   region = c("Asia", "Europe", "N. America", "S. America", "Africa"),
   growth = c(5.2, 1.8, 2.4, 3.1, 4.0)
@@ -105,7 +105,7 @@ The bars pop against the blue-gray background, and removing the legend (the axis
 
 The Wall Street Journal theme strips charts down to essentials, no background colour, minimal axes, and high-contrast text. It works best with line charts.
 
-```r
+```r title="Tufte theme with range frame"
 set.seed(101)
 years <- 2015:2024
 wsj_data <- data.frame(
@@ -127,7 +127,7 @@ Notice how theme_wsj() removes axis titles entirely. The WSJ style assumes the c
 
 FiveThirtyEight uses a distinctive gray background with large text. It's designed for data journalism where the chart needs to grab attention on a screen.
 
-```r
+```r title="Few theme on diamonds sample"
 ggplot(mpg, aes(class, fill = class)) +
   geom_bar(show.legend = FALSE) +
   labs(title = "Vehicle Types in the mpg Dataset",
@@ -142,7 +142,7 @@ The FiveThirtyEight palette has just three base colours (blue, red, green), so i
 
 The Stata theme gives a clean, academic look that statisticians recognise. It's a solid choice for papers and technical reports.
 
-```r
+```r title="IGray theme on mtcars"
 ggplot(mtcars, aes(factor(cyl), mpg, fill = factor(cyl))) +
   geom_boxplot(show.legend = FALSE) +
   labs(title = "Fuel Economy by Cylinder Count",
@@ -160,7 +160,7 @@ Stata's theme keeps gridlines subtle and uses a clean white background. Reviewer
 
 **Try it:** Create a bar chart showing the average `mpg` for each `cyl` value in the mtcars dataset, styled with theme_wsj().
 
-```r
+```r title="Satirical themeexcel versus themeexcelnew"
 # Try it: WSJ bar chart of avg mpg by cylinder
 library(dplyr)
 
@@ -175,7 +175,7 @@ ex_wsj_data <- mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Google Docs theme scatter"
 ex_wsj_data <- mtcars |>
   group_by(cyl) |>
   summarise(avg_mpg = mean(mpg))
@@ -199,7 +199,7 @@ Edward Tufte and Stephen Few champion the "data-ink ratio", maximise the ink spe
 
 The Tufte theme is the most aggressive minimalist. Combine it with `geom_tufteboxplot()` for Tufte's signature minimal box plot.
 
-```r
+```r title="Highcharts default theme"
 ggplot(mpg, aes(class, hwy)) +
   geom_tufteboxplot() +
   labs(title = "Highway MPG by Vehicle Class",
@@ -213,7 +213,7 @@ Tufte's box plot replaces the traditional filled box with a thin vertical line a
 
 For axis lines that extend only to the data range (another Tufte principle), use `geom_rangeframe()`.
 
-```r
+```r title="Highcharts Dark Unica theme"
 ggplot(mtcars, aes(wt, mpg)) +
   geom_point() +
   geom_rangeframe() +
@@ -232,7 +232,7 @@ The range frame makes the axis lines meaningful. Instead of running from 0 to so
 
 Stephen Few's theme is less radical than Tufte's. It keeps light gridlines for readability but strips away unnecessary borders and fills.
 
-```r
+```r title="Tableau colour palette scale"
 ggplot(diamonds |> dplyr::sample_n(500), aes(carat, price, colour = cut)) +
   geom_point(alpha = 0.6) +
   labs(title = "Diamond Price vs Carat",
@@ -247,7 +247,7 @@ The Few palette uses muted colours that work well in both print and on screen. T
 
 The igray theme inverts the typical grey scheme, gray panel on a white background. The clean theme is similar but even simpler.
 
-```r
+```r title="Colorblind-safe palette scale"
 ggplot(mtcars, aes(hp, mpg)) +
   geom_point(aes(colour = factor(gear)), size = 2.5) +
   labs(title = "Horsepower vs MPG (theme_igray)",
@@ -261,7 +261,7 @@ The igray theme is a good middle ground. It's cleaner than the default but doesn
 
 **Try it:** Create a scatter plot of `wt` vs `mpg` from mtcars using theme_tufte() and geom_rangeframe().
 
-```r
+```r title="Build a housestyle helper"
 # Try it: Tufte scatter with range frame
 ex_tufte <- ggplot(mtcars, aes(wt, mpg)) +
   geom_point() +
@@ -274,7 +274,7 @@ ex_tufte
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Compare four themes side by side"
 ex_tufte <- ggplot(mtcars, aes(wt, mpg)) +
   geom_point() +
   geom_rangeframe() +
@@ -296,7 +296,7 @@ These themes recreate the look of charts from familiar software. Some are practi
 
 The original theme_excel() recreates Excel 97's infamous chart style, complete with the gray background and harsh gridlines that data visualisation experts love to hate.
 
-```r
+```r title="Exercise: Apply Economist theme to bars"
 ggplot(mpg, aes(class, fill = class)) +
   geom_bar(show.legend = FALSE) +
   labs(title = "The Classic Excel 97 Look") +
@@ -313,7 +313,7 @@ This theme exists as affectionate satire. The documentation itself notes it's no
 
 The modern Office theme looks much better. It matches the cleaner style of Excel 2013 and later.
 
-```r
+```r title="Exercise solution: Economist faceted bars"
 ggplot(diamonds |> dplyr::sample_n(300), aes(carat, price, colour = cut)) +
   geom_point(alpha = 0.7) +
   labs(title = "Diamond Prices — Modern Office Style",
@@ -328,7 +328,7 @@ This one you can actually use. The colour palette is more restrained and the lay
 
 Google Docs, Highcharts, and LibreOffice Calc each have their own themes. Highcharts is especially useful for web dashboards.
 
-```r
+```r title="Exercise: Blend scale and theme"
 p <- ggplot(mtcars, aes(wt, mpg, colour = factor(cyl))) +
   geom_point(size = 2.5) +
   labs(title = "Weight vs MPG", x = "Weight", y = "MPG", colour = "Cyl")
@@ -337,7 +337,7 @@ p + theme_gdocs() + scale_colour_gdocs()
 #> Google Docs' signature primary colours on white
 ```
 
-```r
+```r title="Exercise solution: Tableau palette with Few theme"
 p + theme_hc() + scale_colour_hc()
 #> Highcharts' default style — clean, web-optimised,
 #> slightly rounded feel
@@ -345,7 +345,7 @@ p + theme_hc() + scale_colour_hc()
 
 The Highcharts theme also accepts a style argument. Use `theme_hc(style = "darkunica")` for a dark-background variant that works well in dark-mode dashboards.
 
-```r
+```r title="Exercise: Add plot caption to theme"
 p + theme_hc(style = "darkunica") + scale_colour_hc("darkunica")
 #> Dark charcoal background with bright accent colours —
 #> ideal for dark-mode web dashboards
@@ -353,7 +353,7 @@ p + theme_hc(style = "darkunica") + scale_colour_hc("darkunica")
 
 **Try it:** Apply theme_hc() with the "darkunica" style to a line chart of your own design using the economics dataset.
 
-```r
+```r title="Exercise solution: Theme with attribution caption"
 # Try it: Highcharts dark mode line chart
 ex_hc <- ggplot(economics, aes(date, unemploy)) +
   geom_line() +
@@ -366,7 +366,7 @@ ex_hc
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mistake: Theme call overrides scale"
 ex_hc <- ggplot(economics, aes(date, unemploy)) +
   geom_line(colour = "#2b908f", linewidth = 0.8) +
   labs(title = "US Unemployment Over Time",
@@ -386,7 +386,7 @@ ex_hc
 
 Every major ggthemes theme has a matching `scale_colour_*()` and `scale_fill_*()` function. Using the matching pair ensures colours work against the theme's background. Let's see what happens when you don't.
 
-```r
+```r title="Correct: Apply theme then scale"
 econ_wrong <- ggplot(mpg, aes(displ, hwy, colour = class)) +
   geom_point(size = 2) +
   labs(title = "Economist Theme — Default Colours") +
@@ -399,7 +399,7 @@ econ_wrong
 
 Some default colours disappear against the Economist's blue-gray background. Now compare with the proper pairing.
 
-```r
+```r title="Mistake: Missing package prefix"
 econ_right <- ggplot(mpg, aes(displ, hwy, colour = class)) +
   geom_point(size = 2) +
   labs(title = "Economist Theme — Matched Colours") +
@@ -418,7 +418,7 @@ The matched palette uses colours specifically chosen to contrast with the theme'
 
 The ggthemes package also includes several standalone colour palettes, these don't have a matching theme but are useful with any theme.
 
-```r
+```r title="Correct: Load ggthemes before use"
 ggplot(mpg, aes(displ, hwy, colour = class)) +
   geom_point(size = 2) +
   labs(title = "Tableau's 10-Colour Palette") +
@@ -430,7 +430,7 @@ ggplot(mpg, aes(displ, hwy, colour = class)) +
 
 The Tableau palette is one of the best categorical palettes available, its 10 colours are maximally distinct and work in both print and on screen. Another excellent option is scale_colour_colorblind(), which uses an 8-colour palette safe for all common forms of colour vision deficiency.
 
-```r
+```r title="Mistake: Matching palette to wrong theme"
 ggplot(mpg |> dplyr::filter(class %in% c("compact", "midsize", "suv", "pickup")),
        aes(displ, hwy, colour = class)) +
   geom_point(size = 2.5) +
@@ -445,7 +445,7 @@ If accessibility matters (and it should), scale_colour_colorblind() is a reliabl
 
 **Try it:** Apply scale_colour_colorblind() to a scatter plot of `hp` vs `mpg` from mtcars, coloured by `cyl`, using theme_minimal().
 
-```r
+```r title="Correct: Pair theme with its palette"
 # Try it: colorblind-safe scatter
 ex_cb <- ggplot(mtcars, aes(hp, mpg, colour = factor(cyl))) +
   geom_point(size = 2.5) +
@@ -458,7 +458,7 @@ ex_cb
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mistake: Themeexcel used in production"
 ex_cb <- ggplot(mtcars, aes(hp, mpg, colour = factor(cyl))) +
   geom_point(size = 2.5) +
   labs(title = "HP vs MPG — Colorblind-Safe",
@@ -480,7 +480,7 @@ ggthemes themes are starting points, not straitjackets. Layer `+ theme(...)` on 
 
 Every ggthemes theme function accepts a `base_size` argument that controls the overall text scaling. Adjust this first, then fine-tune individual elements.
 
-```r
+```r title="Correct: Use themeexcelnew only"
 ggplot(mpg, aes(class, fill = class)) +
   geom_bar(show.legend = FALSE) +
   labs(title = "Custom Economist Style",
@@ -504,7 +504,7 @@ The key is the order: first apply the ggthemes theme, then layer your `theme()` 
 
 For repeated use, wrap your customisations in a function.
 
-```r
+```r title="Mistake: Too many housestyle arguments"
 house_style <- function(base_size = 11) {
   list(
     theme_few(base_size = base_size),
@@ -532,7 +532,7 @@ Because the function returns a list of ggplot2 components, you add it with `+` j
 
 **Try it:** Take theme_fivethirtyeight() and customise it: move the legend to the bottom and set base_size to 10.
 
-```r
+```r title="Correct: Keep helper signature focused"
 # Try it: customised FiveThirtyEight theme
 ex_custom <- ggplot(mpg, aes(displ, hwy, colour = class)) +
   geom_point() +
@@ -546,7 +546,7 @@ ex_custom
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one: Economist facet by cylinders"
 ex_custom <- ggplot(mpg, aes(displ, hwy, colour = class)) +
   geom_point() +
   labs(title = "Custom FiveThirtyEight") +
@@ -578,7 +578,7 @@ The right theme depends on where your chart will end up. Here's a decision guide
 
 You can compare all themes at once by applying them in a loop. Here's a quick-reference approach.
 
-```r
+```r title="Exercise one solution: Faceted Economist plot"
 theme_list <- list(
   "Economist" = list(theme_economist(), scale_colour_economist()),
   "WSJ" = list(theme_wsj(), scale_colour_wsj()),
@@ -606,7 +606,7 @@ Cycle through the list to compare how each theme handles the same data. This is 
 
 **Try it:** Create a publication-ready scatter plot of `carat` vs `price` from the diamonds dataset (sample 200 rows), choosing the theme that best fits an academic journal context.
 
-```r
+```r title="Exercise two: Build myhousestyle helper"
 # Try it: academic-ready scatter plot
 set.seed(303)
 ex_acad_data <- diamonds[sample(nrow(diamonds), 200), ]
@@ -618,7 +618,7 @@ ex_acad_data <- diamonds[sample(nrow(diamonds), 200), ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: Personal house style function"
 set.seed(303)
 ex_acad_data <- diamonds[sample(nrow(diamonds), 200), ]
 
@@ -642,7 +642,7 @@ ggplot(ex_acad_data, aes(carat, price, colour = cut)) +
 
 Create a faceted bar chart from mtcars showing average horsepower by cylinder count, faceted by transmission type (`am`: 0 = automatic, 1 = manual). Use theme_economist() with matching fill scale. Override the facet strip text size to 9.
 
-```r
+```r title="Exercise three: Four themes in one grid"
 # Exercise 1: Economist faceted bar chart
 # Hint: group_by(cyl, am) |> summarise(), then facet_wrap(~am)
 
@@ -653,7 +653,7 @@ Create a faceted bar chart from mtcars showing average horsepower by cylinder co
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: Economist Tufte FiveThirtyEight WSJ"
 my_data <- mtcars |>
   dplyr::group_by(cyl, am) |>
   dplyr::summarise(avg_hp = mean(hp), .groups = "drop") |>
@@ -681,7 +681,7 @@ ggplot(my_data, aes(factor(cyl), avg_hp, fill = factor(cyl))) +
 
 Write a function called `my_house_style()` that wraps theme_few(), custom font sizes (title = bold 15, subtitle = gray italic 11), scale_colour_few("Medium"), and `coord_cartesian(clip = "off")`. Apply it to both a scatter plot and a bar chart to verify it works on different geoms.
 
-```r
+```r title="Capstone step one: Prepare quarterly sales data"
 # Exercise 2: build a reusable house style
 # Hint: return a list() of ggplot components
 
@@ -692,7 +692,7 @@ Write a function called `my_house_style()` that wraps theme_few(), custom font s
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step two: Base revenue line chart"
 my_house_style <- function(base_size = 11) {
   list(
     theme_few(base_size = base_size),
@@ -733,7 +733,7 @@ ggplot(mtcars, aes(factor(cyl), fill = factor(cyl))) +
 
 Create four versions of the same scatter plot (mtcars: `wt` vs `mpg`, coloured by `cyl`) using theme_economist(), theme_tufte(), theme_fivethirtyeight(), and theme_wsj(). Store each plot in a variable and print them sequentially.
 
-```r
+```r title="Capstone step three: Apply Economist theme"
 # Exercise 3: four-theme comparison
 # Hint: create p1, p2, p3, p4 with different themes
 
@@ -744,7 +744,7 @@ Create four versions of the same scatter plot (mtcars: `wt` vs `mpg`, coloured b
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step four: Add palette and caption"
 my_base <- ggplot(mtcars, aes(wt, mpg, colour = factor(cyl))) +
   geom_point(size = 2.5) +
   labs(x = "Weight", y = "MPG", colour = "Cyl")
@@ -775,7 +775,7 @@ p4
 
 Let's build a polished, publication-ready chart from scratch using ggthemes. We'll take raw data, summarise it, and style it into an Economist-worthy bar chart with custom overrides.
 
-```r
+```r title="Capstone: Quarterly revenue by region"
 set.seed(42)
 sales <- data.frame(
   quarter = rep(paste0("Q", 1:4), each = 3),

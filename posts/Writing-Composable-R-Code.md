@@ -26,7 +26,7 @@ This tutorial gives you five concrete rules for writing functions that snap toge
 
 Unix shell commands feel powerful in combination because every command reads from stdin and writes to stdout the same way. R can feel just as powerful once your functions follow a small set of shape rules. Here is a tiny end-to-end pipeline using nothing but composable building blocks, each function does one job, takes a data frame, and hands one back.
 
-```r
+```r title="Pipe-friendly dplyr pipeline"
 library(dplyr)
 
 summary_by_cyl <- mtcars |>
@@ -53,7 +53,7 @@ A function is composable when you can drop it into the middle of a pipe without 
 
 **Try it:** Write a 2-step pipe on `mtcars` that keeps rows where `cyl == 6` and then computes the mean `hp`. Save the result to `ex_mean_hp`.
 
-```r
+```r title="Exercise: Chain filter and summarise"
 # Try it: chain filter + summarise
 ex_mean_hp <- mtcars |>
   # your code here
@@ -65,7 +65,7 @@ ex_mean_hp
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean hp solution"
 ex_mean_hp <- mtcars |>
   filter(cyl == 6) |>
   summarise(mean_hp = mean(hp))
@@ -85,7 +85,7 @@ The first rule is the hardest one to follow because it asks you to resist conven
 
 Here is a "swiss army knife" function that does too many things. Notice how many concerns are tangled inside it.
 
-```r
+```r title="One function doing four jobs"
 # Bad: one function doing four jobs
 analyze_cars <- function(df, mpg_floor) {
   filtered <- df[df$mpg > mpg_floor, ]
@@ -106,7 +106,7 @@ Notice four problems jammed into seven lines. The function filters rows, derives
 
 Now refactor it into three small helpers that each do exactly one thing.
 
-```r
+```r title="Three single-purpose helpers"
 # Good: three single-purpose helpers
 filter_fast <- function(df, mpg_floor) {
   df[df$mpg > mpg_floor, ]
@@ -138,7 +138,7 @@ Each helper does one thing and you can describe it in a sentence: "filter rows a
 
 **Try it:** Write a function `ex_clean_mpg(df)` that drops rows where `mpg` is `NA` and only that. Test it on a tweaked `mtcars` where one row has `mpg = NA`.
 
-```r
+```r title="Exercise: Single-purpose cleanmpg"
 # Try it: write ex_clean_mpg() — single job only
 ex_clean_mpg <- function(df) {
   # your code here
@@ -153,7 +153,7 @@ nrow(ex_clean_mpg(ex_test))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="cleanmpg solution"
 ex_clean_mpg <- function(df) {
   df[!is.na(df$mpg), ]
 }
@@ -174,7 +174,7 @@ The second rule is mechanical but absolutely load-bearing for pipe-friendliness.
 
 Watch what happens when you put the data argument in the wrong position.
 
-```r
+```r title="Data first versus data last"
 # Data first — pipe-friendly
 add_kpl_first <- function(df, factor = 0.425) {
   df$kpl <- df$mpg * factor
@@ -205,7 +205,7 @@ The first call works because `mtcars` slots into `df`. The second call fails bec
 
 **Try it:** Write `ex_top_hp(df, n)` that returns the top-n rows of a data frame by `hp`. Make it pipe-friendly.
 
-```r
+```r title="Exercise: Data-first tophp"
 # Try it: data-first design
 ex_top_hp <- function(df, n) {
   # your code here
@@ -218,7 +218,7 @@ mtcars |> ex_top_hp(3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="tophp solution"
 ex_top_hp <- function(df, n) {
   df[order(-df$hp), ][1:n, ]
 }
@@ -246,7 +246,7 @@ The picture says it: pure transforms live in the middle of the pipeline and pass
 
 Here is a function that mutates a global variable as a side effect. It happens to "work" but it cannot be safely called twice.
 
-```r
+```r title="Hidden side-effect counter"
 # Bad: side effect mutates a global counter
 call_count <- 0
 
@@ -263,7 +263,7 @@ call_count
 
 The function does its math correctly but it secretly modifies `call_count` every time it runs. If you call it inside a pipe and then re-run the same pipe later, the counter keeps climbing, and now your "pure" data transformation has hidden state. Compare it with the pure version below.
 
-```r
+```r title="Pure scaler without globals"
 # Good: pure transform, no global state
 scale_col <- function(x) {
   (x - mean(x)) / sd(x)
@@ -280,7 +280,7 @@ The pure version takes a vector, returns a vector, and does nothing else. Run it
 
 **Try it:** Refactor `bad_log` below into a pure function that takes a numeric vector and returns its log10, with no globals.
 
-```r
+```r title="Exercise: Remove side-effect log"
 # Try it: remove the side effect
 log_count <- 0
 bad_log <- function(x) {
@@ -299,7 +299,7 @@ ex_log(c(1, 10, 100))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pure log solution"
 ex_log <- function(x) {
   log10(x)
 }
@@ -318,7 +318,7 @@ The fourth rule is about predictability. A function is *type-stable* when its ou
 
 The classic offender is `sapply()`. It tries to "do the right thing" by simplifying its result, which means you cannot predict its return type ahead of time.
 
-```r
+```r title="sapply type instability"
 # sapply: type-unstable
 result_full <- sapply(1:3, function(i) i * 2)
 class(result_full)
@@ -331,7 +331,7 @@ class(result_empty)
 
 Same function, two different return types, `integer` when there is data, `list` when the input is empty. If the next step in your pipe expects an integer vector, the empty case crashes with a confusing error and you spend an hour finding it. Type-stable alternatives let you declare the contract up front.
 
-```r
+```r title="vapply and mapdbl stable"
 library(purrr)
 
 # vapply: declare the output type
@@ -355,7 +355,7 @@ map_dbl(numeric(0), ~ .x * 2)
 
 **Try it:** Replace the `sapply()` call below with `purrr::map_dbl()` so the function always returns a numeric vector.
 
-```r
+```r title="Exercise: Type-stable string lengths"
 # Try it: make this type-stable
 ex_lengths <- function(strings) {
   # your code here — use map_dbl
@@ -368,7 +368,7 @@ ex_lengths(c("apple", "banana", "kiwi"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Type-stable solution"
 ex_lengths <- function(strings) {
   map_dbl(strings, nchar)
 }
@@ -391,7 +391,7 @@ The fifth rule is "small", keep each helper short enough that you can hold it in
 
 The diagram captures the whole idea. Each box is a function that takes a data frame and returns one. The arrows are `|>`. There is no special composition machinery, just functions that share a shape. Now let us build a real example with three small helpers and chain them on `iris`.
 
-```r
+```r title="Three small composable helpers"
 # Three small composable helpers
 drop_na_rows <- function(df) {
   df[complete.cases(df), ]
@@ -409,7 +409,7 @@ top_n_by <- function(df, col, n) {
 
 Each helper is short (1–4 lines), takes a data frame as its first argument, returns a data frame, and has no side effects. None of them know about the others. Now compose them.
 
-```r
+```r title="Compose helpers with pipe"
 iris_top <- iris |>
   drop_na_rows() |>
   z_scale("Sepal.Length") |>
@@ -432,7 +432,7 @@ Notice how the pipeline reads as a sentence: "drop NA rows, z-scale Sepal.Length
 
 **Try it:** Add a fourth helper `add_id(df)` that prepends a 1-based row id column called `row_id`. Chain it into the pipeline so the final result has `row_id` plus the existing columns.
 
-```r
+```r title="Exercise: Add row id helper"
 # Try it: extend the pipeline
 add_id <- function(df) {
   # your code here
@@ -449,7 +449,7 @@ iris |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Row id solution"
 add_id <- function(df) {
   df$row_id <- seq_len(nrow(df))
   df
@@ -479,7 +479,7 @@ These exercises stitch the five rules together. Use distinct variable names so t
 
 Below is a 12-line function that filters, scales, summarises, and prints. Refactor it into three composable helpers, `my_filter()`, `my_scale()`, `my_summary()`, plus one orchestrator that chains them. The orchestrator should return the result, not print it.
 
-```r
+```r title="Exercise: Refactor swissarmy function"
 # Refactor this:
 swiss_army <- function(df, weight_floor) {
   small <- df[df$wt > weight_floor, ]
@@ -496,7 +496,7 @@ swiss_army <- function(df, weight_floor) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Refactor solution"
 my_filter <- function(df, weight_floor) {
   df[df$wt > weight_floor, ]
 }
@@ -532,7 +532,7 @@ orchestrate(mtcars, 2.5)
 
 Write `scale_columns(df, cols)` that takes a data frame and a character vector of column names, returns a new data frame with those columns z-scaled, and leaves the other columns untouched. It must be type-stable (always returns a data frame), data-first, and side-effect-free. Then chain it on `iris` to scale `Sepal.Length` and `Petal.Length` together.
 
-```r
+```r title="Exercise: Scale multiple columns"
 # Build the scaler:
 scale_columns <- function(df, cols) {
   # your code here
@@ -548,7 +548,7 @@ iris |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="scalecolumns solution"
 scale_columns <- function(df, cols) {
   for (col in cols) {
     df[[col]] <- (df[[col]] - mean(df[[col]])) / sd(df[[col]])
@@ -579,7 +579,7 @@ Write three small helpers and chain them on `airquality` to produce a per-column
 
 Then call all three on `airquality` and assign the merged result to `quality_report`.
 
-```r
+```r title="Exercise: Quality report pipeline"
 # Three helpers + final chain
 count_missing <- function(df) {
   # your code here
@@ -602,7 +602,7 @@ quality_report
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Quality report solution"
 count_missing <- function(df) {
   data.frame(
     column = names(df),
@@ -651,7 +651,7 @@ quality_report
 
 Here is an end-to-end mini analysis on `starwars` that uses every rule. We will compute a body-mass index for human characters, summarise the average BMI by homeworld, and pull the top-3 homeworlds, using six small composable helpers.
 
-```r
+```r title="End-to-end starwars BMI"
 library(dplyr)
 
 # Six small helpers

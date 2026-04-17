@@ -42,7 +42,7 @@ The catch is that the shape you see depends entirely on `binwidth`. Too wide and
 
 Let's start by loading ggplot2 and creating a focused subset of the built-in `diamonds` dataset. We'll use price for most examples, and cut for grouping.
 
-```r
+```r title="Load ggplot2 and sample diamonds"
 # Load ggplot2 and prepare data
 library(ggplot2)
 
@@ -55,7 +55,7 @@ cat("Rows:", nrow(diamonds_sm), "| Price range:", min(diamonds_sm$price), "to", 
 
 Now let's build a histogram and experiment with `binwidth`. Pay attention to how the story changes.
 
-```r
+```r title="Three binwidths on the same data"
 # Histogram with three different binwidths to show the effect
 p_hist_narrow <- ggplot(diamonds_sm, aes(x = price)) +
   geom_histogram(binwidth = 200, fill = "#4B6FA5", colour = "white") +
@@ -77,7 +77,7 @@ The right-skewed distribution is clear: most diamonds are priced under $3,000, w
 
 **Try it:** Change `binwidth` to `500` and then `2000` in the histogram above. At which value does the spike around $5,000 first disappear?
 
-```r
+```r title="Exercise: binwidth 500 versus 2000"
 # Try it: experiment with binwidth
 ex_hist <- ggplot(diamonds_sm, aes(x = price)) +
   geom_histogram(binwidth = 500, fill = "#E07B54", colour = "white") +  # change me
@@ -89,7 +89,7 @@ ex_hist <- ggplot(diamonds_sm, aes(x = price)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Binwidth-comparison solution"
 # binwidth = 500: spike visible
 ggplot(diamonds_sm, aes(x = price)) +
   geom_histogram(binwidth = 500, fill = "#E07B54", colour = "white") +
@@ -111,7 +111,7 @@ A density plot is a smoothed version of a histogram. Instead of counting observa
 
 The key parameter is `adjust`, which scales the automatic bandwidth. `adjust = 1` (default) is the standard Silverman bandwidth. `adjust = 0.5` gives a tighter fit; `adjust = 2` gives a smoother curve. Unlike `binwidth`, there's no "frequency" on the y-axis, values represent density, not count.
 
-```r
+```r title="Density with two adjust values"
 # Density plot with different adjust values
 p_density <- ggplot(diamonds_sm, aes(x = price)) +
   geom_density(adjust = 1, fill = "#4B6FA5", alpha = 0.4, colour = "#4B6FA5") +
@@ -126,7 +126,7 @@ The default curve (adjust = 1) reveals the right skew and the slight shoulder ar
 
 Now here's a powerful combination: overlay the density curve on a histogram to get both exact counts and the smoothed shape. The trick is to use `y = after_stat(density)` on the histogram so both layers share the same y-scale.
 
-```r
+```r title="Histogram with density overlay"
 # Overlay: histogram + density curve
 p_overlay <- ggplot(diamonds_sm, aes(x = price)) +
   geom_histogram(aes(y = after_stat(density)), binwidth = 500,
@@ -145,7 +145,7 @@ The overlay is ideal for reports: it gives readers the raw data feel of a histog
 
 **Try it:** Change `adjust` to `0.25` in `geom_density()`. How many peaks appear in the price distribution?
 
-```r
+```r title="Exercise: very tight bandwidth"
 # Try it: very tight bandwidth — what structure is revealed?
 ex_density <- ggplot(diamonds_sm, aes(x = price)) +
   geom_density(adjust = 0.25, fill = "#6BAE6E", alpha = 0.4) +  # your code here: change adjust
@@ -157,7 +157,7 @@ print(ex_density)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tight-bandwidth solution"
 ex_density <- ggplot(diamonds_sm, aes(x = price)) +
   geom_density(adjust = 0.25, fill = "#6BAE6E", alpha = 0.4) +
   labs(title = "adjust = 0.25 — many peaks", x = "Price (USD)", y = "Density")
@@ -177,7 +177,7 @@ A boxplot compresses your entire distribution into five numbers: minimum (or low
 
 Boxplots excel at comparing multiple groups side by side. The box covers the interquartile range (IQR = Q3 − Q1), which contains the middle 50% of your data. The whiskers extend to 1.5× IQR. Any point beyond that is an outlier.
 
-```r
+```r title="Boxplot of price by cut quality"
 # Grouped boxplot: price by cut quality
 p_box <- ggplot(diamonds_sm, aes(x = cut, y = price, fill = cut)) +
   geom_boxplot(alpha = 0.7, outlier.alpha = 0.3, outlier.size = 1) +
@@ -197,7 +197,7 @@ Notice something counterintuitive: Fair cut diamonds appear to have a *higher* m
 
 **Try it:** Replace `cut` with `color` in the boxplot above. Which color grade has the highest median price?
 
-```r
+```r title="Exercise: boxplot by colour grade"
 # Try it: boxplot by diamond color grade
 ex_box <- ggplot(diamonds_sm, aes(x = color, y = price, fill = color)) +
   geom_boxplot(alpha = 0.7) +
@@ -211,7 +211,7 @@ print(ex_box)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Colour-grade solution"
 ex_box <- ggplot(diamonds_sm, aes(x = color, y = price, fill = color)) +
   geom_boxplot(alpha = 0.7, outlier.alpha = 0.3) +
   scale_fill_brewer(palette = "Purples") +
@@ -231,7 +231,7 @@ A violin plot is a boxplot that grew a density plot on each side. Where a boxplo
 
 Violins are ideal when you have at least 100 observations per group and you suspect or want to reveal multimodality. They can be misleading with very small groups because the kernel density estimate implies a smooth shape that the data doesn't actually support.
 
-```r
+```r title="Violin with embedded boxplot"
 # Violin plot with embedded mini-boxplot
 p_violin <- ggplot(diamonds_sm, aes(x = cut, y = price, fill = cut)) +
   geom_violin(alpha = 0.6, trim = FALSE) +
@@ -253,7 +253,7 @@ The violin reveals something the boxplot hides: several cut categories have a bi
 
 **Try it:** Add `scale_y_log10()` to the violin plot above to handle the extreme right skew. Does the bimodal shape become clearer or less clear on a log scale?
 
-```r
+```r title="Exercise: violin on a log scale"
 # Try it: violin plot on log scale
 ex_violin <- ggplot(diamonds_sm, aes(x = cut, y = price, fill = cut)) +
   geom_violin(alpha = 0.6, trim = FALSE) +
@@ -269,7 +269,7 @@ print(ex_violin)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Log-scale-violin solution"
 ex_violin <- ggplot(diamonds_sm, aes(x = cut, y = price, fill = cut)) +
   geom_violin(alpha = 0.6, trim = FALSE) +
   geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.8) +
@@ -289,7 +289,7 @@ print(ex_violin)
 ### Mistake 1: Forgetting that `geom_histogram()` default bins may hide structure
 
 ❌ **Wrong:**
-```r
+```r title="Common mistake: default 30 bins"
 ggplot(diamonds_sm, aes(x = price)) + geom_histogram()
 #> `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
 ```
@@ -297,7 +297,7 @@ ggplot(diamonds_sm, aes(x = price)) + geom_histogram()
 **Why it's wrong:** The default 30 bins may be too coarse for your data range. The warning is ggplot2's way of telling you to think about this, but many users ignore it.
 
 ✅ **Correct:**
-```r
+```r title="Correct: explicit binwidth"
 ggplot(diamonds_sm, aes(x = price)) +
   geom_histogram(binwidth = 500, colour = "white") +
   labs(x = "Price (USD)", y = "Count")
@@ -310,7 +310,7 @@ ggplot(diamonds_sm, aes(x = price)) +
 **Why it's wrong:** With small samples, the kernel density estimate is highly sensitive to individual data points. The curve implies smooth structure that isn't there.
 
 ✅ **Correct:** Use `geom_histogram()` for n < 200. If you must use density, add a rug plot (`geom_rug()`) to show where the actual data points are:
-```r
+```r title="Density plus rug for small samples"
 ggplot(small_df, aes(x = value)) +
   geom_density(fill = "#4B6FA5", alpha = 0.4) +
   geom_rug(alpha = 0.5) +
@@ -322,7 +322,7 @@ ggplot(small_df, aes(x = value)) +
 ❌ **Wrong:** Making four separate `geom_histogram()` plots, one per group, and eyeballing the comparison.
 
 ✅ **Correct:** Use `facet_wrap()` with free y-scales if counts differ, or use `geom_density()` with `fill = group, alpha = 0.3` for overlapping densities:
-```r
+```r title="Overlapping densities by group"
 ggplot(diamonds_sm, aes(x = price, fill = cut)) +
   geom_density(alpha = 0.3) +
   labs(x = "Price (USD)", y = "Density")
@@ -331,7 +331,7 @@ ggplot(diamonds_sm, aes(x = price, fill = cut)) +
 ### Mistake 4: Using `colour` instead of `fill` for filled geoms
 
 ❌ **Wrong:**
-```r
+```r title="Common mistake: colour instead of fill"
 ggplot(diamonds_sm, aes(x = price)) +
   geom_histogram(colour = "#4B6FA5")   # This sets border, not fill!
 ```
@@ -339,7 +339,7 @@ ggplot(diamonds_sm, aes(x = price)) +
 **Why it's wrong:** `colour` controls the bar border; `fill` controls the interior. The result is a histogram with coloured outlines but grey fills.
 
 ✅ **Correct:**
-```r
+```r title="Correct: fill plus colour border"
 ggplot(diamonds_sm, aes(x = price)) +
   geom_histogram(fill = "#4B6FA5", colour = "white", binwidth = 500)
 ```
@@ -356,7 +356,7 @@ When `fill = cut` is set, ggplot2 adds a legend by default. For grouped boxplots
 
 You're given the `airquality` dataset. Create three plots for the `Ozone` variable: a histogram (binwidth = 10), a density plot (adjust = 0.8), and a boxplot. Arrange them using `patchwork` or display them individually. Describe in a comment what shape the distribution has.
 
-```r
+```r title="Exercise: three charts of Ozone"
 # Exercise 1: Distribution audit of airquality$Ozone
 library(patchwork)
 
@@ -378,7 +378,7 @@ my_hist <- ggplot(my_air, aes(x = Ozone)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ozone-triptych solution"
 library(patchwork)
 my_air <- na.omit(airquality[, c("Ozone", "Month")])
 
@@ -407,7 +407,7 @@ my_hist + my_density + my_box
 
 Using `airquality`, compare the `Temp` variable across months (convert `Month` to a factor). Create a side-by-side comparison: a grouped boxplot on the left and a violin + boxplot on the right. Which months have the most symmetric distributions?
 
-```r
+```r title="Exercise: boxplot versus violin by month"
 # Exercise 2: Boxplot vs violin for temperature by month
 my_air2 <- airquality
 my_air2$Month <- factor(my_air2$Month, labels = c("May", "Jun", "Jul", "Aug", "Sep"))
@@ -427,7 +427,7 @@ my_bp <- ggplot(my_air2, aes(x = Month, y = Temp, fill = Month)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Month-comparison solution"
 my_air2 <- airquality
 my_air2$Month <- factor(my_air2$Month, labels = c("May", "Jun", "Jul", "Aug", "Sep"))
 
@@ -456,7 +456,7 @@ my_bp + my_vp
 
 Let's build a complete distribution analysis of the `mpg` dataset, working through all four chart types in a coherent narrative. We'll look at city fuel efficiency (`cty`) across vehicle classes.
 
-```r
+```r title="Faceted mpg fuel-efficiency analysis"
 # Complete example: fuel efficiency distribution analysis
 # All four chart types on the same data
 

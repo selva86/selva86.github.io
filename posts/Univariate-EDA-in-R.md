@@ -24,7 +24,7 @@ sidebar_order: 21
 
 Before you build a model, ask a simpler question: what does each column actually contain? A quick summary reveals the range, typical values, and immediate red flags, like a minimum of -999 that screams "missing data in disguise." Let's start with the `airquality` dataset, which tracks daily air measurements in New York across the summer of 1973.
 
-```r
+```r title="First look with summary"
 # Quick vital signs for every column
 aq <- airquality
 summary(aq)
@@ -52,7 +52,7 @@ Right away you can see that Ozone has 37 missing values and Solar.R has 7. Ozone
 
 Now let's check the data types, because the analysis strategy depends on whether a variable is numeric, integer, or factor.
 
-```r
+```r title="Structure of the data frame"
 # Check structure and types
 str(aq)
 #> 'data.frame':	153 obs. of  6 variables:
@@ -68,7 +68,7 @@ Ozone, Solar.R, Temp, Month, and Day are integers. Wind is numeric (has decimals
 
 **Try it:** Run `summary()` on the built-in `mtcars` dataset and identify which variable has the largest range (max minus min).
 
-```r
+```r title="Exercise: range of mtcars columns"
 # Try it: find the variable with the largest range in mtcars
 summary(mtcars)
 # Look at min and max for each variable
@@ -78,7 +78,7 @@ summary(mtcars)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 # Check the range of each variable
 sapply(mtcars, function(x) max(x) - min(x))
 #>     mpg     cyl    disp      hp    drat      wt    qsec      vs      am
@@ -95,7 +95,7 @@ sapply(mtcars, function(x) max(x) - min(x))
 
 Numbers alone can't tell you whether a variable is bell-shaped, has two peaks, or trails off to the right. You need a picture. The histogram is the workhorse of univariate visualization, it chops the range into bins and counts how many observations fall in each.
 
-```r
+```r title="Histogram of ozone"
 # Histogram of Ozone — the shape tells the story
 hist(aq$Ozone,
      main = "Distribution of Ozone Levels",
@@ -110,7 +110,7 @@ The histogram reveals a strongly right-skewed distribution. Most days have ozone
 
 A density plot gives you a smoother view of the same information. Think of it as a histogram with infinitely narrow bins, it traces the underlying curve.
 
-```r
+```r title="Density curve of ozone"
 # Density plot — a smoothed view of the distribution
 ozone_clean <- aq$Ozone[!is.na(aq$Ozone)]
 plot(density(ozone_clean),
@@ -129,7 +129,7 @@ The density confirms one clear peak around 20 ppb with a long right tail. There'
 
 You can also overlay a density curve onto a histogram for the best of both worlds. The trick is to set `freq = FALSE` in the histogram so the y-axis shows density instead of counts.
 
-```r
+```r title="Overlay density on histogram"
 # Histogram + density overlay
 hist(ozone_clean,
      freq = FALSE,
@@ -146,7 +146,7 @@ lines(density(ozone_clean), col = "darkred", lwd = 2)
 
 **Try it:** Create a histogram of `airquality$Temp` with 15 breaks. Is the distribution symmetric, left-skewed, or right-skewed?
 
-```r
+```r title="Exercise: histogram of temp"
 # Try it: histogram of Temp
 hist(aq$Temp, breaks = 15,
      main = "Distribution of Temperature",
@@ -158,7 +158,7 @@ hist(aq$Temp, breaks = 15,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 hist(aq$Temp, breaks = 15,
      main = "Distribution of Temperature",
      xlab = "Temperature (F)",
@@ -181,7 +181,7 @@ You've seen the histogram, but how do you *quantify* "how skewed is this?" That'
 
 Let's compute both for Ozone using base R.
 
-```r
+```r title="Manual skewness and kurtosis"
 # Skewness: how asymmetric is the distribution?
 n <- length(ozone_clean)
 skew_ozone <- (sum((ozone_clean - mean(ozone_clean))^3) / n) /
@@ -219,7 +219,7 @@ Here's a quick reference for interpreting these numbers:
 
 **Try it:** Compute the skewness of `airquality$Wind` (no NAs in Wind, so no filtering needed). Is it symmetric, left-skewed, or right-skewed?
 
-```r
+```r title="Exercise: wind skewness"
 # Try it: skewness of Wind
 ex_wind <- aq$Wind
 ex_n <- length(ex_wind)
@@ -232,7 +232,7 @@ cat("Skewness of Wind:", round(ex_skew, 3))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_wind <- aq$Wind
 ex_n <- length(ex_wind)
 ex_skew <- (sum((ex_wind - mean(ex_wind))^3) / ex_n) /
@@ -251,7 +251,7 @@ Outliers aren't automatically "bad data." A temperature of 115°F in Phoenix is 
 
 The boxplot is the classic outlier detector. It draws a box from the 25th to 75th percentile (the IQR), with whiskers extending to 1.5 × IQR beyond each edge. Anything past the whiskers gets flagged as an outlier.
 
-```r
+```r title="Boxplot highlighting outliers"
 # Boxplot with outlier values
 bp <- boxplot(aq$Ozone,
         main = "Boxplot of Ozone Levels",
@@ -267,7 +267,7 @@ Three values, 115, 135, and 168, sit above the upper whisker. These are the high
 
 Let's identify these outliers programmatically using the IQR rule so you can apply this to any variable.
 
-```r
+```r title="Compute IQR fence bounds"
 # Programmatic outlier detection with the IQR rule
 Q1 <- quantile(ozone_clean, 0.25)
 Q3 <- quantile(ozone_clean, 0.75)
@@ -296,7 +296,7 @@ The lower bound is negative (impossible for ozone), so there are no low-end outl
 
 One safe alternative to deletion is **winsorizing**, capping outliers at the whisker boundaries rather than removing them.
 
-```r
+```r title="Winsorise values to bounds"
 # Winsorize: cap extreme values at the boundaries
 ozone_capped <- ozone_clean
 ozone_capped[ozone_capped > upper] <- upper
@@ -316,7 +316,7 @@ Capping brought the maximum down from 168 to 131 and barely moved the mean (42.1
 
 **Try it:** Use the IQR rule to find outliers in `airquality$Wind`. How many outliers does Wind have?
 
-```r
+```r title="Exercise: IQR outliers in wind"
 # Try it: outlier detection for Wind
 ex_Q1 <- quantile(aq$Wind, 0.25)
 ex_Q3 <- quantile(aq$Wind, 0.75)
@@ -329,7 +329,7 @@ ex_upper <- ex_Q3 + 1.5 * ex_iqr
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_Q1 <- quantile(aq$Wind, 0.25)
 ex_Q3 <- quantile(aq$Wind, 0.75)
 ex_iqr <- ex_Q3 - ex_Q1
@@ -352,7 +352,7 @@ Missing data is the silent problem in most datasets. A variable with 5% missing 
 
 Let's count the damage across all columns.
 
-```r
+```r title="Missing counts and percentages"
 # Count and percentage of NAs per column
 na_counts <- colSums(is.na(aq))
 na_pct <- round(100 * na_counts / nrow(aq), 1)
@@ -372,7 +372,7 @@ data.frame(
 
 Ozone has 24.2% missing, that's significant but workable. Solar.R has 4.6%, easy to impute. The other four columns are complete. A visual makes the pattern even clearer.
 
-```r
+```r title="Barplot of missing percentages"
 # Visual: missing data bar plot
 barplot(na_pct[na_pct > 0],
         main = "Missing Data by Variable",
@@ -392,7 +392,7 @@ The dashed lines mark common thresholds: below 5% is "impute and forget," 5-20% 
 
 **Try it:** Write code to find which rows have NAs in *both* Ozone and Solar.R simultaneously. How many rows have both missing?
 
-```r
+```r title="Exercise: rows missing both ozone and solar"
 # Try it: rows with NAs in both Ozone AND Solar.R
 ex_both_na <- aq[is.na(aq$Ozone) & is.na(aq$Solar.R), ]
 # your code here: how many rows?
@@ -401,7 +401,7 @@ ex_both_na <- aq[is.na(aq$Ozone) & is.na(aq$Solar.R), ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_both_na <- aq[is.na(aq$Ozone) & is.na(aq$Solar.R), ]
 cat("Rows with both Ozone and Solar.R missing:", nrow(ex_both_na), "\n")
 ex_both_na
@@ -421,7 +421,7 @@ A skewed variable can distort model coefficients, inflate variance, and violate 
 
 The two most common transformations are **log** (for strong right skew) and **square root** (for moderate right skew). Let's see how they work on Ozone.
 
-```r
+```r title="Log transform with side by side plots"
 # Log transformation: before and after
 ozone_log <- log(ozone_clean)
 
@@ -437,7 +437,7 @@ par(mfrow = c(1, 1))
 
 The log transform dramatically reduces the right skew. Let's confirm with numbers.
 
-```r
+```r title="Skewness before and after transforms"
 # Compare skewness: original vs. log vs. sqrt
 ozone_sqrt <- sqrt(ozone_clean)
 
@@ -465,7 +465,7 @@ The log transform brought skewness from 1.21 all the way to -0.06, nearly perfec
 
 A Q-Q plot gives you one more visual check. If the points follow the diagonal line, the data is approximately normal.
 
-```r
+```r title="Normal Q Q plots"
 # Q-Q plots: before and after log transform
 par(mfrow = c(1, 2))
 qqnorm(ozone_clean, main = "Q-Q Plot: Original Ozone", pch = 16, col = "steelblue")
@@ -481,7 +481,7 @@ The original Q-Q plot shows the characteristic upward curve of right-skewed data
 
 **Try it:** Apply a sqrt transformation to `airquality$Wind` and compare the Q-Q plots before and after. Does Wind need a transformation?
 
-```r
+```r title="Exercise: square root transform on wind"
 # Try it: Q-Q plots for Wind — before and after sqrt
 ex_wind_sqrt <- sqrt(aq$Wind)
 par(mfrow = c(1, 2))
@@ -496,7 +496,7 @@ par(mfrow = c(1, 1))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_wind_sqrt <- sqrt(aq$Wind)
 par(mfrow = c(1, 2))
 qqnorm(aq$Wind, main = "Q-Q: Original Wind", pch = 16, col = "steelblue")
@@ -517,7 +517,7 @@ Not every variable is numeric. Factor and character columns need a different too
 
 Let's treat `mtcars$cyl` (number of cylinders: 4, 6, or 8) as a categorical variable.
 
-```r
+```r title="Frequency and proportion tables"
 # Frequency table and proportions
 cyl_table <- table(mtcars$cyl)
 cyl_table
@@ -533,7 +533,7 @@ Eight-cylinder cars make up 44% of the dataset, four-cylinder cars 34%, and six-
 
 A bar plot makes the comparison visual.
 
-```r
+```r title="Barplot of cylinder counts"
 # Bar plot of cylinder frequencies
 barplot(cyl_table,
         main = "Car Count by Number of Cylinders",
@@ -551,7 +551,7 @@ The distribution is reasonably balanced. If one level had contained 95% of obser
 
 **Try it:** Create a frequency table for `mtcars$gear`. Which gear count is least common?
 
-```r
+```r title="Exercise: gear frequency table"
 # Try it: frequency table for gear
 ex_gear_table <- table(mtcars$gear)
 ex_gear_table
@@ -561,7 +561,7 @@ ex_gear_table
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_gear_table <- table(mtcars$gear)
 ex_gear_table
 #>  3  4  5
@@ -578,7 +578,7 @@ ex_gear_table
 
 Create a complete univariate profile of `mtcars$mpg`: compute mean, median, standard deviation, skewness, and outlier count (using the IQR rule). Then create a histogram and a boxplot side by side. Summarize your findings in a comment.
 
-```r
+```r title="Practice one: full mpg profile"
 # Exercise 1: Full univariate profile of mtcars$mpg
 # Hint: combine summary stats + skewness + IQR outlier detection + plots
 
@@ -589,7 +589,7 @@ Create a complete univariate profile of `mtcars$mpg`: compute mean, median, stan
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice one solution"
 my_mpg <- mtcars$mpg
 
 # Summary stats
@@ -636,7 +636,7 @@ par(mfrow = c(1, 1))
 
 Write a function `my_profile(x)` that takes a numeric vector and prints: the mean, median, standard deviation, skewness, number of outliers (IQR rule), and missing percentage. Then apply it to every numeric column of `airquality` using `sapply()`.
 
-```r
+```r title="Practice two: reusable my profile"
 # Exercise 2: Create a reusable univariate profile function
 # Hint: define the function, then use sapply(aq[, 1:4], my_profile)
 
@@ -647,7 +647,7 @@ Write a function `my_profile(x)` that takes a numeric vector and prints: the mea
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice two solution"
 my_profile <- function(x) {
   x_clean <- x[!is.na(x)]
   n <- length(x_clean)
@@ -688,7 +688,7 @@ sapply(aq[, 1:4], my_profile)
 
 For `iris$Sepal.Width`: detect outliers with the IQR rule, apply a log transform, compare Q-Q plots before and after, and state whether the transformation improved normality.
 
-```r
+```r title="Practice three: iris sepal width log"
 # Exercise 3: iris$Sepal.Width — outliers + transformation
 # Hint: IQR outlier detection, then log transform, then qqnorm/qqline
 
@@ -699,7 +699,7 @@ For `iris$Sepal.Width`: detect outliers with the IQR rule, apply a log transform
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice three solution"
 my_sw <- iris$Sepal.Width
 
 # Outlier detection
@@ -746,7 +746,7 @@ Let's walk through a complete univariate analysis on `airquality$Ozone`, the ful
 
 *Figure 1: The univariate EDA workflow: one variable at a time, from raw data to modelling-ready.*
 
-```r
+```r title="End-to-end ozone workflow"
 # === Complete Univariate EDA: airquality$Ozone ===
 
 # Step 1: Summary stats

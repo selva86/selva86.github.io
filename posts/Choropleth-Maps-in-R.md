@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Every choropleth has two ingredients: polygon geometry that draws region boundaries and a data column that controls the fill colour. You join them by a shared region identifier, then hand the result to ggplot2. Let's jump straight in with a world map coloured by GDP per capita.
 
-```r
+```r title="Load sf polygons and GDP data"
 # Load packages
 library(sf)
 library(ggplot2)
@@ -69,7 +69,7 @@ The map instantly reveals the wealth gap: Norway, the US, and Australia light up
 
 Let's peek at what the joined data looks like under the hood.
 
-```r
+```r title="Inspect joined sf object"
 # Inspect the joined sf object
 world_gdp |>
   filter(!is.na(gdp_per_capita)) |>
@@ -87,7 +87,7 @@ Each row holds a country name, the GDP value, and a geometry column containing t
 
 **Try it:** Add a `population` column to `gdp_data` for any 5 countries and join it to `world_sf`. Plot a choropleth filled by population instead of GDP per capita.
 
-```r
+```r title="Exercise: Map world population"
 # Try it: add population and map it
 ex_pop_data <- data.frame(
   ID = c("USA", "China", "India", "Brazil", "Japan"),
@@ -104,7 +104,7 @@ ex_world_pop <- world_sf |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="World population map solution"
 ex_pop_data <- data.frame(
   ID = c("USA", "China", "India", "Brazil", "Japan"),
   population = c(331000000, 1412000000, 1408000000, 214000000, 125000000)
@@ -130,7 +130,7 @@ ggplot(ex_world_pop) +
 
 The `maps` package includes US state boundaries ready to convert. The main gotcha is that state names come back in lowercase, your data source might use title case or abbreviations, so you need to normalise before joining.
 
-```r
+```r title="Build US state income map"
 # Build US state geometry
 us_states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 
@@ -179,7 +179,7 @@ The coastal wealth corridor jumps out immediately, Maryland, New Jersey, Massach
 
 You can also highlight specific states to draw attention to particular findings.
 
-```r
+```r title="Highlight top five income states"
 # Highlight the top 5 highest-income states
 top5 <- state_income |>
   arrange(desc(median_income)) |>
@@ -204,7 +204,7 @@ The trick is layering a second geom_sf() with `fill = NA` and a bold border colo
 
 **Try it:** Highlight the 5 *lowest*-income states with a blue border instead of red.
 
-```r
+```r title="Exercise: Highlight bottom five states"
 # Try it: highlight bottom 5 states
 ex_bottom5 <- state_income |>
   arrange(median_income) |>
@@ -218,7 +218,7 @@ ex_bottom5 <- state_income |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bottom five highlight solution"
 ex_bottom5 <- state_income |>
   arrange(median_income) |>
   head(5) |>
@@ -248,7 +248,7 @@ Not all maps come from built-in datasets. Sometimes you need district-level, zip
 
 Let's simulate six rectangular districts and colour them by a performance score.
 
-```r
+```r title="Custom rectangular district polygons"
 # Create 6 rectangular district polygons in a 3x2 grid
 make_rect <- function(x, y, w = 1, h = 1) {
   st_polygon(list(matrix(c(x, y, x+w, y, x+w, y+h, x, y+h, x, y),
@@ -288,7 +288,7 @@ Adding labels with geom_sf_text() makes the map self-explanatory, readers don't 
 
 **Try it:** Add a seventh district polygon at position (3, 0) with a score of 73 and label it "District G".
 
-```r
+```r title="Exercise: Add District G"
 # Try it: add District G
 ex_new_poly <- make_rect(3, 0)
 ex_new_row <- data.frame(district = "District G", score = 73)
@@ -300,7 +300,7 @@ ex_new_row <- data.frame(district = "District G", score = 73)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Add District G solution"
 ex_new_poly <- make_rect(3, 0)
 ex_new_sf <- st_sf(
   data.frame(district = "District G", score = 73),
@@ -333,7 +333,7 @@ Colour choices can make or break a choropleth. A poor palette hides patterns or 
 
 **Sequential scales** work for data that goes from low to high, income, temperature, population density. The viridis family (viridis, plasma, inferno, mako) is the gold standard because the colours are perceptually uniform: equal steps in data produce equal steps in perceived brightness.
 
-```r
+```r title="Sequential viridis income map"
 # Sequential: viridis on US state income
 ggplot(us_income) +
   geom_sf(aes(fill = median_income), colour = "white", linewidth = 0.3) +
@@ -348,7 +348,7 @@ ggplot(us_income) +
 
 **Diverging scales** are for data with a meaningful centre point, temperature anomalies (above/below average), election margins (red vs blue), or deviation from a target.
 
-```r
+```r title="Diverging RdBu deviation scale"
 # Diverging: show deviation from national median
 national_median <- median(state_income$median_income, na.rm = TRUE)
 
@@ -370,7 +370,7 @@ Red states fall below the national median, blue states sit above it, and the pal
 
 **Categorical scales** suit grouped data, regions, political parties, climate zones.
 
-```r
+```r title="Categorical Census region map"
 # Categorical: colour US states by Census region
 us_regions <- us_states |>
   mutate(region = case_when(
@@ -401,7 +401,7 @@ ggplot(us_regions) +
 
 **Try it:** Apply the "inferno" viridis palette to the US income map and reverse its direction so that high income appears dark instead of bright.
 
-```r
+```r title="Exercise: Inferno reversed palette"
 # Try it: inferno palette, reversed direction
 # Hint: scale_fill_viridis_c(option = "inferno", direction = ?)
 
@@ -415,7 +415,7 @@ ggplot(us_income) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Inferno reversed palette solution"
 ggplot(us_income) +
   geom_sf(aes(fill = median_income), colour = "white", linewidth = 0.3) +
   scale_fill_viridis_c(option = "inferno", direction = -1,
@@ -435,7 +435,7 @@ Large regions dominate visual attention on a choropleth. Russia and Canada fill 
 
 The fix has two parts: normalise your data (use rates, not raw counts) and bin skewed distributions.
 
-```r
+```r title="Raw GDP shows area bias"
 # Add raw GDP (not per capita) to show the bias
 world_bias <- world_gdp |>
   filter(!is.na(gdp_per_capita)) |>
@@ -467,7 +467,7 @@ p1
 #>  The map says "big economies" not "rich people".]
 ```
 
-```r
+```r title="GDP per capita fair map"
 p2
 #> [World map: Norway, USA, Australia light up. China and India are dark
 #>  despite huge raw GDP. This tells the per-person story.]
@@ -484,7 +484,7 @@ The raw GDP map screams "USA and China are dominant", but that just reflects pop
 
 When your data is highly skewed, a linear colour scale compresses most values into one narrow band. Binning restores visible variation.
 
-```r
+```r title="Quantile-binned choropleth"
 # Bin GDP per capita into 5 quantile groups
 world_binned <- world_gdp |>
   filter(!is.na(gdp_per_capita)) |>
@@ -509,7 +509,7 @@ Binning into quantiles ensures each colour band contains roughly the same number
 
 **Try it:** Bin GDP per capita into 5 quantile groups using cut() and map them with scale_fill_manual() using your own 5-colour palette.
 
-```r
+```r title="Exercise: Custom five-colour bins"
 # Try it: custom 5-colour binned choropleth
 ex_binned <- world_gdp |>
   filter(!is.na(gdp_per_capita)) |>
@@ -525,7 +525,7 @@ ex_binned <- world_gdp |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Custom five-colour bins solution"
 ex_binned <- world_gdp |>
   filter(!is.na(gdp_per_capita)) |>
   mutate(ex_bin = cut(gdp_per_capita,
@@ -551,7 +551,7 @@ ggplot(ex_binned) +
 
 A raw choropleth works for exploration, but a presentation-ready map needs clean styling. The key tools are theme_void() to remove distracting axes, labs() for annotation, and coord_sf() to frame the view.
 
-```r
+```r title="Polished US income choropleth"
 # Polished US state income map
 ggplot(us_income) +
   geom_sf(aes(fill = median_income), colour = "grey50", linewidth = 0.2) +
@@ -579,7 +579,7 @@ ggplot(us_income) +
 
 Sometimes you need to crop the view. For US maps, Alaska and Hawaii throw off the continental layout. Use coord_sf() with longitude/latitude limits to zoom in.
 
-```r
+```r title="Crop to continental US"
 # Crop to continental US (exclude Alaska, Hawaii)
 ggplot(us_income) +
   geom_sf(aes(fill = median_income), colour = "grey50", linewidth = 0.2) +
@@ -597,7 +597,7 @@ The cropped view gives more visual real estate to the densely packed eastern sta
 
 **Try it:** Add a caption crediting "US Census Bureau" as the data source and move the legend to the bottom-left corner.
 
-```r
+```r title="Exercise: Add caption, move legend"
 # Try it: add caption and reposition legend
 ggplot(us_income) +
   geom_sf(aes(fill = median_income), colour = "grey50", linewidth = 0.2) +
@@ -610,7 +610,7 @@ ggplot(us_income) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Caption and legend solution"
 ggplot(us_income) +
   geom_sf(aes(fill = median_income), colour = "grey50", linewidth = 0.2) +
   scale_fill_viridis_c(option = "plasma", labels = scales::dollar) +
@@ -635,7 +635,7 @@ ggplot(us_income) +
 
 Create a world choropleth showing life expectancy for at least 12 countries. Use inline data, a viridis sequential scale, and theme_void(). Add a title and move the legend to the bottom.
 
-```r
+```r title="Exercise 1: Life expectancy map"
 # Exercise 1: Life expectancy world map
 # Hint: create a data frame with columns ID and life_exp,
 #       join to world_sf, plot with geom_sf(aes(fill = ...))
@@ -647,7 +647,7 @@ Create a world choropleth showing life expectancy for at least 12 countries. Use
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Life expectancy map solution"
 life_data <- data.frame(
   ID = c("USA", "Canada", "Japan", "Germany", "Brazil",
          "India", "China", "Australia", "Nigeria", "UK",
@@ -677,7 +677,7 @@ ggplot(world_life) +
 
 Build a US state map showing how each state's median income deviates from the national median. Bin the deviation into 5 categories: "Much Below" (< -$10K), "Below" (-$10K to -$2K), "Near Median" (-$2K to +$2K), "Above" (+$2K to +$10K), and "Much Above" (> +$10K). Use a diverging RdBu palette with scale_fill_manual().
 
-```r
+```r title="Exercise 2: Binned diverging map"
 # Exercise 2: Binned diverging map
 # Hint: compute deviation, use cut() with specific breaks,
 #       then scale_fill_manual() with 5 colours from RdBu
@@ -689,7 +689,7 @@ Build a US state map showing how each state's median income deviates from the na
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Binned diverging map solution"
 my_median <- median(state_income$median_income, na.rm = TRUE)
 
 my_deviation <- us_income |>
@@ -725,7 +725,7 @@ ggplot(my_deviation) +
 
 Create 6 rectangular "district" polygons in a 2×3 grid layout using the make_rect() function. Assign each a random score between 50 and 100 (use set.seed(42)). Plot a choropleth with the mako palette and add labels showing both the district name and score inside each polygon.
 
-```r
+```r title="Exercise 3: Labelled district grid"
 # Exercise 3: Labelled district grid
 # Hint: use make_rect(), st_sfc(), st_sf(), geom_sf_text()
 
@@ -737,7 +737,7 @@ set.seed(42)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Labelled district grid solution"
 set.seed(42)
 my_polys <- st_sfc(
   make_rect(0, 0), make_rect(1, 0), make_rect(2, 0),
@@ -771,7 +771,7 @@ ggplot(my_districts) +
 
 Let's bring everything together into a publication-ready US state choropleth of simulated unemployment rates, with normalised data, a viridis colour scale, clean theme, and proper annotations.
 
-```r
+```r title="End-to-end US unemployment choropleth"
 # --- Complete Example: US Unemployment Rate Choropleth ---
 
 # Step 1: Get US state geometry

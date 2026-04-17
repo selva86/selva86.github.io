@@ -36,7 +36,7 @@ This post covers all three, starting with the ggplot2 approach to understand the
 
 Start with `cor()` to get the correlation matrix, then reshape it to long format for ggplot2.
 
-```r
+```r title="Compute correlation and reshape long"
 library(ggplot2)
 
 # Use numeric columns from mtcars
@@ -58,7 +58,7 @@ head(cor_long, 6)
 
 Once you have long-format data, `geom_tile()` creates the color grid and `scale_fill_gradient2()` applies the diverging color scale.
 
-```r
+```r title="Basic correlation heatmap with ggplot2"
 # Basic correlation heatmap with ggplot2
 p_basic <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
   geom_tile(color = "white", linewidth = 0.5) +
@@ -88,7 +88,7 @@ p_basic
 
 `ggcorrplot` automates the tricky parts: hierarchical reordering of variables (grouping correlated variables together), masking the redundant triangle, and p-value significance filtering.
 
-```r
+```r title="Smart heatmap with ggcorrplot"
 library(ggcorrplot)
 
 # ggcorrplot: reorder by hierarchical clustering, show upper triangle
@@ -116,7 +116,7 @@ p_ggcorr
 
 Showing both triangles is redundant (the matrix is symmetric). Use `type = "upper"` in ggcorrplot, or manually filter in the ggplot2 approach.
 
-```r
+```r title="Show only the upper triangle"
 # Upper triangle only in ggcorrplot
 p_upper <- ggcorrplot(
   cor_mat,
@@ -148,7 +148,7 @@ p_upper
 
 Labels inside tiles let readers see exact values without needing to reference a color scale. The key is switching text color for dark tiles so labels remain readable.
 
-```r
+```r title="Add correlation labels to tiles"
 # Add correlation labels, switching color for contrast
 cor_long$abs_cor <- abs(cor_long$Correlation)
 
@@ -185,7 +185,7 @@ p_labels
 
 ## Complete Example: Publication-Ready Correlation Plot
 
-```r
+```r title="Publication-ready plot with p-values"
 # Polished upper-triangle correlation plot with significance
 cor_p <- cor_pmat(mtcars[, num_vars])   # p-value matrix from ggcorrplot
 
@@ -228,7 +228,7 @@ p_final
 
 ✅ Always use a diverging scale anchored at 0:
 
-```r
+```r title="Common mistake: wrong color scale"
 scale_fill_gradient2(low = "#4393c3", mid = "white", high = "#d6604d", midpoint = 0)
 ```
 
@@ -236,7 +236,7 @@ scale_fill_gradient2(low = "#4393c3", mid = "white", high = "#d6604d", midpoint 
 
 `cor()` fails if any column is non-numeric. Always subset to numeric columns first.
 
-```r
+```r title="Common mistake: non-numeric columns"
 # Correct: subset to numeric only
 num_df <- mtcars[, sapply(mtcars, is.numeric)]
 cor_mat <- cor(num_df)
@@ -246,7 +246,7 @@ cor_mat <- cor(num_df)
 
 Without explicit limits, the scale anchors to the min and max of your data, not to -1 and 1. A maximum correlation of 0.95 would push the color scale, making 0.7 look "light" when it's actually strong.
 
-```r
+```r title="Common mistake: unset color limits"
 scale_fill_gradient2(..., limits = c(-1, 1))
 ```
 
@@ -267,7 +267,7 @@ Using the `iris` dataset (numeric columns only: `Sepal.Length`, `Sepal.Width`, `
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Iris correlation heatmap solution"
 library(ggplot2)
 
 iris_num  <- iris[, 1:4]
@@ -302,7 +302,7 @@ Using `mtcars` (all numeric columns), create a ggcorrplot showing only the upper
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="mtcars ggcorrplot significance solution"
 library(ggcorrplot)
 
 num_df  <- mtcars[, sapply(mtcars, is.numeric)]

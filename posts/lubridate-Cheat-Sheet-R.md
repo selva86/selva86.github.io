@@ -27,7 +27,7 @@ This cheat sheet covers every major lubridate function organized into six catego
 
 Let's load lubridate and create the sample dates used throughout.
 
-```r
+```r title="Load lubridate and sample dates"
 # Load lubridate and create sample dates
 library(lubridate)
 
@@ -82,7 +82,7 @@ lubridate's parsing functions are named after the order of date components. Year
 
 Let's try several parsing functions with different input formats.
 
-```r
+```r title="Parse dates and times from strings"
 # Standard date orders
 d1 <- ymd("2026-04-06")
 d2 <- mdy("April 6, 2026")
@@ -152,7 +152,7 @@ Every accessor function in lubridate works in two directions. Call it to extract
 
 Let's extract several components from our sample date-time.
 
-```r
+```r title="Extract components from a datetime"
 # Extract components
 year(sample_datetime)
 #> [1] 2026
@@ -179,7 +179,7 @@ April 6, 2026 is a Monday, the 96th day of the year, in Q2, and not a leap year.
 
 Let's modify components using the setter syntax.
 
-```r
+```r title="Modify components with assignment"
 # Modify components by assigning
 modified_date <- sample_date
 year(modified_date) <- 2030
@@ -212,7 +212,7 @@ Rounding functions snap a date-time to the nearest boundary of a time unit. They
 
 Let's round our sample datetime to several units.
 
-```r
+```r title="Round, floor, ceiling, rollback"
 # Round to different units
 floor_date(sample_datetime, "hour")
 #> [1] "2026-04-06 14:00:00 UTC"
@@ -297,7 +297,7 @@ lubridate provides three classes for representing time spans. Each behaves diffe
 
 Let's create all three types and compare them.
 
-```r
+```r title="Duration, period, and interval"
 # Duration: exact seconds
 dur <- ddays(30)
 print(dur)
@@ -350,7 +350,7 @@ Add or subtract durations and periods from dates with `+` and `-`. For month ari
 
 Let's try several arithmetic operations.
 
-```r
+```r title="Arithmetic on dates and ages"
 # Add and subtract periods
 sample_date + months(3)
 #> [1] "2026-07-06"
@@ -399,7 +399,7 @@ lubridate distinguishes between changing the display (clock on the wall) and cha
 
 Let's convert and force time zones.
 
-```r
+```r title="Convert and force time zones"
 # Create a UTC time
 utc_time <- ymd_hms("2026-04-06 14:30:00", tz = "UTC")
 
@@ -442,7 +442,7 @@ This is the most common lubridate time-zone bug. It shifts the actual moment in 
 
 **Why it is wrong:** `force_tz()` rewrites the instant. If your UTC timestamp is correct and you "force" it to EST, you lose 5 hours of real time.
 
-```r
+```r title="Common mistake: forcetz shifts the instant"
 # Wrong: force_tz changes the instant
 correct_utc <- ymd_hms("2026-04-06 18:00:00", tz = "UTC")
 wrong <- force_tz(correct_utc, "America/New_York")
@@ -452,7 +452,7 @@ as.numeric(correct_utc - wrong)
 
 The difference is 14,400 seconds (4 hours, EDT offset). The instant shifted.
 
-```r
+```r title="Correct: withtz preserves the instant"
 # Correct: with_tz preserves the instant
 right <- with_tz(correct_utc, "America/New_York")
 print(right)
@@ -465,7 +465,7 @@ correct_utc == right
 
 Adding `months(1)` to January 31 returns NA because February 31 does not exist. This silently poisons downstream calculations.
 
-```r
+```r title="Common mistake: month overflow to NA"
 # Wrong: NA from invalid date
 jan31 <- ymd("2026-01-31")
 jan31 + months(1)
@@ -474,7 +474,7 @@ jan31 + months(1)
 
 **Why it is wrong:** lubridate cannot create Feb 31, so it returns NA. Any arithmetic on NA propagates the problem.
 
-```r
+```r title="Correct: %m+% rolls to valid day"
 # Correct: %m+% rolls back to last valid day
 jan31 %m+% months(1)
 #> [1] "2026-02-28"
@@ -484,7 +484,7 @@ jan31 %m+% months(1)
 
 A duration of 365 days and a period of 1 year are not the same object. Comparing them directly can mislead.
 
-```r
+```r title="Duration year vs period year"
 # These look similar but represent different things
 dur_year <- dyears(1)
 per_year <- years(1)
@@ -513,7 +513,7 @@ leap_date + per_year
 
 Given three date strings in different formats, parse each one and extract the full weekday name.
 
-```r
+```r title="Exercise: parse three date formats"
 # Exercise: parse these dates and print their weekday names
 # Hint: use the right ymd/mdy/dmy function, then wday(x, label=TRUE, abbr=FALSE)
 
@@ -528,7 +528,7 @@ date_c <- "2026/03/15"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-format parse solution"
 parsed_a <- mdy(date_a)
 parsed_b <- dmy(date_b)
 parsed_c <- ymd(date_c)
@@ -549,7 +549,7 @@ wday(parsed_c, label = TRUE, abbr = FALSE)
 
 Create an interval from January 1, 2026 to today. Compute the number of whole weeks in that interval.
 
-```r
+```r title="Exercise: whole weeks since Jan 1"
 # Exercise: compute whole weeks between Jan 1 2026 and today
 # Hint: create an interval with %--%, divide by weeks(1), then floor()
 
@@ -560,7 +560,7 @@ Create an interval from January 1, 2026 to today. Compute the number of whole we
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Whole-weeks solution"
 my_interval <- ymd("2026-01-01") %--% today()
 my_weeks <- my_interval / weeks(1)
 floor(my_weeks)
@@ -575,7 +575,7 @@ floor(my_weeks)
 
 Given a vector of timestamps, round each down to the nearest hour and count how many events fall in each hour.
 
-```r
+```r title="Exercise: hourly timestamp counts"
 # Exercise: round timestamps and count per hour
 # Hint: use floor_date(x, "hour") then table()
 
@@ -592,7 +592,7 @@ my_timestamps <- ymd_hms(c(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hourly-count solution"
 my_timestamps <- ymd_hms(c(
   "2026-04-06 09:15:00", "2026-04-06 09:45:00",
   "2026-04-06 10:05:00", "2026-04-06 10:30:00",
@@ -614,7 +614,7 @@ table(my_hours)
 
 Let's walk through a complete workflow: parse mixed-format dates, extract components, compute ages, and aggregate by month.
 
-```r
+```r title="End-to-end mixed-format birthdates"
 # A messy vector of birthdates in different formats
 raw_dates <- c("1990-06-15", "03/22/1985", "15-11-1992",
                "1988/01/30", "July 4, 1995")

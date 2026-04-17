@@ -26,7 +26,7 @@ R distinguishes between *taking a slice of a container* and *reaching inside to 
 
 The code below takes a column of `mtcars` three different ways, then builds a tiny S4 object to show the fourth operator. Read the `#>` outputs and compare the *types*, not just the values.
 
-```r
+```r title="Four operators on one data frame"
 # Four operators, one object: notice what each one returns
 car_df  <- mtcars[1:3, 1:3]             # small slice to make output readable
 col_slice <- car_df["mpg"]              # [ : same container (data frame)
@@ -51,7 +51,7 @@ p1@x
 
 **Try it:** Using the `car_df` above, pull the `cyl` column out twice, once so the result is still a data frame, and once so it's a plain numeric vector. Check `class()` on both.
 
-```r
+```r title="Exercise: keep vs extract on cyl"
 # Try it: keep-vs-extract on the cyl column
 ex_keep    <- NULL  # your code here — should be a data.frame
 ex_extract <- NULL  # your code here — should be numeric
@@ -65,7 +65,7 @@ class(ex_extract)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Keep-vs-extract solution"
 ex_keep    <- car_df["cyl"]
 ex_extract <- car_df[["cyl"]]
 class(ex_keep)
@@ -86,7 +86,7 @@ Think of a list as a train. `x[1:2]` is a shorter train, still a train, still ca
 
 Let's start with an atomic vector where the distinction is subtle, then move to a list where it becomes dramatic.
 
-```r
+```r title="[ on an atomic vector"
 # [ on an atomic vector: returns an atomic vector
 grades <- c(math = 92, english = 85, science = 78, history = 88)
 grades[c(1, 3)]              # by position
@@ -105,7 +105,7 @@ grades[grades > 80]          # logical
 
 All four styles, positive integers, negative integers, names, logicals, return a numeric vector, just like `grades`. The container didn't change. Now watch what happens when the container is a list.
 
-```r
+```r title="[ vs [[ on a list"
 # [ vs [[ on a list: the difference is now dramatic
 cfg <- list(host = "localhost", port = 5432, tags = c("db", "prod"))
 
@@ -132,7 +132,7 @@ cfg[[3]][1]       # chain: extract the vector, then subset it
 
 Data frames behave the same way, because under the hood, a data frame *is* a list of columns. `iris[2]` is a one-column data frame; `iris[[2]]` is the numeric vector of sepal widths.
 
-```r
+```r title="Container vs content on data frames"
 # Data frames follow the same container-vs-content rule
 iris_slice <- iris[2]          # one-column data frame
 class(iris_slice)
@@ -151,7 +151,7 @@ Remember that the next time you pass an `iris$Species`-style column into a funct
 
 **Try it:** Given `cfg` above, write an expression that returns the string `"prod"` (the second tag). You'll need to chain operators.
 
-```r
+```r title="Exercise: extract prod from cfg"
 # Try it: extract "prod" from cfg
 ex_prod <- NULL  # your code here
 ex_prod
@@ -161,7 +161,7 @@ ex_prod
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extract-prod solution"
 ex_prod <- cfg[["tags"]][2]
 ex_prod
 #> [1] "prod"
@@ -177,7 +177,7 @@ ex_prod
 
 There are two moments, however, when `$` will bite you. First, `$` cannot take a **computed** name, a variable holding a column name won't work. Second, `$` does **partial matching** by default: if you ask for a name that doesn't exist but shares a prefix with one that does, R silently returns the partial match instead of `NULL`. This is a real, hard-to-debug source of bugs.
 
-```r
+```r title="$ sugar, partial match, and traps"
 # $ is sugar for [["..."]] — until it isn't
 settings <- list(timeout = 30, timeout_ms = 30000, retries = 3)
 
@@ -204,7 +204,7 @@ The partial-match `settings$timeo` returned `30` even though no slot is called `
 
 **Try it:** Rewrite `settings$retries` two different ways, once with `[[` using a literal string, and once with `[[` using a variable called `key`.
 
-```r
+```r title="Exercise: two [[ rewrites of $retries"
 # Try it: two [[ rewrites of settings$retries
 key <- "retries"
 ex_a <- NULL  # your code here — literal string
@@ -217,7 +217,7 @@ c(ex_a, ex_b)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Retries-rewrite solution"
 ex_a <- settings[["retries"]]
 ex_b <- settings[[key]]
 c(ex_a, ex_b)
@@ -234,7 +234,7 @@ S4 is R's stricter object system. Unlike an ordinary list, an S4 object has **fo
 
 Below, we define a tiny `Point` class with two numeric slots, build an instance, and access the slots with `@`. Notice how R prevents you from setting a slot to the wrong type, that's the whole reason S4 exists.
 
-```r
+```r title="Define an S4 Segment with @ slots"
 # Defining and using an S4 class
 setClass("Segment", representation(start = "numeric", end = "numeric"))
 
@@ -260,7 +260,7 @@ slot(seg1, "start")
 
 **Try it:** Create a second `Segment` with `start = 10` and `end = -2` and extract its `end` slot two ways, once with `@`, once with `slot()`.
 
-```r
+```r title="Exercise: read end slot two ways"
 # Try it: two ways to read the end slot
 ex_seg <- new("Segment", start = 10, end = -2)
 ex_end_at   <- NULL  # your code here — use @
@@ -273,7 +273,7 @@ c(ex_end_at, ex_end_slot)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="End-slot solution"
 ex_end_at   <- ex_seg@end
 ex_end_slot <- slot(ex_seg, "end")
 c(ex_end_at, ex_end_slot)
@@ -303,7 +303,7 @@ The flowchart below turns the table into three questions you can ask in your hea
 
 Let's apply the rule to every data structure in one block so you can see it hold up.
 
-```r
+```r title="One rule across all four structures"
 # One rule, four structures
 # 1. Atomic vector
 grades[["math"]]       # extract -> numeric scalar
@@ -333,7 +333,7 @@ Same rule, four structures, no exceptions. Once that clicks, R's subsetting stop
 
 **Try it:** Use `cfg` from earlier. Return a *one-item list* whose single element is the `host` value, without redefining `cfg`. Then return the host value as a plain character.
 
-```r
+```r title="Exercise: keep vs extract on cfg$host"
 # Try it: keep vs extract on cfg$host
 ex_keep_host    <- NULL  # your code here — should be a list
 ex_extract_host <- NULL  # your code here — should be character
@@ -347,7 +347,7 @@ class(ex_extract_host)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Host-keep-extract solution"
 ex_keep_host    <- cfg["host"]
 ex_extract_host <- cfg[["host"]]
 class(ex_keep_host)
@@ -364,7 +364,7 @@ class(ex_extract_host)
 
 Every long-time R user has a personal scar collection from subsetting. These five mistakes account for the overwhelming majority, the fixes are all one-character changes once you know what to look for.
 
-```r
+```r title="Five common subsetting mistakes"
 # Mistake 1: single-bracket when you needed double
 df_x <- data.frame(a = 1:3, b = 4:6)
 mean(df_x["a"])                 # warning: argument is not numeric or logical
@@ -408,7 +408,7 @@ Each of these has the same shape: R silently gave you something plausible that w
 
 **Try it:** Write one line that extracts the mean of column `a` from `df_x` using `[[`, and one line that does the same with `$`.
 
-```r
+```r title="Exercise: two mean-extractors on column a"
 # Try it: two mean-extractors
 ex_m1 <- NULL  # your code here — use [[
 ex_m2 <- NULL  # your code here — use $
@@ -420,7 +420,7 @@ c(ex_m1, ex_m2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean-extractor solution"
 ex_m1 <- mean(df_x[["a"]])
 ex_m2 <- mean(df_x$a)
 c(ex_m1, ex_m2)
@@ -439,7 +439,7 @@ Two capstone exercises that combine what you've learned. Use distinct variable n
 
 Extract the third row of `mtcars` twice: once as a one-row `data.frame`, and once as a named numeric vector. Save the first to `my_row_df` and the second to `my_row_vec`. Verify with `class()` that they differ.
 
-```r
+```r title="Exercise: third row two shapes"
 # Exercise 1: row extraction — two shapes
 # Hint: rows and columns both obey the container-vs-content rule.
 # A row as a data frame uses [ ; a row as a named vector uses unlist() on it.
@@ -454,7 +454,7 @@ class(my_row_vec)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Row-extraction solution"
 my_row_df  <- mtcars[3, ]                 # still a data frame
 my_row_vec <- unlist(mtcars[3, ])         # flatten to a named numeric vector
 
@@ -476,7 +476,7 @@ my_row_vec
 
 Build `my_inv <- list(fruit = list(count = 12, unit = "kg"))`. Extract the numeric `12` using only `[[` and integer/character keys, no `$`, no `unlist()`. Save the result to `my_count` and verify `is.numeric(my_count)` is `TRUE`.
 
-```r
+```r title="Exercise: drill into a nested list"
 # Exercise 2: drill into a nested list with [[ only
 my_inv <- list(fruit = list(count = 12, unit = "kg"))
 
@@ -491,7 +491,7 @@ my_count
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Nested-list solution"
 my_inv <- list(fruit = list(count = 12, unit = "kg"))
 
 my_count <- my_inv[["fruit"]][["count"]]
@@ -510,7 +510,7 @@ my_count
 
 Here is an end-to-end workflow that uses every operator the post introduced. We take the built-in `airquality` data set, pull the May rows, extract the temperature column as a plain vector, summarise it, and then package the summary as a tiny S4 result object so downstream code knows exactly what to expect.
 
-```r
+```r title="End-to-end airquality subsetting workflow"
 # Complete example: from data frame to S4 summary
 # 1. Keep the container ([) — filter to May
 aq_may <- airquality[airquality$Month == 5, ]

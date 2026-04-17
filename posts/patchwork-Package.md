@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Combining plots is one of the most common tasks in data visualization. Maybe you've built a scatter plot and a histogram that tell a richer story side by side, or you need a multi-panel figure for a report. patchwork lets you do this in one line of code, literally add two plots together.
 
-```r
+```r title="Combine two plots with plus"
 library(ggplot2)
 library(patchwork)
 
@@ -44,7 +44,7 @@ That `+` operator is doing all the work. patchwork overloads `+` so that when yo
 
 But `+` isn't your only option. patchwork gives you two more operators that communicate your intent more clearly.
 
-```r
+```r title="Horizontal pipe and vertical slash"
 # Horizontal: same as + but explicit
 p1 | p2
 #> [Two plots placed side by side]
@@ -61,7 +61,7 @@ The `|` operator forces horizontal placement and `/` forces vertical stacking. U
 
 **Try it:** Create a boxplot of `mpg` by `cyl` and a bar chart counting cars per `gear` from the `mtcars` dataset, then combine them horizontally with `|`.
 
-```r
+```r title="Exercise: Combine boxplot and bar chart"
 # Try it: combine a boxplot and bar chart
 ex_box <- ggplot(mtcars, aes(factor(cyl), mpg)) +
   geom_boxplot()
@@ -76,7 +76,7 @@ ex_bar <- ggplot(mtcars, aes(factor(gear))) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Boxplot and bar solution"
 ex_box <- ggplot(mtcars, aes(factor(cyl), mpg)) +
   geom_boxplot(fill = "lightblue") +
   labs(x = "Cylinders", y = "MPG")
@@ -99,7 +99,7 @@ When you combine more than two plots, patchwork arranges them in an auto-calcula
 
 The `plot_layout()` function gives you that control. Think of it as the layout manager: it tells patchwork how many rows and columns to use.
 
-```r
+```r title="Force single column with ncol"
 p3 <- ggplot(mtcars, aes(hp, qsec)) +
   geom_point(color = "forestgreen", size = 2) +
   labs(title = "HP vs Quarter Mile")
@@ -116,7 +116,7 @@ The `ncol = 1` argument forces all three plots into a single column. You could a
 
 What if your plots shouldn't all be the same size? The `widths` and `heights` arguments let you set relative proportions.
 
-```r
+```r title="Custom widths for unequal plots"
 # Make the scatter plot twice as wide as the histogram
 p1 + p2 + plot_layout(widths = c(2, 1))
 #> [Scatter plot takes 2/3 of the width, histogram takes 1/3]
@@ -127,7 +127,7 @@ p1 + p2 + plot_layout(widths = c(2, 1))
 
 **Try it:** Arrange four plots (`p1`, `p2`, `p3`, and a new density plot) in a 2×2 grid where the left column is three times wider than the right.
 
-```r
+```r title="Exercise: Two by two grid with widths"
 # Try it: 2x2 grid with custom widths
 ex_dens <- ggplot(mtcars, aes(hp)) +
   geom_density(fill = "plum")
@@ -139,7 +139,7 @@ ex_dens <- ggplot(mtcars, aes(hp)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two by two grid solution"
 ex_dens <- ggplot(mtcars, aes(hp)) +
   geom_density(fill = "plum") +
   labs(title = "HP Density")
@@ -158,7 +158,7 @@ Real figures often need more than a uniform grid. You might want two small plots
 
 Parentheses create sub-layouts within your composition. Everything inside parentheses gets arranged as a group first, then that group takes up one slot in the outer layout.
 
-```r
+```r title="Nested layout with slash and pipe"
 # Two plots on top, one wide plot spanning the full bottom
 (p1 | p2) / p3
 #> [Row 1: scatter + histogram side by side. Row 2: HP plot spanning full width]
@@ -168,7 +168,7 @@ That reads almost like a sentence: "p1 beside p2, above p3." The parentheses gro
 
 For even more control, design strings let you sketch out your layout using a text grid. Each letter represents one plot, and `#` marks empty cells.
 
-```r
+```r title="Design string layout control"
 design <- "
   AAB
   ACC
@@ -186,7 +186,7 @@ Each letter in the design string maps to a plot in the order they were added. Pl
 
 **Try it:** Create a layout where one wide plot spans the entire top row and two plots sit below it, side by side. Use either nesting with parentheses or a design string.
 
-```r
+```r title="Exercise: Wide plot on top"
 # Try it: one plot on top, two below
 # Hint: try p3 / (p1 | p2) or a design string
 # your code here
@@ -195,7 +195,7 @@ Each letter in the design string maps to a plot in the order they were added. Pl
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Wide plot on top solution"
 # Using nesting:
 p3 / (p1 | p2)
 #> [HP plot spans full width on top. Scatter + histogram side by side below.]
@@ -211,7 +211,7 @@ When multiple plots use the same color mapping, you end up with duplicate legend
 
 Let's build three scatter plots that all color points by the number of cylinders.
 
-```r
+```r title="Shared color legend collection"
 p_scatter1 <- ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
   geom_point(size = 2) +
   labs(title = "Weight vs MPG")
@@ -233,7 +233,7 @@ Instead of three identical legends eating up space, patchwork detects that all t
 
 Shared axes work similarly. When side-by-side plots share the same y-axis, displaying it on every panel is redundant. The `axes` argument handles this.
 
-```r
+```r title="Collect shared y-axis labels"
 pa <- ggplot(mtcars, aes(wt, mpg)) +
   geom_point() +
   labs(title = "Weight")
@@ -257,7 +257,7 @@ With `axes = "collect"`, the redundant y-axis on the right plot disappears. If y
 
 **Try it:** Create two scatter plots from `mtcars`, one mapping `wt` to x and one mapping `hp` to x, both coloring by `factor(cyl)`. Combine them and collect the shared legend.
 
-```r
+```r title="Exercise: Collect shared legends"
 # Try it: collect shared legends
 ex_s1 <- ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
   geom_point()
@@ -272,7 +272,7 @@ ex_s2 <- ggplot(mtcars, aes(hp, mpg, color = factor(cyl))) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Shared legend solution"
 ex_s1 <- ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
   geom_point(size = 2) +
   labs(color = "Cylinders")
@@ -295,7 +295,7 @@ Publication-quality figures need more than just the individual plot titles, they
 
 `plot_annotation()` handles both. It adds metadata that sits above or below the entire combined figure.
 
-```r
+```r title="plotannotation with tag levels"
 (p1 | p2 | p3) +
   plot_annotation(
     title = "Motor Trends Car Analysis",
@@ -310,7 +310,7 @@ The `tag_levels = "A"` argument auto-labels each panel as A, B, C. Other options
 
 You can customize how tags look by modifying the `plot.tag` theme element. The `&` operator (which we'll cover in the next section) applies the theme change to every panel.
 
-```r
+```r title="Style panel tags with theme"
 (p1 | p2 | p3) +
   plot_annotation(tag_levels = "A") &
   theme(plot.tag = element_text(size = 14, face = "bold"))
@@ -322,7 +322,7 @@ You can customize how tags look by modifying the `plot.tag` theme element. The `
 
 **Try it:** Create a 3-panel figure using `p1`, `p2`, and `p3`, add panel tags using Roman numerals (`"I"`), and give the figure an overall title.
 
-```r
+```r title="Exercise: Roman numeral tags"
 # Try it: annotated figure with Roman numeral tags
 # your code here
 ```
@@ -330,7 +330,7 @@ You can customize how tags look by modifying the `plot.tag` theme element. The `
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Roman numeral tags solution"
 (p1 | p2 | p3) +
   plot_annotation(
     title = "mtcars Overview",
@@ -347,7 +347,7 @@ You can customize how tags look by modifying the `plot.tag` theme element. The `
 
 After combining plots, you often want to apply the same theme or modification to every panel, switching all plots to `theme_minimal()`, for instance, or changing font sizes across the board. patchwork's `&` operator does exactly this.
 
-```r
+```r title="Apply theme with ampersand"
 (p1 | p2 | p3) & theme_minimal()
 #> [All three plots now use theme_minimal() — clean, gridline-only backgrounds]
 ```
@@ -356,7 +356,7 @@ The `&` operator reaches into every plot in the composition and applies whatever
 
 But what if you have nested layouts and only want to modify the outer level? That's where `*` comes in. It applies modifications only to the current nesting level, without reaching into nested sub-patchworks.
 
-```r
+```r title="Ampersand versus asterisk broadcast"
 # & reaches into nested patchwork
 nested <- (p1 | p2) / p3
 nested & theme_bw()
@@ -374,7 +374,7 @@ In practice, `&` is what you'll use 95% of the time. The `*` operator matters wh
 
 **Try it:** Combine `p1`, `p2`, and `p3` and apply `& theme_bw()` to change all their themes at once.
 
-```r
+```r title="Exercise: Apply theme everywhere"
 # Try it: apply theme to all plots at once
 # your code here
 ```
@@ -382,7 +382,7 @@ In practice, `&` is what you'll use 95% of the time. The `*` operator matters wh
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Theme everywhere solution"
 (p1 | p2 | p3) & theme_bw()
 #> [All three plots now use theme_bw() — white background with border]
 ```
@@ -397,7 +397,7 @@ Sometimes you need a small plot overlaid on a larger one, like a zoomed-in detai
 
 Let's overlay a zoomed scatter plot on top of the full view.
 
-```r
+```r title="Overlay inset with insetelement"
 p_full <- ggplot(mtcars, aes(wt, mpg)) +
   geom_point(color = "steelblue", size = 2) +
   labs(title = "Full View: Weight vs MPG")
@@ -415,7 +415,7 @@ The `left`, `bottom`, `right`, and `top` arguments position the inset using 0-1 
 
 For adding empty space between plots, maybe for visual breathing room or to align with a non-plot element, use `plot_spacer()`.
 
-```r
+```r title="Insert spacer between plots"
 p1 + plot_spacer() + p2
 #> [Scatter plot, empty space, histogram — three equally-sized columns]
 ```
@@ -431,7 +431,7 @@ The spacer takes up one cell in the grid, creating a gap between your plots.
 
 **Try it:** Place a `plot_spacer()` between `p1` and `p2` in a horizontal layout, creating a visual gap.
 
-```r
+```r title="Exercise: Spacer between two plots"
 # Try it: add a spacer between two plots
 # your code here
 ```
@@ -439,7 +439,7 @@ The spacer takes up one cell in the grid, creating a gap between your plots.
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Spacer solution"
 p1 + plot_spacer() + p2
 #> [Scatter plot | empty space | histogram]
 ```
@@ -459,7 +459,7 @@ Build a 3-panel publication figure from the `iris` dataset:
 
 Use a design string to place A on the left spanning both rows, B top-right, and C bottom-right. Collect the shared legend, add panel tags (A/B/C), and give the figure an overall title "Iris Dataset Overview."
 
-```r
+```r title="Exercise: Iris multi-panel design"
 # Exercise 1: multi-panel iris figure
 # Hint: design = "AB\nAC", then plot_layout(design=..., guides="collect")
 
@@ -470,7 +470,7 @@ Use a design string to place A on the left spanning both rows, B top-right, and 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Iris multi-panel solution"
 my_scatter <- ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) +
   geom_point(size = 2) +
   labs(title = "Sepal Dimensions")
@@ -510,7 +510,7 @@ Create a 4-panel dashboard from the `diamonds` dataset (use a 5000-row sample fo
 
 Arrange panels 1-3 in a custom layout. Use `& theme_minimal()`, collect guides, and add an overall title.
 
-```r
+```r title="Exercise: Diamond dashboard figure"
 # Exercise 2: diamond dashboard
 # Hint: sample 5000 rows with diamonds[sample(nrow(diamonds), 5000), ]
 
@@ -521,7 +521,7 @@ Arrange panels 1-3 in a custom layout. Use `& theme_minimal()`, collect guides, 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Diamond dashboard solution"
 set.seed(123)
 my_d <- diamonds[sample(nrow(diamonds), 5000), ]
 
@@ -568,7 +568,7 @@ Build a before/after comparison from `mtcars`:
 - Add panel tags "A" and "B"
 - Add an inset density plot of `mpg` in the corner of panel A
 
-```r
+```r title="Exercise: Before and after collected axes"
 # Exercise 3: before/after with collected axes
 # Hint: filter mtcars by cyl, use axes = "collect" in plot_layout
 
@@ -579,7 +579,7 @@ Build a before/after comparison from `mtcars`:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Before and after solution"
 my_cyl4 <- mtcars[mtcars$cyl == 4, ]
 my_cyl6 <- mtcars[mtcars$cyl == 6, ]
 
@@ -616,7 +616,7 @@ Let's build a publication-ready 4-panel figure from the `mpg` dataset. This walk
 
 First, create four individual plots that explore different aspects of the data.
 
-```r
+```r title="Step one: build four figures"
 fig_scatter <- ggplot(mpg, aes(displ, hwy, color = class)) +
   geom_point(size = 1.5, alpha = 0.7) +
   labs(x = "Engine Displacement (L)", y = "Highway MPG")
@@ -637,7 +637,7 @@ fig_density <- ggplot(mpg, aes(hwy, fill = factor(cyl))) +
 
 Now combine them using a design layout, collect guides, add annotations, and apply a unified theme.
 
-```r
+```r title="Step two: combine and annotate"
 fig_design <- "
   AABB
   CCDD

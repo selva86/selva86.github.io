@@ -24,7 +24,7 @@ sidebar_order: 20
 
 Imagine you flip a coin 10 times and count the heads. You know the number of trials (10), and each flip has two outcomes, heads or tails. That setup is the binomial distribution in a nutshell. Let's see it in action with R's dbinom() function.
 
-```r
+```r title="Binomial PMF for coin flips"
 # Binomial PMF: probability of k heads in 10 fair coin flips
 k_binom <- 0:10
 probs_binom <- dbinom(k_binom, size = 10, prob = 0.5)
@@ -49,7 +49,7 @@ The binomial distribution requires four conditions: a **fixed number of trials**
 
 Now let's answer a cumulative question: what's the probability of getting 3 or fewer heads?
 
-```r
+```r title="Cumulative P at most 3"
 # Cumulative probability: P(X <= 3) for 10 fair coin flips
 cum_prob <- pbinom(3, size = 10, prob = 0.5)
 cat("P(X <= 3) =", round(cum_prob, 4), "\n")
@@ -63,7 +63,7 @@ There's about a 17.2% chance of getting 3 or fewer heads in 10 fair flips. The p
 
 **Try it:** A new drug cures 70% of patients. If 15 patients take it, what's the probability that exactly 12 are cured? Use dbinom().
 
-```r
+```r title="Exercise: Twelve cured of fifteen"
 # Try it: P(exactly 12 cured) with n=15, p=0.70
 ex_cure_prob <- dbinom(x = ___, size = ___, prob = ___)
 ex_cure_prob
@@ -73,7 +73,7 @@ ex_cure_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cured probability solution"
 ex_cure_prob <- dbinom(x = 12, size = 15, prob = 0.70)
 ex_cure_prob
 #> [1] 0.1700
@@ -89,7 +89,7 @@ The binomial needs a fixed trial count. But what if there's no natural upper lim
 
 Let's model a help desk that averages 5 calls per hour.
 
-```r
+```r title="Poisson PMF for call counts"
 # Poisson PMF: probability of k calls when average rate = 5/hour
 k_pois <- 0:15
 probs_pois <- dpois(k_pois, lambda = 5)
@@ -113,7 +113,7 @@ The distribution peaks near lambda = 5 and has a slight right skew, there's alwa
 
 What's the chance the desk gets swamped with more than 2 calls in an hour? We can use the cumulative function ppois().
 
-```r
+```r title="Poisson tail probabilities"
 # P(X <= 2) and P(X > 2) for Poisson(lambda=5)
 cum_pois <- ppois(2, lambda = 5)
 cat("P(X <= 2) =", round(cum_pois, 4), "\n")
@@ -129,7 +129,7 @@ There's an 87.5% chance of getting more than 2 calls per hour when the average r
 
 **Try it:** A website averages 8 server errors per day. What's the probability of exactly 3 errors today? Use dpois().
 
-```r
+```r title="Exercise: Three errors with lambda 8"
 # Try it: P(exactly 3 errors) with lambda = 8
 ex_error_prob <- dpois(x = ___, lambda = ___)
 ex_error_prob
@@ -139,7 +139,7 @@ ex_error_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Error probability solution"
 ex_error_prob <- dpois(x = 3, lambda = 8)
 ex_error_prob
 #> [1] 0.02861
@@ -155,7 +155,7 @@ R uses a consistent naming convention for all probability distributions. Every d
 
 Let's see all eight functions side by side.
 
-```r
+```r title="d, p, q, r convention"
 # d: exact probability
 cat("dbinom(3, 10, 0.5) =", dbinom(3, size = 10, prob = 0.5), "\n")
 #> dbinom(3, 10, 0.5) = 0.1171875
@@ -194,7 +194,7 @@ The pattern is identical: `d` computes exact probabilities, `p` accumulates, `q`
 
 **Try it:** Use qbinom() and qpois() to find the 90th percentile for Binomial(n=50, p=0.3) and Poisson(lambda=15). How close are they?
 
-```r
+```r title="Exercise: 90th percentile comparison"
 # Try it: 90th percentile comparison
 ex_q_binom <- qbinom(0.90, size = ___, prob = ___)
 ex_q_pois <- qpois(0.90, lambda = ___)
@@ -205,7 +205,7 @@ cat("Binomial 90th:", ex_q_binom, " Poisson 90th:", ex_q_pois, "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="90th percentile solution"
 ex_q_binom <- qbinom(0.90, size = 50, prob = 0.3)
 ex_q_pois <- qpois(0.90, lambda = 15)
 cat("Binomial 90th:", ex_q_binom, " Poisson 90th:", ex_q_pois, "\n")
@@ -240,7 +240,7 @@ As n grows and p shrinks while keeping lambda = np fixed, the binomial terms con
 
 Let's verify this in R.
 
-```r
+```r title="Binomial converges to Poisson"
 # Compare Binomial(n=1000, p=0.003) vs Poisson(lambda=3)
 k_vals <- 0:10
 binom_probs <- dbinom(k_vals, size = 1000, prob = 0.003)
@@ -275,7 +275,7 @@ The probabilities match to three or four decimal places. The maximum difference 
 
 Now let's see this convergence visually. As n increases (with lambda fixed at 3), the binomial PMF gets closer and closer to the Poisson PMF.
 
-```r
+```r title="Visual convergence at 20, 100, 1000"
 # Visual convergence: Binomial approaches Poisson as n grows
 par(mfrow = c(1, 3))
 lambda_target <- 3
@@ -305,7 +305,7 @@ At n=20, you can see gaps between the blue (binomial) and coral (Poisson) bars. 
 
 **Try it:** For n=500 and p=0.004 (lambda=2), compare dbinom() and dpois() for k=0 through 5. At which k is the difference largest?
 
-```r
+```r title="Exercise: Binomial 500 versus Poisson 2"
 # Try it: compare Binomial(500, 0.004) vs Poisson(2) for k=0..5
 ex_k <- 0:5
 ex_binom <- dbinom(ex_k, size = ___, prob = ___)
@@ -319,7 +319,7 @@ data.frame(k = ex_k, Binom = round(ex_binom, 6),
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Convergence table solution"
 ex_k <- 0:5
 ex_binom <- dbinom(ex_k, size = 500, prob = 0.004)
 ex_pois <- dpois(ex_k, lambda = 2)
@@ -345,7 +345,7 @@ Formulas give you theoretical probabilities. Simulation gives you data you can t
 
 Let's simulate 10,000 draws from a binomial and verify that the sample statistics match the theory.
 
-```r
+```r title="Simulate binomial draws"
 # Simulate 10,000 Binomial(n=20, p=0.3) draws
 set.seed(101)
 sim_binom <- rbinom(10000, size = 20, prob = 0.3)
@@ -362,7 +362,7 @@ The sample mean (6.01) is nearly identical to the theoretical mean (6.0), and th
 
 Now the same for Poisson.
 
-```r
+```r title="Simulate Poisson draws"
 # Simulate 10,000 Poisson(lambda=6) draws
 set.seed(202)
 sim_pois <- rpois(10000, lambda = 6)
@@ -382,7 +382,7 @@ Both mean and variance converge to lambda = 6, confirming the Poisson's defining
 
 **Try it:** Simulate 5,000 Poisson(lambda=10) values. What fraction exceed 15? Compare your answer to the theoretical `1 - ppois(15, 10)`.
 
-```r
+```r title="Exercise: Fraction exceeding 15"
 # Try it: fraction of Poisson(10) draws exceeding 15
 set.seed(303)
 ex_sim <- rpois(5000, lambda = ___)
@@ -395,7 +395,7 @@ cat("Theoretical P(X > 15):", round(1 - ppois(___, ___), 4), "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fraction exceeding solution"
 set.seed(303)
 ex_sim <- rpois(5000, lambda = 10)
 ex_frac <- mean(ex_sim > 15)
@@ -427,7 +427,7 @@ You've learned both distributions. Now the practical question: when you have rea
 
 The mean-variance relationship is your strongest diagnostic tool. Let's apply it to real data.
 
-```r
+```r title="Diagnose complaint distribution"
 # Daily customer complaints over 30 days
 complaints <- c(2, 5, 3, 1, 4, 6, 2, 3, 5, 4,
                 3, 7, 2, 4, 3, 5, 1, 6, 4, 3,
@@ -461,7 +461,7 @@ The variance-to-mean ratio is 0.65, well below 1.0. This suggests the data has l
 
 **Try it:** Given weekly accident counts at an intersection, `c(4, 6, 5, 3, 7, 5, 4, 6, 5, 8, 4, 3)`, compute the mean, variance, and their ratio. Which distribution fits better?
 
-```r
+```r title="Exercise: Accident mean variance ratio"
 # Try it: diagnose the distribution for accident data
 ex_accidents <- c(4, 6, 5, 3, 7, 5, 4, 6, 5, 8, 4, 3)
 ex_mean <- mean(ex_accidents)
@@ -474,7 +474,7 @@ cat("Mean:", round(ex_mean, 2), " Var:", round(ex_var, 2),
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Accident ratio solution"
 ex_accidents <- c(4, 6, 5, 3, 7, 5, 4, 6, 5, 8, 4, 3)
 ex_mean <- mean(ex_accidents)
 ex_var <- var(ex_accidents)
@@ -493,7 +493,7 @@ cat("Mean:", round(ex_mean, 2), " Var:", round(ex_var, 2),
 
 A factory produces 500 items per batch, with a defect rate of 0.8%. Model the number of defective items using both Binomial(500, 0.008) and Poisson(lambda=4). Compare P(X >= 5) from each model. Then plot both PMFs for k=0 to 12 on the same chart.
 
-```r
+```r title="Exercise: Quality control comparison"
 # Exercise 1: Compare Binomial and Poisson for quality control
 # Hint: use 1 - pbinom(4, ...) and 1 - ppois(4, ...) for P(X >= 5)
 # For the plot, use barplot with rbind() and beside=TRUE
@@ -505,7 +505,7 @@ A factory produces 500 items per batch, with a defect rate of 0.8%. Model the nu
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Quality control solution"
 # P(X >= 5) from both models
 p_binom_ge5 <- 1 - pbinom(4, size = 500, prob = 0.008)
 p_pois_ge5 <- 1 - ppois(4, lambda = 4)
@@ -533,7 +533,7 @@ barplot(rbind(my_binom, my_pois), beside = TRUE,
 
 An emergency room receives an average of 4.2 patients per hour (Poisson). Simulate 1,000 one-hour windows with rpois(). Find what fraction of hours have zero patients, and compare to the theoretical dpois(0, 4.2). Then, for each hour's patients, simulate whether each patient is admitted (30% chance) using rbinom(). Report the average admissions per hour and the maximum admissions seen.
 
-```r
+```r title="Exercise: ER arrivals and admissions"
 # Exercise 2: Hospital ER simulation
 # Hint: first simulate arrivals with rpois(), then for each hour
 # simulate admissions with rbinom(1, size=arrivals, prob=0.30)
@@ -546,7 +546,7 @@ set.seed(404)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ER simulation solution"
 set.seed(404)
 # Simulate hourly arrivals
 my_arrivals <- rpois(1000, lambda = 4.2)
@@ -574,7 +574,7 @@ cat("Max admissions in any hour:", max(my_admissions), "\n")
 
 Write a function that takes n and p, computes the maximum absolute difference between Binomial(n, p) and Poisson(lambda = np) PMFs for k = 0 to 20. Test it with n = 10, 50, 100, 500, and 1000 (using p = 5/n each time, so lambda = 5 is constant). Plot the maximum difference against n.
 
-```r
+```r title="Exercise: Measure convergence rate"
 # Exercise 3: measure convergence rate
 # Hint: define a function max_diff(n, p) that computes
 # max(abs(dbinom(0:20, n, p) - dpois(0:20, n*p)))
@@ -586,7 +586,7 @@ Write a function that takes n and p, computes the maximum absolute difference be
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Convergence rate solution"
 my_max_diff <- function(n, p) {
   k_range <- 0:20
   max(abs(dbinom(k_range, size = n, prob = p) - dpois(k_range, lambda = n * p)))
@@ -615,7 +615,7 @@ barplot(my_diffs, names.arg = my_n_vals,
 
 Let's combine everything in a realistic scenario. A call center receives an average of 3 calls per minute (Poisson). Each call has an 85% chance of being resolved on first contact (binomial). We'll simulate 1,000 minutes of operations.
 
-```r
+```r title="End-to-end call center simulation"
 # Complete example: call center simulation
 set.seed(500)
 n_minutes <- 1000

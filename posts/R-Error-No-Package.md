@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 R looks up packages in a fixed list of folders called the **library path**. When you call `library(somepkg)`, R walks each folder in order, checks for a `somepkg/` subdirectory containing a parsed `DESCRIPTION` file, and stops at the first match. No match anywhere on the path triggers this error. Before guessing the cause, ask R to show you both lists, what is installed, and where it looked.
 
-```r
+```r title="Reproduce there is no package"
 # Reproduce the error against a package you don't have
 library(thispackagedoesnotexist)
 #> Error in library(thispackagedoesnotexist) :
@@ -46,7 +46,7 @@ The error tells you the *exact* name R looked up, note that R does not try alter
 
 **Try it:** Reproduce the error for a package called `ex_fakepkg` and confirm with `find.package()` that R has no copy.
 
-```r
+```r title="Check installed versus attached"
 # Try it: trigger and confirm
 # Step 1: try to load ex_fakepkg
 # Step 2: call find.package() with quiet = TRUE on the same name
@@ -57,7 +57,7 @@ The error tells you the *exact* name R looked up, note that R does not try alter
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise: Check if tidyr installed"
 library(ex_fakepkg)
 #> Error in library(ex_fakepkg) : there is no package called 'ex_fakepkg'
 
@@ -73,7 +73,7 @@ find.package("ex_fakepkg", quiet = TRUE)
 
 By far the most frequent reason: you typed `library(somepkg)` without ever running `install.packages("somepkg")` first. R does not auto-install missing packages, it only loads what is already on disk. If you copied a script from a tutorial, every `library()` call near the top has an unwritten prerequisite that the package is already installed on your machine.
 
-```r
+```r title="Installed check solution"
 # Wrong assumption: library() will install if missing
 library(jsonlite)
 #> Error in library(jsonlite) : there is no package called 'jsonlite'
@@ -95,7 +95,7 @@ The install line is commented out because package installation runs in your loca
 
 **Try it:** Write a one-liner that uses `requireNamespace()` to check whether `dplyr` is installed and prints either "ready" or "missing".
 
-```r
+```r title="Install missing CRAN package"
 # Try it: graceful install check
 # Use requireNamespace("dplyr", quietly = TRUE) inside an if/else
 # your code here
@@ -105,7 +105,7 @@ The install line is commented out because package installation runs in your loca
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Verify install and attach"
 if (requireNamespace("dplyr", quietly = TRUE)) "ready" else "missing"
 #> [1] "ready"
 ```
@@ -118,7 +118,7 @@ if (requireNamespace("dplyr", quietly = TRUE)) "ready" else "missing"
 
 This trips up users who *did* run `install.packages()` and assumed it worked. The function returns invisibly even when a package fails to compile, conflicts with a locked DLL on Windows, or hits a missing system dependency on Linux. R prints warnings, not errors, so if you are not watching the console output, the error reappears the next time you call `library()`.
 
-```r
+```r title="Exercise: Install and load fs"
 # Detect a failed install AFTER you ran install.packages()
 # Symptoms: install.packages() printed warnings, but no error, then library() fails
 
@@ -142,7 +142,7 @@ A folder named `00LOCK-<pkg>` inside your library path is the smoking gun. R cre
 
 **Try it:** Write code that lists every `00LOCK-*` folder inside your first library path. Don't delete anything, just print the names.
 
-```r
+```r title="Install fs solution"
 # Try it: detect crashed installs
 # Use list.files() against .libPaths()[1] with pattern = "^00LOCK"
 # your code here
@@ -152,7 +152,7 @@ A folder named `00LOCK-<pkg>` inside your library path is the smoking gun. R cre
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Inspect .libPaths library chain"
 list.files(.libPaths()[1], pattern = "^00LOCK")
 #> character(0)
 ```
@@ -165,7 +165,7 @@ list.files(.libPaths()[1], pattern = "^00LOCK")
 
 R can read packages from several library folders at once, and it is surprisingly easy for them to get out of sync. You might install into a personal folder while a colleague's script expects the system folder. RStudio projects with `renv` enable a *project-local* library that hides your global packages. A package can absolutely be installed on your machine and still be invisible to the current R session, because the session is looking in a different folder.
 
-```r
+```r title="Fix library path mismatch"
 # Print the search order (R checks these top-down)
 lib_dirs <- .libPaths()
 lib_dirs
@@ -188,7 +188,7 @@ The `sapply()` line tells you exactly which library folder owns the package, or 
 
 **Try it:** Write code that searches every entry in `.libPaths()` for a folder named `dplyr` and returns the first matching path (or `NA` if missing).
 
-```r
+```r title="Exercise: Show your .libPaths"
 # Try it: locate dplyr's install folder
 # Loop over .libPaths(); the first match wins
 # your code here
@@ -198,7 +198,7 @@ The `sapply()` line tells you exactly which library folder owns the package, or 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="libPaths inspection solution"
 hits <- .libPaths()[sapply(.libPaths(), function(d) "dplyr" %in% list.files(d))]
 if (length(hits) > 0) hits[1] else NA
 #> [1] "/home/user/R/x86_64-pc-linux-gnu-library/4.4"
@@ -212,7 +212,7 @@ if (length(hits) > 0) hits[1] else NA
 
 Major R upgrades, say from 4.3.x to 4.4.x, create a brand-new library folder named after the new version. Your old folder still exists, but R no longer reads from it, so every package you installed last year suddenly looks "missing." The packages are not gone; they live one folder over, attached to a version of R that is no longer active.
 
-```r
+```r title="Reinstall after R upgrade"
 # What R version owns the current library path?
 R.version.string
 #> [1] "R version 4.4.2 (2024-10-31)"
@@ -241,7 +241,7 @@ The pattern in the path, `library/4.3` versus `library/4.4`, is your warning sig
 
 **Try it:** Write code that prints the major.minor version number from `R.version.string` (e.g., `"4.4"`).
 
-```r
+```r title="Batch reinstall from old library"
 # Try it: extract major.minor
 # Combine R.version$major and R.version$minor — note minor is "4.2" style
 # your code here
@@ -251,7 +251,7 @@ The pattern in the path, `library/4.3` versus `library/4.4`, is your warning sig
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise: List old library packages"
 paste(R.version$major, sub("\\..*", "", R.version$minor), sep = ".")
 #> [1] "4.4"
 ```
@@ -264,7 +264,7 @@ paste(R.version$major, sub("\\..*", "", R.version$minor), sep = ".")
 
 Bioconductor is a separate R package repository for bioinformatics tools, `limma`, `DESeq2`, `Biostrings`, `edgeR`, and several hundred others live there, not on CRAN. `install.packages("limma")` will fail with `package 'limma' is not available` because CRAN does not host it. You need the `BiocManager` package as the bridge.
 
-```r
+```r title="Old library listing solution"
 # CRAN attempt fails for a Bioconductor package
 # install.packages("limma")
 #> Warning: package 'limma' is not available for this version of R
@@ -289,7 +289,7 @@ biocp
 
 **Try it:** Write code that checks whether `BiocManager` is installed (without loading it) and prints `"yes"` or `"no"`.
 
-```r
+```r title="Install a Bioconductor package"
 # Try it: detect BiocManager
 # Use requireNamespace() with quietly = TRUE
 # your code here
@@ -299,7 +299,7 @@ biocp
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="BiocManager install example"
 if (requireNamespace("BiocManager", quietly = TRUE)) "yes" else "no"
 #> [1] "no"
 ```
@@ -312,7 +312,7 @@ if (requireNamespace("BiocManager", quietly = TRUE)) "yes" else "no"
 
 A surprising number of useful R packages live only on GitHub, development versions of CRAN packages, niche tools, internal company packages, or projects whose authors never bothered to submit to CRAN. `install.packages()` only knows how to fetch from CRAN-style repositories, so it returns the same "not available" warning even when the package very much exists on someone's GitHub page.
 
-```r
+```r title="Exercise: Install limma via Bioc"
 # CRAN install will fail for github-only packages
 # install.packages("hadley/emo")
 #> Warning: package 'hadley/emo' is not available
@@ -338,7 +338,7 @@ The `user/repo` syntax is a GitHub coordinate, not a package name, once installe
 
 **Try it:** Write a comment-only block showing how you would install `r-lib/cli` pinned to release tag `v3.6.0` using `remotes`.
 
-```r
+```r title="BiocManager install solution"
 # Try it: pin a github install
 # Use remotes::install_github with the @tag syntax
 # your code here
@@ -348,7 +348,7 @@ The `user/repo` syntax is a GitHub coordinate, not a package name, once installe
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Install a package from GitHub"
 # install.packages("remotes")
 # remotes::install_github("r-lib/cli@v3.6.0")
 # library(cli)
@@ -362,7 +362,7 @@ The `user/repo` syntax is a GitHub coordinate, not a package name, once installe
 
 Every cause above shares a root: R does not know what packages your script needs, only what is currently sitting in its library folders. The fix is to make those needs explicit and version-pinned. The lightweight version is `sessionInfo()` at the bottom of every script. The full version is `renv`, which records every package and version into a lockfile your collaborators can restore with one command.
 
-```r
+```r title="remotes installgithub example"
 # Lightweight: print every loaded package + version at the end of a script
 si <- sessionInfo()
 si$otherPkgs |> names()
@@ -393,7 +393,7 @@ The three-field report is the smallest possible fingerprint, paste it at the end
 
 **Try it:** Write code that prints the names of the first 5 packages in `installed.packages()` (sorted alphabetically).
 
-```r
+```r title="Exercise: Install from GitHub"
 # Try it: peek at your installed packages
 # Use rownames(installed.packages()) and head(., 5)
 # your code here
@@ -403,7 +403,7 @@ The three-field report is the smallest possible fingerprint, paste it at the end
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="GitHub install solution"
 head(sort(rownames(installed.packages())), 5)
 #> [1] "base"       "boot"       "class"      "cluster"    "codetools"
 ```
@@ -418,7 +418,7 @@ head(sort(rownames(installed.packages())), 5)
 
 Write a function `find_pkg_folder(pkg)` that takes a package name and returns the first `.libPaths()` entry that contains a folder with that name, or `NA_character_` if no entry contains it. Test it on `"stats"` (a base package) and `"thispkgdoesnotexist"`.
 
-```r
+```r title="Lock dependencies with renv"
 # Exercise: locate a package across all libPaths
 # Hint: walk .libPaths() with sapply, then subset
 
@@ -429,7 +429,7 @@ Write a function `find_pkg_folder(pkg)` that takes a package name and returns th
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Restore environment with renv"
 find_pkg_folder <- function(pkg) {
   hits <- .libPaths()[sapply(.libPaths(), function(d) pkg %in% list.files(d))]
   if (length(hits) > 0) hits[1] else NA_character_
@@ -450,7 +450,7 @@ find_pkg_folder("thispkgdoesnotexist")
 
 Write a function `safe_library(pkg)` that attempts to load `pkg` with `requireNamespace()`. If it succeeds, print `"loaded: <pkg>"`. If it fails, print `"missing: <pkg> — install with install.packages('<pkg>')"`. Return `TRUE` or `FALSE` invisibly.
 
-```r
+```r title="Exercise: Initialise renv"
 # Exercise: graceful loader with install hint
 # Hint: use requireNamespace + invisible()
 
@@ -461,7 +461,7 @@ Write a function `safe_library(pkg)` that attempts to load `pkg` with `requireNa
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="renv init solution"
 safe_library <- function(pkg) {
   ok <- requireNamespace(pkg, quietly = TRUE)
   if (ok) {
@@ -487,7 +487,7 @@ safe_library("thispkgdoesnotexist")
 
 Write a function `install_from(pkg, source)` that prints (does not run) the correct install command based on `source`: `"cran"`, `"bioc"`, or `"github"`. For `"github"`, the input format is `"user/repo"`. Use `match.arg()` to validate `source`.
 
-```r
+```r title="findpkgfolder helper function"
 # Exercise: route an install to the right helper
 # Hint: switch() handles three named branches cleanly
 
@@ -498,7 +498,7 @@ Write a function `install_from(pkg, source)` that prints (does not run) the corr
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="safelibrary wrapper function"
 install_from <- function(pkg, source = c("cran", "bioc", "github")) {
   source <- match.arg(source)
   cmd <- switch(source,
@@ -528,7 +528,7 @@ install_from("hadley/emo", "github")
 
 Here is a single diagnostic function you can paste at the top of any script that loads packages. It walks through each cause in order and prints the most likely fix.
 
-```r
+```r title="End-to-end diagnosepackage routine"
 diagnose_package <- function(pkg) {
   cat("Diagnosing package:", pkg, "\n")
   cat("R version:", R.version.string, "\n")

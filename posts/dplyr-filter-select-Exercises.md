@@ -23,7 +23,7 @@ difficulty: "Intermediate"
 
 Every analysis starts with the same question: which rows do I care about? dplyr's `filter()` answers it with a condition that evaluates to `TRUE` or `FALSE` for each row. Let's load `dplyr` and run a worked example on `mtcars` so you can see the shape of a filter call before you write your own. We'll use the same R session for all 12 problems, so variables defined in one block stay available in the next.
 
-```r
+```r title="filter rows over 25 mpg"
 library(dplyr)
 
 # Payoff: keep only the most fuel-efficient cars
@@ -41,7 +41,7 @@ Six cars exceed 25 mpg, and every one of them is a 4-cylinder model. Reading `fi
 
 **Try it:** Filter `mtcars` to keep only 4-cylinder cars. Save the result to `ex_fours` and print the first few rows.
 
-```r
+```r title="Exercise: Filter cylinders equal 4"
 # Exercise 1: one-condition filter
 # Hint: filter(cyl == 4)
 
@@ -53,7 +53,7 @@ nrow(ex_fours)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four cylinder solution"
 ex_fours <- mtcars |> filter(cyl == 4)
 head(ex_fours, 3)
 #>            mpg cyl disp  hp drat    wt  qsec vs am gear carb
@@ -70,7 +70,7 @@ nrow(ex_fours)
 
 **Try it:** Filter `starwars` to keep only characters whose `eye_color` is `"blue"`. Save to `ex_blue` and show just the `name` and `eye_color` columns.
 
-```r
+```r title="Exercise: Filter blue eyes"
 # Exercise 2: filter on a character column
 # Hint: eye_color == "blue"  — strings use ==, wrap them in quotes
 
@@ -82,7 +82,7 @@ nrow(ex_blue)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Blue eyes solution"
 ex_blue <- starwars |> filter(eye_color == "blue")
 ex_blue |> select(name, eye_color) |> head()
 #> # A tibble: 6 × 2
@@ -107,7 +107,7 @@ ex_blue |> select(name, eye_color) |> head()
 
 Real questions almost always involve more than one condition. dplyr lets you stack conditions inside `filter()` with a comma (AND), use the `|` operator (OR), or compare against a set of values with `%in%`. Here is what the AND form looks like on `mtcars`.
 
-```r
+```r title="Two conditions with AND"
 # Worked example: keep 4-cylinder cars that are also fuel efficient
 mtcars |> filter(mpg > 20, cyl == 4) |> head(4)
 #>                mpg cyl disp  hp drat    wt  qsec vs am gear carb
@@ -121,7 +121,7 @@ Ten cars meet both conditions. The comma form reads more naturally than `mpg > 2
 
 **Try it:** From `mtcars`, keep rows where `cyl == 4` AND `mpg > 30`. Save to `ex_econ`.
 
-```r
+```r title="Exercise: Four cylinder over 30 mpg"
 # Exercise 3: two conditions with AND
 # Hint: filter(cyl == 4, mpg > 30)
 
@@ -133,7 +133,7 @@ nrow(ex_econ)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-condition solution"
 ex_econ <- mtcars |> filter(cyl == 4, mpg > 30)
 print(ex_econ)
 #>                 mpg cyl disp  hp drat    wt  qsec vs am gear carb
@@ -149,7 +149,7 @@ print(ex_econ)
 
 **Try it:** Keep cars from `mtcars` that have 4 OR 6 cylinders using the `%in%` operator. Save to `ex_46`, then count the rows.
 
-```r
+```r title="Exercise: Cylinders 4 or 6"
 # Exercise 4: OR with %in%
 # Hint: filter(cyl %in% c(4, 6))
 
@@ -161,7 +161,7 @@ nrow(ex_46)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cylinders 4 and 6 solution"
 ex_46 <- mtcars |> filter(cyl %in% c(4, 6))
 nrow(ex_46)
 #> [1] 18
@@ -178,7 +178,7 @@ nrow(ex_46)
 
 Missing values need special treatment because `NA` is not equal to anything, not even itself. You test for missingness with `is.na()`, and you keep non-missing rows with its negation `!is.na()`. The `starwars` tibble has enough `NA` values in `height`, `mass`, and `hair_color` to practise on.
 
-```r
+```r title="Filter known mass with is.na"
 # Worked example: how many starwars characters have a known mass?
 starwars |> filter(!is.na(mass)) |> nrow()
 #> [1] 59
@@ -188,7 +188,7 @@ Of 87 characters, 59 have a recorded mass. The 28 that don't would silently brea
 
 **Try it:** From `starwars`, keep rows where BOTH `height` and `mass` are known. Save to `ex_measured` and report the row count.
 
-```r
+```r title="Exercise: Drop missing height and mass"
 # Exercise 5: drop NA in two columns
 # Hint: filter(!is.na(height), !is.na(mass))
 
@@ -200,7 +200,7 @@ nrow(ex_measured)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Known measurements solution"
 ex_measured <- starwars |> filter(!is.na(height), !is.na(mass))
 nrow(ex_measured)
 #> [1] 59
@@ -212,7 +212,7 @@ nrow(ex_measured)
 
 **Try it:** Find all `starwars` characters whose `hair_color` IS missing. Save to `ex_unknown_hair` and list the names.
 
-```r
+```r title="Exercise: Keep missing hair color"
 # Exercise 6: keep ONLY the NA rows
 # Hint: filter(is.na(hair_color))  — no negation this time
 
@@ -224,7 +224,7 @@ nrow(ex_unknown_hair)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Missing hair solution"
 ex_unknown_hair <- starwars |> filter(is.na(hair_color))
 ex_unknown_hair |> pull(name)
 #> [1] "C-3PO"  "R2-D2"  "R5-D4"  "IG-88"  "R4-P17"
@@ -241,7 +241,7 @@ ex_unknown_hair |> pull(name)
 
 Filtering picks rows; `select()` picks columns. You can list columns by name, drop them with a minus sign, or match them with helper functions like `starts_with()`, `ends_with()`, `contains()`, and `where()`. The order you list columns in `select()` is the order they appear in the output, which makes it a fast way to reorder a data frame.
 
-```r
+```r title="Select three columns reordered"
 # Worked example: pick three columns and reorder them
 starwars |> select(name, mass, height) |> head(3)
 #> # A tibble: 3 × 3
@@ -256,7 +256,7 @@ starwars |> select(name, mass, height) |> head(3)
 
 **Try it:** From `mtcars`, keep exactly the `mpg`, `hp`, and `wt` columns in that order. Save to `ex_cols`.
 
-```r
+```r title="Exercise: Pick mpg hp wt"
 # Exercise 7: select by name
 # Hint: select(mpg, hp, wt)
 
@@ -268,7 +268,7 @@ names(ex_cols)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three columns solution"
 ex_cols <- mtcars |> select(mpg, hp, wt)
 head(ex_cols, 3)
 #>                mpg  hp    wt
@@ -283,7 +283,7 @@ head(ex_cols, 3)
 
 **Try it:** From `mtcars`, DROP the `vs`, `am`, and `carb` columns and keep everything else. Save to `ex_kept`.
 
-```r
+```r title="Exercise: Drop vs am carb"
 # Exercise 8: drop with the minus sign
 # Hint: select(-vs, -am, -carb)
 
@@ -295,7 +295,7 @@ names(ex_kept)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drop columns solution"
 ex_kept <- mtcars |> select(-vs, -am, -carb)
 names(ex_kept)
 #> [1] "mpg"  "cyl"  "disp" "hp"   "drat" "wt"   "qsec" "gear"
@@ -307,7 +307,7 @@ names(ex_kept)
 
 **Try it:** From `starwars`, keep every column whose name starts with `"s"`. Save to `ex_s` and print its column names.
 
-```r
+```r title="Exercise: Columns starting with s"
 # Exercise 9: select by prefix
 # Hint: select(starts_with("s"))
 
@@ -319,7 +319,7 @@ names(ex_s)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Starts-with s solution"
 ex_s <- starwars |> select(starts_with("s"))
 names(ex_s)
 #> [1] "skin_color" "species"    "starships"
@@ -340,7 +340,7 @@ The first nine exercises drilled one concept at a time. These three capstone pro
 
 From `mtcars`, find all 8-cylinder cars and keep only the `mpg`, `hp`, and `wt` columns. Save the result to `my_v8s`. Use the pipe to chain `filter()` and `select()` in that order.
 
-```r
+```r title="Exercise: Filter then select V8s"
 # Capstone 10: filter → select pipeline
 # Hint: mtcars |> filter(cyl == 8) |> select(mpg, hp, wt)
 
@@ -352,7 +352,7 @@ dim(my_v8s)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="V8 pipeline solution"
 my_v8s <- mtcars |>
   filter(cyl == 8) |>
   select(mpg, hp, wt)
@@ -372,7 +372,7 @@ head(my_v8s, 4)
 
 From `mtcars`, keep the columns from `mpg` through `hp` (inclusive), then keep only those of that range that are numeric. Save to `my_numeric_range`. Use a single `select()` call with the `&` intersection operator.
 
-```r
+```r title="Exercise: Intersect selectors mpg to hp"
 # Capstone 11: intersect two selectors with &
 # Hint: select(mpg:hp & where(is.numeric))
 
@@ -384,7 +384,7 @@ names(my_numeric_range)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Intersect selectors solution"
 my_numeric_range <- mtcars |> select(mpg:hp & where(is.numeric))
 names(my_numeric_range)
 #> [1] "mpg"  "cyl"  "disp" "hp"
@@ -400,7 +400,7 @@ ncol(my_numeric_range)
 
 Build a full analysis pipeline on `starwars`. Keep only human characters with a known height above 180 cm, then select `name`, `height`, `mass`, and `homeworld`. Save to `my_tall_humans`.
 
-```r
+```r title="Exercise: Tall human filter select"
 # Capstone 12: three filter conditions + column selection
 # Hint: filter(species == "Human", !is.na(height), height > 180) |> select(name, height, mass, homeworld)
 
@@ -412,7 +412,7 @@ nrow(my_tall_humans)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tall humans solution"
 my_tall_humans <- starwars |>
   filter(species == "Human", !is.na(height), height > 180) |>
   select(name, height, mass, homeworld)
@@ -440,7 +440,7 @@ print(my_tall_humans)
 
 Here is an end-to-end mini-analysis that uses every technique from the twelve exercises together. The business question: *which fuel-efficient cars in `mtcars` have a 4-cylinder engine, moderate horsepower, and a manual gearbox?*
 
-```r
+```r title="End-to-end commuter car finder"
 # Analysis: find the sweet-spot commuter cars
 top_cars <- mtcars |>
   filter(cyl == 4, mpg > 25, hp %in% 60:120, am == 1) |>

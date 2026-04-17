@@ -41,7 +41,7 @@ The answer on Windows, macOS and Linux is the same tool: **rig**, the R installa
 
 Install rig once, then use it for every future R install.
 
-```r
+```r title="Install rig to manage R versions"
 # rig is a command-line tool installed OUTSIDE R.
 # Windows:  winget install Posit.rig
 # macOS:    brew install --cask rig
@@ -58,7 +58,7 @@ Install rig once, then use it for every future R install.
 
 Once rig is managing your installs, opening a new terminal and typing `R` launches the *default* version. To check which one is active from inside R:
 
-```r
+```r title="Check the active R version"
 R.version.string
 #> [1] "R version 4.4.1 (2024-06-14 ucrt)"
 
@@ -79,7 +79,7 @@ Switching globally with `rig default` is fine for a quick test. The version you 
 
 **From the terminal.** If you just want a one-off session with a specific R version without changing the default:
 
-```r
+```r title="Switch R version via rig run"
 # Terminal (not R):
 #   rig run 4.2 -- R        # launch R 4.2 interactively
 #   rig run 4.2 -- Rscript analysis.R
@@ -96,7 +96,7 @@ rig handles the *install* side. `renv` handles the *project* side. Together they
 
 When you call `renv::init()` inside a project, renv records the current R version in `renv.lock` and writes a project-local library under `renv/library/`. Every time you open that project, renv's activation script checks that the running R matches the lockfile and warns you if it does not.
 
-```r
+```r title="Pin project R version with renv"
 # Inside a fresh project, with the R version you want to pin already active:
 install.packages("renv")
 renv::init()
@@ -109,7 +109,7 @@ renv::init()
 
 Open `renv.lock` after init and you will see an `R` section near the top:
 
-```r
+```r title="Inspect the renv.lock R field"
 # Excerpt from renv.lock (this is JSON, not R):
 #   "R": {
 #     "Version": "4.4.1",
@@ -119,7 +119,7 @@ Open `renv.lock` after init and you will see an `R` section near the top:
 
 If you later open this project under R 4.2, renv prints a warning at session start telling you the R version does not match. That warning is your cue to `rig default 4.4` (or pick 4.4 in the IDE) and relaunch. To sync a collaborator's machine to your exact state:
 
-```r
+```r title="Restore packages with renv"
 # A teammate clones the repo and opens the project:
 renv::restore()
 # renv reads renv.lock and installs every package at the recorded version
@@ -139,7 +139,7 @@ These are the ones that bite almost every person the first time they try to run 
 
 **Mistake 1: Sharing one library folder across versions.** R cannot load a package compiled against R 4.2 in an R 4.4 session, you will see `package 'xyz' was installed before R 4.0.0: please re-install it` or segfaults. Every R version needs its own library. rig and renv both handle this for you *as long as you do not override `.libPaths()` manually in your `.Rprofile`*.
 
-```r
+```r title="Check .libPaths per R version"
 # Check where your current R is looking for packages:
 .libPaths()
 
@@ -164,7 +164,7 @@ Work through these in a fresh terminal. Each one should take less than five minu
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Exercise 1: install rig solution"
 # Terminal:
 #   rig list
 #   rig add release
@@ -181,7 +181,7 @@ Work through these in a fresh terminal. Each one should take less than five minu
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Exercise 2: non-default version solution"
 # Terminal:
 #   mkdir r-version-test && cd r-version-test
 #   rig run oldrel/1 -- R
@@ -198,7 +198,7 @@ R.version.string
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Exercise 3: renv lock solution"
 install.packages("renv")
 renv::init()
 R.version.string
@@ -213,7 +213,7 @@ R.version.string
 
 Here is the end-to-end workflow for a project that must run on R 4.2 even though your default is R 4.4.
 
-```r
+```r title="Pin an older R version end-to-end"
 # Step 1 (terminal): make sure R 4.2 is installed.
 #   rig list
 #   rig add 4.2     # if not already present

@@ -26,7 +26,7 @@ You already use overloaded operators every day. `Sys.Date() + 1` adds a day, not
 
 Here is the shortest possible payoff. We'll define a tiny length class that stores metres, teach `+` how to add two of them, and teach `print` how to display them. Everything else in the tutorial builds on this three-line pattern.
 
-```r
+```r title="Overload + and print for lengthm"
 # A minimal S3 class for lengths in metres
 length_m <- function(x) {
   structure(list(value = x), class = "length_m")
@@ -56,7 +56,7 @@ The constructor is a plain `list()` with a `class` attribute. `+.length_m` is a 
 
 **Try it:** Write `-.length_m` so that `a - b` returns a `length_m` holding the difference. Test it on `length_m(10) - length_m(4)`.
 
-```r
+```r title="Try it: Subtract two lengthm"
 # Try it: subtract two length_m values
 `-.length_m` <- function(e1, e2) {
   # your code here
@@ -69,7 +69,7 @@ length_m(10) - length_m(4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Subtraction method solution"
 `-.length_m` <- function(e1, e2) {
   length_m(e1$value - e2$value)
 }
@@ -85,7 +85,7 @@ length_m(10) - length_m(4)
 
 Binary operators like `+` have *two* arguments, so R can't dispatch on just the first one the way `print()` does. Instead, it uses **double dispatch**: it examines the class of both sides and picks a method that works for either. That's how `as.Date("2020-01-01") + 1` can find a date method even though `1` is a plain integer on the right.
 
-```r
+```r title="Add lengthm and plain number"
 # Scalar addition — only the left side has a method
 mixed <- a + 3
 mixed
@@ -94,7 +94,7 @@ mixed
 
 The left operand has class `length_m`, the right is a plain number. R looks for a method on either side, finds only ours, and calls it. Our existing `+.length_m` happens to handle this correctly because `e2$value` on a bare number quietly becomes `NULL`… which would actually break. Let's see what a robust version looks like.
 
-```r
+```r title="Safer + handles numeric operands"
 # A safer + that handles length_m + numeric too
 `+.length_m` <- function(e1, e2) {
   v1 <- if (inherits(e1, "length_m")) e1$value else e1
@@ -115,7 +115,7 @@ Now either side can be a plain number. This matters because double dispatch is c
 
 Things get noisier when two custom classes collide. If the left and right sides each define their own `+` method and the methods disagree, R prints a warning and falls back to the internal numeric `+`, which almost never does what you want.
 
-```r
+```r title="Conflicting classes warn and mislead"
 # A conflicting class with its own + method
 length_ft <- function(x) structure(list(value = x), class = "length_ft")
 `+.length_ft` <- function(e1, e2) length_ft(e1$value + e2$value)
@@ -135,7 +135,7 @@ R saw two different methods and couldn't decide, so it stripped the class wrappe
 
 **Try it:** Without running it, predict what `3 + a` returns. Check the dispatch rule: which operand is searched first?
 
-```r
+```r title="Try it: Predict 3 + a"
 # Try it: predict the result of 3 + a
 # Hint: R searches BOTH operands for methods
 3 + a
@@ -145,7 +145,7 @@ R saw two different methods and couldn't decide, so it stripped the class wrappe
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="3 + a solution"
 3 + a
 #> 6 m
 ```
@@ -158,7 +158,7 @@ R saw two different methods and couldn't decide, so it stripped the class wrappe
 
 Writing `+`, `-`, `*`, `/`, `==`, `!=`, `<`, `<=`, `>`, `>=` one by one gets old fast, that's ten methods just for basic arithmetic and comparison. R ships a shortcut: the **Ops group generic**. Define a single function called `Ops.yourclass` and R routes every operator in the group to it, passing the operator name in the special variable `.Generic`.
 
-```r
+```r title="One Ops method covers many operators"
 # One method for all arithmetic + comparison
 Ops.length_m <- function(e1, e2) {
   v1 <- if (inherits(e1, "length_m")) e1$value else e1
@@ -179,7 +179,7 @@ Ops.length_m <- function(e1, e2) {
 
 `.Generic` is a string like `"+"` or `"=="`, and `get(.Generic)` fetches the actual base function, that's how one method handles every operator. We branch at the end: arithmetic wraps the result back into a `length_m`, comparison returns a bare logical (because asking "is 3 m less than 5 m" should give `TRUE`, not a length object).
 
-```r
+```r title="Arithmetic and comparison share method"
 # Arithmetic and comparison share the same method now
 a + b
 #> 5 m
@@ -201,7 +201,7 @@ All four call the same `Ops.length_m`. That's ten operators covered by one funct
 
 **Try it:** The method above rejects `%%` (modulo) with an error. Extend the allowed-arithmetic branch so that `length_m(10) %% length_m(3)` returns `length_m(1)`.
 
-```r
+```r title="Try it: Extend Ops with modulo"
 # Try it: add %% to the arithmetic branch
 # Hint: edit the if/else chain in Ops.length_m
 length_m(10) %% length_m(3)
@@ -211,7 +211,7 @@ length_m(10) %% length_m(3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Modulo Ops solution"
 Ops.length_m <- function(e1, e2) {
   v1 <- if (inherits(e1, "length_m")) e1$value else e1
   v2 <- if (inherits(e2, "length_m")) e2$value else e2
@@ -236,7 +236,7 @@ length_m(10) %% length_m(3)
 
 `print.length_m` above works, but it has a subtle weakness: only `print()` knows about units. If someone writes `paste("Height:", a)` they get back `"Height: list(value = 3)"` or worse. The clean solution is to split display into two methods. `format.class` produces the character representation; `print.class` calls `format` and adds any surrounding context.
 
-```r
+```r title="Separate format from print"
 # Separate format from print
 format.length_m <- function(x, ...) {
   paste0(x$value, " m")
@@ -262,7 +262,7 @@ paste("Distance to work:", format(a))
 
 **Try it:** Modify `format.length_m` so the number is shown with exactly two decimal places, for example, `length_m(3)` should display as `"3.00 m"`. Use `sprintf("%.2f", x$value)`.
 
-```r
+```r title="Try it: Two-decimal format method"
 # Try it: two-decimal format
 format.length_m <- function(x, ...) {
   # your code here
@@ -275,7 +275,7 @@ format(length_m(3))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-decimal format solution"
 format.length_m <- function(x, ...) {
   paste0(sprintf("%.2f", x$value), " m")
 }
@@ -293,7 +293,7 @@ format(length_m(1.5))
 
 So far `length_m` has stored a single number. The more useful version stores a vector of values, a whole column of lengths, and supports subsetting. The trick is that `[` is *also* a generic, so you can write `[.length_m` to keep the class attached after a slice. The implementation uses `NextMethod()`, which calls the next method in the dispatch chain (here, plain numeric subsetting).
 
-```r
+```r title="Overload [ and [- for vectors"
 # Vectorised length class
 length_m <- function(x) {
   structure(list(value = x), class = "length_m")
@@ -323,7 +323,7 @@ lens
 
 **Try it:** Write `[[.length_m` so that `lens[[3]]` returns a `length_m` holding just the third element. `[[` on a list normally returns the raw element; we want the class preserved.
 
-```r
+```r title="Try it: Double-bracket method for lengthm"
 # Try it: [[ that keeps the length_m wrapper
 `[[.length_m` <- function(x, i) {
   # your code here
@@ -336,7 +336,7 @@ lens[[3]]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Double-bracket method solution"
 `[[.length_m` <- function(x, i) {
   length_m(x$value[[i]])
 }
@@ -352,7 +352,7 @@ lens[[3]]
 
 Alongside `Ops`, R has two more group generics worth knowing. **Math** covers element-wise functions like `sqrt`, `log`, `abs`, `round`, `exp`. **Summary** covers reducers like `sum`, `min`, `max`, `all`, `any`. Both work the same way as `Ops`: one method, dispatch on `.Generic`.
 
-```r
+```r title="Overload Math and Summary groups"
 # Math group: element-wise functions
 Math.length_m <- function(x, ...) {
   length_m(get(.Generic)(x$value, ...))
@@ -390,7 +390,7 @@ max(lens)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="range returns wrapped lengthm"
 range(lens)
 #> 20 99 m
 ```
@@ -405,7 +405,7 @@ range(lens)
 
 Build a `celsius()` constructor that stores a temperature. Use the `Ops` group generic so that `celsius(20) + celsius(5)` returns `celsius(25)`, and `celsius(20) > celsius(15)` returns `TRUE`. Also write `print.celsius` that displays `"20 °C"`.
 
-```r
+```r title="Exercise: Celsius class with Ops"
 # Exercise 1: Celsius class
 # Hint: model this on length_m's Ops method, but split arithmetic/comparison
 
@@ -433,7 +433,7 @@ x1 > celsius(15)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Celsius class solution"
 celsius <- function(x) structure(list(value = x), class = "celsius")
 
 Ops.celsius <- function(e1, e2) {
@@ -470,7 +470,7 @@ x1 > celsius(15)
 
 Build a `money(amount, currency)` constructor that stores both an amount and a currency string. Overload `+.money` so adding two same-currency amounts works, but mixing currencies throws an error. Write `format.money` and `print.money` that produce `"$100.00 USD"`.
 
-```r
+```r title="Exercise: Money class with currency guard"
 # Exercise 2: money class with currency guard
 money <- function(amount, currency = "USD") {
   # your constructor
@@ -498,7 +498,7 @@ m1 + m2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Money class solution"
 money <- function(amount, currency = "USD") {
   structure(list(amount = amount, currency = currency), class = "money")
 }
@@ -534,7 +534,7 @@ m1 + m2
 
 Build a `point(x, y)` constructor, then overload `+` and `-` as *individual* methods (not `Ops`) so you can add and subtract points component-wise. Add `==.point` comparing both coordinates, and `print.point` showing `"(3, 4)"`. This exercise is the "no shortcuts" version, it shows what the group generic was hiding.
 
-```r
+```r title="Exercise: Two-dimensional point class"
 # Exercise 3: 2-D point using individual operator methods
 point <- function(x, y) {
   # your constructor
@@ -568,7 +568,7 @@ p1 == point(3, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Point class solution"
 point <- function(x, y) structure(list(x = x, y = y), class = "point")
 
 `+.point` <- function(e1, e2) point(e1$x + e2$x, e1$y + e2$y)
@@ -598,7 +598,7 @@ p1 == point(3, 4)
 
 Here is an end-to-end class that combines everything from the tutorial. `units()` stores a numeric vector plus a unit string. It supports `Ops` (arithmetic and comparison), `print`/`format` (display with unit suffix), `[` (vector subsetting), and `Summary` (sum, max, min).
 
-```r
+```r title="End-to-end physical units class"
 # A complete physical-units class
 units <- function(value, unit) {
   stopifnot(is.numeric(value), is.character(unit), length(unit) == 1)

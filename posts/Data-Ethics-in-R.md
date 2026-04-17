@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 You can fit a model in one line of R. The hard part is everything around it: who consented, which rows to drop, whether you ran fifty tests and kept the prettiest, and whether the model quietly fails for one subgroup. Ethics in R looks like code, not a lecture. The cheapest ethical habit is stamping each analysis with a reproducibility manifest a future reader can re-run.
 
-```r
+```r title="Record a data provenance manifest"
 library(dplyr)
 
 data_provenance <- function(purpose, n, seed = NULL) {
@@ -67,7 +67,7 @@ The function does almost nothing, and that's the point. A printed manifest is a 
 
 **Try it:** Extend `data_provenance()` to record a `consent_status` field (e.g., `"IRB-approved"` or `"public-domain"`). Call it once and print the result.
 
-```r
+```r title="Exercise: Add consentstatus to manifest"
 # Try it: add consent_status to the manifest
 ex_provenance <- function(purpose, n, seed = NULL, consent_status) {
   # your code here
@@ -86,7 +86,7 @@ ex_manifest$consent_status
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Add consentstatus solution"
 ex_provenance <- function(purpose, n, seed = NULL, consent_status) {
   list(
     date           = format(Sys.Date(), "%Y-%m-%d"),
@@ -111,7 +111,7 @@ Most R users never collect data themselves. A colleague hands you a CSV, or you 
 
 The simplest enforcement is a `consent_form_id` column and a hard refusal to use rows that lack one. We'll simulate a small medical dataset and show the filter.
 
-```r
+```r title="Filter rows without a consent form"
 raw_data <- tibble(
   participant     = c("P001", "P002", "P003", "P004", "P005"),
   consent_form_id = c("CF-2024", "CF-2031", NA, "CF-2042", ""),
@@ -142,7 +142,7 @@ Two rows out of five are gone, P003 had no form, P005 had a blank string. Your a
 
 **Try it:** Tighten the filter to also require that `consent_form_id` matches the regex `^CF-\d{4}$`. Save the result to `ex_consented`.
 
-```r
+```r title="Exercise: Regex-validate consent IDs"
 # Try it: regex-validate consent IDs
 ex_consented <- raw_data |>
   filter(
@@ -156,7 +156,7 @@ nrow(ex_consented)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Regex-validate consent IDs solution"
 ex_consented <- raw_data |>
   filter(grepl("^CF-\\d{4}$", consent_form_id))
 nrow(ex_consented)
@@ -173,7 +173,7 @@ Data minimization is the principle that you should collect and retain only what 
 
 We'll take the consented dataset, drop the direct-PII columns, and bin `age` into a coarser group so the data carries less re-identification risk.
 
-```r
+```r title="Minimise to pid, agegroup, outcome"
 analysis_data <- consented |>
   mutate(
     pid       = paste0("anon_", match(participant, unique(participant))),
@@ -208,7 +208,7 @@ The `participant` and `consent_form_id` columns are gone. `age` has been replace
 
 **Try it:** Bin a numeric `income` vector into 5 quintiles using `cut()` + `quantile()`. Save the result to `ex_income_bin`.
 
-```r
+```r title="Exercise: Quintile-bin income"
 # Try it: quintile-bin income
 set.seed(1)
 income <- round(runif(20, 20000, 120000))
@@ -224,7 +224,7 @@ table(ex_income_bin)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Quintile-bin income solution"
 ex_income_bin <- cut(
   income,
   breaks = quantile(income, probs = seq(0, 1, 0.2)),
@@ -247,7 +247,7 @@ P-hacking means running many statistical tests and reporting only the ones that 
 
 To make the problem concrete, we'll generate 20 completely random columns, run 19 correlation tests against the first column, and count how many cross the threshold.
 
-```r
+```r title="Twenty correlations on random noise"
 set.seed(2026)
 
 random_data <- as.data.frame(matrix(rnorm(100 * 20), ncol = 20))
@@ -272,7 +272,7 @@ One of the nineteen tests came back with `p = 0.019`, a finding that would look 
 
 The fix isn't to run fewer tests, exploration is legitimate. The fix is to correct the p-values for the number of tests you ran. R has `p.adjust()` built into base stats with several methods; Benjamini-Hochberg (`"BH"`) is the modern default for exploratory work.
 
-```r
+```r title="Benjamini-Hochberg correction of p-values"
 p_adj <- p.adjust(p_values, method = "BH")
 
 sum(p_values < 0.05)
@@ -290,7 +290,7 @@ After the BH correction, zero tests survive. The single "significant" hit was in
 
 **Try it:** Apply Bonferroni correction (`method = "bonferroni"`) to `p_values` and count survivors.
 
-```r
+```r title="Exercise: Bonferroni correction"
 # Try it: Bonferroni instead of BH
 ex_bonf <- p.adjust(
   # your code here
@@ -303,7 +303,7 @@ sum(ex_bonf < 0.05)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bonferroni correction solution"
 ex_bonf <- p.adjust(p_values, method = "bonferroni")
 sum(ex_bonf < 0.05)
 #> [1] 0
@@ -319,7 +319,7 @@ A bare p-value is the most misleading number you can report. It answers "would I
 
 We'll simulate a small A/B test on conversion times, run a t-test, and pack everything we need into a single tibble row. The shape matters: one row, five columns, no hidden cherry-picking.
 
-```r
+```r title="Effect size alongside the p-value"
 set.seed(7)
 
 group_a <- rnorm(40, mean = 12.0, sd = 2.5)
@@ -353,7 +353,7 @@ The mean difference is about 1 second, the 95% confidence interval runs from 0.0
 
 **Try it:** Add a `practical_significance` column to `ab_result` that is `TRUE` when `abs(cohens_d) > 0.2`.
 
-```r
+```r title="Exercise: Flag practical significance"
 # Try it: flag practical significance
 ex_flag <- ab_result |>
   mutate(
@@ -367,7 +367,7 @@ ex_flag$practical_significance
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Flag practical significance solution"
 ex_flag <- ab_result |>
   mutate(practical_significance = abs(cohens_d) > 0.2)
 ex_flag$practical_significance
@@ -384,7 +384,7 @@ A model can be 90% accurate overall and still fail catastrophically for one subg
 
 We'll simulate a binary-classification scenario with two demographic groups, then disaggregate accuracy and false-negative rate.
 
-```r
+```r title="Disaggregate accuracy and false-negative rate"
 set.seed(99)
 
 n_per_group <- 200
@@ -419,7 +419,7 @@ The two accuracy numbers look close in this synthetic example, but the false-neg
 
 **Try it:** Add a `fpr` (false-positive rate) column to `group_metrics`.
 
-```r
+```r title="Exercise: False-positive rate per group"
 # Try it: false-positive rate per group
 ex_fpr <- model_eval |>
   group_by(group) |>
@@ -434,7 +434,7 @@ ex_fpr
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="False-positive rate per group solution"
 ex_fpr <- model_eval |>
   group_by(group) |>
   summarise(
@@ -460,7 +460,7 @@ These three exercises combine multiple concepts from the tutorial into harder ch
 
 Given a six-column raw dataframe, return a three-column analysis frame that keeps only consented rows and pseudonymizes the participant column.
 
-```r
+```r title="Exercise: Filter plus minimize columns"
 # Exercise 1: filter consented + minimize columns
 pe1_raw <- tibble(
   name            = c("Alice", "Bob", "Carol", "Dan"),
@@ -481,7 +481,7 @@ pe1_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter plus minimize columns solution"
 pe1_result <- pe1_raw |>
   filter(!is.na(consent_form_id)) |>
   mutate(pid = paste0("anon_", row_number())) |>
@@ -504,7 +504,7 @@ pe1_result
 
 Write a function `pe2_audit(p_values)` that returns a one-row tibble with the count of p-values that survive at `p < 0.05` under three regimes: no correction, Bonferroni, and BH.
 
-```r
+```r title="Exercise: Audit a vector of p-values"
 # Exercise 2: audit a vector of p-values
 set.seed(42)
 pe2_inputs <- runif(30, 0, 1)  # 30 random p-values
@@ -519,7 +519,7 @@ pe2_audit(pe2_inputs)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Audit vector of p-values solution"
 pe2_audit <- function(p_values) {
   tibble(
     none       = sum(p_values < 0.05),
@@ -543,7 +543,7 @@ pe2_audit(pe2_inputs)
 
 Write a function `pe3_gap(predictions, truth, group)` that returns the absolute accuracy gap between two groups and a `flag` field that is `TRUE` when the gap exceeds 0.05.
 
-```r
+```r title="Exercise: Bias gap calculator"
 # Exercise 3: bias gap calculator
 set.seed(11)
 pe3_pred  <- c(rbinom(100, 1, 0.9), rbinom(100, 1, 0.7))
@@ -560,7 +560,7 @@ pe3_gap(pe3_pred, pe3_truth, pe3_group)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bias gap calculator solution"
 pe3_gap <- function(predictions, truth, group) {
   acc <- tapply(predictions == truth, group, mean)
   gap <- abs(diff(acc))
@@ -591,7 +591,7 @@ pe3_gap(pe3_pred, pe3_truth, pe3_group)
 
 This final example chains every habit from the tutorial into a single readable pipeline. It starts with raw data that contains PII and missing consent, runs it through filtering, minimization, analysis, and a subgroup audit, then prints a final report.
 
-```r
+```r title="End-to-end ethical analysis pipeline"
 set.seed(2026)
 
 raw_pipeline <- tibble(

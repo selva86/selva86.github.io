@@ -169,7 +169,7 @@ You should see something like: `"R version 4.4.2 (2024-10-31)"`. If you see a ve
 
 Now try this longer test, you can run it right here in your browser to see what the output should look like, then compare it with what you get in your local RStudio:
 
-```r
+```r title="Verify R install with quick tests"
 # Test 1: Basic math
 cat("2 + 2 =", 2 + 2, "\n")
 
@@ -236,7 +236,7 @@ This will take 1-3 minutes (it downloads and compiles several packages). You'll 
 
 Now verify it works. You can run this code in your local RStudio, or try it here first to see the expected output:
 
-```r
+```r title="Use dplyr to summarise mtcars"
 # Load the tidyverse
 library(dplyr)
 library(ggplot2)
@@ -251,7 +251,7 @@ If you see a table with average MPG grouped by cylinder count, your package inst
 
 Now try creating a plot:
 
-```r
+```r title="Your first ggplot2 scatter plot"
 library(ggplot2)
 
 # Your first ggplot2 visualization

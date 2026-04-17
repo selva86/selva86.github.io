@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 A single NA in a vector can make `mean()`, `sum()`, `sd()`, and most statistical functions return NA. That behavior is intentional: R refuses to silently pretend the missing data is zero. The fix is almost always a `na.rm = TRUE` argument, but the bigger question is why the NAs are there and what they mean. Here is the payoff scenario.
 
-```r
+```r title="NA breaks mean and sum"
 x <- c(10, 15, NA, 20, 25)
 
 mean(x)
@@ -48,7 +48,7 @@ Every R user hits this in their first week. The rule is simple: any arithmetic t
 
 **Try it:** Compute the mean and sum of this vector, dropping NAs.
 
-```r
+```r title="Exercise: NA-safe mean and sum"
 vals <- c(5, 10, NA, 15, NA, 20)
 # Your code
 ```
@@ -56,7 +56,7 @@ vals <- c(5, 10, NA, 15, NA, 20)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="NA-safe aggregates solution"
 vals <- c(5, 10, NA, 15, NA, 20)
 mean(vals, na.rm = TRUE)
 #> [1] 12.5
@@ -71,7 +71,7 @@ sum(vals, na.rm = TRUE)
 
 The three workhorse functions are `is.na()`, `complete.cases()`, and `anyNA()`. Each answers a slightly different question.
 
-```r
+```r title="is.na anyNA and NA counts"
 x <- c(10, NA, 20, NA, 30)
 
 is.na(x)
@@ -88,7 +88,7 @@ sum(is.na(x))   # how many NAs?
 
 For data frames, `complete.cases()` answers "which rows have no NAs at all?".
 
-```r
+```r title="complete.cases on a data frame"
 df <- data.frame(
   name  = c("Asha","Bilal","Cleo","Daan"),
   age   = c(30, NA, 25, 40),
@@ -110,7 +110,7 @@ Bilal is missing age; Cleo is missing score; both rows are dropped when you subs
 
 **Try it:** How many rows in this data frame are missing at least one value?
 
-```r
+```r title="Exercise: Count incomplete rows"
 df <- data.frame(
   a = c(1, 2, NA, 4),
   b = c(NA, 20, 30, 40),
@@ -122,7 +122,7 @@ df <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Incomplete rows solution"
 df <- data.frame(
   a = c(1, 2, NA, 4),
   b = c(NA, 20, 30, 40),
@@ -139,7 +139,7 @@ sum(!complete.cases(df))
 
 Before you fix NAs, you need to know how many there are, where they are concentrated, and whether they occur together. A single count is rarely enough.
 
-```r
+```r title="Per-column NA counts and percentages"
 library(dplyr)
 
 df <- data.frame(
@@ -164,7 +164,7 @@ round(colMeans(is.na(df)) * 100, 1)
 
 For visualization, the `naniar` package is the go-to:
 
-```r
+```r title="naniar missingness visualizations preview"
 # library(naniar)
 # vis_miss(df)          # heatmap of missing pattern
 # gg_miss_var(df)       # bar chart of NA count per variable
@@ -186,7 +186,7 @@ Statisticians distinguish three mechanisms:
 
 **Try it:** Compute the percentage missing for each column in the `airquality` dataset.
 
-```r
+```r title="Exercise: Airquality missing percentages"
 # data(airquality)
 # colMeans(is.na(airquality)) * 100
 ```
@@ -194,7 +194,7 @@ Statisticians distinguish three mechanisms:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Airquality missingness solution"
 data(airquality)
 round(colMeans(is.na(airquality)) * 100, 1)
 #>   Ozone Solar.R    Wind    Temp   Month     Day
@@ -208,7 +208,7 @@ round(colMeans(is.na(airquality)) * 100, 1)
 
 Removal, "listwise deletion" in stats jargon, is the simplest option. It works when NAs are rare, when the missingness is MCAR, and when you can afford to lose some sample size. The three main tools are `na.omit`, `complete.cases`, and `drop_na` from tidyr.
 
-```r
+```r title="na.omit and dropna row removal"
 library(tidyr)
 
 df <- data.frame(
@@ -236,7 +236,7 @@ drop_na(df, x)     # drop only rows where x is NA
 
 `drop_na()` in tidyr accepts a column selector, so you can drop rows where a specific column is NA while keeping rows that are missing elsewhere. This is much more surgical than `na.omit`.
 
-```r
+```r title="Drop rows missing everywhere"
 # Alternative: drop rows only where both x AND y are NA
 library(dplyr)
 df |> filter(!(is.na(x) & is.na(y)))
@@ -252,7 +252,7 @@ When to remove? Three rules of thumb:
 
 **Try it:** Drop rows where `score` is NA but keep rows missing `age`.
 
-```r
+```r title="Exercise: Drop rows missing score"
 library(tidyr)
 df <- data.frame(name = c("A","B","C"), age = c(30, NA, 25), score = c(NA, 70, 85))
 # drop_na(df, score)
@@ -261,7 +261,7 @@ df <- data.frame(name = c("A","B","C"), age = c(30, NA, 25), score = c(NA, 70, 8
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drop by score solution"
 library(tidyr)
 df <- data.frame(name  = c("A","B","C"),
                  age   = c(30, NA, 25),
@@ -289,7 +289,7 @@ Imputation replaces missing values with plausible estimates. You impute when:
 
 The simplest imputation is **mean** or **median** replacement for numeric variables, and **mode** (or "missing" category) replacement for categoricals. It is quick and works when missingness is modest.
 
-```r
+```r title="Median imputation with ifelse"
 library(dplyr)
 
 df <- data.frame(
@@ -319,7 +319,7 @@ Simple imputation has one big drawback: it **underestimates variance**. Every im
 
 **Try it:** Impute missing `x` values with the column mean.
 
-```r
+```r title="Exercise: Mean imputation one-liner"
 df <- data.frame(x = c(10, NA, 20, NA, 30))
 # df$x <- ifelse(is.na(df$x), mean(df$x, na.rm = TRUE), df$x)
 ```
@@ -327,7 +327,7 @@ df <- data.frame(x = c(10, NA, 20, NA, 30))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean imputation solution"
 df <- data.frame(x = c(10, NA, 20, NA, 30))
 df$x <- ifelse(is.na(df$x), mean(df$x, na.rm = TRUE), df$x)
 df$x
@@ -345,7 +345,7 @@ From simplest to most sophisticated:
 
 **2. Last observation carried forward (LOCF)**, useful for time series:
 
-```r
+```r title="Last observation carried forward"
 library(zoo)
 x <- c(10, NA, NA, 15, NA, 20)
 na.locf(x)
@@ -354,7 +354,7 @@ na.locf(x)
 
 **3. Linear interpolation**, also for time series:
 
-```r
+```r title="Linear interpolation with na.approx"
 library(zoo)
 na.approx(c(10, NA, NA, 40))
 #> [1] 10 20 30 40
@@ -362,14 +362,14 @@ na.approx(c(10, NA, NA, 40))
 
 **4. k-Nearest Neighbors imputation**, fills missing values using similar rows:
 
-```r
+```r title="kNN imputation with VIM"
 # library(VIM)
 # df_imputed <- kNN(df, k = 5)
 ```
 
 **5. Multiple Imputation with `mice`**, the gold standard for inference. It creates several imputed datasets, runs the analysis on each, and pools the results so standard errors correctly reflect the uncertainty added by imputation.
 
-```r
+```r title="Multiple imputation with mice"
 # library(mice)
 # imp <- mice(df, m = 5, method = "pmm", seed = 123)
 # fit <- with(imp, lm(score ~ age))
@@ -380,7 +380,7 @@ na.approx(c(10, NA, NA, 40))
 
 **6. Random Forest imputation**, `missForest` package. Fast and non-parametric:
 
-```r
+```r title="missForest random forest imputation"
 # library(missForest)
 # df_imp <- missForest(df)$ximp
 ```
@@ -389,7 +389,7 @@ na.approx(c(10, NA, NA, 40))
 
 **Try it:** Use `na.approx` from `zoo` to linearly interpolate the missing values in this time series.
 
-```r
+```r title="Exercise: Interpolate missing series"
 library(zoo)
 ts <- c(5, NA, NA, 20, 25, NA, 35)
 # na.approx(ts)
@@ -398,7 +398,7 @@ ts <- c(5, NA, NA, 20, 25, NA, 35)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Interpolate series solution"
 library(zoo)
 ts <- c(5, NA, NA, 20, 25, NA, 35)
 na.approx(ts)
@@ -414,7 +414,7 @@ Many NAs in a dataset are your own fault, introduced by a type conversion, a fai
 
 **1. Failed `as.numeric` on non-numeric strings:**
 
-```r
+```r title="NA from failed numeric coercion"
 as.numeric(c("1", "2", "three", "4"))
 #> [1]  1  2 NA  4
 #> Warning message: NAs introduced by coercion
@@ -424,7 +424,7 @@ Fix: clean the strings first with `gsub` / `stringr`, or use `readr::parse_numbe
 
 **2. Failed date parse:**
 
-```r
+```r title="NA from failed date parse"
 lubridate::ymd(c("2026-04-11", "not a date"))
 #> [1] "2026-04-11" NA
 ```
@@ -433,7 +433,7 @@ Fix: check `sum(is.na(result))` right after parsing and decide whether to log, f
 
 **3. Unmatched rows in `left_join`:**
 
-```r
+```r title="NA from unmatched left join"
 library(dplyr)
 a <- tibble(id = 1:3, value = c("x","y","z"))
 b <- tibble(id = 1:2, extra = c(10, 20))
@@ -450,7 +450,7 @@ Row with `id = 3` has no match in `b`, so `extra` becomes NA. This is by design,
 
 **4. Division by zero or log of zero:**
 
-```r
+```r title="Inf and NaN math edge cases"
 log(0)
 #> [1] -Inf
 log(-1)
@@ -465,7 +465,7 @@ These produce `-Inf`, `Inf`, or `NaN`, not NA. But they behave similarly in down
 
 **Try it:** Check the vector below for NA, NaN, and non-finite values using `is.na` and `is.finite`.
 
-```r
+```r title="Exercise: Detect NA and non-finite"
 vals <- c(1, NA, 2, NaN, Inf, -Inf, 5)
 # is.na(vals); is.finite(vals)
 ```
@@ -473,7 +473,7 @@ vals <- c(1, NA, 2, NaN, Inf, -Inf, 5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Non-finite detection solution"
 vals <- c(1, NA, 2, NaN, Inf, -Inf, 5)
 is.na(vals)
 #> [1] FALSE  TRUE FALSE  TRUE FALSE FALSE FALSE
@@ -492,7 +492,7 @@ Given the built-in `airquality` dataset, compute a tibble with columns `variable
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Airquality missingness summary"
 library(tibble); library(dplyr)
 data(airquality)
 tibble(
@@ -510,7 +510,7 @@ Drop rows where `Ozone` is missing. Then impute remaining NAs in `Solar.R` with 
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Drop Ozone NA then impute Solar.R"
 library(dplyr); library(tidyr)
 airquality |>
   drop_na(Ozone) |>
@@ -525,7 +525,7 @@ For the `airquality` dataset, compute the mean of `Ozone` (a) after listwise del
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Listwise versus imputed Ozone mean"
 library(dplyr)
 delete_mean <- airquality |> na.omit() |> summarise(m = mean(Ozone)) |> pull(m)
 impute_mean <- airquality |>
@@ -540,7 +540,7 @@ c(delete = delete_mean, impute = impute_mean)
 
 End-to-end pipeline on a messy survey dataset: detect, summarize, decide, and impute.
 
-```r
+```r title="End-to-end survey imputation pipeline"
 library(dplyr); library(tidyr); library(tibble)
 
 # A realistic messy dataset

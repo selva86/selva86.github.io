@@ -42,7 +42,7 @@ Every ggplot2 chart starts with `ggplot()`, which sets up the coordinate system,
 
 Let's load ggplot2 and create a working dataset. The built-in `mpg` dataset has 234 rows of car fuel efficiency data. We'll sample 150 rows to keep the plots readable in this tutorial.
 
-```r
+```r title="Preview the mpg sample"
 library(ggplot2)
 set.seed(42)
 mpg_sm <- mpg[sample(nrow(mpg), 150), ]
@@ -53,7 +53,7 @@ head(mpg_sm[, c("displ", "hwy", "drv", "class", "cyl")])
 
 Now let's draw the most basic scatter plot, engine displacement (`displ`) on the x-axis, highway mpg (`hwy`) on the y-axis:
 
-```r
+```r title="Basic displ vs hwy scatter"
 p_basic <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
   geom_point() +
   labs(
@@ -71,14 +71,14 @@ The negative slope is immediately visible, bigger engines get fewer miles per ga
 
 **Try it:** Change the y-axis to city mpg (`cty`) instead of `hwy`. Does the negative relationship with displacement hold?
 
-```r
+```r title="Exercise: plot displ vs cty"
 # Your code here — plot displ vs cty
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="displ-vs-cty solution"
 ex_city <- ggplot(mpg_sm, aes(x = displ, y = cty)) +
   geom_point() +
   labs(x = "Engine Displacement (litres)", y = "City MPG")
@@ -99,7 +99,7 @@ The real power of `geom_point()` shows up when you encode a third (or fourth) va
 
 Here's how to map three variables at once, drive type to color, number of cylinders to size, and vehicle class to shape:
 
-```r
+```r title="Map drive type and cylinders to aes"
 p_aes <- ggplot(mpg_sm, aes(
     x = displ,
     y = hwy,
@@ -133,14 +133,14 @@ A few things to notice:
 
 **Try it:** Map only `class` (vehicle class) to color. How many distinct colors appear in the legend?
 
-```r
+```r title="Exercise: map class to color"
 # Your code here — map class to color
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Class-color solution"
 ex_class <- ggplot(mpg_sm, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2, alpha = 0.8) +
   scale_color_brewer(palette = "Set2")
@@ -155,7 +155,7 @@ Seven distinct colors appear, one per vehicle class (compact, midsize, SUV, pick
 
 A scatter plot shows whether a relationship exists. `geom_smooth()` quantifies its direction and shape. Layer it directly on top of your scatter plot, it uses the same `aes()` mappings automatically.
 
-```r
+```r title="Add a linear trend line"
 p_smooth <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.5, color = "steelblue") +
   geom_smooth(method = "lm", se = TRUE, color = "firebrick") +
@@ -181,7 +181,7 @@ The shaded ribbon around the line is the 95% confidence interval (`se = TRUE`). 
 
 Let's compare a linear fit versus a loess smooth on the same data:
 
-```r
+```r title="Compare loess with a linear fit"
 # Loess smooth - follows the data more flexibly
 p_loess <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.4, color = "steelblue") +
@@ -201,14 +201,14 @@ Notice how the loess curve follows the dip around displacement = 3. The linear f
 
 **Try it:** Add `geom_smooth(method = "lm", se = FALSE)` to `p_basic` (from the first block). Does removing the confidence band make the chart cleaner?
 
-```r
+```r title="Exercise: add geomsmooth without band"
 # Your code here — add geom_smooth with se = FALSE to p_basic
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Smooth-without-band solution"
 ex_smooth <- p_basic +
   geom_smooth(method = "lm", se = FALSE, color = "tomato")
 
@@ -230,7 +230,7 @@ When your dataset has thousands of rows, scatter plots become a solid mass of ov
 
 The simplest fix. When multiple points overlap, their colors stack and the area appears darker, giving a rough sense of density.
 
-```r
+```r title="Fix overplotting with low alpha"
 # Full diamonds dataset - 53,940 rows
 p_alpha <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.05, color = "steelblue") +
@@ -247,7 +247,7 @@ p_alpha
 
 When one axis is categorical or discrete, points stack directly on top of each other. `geom_jitter()` adds random noise to the positions, spreading points out so you can see the distribution within each group.
 
-```r
+```r title="Jitter points to spread discrete x"
 p_jitter <- ggplot(mpg_sm, aes(x = drv, y = hwy)) +
   geom_jitter(width = 0.2, height = 0, alpha = 0.6,
               color = "steelblue", size = 2) +
@@ -264,7 +264,7 @@ p_jitter
 
 For truly large datasets (100K+ rows), even transparency doesn't help much. `geom_bin2d()` divides the plot area into rectangular bins and fills each bin according to count, giving a heatmap-style view of density.
 
-```r
+```r title="Density bins for huge datasets"
 p_bin <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_bin2d(bins = 60) +
   scale_fill_viridis_c(name = "Count", option = "plasma") +
@@ -281,14 +281,14 @@ The color scale now reveals that most diamonds cluster below 1.5 carats and belo
 
 **Try it:** Try `geom_hex()` (from the `hexbin` package) as an alternative to `geom_bin2d()`. Hexagonal bins often look cleaner than rectangular ones.
 
-```r
+```r title="Exercise: try geomhex on diamonds"
 # Your code here — try geom_hex() on diamonds
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="geomhex solution"
 # install.packages("hexbin")  # run once if needed
 ex_hex <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_hex(bins = 50) +
@@ -305,7 +305,7 @@ Hexagonal bins tile the plane more evenly than rectangles, each cell has the sam
 
 Sometimes you want to call out specific points by name, outliers, key observations, or benchmark values. ggplot2 provides `geom_text()` for simple labels, and the `ggrepel` package prevents them from overlapping.
 
-```r
+```r title="Label worst-mpg cars with ggrepel"
 library(ggrepel)
 
 # Label the 8 cars with the worst highway mpg
@@ -336,14 +336,14 @@ The trick here is passing a filtered dataset (`worst_mpg`) to the label layers v
 
 **Try it:** Change the label from `model` to `paste(model, hwy)` to show both the car model and its mpg value in each label.
 
-```r
+```r title="Exercise: label with model and hwy"
 # Your code here — change the label to paste(model, hwy)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Label-with-hwy solution"
 ex_label <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.4, color = "steelblue") +
   geom_point(data = worst_mpg, color = "firebrick", size = 3) +
@@ -367,7 +367,7 @@ ex_label
 
 ❌ This sets all points to the column name as a literal string, not the column values:
 
-```r
+```r title="Common mistake: drv as literal string"
 # Wrong - "drv" as text, not the drv variable
 ggplot(mpg_sm, aes(x = displ, y = hwy)) +
   geom_point(color = "drv")
@@ -375,7 +375,7 @@ ggplot(mpg_sm, aes(x = displ, y = hwy)) +
 
 ✅ Move variable mappings inside `aes()`:
 
-```r
+```r title="Correct: drv inside aes"
 # Correct - maps the drv column to color
 ggplot(mpg_sm, aes(x = displ, y = hwy, color = drv)) +
   geom_point()
@@ -411,7 +411,7 @@ ggplot(mpg_sm, aes(x = displ, y = hwy, color = drv)) +
 
 Using the full `mtcars` dataset, create a scatter plot of `wt` (weight) vs `mpg`. Map `hp` (horsepower) to `color` and `gear` (number of gears, treat as factor) to `shape`. Add a loess trend line. Give the chart a descriptive title and clean axis labels.
 
-```r
+```r title="Exercise: weight vs mpg with aesthetics"
 # Your code here
 # Hint: aes(x = wt, y = mpg, color = hp, shape = factor(gear))
 # Add geom_smooth(method = "loess") after geom_point()
@@ -426,7 +426,7 @@ The `diamonds` dataset has 53,940 rows. Create a scatter plot of `carat` vs `pri
 
 Which version reveals the distribution within each cut quality more clearly?
 
-```r
+```r title="Exercise: alpha versus geombin2d"
 # Part 1: alpha approach
 # ggplot(diamonds, aes(x = carat, y = price, color = cut)) +
 #   geom_point(alpha = 0.05)
@@ -441,7 +441,7 @@ Which version reveals the distribution within each cut quality more clearly?
 
 Let's put everything together. This final chart uses the full `mpg` dataset, maps two aesthetics, adds a per-group trend line, and facets by drive type for a comprehensive view.
 
-```r
+```r title="Faceted final mpg scatter plot"
 p_final <- ggplot(
     mpg,
     aes(x = displ, y = hwy, color = class)

@@ -24,7 +24,7 @@ The CLT's guarantee quietly assumes the distribution you're sampling from has a 
 
 The code below draws 5,000 values with `rcauchy()`, computes the cumulative mean after each new draw, and plots the running average against the sample size. For a Normal distribution you'd see a curve that hugs zero more and more tightly. Here, the line keeps lurching upward and downward no matter how many draws accumulate.
 
-```r
+```r title="Running mean of Cauchy draws"
 # Simulate 5,000 Cauchy draws and track the running mean
 set.seed(314)
 n_draws      <- 5000
@@ -50,7 +50,7 @@ Two things stand out. First, the raw draws span roughly `-2193` to `+730`, a sin
 
 **Try it:** Replace `rcauchy()` with `rnorm()` and confirm the running mean settles close to zero as `n` grows.
 
-```r
+```r title="Exercise: running mean of Normal draws"
 # Try it: run the same simulation with Normal draws
 set.seed(314)
 ex_normal_draws <- rnorm(5000)
@@ -66,7 +66,7 @@ abline(h = 0, lty = 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Normal-running-mean solution"
 set.seed(314)
 ex_normal_draws <- rnorm(5000)
 ex_cum_mean     <- cumsum(ex_normal_draws) / seq_along(ex_normal_draws)
@@ -88,7 +88,7 @@ A distribution is **heavy-tailed** when extreme values happen far more often tha
 
 Let's visualize this. We'll plot the density `f(x)` for a standard Normal, a Student-t with 3 degrees of freedom, and a standard Cauchy on a log-y axis. On a log scale, exponential decay (Normal) looks like a steep straight-down curve, while power-law decay (Cauchy, t with low df) stays high.
 
-```r
+```r title="Compare tail decay on log-y axis"
 # Compare density tails on a log-y scale
 x_grid     <- seq(0, 10, length.out = 400)
 normal_den <- dnorm(x_grid)
@@ -120,7 +120,7 @@ The variance is defined as $E[X^2] = \int_{-\infty}^{\infty} x^2 f(x) \, dx$. Pl
 
 **Try it:** Add a Student-t with 10 degrees of freedom to the same plot and see where it sits on the thin-to-heavy spectrum.
 
-```r
+```r title="Exercise: add df=10 to comparison"
 # Try it: add df = 10 to the comparison
 ex_t10_den <- # your code here
 
@@ -134,7 +134,7 @@ lines(x_grid, cauchy_den,  col = "firebrick", lwd = 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="t(10) comparison solution"
 ex_t10_den <- dt(x_grid, df = 10)
 
 plot(x_grid, normal_den, type = "l", log = "y", col = "steelblue", lwd = 2,
@@ -160,7 +160,7 @@ R ships a full four-function family for Cauchy, matching the convention used for
 
 Defaults are `location = 0`, `scale = 1`, that combination is called the **standard Cauchy**, and it's identical to a Student-t with 1 degree of freedom. One demo block shows all four in action so you can see how they relate.
 
-```r
+```r title="All four standard Cauchy functions"
 # All four Cauchy functions on the standard Cauchy
 set.seed(7)
 
@@ -192,7 +192,7 @@ Read off the key facts. The density at zero is `1/pi ≈ 0.318`, which is lower 
 
 **Try it:** Compute the probability that a standard Cauchy sample exceeds `10` in absolute value, i.e., `P(|X| > 10)`. Use `pcauchy()` and symmetry.
 
-```r
+```r title="Exercise: probability beyond ten"
 # Try it: P(|X| > 10) for standard Cauchy
 ex_p_extreme <- # your code here
 ex_p_extreme
@@ -202,7 +202,7 @@ ex_p_extreme
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Probability-beyond-ten solution"
 ex_p_extreme <- 2 * (1 - pcauchy(10))
 ex_p_extreme
 #> [1] 0.06345783
@@ -218,7 +218,7 @@ Cauchy is the poster child, but it sits inside two broader families you should r
 
 The cleanest way to feel these families is to watch cumulative sample means at different `df` values side by side. At `df = 1` they wander forever; at `df = 5` they're unsteady but converging; at `df = 30` they hug the true mean of zero.
 
-```r
+```r title="Cumulative means across Student-t df"
 # Cumulative means across Student-t families
 set.seed(101)
 n      <- 5000
@@ -247,7 +247,7 @@ The blue `t(30)` line is near zero almost immediately. The orange `t(5)` line wo
 
 **Try it:** Draw three independent samples of 1,000 values each from `rt(df = 1)` and compute `var()` on each. The three numbers should disagree wildly, because the theoretical variance doesn't exist, your sample estimate is meaningless.
 
-```r
+```r title="Exercise: variance of three Cauchy reps"
 # Try it: variance of three Cauchy (t df=1) replicates
 set.seed(1)
 ex_var_reps <- # your code here — call var() three times on rt(1000, df=1)
@@ -258,7 +258,7 @@ ex_var_reps
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-variance solution"
 set.seed(1)
 ex_var_reps <- c(
   var(rt(1000, df = 1)),
@@ -290,7 +290,7 @@ Detecting that the CLT doesn't apply is half the battle. The other half is repla
 
 Let's see move 1 in action. The code below tracks both the running mean *and* the running median on a single Cauchy sample. The mean keeps taking hits from outliers; the median, anchored to the middle observation, stays pinned near the true location.
 
-```r
+```r title="Mean versus median on Cauchy data"
 # Mean vs median stability on Cauchy data
 set.seed(42)
 cauchy_series   <- rcauchy(5000)
@@ -322,7 +322,7 @@ The final median is near `-0.03`, within spitting distance of the true Cauchy lo
 
 **Try it:** Compare `mean()` versus `median()` on the first 1,000 draws and on all 5,000 draws of `cauchy_series`. Notice which estimator changed more when you added 4,000 more draws.
 
-```r
+```r title="Exercise: mean versus median stability"
 # Try it: mean vs median stability across sample sizes
 ex_mean_1k  <- # your code here
 ex_mean_all <- # your code here
@@ -337,7 +337,7 @@ c(mean_1k = ex_mean_1k, mean_all = ex_mean_all,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean-versus-median solution"
 ex_mean_1k  <- mean(cauchy_series[1:1000])
 ex_mean_all <- mean(cauchy_series)
 ex_med_1k   <- median(cauchy_series[1:1000])
@@ -361,7 +361,7 @@ Three capstone problems that combine the ideas from the tutorial. Each one is so
 
 Write a bootstrap procedure that returns a 95% confidence interval for the **median** of a Cauchy sample of size 200. Resample with replacement 1,000 times, compute the median each time, then use the 2.5th and 97.5th percentiles of the resampled medians as your CI. Save the result to `my_ci`.
 
-```r
+```r title="Exercise: bootstrap CI for median"
 # Exercise 1: bootstrap 95% CI for the median of a Cauchy sample
 # Hint: use sample(..., replace = TRUE) and quantile(..., probs = c(0.025, 0.975))
 
@@ -375,7 +375,7 @@ my_cauchy <- rcauchy(200)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bootstrap-median solution"
 set.seed(1)
 my_cauchy <- rcauchy(200)
 
@@ -395,7 +395,7 @@ my_ci
 
 You're handed `my_mystery <- c(rcauchy(99), 1e6)`, 99 Cauchy draws plus one massive outlier. Compute four summaries: `mean`, `median`, `mad` (median absolute deviation, a robust spread), and `sd`. Then quantify the outlier's *leverage*, how much the outlier shifts `mean` vs `median`, by recomputing both with and without the outlier and storing the two differences in `my_leverage`.
 
-```r
+```r title="Exercise: diagnose a mystery sample"
 # Exercise 2: diagnose heavy tails in a mystery sample
 # Hint: compute stats with and without the last element; compare shifts.
 
@@ -409,7 +409,7 @@ my_mystery <- c(rcauchy(99), 1e6)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mystery-sample solution"
 set.seed(11)
 my_mystery <- c(rcauchy(99), 1e6)
 
@@ -442,7 +442,7 @@ my_leverage
 
 Simulate the spread of the sample mean as `df` varies. For each `df` in `c(1, 2, 3, 5, 30)`, draw 2,000 independent samples of size 500 from `rt(500, df)`, compute each sample's mean, and report the **standard deviation of those 2,000 sample means**. Store the result as a named numeric vector `my_sim` with `df` values as names.
 
-```r
+```r title="Exercise: SD of means across df"
 # Exercise 3: SD of sample means across Student-t df
 # Hint: use replicate() to simulate sample means; then sd() across simulations.
 
@@ -455,7 +455,7 @@ my_df_grid <- c(1, 2, 3, 5, 30)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="SD-across-df solution"
 my_df_grid <- c(1, 2, 3, 5, 30)
 
 set.seed(99)
@@ -477,7 +477,7 @@ round(my_sim, 4)
 
 Tie everything together with a plausible scenario. Suppose you're modeling "returns" that are mostly well-behaved but occasionally explode, think financial-style data. The simulation mixes draws from a Normal with rare large jumps. The goal is a short diagnostic workflow that decides whether the CLT applies, and if not, which robust method to use.
 
-```r
+```r title="Diagnose heavy tails in returns"
 # Simulate a returns-like series: 95% Normal, 5% big jumps
 set.seed(2026)
 n             <- 2000

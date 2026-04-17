@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Before you can trust a number, you need to know whether R actually sees it as a number. Every value in R belongs to exactly one of six basic types, and one call to `class()` tells you which. Let's create one value of each type and ask R to identify them.
 
-```r
+```r title="Six basic types with class"
 weight     <- 72.5          # numeric (double)
 age        <- 30L           # integer (note the L)
 name       <- "Selva"       # character
@@ -41,7 +41,7 @@ Six values, six different types. `weight` is **numeric** because `72.5` has a de
 
 **Try it:** Create a variable `ex_city` holding the string `"Chennai"` and print its class.
 
-```r
+```r title="Exercise: Store a city name"
 # Try it: store a city name and check its type
 ex_city <- # your code here
 
@@ -52,7 +52,7 @@ class(ex_city)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="City name solution"
 ex_city <- "Chennai"
 class(ex_city)
 #> [1] "character"
@@ -66,7 +66,7 @@ class(ex_city)
 
 Knowing the types exist is one thing; checking them in running code is another. R gives you two families of tools: `class()` returns the type as a string, and `is.*()` functions return `TRUE` or `FALSE` for a specific type. Use `class()` when you want to know *which* type a value is, and `is.numeric()` / `is.character()` / `is.logical()` when you want to test *if* it's a particular type inside an `if` statement.
 
-```r
+```r title="Check types with is functions"
 class(weight)
 #> [1] "numeric"
 
@@ -87,7 +87,7 @@ The last line is the trap every beginner hits. `"72.5"` *looks* like a number bu
 
 **Try it:** Check whether the comparison `5 > 3` produces a logical value.
 
-```r
+```r title="Exercise: Logical comparison result"
 # Try it: store the comparison result and test its type
 ex_check <- # your code here
 
@@ -98,7 +98,7 @@ is.logical(ex_check)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Logical comparison solution"
 ex_check <- 5 > 3
 is.logical(ex_check)
 #> [1] TRUE
@@ -112,7 +112,7 @@ is.logical(ex_check)
 
 R has three functions that all seem to answer "what type is this?" and they disagree just often enough to cause confusion. Here's the rule: **`class()`** tells you the object's high-level class (what it behaves like), **`typeof()`** tells you how R stores it internally, and **`mode()`** is a legacy base-R category that you'll rarely need. Seeing them side-by-side makes the difference obvious.
 
-```r
+```r title="class versus typeof versus mode"
 check_type <- function(x) {
   data.frame(value = deparse(x), class = class(x), typeof = typeof(x), mode = mode(x))
 }
@@ -141,7 +141,7 @@ Look at the first two rows. `72.5` has class `"numeric"` but typeof `"double"`, 
 
 **Try it:** Print `typeof(5)` and `typeof(5L)` side-by-side.
 
-```r
+```r title="Exercise: Double versus integer types"
 # Try it: show that 5 and 5L have different storage types
 c(typeof(5), typeof(5L))
 #> Expected: [1] "double"  "integer"
@@ -150,7 +150,7 @@ c(typeof(5), typeof(5L))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Double integer solution"
 c(typeof(5), typeof(5L))
 #> [1] "double"  "integer"
 ```
@@ -163,7 +163,7 @@ c(typeof(5), typeof(5L))
 
 When most languages say "number" they mean integer. R flips that: every number you type is a **double** (a 64-bit floating-point number) unless you explicitly ask for an integer. That's why `class(5)` returns `"numeric"` and `typeof(5)` returns `"double"`. If you want an actual integer you must add the `L` suffix, `5L`, or use `as.integer(5)`. This matters more than it sounds, because doubles and integers behave differently at extremes.
 
-```r
+```r title="Numeric defaults to double"
 # Without the L suffix, R stores numbers as doubles
 typeof(1000)
 #> [1] "double"
@@ -190,7 +190,7 @@ The integer overflow is a real gotcha. If you've got a counter that might cross 
 
 **Try it:** Create an integer variable `ex_count` holding `100` using the `L` suffix and print its class.
 
-```r
+```r title="Exercise: Create an integer"
 # Try it: make a real integer, not a double
 ex_count <- # your code here
 
@@ -201,7 +201,7 @@ class(ex_count)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Integer creation solution"
 ex_count <- 100L
 class(ex_count)
 #> [1] "integer"
@@ -220,7 +220,7 @@ R doesn't let values of different types sit side-by-side in the same vector, eve
 
 The ladder is easier to understand by example. Let's mix a number with a string and watch what happens.
 
-```r
+```r title="Mixed numeric character coerces"
 # Mix a number and a character in one vector
 mixed <- c(1, 2, "three")
 mixed
@@ -238,7 +238,7 @@ That single `"three"` turned the other two numbers into strings `"1"` and `"2"`,
 
 Coercion also works the other way, when logicals meet arithmetic, R promotes `TRUE` to `1L` and `FALSE` to `0L`. That's how you count matches in a vector.
 
-```r
+```r title="Logical arithmetic as zero one"
 # TRUE becomes 1, FALSE becomes 0 in arithmetic
 logic_math <- c(TRUE, FALSE, TRUE, TRUE, FALSE)
 sum(logic_math)
@@ -255,7 +255,7 @@ Three `TRUE`s means `sum()` returns `3`, and `mean()` returns the proportion of 
 
 **Try it:** Predict the class of `c(TRUE, 1L, 2.5)` before running the code.
 
-```r
+```r title="Exercise: Mixed logical integer double"
 # Try it: what type wins when logical + integer + double mix?
 ex_pred <- c(TRUE, 1L, 2.5)
 class(ex_pred)
@@ -265,7 +265,7 @@ class(ex_pred)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mixed coercion solution"
 ex_pred <- c(TRUE, 1L, 2.5)
 class(ex_pred)
 #> [1] "numeric"
@@ -284,7 +284,7 @@ Not every value in R is a regular type, some represent "missing", "nothing", or 
 ![NA vs NULL vs NaN vs Inf](screenshots/R-Data-Types-special-values.webp)
 *Figure 3: NA, NULL, NaN, and Inf, four different "missing-ish" values that behave very differently.*
 
-```r
+```r title="NA NULL NaN Inf basics"
 missing  <- NA         # a missing value — has a type
 empty    <- NULL       # no value at all — length 0
 not_num  <- 0 / 0      # NaN: not a number
@@ -305,7 +305,7 @@ c(length(missing), length(empty), length(not_num), length(infinity))
 
 **Try it:** Count how many `NA`s are in the vector `c(1, NA, 3, NA, 5)`.
 
-```r
+```r title="Exercise: Count missing with is.na"
 # Try it: use sum() on is.na() to count missing values
 ex_nas <- c(1, NA, 3, NA, 5)
 sum(is.na(ex_nas))
@@ -315,7 +315,7 @@ sum(is.na(ex_nas))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Count NA solution"
 ex_nas <- c(1, NA, 3, NA, 5)
 sum(is.na(ex_nas))
 #> [1] 2
@@ -332,7 +332,7 @@ With six types to choose from, the decision is usually obvious, but not always. 
 ![Which R data type should I use?](screenshots/R-Data-Types-decision-tree.webp)
 *Figure 2: A decision tree for picking the right data type.*
 
-```r
+```r title="Integer ages with mean"
 # A realistic case: an age column
 ages <- c(24L, 31L, 45L, 29L, 38L)   # integers — ages are whole numbers
 class(ages)
@@ -352,7 +352,7 @@ Ages are whole numbers, they never get huge, and you want memory efficiency when
 
 **Try it:** Pick the right type for a vector of temperatures in Celsius and create it.
 
-```r
+```r title="Exercise: Temperatures as numeric"
 # Try it: temperatures can be decimals — which type?
 ex_temps <- # your code here
 
@@ -363,7 +363,7 @@ class(ex_temps)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Temperature numeric solution"
 ex_temps <- c(22.5, 19.8, 25.1, 21.0)
 class(ex_temps)
 #> [1] "numeric"
@@ -381,7 +381,7 @@ Time to put everything together. These capstones combine type checking, coercion
 
 Given the vector `my_values <- list(42, 42L, "42", TRUE, 4 + 0i)`, print the `class()` and `typeof()` of each element. Predict the answers before you run the code.
 
-```r
+```r title="Exercise: Inspect every element type"
 # Exercise 1: inspect each element
 my_values <- list(42, 42L, "42", TRUE, 4 + 0i)
 
@@ -392,7 +392,7 @@ my_values <- list(42, 42L, "42", TRUE, 4 + 0i)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Element inspection solution"
 my_values <- list(42, 42L, "42", TRUE, 4 + 0i)
 data.frame(
   value  = sapply(my_values, deparse),
@@ -415,7 +415,7 @@ data.frame(
 
 The vector `my_broken <- c(10, 20, "30")` won't sum because the `"30"` poisoned the whole vector. Fix it by converting to numeric, then compute the sum as `my_fixed`.
 
-```r
+```r title="Exercise: Fix and sum characters"
 # Exercise 2: fix the type, then sum
 my_broken <- c(10, 20, "30")
 
@@ -426,7 +426,7 @@ my_broken <- c(10, 20, "30")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Character sum solution"
 my_broken <- c(10, 20, "30")
 class(my_broken)
 #> [1] "character"
@@ -444,7 +444,7 @@ my_fixed
 
 Create two vectors of 1 million values, one using integers (`1L:1000000L`) and one using doubles (`1:1000000 * 1.0`). Compare their memory footprints with `object.size()`.
 
-```r
+```r title="Exercise: Integer versus double memory"
 # Exercise 3: measure memory for integer vs double
 my_ints <- # your code here
 my_dbls <- # your code here
@@ -456,7 +456,7 @@ c(integer_kb = object.size(my_ints), double_kb = object.size(my_dbls))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Memory size solution"
 my_ints <- 1L:1000000L
 my_dbls <- 1:1000000 * 1.0
 c(integer_kb = object.size(my_ints), double_kb = object.size(my_dbls))
@@ -472,7 +472,7 @@ c(integer_kb = object.size(my_ints), double_kb = object.size(my_dbls))
 
 Let's build a tiny weather log that uses four different types correctly, and then spot a contamination bug that beginners hit constantly.
 
-```r
+```r title="End-to-end weather log"
 # Build a weather log using the right type for each column
 weather <- data.frame(
   date        = c("2026-04-08", "2026-04-09", "2026-04-10"),

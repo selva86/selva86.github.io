@@ -41,7 +41,7 @@ Sensitivity analysis makes this problem explicit. You systematically vary your d
 
 Let's build a consulting dataset to work with throughout this tutorial. Imagine you are analyzing whether training hours predict client satisfaction, controlling for consultant experience and team size.
 
-```r
+```r title="Simulate the consulting dataset"
 # Create a consulting dataset
 set.seed(42)
 n <- 200
@@ -84,7 +84,7 @@ The baseline model shows a significant positive effect of training hours on sati
 
 **Try it:** Fit the same model but add an interaction between `training_hours` and `experience`. Does the main effect of `training_hours` remain significant?
 
-```r
+```r title="Exercise: add an interaction term"
 # Try it: add an interaction term
 ex_interaction <- lm(satisfaction ~ training_hours * experience + team_size,
                      data = consulting)
@@ -97,7 +97,7 @@ ex_interaction <- lm(satisfaction ~ training_hours * experience + team_size,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Interaction solution"
 ex_interaction <- lm(satisfaction ~ training_hours * experience + team_size,
                      data = consulting)
 summary(ex_interaction)$coefficients["training_hours", ]
@@ -115,7 +115,7 @@ Outliers can inflate or deflate your estimated effects. A single extreme observa
 
 Cook's distance is the standard measure for identifying influential observations. It quantifies how much all predicted values change when a single observation is removed. The common threshold is 4/n, where n is the sample size.
 
-```r
+```r title="Flag influential observations with Cook's D"
 # Compute Cook's distance for each observation
 cooks_d <- cooks.distance(baseline_model)
 
@@ -138,7 +138,7 @@ head(sort(cooks_d, decreasing = TRUE), 10)
 
 Eight observations exceed the threshold. Now let's see whether removing them changes our conclusion about training hours.
 
-```r
+```r title="Refit without influential points"
 # Refit model without influential observations
 clean_data <- consulting[-influential, ]
 clean_model <- lm(satisfaction ~ training_hours + experience + team_size,
@@ -167,7 +167,7 @@ The training hours coefficient drops by about 8.5% when we remove outliers, but 
 
 **Try it:** How many observations have a Cook's distance greater than 1? This extreme threshold identifies observations that single-handedly shift the entire regression.
 
-```r
+```r title="Exercise: count extreme Cook's values"
 # Try it: count extreme Cook's distance (> 1)
 ex_extreme <- sum(cooks_d > 1)
 
@@ -179,7 +179,7 @@ ex_extreme <- sum(cooks_d > 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extreme-count solution"
 ex_extreme <- sum(cooks_d > 1)
 cat("Observations with Cook's D > 1:", ex_extreme, "\n")
 #> [1] Observations with Cook's D > 1: 0
@@ -197,7 +197,7 @@ The idea is simple: different analysts might reasonably include different covari
 
 Let's define four specifications, each representing a defensible analytical choice, and compare the effect of training hours across all of them.
 
-```r
+```r title="Four specifications, one coefficient"
 # Define 4 model specifications
 spec1 <- lm(satisfaction ~ training_hours, data = consulting)
 spec2 <- lm(satisfaction ~ training_hours + experience, data = consulting)
@@ -239,7 +239,7 @@ The training hours coefficient stays between 0.31 and 0.35 across all four speci
 
 Now let's visualize this as a specification curve. A dotchart makes the pattern immediately clear.
 
-```r
+```r title="Visualise the specification curve"
 # Visualize the specification curve
 dotchart(spec_results$Coefficient,
          labels = spec_results$Specification,
@@ -254,7 +254,7 @@ All four points cluster tightly to the right of zero. If the points were scatter
 
 **Try it:** Add a 5th specification that uses `log(satisfaction)` as the outcome. Does the direction of the training hours effect hold?
 
-```r
+```r title="Exercise: log-transformed specification"
 # Try it: log-transformed outcome specification
 ex_log_model <- lm(log(satisfaction) ~ training_hours + experience + team_size,
                    data = consulting)
@@ -267,7 +267,7 @@ ex_log_model <- lm(log(satisfaction) ~ training_hours + experience + team_size,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Log-transform solution"
 ex_log_model <- lm(log(satisfaction) ~ training_hours + experience + team_size,
                    data = consulting)
 cat("Log-scale coefficient:", round(coef(ex_log_model)["training_hours"], 5), "\n")
@@ -286,7 +286,7 @@ Your choice of model is itself an assumption. Ordinary least squares (OLS) assum
 
 We will compare three approaches: OLS (our baseline), a median regression (robust to outliers and skewed errors), and a rank-based test (completely non-parametric).
 
-```r
+```r title="Compare OLS, median, and rank"
 # Approach 1: OLS (already fitted)
 ols_coef <- coef(baseline_model)["training_hours"]
 ols_pval <- summary(baseline_model)$coefficients["training_hours", 4]
@@ -321,7 +321,7 @@ cat("Rank p-value:", signif(rank_result$p.value, 3), "\n")
 
 Now let's put all three approaches in a comparison table.
 
-```r
+```r title="Build the comparison table"
 # Build comparison table
 comparison <- data.frame(
   Method = c("OLS", "Median Regression", "Rank Correlation"),
@@ -352,7 +352,7 @@ All three methods agree: the relationship between training hours and satisfactio
 
 **Try it:** Fit a model using `log(satisfaction)` as the outcome and compare the sign of the `training_hours` coefficient to the OLS result.
 
-```r
+```r title="Exercise: log-outcome sign check"
 # Try it: log-transformed outcome comparison
 ex_log_compare <- lm(log(satisfaction) ~ training_hours + experience + team_size,
                      data = consulting)
@@ -366,7 +366,7 @@ ex_log_compare <- lm(log(satisfaction) ~ training_hours + experience + team_size
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sign-check solution"
 ex_log_compare <- lm(log(satisfaction) ~ training_hours + experience + team_size,
                      data = consulting)
 cat("OLS sign:", sign(ols_coef), "\n")
@@ -386,7 +386,7 @@ Bootstrap resampling is the gold standard for testing coefficient stability. You
 
 The beauty of the bootstrap is that it makes no distributional assumptions. It lets the data speak for itself.
 
-```r
+```r title="Bootstrap coefficient distribution"
 # Bootstrap function for coefficient stability
 set.seed(123)
 n_boot <- 2000
@@ -408,7 +408,7 @@ cat("Bootstrap SD:", round(sd(boot_coefs), 4), "\n")
 
 Now let's visualize the distribution and calculate critical stability metrics.
 
-```r
+```r title="Bootstrap CI and sign-flip rate"
 # Histogram of bootstrap coefficients
 hist(boot_coefs, breaks = 40, col = "lightblue", border = "white",
      main = "Bootstrap Distribution: Training Hours Coefficient",
@@ -438,7 +438,7 @@ Zero percent of bootstrap samples flipped sign, and zero is not inside the 95% c
 
 **Try it:** Reduce the bootstrap to 500 iterations. Does the confidence interval width change noticeably?
 
-```r
+```r title="Exercise: 500-sample bootstrap"
 # Try it: bootstrap with 500 iterations
 set.seed(456)
 ex_boot_500 <- numeric(500)
@@ -457,7 +457,7 @@ for (i in 1:500) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="500-sample solution"
 set.seed(456)
 ex_boot_500 <- numeric(500)
 for (i in 1:500) {
@@ -527,7 +527,7 @@ cat("2000-sample width:", round(diff(boot_ci), 4), "\n")
 
 Write code that performs a complete sensitivity analysis on the `consulting` dataset for the `experience` variable (not `training_hours`). Your report should include: (a) the baseline coefficient, (b) the coefficient without influential observations, (c) coefficients across 3 specifications, and (d) the percentage change between the largest and smallest coefficient.
 
-```r
+```r title="Exercise: full experience analysis"
 # Exercise 1: Sensitivity analysis for 'experience'
 # Hint: follow the same steps we used for training_hours
 
@@ -538,7 +538,7 @@ Write code that performs a complete sensitivity analysis on the `consulting` dat
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Experience-analysis solution"
 # Baseline
 my_baseline <- coef(baseline_model)["experience"]
 
@@ -573,7 +573,7 @@ cat("\nRange as % of mean:", round(my_range_pct, 1), "%\n")
 
 Write a function `my_sensitivity_fn(formula, data, n_boot)` that takes a model formula, dataset, and number of bootstrap samples, and returns a named list with: `original_coef` (coefficient of the second term in the formula), `boot_mean`, `boot_ci` (95% percentile CI), and `sign_flip_pct`.
 
-```r
+```r title="Exercise: reusable sensitivity function"
 # Exercise 2: Build a reusable sensitivity function
 # Hint: use all.vars(formula)[2] to get the predictor name,
 #       and replicate the bootstrap loop from earlier
@@ -585,7 +585,7 @@ Write a function `my_sensitivity_fn(formula, data, n_boot)` that takes a model f
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sensitivity-function solution"
 my_sensitivity_fn <- function(formula, data, n_boot = 2000) {
   predictor <- all.vars(formula)[2]
   original <- coef(lm(formula, data = data))[predictor]
@@ -626,7 +626,7 @@ str(my_test)
 
 Here is a complete end-to-end sensitivity analysis that combines all five approaches into a single report. This is the template you can adapt for any regression analysis.
 
-```r
+```r title="End-to-end sensitivity report"
 # === Complete Sensitivity Analysis Report ===
 cat("=" , rep("=", 50), "\n")
 cat("SENSITIVITY ANALYSIS REPORT\n")

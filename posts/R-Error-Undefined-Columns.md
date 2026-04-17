@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The error fires whenever `[` is asked to select a column that is not in `names(df)`, or when `[` receives only one argument and tries to read it as a column index. R reads every bracket call as `df[rows, cols]`. The moment `cols` resolves to a name or position that does not exist, R stops rather than guess. The fastest way to lock the pattern in is to trigger the error and watch the fix land.
 
-```r
+```r title="Reproduce the undefined-columns error"
 # A tiny slice of mtcars to keep output small
 mt <- head(mtcars[, c("mpg", "cyl", "hp")], 5)
 
@@ -48,7 +48,7 @@ The first call fails because R interprets `mt$mpg > 20` as a column selector, a 
 
 **Try it:** Reproduce the error on a five-row slice of `iris`, then fix it so you get rows where `Sepal.Length > 5`. Capture the error message with `tryCatch()` so the notebook keeps running.
 
-```r
+```r title="Exercise: trigger and fix missing comma"
 ex1_mt <- head(iris[, c("Sepal.Length", "Species")], 5)
 
 # Trigger the error
@@ -68,7 +68,7 @@ ex1_ok
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Missing-comma fix solution"
 ex1_mt <- head(iris[, c("Sepal.Length", "Species")], 5)
 
 ex1_err <- tryCatch(
@@ -93,7 +93,7 @@ ex1_ok
 
 The missing comma is the single most common cause, and it has a surprising explanation. When you write `df[condition]`, R does not throw a syntax error, it tries to be helpful by treating `condition` as a column selector. If the logical vector's length matches the column count exactly, you get a silent wrong answer. If it does not match (the usual case), you get "undefined columns selected."
 
-```r
+```r title="Why missing comma breaks subsetting"
 # Three columns in our slice
 cars_small <- head(mtcars[, c("mpg", "cyl", "hp")], 6)
 ncol(cars_small)
@@ -126,7 +126,7 @@ The length mismatch is the smoking gun. A length-6 logical cannot be mapped onto
 
 **Try it:** Fix the broken call below so it returns rows where `cyl == 4`. The comma is missing in one specific place.
 
-```r
+```r title="Exercise: filter four-cylinder rows"
 ex2_df <- head(mtcars[, c("mpg", "cyl", "hp")], 8)
 
 # Broken call — fix it to return 4-cylinder rows
@@ -138,7 +138,7 @@ ex2_fix
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four-cylinder filter solution"
 ex2_df <- head(mtcars[, c("mpg", "cyl", "hp")], 8)
 
 ex2_fix <- ex2_df[ex2_df$cyl == 4, ]
@@ -155,7 +155,7 @@ ex2_fix
 
 Column names in R are case-sensitive and whitespace-sensitive. `mpg`, `MPG`, and `" mpg"` are three different column names as far as `[` is concerned, and two of them will trigger the error on a standard mtcars slice. This mistake is especially common right after importing a CSV with `check.names = FALSE`, where R preserves whatever the header actually contained.
 
-```r
+```r title="Column typos and case mismatches"
 # Case mismatch — mtcars has "mpg", not "MPG"
 tryCatch(
   mtcars[, "MPG"],
@@ -193,7 +193,7 @@ dirty[, "mpg"]
 
 **Try it:** The data frame below has a stray trailing space on the `"sepal"` column. Fix the names, then select the `"sepal"` column cleanly.
 
-```r
+```r title="Exercise: trim whitespace in names"
 ex3_df <- data.frame(`sepal ` = c(5.1, 4.9, 4.7), check.names = FALSE)
 names(ex3_df)
 #> [1] "sepal "
@@ -207,7 +207,7 @@ ex3_val
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Whitespace-trim solution"
 ex3_df <- data.frame(`sepal ` = c(5.1, 4.9, 4.7), check.names = FALSE)
 names(ex3_df) <- trimws(names(ex3_df))
 ex3_val <- ex3_df[, "sepal"]
@@ -223,7 +223,7 @@ ex3_val
 
 The third mistake hits real pipelines hardest. You build a character vector of column names earlier in the code, maybe read it from a config file, maybe computed it from `setdiff()`, maybe let a user pass it in, and then use it to subset. Somewhere upstream, the data frame loses a column or picks up a typo, and the vector drifts out of sync. Base `[` has no forgiving mode here: one unknown name in the vector, and the whole call throws.
 
-```r
+```r title="Stale column vectors and setdiff"
 # A vector that looks plausible but has a typo — "hpw" should be "hp"
 wanted <- c("mpg", "cyl", "hpw")
 
@@ -255,7 +255,7 @@ head(mtcars[, wanted], 3)
 
 **Try it:** Diagnose which names in `ex4_cols` are missing from `mtcars` using `setdiff()`. Save the result to `ex4_miss`.
 
-```r
+```r title="Exercise: find missing column names"
 ex4_cols <- c("mpg", "cyl", "horsepower", "weight")
 
 # Find which of ex4_cols are not in names(mtcars)
@@ -267,7 +267,7 @@ ex4_miss
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Missing-columns solution"
 ex4_cols <- c("mpg", "cyl", "horsepower", "weight")
 ex4_miss <- setdiff(ex4_cols, names(mtcars))
 ex4_miss
@@ -287,7 +287,7 @@ Once you know the three mistakes, diagnosis is mechanical. Walk the decision flo
 
 The diagnosis routine collapses into one small helper. `safe_select()` below checks the requested column names against the data frame before subsetting, and if any are missing it throws a clear error that names the offenders. Drop it into a utility file and use it whenever you subset programmatically.
 
-```r
+```r title="safeselect with setdiff guard"
 safe_select <- function(df, cols) {
   missing <- setdiff(cols, names(df))
   if (length(missing) > 0) {
@@ -323,7 +323,7 @@ Notice how the error now tells you exactly what went wrong. `gear` is fine (it e
 
 **Try it:** Write a short validator `ex5_check(df, cols)` that returns the character vector of missing columns (or `character(0)` if everything is present). Test it with a column vector that has one typo.
 
-```r
+```r title="Exercise: write column-check helper"
 ex5_check <- function(df, cols) {
   # your code here
 }
@@ -335,7 +335,7 @@ ex5_check(mtcars, c("mpg", "cyl", "wait"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Column-check solution"
 ex5_check <- function(df, cols) {
   setdiff(cols, names(df))
 }
@@ -354,7 +354,7 @@ ex5_check(mtcars, c("mpg", "cyl", "wait"))
 
 Given a function `summary_cols()` that takes a data frame and a character vector of columns and returns their means, add a pre-flight check so it throws a clear error naming any missing columns instead of the cryptic "undefined columns selected." Your fix should not change the happy path.
 
-```r
+```r title="Exercise: pre-flight summary function"
 # Starter
 summary_cols <- function(df, cols) {
   sub <- df[, cols, drop = FALSE]
@@ -370,7 +370,7 @@ summary_cols <- function(df, cols) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="safesummary solution"
 safe_summary <- function(df, cols) {
   missing <- setdiff(cols, names(df))
   if (length(missing) > 0) {
@@ -399,7 +399,7 @@ tryCatch(
 
 Write `diagnose_undef(df, cols_expr)` that runs a subsetting expression with `tryCatch()`, and if it errors with "undefined columns selected," returns a short string naming which mistake was the cause: `"missing_comma"`, `"name_mismatch"`, or `"ok"`. Use heuristics: if the two-argument `df[, cols_expr]` call succeeds and `cols_expr` is a logical vector of length `nrow(df)`, the real intent was a row filter and the cause was a missing comma.
 
-```r
+```r title="Exercise: diagnoseundef function"
 # Starter
 diagnose_undef <- function(df, cols_expr) {
   # Hint: use tryCatch() on df[, cols_expr]
@@ -415,7 +415,7 @@ diagnose_undef <- function(df, cols_expr) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="diagnoseundef solution"
 diagnose_undef <- function(df, cols_expr) {
   two_arg_ok <- tryCatch({
     df[, cols_expr]
@@ -448,7 +448,7 @@ diagnose_undef(mtcars, mtcars$mpg > 20)
 
 Here is the situation this error shows up in most often: a messy CSV arrives from upstream, you pass the column names to a reporting function, and everything explodes. Below is the full debug-and-fix loop in one place.
 
-```r
+```r title="Debug a messy CSV pipeline"
 # Simulate a messy CSV with a leading space in one column header
 raw_csv <- "  mpg, cyl, horsepower\n21,6,110\n22,4,93\n19,6,105\n"
 messy <- read.csv(text = raw_csv, check.names = FALSE)

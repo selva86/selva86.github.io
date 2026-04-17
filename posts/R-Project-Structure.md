@@ -26,7 +26,7 @@ The first line of most R tutorial scripts looks like `setwd("C:/Users/selva/proj
 
 The fix is not a smarter path, it's to use a project *anchor* and ask R to resolve paths relative to it. RStudio's `.Rproj` file is that anchor. Create one, and the working directory is automatically set to the project folder whenever you open the project, with no `setwd()` line in sight.
 
-```r
+```r title="Use here() for portable paths"
 # Inside a proper .Rproj-anchored project, these two are equivalent
 # and both work on every collaborator's machine:
 library(here)
@@ -47,7 +47,7 @@ file.exists(here("data-raw", "orders.csv"))
 
 **Try it:** Assume the project root is `~/demo`. Write one call using `here::here()` that resolves to `~/demo/scripts/plot.R`.
 
-```r
+```r title="Exercise: build a here() path"
 # Try it: build a path with here()
 library(here)
 ex_path <- NULL  # your code here
@@ -59,7 +59,7 @@ ex_path
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="here() path solution"
 library(here)
 ex_path <- here::here("scripts", "plot.R")
 ex_path
@@ -91,7 +91,7 @@ There is no single "official" layout, but a few patterns have converged across H
 | `.gitignore` | What to exclude from git | Yes |
 | `README.md` | How to run the project | Yes |
 
-```r
+```r title="Create the project skeleton folders"
 # Creating the skeleton in one go (base R + fs)
 library(fs)
 
@@ -128,7 +128,7 @@ dir_tree(".")
 
 **Try it:** Without creating folders, write one call using `fs::path_rel()` that reports `"scripts/01_import.R"` when the project root is `~/demo` and the absolute path is `~/demo/scripts/01_import.R`.
 
-```r
+```r title="Exercise: absolute to relative path"
 # Try it: turn an absolute path into a project-relative one
 library(fs)
 root     <- "~/demo"
@@ -143,7 +143,7 @@ ex_rel
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Absolute-to-relative solution"
 library(fs)
 root     <- "~/demo"
 abs_path <- "~/demo/scripts/01_import.R"
@@ -165,7 +165,7 @@ The `here` package is a 300-line solution to the single problem `setwd()` preten
 
 *Figure 2: `here()` walks upward from any file until it hits a marker file (`.Rproj`, `.here`, `.git`, `DESCRIPTION`, and a few more), then returns that directory. Every `here("data", "x.csv")` call builds from that anchor.*
 
-```r
+```r title="here() replaces setwd completely"
 # here() in a normal project
 library(here)
 
@@ -187,7 +187,7 @@ One call per path, resolved against the project root. `read.csv(here("data-raw",
 
 If you're in a folder that doesn't contain an `.Rproj`, drop a sentinel file called `.here` in the root and `here()` will latch onto it. That's the official escape hatch for script-only projects that aren't RStudio-managed.
 
-```r
+```r title="Create .here sentinel with sethere"
 # For projects without an .Rproj, create a .here sentinel
 library(here)
 
@@ -207,7 +207,7 @@ here()
 
 **Try it:** You have `root <- here::here()`. Write a one-line call that reads `data-raw/products.csv` from the project root using `here`, assuming the file exists.
 
-```r
+```r title="Exercise: project-relative read call"
 # Try it: one-line read from project-relative path
 library(here)
 ex_read_call <- NULL  # write the expression you would use
@@ -220,7 +220,7 @@ ex_read_call
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Project-relative read solution"
 library(here)
 # The expression you'd write in a real script
 # (not executed here because there's no file in WebR)
@@ -239,7 +239,7 @@ expr
 
 `renv` creates a project-local package library and a lockfile (`renv.lock`) that records exact versions. When a collaborator clones the repo and runs `renv::restore()`, they get the same versions you had, including the same version of R, where possible.
 
-```r
+```r title="renv init, snapshot, restore"
 # The three commands that set renv up and keep it in sync
 library(renv)
 
@@ -272,7 +272,7 @@ The four commands, `init`, `snapshot`, `restore`, `status`, cover the whole work
 
 **Try it:** Name the three `renv` commands, one to set it up in a fresh project, one to update the lockfile after installing a new package, and one for a collaborator to recreate the environment.
 
-```r
+```r title="Exercise: name the three renv commands"
 # Try it: name the three commands
 # 1. Set up:    ________
 # 2. Record:    ________
@@ -287,7 +287,7 @@ ex_cmds
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-renv-commands solution"
 ex_cmds <- c("renv::init()", "renv::snapshot()", "renv::restore()")
 ex_cmds
 #> [1] "renv::init()"     "renv::snapshot()" "renv::restore()"
@@ -301,7 +301,7 @@ ex_cmds
 
 Five patterns cause most "this project worked yesterday" incidents. Each has a one-line fix.
 
-```r
+```r title="Five project setup mistakes"
 # Mistake 1: hard-coded absolute paths
 # bad
 #   setwd("C:/Users/selva/project"); read.csv("data.csv")
@@ -344,7 +344,7 @@ Mistakes 1 and 2 are about paths and naming. Mistake 3 is the one that ends up o
 
 **Try it:** You want to read `API_KEY` from an environment variable, falling back to `"unset"` if it's missing. Write one line that does this.
 
-```r
+```r title="Exercise: env var with fallback"
 # Try it: read env var with a fallback
 ex_key <- NULL  # your code here
 
@@ -356,7 +356,7 @@ ex_key
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Env-var fallback solution"
 ex_key <- Sys.getenv("API_KEY", unset = "unset")
 ex_key
 #> [1] "unset"
@@ -374,7 +374,7 @@ Two capstone exercises that combine path handling and project structure.
 
 Given that your project root contains a `data-raw/` folder with a CSV called `customers.csv`, write an R expression that reads it using `here`, the expression must work regardless of which subfolder the script is being run from. Capture the *expression* (not its execution) in `my_expr` using `quote()` so we can verify the shape.
 
-```r
+```r title="Exercise: portable read expression"
 # Exercise 1: portable read expression
 library(here)
 
@@ -387,7 +387,7 @@ my_expr
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Portable-read solution"
 library(here)
 
 my_expr <- quote(read.csv(here::here("data-raw", "customers.csv")))
@@ -404,7 +404,7 @@ my_expr
 
 Write a vector `my_dirs` listing the five folders a minimal analysis project should have (in any sensible order), and a vector `my_files` listing the three top-level files every project should contain.
 
-```r
+```r title="Exercise: name dirs and files"
 # Exercise 2: name the pieces
 my_dirs  <- NULL  # your code here
 my_files <- NULL  # your code here
@@ -418,7 +418,7 @@ my_files
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dirs-and-files solution"
 my_dirs  <- c("data-raw", "data", "R", "scripts", "output")
 my_files <- c(".gitignore", "README.md", "project.Rproj")
 
@@ -436,7 +436,7 @@ my_files
 
 A complete "day one" setup for a new analysis project, entirely in R. Run these blocks top-to-bottom in a fresh project folder and you'll end up with a clean, reproducible, portable skeleton.
 
-```r
+```r title="One-shot project bootstrap script"
 # Complete example: one-shot project bootstrap
 library(fs)
 library(usethis)

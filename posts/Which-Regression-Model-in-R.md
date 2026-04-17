@@ -43,7 +43,7 @@ Here are the five outcome types with concrete examples:
 
 Let's create small datasets that represent each type so you can see them side by side.
 
-```r
+```r title="Five outcome types at a glance"
 # Five outcome types in one place
 continuous_y <- mtcars$mpg            # miles per gallon (continuous)
 binary_y <- mtcars$am                 # 0 = automatic, 1 = manual (binary)
@@ -71,7 +71,7 @@ The `lung` dataset records survival time in days and whether the patient died (s
 
 **Try it:** The variable `chickwts$weight` records the weight of chicks fed different diets. What outcome type is this, continuous, binary, count, ordinal, or time-to-event?
 
-```r
+```r title="Linear regression mpg on weight and horsepower"
 # Try it: identify the outcome type of chickwts$weight
 str(chickwts$weight)
 # What type is this?
@@ -83,7 +83,7 @@ ex_answer
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Diagnostic plots for linear fit"
 ex_answer <- "continuous"
 ex_answer
 #> [1] "continuous"
@@ -101,7 +101,7 @@ The model assumes four things: (1) the relationship between predictors and outco
 
 Let's predict fuel efficiency from weight and horsepower using the `mtcars` dataset.
 
-```r
+```r title="Logistic regression of transmission"
 # Fit linear regression: mpg ~ weight + horsepower
 lm_model <- lm(mpg ~ wt + hp, data = mtcars)
 summary(lm_model)
@@ -125,7 +125,7 @@ Where $y_i$ is the observed value, $\hat{y}_i$ is the predicted value, and $n$ i
 
 Now let's check the assumptions with diagnostic plots.
 
-```r
+```r title="Odds ratios with confidence interval"
 # Diagnostic plots for linear regression
 par(mfrow = c(1, 2))
 plot(lm_model, which = 1)  # Residuals vs Fitted
@@ -140,7 +140,7 @@ In the residuals-vs-fitted plot, look for a flat, random scatter around zero. An
 
 **Try it:** Fit a linear model predicting `Sepal.Length` from `Petal.Width` using the `iris` dataset. What is the R-squared?
 
-```r
+```r title="Poisson regression on warpbreaks"
 # Try it: fit lm on iris
 ex_iris_model <- lm(Sepal.Length ~ Petal.Width, data = iris)
 # Check the R-squared:
@@ -151,7 +151,7 @@ ex_iris_model <- lm(Sepal.Length ~ Petal.Width, data = iris)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Check Poisson overdispersion"
 ex_iris_model <- lm(Sepal.Length ~ Petal.Width, data = iris)
 summary(ex_iris_model)$r.squared
 #> [1] 0.6690277
@@ -175,7 +175,7 @@ Where $\beta_0$ is the intercept and $\beta_1 \dots \beta_p$ are the coefficient
 
 Let's predict whether a car has a manual transmission (am = 1) from its weight.
 
-```r
+```r title="Negative binomial fit for overdispersion"
 # Logistic regression: manual vs automatic transmission
 logit_model <- glm(am ~ wt, data = mtcars, family = binomial)
 summary(logit_model)
@@ -186,7 +186,7 @@ summary(logit_model)
 
 The coefficient for weight is -4.02 on the log-odds scale. That means heavier cars are much less likely to have manual transmissions. But log-odds are hard to interpret directly. Let's convert to odds ratios.
 
-```r
+```r title="Ordinal regression with polr"
 # Convert to odds ratios
 odds_ratios <- exp(coef(logit_model))
 print(odds_ratios)
@@ -207,7 +207,7 @@ An odds ratio of 0.018 for weight means each 1,000-lb increase multiplies the od
 
 **Try it:** Fit a logistic regression predicting `vs` (engine shape: 0 = V-shaped, 1 = straight) from `wt` using `mtcars`. What is the odds ratio for weight?
 
-```r
+```r title="Cox proportional hazards on lung"
 # Try it: logistic regression for vs ~ wt
 ex_vs_model <- glm(vs ~ wt, data = mtcars, family = binomial)
 # Get the odds ratio:
@@ -218,7 +218,7 @@ ex_vs_model <- glm(vs ~ wt, data = mtcars, family = binomial)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Test proportional hazards assumption"
 ex_vs_model <- glm(vs ~ wt, data = mtcars, family = binomial)
 exp(coef(ex_vs_model))["wt"]
 #>        wt
@@ -235,7 +235,7 @@ Count data, how many times something happened, calls for Poisson regression. The
 
 The `warpbreaks` dataset records the number of breaks in yarn during weaving. Let's model breaks as a function of wool type and tension.
 
-```r
+```r title="Compare nested models with anova"
 # Poisson regression on count data
 pois_model <- glm(breaks ~ wool + tension, data = warpbreaks,
                   family = poisson)
@@ -251,7 +251,7 @@ Wool B has about 19% fewer breaks than wool A (since $e^{-0.206} \approx 0.81$).
 
 The most common problem with Poisson regression is overdispersion, the variance is larger than the mean. Let's check.
 
-```r
+```r title="AIC across model candidates"
 # Check for overdispersion
 # Residual deviance should be close to residual df
 deviance(pois_model)
@@ -281,7 +281,7 @@ The dispersion ratio is 4.2, well above the expected 1.0 for Poisson. The negati
 
 **Try it:** Fit a Poisson regression predicting `breaks` from `tension` alone (no `wool`) and compute the dispersion ratio. Is it overdispersed?
 
-```r
+```r title="Exercise: Fit Poisson to InsectSprays"
 # Try it: Poisson with tension only
 ex_pois <- glm(breaks ~ tension, data = warpbreaks, family = poisson)
 # Compute dispersion ratio:
@@ -292,7 +292,7 @@ ex_pois <- glm(breaks ~ tension, data = warpbreaks, family = poisson)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: InsectSprays Poisson fit"
 ex_pois <- glm(breaks ~ tension, data = warpbreaks, family = poisson)
 deviance(ex_pois) / df.residual(ex_pois)
 #> [1] 4.697067
@@ -310,7 +310,7 @@ The standard approach is proportional odds logistic regression, fitted with `MAS
 
 Let's create an ordinal dataset and fit the model.
 
-```r
+```r title="Exercise: Compare Poisson to negative binomial"
 # Create ordinal outcome data
 set.seed(17)
 n <- 200
@@ -332,7 +332,7 @@ table(ord_data$satisfaction)
 
 Now let's fit the proportional odds model.
 
-```r
+```r title="Exercise solution: Wool tension AIC comparison"
 # Fit ordinal regression
 ord_model <- polr(satisfaction ~ age + income, data = ord_data,
                   Hess = TRUE)
@@ -363,7 +363,7 @@ Both age and income significantly predict satisfaction level. Each additional ye
 
 **Try it:** Using the `ord_data` we just created, fit an ordinal model predicting `satisfaction` from `age` alone (no income). Is age still significant?
 
-```r
+```r title="Exercise: Logistic on simulated patients"
 # Try it: ordinal regression with age only
 ex_ord <- polr(satisfaction ~ age, data = ord_data, Hess = TRUE)
 # Check significance:
@@ -374,7 +374,7 @@ ex_ord <- polr(satisfaction ~ age, data = ord_data, Hess = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Simulated patient logistic fit"
 ex_ord <- polr(satisfaction ~ age, data = ord_data, Hess = TRUE)
 coef_tab <- coef(summary(ex_ord))
 p_val <- pnorm(abs(coef_tab["age", "t value"]), lower.tail = FALSE) * 2
@@ -398,7 +398,7 @@ Cox proportional hazards regression estimates hazard ratios, the relative risk o
 
 Let's fit a Cox model to the `lung` dataset, which records survival of patients with advanced lung cancer.
 
-```r
+```r title="Mistake: Linear regression on binary outcome"
 # Cox proportional hazards regression
 cox_model <- coxph(Surv(time, status) ~ age + sex + ph.ecog,
                    data = lung)
@@ -413,7 +413,7 @@ The hazard ratio for sex is 0.58, meaning females (sex = 2) have 42% lower hazar
 
 The proportional hazards assumption is critical, it means the hazard ratio between any two groups stays constant over time. Let's test it.
 
-```r
+```r title="Correct: Use logistic regression for binary"
 # Test proportional hazards assumption
 ph_test <- cox.zph(cox_model)
 print(ph_test)
@@ -431,7 +431,7 @@ A significant p-value (< 0.05) indicates a violation. Here, `age` shows some evi
 
 **Try it:** Fit a Cox model on the `lung` dataset using `age` and `sex` as predictors (no `ph.ecog`). What is the hazard ratio for sex?
 
-```r
+```r title="Mistake: Poisson with overdispersion"
 # Try it: Cox model with age + sex only
 ex_cox <- coxph(Surv(time, status) ~ age + sex, data = lung)
 # Get the hazard ratio for sex:
@@ -442,7 +442,7 @@ ex_cox <- coxph(Surv(time, status) ~ age + sex, data = lung)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Correct: Switch to negative binomial"
 ex_cox <- coxph(Surv(time, status) ~ age + sex, data = lung)
 exp(coef(ex_cox))["sex"]
 #>       sex
@@ -470,7 +470,7 @@ Here are the three main tools for model comparison within a family.
 
 Let's compare two nested linear models.
 
-```r
+```r title="Mistake: Ordinal outcome fit with lm"
 # Compare nested models
 model_a <- lm(mpg ~ wt, data = mtcars)
 model_b <- lm(mpg ~ wt + hp + cyl, data = mtcars)
@@ -506,7 +506,7 @@ Here is a quick-reference table summarising everything:
 
 **Try it:** Fit two models, `mpg ~ wt` and `mpg ~ wt + disp`, on `mtcars`. Which has the lower AIC? Is the difference meaningful?
 
-```r
+```r title="Correct: Fit ordinal with polr"
 # Try it: compare two models with AIC
 ex_m1 <- lm(mpg ~ wt, data = mtcars)
 ex_m2 <- lm(mpg ~ wt + disp, data = mtcars)
@@ -518,7 +518,7 @@ ex_m2 <- lm(mpg ~ wt + disp, data = mtcars)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mistake: Cox without checking assumptions"
 ex_m1 <- lm(mpg ~ wt, data = mtcars)
 ex_m2 <- lm(mpg ~ wt + disp, data = mtcars)
 AIC(ex_m1, ex_m2)
@@ -536,7 +536,7 @@ AIC(ex_m1, ex_m2)
 ### Mistake 1: Using lm() on a binary outcome
 
 ❌ **Wrong:**
-```r
+```r title="Correct: Test proportional hazards first"
 bad_model <- lm(am ~ wt, data = mtcars)
 predict(bad_model, newdata = data.frame(wt = 6))
 #> [1] -0.3479
@@ -545,7 +545,7 @@ predict(bad_model, newdata = data.frame(wt = 6))
 **Why it is wrong:** Linear regression on a binary outcome produces predicted probabilities below 0 or above 1, which are nonsensical. A predicted probability of -0.35 has no meaning.
 
 ✅ **Correct:**
-```r
+```r title="Mistake: Compare AIC across model families"
 good_model <- glm(am ~ wt, data = mtcars, family = binomial)
 predict(good_model, newdata = data.frame(wt = 6), type = "response")
 #> [1] 0.0001679
@@ -554,7 +554,7 @@ predict(good_model, newdata = data.frame(wt = 6), type = "response")
 ### Mistake 2: Ignoring overdispersion in Poisson regression
 
 ❌ **Wrong:**
-```r
+```r title="Correct: Compare AIC within one family"
 # Fitting Poisson when dispersion ratio is 4.2
 pois_fit <- glm(breaks ~ wool + tension, data = warpbreaks,
                 family = poisson)
@@ -564,7 +564,7 @@ pois_fit <- glm(breaks ~ wool + tension, data = warpbreaks,
 **Why it is wrong:** When variance exceeds the mean, Poisson standard errors are too narrow. This inflates z-statistics and makes non-significant effects appear significant.
 
 ✅ **Correct:**
-```r
+```r title="Exercise one: Fit Poisson to InsectSprays"
 # Use negative binomial for overdispersed counts
 nb_fit <- glm.nb(breaks ~ wool + tension, data = warpbreaks)
 # Standard errors are wider and more honest
@@ -573,7 +573,7 @@ nb_fit <- glm.nb(breaks ~ wool + tension, data = warpbreaks)
 ### Mistake 3: Treating ordinal outcomes as continuous
 
 ❌ **Wrong:**
-```r
+```r title="Exercise one solution: Spray count dispersion check"
 # Coding low=1, medium=2, high=3 and using lm()
 data_bad <- data.frame(y = c(1, 2, 3, 1, 2), x = c(10, 20, 30, 15, 25))
 lm(y ~ x, data = data_bad)
@@ -582,7 +582,7 @@ lm(y ~ x, data = data_bad)
 **Why it is wrong:** This assumes equal spacing between categories (the jump from low to medium equals the jump from medium to high). It also allows predicted values like 1.7, which don't correspond to any category.
 
 ✅ **Correct:**
-```r
+```r title="Exercise two: Wool and tension count model"
 # Use ordinal regression that respects the ordering
 data_good <- data.frame(
   y = ordered(c("low", "med", "high", "low", "med"),
@@ -595,7 +595,7 @@ polr(y ~ x, data = data_good, Hess = TRUE)
 ### Mistake 4: Forgetting to check proportional hazards in Cox models
 
 ❌ **Wrong:**
-```r
+```r title="Exercise two solution: Poisson versus negative binomial AIC"
 # Fit and report without checking assumptions
 cox_bad <- coxph(Surv(time, status) ~ age + sex, data = lung)
 # Report hazard ratios directly
@@ -604,7 +604,7 @@ cox_bad <- coxph(Surv(time, status) ~ age + sex, data = lung)
 **Why it is wrong:** If the proportional hazards assumption is violated, the hazard ratios are averaged over time and may not represent the actual relationship at any specific time point.
 
 ✅ **Correct:**
-```r
+```r title="Exercise three: Logistic on simulated patients"
 # Always test PH assumption
 cox_good <- coxph(Surv(time, status) ~ age + sex, data = lung)
 cox.zph(cox_good)  # Check p-values for each predictor
@@ -613,7 +613,7 @@ cox.zph(cox_good)  # Check p-values for each predictor
 ### Mistake 5: Comparing AIC across different outcome types
 
 ❌ **Wrong:**
-```r
+```r title="Exercise three solution: Age and treatment logistic"
 # These AIC values are NOT comparable
 aic_lm <- AIC(lm(mpg ~ wt, data = mtcars))
 aic_glm <- AIC(glm(am ~ wt, data = mtcars, family = binomial))
@@ -623,7 +623,7 @@ aic_glm <- AIC(glm(am ~ wt, data = mtcars, family = binomial))
 **Why it is wrong:** AIC values are only comparable between models fit to the same outcome variable with the same likelihood function. Comparing a continuous-outcome AIC to a binary-outcome AIC is like comparing kilograms to kilometres.
 
 ✅ **Correct:**
-```r
+```r title="Capstone step one: Inspect lung survival data"
 # Compare models with the SAME outcome
 m1 <- glm(am ~ wt, data = mtcars, family = binomial)
 m2 <- glm(am ~ wt + hp, data = mtcars, family = binomial)
@@ -636,7 +636,7 @@ AIC(m1, m2)  # Both predict am — valid comparison
 
 The `InsectSprays` dataset has a `count` column (number of insects) and a `spray` column (type A-F). Identify the correct regression family, fit the model, and check whether the Poisson assumption holds.
 
-```r
+```r title="Capstone step two: Fit full Cox model"
 # Exercise 1: model InsectSprays
 # Hint: start with str(InsectSprays) to identify the outcome type
 # Then fit the appropriate glm() and check the dispersion ratio
@@ -648,7 +648,7 @@ The `InsectSprays` dataset has a `count` column (number of insects) and a `spray
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step three: Check proportional hazards"
 # Step 1: Identify outcome type
 str(InsectSprays$count)
 #> num [1:72] 10 7 20 14 14 12 10 23 17 20 ...
@@ -678,7 +678,7 @@ AIC(my_pois, my_nb)
 
 Using the `warpbreaks` dataset, fit both a Poisson and a negative binomial model with `breaks ~ wool * tension` (including the interaction). Compare their AIC values, dispersion diagnostics, and coefficient significance. Which model would you report and why?
 
-```r
+```r title="Capstone step four: Report hazard ratios"
 # Exercise 2: Poisson vs negative binomial with interaction
 # Hint: use wool * tension for the interaction
 # Compare: AIC, dispersion, coefficient p-values
@@ -690,7 +690,7 @@ Using the `warpbreaks` dataset, fit both a Poisson and a negative binomial model
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step five: Survival curves by sex"
 # Poisson with interaction
 my_pois2 <- glm(breaks ~ wool * tension, data = warpbreaks,
                 family = poisson)
@@ -723,7 +723,7 @@ round(coef(summary(my_nb2))[, "Pr(>|z|)"], 4)
 
 You receive a dataset of patients where the outcome is 30-day mortality (1 = died, 0 = survived) with predictors age and treatment group. Complete the full pipeline: identify the outcome type, fit the right model, interpret the coefficients as odds ratios with confidence intervals, and check if treatment significantly reduces mortality.
 
-```r
+```r title="Capstone step six: Validate with AIC"
 # Exercise 3: Full regression pipeline
 # Step 1: Create the data
 set.seed(99)
@@ -746,7 +746,7 @@ my_patients$died <- rbinom(150, 1,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step seven: Summarise for clinicians"
 set.seed(99)
 my_patients <- data.frame(
   age = round(rnorm(150, mean = 65, sd = 12)),
@@ -784,7 +784,7 @@ Let's walk through a complete decision-making pipeline from scratch. You have a 
 
 **Scenario:** You're analysing the `lung` dataset to understand which patient characteristics predict survival time in advanced lung cancer.
 
-```r
+```r title="Capstone: Full lung survival analysis"
 # Step 1: Examine the outcome
 str(lung[, c("time", "status")])
 #> 'data.frame': 228 obs. of 2 variables:

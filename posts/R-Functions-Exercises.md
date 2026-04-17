@@ -28,7 +28,7 @@ Functions are R's main unit of reuse. Every tidyverse verb is a function. Every 
 
 Write a function `bmi(weight_kg, height_m)` that returns body mass index (weight / height²). Test it with 70 kg and 1.75 m.
 
-```r
+```r title="Exercise: write a bmi function"
 # Your attempt here
 
 ```
@@ -36,7 +36,7 @@ Write a function `bmi(weight_kg, height_m)` that returns body mass index (weight
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="bmi function solution"
 bmi <- function(weight_kg, height_m) {
   weight_kg / height_m^2
 }
@@ -52,7 +52,7 @@ A function is created with `function(args) body`. The last expression in the bod
 
 Extend `bmi()` so `height_m` defaults to 1.70 when not supplied. Test with `bmi(70)` and `bmi(70, 1.80)`.
 
-```r
+```r title="Exercise: default height argument"
 # Your attempt here
 
 ```
@@ -60,7 +60,7 @@ Extend `bmi()` so `height_m` defaults to 1.70 when not supplied. Test with `bmi(
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Default-height solution"
 bmi <- function(weight_kg, height_m = 1.70) {
   weight_kg / height_m^2
 }
@@ -77,7 +77,7 @@ Default values can reference other arguments or be computed expressions. They ar
 
 Write `summary_stats(x)` that takes a numeric vector and returns a named list with `n`, `mean`, `sd`, `min`, and `max`. Test with `c(2, 5, 7, 10, 14)`.
 
-```r
+```r title="Exercise: summarystats list function"
 # Your attempt here
 
 ```
@@ -85,7 +85,7 @@ Write `summary_stats(x)` that takes a numeric vector and returns a named list wi
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="summarystats solution"
 summary_stats <- function(x) {
   list(
     n    = length(x),
@@ -114,7 +114,7 @@ R functions return exactly one object. To "return multiple values", return a lis
 
 Write `greet(name, greeting = "Hello", punctuation = "!")`. Then call it three different ways: positional only, all named, and with partial-name matching (`greet("Ada", punc = "?")`).
 
-```r
+```r title="Exercise: greet with three call styles"
 # Your attempt here
 
 ```
@@ -122,7 +122,7 @@ Write `greet(name, greeting = "Hello", punctuation = "!")`. Then call it three d
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Greet three-call-style solution"
 greet <- function(name, greeting = "Hello", punctuation = "!") {
   paste0(greeting, ", ", name, punctuation)
 }
@@ -140,7 +140,7 @@ R allows partial argument matching, `punc` resolves to `punctuation` because no 
 
 Write `paste_upper(...)` that takes any number of character arguments and returns their concatenation in uppercase. Example: `paste_upper("hello", "world")` returns `"HELLOWORLD"`.
 
-```r
+```r title="Exercise: variadic pasteupper function"
 # Your attempt here
 
 ```
@@ -148,7 +148,7 @@ Write `paste_upper(...)` that takes any number of character arguments and return
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="pasteupper solution"
 paste_upper <- function(...) {
   toupper(paste0(...))
 }
@@ -167,7 +167,7 @@ paste_upper("big ", "red ", "box")       # "BIG RED BOX"
 
 Write `make_counter(start = 0)` that returns a *function*. Each time the returned function is called, it increments an internal counter and returns the new value.
 
-```r
+```r title="Exercise: makecounter closure"
 # Your attempt here
 
 ```
@@ -175,7 +175,7 @@ Write `make_counter(start = 0)` that returns a *function*. Each time the returne
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="makecounter solution"
 make_counter <- function(start = 0) {
   count <- start
   function() {
@@ -203,7 +203,7 @@ tick()  # 4  — independent state
 
 Write `memoize(f)` that takes a function and returns a new function. The returned function caches results per unique argument so that calling it twice with the same input is instant the second time.
 
-```r
+```r title="Exercise: memoize decorator"
 # Your attempt here
 
 ```
@@ -211,7 +211,7 @@ Write `memoize(f)` that takes a function and returns a new function. The returne
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="memoize solution"
 memoize <- function(f) {
   cache <- list()
   function(x) {
@@ -240,7 +240,7 @@ The cache lives in the enclosing environment of the returned function. It persis
 
 Write `safe_bmi(weight_kg, height_m)` that errors with an informative message if either argument is not a single positive number. Test it with `safe_bmi(70, 1.75)` (valid) and `safe_bmi(-10, 1.75)` (invalid).
 
-```r
+```r title="Exercise: safebmi with validation"
 # Your attempt here
 
 ```
@@ -248,7 +248,7 @@ Write `safe_bmi(weight_kg, height_m)` that errors with an informative message if
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="safebmi solution"
 safe_bmi <- function(weight_kg, height_m) {
   if (!is.numeric(weight_kg) || length(weight_kg) != 1 || weight_kg <= 0) {
     stop("weight_kg must be a single positive number, got: ",
@@ -272,7 +272,7 @@ The pattern is: validate at the top, fail fast with a clear message, then do the
 
 Write `safe_log(x)` that returns `log(x)` when `x > 0`, `NA_real_` when `x <= 0` or `NA`, and `NA_real_` if anything else goes wrong, all without letting an error propagate.
 
-```r
+```r title="Exercise: safelog with tryCatch"
 # Your attempt here
 
 ```
@@ -280,7 +280,7 @@ Write `safe_log(x)` that returns `log(x)` when `x > 0`, `NA_real_` when `x <= 0`
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="safelog solution"
 safe_log <- function(x) {
   tryCatch(
     {
@@ -308,7 +308,7 @@ safe_log("a")  # NA — the arithmetic would error; tryCatch handles it
 
 Write two implementations of "sum of squares from 1 to n": one using a for loop, one using `sum((1:n)^2)`. Benchmark them at `n = 100000` with `system.time()`. Which is faster?
 
-```r
+```r title="Exercise: benchmark loop vs vector sum"
 # Your attempt here
 
 ```
@@ -316,7 +316,7 @@ Write two implementations of "sum of squares from 1 to n": one using a for loop,
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Loop-vs-vector benchmark solution"
 sq_loop <- function(n) {
   total <- 0
   for (i in seq_len(n)) total <- total + i^2

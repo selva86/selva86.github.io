@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 You've written the loop before: declare an empty vector, count indices, assign by position, try not to break the bookkeeping. It works, but most of the code is scaffolding, not meaning. Functional style flips that ratio. You describe the transformation once and hand it to R, the iteration disappears into a single call. Here is the same answer, both ways.
 
-```r
+```r title="Loop vs sapply to square a vector"
 # The loop way: lots of scaffolding
 nums <- 1:5
 squares_loop <- numeric(length(nums))
@@ -50,7 +50,7 @@ Both blocks produce the same vector. The loop spends four lines managing an inde
 
 **Try it:** Convert a vector of Celsius temperatures `temps_c <- c(15, 22, 8, 30, 18)` to Fahrenheit using `sapply` and the formula `F = C * 9/5 + 32`. Save the result to `ex_temps_f`.
 
-```r
+```r title="Exercise: Celsius to Fahrenheit via sapply"
 # Try it: convert Celsius to Fahrenheit
 temps_c <- c(15, 22, 8, 30, 18)
 
@@ -64,7 +64,7 @@ ex_temps_f
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fahrenheit-conversion solution"
 ex_temps_f <- sapply(temps_c, function(x) x * 9/5 + 32)
 ex_temps_f
 #> [1] 59.0 71.6 46.4 86.0 64.4
@@ -78,7 +78,7 @@ ex_temps_f
 
 "First-class" is a claim about status: a value is first-class when you can do the same things to it that you can do to any other value. Integers are first-class, you can assign them, put them in a list, pass them to a function, or return them. In R, functions have exactly the same privileges. Seeing the proof of that is the fastest way to unlock the mindset.
 
-```r
+```r title="Functions as values and in lists"
 # 1. Assign a function to a variable, just like you would assign a number
 double <- function(x) x * 2
 double(7)
@@ -98,7 +98,7 @@ ops$square(4)
 
 The other two privileges are "pass as an argument" and "return from another function." Here is a function that takes another function and applies it twice.
 
-```r
+```r title="Pass named and anonymous functions"
 apply_twice <- function(f, x) f(f(x))
 
 # Pass the named `double` function
@@ -120,7 +120,7 @@ apply_twice(function(x) x + 3, 0)   # 0 -> 3 -> 6
 
 **Try it:** Write `ex_apply_thrice(f, x)` that applies `f` three times to `x`. Test it using `\(x) x + 1` on `0`, the answer should be `3`.
 
-```r
+```r title="Exercise: apply a function three times"
 # Try it: apply f three times
 ex_apply_thrice <- function(f, x) {
   # your code here
@@ -133,7 +133,7 @@ ex_apply_thrice(\(x) x + 1, 0)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Apply-thrice solution"
 ex_apply_thrice <- function(f, x) f(f(f(x)))
 ex_apply_thrice(\(x) x + 1, 0)
 #> [1] 3
@@ -147,7 +147,7 @@ ex_apply_thrice(\(x) x + 1, 0)
 
 Nearly every repetitive task on a collection fits one of three shapes. **Map** transforms each element, **filter** keeps elements that pass a test, and **reduce** collapses everything into a single value. R ships all three as base functions, `Map()`, `Filter()`, and `Reduce()`, plus the friendly vector-returning cousins `sapply()` and `vapply()`. Once you recognise the three shapes, you will spot them everywhere.
 
-```r
+```r title="Map, Filter, Reduce in one block"
 numbers <- 1:6
 
 # MAP: apply a function to every element (returns a list)
@@ -184,7 +184,7 @@ Read from top to bottom: `Map` returned a list (one squared value per input), `s
 
 **Try it:** Use `Filter` to keep only strings longer than 3 characters from `words <- c("R", "cat", "tiger", "ox", "whale")`. Save the result to `ex_long_words`.
 
-```r
+```r title="Exercise: filter strings by length"
 # Try it: filter strings by length
 words <- c("R", "cat", "tiger", "ox", "whale")
 
@@ -198,7 +198,7 @@ ex_long_words
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Long-words solution"
 ex_long_words <- Filter(function(w) nchar(w) > 3, words)
 ex_long_words
 #> [1] "tiger" "whale"
@@ -212,7 +212,7 @@ ex_long_words
 
 Two ideas make functional code safe and reusable. A **pure function** depends only on its arguments and changes nothing else, given the same inputs, it always returns the same output. A **closure** is a function that remembers the environment it was created in, so it can carry a piece of state without using a global variable. Together they explain why functional R is easy to test and easy to compose.
 
-```r
+```r title="Pure vs impure global counter"
 # PURE: add depends only on its inputs and changes nothing outside
 add <- function(a, b) a + b
 add(2, 3)
@@ -235,7 +235,7 @@ impure_increment()
 
 A closure looks similar but uses the outer environment in a controlled, read-only way.
 
-```r
+```r title="Closure remembers its birth environment"
 make_multiplier <- function(factor) {
   function(x) x * factor   # the inner function "closes over" `factor`
 }
@@ -256,7 +256,7 @@ times_ten(7)
 
 **Try it:** Write `ex_make_greeter(greeting)` that returns a function pasting `greeting` before a name. Use it to build a `hi` function and call it on `"Selva"`.
 
-```r
+```r title="Exercise: build a greeter factory"
 # Try it: a greeting factory
 ex_make_greeter <- function(greeting) {
   # your code here
@@ -270,7 +270,7 @@ hi("Selva")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Greeter-factory solution"
 ex_make_greeter <- function(greeting) {
   function(name) paste0(greeting, ", ", name)
 }
@@ -290,7 +290,7 @@ Not every loop needs to be refactored. If the loop is tiny, imperative, and easi
 
 Here is a concrete comparison on the built-in `mtcars` dataset, compute the mean of three columns.
 
-```r
+```r title="Column means: functional vs loop"
 # Functional: declarative, one line
 col_means_fp <- sapply(mtcars[, c("mpg", "hp", "wt")], mean)
 col_means_fp
@@ -312,7 +312,7 @@ Both versions return the same named numeric vector. The functional version is a 
 
 If you work in the tidyverse, the same idea is one line of purrr:
 
-```r
+```r title="purrr mapdbl for typed map"
 # One-liner with purrr::map_dbl — guaranteed to return a double vector
 library(purrr)
 map_dbl(mtcars[, c("mpg", "hp", "wt")], mean)
@@ -334,7 +334,7 @@ A practical decision list:
 
 **Try it:** Replace the loop `total <- 0; for (i in 1:100) total <- total + i` with a one-line `Reduce` call. Save the result to `ex_total`.
 
-```r
+```r title="Exercise: sum 1 to 100 via Reduce"
 # Try it: sum 1 to 100 with Reduce
 ex_total <- NA  # your code here
 ex_total
@@ -344,7 +344,7 @@ ex_total
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Reduce-sum solution"
 ex_total <- Reduce(`+`, 1:100)
 ex_total
 #> [1] 5050
@@ -362,7 +362,7 @@ These capstones combine two or more ideas from the tutorial. Each uses distinct 
 
 Given the list below, use `Filter` and `sapply` together to return a numeric vector of **lengths** of words that have at least 5 letters. Save the result to `my_long_lengths`.
 
-```r
+```r title="Exercise: filter then measure words"
 # Exercise 1: filter by length, then measure
 word_list <- list("banana", "kiwi", "strawberry", "fig", "watermelon")
 
@@ -374,7 +374,7 @@ word_list <- list("banana", "kiwi", "strawberry", "fig", "watermelon")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter-then-measure solution"
 long_words <- Filter(function(w) nchar(w) >= 5, word_list)
 my_long_lengths <- sapply(long_words, nchar)
 my_long_lengths
@@ -389,7 +389,7 @@ my_long_lengths
 
 Write a function factory `make_power(n)` that returns a function raising its input to the `n`th power. Use it to create `cube` and then apply `cube` to `1:5`. Save the resulting vector to `my_cubes`.
 
-```r
+```r title="Exercise: build a makepower factory"
 # Exercise 2: function factory
 
 make_power <- function(n) {
@@ -405,7 +405,7 @@ my_cubes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Make-power solution"
 make_power <- function(n) {
   function(x) x^n
 }
@@ -424,7 +424,7 @@ my_cubes
 
 Use `Reduce` with `accumulate = TRUE` to compute the running product of `1:6`, these are the factorials `1!`, `2!`, `3!`, up to `6!`. Save the resulting vector to `my_factorials`.
 
-```r
+```r title="Exercise: factorials via Reduce accumulate"
 # Exercise 3: factorials via Reduce
 # Hint: Reduce(f, x, accumulate = TRUE) returns all intermediate results
 
@@ -436,7 +436,7 @@ my_factorials
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Factorial-accumulate solution"
 my_factorials <- Reduce(`*`, 1:6, accumulate = TRUE)
 my_factorials
 #> [1]   1   2   6  24 120 720
@@ -450,7 +450,7 @@ my_factorials
 
 Let's put all five ideas to work on a tiny but realistic task: given a small inventory, compute the **average price of items that are currently in stock**. This example uses first-class functions (stored in a list-of-records), a filter, a map, and a reduce, the whole FP toolkit on three lines of data.
 
-```r
+```r title="In-stock average inventory pipeline"
 inventory <- list(
   list(name = "pen",    price = 2,  in_stock = TRUE),
   list(name = "book",   price = 15, in_stock = FALSE),
@@ -476,7 +476,7 @@ avg_price
 
 Each step has a single job and a single shape. You filter to drop out-of-stock items, map to extract the field you care about, and reduce to collapse many values into one. Every intermediate result is visible, so debugging is trivial, you check each pipe one at a time. Once the steps work, you can chain them into a single line for production:
 
-```r
+```r title="Same pipeline as one fluent expression"
 # The same pipeline, written as one fluent expression
 mean(sapply(Filter(function(i) i$in_stock, inventory), function(i) i$price))
 #> [1] 2

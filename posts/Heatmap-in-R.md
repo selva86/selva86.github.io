@@ -40,7 +40,7 @@ In this tutorial you will learn:
 
 Let's start with a direct demonstration using the `airquality` dataset, monthly averages of ozone, temperature, and wind, restructured as a grid:
 
-```r
+```r title="Basic heatmap with geomtile"
 library(ggplot2)
 library(tidyr)
 
@@ -78,14 +78,14 @@ Each tile's color encodes the value at that (Month, Variable) intersection. The 
 
 **Try it:** Remove `color = "white"` from `geom_tile()`. How does the heatmap look without tile borders?
 
-```r
+```r title="Exercise: drop the tile borders"
 # Your code here — drop the white tile borders
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="No-border heatmap solution"
 ex_no_border <- ggplot(aq_long, aes(x = Month, y = Variable, fill = Value)) +
   geom_tile() +
   labs(x = NULL, y = NULL, fill = "Value")
@@ -102,7 +102,7 @@ Most real-world data starts wide, each variable is its own column, each row is a
 
 `pivot_longer()` from `tidyr` converts wide to long with three key arguments: `cols` (which columns to pivot), `names_to` (the new column that will hold the old column names), and `values_to` (the new column that will hold the values).
 
-```r
+```r title="Reshape correlation matrix to long"
 # Correlation matrix of mtcars numeric variables
 cor_mat <- round(cor(mtcars), 2)
 
@@ -115,7 +115,7 @@ head(cor_long)
 
 `as.table()` on a matrix produces a three-column data frame automatically, a shortcut that avoids `pivot_longer()` for square matrices. For non-square wide data (e.g., a month × region sales grid), use:
 
-```r
+```r title="pivotlonger for general wide data"
 # For general wide-to-long: pivot_longer
 # sales_long <- pivot_longer(
 #   wide_df,
@@ -129,14 +129,14 @@ head(cor_long)
 
 **Try it:** Compute the correlation matrix of just the numeric columns in `iris` (exclude `Species`). Convert it to long format using `as.data.frame(as.table(cor(...)))`.
 
-```r
+```r title="Exercise: iris correlation long format"
 # Your code here — compute the iris correlation matrix and pivot to long format
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Iris long-format solution"
 iris_num  <- iris[, -5]  # remove Species column
 cor_iris  <- round(cor(iris_num), 2)
 ex_iris_long <- as.data.frame(as.table(cor_iris))
@@ -160,7 +160,7 @@ Color scale choice is critical for heatmaps. The wrong scale can hide patterns o
 
 **Use a sequential scale** when your values run in one direction (all positive, or all negative) with no meaningful midpoint:
 
-```r
+```r title="Sequential viridis for temperature grid"
 # Sequential: airquality temperature month × day
 air_temp <- aggregate(Temp ~ Month + Day, data = airquality, FUN = mean)
 air_temp$Month <- factor(month.abb[air_temp$Month],
@@ -185,7 +185,7 @@ p_seq
 
 **Use a diverging scale** when your values have a meaningful midpoint, most commonly zero. Correlations range from -1 to +1 with 0 as the neutral midpoint:
 
-```r
+```r title="Diverging scale for correlation heatmap"
 # Diverging: correlation matrix of mtcars
 p_corr <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
   geom_tile(color = "white", linewidth = 0.5) +
@@ -217,14 +217,14 @@ p_corr
 
 **Try it:** Change the `low` and `high` colors in `scale_fill_gradient2()` to `"#1a9850"` (green) and `"#d73027"` (red). Does the correlation matrix still read clearly?
 
-```r
+```r title="Exercise: swap to green-white-red"
 # Your code here — swap the diverging palette to green-white-red
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Green-white-red palette solution"
 ex_green_red <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
   geom_tile(color = "white", linewidth = 0.5) +
   scale_fill_gradient2(low = "#1a9850", mid = "white",
@@ -244,7 +244,7 @@ The chart still reads clearly because you've preserved the *diverging structure*
 
 When your grid is small enough (typically under 10×10 cells), printing the exact value inside each tile lets readers get precise numbers without estimating from the color scale.
 
-```r
+```r title="Add correlation labels inside tiles"
 # Correlation heatmap with labels inside tiles
 p_label <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
   geom_tile(color = "white", linewidth = 0.5) +
@@ -282,14 +282,14 @@ The `color = abs(Correlation) > 0.5` trick switches label color from dark grey (
 
 **Try it:** Change `size = 2.8` to `size = 4`. Do the labels fit inside the tiles, or do they overflow?
 
-```r
+```r title="Exercise: larger label text size"
 # Your code here — rebuild p_label with size = 4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Larger labels solution"
 ex_larger_labels <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
   geom_tile(color = "white", linewidth = 0.5) +
   geom_text(
@@ -349,7 +349,7 @@ At `size = 4` the labels just about fit the mtcars tiles because the grid is 11�
 
 Using the `AirPassengers` time series, convert to a data frame with `month` and `year` columns. Create a heatmap of passenger count by month (y) and year (x) using a sequential viridis palette. Is there a clear seasonal pattern?
 
-```r
+```r title="AirPassengers month-by-year heatmap"
 ap_df <- data.frame(
   month = factor(rep(month.abb, 12), levels = month.abb),
   year  = factor(rep(1949:1960, each = 12)),
@@ -371,7 +371,7 @@ Compute the correlation matrix for all four numeric columns of `iris`. Convert t
 - Rotated x-axis labels
 - No grid lines
 
-```r
+```r title="Iris correlation labeled heatmap"
 # Starter code
 iris_cor <- round(cor(iris[, -5]), 2)
 iris_long <- as.data.frame(as.table(iris_cor))
@@ -385,7 +385,7 @@ names(iris_long) <- c("Var1", "Var2", "Corr")
 
 A complete, publication-ready correlation heatmap of `mtcars` with value labels, clean theme, and title:
 
-```r
+```r title="Polished mtcars correlation heatmap"
 # Full correlation heatmap pipeline
 numeric_vars <- mtcars[, c("mpg","cyl","disp","hp","wt","qsec","gear")]
 cor_final <- round(cor(numeric_vars), 2)

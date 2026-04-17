@@ -26,7 +26,7 @@ Most R users write `function(x) x * 2` on autopilot and never notice that the ke
 
 Below, we build the same doubling function twice, once with `function(x)` and once with `\(x)`, call both on the same input, and compare their bodies.
 
-```r
+```r title="Backslash form equals function keyword"
 # Two ways to write the same function
 long  <- function(x) x * 2
 short <- \(x) x * 2
@@ -47,7 +47,7 @@ Both calls return `10`, and `identical(body(long), body(short))` is `TRUE`. The 
 
 **Try it:** Write an anonymous function that subtracts `3` from its argument, assign it to `minus3`, and call it on `10`.
 
-```r
+```r title="Exercise: define and call minus3"
 # Try it: define and call minus3
 minus3 <- # your code here
 
@@ -58,7 +58,7 @@ minus3(10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="minus3 solution"
 minus3 <- \(x) x - 3
 minus3(10)
 #> [1] 7
@@ -74,7 +74,7 @@ The whole point of `\(x)` is *inline* use, when the function is born, used once,
 
 The classic example is `sapply`. Here we square each integer from 1 to 5 without ever naming the squaring function.
 
-```r
+```r title="Inline anonymous square with sapply"
 # Square 1..5 with an inline anonymous function
 squares <- sapply(1:5, \(x) x^2)
 squares
@@ -85,7 +85,7 @@ squares
 
 The same pattern shines inside a pipe. Here we add `10` to each element as the last step of a pipeline.
 
-```r
+```r title="Shift by ten inside a pipe"
 # Same idea inside a pipe
 shifted <- 1:5 |> sapply(\(x) x + 10)
 shifted
@@ -99,7 +99,7 @@ Read it left-to-right: take `1:5`, pipe it into `sapply`, and for each element a
 
 **Try it:** Use `sapply` with an anonymous function to compute the cube of each integer from 1 to 4. Assign the result to `cubes`.
 
-```r
+```r title="Exercise: cubes of 1 through 4"
 # Try it: cubes of 1..4
 cubes <- # your code here
 
@@ -110,7 +110,7 @@ cubes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cubes solution"
 cubes <- sapply(1:4, \(x) x^3)
 cubes
 #> [1]  1  8 27 64
@@ -129,7 +129,7 @@ If you have read any tidyverse code from before 2022, you have seen a third way 
 
 The block below shows all three styles producing the identical result with `purrr::map_dbl`.
 
-```r
+```r title="Three ways to double with purrr"
 # Three ways to say "double each number" with purrr
 library(purrr)
 
@@ -154,7 +154,7 @@ All three vectors are equal because all three anonymous functions do the same th
 
 **Try it:** Rewrite `map_dbl(1:3, ~ .x * 3)` using the `\(x)` form. The result should be `3 6 9`.
 
-```r
+```r title="Exercise: convert tilde form to backslash"
 # Try it: convert the tilde form to \(x)
 ex_tripled <- # your code here
 
@@ -165,7 +165,7 @@ ex_tripled
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tilde-to-backslash solution"
 ex_tripled <- map_dbl(1:3, \(x) x * 3)
 ex_tripled
 #> [1] 3 6 9
@@ -181,7 +181,7 @@ The `\(x)` form is small, but three rough edges catch new users: multi-argument 
 
 First, multiple arguments. The form takes any number of arguments separated by commas, just like `function(...)`. Here we combine two vectors element-wise with `Map`.
 
-```r
+```r title="Two-argument anonymous function with Map"
 # Two-argument anonymous function with Map
 pairs <- Map(\(x, y) x + y, 1:3, 10:12)
 pairs
@@ -199,7 +199,7 @@ pairs
 
 Second, braced vs unbraced bodies. A one-expression body needs no braces; multi-statement bodies do.
 
-```r
+```r title="Braced bodies for multi-step functions"
 # Braces are optional for one-expression bodies
 a <- (\(x) x * 2)(5)
 b <- (\(x) { tmp <- x * 2; tmp + 1 })(5)
@@ -217,7 +217,7 @@ b
 
 **Try it:** The expression `4 |> \(x) x + 1` fails because the anonymous function is not wrapped in parentheses. Fix it so it returns `5`.
 
-```r
+```r title="Exercise: fix the pipe into backslash"
 # Try it: fix the pipe into an anonymous function
 # 4 |> \(x) x + 1
 
@@ -227,7 +227,7 @@ b
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pipe-into-backslash solution"
 4 |> (\(x) x + 1)()
 #> [1] 5
 ```
@@ -245,7 +245,7 @@ Anonymous functions are a convenience, not a goal. Every time you write one, you
 
 Compare the two blocks below. The first crams a multi-step scoring rule inline; the second pulls it out into `score_row`, which is now testable and reusable.
 
-```r
+```r title="When inline logic hurts debuggability"
 # Hard to debug: inline anonymous function with logic inside
 scored <- sapply(1:nrow(mtcars), \(i) {
   row <- mtcars[i, ]
@@ -270,7 +270,7 @@ Both produce the same result, but the second version tells you *what* the inner 
 
 **Try it:** Classify each snippet below as `"inline"` (leave as `\(x)`) or `"extract"` (make it named). Store your answers as a named character vector in `ex_choice`.
 
-```r
+```r title="Exercise: inline or extract"
 # Snippets to classify:
 # A: sapply(1:5, \(x) x^2)
 # B: map_df(files, \(f) read.csv(f) |> clean_names() |> filter(year > 2020))
@@ -283,7 +283,7 @@ ex_choice <- c(A = "", B = "", C = "", D = "")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Inline-or-extract solution"
 ex_choice <- c(
   A = "inline",    # one-liner, used once — perfect for \(x)
   B = "extract",   # multi-step loader, worth a name like load_recent()
@@ -307,7 +307,7 @@ These capstones combine the ideas from above. Each is solvable with the function
 
 Use `purrr::map_dbl` with an anonymous function to compute the mean of every column in `mtcars`. Store the result in `my_means`.
 
-```r
+```r title="Exercise: per-column means of mtcars"
 # Exercise 1: per-column means of mtcars
 # Hint: map_dbl walks a list (or a data frame column-wise)
 library(purrr)
@@ -320,7 +320,7 @@ my_means
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Per-column means solution"
 library(purrr)
 my_means <- map_dbl(mtcars, \(x) mean(x))
 my_means
@@ -338,7 +338,7 @@ my_means
 
 The starting code below computes the mean of each numeric column for each species of `iris`, using two nested anonymous functions. Refactor it so the inner logic lives in a named helper `col_means`, and the outer `sapply` uses `\(g)` only as glue.
 
-```r
+```r title="Exercise: refactor nested anonymous functions"
 # Exercise 2: refactor
 # Starting code (two nested anonymous functions):
 # sapply(split(iris[, 1:4], iris$Species),
@@ -353,7 +353,7 @@ my_species_means
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Refactor-nested solution"
 col_means <- function(df) sapply(df, mean)
 
 my_species_means <- sapply(split(iris[, 1:4], iris$Species), \(g) col_means(g))
@@ -373,7 +373,7 @@ my_species_means
 
 Let's put everything together. We'll compute per-species z-scores for each numeric column of `iris`, a small but realistic "apply per group" task. Z-scoring each column means subtracting its mean and dividing by its standard deviation, so every column ends up with mean `0` and standard deviation `1` within its group.
 
-```r
+```r title="Per-species z-scores for iris"
 # Per-species z-scores for iris numeric columns
 z_iris <- lapply(split(iris[, 1:4], iris$Species), \(df) {
   sapply(df, \(col) (col - mean(col)) / sd(col))

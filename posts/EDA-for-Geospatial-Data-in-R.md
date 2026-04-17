@@ -24,7 +24,7 @@ Every row in geospatial data carries a location, a latitude and longitude that a
 
 Let's load R's built-in `quakes` dataset and plot 1,000 earthquakes near Fiji to see this spatial structure immediately.
 
-```r
+```r title="Plot earthquake locations by magnitude"
 # Load libraries and plot earthquake locations
 library(ggplot2)
 library(dplyr)
@@ -44,7 +44,7 @@ The plot reveals something a `summary()` call never could: earthquakes form a di
 
 The `quakes` dataset contains 1,000 seismic events near Fiji since 1964 with five columns: `lat`, `long`, `depth` (km), `mag` (Richter), and `stations` (number of reporting stations).
 
-```r
+```r title="Inspect quakes dataset summary"
 # Explore the dataset structure
 str(quakes)
 #> 'data.frame':	1000 obs. of  5 variables:
@@ -71,7 +71,7 @@ The latitude spans roughly -39 to -11 (all southern hemisphere), and longitude r
 
 **Try it:** Plot the quakes colored by `depth` instead of `mag`. Do shallow earthquakes (low depth) cluster in different locations than deep ones?
 
-```r
+```r title="Exercise: Color quakes by depth"
 # Try it: plot quakes colored by depth
 ggplot(quakes, aes(x = long, y = lat, color = depth)) +
   geom_point(alpha = 0.6, size = 1.5) +
@@ -86,7 +86,7 @@ ggplot(quakes, aes(x = long, y = lat, color = depth)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Color by depth solution"
 ggplot(quakes, aes(x = long, y = lat, color = depth)) +
   geom_point(alpha = 0.6, size = 1.5) +
   scale_color_viridis_c(name = "Depth (km)") +
@@ -109,7 +109,7 @@ A basic point map is just the starting point. To see spatial patterns clearly, y
 
 Let's start with a bubble map where point size represents magnitude and transparency handles overlap.
 
-```r
+```r title="Bubble map with magnitude size"
 # Bubble map: size = magnitude, alpha for dense regions
 ggplot(quakes, aes(x = long, y = lat)) +
   geom_point(aes(size = mag), alpha = 0.3, color = "steelblue") +
@@ -126,7 +126,7 @@ The bubble map immediately shows two things: where earthquakes are densest (the 
 
 Now let's split the data by magnitude category to see if weak, moderate, and strong earthquakes have different spatial footprints.
 
-```r
+```r title="Facet by magnitude category"
 # Create magnitude categories and facet
 quakes_cat <- quakes |>
   mutate(mag_cat = case_when(
@@ -152,7 +152,7 @@ Faceting reveals that low-magnitude quakes fill the entire arc, while the strong
 
 Adding rug plots to the margins shows the marginal distributions along each axis. This helps you see whether the data clusters more strongly along latitude or longitude.
 
-```r
+```r title="Point map with marginal rugs"
 # Point map with marginal rug plots
 ggplot(quakes, aes(x = long, y = lat)) +
   geom_point(alpha = 0.3, size = 1, color = "steelblue") +
@@ -171,7 +171,7 @@ The rug marks are densest around longitude 178-184 and latitude -22 to -18, conf
 
 **Try it:** Create a bubble map where point size maps to `stations` (number of reporting stations) and color maps to `mag_cat`. Does the number of reporting stations relate to spatial location?
 
-```r
+```r title="Exercise: Stations and magnitude bubbles"
 # Try it: bubble map with size = stations, color = mag_cat
 ggplot(quakes_cat, aes(x = long, y = lat, color = mag_cat)) +
   geom_point(aes(size = stations), alpha = 0.4) +
@@ -185,7 +185,7 @@ ggplot(quakes_cat, aes(x = long, y = lat, color = mag_cat)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stations and magnitude solution"
 ggplot(quakes_cat, aes(x = long, y = lat, color = mag_cat)) +
   geom_point(aes(size = stations), alpha = 0.4) +
   scale_size_continuous(range = c(0.5, 4), name = "Stations") +
@@ -211,7 +211,7 @@ Looking at a point map, you might think you see clusters, but are they real, or 
 
 Let's run K-means with k=4 clusters on the earthquake coordinates.
 
-```r
+```r title="K-means clustering on coordinates"
 # K-means clustering on lat/long coordinates
 set.seed(42)
 coords <- quakes[, c("long", "lat")]
@@ -237,7 +237,7 @@ K-means splits the earthquake arc into four geographic segments. Each cluster ca
 
 But how do you know k=4 is the right choice? The elbow method plots total within-cluster variance for different values of k. The "elbow", where adding more clusters stops reducing variance significantly, suggests the natural number of groups.
 
-```r
+```r title="Elbow method for optimal k"
 # Elbow method: find optimal k
 set.seed(123)
 wss <- sapply(2:10, function(k) {
@@ -260,7 +260,7 @@ ggplot(plot_data, aes(x = k, y = wss)) +
 
 The within-cluster sum of squares drops rapidly up to k=5, then the improvements slow down. This elbow at k=5 suggests five natural spatial groupings. Let's visualize the k=5 solution.
 
-```r
+```r title="Plot five-cluster solution"
 # Plot optimal clusters (k=5) with centers
 set.seed(123)
 km_best <- kmeans(coords, centers = 5, nstart = 25)
@@ -291,7 +291,7 @@ With k=5, the algorithm captures the southern tail, the central dense zone, a tr
 
 **Try it:** Run K-means with k=3 on only earthquakes with `mag >= 5.0`. How do the cluster centres differ from the full-data clustering?
 
-```r
+```r title="Exercise: Cluster strong quakes"
 # Try it: K-means on strong earthquakes only
 ex_strong <- quakes |> filter(mag >= 5.0)
 set.seed(99)
@@ -305,7 +305,7 @@ ex_km <- kmeans(ex_strong[, c("long", "lat")], centers = 3, nstart = 25)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Strong quakes cluster solution"
 ex_strong <- quakes |> filter(mag >= 5.0)
 set.seed(99)
 ex_km <- kmeans(ex_strong[, c("long", "lat")], centers = 3, nstart = 25)
@@ -350,7 +350,7 @@ Where:
 
 Let's compute Moran's I for earthquake magnitude. We'll define "neighbours" as the k=5 nearest points (by geographic distance) for each earthquake.
 
-```r
+```r title="Compute Morans I manually"
 # Compute Moran's I for earthquake magnitude
 # Step 1: Distance matrix (using a sample for speed)
 set.seed(77)
@@ -385,7 +385,7 @@ A Moran's I of about 0.08 is positive but small. This suggests a slight tendency
 
 We'll shuffle the magnitude values randomly 999 times (keeping locations fixed) and compute Moran's I for each shuffle. This builds a "null distribution" of what Moran's I looks like when magnitude has no spatial pattern. If our observed value falls in the extreme tail, the spatial pattern is real.
 
-```r
+```r title="Permutation test for significance"
 # Permutation test: is the observed Moran's I significant?
 set.seed(42)
 n_perm <- 999
@@ -430,7 +430,7 @@ With a p-value around 0.006, we can confidently say that earthquake magnitude is
 
 **Try it:** Compute Moran's I for `depth` instead of `mag` using the same 300-point sample and k=5 neighbours. Is earthquake depth also spatially autocorrelated? Is the I higher or lower than for magnitude?
 
-```r
+```r title="Exercise: Morans I for depth"
 # Try it: Moran's I for depth
 ex_depth <- q_sub$depth
 ex_dev <- ex_depth - mean(ex_depth)
@@ -444,7 +444,7 @@ ex_den <- sum(ex_dev^2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Morans I depth solution"
 ex_depth <- q_sub$depth
 ex_dev <- ex_depth - mean(ex_depth)
 ex_num <- sum(W * outer(ex_dev, ex_dev))
@@ -466,7 +466,7 @@ The technique is called kernel density estimation (KDE). Imagine placing a small
 
 Let's create a filled contour density map of the earthquake locations.
 
-```r
+```r title="KDE filled contour heatmap"
 # KDE filled contour map
 ggplot(quakes, aes(x = long, y = lat)) +
   stat_density_2d(aes(fill = after_stat(level)),
@@ -485,7 +485,7 @@ The hottest zone (brightest colors) sits around latitude -20, longitude 180-182,
 
 An alternative approach is a gridded heatmap, divide the map into rectangular bins and count earthquakes per bin. This is cruder than KDE but can reveal local concentrations that smooth density misses.
 
-```r
+```r title="geombin2d gridded heatmap"
 # Gridded heatmap with geom_bin2d
 ggplot(quakes, aes(x = long, y = lat)) +
   geom_bin2d(bins = 30) +
@@ -502,7 +502,7 @@ The gridded heatmap shows the raw counts per cell, some cells contain 30+ earthq
 
 The smoothness of the KDE depends on the bandwidth parameter (`h`). Smaller bandwidth captures local detail but is noisier; larger bandwidth reveals broad patterns but may wash out local hotspots. Let's compare two bandwidth settings side by side.
 
-```r
+```r title="Compare KDE bandwidths"
 # Compare KDE bandwidths
 p1_data <- ggplot(quakes, aes(x = long, y = lat)) +
   stat_density_2d_filled(h = c(1, 1), alpha = 0.8) +
@@ -535,7 +535,7 @@ The narrow bandwidth (h=1) reveals multiple distinct hotspots along the arc, whi
 
 **Try it:** Create a density heatmap for only earthquakes with `mag >= 4.5`. How do the hotspot locations compare to the all-earthquakes heatmap?
 
-```r
+```r title="Exercise: Density of strong quakes"
 # Try it: density heatmap for mag >= 4.5
 ex_strong_quakes <- quakes |> filter(mag >= 4.5)
 # your code here: create stat_density_2d plot
@@ -546,7 +546,7 @@ ex_strong_quakes <- quakes |> filter(mag >= 4.5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Density of strong quakes solution"
 ex_strong_quakes <- quakes |> filter(mag >= 4.5)
 
 ggplot(ex_strong_quakes, aes(x = long, y = lat)) +
@@ -572,7 +572,7 @@ ggplot(ex_strong_quakes, aes(x = long, y = lat)) +
 
 Cluster the quakes into 5 groups using K-means on `long` and `lat`, then compute the mean magnitude, mean depth, count, and standard deviation of magnitude for each cluster. Which cluster has the highest average magnitude? Display the result as a summary table.
 
-```r
+```r title="Exercise 1: Cluster profile summary"
 # Exercise: cluster profile summary
 # Hint: after kmeans(), add cluster labels to quakes,
 # then group_by(cluster) and summarise()
@@ -585,7 +585,7 @@ set.seed(123)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cluster profile summary solution"
 set.seed(123)
 my_km <- kmeans(quakes[, c("long", "lat")], centers = 5, nstart = 25)
 my_clustered <- quakes |>
@@ -619,7 +619,7 @@ print(my_summary)
 
 Write a reusable function `my_morans_i(coords, values, k)` that takes a coordinate matrix, a values vector, and k (number of neighbours), and returns Moran's I. Test it on the full quakes dataset's magnitude with k = 3, 5, and 10. How does Moran's I change as k increases?
 
-```r
+```r title="Exercise 2: Reusable Morans I"
 # Exercise: reusable Moran's I function
 # Hint: follow the manual computation pattern from earlier,
 # wrapping it in a function
@@ -634,7 +634,7 @@ my_morans_i <- function(coords, values, k) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Reusable Morans I solution"
 my_morans_i <- function(coords, values, k) {
   d <- as.matrix(dist(coords))
   n <- length(values)
@@ -671,7 +671,7 @@ cat("k=10:", round(my_morans_i(my_coords, my_vals, 10), 4), "\n")
 
 Create a 2x2 panel display with four ggplots: (a) point map colored by magnitude, (b) K-means clusters (k=5), (c) density heatmap, (d) depth vs magnitude scatter colored by cluster. Use `gridExtra::grid.arrange()` to combine them.
 
-```r
+```r title="Exercise 3: Four-panel dashboard"
 # Exercise: 4-panel spatial dashboard
 # Hint: create 4 separate ggplot objects (p1, p2, p3, p4),
 # then combine with gridExtra::grid.arrange(p1, p2, p3, p4, ncol = 2)
@@ -683,7 +683,7 @@ Create a 2x2 panel display with four ggplots: (a) point map colored by magnitude
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four-panel dashboard solution"
 set.seed(123)
 my_km5 <- kmeans(quakes[, c("long", "lat")], centers = 5, nstart = 25)
 my_quakes5 <- quakes |> mutate(cluster = factor(my_km5$cluster))
@@ -726,7 +726,7 @@ gridExtra::grid.arrange(p1, p2, p3, p4, ncol = 2)
 
 Let's run through a complete geospatial EDA pipeline from start to finish. We'll load the data, visualize the spatial distribution, cluster the locations, test for spatial autocorrelation, and identify density hotspots, all in one cohesive workflow.
 
-```r
+```r title="Pipeline step 1: load and inspect"
 # === Complete Geospatial EDA Pipeline ===
 
 # 1. Load and inspect
@@ -752,7 +752,7 @@ ggplot(quakes, aes(x = long, y = lat, color = mag)) +
 #> Arc-shaped distribution along the Tonga-Kermadec trench.
 ```
 
-```r
+```r title="Pipeline step 2: cluster and summarise"
 # 3. K-means clustering
 set.seed(42)
 pipeline_km <- kmeans(quakes[, c("long", "lat")],
@@ -783,7 +783,7 @@ ggplot(quakes_pipeline, aes(x = long, y = lat, color = cluster)) +
 #> Five color-coded clusters segmenting the arc.
 ```
 
-```r
+```r title="Pipeline step 3: spatial autocorrelation"
 # 4. Spatial autocorrelation (on a sample for speed)
 set.seed(77)
 samp_idx <- sample(1:nrow(quakes), 200)
@@ -815,7 +815,7 @@ cat("p-value:", mean(I_null >= I_obs), "\n")
 #> p-value: 0.008
 ```
 
-```r
+```r title="Pipeline step 4: density hotspots"
 # 5. Density heatmap
 cat("=== Density Hotspots ===\n")
 ggplot(quakes, aes(x = long, y = lat)) +

@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 A single question mark in front of a function name opens its help page instantly. That's the one shortcut every R user types hundreds of times a week, and it almost always contains the answer you were about to Google.
 
-```r
+```r title="Question mark opens a help page"
 ?mean
 # opens the help page for mean() — arguments, return value, examples
 ```
@@ -37,7 +37,7 @@ The help page follows a consistent structure: **Description** (one-line summary)
 
 `?mean` is shorthand for `help("mean")`. They're identical, use whichever feels faster. For operators and reserved words you need quotes: `` ?`+` `` or `help("if")`.
 
-```r
+```r title="Help for operators and keywords"
 ?`+`
 help("if")
 help("[")    # help for the subsetting operator
@@ -48,7 +48,7 @@ If you've loaded multiple packages and two export the same function name, use `h
 
 **Try it:** Look up `?round`. How many arguments does it take, and what does `digits` default to?
 
-```r
+```r title="Exercise: Read the round help page"
 ?round
 # read the Usage and Arguments sections
 ```
@@ -56,7 +56,7 @@ If you've loaded multiple packages and two export the same function name, use `h
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Read the round help page solution"
 ?round
 #> Usage: round(x, digits = 0)
 #> Arguments:
@@ -73,7 +73,7 @@ args(round)
 
 This is the harder case, you want to reshape a data frame but can't remember if it's `pivot_longer`, `melt`, `reshape`, or something else. Two tools cover it: `apropos()` for partial name matching and `help.search()` (shortcut `??`) for full-text search across help pages.
 
-```r
+```r title="apropos finds names containing mean"
 apropos("mean")
 #> [1] ".colMeans"     ".rowMeans"     "colMeans"      "kmeans"        
 #> [5] "mean"          "mean.Date"     "mean.default"  "mean.difftime" 
@@ -82,7 +82,7 @@ apropos("mean")
 
 `apropos()` lists every loaded object whose name contains the pattern. It's great when you know the target function's name starts with or contains a specific word.
 
-```r
+```r title="Search help text with double question mark"
 ??"linear model"
 # opens a search results page across all installed packages
 ```
@@ -92,7 +92,7 @@ apropos("mean")
 [KEY INSIGHT]
 `apropos()` searches **names**. `??` searches **descriptions**. When you know roughly what the function is called, use `apropos()`. When you know what it *does*, use `??`.
 
-```r
+```r title="apropos with a regex prefix"
 apropos("^cor")      # functions whose name starts with "cor"
 #> [1] "cor"        "cor.test"   "corrcoeff"  "corrplot"   "correlation"
 ```
@@ -101,14 +101,14 @@ The `^` anchor is a regex, `apropos()` accepts regular expressions, so you can n
 
 **Try it:** Use `apropos()` to find everything in base R with "lm" in its name. Then use `??"logistic regression"` to find functions for logistic regression.
 
-```r
+```r title="Exercise: Hunt with apropos and question marks"
 # Your code here — use apropos() and ?? to hunt for names and topics
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hunt with apropos solution"
 apropos("lm")
 #>  [1] "colMeans" "dlmultinom" "glm" "glm.control" "glm.fit"
 #>  [6] "KalmanForecast" "KalmanLike" "KalmanRun" "KalmanSmooth" "lm"
@@ -127,7 +127,7 @@ apropos("lm")
 
 Every help page has an **Examples** section at the bottom. Instead of copy-pasting them, you can run them all with one call: `example(function_name)`. R pipes each example into the console, one at a time, so you can watch the output interactively.
 
-```r
+```r title="example runs every mean demo"
 example(mean)
 #> mean> x <- c(0:10, 50)
 #> mean> xm <- mean(x)
@@ -137,7 +137,7 @@ example(mean)
 
 That's the entire `?mean` examples section running live, including the `trim` argument demonstration that most beginners never notice. It's the fastest way to go from "I read the help page" to "I actually understand how this behaves on real data."
 
-```r
+```r title="example prints lm demo live"
 example(lm)
 # runs every lm() example from the help page, plots included
 ```
@@ -146,14 +146,14 @@ For functions with plotting examples (like `lm`, `ggplot`, `hist`), `example()` 
 
 **Try it:** Run `example(plot)` and watch what comes up. Then try `example(strsplit)` to see string-splitting in action.
 
-```r
+```r title="Exercise: Run example on plot and strsplit"
 # Your code here — run example() on plot and strsplit
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Run example on plot and strsplit solution"
 example(plot)
 # draws a sequence of scatter plots from the ?plot help page,
 # showing different type= options and factor behavior
@@ -172,7 +172,7 @@ example(strsplit)
 
 Help pages document individual functions. **Vignettes** are the long-form tutorials that package authors write to explain how pieces fit together. If `?dplyr::filter` tells you *what* filter does, `vignette("dplyr")` tells you *how* to use filter with select, mutate, and group_by in a real workflow.
 
-```r
+```r title="List vignettes on the system"
 vignette()                    # list all vignettes on your system
 vignette(package = "dplyr")   # vignettes in one specific package
 vignette("dplyr")             # open the main dplyr vignette
@@ -185,14 +185,14 @@ Not every package ships vignettes, and which ones are available depends on how y
 
 **Try it:** List the vignettes available in your `stats` package with `vignette(package = "stats")`. (Base packages often have few or none, which is why you go to tutorials for the core language.)
 
-```r
+```r title="Exercise: List stats package vignettes"
 # Your code here — list vignettes in the stats package
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="List stats package vignettes solution"
 vignette(package = "stats")
 #> no vignettes found
 
@@ -216,7 +216,7 @@ The `stats` package, home to `lm()`, `glm()`, `t.test()` and the rest of base R'
 
 An R error is not a wall of nonsense, it's a structured report with three layers you should read in reverse. The **last** line is usually the useful one; the rest is the call stack that led there.
 
-```r
+```r title="Read an R warning bottom up"
 mean("hello")
 #> Warning message:
 #> In mean.default("hello") :
@@ -225,7 +225,7 @@ mean("hello")
 
 R is telling you the exact problem: `"hello"` isn't numeric, so `mean.default` (the method it dispatched to) can't compute a mean. The fix is obvious once you read it, pass a number. But the first instinct of most beginners is to panic at the word "default" and paste the whole message into Google.
 
-```r
+```r title="Decode object not found error"
 # A more complex one
 lm(y ~ x, data = data.frame(x = 1:5))
 #> Error in eval(predvars, data, env) : object 'y' not found
@@ -238,7 +238,7 @@ When an error mentions a function you don't recognize, ignore it, it's almost al
 
 Use `traceback()` right after an error to see the full call chain if the error happened deep in someone else's code. It shows which of your lines led to which internal call.
 
-```r
+```r title="traceback shows the call stack"
 # After an error:
 # traceback()
 ```
@@ -255,7 +255,7 @@ A good reprex has four qualities: **minimal** (smallest code that shows the bug)
 
 The `reprex` package automates the formatting:
 
-```r
+```r title="Generate a reprex with one call"
 # install.packages("reprex")
 library(reprex)
 
@@ -266,13 +266,13 @@ reprex()
 
 Here's a bad reprex and a good one, side by side.
 
-```r
+```r title="Bad reprex: vague and missing data"
 # BAD — no data, no library, vague
 "my filter isn't working, I get no rows"
 df |> filter(col == "x")
 ```
 
-```r
+```r title="Good reprex: complete and runnable"
 # GOOD — complete and runnable
 library(dplyr)
 
@@ -304,7 +304,7 @@ Use R's help system to find a function that computes the **correlation between t
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Find correlation by description solution"
 # Search by description
 ??"correlation"
 # or
@@ -327,7 +327,7 @@ Open `?lm` and answer these three questions just from the help page:
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Inspect lm arguments solution"
 ?lm
 
 # 1. subset: An optional vector specifying a subset of observations
@@ -354,7 +354,7 @@ Build a 6-line reprex that reproduces it using built-in data. Start with `librar
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Build a six-line reprex solution"
 # Reprex:
 library(stats)
 
@@ -375,7 +375,7 @@ colMeans(df)
 
 Suppose you find `stats::mahalanobis` in someone's code and have no idea what it does. Here's the full "get unstuck" workflow using nothing but R itself.
 
-```r
+```r title="End-to-end mahalanobis diagnostic workflow"
 # Step 1: Open the help page
 ?mahalanobis
 

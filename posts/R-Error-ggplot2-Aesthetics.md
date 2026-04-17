@@ -24,7 +24,7 @@ ggplot2 builds plots row by row. Every aesthetic you map, colour, size, fill, sh
 
 Here is the smallest reproduction and its fix, side by side:
 
-```r
+```r title="Reproduce the aesthetics length error"
 # Load ggplot2 once for the whole tutorial
 library(ggplot2)
 
@@ -50,7 +50,7 @@ Notice the two clues hidden inside the error message: `(5)` is the row count ggp
 
 **Try it:** Map a categorical column to `size` so the plot renders without error. Use the data frame and aesthetic sizes provided.
 
-```r
+```r title="Exercise: length-4 size column"
 # Try it: fix the broken size mapping below
 ex_df <- data.frame(x = 1:4, y = c(2, 5, 3, 6))
 ex_sizes <- c(2, 6)  # only 2 values for 4 rows — too short
@@ -64,7 +64,7 @@ ex_sizes <- c(2, 6)  # only 2 values for 4 rows — too short
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Length-4 size solution"
 ex_df$point_size <- c(2, 4, 6, 8)          # length 4, matches nrow(ex_df)
 ggplot(ex_df, aes(x, y, size = point_size)) +
   geom_point() +
@@ -79,7 +79,7 @@ ggplot(ex_df, aes(x, y, size = point_size)) +
 
 This is the single most common trigger. You define a helper vector outside the data frame, colours, labels, flags, then pass it straight into `aes()`. The moment its length doesn't match `nrow(data)`, ggplot2 stops. The fix is mechanical: add the vector as a column to the data frame first, then map by name.
 
-```r
+```r title="Fix a standalone helper vector"
 sales_df <- data.frame(
   month = month.abb[1:5],
   revenue = c(120, 180, 150, 210, 175)
@@ -106,7 +106,7 @@ Why prefer the column approach even when the lengths happen to match? Because th
 
 **Try it:** You have 6 students and a highlight vector with only 3 values. Attach a correct-length highlight column and plot it.
 
-```r
+```r title="Exercise: length-6 highlight column"
 # Try it: fix the highlight length so this plots without error
 ex_scores <- data.frame(
   student = paste0("S", 1:6),
@@ -123,7 +123,7 @@ ex_highlight <- c(TRUE, FALSE, TRUE)   # length 3, need length 6
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Highlight-column solution"
 ex_scores$highlight <- ex_scores$math >= 85   # logical vector length 6
 ggplot(ex_scores, aes(student, math, fill = highlight)) +
   geom_col() +
@@ -138,7 +138,7 @@ ggplot(ex_scores, aes(student, math, fill = highlight)) +
 
 The second common pattern: you compute a per-group mean and try to map it onto a plot of the raw data. The summary has one row per group, the raw data has many, so the lengths collide. There are two clean fixes, pick the one that matches your intent.
 
-```r
+```r title="Broadcast per-group mean to raw rows"
 library(dplyr)
 
 # Compute per-cyl mean mpg — this has 3 rows, not 32
@@ -173,7 +173,7 @@ Fix (a) works because `mutate()` inside `group_by()` broadcasts the group mean b
 
 **Try it:** Attach `mean(mpg)` per cyl group to a copy of mtcars without losing any rows.
 
-```r
+```r title="Exercise: add groupmpg column"
 # Try it: end up with ex_mtcars having the same 32 rows plus a group_mpg column
 ex_mtcars <- mtcars
 
@@ -186,7 +186,7 @@ ex_mtcars <- mtcars
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="groupmpg broadcast solution"
 ex_mtcars <- mtcars |>
   group_by(cyl) |>
   mutate(group_mpg = mean(mpg)) |>
@@ -206,7 +206,7 @@ length(unique(ex_mtcars$group_mpg))
 
 The third common cause hides inside multi-layer plots. When you add `geom_text()` or `geom_point()` with its own `data` argument, the new layer still *inherits* the parent `aes()` mappings by default. If the annotation frame doesn't have a column the parent `aes()` references, or has a different row count, you get the length error.
 
-```r
+```r title="Combine layers with inherit.aes FALSE"
 pts <- data.frame(x = 1:10, y = rnorm(10, mean = 5))
 labels <- data.frame(x = c(3, 7), label = c("Peak", "Dip"))
 
@@ -236,7 +236,7 @@ The fix has two parts. First, `inherit.aes = FALSE` tells `geom_text()` to ignor
 
 **Try it:** Add a 2-row label layer on top of a 10-point scatter without triggering the length error.
 
-```r
+```r title="Exercise: add inherit.aes labels"
 # Try it: add the labels layer so both plots render
 ex_pts <- data.frame(x = 1:10, y = runif(10, 0, 10))
 ex_labels <- data.frame(x = c(2, 8), name = c("Start", "End"))
@@ -251,7 +251,7 @@ ex_labels <- data.frame(x = c(2, 8), name = c("Start", "End"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Label-layer solution"
 ggplot(ex_pts, aes(x, y)) +
   geom_point() +
   geom_text(data = ex_labels,
@@ -268,7 +268,7 @@ ggplot(ex_pts, aes(x, y)) +
 
 The fourth cause is subtler. When you filter a data frame whose grouping column is a factor, the *levels* persist even after the rows are gone. A `scale_*_manual()` call built around a 3-level palette then meets a 2-level subset, or a 4-level plot built against your expectations, and the length mismatch resurfaces. `droplevels()` on the filtered data is the clean fix.
 
-```r
+```r title="Filter leaves unused factor levels"
 grade_df <- data.frame(
   category = factor(c("A", "B", "C", "A", "B", "C")),
   score    = c(10, 20, 30, 15, 25, 35)
@@ -299,7 +299,7 @@ Without `droplevels()`, that `scale_fill_manual()` call with two colours would h
 
 **Try it:** Drop unused levels from a filtered factor and confirm the level count shrinks to match the data.
 
-```r
+```r title="Exercise: drop unused factor level"
 # Try it: drop the unused level from ex_sub
 ex_factor_df <- data.frame(
   g = factor(c("x", "y", "z", "x", "y", "z")),
@@ -316,7 +316,7 @@ ex_sub <- ex_factor_df[ex_factor_df$g != "z", ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="droplevels solution"
 ex_sub$g <- droplevels(ex_sub$g)
 nlevels(ex_sub$g)
 #> [1] 2
@@ -332,7 +332,7 @@ nlevels(ex_sub$g)
 
 Using `mtcars`, compute the mean mpg for each `cyl` group, attach it back to every row, and plot a scatter of `wt` vs `mpg` with a dashed horizontal line per group showing its mean. The naive version below is broken, fix it. Save the final plot to `my_p1`.
 
-```r
+```r title="Exercise: per-group mean line plot"
 # Exercise 1: fix the broken per-group mean line plot
 # Hint: use group_by() + mutate(mean_mpg = mean(mpg)) to broadcast the mean
 
@@ -344,7 +344,7 @@ my_mt <- mtcars
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Per-group mean-line solution"
 my_mt <- mtcars |>
   group_by(cyl) |>
   mutate(mean_mpg = mean(mpg)) |>
@@ -367,7 +367,7 @@ print(my_p1)
 
 Build a scatter from a 10-row `my_scatter` data frame, then overlay 2 text labels from a separate 2-row `my_labels` data frame. The challenge is that `my_labels` has no `y` column, so the default inherited `aes()` breaks. Save the final plot to `my_p2`.
 
-```r
+```r title="Exercise: external text annotations"
 # Exercise 2: add text annotations from a second data frame
 # Hint: use inherit.aes = FALSE and supply every aesthetic inside the local aes()
 
@@ -381,7 +381,7 @@ my_labels  <- data.frame(x = c(3, 8), label = c("Low", "High"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="External-annotation solution"
 my_p2 <- ggplot(my_scatter, aes(x, y)) +
   geom_point(size = 3) +
   geom_text(data = my_labels,
@@ -401,7 +401,7 @@ print(my_p2)
 
 Here is an end-to-end walkthrough using `iris`. The goal: a scatter of `Sepal.Length` vs `Sepal.Width` coloured by `Species`, with a dashed horizontal line per species showing its mean `Sepal.Length`. We'll build it the right way from the start.
 
-```r
+```r title="End-to-end iris mean-line plot"
 iris_m <- iris |>
   group_by(Species) |>
   mutate(mean_sl = mean(Sepal.Length)) |>

@@ -39,7 +39,7 @@ In this tutorial, you will learn every major aesthetic ggplot2 supports, when to
 
 Let's start with the simplest scatter plot. We map `displ` (engine displacement) to the x-axis and `hwy` (highway miles per gallon) to the y-axis using the built-in `mpg` dataset.
 
-```r
+```r title="Load mpg sample data"
 # Load ggplot2 and preview the data
 library(ggplot2)
 head(mpg, 4)
@@ -52,7 +52,7 @@ head(mpg, 4)
 
 So far we have two aesthetics: x and y. Now let's add a third, colour, to reveal which vehicle class each point belongs to.
 
-```r
+```r title="Map class to colour"
 # Map colour to the class variable
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 3)
@@ -65,7 +65,7 @@ Each class gets a distinct colour, and ggplot2 automatically generates a legend.
 
 **Try it:** Add `size = cyl` inside the existing `aes()` call so that point size reflects the number of cylinders. What happens to the legend?
 
-```r
+```r title="Exercise: map size to cylinders"
 # Try it: add size = cyl
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point()
@@ -77,7 +77,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: map size to cylinders"
 ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
   geom_point()
 ```
@@ -92,7 +92,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
 
 Let's see `colour` on a scatter plot first. Each vehicle class gets a unique hue.
 
-```r
+```r title="Colour a scatter by class"
 # colour on a scatter plot — controls point colour
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 3) +
@@ -101,7 +101,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 
 Now let's see `fill` on a bar chart. The `fill` aesthetic controls the interior colour of each bar.
 
-```r
+```r title="Fill dodged bars by drive"
 # fill on a bar chart — controls bar interior
 ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "dodge") +
@@ -112,7 +112,7 @@ The bars are coloured by drivetrain (`drv`: front, rear, 4-wheel). Notice that `
 
 When you map `colour` to a continuous variable, ggplot2 switches from discrete hues to a gradient scale.
 
-```r
+```r title="Gradient colour for continuous variable"
 # Continuous colour produces a gradient
 ggplot(mpg, aes(x = displ, y = hwy, colour = cty)) +
   geom_point(size = 3) +
@@ -126,7 +126,7 @@ The legend changes from discrete swatches to a colour bar. City mileage (`cty`) 
 
 **Try it:** Create a boxplot of `hwy` grouped by `class`, with the boxes filled by `drv`. Use `geom_boxplot()`.
 
-```r
+```r title="Exercise: fill boxplots by class"
 # Try it: boxplot with fill
 ggplot(mpg, aes(x = class, y = hwy)) +
   geom_boxplot()
@@ -138,7 +138,7 @@ ggplot(mpg, aes(x = class, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: fill boxplots"
 ggplot(mpg, aes(x = class, y = hwy, fill = drv)) +
   geom_boxplot()
 ```
@@ -153,7 +153,7 @@ Beyond colour and fill, three more aesthetics let you encode data: `shape` for c
 
 `shape` works best with categorical variables that have few levels. ggplot2 provides 6 default shapes, if your variable has more than 6 levels, extra levels won't appear.
 
-```r
+```r title="Map shape to drive type"
 # shape maps drivetrain to point symbols
 ggplot(mpg, aes(x = displ, y = hwy, shape = drv)) +
   geom_point(size = 3) +
@@ -164,7 +164,7 @@ Three drivetrain types, three shapes. Each point's symbol tells you whether the 
 
 `size` works best with continuous variables. It makes points larger or smaller to reflect a numeric value.
 
-```r
+```r title="Map size to cylinder count"
 # size maps engine cylinders to point area
 ggplot(mpg, aes(x = displ, y = hwy, size = cyl)) +
   geom_point(alpha = 0.6) +
@@ -175,7 +175,7 @@ Larger dots mean more cylinders. Notice we set `alpha = 0.6` *outside* `aes()`, 
 
 `alpha` (transparency) is perfect for revealing density in overplotted scatter plots.
 
-```r
+```r title="Map alpha to engine size"
 # alpha reveals where points overlap
 ggplot(mpg, aes(x = cty, y = hwy, alpha = displ)) +
   geom_point(size = 3, colour = "steelblue") +
@@ -198,7 +198,7 @@ Darker points have larger engines. Where many points overlap, the combined opaci
 
 **Try it:** Create a scatter of `displ` vs `hwy` and map `alpha` to `cty` (city mileage). Set all points to `colour = "darkred"` and `size = 3`.
 
-```r
+```r title="Exercise: map alpha to city mpg"
 # Try it: map alpha to cty
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point()
@@ -210,7 +210,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: map alpha to city"
 ggplot(mpg, aes(x = displ, y = hwy, alpha = cty)) +
   geom_point(colour = "darkred", size = 3)
 ```
@@ -229,7 +229,7 @@ This is the single most common source of ggplot2 confusion. The rule is simple: 
 
 When you **map** colour, ggplot2 reads each row's value and picks a colour from a scale. A legend appears automatically.
 
-```r
+```r title="Map colour to data variable"
 # MAPPED: colour varies by class, legend appears
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 3) +
@@ -238,7 +238,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 
 When you **set** colour, every point gets the same colour. No legend is needed.
 
-```r
+```r title="Set a constant colour value"
 # SET: all points get the same fixed colour
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(size = 3, colour = "steelblue") +
@@ -247,7 +247,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 Now here is the classic mistake. What happens if you put a colour name *inside* `aes()`?
 
-```r
+```r title="Mistake: constant inside aes"
 # MISTAKE: constant inside aes() — creates a one-level category
 ggplot(mpg, aes(x = displ, y = hwy, colour = "red")) +
   geom_point(size = 3) +
@@ -261,7 +261,7 @@ The points are NOT red. ggplot2 treats `"red"` as a categorical variable with on
 
 **Try it:** The plot below has a bug, `colour = "blue"` is inside `aes()`. Move it to the correct location so all points are actually blue.
 
-```r
+```r title="Exercise: fix blue scatter"
 # Try it: fix this broken plot
 ggplot(mpg, aes(x = displ, y = hwy, colour = "blue")) +
   geom_point(size = 3)
@@ -272,7 +272,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = "blue")) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: move colour out"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(size = 3, colour = "blue")
 ```
@@ -291,7 +291,7 @@ When you place aesthetics in the `ggplot()` call, every layer inherits them. Whe
 
 Let's build a plot with two layers, points and a smoother, that both inherit x, y, and colour from the global `aes()`.
 
-```r
+```r title="Inherit aesthetics from ggplot call"
 # Both layers inherit colour = class from ggplot()
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2) +
@@ -303,7 +303,7 @@ Both points and trend lines are coloured by class. That is inheritance at work, 
 
 Now let's override colour in just the smoother. We want the points coloured by class, but a single grey trend line across all data.
 
-```r
+```r title="Override smoother group inside geom"
 # Override: smoother ignores the colour grouping
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2) +
@@ -315,7 +315,7 @@ The smoother now draws a single grey line because we set `colour = "grey40"` out
 
 You can also add a layer-specific aesthetic that the other layers don't have. Here, only the points get `shape = drv`.
 
-```r
+```r title="Add layer specific point colour"
 # Layer-specific aesthetic: only points use shape
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(aes(shape = drv, colour = class), size = 2) +
@@ -330,7 +330,7 @@ The smoother is unaffected by shape or colour because those mappings live only i
 
 **Try it:** Start with the code below. Add a `geom_smooth()` that draws a single overall trend line (ignoring the colour grouping). Set the smoother's colour to `"black"`.
 
-```r
+```r title="Exercise: add overall trend"
 # Try it: add a single overall smoother
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2)
@@ -342,7 +342,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: overall trend"
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2) +
   geom_smooth(method = "lm", se = FALSE, colour = "black", aes(group = 1))
@@ -357,7 +357,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 ### Mistake 1: Putting a fixed colour inside aes()
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: colour blue inside aes"
 ggplot(mpg, aes(x = displ, y = hwy, colour = "blue")) +
   geom_point()
 ```
@@ -365,7 +365,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = "blue")) +
 **Why it is wrong:** ggplot2 treats `"blue"` as a one-level categorical variable and assigns it the default palette colour (not blue). A useless legend appears.
 
 ✅ **Correct:**
-```r
+```r title="Correct: set blue outside aes"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(colour = "blue")
 ```
@@ -373,7 +373,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 ### Mistake 2: Using fill on shapes that don't support it
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: fill on default shape"
 ggplot(mpg, aes(x = displ, y = hwy, fill = class)) +
   geom_point(size = 3)
 ```
@@ -381,7 +381,7 @@ ggplot(mpg, aes(x = displ, y = hwy, fill = class)) +
 **Why it is wrong:** Default point shape (19) has no interior to fill. The points ignore the fill aesthetic entirely, no colour change, no error, just silence.
 
 ✅ **Correct:**
-```r
+```r title="Correct: use shape 21"
 ggplot(mpg, aes(x = displ, y = hwy, fill = class)) +
   geom_point(size = 3, shape = 21, stroke = 0.5)
 ```
@@ -391,7 +391,7 @@ Shapes 21-25 have both fill and colour (outline). Use one of these when you need
 ### Mistake 3: Mapping a continuous variable to shape
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: shape on continuous variable"
 ggplot(mpg, aes(x = displ, y = hwy, shape = cty)) +
   geom_point()
 #> Error: A continuous variable cannot be mapped to shape
@@ -400,7 +400,7 @@ ggplot(mpg, aes(x = displ, y = hwy, shape = cty)) +
 **Why it is wrong:** Shapes are discrete symbols, there is no meaningful way to order them along a continuous scale. ggplot2 throws an error.
 
 ✅ **Correct:**
-```r
+```r title="Correct: size for continuous variable"
 ggplot(mpg, aes(x = displ, y = hwy, size = cty)) +
   geom_point()
 ```
@@ -410,7 +410,7 @@ Use `size` or `colour` for continuous variables. Reserve `shape` for categorical
 ### Mistake 4: Overloading one plot with too many aesthetics
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: mapping four aesthetics at once"
 ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv,
                 size = cyl, alpha = cty)) +
   geom_point()
@@ -419,7 +419,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv,
 **Why it is wrong:** Four simultaneous aesthetics (plus x and y) overwhelm the reader. The plot becomes unreadable, too many legends, too much visual noise.
 
 ✅ **Correct:**
-```r
+```r title="Correct: limit to two aesthetics"
 # Pick 1-2 non-positional aesthetics
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 3, alpha = 0.7)
@@ -433,7 +433,7 @@ Map at most 2 non-positional aesthetics to data. Set the rest to fixed values fo
 
 Build a scatter plot of `displ` (x) vs `hwy` (y) from the `mpg` dataset. Map `colour` to `class` and `size` to `cyl`. Set `alpha` to 0.7 (fixed). Add a title.
 
-```r
+```r title="Exercise one: multi aesthetic scatter"
 # Exercise 1: multi-aesthetic scatter
 # Hint: colour and size go inside aes(), alpha outside
 
@@ -444,7 +444,7 @@ Build a scatter plot of `displ` (x) vs `hwy` (y) from the `mpg` dataset. Map `co
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: multi aesthetic scatter"
 my_plot1 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
   geom_point(alpha = 0.7) +
   labs(title = "Engine size vs fuel economy by vehicle class")
@@ -459,7 +459,7 @@ my_plot1
 
 Create a plot with `geom_point()` coloured by `class` and `geom_smooth()` that fits a single LOESS curve across all data. The smoother should be dark grey with a confidence band.
 
-```r
+```r title="Exercise two: selective inheritance"
 # Exercise 2: layered plot with selective inheritance
 # Hint: use aes(group = 1) in geom_smooth to ignore colour grouping
 
@@ -470,7 +470,7 @@ Create a plot with `geom_point()` coloured by `class` and `geom_smooth()` that f
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: selective inheritance"
 my_plot2 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2) +
   geom_smooth(aes(group = 1), colour = "grey30", fill = "grey80") +
@@ -486,7 +486,7 @@ my_plot2
 
 Build a stacked bar chart of `class` with `fill` mapped to `drv`. Override the default fill palette using `scale_fill_brewer(palette = "Set2")`. Rotate x-axis labels 45 degrees.
 
-```r
+```r title="Exercise three: Brewer bar chart"
 # Exercise 3: bar chart with custom fill scale
 # Hint: scale_fill_brewer() overrides the default palette
 # Hint: theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -498,7 +498,7 @@ Build a stacked bar chart of `class` with `fill` mapped to `drv`. Override the d
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: Brewer bar"
 my_plot3 <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar() +
   scale_fill_brewer(palette = "Set2") +
@@ -515,7 +515,7 @@ my_plot3
 
 Let's build a polished, publication-ready scatter plot that combines multiple aesthetics, custom scales, and clear labels.
 
-```r
+```r title="Capstone: polished multi aesthetic plot"
 # Complete example: polished multi-aesthetic scatter
 ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
   geom_point(alpha = 0.7) +

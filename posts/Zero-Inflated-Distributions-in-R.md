@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Lots of real count data is weird in one specific way: there are way more zeros than any standard model predicts. Insurance claims per policy, articles published per PhD student, fish caught per park visitor, each has a cluster of people who produce zero no matter what. The fastest check is quantitative: fit a plain Poisson, ask how many zeros it *would* predict, and compare that to what you actually see. When the gap is large, the plain Poisson is not just wrong about the zeros, it's biased across the whole fitted curve.
 
-```r
+```r title="Simulate excess zeros vs Poisson"
 # Simulate counts with excess zeros, then compare to a plain Poisson's expectation.
 library(pscl)
 set.seed(42)
@@ -51,7 +51,7 @@ The data has 308 zeros, but a plain Poisson fitted to the same mean expects only
 
 **Try it:** Drop the structural-zero probability from 0.6 to 0.3 and re-measure the zero-excess ratio. You should see the ratio fall but still sit clearly above 1.
 
-```r
+```r title="Exercise: 30 percent structural zeros"
 # Try it: rerun the simulation with 30% structural zeros.
 set.seed(42)
 n <- 500
@@ -66,7 +66,7 @@ ex_counts     <- ifelse(ex_structural == 1, 0, rpois(n, lambda = 3))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="30-percent inflation solution"
 set.seed(42)
 n <- 500
 ex_structural <- rbinom(n, 1, 0.3)
@@ -100,7 +100,7 @@ Where:
 
 The first term of $P(Y=0)$ is the structural-zero mass; the second is the ordinary Poisson zero. Both contribute to the zeros you see in the data.
 
-```r
+```r title="Decompose structural and sampling zeros"
 # Simulate the mixture explicitly so you can decompose the zeros.
 set.seed(7)
 n <- 1000
@@ -133,7 +133,7 @@ The 382 observed zeros are made up of 284 structural (about 28% of the sample) p
 
 **Try it:** Keep `pi` at 0.3 but raise `lambda` from 2 to 5. Predict what happens to the sampling zero count before you run the code, then check.
 
-```r
+```r title="Exercise: higher lambda cuts sampling zeros"
 # Try it: higher lambda should reduce sampling zeros.
 set.seed(7)
 n <- 1000
@@ -148,7 +148,7 @@ ex_lambda <- 5
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Higher-lambda solution"
 set.seed(7)
 n <- 1000
 ex_pi     <- 0.3
@@ -172,7 +172,7 @@ c(structural = sum(ex_struct == 1),
 
 The pscl package ships the `bioChemists` dataset, publication counts for 915 biochemistry PhD students in their last three years of the program, which is the canonical teaching dataset for zero-inflated models. Many students published zero articles. The predictors include gender (`fem`), marital status (`mar`), number of young children (`kid5`), PhD prestige (`phd`), and mentor productivity (`ment`).
 
-```r
+```r title="bioChemists dataset and zero count"
 # Load bioChemists and check the zero pile-up.
 data("bioChemists", package = "pscl")
 str(bioChemists)
@@ -191,7 +191,7 @@ table(bioChemists$art)
 
 About 30% of the sample published zero articles, an obvious candidate for zero inflation. Now fit the ZIP model. The formula uses a pipe (`|`) separator: predictors to the left drive the count process, predictors to the right drive the zero-inflation process.
 
-```r
+```r title="Fit zero-inflated Poisson with zeroinfl"
 # Fit ZIP with the same predictors on both components.
 m_zip <- zeroinfl(art ~ fem + mar + kid5 + phd + ment |
                         fem + mar + kid5 + phd + ment,
@@ -227,7 +227,7 @@ The output has two blocks. The **count model** describes what drives the Poisson
 
 Exponentiating the coefficients makes the count side easier to read as **incidence rate ratios (IRRs)** and the zero side as **odds ratios**.
 
-```r
+```r title="Exponentiate to IRRs and odds ratios"
 # IRRs for the count model and odds ratios for the zero-inflation model.
 count_irr <- exp(coef(m_zip, model = "count"))
 zero_or   <- exp(coef(m_zip, model = "zero"))
@@ -244,7 +244,7 @@ Among publishing students, women publish at 0.81x the rate of men (a 19% lower r
 
 **Try it:** Fit a ZIP model where the zero-inflation side uses only `ment`, while the count side keeps all five predictors. Compare the log-likelihood to `m_zip`.
 
-```r
+```r title="Exercise: sparser zero-inflation component"
 # Try it: sparser zero-inflation component.
 ex_zip <- zeroinfl(art ~ fem + mar + kid5 + phd + ment | ment,
                    data = bioChemists, dist = "poisson")
@@ -257,7 +257,7 @@ ex_zip <- zeroinfl(art ~ fem + mar + kid5 + phd + ment | ment,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sparse zero-inflation solution"
 ex_zip <- zeroinfl(art ~ fem + mar + kid5 + phd + ment | ment,
                    data = bioChemists, dist = "poisson")
 
@@ -275,7 +275,7 @@ c(full = as.numeric(logLik(m_zip)),
 
 Zero inflation and **overdispersion** (variance larger than the mean) are different problems that often show up together. A ZIP model handles excess zeros but still assumes the non-structural counts are Poisson, so variance equals mean. When the non-zero counts are overdispersed too, you want a **zero-inflated negative binomial (ZINB)** instead. If you suspect the zero-generating process is categorically different from the count process (think: visiting a park at all vs how many fish you caught *given* you went), a **hurdle model** may fit better.
 
-```r
+```r title="Compare Poisson, ZIP, ZINB by AIC"
 # Fit plain Poisson, ZIP, and ZINB on bioChemists and compare by AIC.
 library(MASS)
 
@@ -300,7 +300,7 @@ ZINB beats ZIP by ~63 AIC points, and ZIP beats plain Poisson by ~80. The orderi
 
 A second diagnostic is the **predicted zero count**. A well-fitting model should predict about as many zeros as you observed.
 
-```r
+```r title="Compare predicted zeros across models"
 # Compare predicted zeros to observed.
 observed_zero_n <- sum(bioChemists$art == 0)
 
@@ -323,7 +323,7 @@ Plain Poisson under-predicts by 60+ zeros. Both ZIP and ZINB nail the observed c
 
 **Try it:** Using `predict(m_zinb, type = "prob")`, find the observation with the highest estimated probability of being a structural zero. What are its covariates?
 
-```r
+```r title="Exercise: most likely structural zero"
 # Try it: find the "most likely structural zero" row.
 ex_probs <- predict(m_zinb, type = "zero")   # Pr(structural zero | x)
 
@@ -335,7 +335,7 @@ ex_probs <- predict(m_zinb, type = "zero")   # Pr(structural zero | x)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Most-likely structural-zero solution"
 ex_idx <- which.max(predict(m_zinb, type = "zero"))
 ex_pred <- predict(m_zinb, type = "zero")[ex_idx]
 round(ex_pred, 3)
@@ -356,7 +356,7 @@ bioChemists[ex_idx, ]
 
 Fit a ZINB on `bioChemists` using **only** `ment` and `kid5` on the zero-inflation side, while keeping all five predictors on the count side. Compare its AIC to the full `m_zinb`. Which model wins and by how much? Store your trimmed model in `my_zinb_trim`.
 
-```r
+```r title="Exercise: trim the zero component"
 # Exercise 1
 # Hint: use the | operator to separate the count and zero components.
 
@@ -367,7 +367,7 @@ Fit a ZINB on `bioChemists` using **only** `ment` and `kid5` on the zero-inflati
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Trim-zero-component solution"
 my_zinb_trim <- zeroinfl(art ~ fem + mar + kid5 + phd + ment | ment + kid5,
                          data = bioChemists, dist = "negbin")
 AIC(m_zinb, my_zinb_trim)
@@ -384,7 +384,7 @@ AIC(m_zinb, my_zinb_trim)
 
 Simulate 1000 counts from a zero-inflated negative binomial process: structural probability = 0.4, non-zero counts drawn from a negative binomial with mean 5 and `size = 2` (moderate overdispersion). Fit both ZIP and ZINB on a single predictor. Use `AIC()` to pick the winner. Store the simulated counts in `my_y` and the two fits in `my_zip` and `my_zinb_fit`.
 
-```r
+```r title="Exercise: simulate ZIP vs ZINB"
 # Exercise 2
 # Hint: rbinom() for the structural indicator, rnbinom(mu=5, size=2) for the count component.
 # Fit with zeroinfl(my_y ~ x | x, dist = "poisson") and dist = "negbin".
@@ -396,7 +396,7 @@ Simulate 1000 counts from a zero-inflated negative binomial process: structural 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ZIP-vs-ZINB simulation solution"
 set.seed(2026)
 n <- 1000
 x <- rnorm(n)
@@ -422,7 +422,7 @@ AIC(my_zip, my_zinb_fit)
 
 Here's a full walkthrough, simulate, explore, fit, diagnose, interpret, on a fishing-visitor dataset. Some groups never fished (structural zero), some fished but caught nothing (sampling zero), and a few did well.
 
-```r
+```r title="End-to-end fishing-counts walkthrough"
 # End-to-end: fishing counts at a park.
 set.seed(99)
 fish_n <- 250

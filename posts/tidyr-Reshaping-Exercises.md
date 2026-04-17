@@ -23,7 +23,7 @@ difficulty: "Intermediate"
 
 Most datasets arrive in *wide* shape, one row per subject, one column per measurement, but ggplot2 and dplyr expect *long* shape: one row per observation. `pivot_longer()` is the bridge. Let's load `tidyr` and reshape the built-in `relig_income` dataset on US religious groups and their income brackets, so you can see the shape of a pivot call before writing one yourself. Every exercise below runs in the same R session, so variables carry over.
 
-```r
+```r title="Collapse ten income columns into long"
 library(tidyr)
 library(tibble)   # for tribble()
 library(dplyr)    # for group_by(), mutate(), slice_max(), and the Complete Example
@@ -54,7 +54,7 @@ head(long_relig)
 
 **Try it:** Reshape `relig_income` but name the new columns `bracket` and `n` instead. Save to `ex1_long` and check the row count.
 
-```r
+```r title="Exercise: Rename pivotlonger output columns"
 # Exercise 1: rename the new columns
 # Hint: change names_to and values_to
 
@@ -66,7 +66,7 @@ nrow(ex1_long)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rename pivotlonger output solution"
 ex1_long <- pivot_longer(
   relig_income,
   cols      = -religion,
@@ -90,7 +90,7 @@ head(ex1_long, 3)
 
 **Try it:** The `billboard` dataset has one row per song and weekly rank columns `wk1`, `wk2`, ..., `wk76`. Reshape it so there are two new columns, `week` and `rank`. Save to `ex2_long`.
 
-```r
+```r title="Exercise: Pivot a week range"
 # Exercise 2: pivot a range of columns
 # Hint: cols = wk1:wk76
 
@@ -102,7 +102,7 @@ ncol(ex2_long)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pivot week range solution"
 ex2_long <- pivot_longer(
   billboard,
   cols      = wk1:wk76,
@@ -126,7 +126,7 @@ head(ex2_long, 3)
 
 `pivot_wider()` is the mirror image of `pivot_longer()`. It takes a key column and a value column and spreads them back across new columns, perfect for presenting results or for undoing a reshape you did earlier in a pipeline. The two arguments that matter most are `names_from` (which column's values become the new column headers) and `values_from` (which column fills the cells).
 
-```r
+```r title="Rebuild wide frame from long"
 # Rebuild the original wide frame from ex1_long
 wide_again <- pivot_wider(
   ex1_long,
@@ -154,7 +154,7 @@ The 180-row long frame collapses back to 18 × 11, the exact shape of the origin
 
 **Try it:** The `fish_encounters` dataset tracks which fish were seen at which river monitoring station. Pivot it so that each station becomes its own column, with the `seen` value in the cells. Save to `ex3_wide`.
 
-```r
+```r title="Exercise: Long to wide with pivotwider"
 # Exercise 3: long -> wide
 # Hint: names_from = station, values_from = seen
 
@@ -166,7 +166,7 @@ ncol(ex3_wide)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Long to wide solution"
 ex3_wide <- pivot_wider(
   fish_encounters,
   names_from  = station,
@@ -187,7 +187,7 @@ head(ex3_wide, 3)
 
 **Try it:** Repeat the pivot but replace missing encounters with `0` instead of `NA`. Save to `ex4_wide`.
 
-```r
+```r title="Exercise: Fill missing cells with zero"
 # Exercise 4: fill missing cells
 # Hint: values_fill = 0
 
@@ -199,7 +199,7 @@ sum(is.na(ex4_wide))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fill missing cells solution"
 ex4_wide <- pivot_wider(
   fish_encounters,
   names_from  = station,
@@ -218,7 +218,7 @@ sum(is.na(ex4_wide))
 
 Listing columns by name is fine for small datasets, but the moment your column list grows, tidyselect helpers make the pivot call shorter and safer. Inside `cols =`, you can use `starts_with()`, `ends_with()`, `matches()` (regex), and `where(is.numeric)`, the same helpers you already use in `dplyr::select()`. Let's see it on `iris`, where the four measurement columns are all numeric and `Species` is a factor.
 
-```r
+```r title="Pivot numeric iris columns with where"
 # Pivot every numeric column in iris
 iris_long <- pivot_longer(
   iris,
@@ -243,7 +243,7 @@ The call pivoted all four numeric columns in one stroke without naming any of th
 
 **Try it:** Pivot `iris` so that only the `Petal.Length` and `Petal.Width` columns become rows (leave the sepal columns as-is). Save to `ex5_long`.
 
-```r
+```r title="Exercise: Select with startswith"
 # Exercise 5: select with starts_with()
 # Hint: cols = starts_with("Petal")
 
@@ -255,7 +255,7 @@ ncol(ex5_long)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Select with startswith solution"
 ex5_long <- pivot_longer(
   iris,
   cols      = starts_with("Petal"),
@@ -279,7 +279,7 @@ head(ex5_long, 3)
 
 Real datasets love to cram multiple variables into one header, `sales_2023_q1`, `mpg_city_2022`, `new_sp_m014`. `pivot_longer()` can split those headers during the pivot instead of leaving you with a messy string you have to separate later. Pass a vector to `names_to` (one name per piece) and tell tidyr how to cut the header with either `names_sep` (a delimiter) or `names_pattern` (a regex with capture groups).
 
-```r
+```r title="Split compound names with namessep"
 sales_wide <- tribble(
   ~store, ~sales_2023_q1, ~sales_2023_q2, ~sales_2024_q1, ~sales_2024_q2,
   "A",              120,            140,            150,            170,
@@ -315,7 +315,7 @@ sales_long
 
 **Try it:** Reshape `billboard` so the week number is stored as an integer in a column called `week`. Use `names_pattern` to strip the `wk` prefix, and `names_transform` to cast the result to integer. Save to `ex6_long`.
 
-```r
+```r title="Exercise: Extract digits with namespattern"
 # Exercise 6: names_pattern with a capture group
 # Hint: names_pattern = "wk(\\d+)"
 #       names_transform = list(week = as.integer)
@@ -328,7 +328,7 @@ class(ex6_long$week)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extract digits with namespattern solution"
 ex6_long <- pivot_longer(
   billboard,
   cols             = starts_with("wk"),
@@ -353,7 +353,7 @@ head(ex6_long, 3)
 
 **Try it:** Given the tribble below with `mpg_<road>_<year>` columns, reshape it so there is one row per (make, road, year) with an `mpg` value column. Save to `ex7_long`.
 
-```r
+```r title="Exercise: Split into three fields"
 # Exercise 7: names_sep with three outputs
 mpg_wide <- tribble(
   ~make,     ~mpg_city_2021, ~mpg_hwy_2021, ~mpg_city_2022, ~mpg_hwy_2022,
@@ -369,7 +369,7 @@ nrow(ex7_long)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Split into three fields solution"
 ex7_long <- pivot_longer(
   mpg_wide,
   cols      = starts_with("mpg_"),
@@ -399,7 +399,7 @@ ex7_long
 
 What if a single row holds *two* values that should become *two* columns after the pivot? The built-in `household` dataset is the classic example: each row is a family, and the columns `dob_child1`, `dob_child2`, `name_child1`, `name_child2` encode both a *child* identifier and a *measurement type* (dob or name). Stacking everything into one value column would mix dates and names, which tidyr refuses to do. The answer is the special `.value` sentinel, it tells `pivot_longer()` that this piece of the header should become the *output column name*.
 
-```r
+```r title="Reshape dob and name with .value"
 hh_long <- household |> pivot_longer(
   cols      = -family,
   names_to  = c(".value", "child"),
@@ -428,7 +428,7 @@ hh_long
 
 **Try it:** Given the tribble below, reshape it so there is one row per (student, year) with two value columns `math` and `read`. Save to `ex8_long`.
 
-```r
+```r title="Exercise: Pivot two score types by year"
 # Exercise 8: .value with a year key
 scores_wide <- tribble(
   ~student, ~score_math_2023, ~score_read_2023, ~score_math_2024, ~score_read_2024,
@@ -444,7 +444,7 @@ names(ex8_long)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pivot two score types solution"
 ex8_long <- pivot_longer(
   scores_wide,
   cols         = -student,
@@ -474,7 +474,7 @@ The two capstone problems below combine everything above. They need more than on
 
 Starting from `relig_income`, compute each income bracket's share of its religion's total. Your result should have one row per religion and one column per bracket (so the same shape as `relig_income`), but with proportions instead of raw counts. Save the final wide tibble to `ex9_result`.
 
-```r
+```r title="Exercise: Share of income by religion"
 # Exercise 9: round-trip reshape
 # Hints:
 #   1. pivot_longer to (religion, bracket, n)
@@ -489,7 +489,7 @@ Starting from `relig_income`, compute each income bracket's share of its religio
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Share of income solution"
 ex9_result <- relig_income |>
   pivot_longer(
     cols      = -religion,
@@ -524,7 +524,7 @@ round(head(ex9_result[, 1:4], 3), 3)
 
 The tribble below holds quarterly store results. Column names encode three things, quarter, metric, currency, and a few cells are `NA`. Reshape it into a tidy frame with columns `store`, `quarter`, `sales`, `returns`, then drop any row where *both* `sales` and `returns` are missing. Save to `ex10_tidy`.
 
-```r
+```r title="Exercise: Three-way compound headers"
 # Exercise 10: real-world compound headers
 messy_wide <- tribble(
   ~store, ~q1_sales_usd, ~q1_returns_usd, ~q2_sales_usd, ~q2_returns_usd,
@@ -540,7 +540,7 @@ messy_wide <- tribble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-way compound headers solution"
 ex10_tidy <- messy_wide |>
   pivot_longer(
     cols         = -store,
@@ -568,7 +568,7 @@ ex10_tidy
 
 To wrap up, let's string the techniques together into a mini workflow on `billboard`: find the three tracks that stayed on the charts the longest, then display their weekly ranks in wide form. This is the kind of long-compute-wide loop you'll run every week in a real analysis job.
 
-```r
+```r title="End-to-end billboard longevity analysis"
 # End-to-end: tidy -> analyse -> display
 bb_tidy <- billboard |>
   pivot_longer(

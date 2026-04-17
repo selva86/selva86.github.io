@@ -26,7 +26,7 @@ R has no row-by-row type, it has *vector* types. Every atomic vector is one type
 
 Here is the hierarchy in action. Watch the `class()` output change each time we mix in a "bigger" type.
 
-```r
+```r title="Coercion ladder demonstration"
 # The coercion ladder: mix types and R picks the most general
 class(c(TRUE, FALSE))
 #> [1] "logical"
@@ -49,7 +49,7 @@ The last two examples are where real bugs live. The moment a single `"x"` lands 
 
 **Try it:** Build a vector `ex_mix` that contains `FALSE`, `3L`, and `1.4`, predict the class before running, then verify with `class()` and `typeof()`.
 
-```r
+```r title="Exercise: predict the mixed class"
 # Try it: predict the class, then check
 ex_mix <- c(FALSE, 3L, 1.4)   # your prediction: ?
 class(ex_mix)
@@ -61,7 +61,7 @@ typeof(ex_mix)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mixed-class solution"
 ex_mix <- c(FALSE, 3L, 1.4)
 class(ex_mix)
 #> [1] "numeric"
@@ -91,7 +91,7 @@ Four base atomic types, one strict ordering. `logical` sits at the bottom becaus
 
 The row that causes the most accidental data loss is `double → integer`: `as.integer(2.9)` is `2`, not `3`. If you wanted rounding, use `round()` explicitly. The row that causes the most *silent* data corruption is `character → numeric`, which we'll attack next.
 
-```r
+```r title="as.integer truncates, does not round"
 # Three rows from the table you need to remember
 as.integer(TRUE)
 #> [1] 1
@@ -110,7 +110,7 @@ round(2.9)              # this is what you probably meant
 
 **Try it:** You have `x <- c(1.2, 3.7, 5.1)`. Write one line that produces the *rounded* integer vector `c(1L, 4L, 5L)`, not the truncated version.
 
-```r
+```r title="Exercise: round before integer coerce"
 # Try it: round before you coerce
 x <- c(1.2, 3.7, 5.1)
 ex_rounded <- NULL  # your code here
@@ -124,7 +124,7 @@ typeof(ex_rounded)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Round-before-coerce solution"
 x <- c(1.2, 3.7, 5.1)
 ex_rounded <- as.integer(round(x))
 ex_rounded
@@ -141,7 +141,7 @@ typeof(ex_rounded)
 
 You'll meet this warning the first time you read a CSV where one cell has a stray dollar sign or a footnote marker. `as.numeric()` happily converts `"1.5"` to `1.5` but collapses `"N/A"`, `"—"`, or `"$42.00"` to `NA` and prints a warning. The warning is **your friend**, it's telling you a column you thought was numeric has dirty values you need to handle on purpose.
 
-```r
+```r title="Reproduce NAs introduced by coercion"
 # The classic scenario: a "numeric" column with contaminants
 raw <- c("100", "250", "N/A", "$42.00", "", "1,250", "3.14")
 
@@ -160,7 +160,7 @@ Four values failed to parse, the `"N/A"` text, the dollar sign, the empty string
 
 Here is the workflow in code: peek at the offenders, clean them, then coerce.
 
-```r
+```r title="Safe peek, clean, coerce, audit"
 # Safe conversion: peek -> clean -> coerce -> audit
 raw <- c("100", "250", "N/A", "$42.00", "", "1,250", "3.14")
 
@@ -194,7 +194,7 @@ Four clean numbers, two deliberate `NA`s for the `"N/A"` and the empty cell, and
 
 **Try it:** You receive `ex_raw <- c(" 12", "15kg", "20", "n/a")`. Produce a numeric vector where only `"15kg"` and `"n/a"` become `NA`, `"12"` and `"20"` should come through clean.
 
-```r
+```r title="Exercise: clean then convert"
 # Try it: clean then convert
 ex_raw <- c(" 12", "15kg", "20", "n/a")
 ex_clean <- NULL   # your code here
@@ -207,7 +207,7 @@ ex_num
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Clean-then-convert solution"
 ex_raw <- c(" 12", "15kg", "20", "n/a")
 ex_clean <- trimws(ex_raw)
 ex_clean[tolower(ex_clean) == "n/a"] <- NA_character_
@@ -226,7 +226,7 @@ Every coercion in R is one of two flavours. **Implicit** coercion happens automa
 
 You need both, but the rule of thumb is: *prefer explicit when the stakes are high*. Implicit coercion is convenient in interactive work (`sum(my_logical)` to count `TRUE`s), but in production code it hides intent and can paper over bugs. Explicit coercion documents what you meant to do and makes failures loud.
 
-```r
+```r title="Implicit vs explicit coercion"
 # Implicit: R does the conversion for you
 TRUE + 1L               # logical promoted to integer -> 2L
 #> [1] 2
@@ -254,7 +254,7 @@ The `mean()` example is lovely: it silently promotes logical to integer and retu
 
 **Try it:** Given `ex_v <- c(TRUE, FALSE, TRUE, NA, TRUE)`, count how many `TRUE`s it has *without* letting the `NA` ruin the answer.
 
-```r
+```r title="Exercise: count TRUEs despite NA"
 # Try it: count TRUEs despite the NA
 ex_v <- c(TRUE, FALSE, TRUE, NA, TRUE)
 ex_count <- NULL  # your code here
@@ -266,7 +266,7 @@ ex_count
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Count-TRUEs solution"
 ex_v <- c(TRUE, FALSE, TRUE, NA, TRUE)
 ex_count <- sum(ex_v, na.rm = TRUE)
 ex_count
@@ -281,7 +281,7 @@ ex_count
 
 Five patterns trip up almost every R user at some point. Each one is a silent failure: R does exactly what it was designed to do, the output looks plausible, and the answer is wrong.
 
-```r
+```r title="Five common coercion bugs"
 # Bug 1: one stray string turns a numeric column to character
 v <- c(1, 2, 3, "4a")
 typeof(v)
@@ -323,7 +323,7 @@ Bug 4 is the subtlest and the cause of some spectacular production incidents. `f
 
 **Try it:** You have `f <- factor(c("100", "200", "300"))`. Extract the numeric vector `c(100, 200, 300)` from it.
 
-```r
+```r title="Exercise: factor to numeric safely"
 # Try it: factor -> numeric correctly
 f <- factor(c("100", "200", "300"))
 ex_num <- NULL  # your code here
@@ -337,7 +337,7 @@ is.numeric(ex_num)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Factor-to-numeric solution"
 f <- factor(c("100", "200", "300"))
 ex_num <- as.numeric(as.character(f))
 ex_num
@@ -358,7 +358,7 @@ Two capstone exercises that combine the patterns above. Use distinct variable na
 
 Given `my_prices <- c("$1,200", "$950", "free", "$75.50", "N/A", " $300 ")`, produce `my_parsed`, a numeric vector where only `"free"` and `"N/A"` become `NA`. Print `sum(my_parsed, na.rm = TRUE)` to verify it equals `2525.50`.
 
-```r
+```r title="Exercise: parse currency column"
 # Exercise 1: currency column -> numeric
 # Hint: strip $ and commas, trim whitespace, then as.numeric with suppressWarnings
 my_prices <- c("$1,200", "$950", "free", "$75.50", "N/A", " $300 ")
@@ -373,7 +373,7 @@ sum(my_parsed, na.rm = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Currency-parse solution"
 my_prices <- c("$1,200", "$950", "free", "$75.50", "N/A", " $300 ")
 
 my_cleaned <- gsub("[$,]", "", my_prices)
@@ -395,7 +395,7 @@ sum(my_parsed, na.rm = TRUE)
 
 Given `my_fac <- factor(c("2021", "2020", "2019", "2020", "2021"))`, write one line that returns the *mean* of the underlying years (`2020.2`). Your solution must work even if the factor is reordered internally.
 
-```r
+```r title="Exercise: mean of year factor"
 # Exercise 2: mean of a year factor
 my_fac <- factor(c("2021", "2020", "2019", "2020", "2021"))
 
@@ -408,7 +408,7 @@ my_mean
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Year-factor mean solution"
 my_fac  <- factor(c("2021", "2020", "2019", "2020", "2021"))
 my_mean <- mean(as.numeric(as.character(my_fac)))
 my_mean
@@ -423,7 +423,7 @@ my_mean
 
 Here is an end-to-end flow that mimics reading a real CSV export: messy numeric columns mixed with dates, currency, and a categorical. We'll clean each column with the right coercion and end up with a trustworthy data frame.
 
-```r
+```r title="Clean a messy sales export"
 # Complete example: clean a fake sales export
 txt <- paste(
   "date,amount,qty,region",

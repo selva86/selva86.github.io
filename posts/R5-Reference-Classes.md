@@ -24,7 +24,7 @@ R5 lets a single object hold state and update itself in place. That mutability i
 
 The class declares its data in a `fields` list and its behaviour in a `methods` list. Calling `Person$new(...)` creates an instance you talk to with `$`.
 
-```r
+```r title="Define Person with fields and methods"
 # Define a Reference Class with two fields and two methods
 Person <- setRefClass("Person",
   fields = list(
@@ -61,7 +61,7 @@ Notice that we never reassigned `alice`. A single call to `have_birthday()` chan
 
 **Try it:** Define an `ex_Car` class with `make` and `model` fields and a `describe()` method that prints `"<make> <model>"`. Test it on a Toyota Corolla.
 
-```r
+```r title="Exercise: define exCar class"
 # Try it: define ex_Car
 ex_Car <- setRefClass("ex_Car",
   fields = list(
@@ -83,7 +83,7 @@ ex_car$describe()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="exCar class solution"
 ex_Car <- setRefClass("ex_Car",
   fields = list(
     make  = "character",
@@ -111,7 +111,7 @@ R5 methods run in their own little environment. A plain `<-` creates a *local* v
 
 Skip `<<-` and your "setter" looks fine but quietly does nothing. Let's prove it.
 
-```r
+```r title="Common mistake: local assign in methods"
 # WRONG: uses <- so the update is local and lost
 BadCounter <- setRefClass("BadCounter",
   fields  = list(count = "numeric"),
@@ -152,7 +152,7 @@ gc$count
 
 **Try it:** The `ex_Tag` class below has a broken `set_label()` method. Fix it so the test prints the new label.
 
-```r
+```r title="Exercise: fix setlabel with arrow"
 # Try it: fix set_label() so the field actually updates
 ex_Tag <- setRefClass("ex_Tag",
   fields  = list(label = "character"),
@@ -172,7 +172,7 @@ ex_tag$label
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="setlabel fix solution"
 ex_Tag <- setRefClass("ex_Tag",
   fields  = list(label = "character"),
   methods = list(
@@ -198,7 +198,7 @@ Most R objects follow copy-on-modify: assign a vector to a new name, change one,
 
 If you genuinely want an independent snapshot, R5 gives you a built-in `$copy()` method.
 
-```r
+```r title="Reference semantics and copy method"
 Counter <- setRefClass("Counter",
   fields  = list(count = "numeric"),
   methods = list(
@@ -236,7 +236,7 @@ c3$count
 
 **Try it:** Predict what `ex_b$value` will print after the increment, then run it to check.
 
-```r
+```r title="Exercise: predict alias behavior"
 # Try it: predict before running
 ex_Box <- setRefClass("ex_Box",
   fields  = list(value = "numeric"),
@@ -255,7 +255,7 @@ ex_b$value
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Alias-behavior solution"
 ex_a <- ex_Box$new(value = 5)
 ex_b <- ex_a
 ex_a$bump()
@@ -271,7 +271,7 @@ ex_b$value
 
 A child class declares its parent with `contains = "Parent"`. Inside the child's `initialize` method, you call `callSuper(...)` to run the parent's constructor first, then add the child's own fields. Every method defined on the parent is automatically available on the child, and the child can override or extend any of them.
 
-```r
+```r title="Animal and Dog with inheritance"
 Animal <- setRefClass("Animal",
   fields  = list(
     name  = "character",
@@ -316,7 +316,7 @@ rex$speak()
 
 **Try it:** Add a `Cat` subclass of `Animal` with a `purr()` method that prints `"<name> purrs."`. Constructor should hard-code the sound to `"Meow"`.
 
-```r
+```r title="Exercise: subclass exCat from Animal"
 # Try it: define ex_Cat as a subclass of Animal
 ex_Cat <- setRefClass("ex_Cat",
   contains = "Animal",
@@ -340,7 +340,7 @@ ex_whiskers$purr()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="exCat subclass solution"
 ex_Cat <- setRefClass("ex_Cat",
   contains = "Animal",
   methods  = list(
@@ -373,7 +373,7 @@ R6 is a small package that gives you the same reference-semantics OOP with clean
 
 Here's the same `Person` class written in R6 alongside its R5 counterpart, so the substitutions are obvious side by side.
 
-```r
+```r title="Convert R5 Person to R6"
 # R5 version (for comparison only — commented out)
 # Person <- setRefClass("Person",
 #   fields  = list(name = "character", age = "numeric"),
@@ -426,7 +426,7 @@ The behaviour is identical, what changed is only the surface syntax. `self$age` 
 
 **Try it:** Convert this R5 `Greeter` to R6 as `ex_GreeterR6`.
 
-```r
+```r title="Exercise: rewrite Greeter in R6"
 # R5 original (do NOT change this — write the R6 version below):
 # Greeter <- setRefClass("Greeter",
 #   fields  = list(who = "character"),
@@ -451,7 +451,7 @@ ex_g$hello()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="R6 Greeter solution"
 ex_GreeterR6 <- R6Class("ex_GreeterR6",
   public = list(
     who = NULL,
@@ -486,7 +486,7 @@ Build an R5 `BankAccount` class with:
 
 Save the instance to `my_account`. Test by depositing 100, withdrawing 30, then trying to withdraw 1000.
 
-```r
+```r title="Exercise: build R5 BankAccount"
 # Exercise 1: build an R5 BankAccount
 BankAccount <- setRefClass("BankAccount",
   fields  = list(
@@ -507,7 +507,7 @@ my_account$show_balance()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="BankAccount solution"
 BankAccount <- setRefClass("BankAccount",
   fields  = list(balance = "numeric"),
   methods = list(
@@ -547,7 +547,7 @@ my_account$show_balance()
 
 Translate the `BankAccount` class to R6 as `BankAccountR6`. Then create `SavingsAccount` that inherits from it and adds an `add_interest(rate)` method that increases the balance by `balance * rate`. Test by creating `my_savings` with a starting balance of 1000 and applying a 5% interest rate.
 
-```r
+```r title="Exercise: R6 SavingsAccount subclass"
 # Exercise 2: R6 version + SavingsAccount subclass
 library(R6)
 
@@ -573,7 +573,7 @@ my_savings$show_balance()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="SavingsAccount solution"
 library(R6)
 
 BankAccountR6 <- R6Class("BankAccountR6",
@@ -621,7 +621,7 @@ my_savings$show_balance()
 
 Here is everything in one place. We'll build a `Logger` class that holds a list of timestamped log entries, exposes a `log(msg)` method to append to it, a `last()` method to read the most recent message, and a `count()` method for the total. Then we'll pass the logger to a helper function and watch it accumulate entries, proof that reference semantics actually work the way the earlier sections claimed.
 
-```r
+```r title="Experiment logger end-to-end"
 Logger <- setRefClass("Logger",
   fields  = list(entries = "list"),
   methods = list(

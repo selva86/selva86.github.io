@@ -24,7 +24,7 @@ difficulty: Intermediate
 
 Most tutorials jump straight to code, but readers fail this topic for one reason: they confuse three different distributions that all involve the word *sample*. The population distribution is the unseen truth. A sample distribution is the histogram of one sample you collected. The sampling distribution is the histogram of a *statistic*, like the mean, computed across many hypothetical repeats of your study. Let's simulate 1,000 sample means from a known population and watch the third distribution appear.
 
-```r
+```r title="Simulate 1000 sample means from IQ"
 # Population: normally distributed with mean 100 and sd 15 (think IQ scores)
 set.seed(2026)
 pop_mu <- 100
@@ -58,7 +58,7 @@ What the output shows: the 1,000 sample means cluster tightly around the true po
 
 **Try it:** Rerun the simulation with `n = 10` instead of `n = 30`. The histogram should be visibly wider. Save the result to `ex_means_n10` and report its standard deviation.
 
-```r
+```r title="Exercise: sampling distribution at n ten"
 # Try it: replicate with n = 10
 ex_means_n10 <- replicate(1000, mean(rnorm( # your code here ))
 
@@ -69,7 +69,7 @@ sd(ex_means_n10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="n-ten solution"
 set.seed(2026)
 ex_means_n10 <- replicate(1000, mean(rnorm(10, mean = 100, sd = 15)))
 sd(ex_means_n10)
@@ -89,7 +89,7 @@ Every sampling distribution you will ever build follows the same three-step reci
 
 This style is slightly more verbose but becomes indispensable the moment your statistic is anything more complex than `mean()`, for example, a trimmed mean, a median, or a regression coefficient. The function carries the full recipe; `replicate()` carries the repetition.
 
-```r
+```r title="Reusable one-trial function with replicate"
 # Define "one trial" as a reusable function
 draw_one_mean <- function() {
   one_sample <- rnorm(n, mean = pop_mu, sd = pop_sd)
@@ -116,7 +116,7 @@ What the output shows: the first six simulated sample means sit in a tight band 
 
 **Try it:** Write a function `ex_draw_one_max()` that returns the maximum of 20 draws from the same population. Replicate it 2,000 times and report the median of the resulting distribution.
 
-```r
+```r title="Exercise: sampling distribution of the max"
 # Try it: sampling distribution of the sample MAX
 ex_draw_one_max <- function() {
   # your code here
@@ -130,7 +130,7 @@ median(ex_max_sim)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Max-distribution solution"
 set.seed(11)
 ex_draw_one_max <- function() {
   max(rnorm(20, mean = 100, sd = 15))
@@ -159,7 +159,7 @@ Where:
 
 The formula says: the sampling distribution of the mean stays centered on the truth, but its spread shrinks with the square root of your sample size. Doubling `n` does not halve the spread, it divides it by √2. To see all three distributions side by side, let's plot the population, one sample, and the sampling distribution of the mean on one canvas.
 
-```r
+```r title="Population, sample, and sampling distribution"
 # Draw a very large population (stand-in for the true distribution)
 population <- rnorm(10000, mean = pop_mu, sd = pop_sd)
 
@@ -183,7 +183,7 @@ What the output shows: panel 1 is the population, wide bell from about 55 to 145
 
 Now let's confirm the formula numerically. The theoretical standard error is σ/√n; the simulated one is just `sd(sample_means)`.
 
-```r
+```r title="Theory versus simulated standard error"
 # Theory vs simulation for SE of the mean
 theory_se_mean <- pop_sd / sqrt(n)
 sim_se_mean    <- sd(sample_means)
@@ -200,7 +200,7 @@ What the output shows: the theoretical SE of 2.739 and the simulated SE of 2.731
 
 **Try it:** Simulate 4,000 sample means at `n = 100` from the same Normal(100, 15) population, save to `ex_means_n100`, and verify its simulated SE matches σ/√100 = 1.5.
 
-```r
+```r title="Exercise: verify SE formula at n 100"
 # Try it: verify SE formula at n = 100
 set.seed(1)
 ex_means_n100 <- replicate(4000, # your code here )
@@ -212,7 +212,7 @@ sd(ex_means_n100)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="SE-at-hundred solution"
 set.seed(1)
 ex_means_n100 <- replicate(4000, mean(rnorm(100, mean = 100, sd = 15)))
 sd(ex_means_n100)
@@ -237,7 +237,7 @@ Where:
 
 Let's simulate 5,000 surveys, each flipping a biased coin with true probability `p = 0.3` exactly 50 times, and build the sampling distribution of the observed proportion.
 
-```r
+```r title="Simulate the sample proportion"
 # One proportion from one survey
 pop_p <- 0.30
 prop_n <- 50
@@ -261,7 +261,7 @@ What the output shows: the 5,000 simulated sample proportions form a bell-shaped
 
 Now the theoretical versus simulated standard error:
 
-```r
+```r title="Proportion SE: theory versus simulation"
 # SE of the proportion: theory vs simulation
 theory_se_p <- sqrt(pop_p * (1 - pop_p) / prop_n)
 sim_se_p    <- sd(prop_sim)
@@ -278,7 +278,7 @@ What the output shows: theory predicts 0.0648 and simulation gives 0.0652, a 0.6
 
 **Try it:** Rerun the simulation with `pop_p = 0.05` and `prop_n = 30`, a case that violates the rule of thumb. Plot the histogram of `ex_prop_sim` and describe its shape.
 
-```r
+```r title="Exercise: break the normal approximation"
 # Try it: break the normal approximation
 ex_pop_p <- 0.05
 ex_prop_n <- 30
@@ -296,7 +296,7 @@ hist(ex_prop_sim, breaks = 20, col = "orchid",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Broken-approximation solution"
 ex_pop_p <- 0.05
 ex_prop_n <- 30
 set.seed(9)
@@ -331,7 +331,7 @@ Where:
 
 The chi-squared shape is right-skewed, it has a hard left bound at zero and a long right tail. Let's simulate 5,000 sample variances from our Normal(100, 15) population with `n = 20` and see the skew directly.
 
-```r
+```r title="Sampling distribution of the sample variance"
 # Sampling distribution of the sample variance
 set.seed(77)
 var_sim <- replicate(5000, var(rnorm(20, mean = pop_mu, sd = pop_sd)))
@@ -353,7 +353,7 @@ What the output shows: the histogram is clearly right-skewed, with a short tail 
 
 **Try it:** Simulate 3,000 sample *medians* from the same Normal(100, 15) population with `n = 20` and compare the histogram shape to the sample means distribution you already built. Save to `ex_median_sim`.
 
-```r
+```r title="Exercise: sampling distribution of the median"
 # Try it: sampling distribution of the sample median
 set.seed(14)
 ex_median_sim <- replicate(3000, # your code here )
@@ -366,7 +366,7 @@ hist(ex_median_sim, breaks = 30, col = "gold",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Median-distribution solution"
 set.seed(14)
 ex_median_sim <- replicate(3000, median(rnorm(20, mean = 100, sd = 15)))
 
@@ -387,7 +387,7 @@ sd(sample_means) / sqrt(30) * sqrt(20)  # for comparable n
 
 Both SE formulas you have seen, σ/√n for the mean and √(p(1−p)/n) for the proportion, put sample size in a square-root denominator. The practical consequence: to cut the spread of your sampling distribution in half, you do not double `n`, you *quadruple* it. Let's see this visually by simulating 2,000 sample means at three different sample sizes and plotting them side by side.
 
-```r
+```r title="Compare sample sizes 10, 30, 100"
 # Three sampling distributions at n = 10, 30, 100
 set.seed(321)
 means_n10  <- replicate(2000, mean(rnorm(10,  mean = pop_mu, sd = pop_sd)))
@@ -417,7 +417,7 @@ What the output shows: all three histograms sit centered on 100, but the spread 
 
 **Try it:** Use the simulated vectors above to verify the square-root law. Compute `sd(means_n10) / sd(means_n100)` and compare the result to `sqrt(100 / 10)`.
 
-```r
+```r title="Exercise: verify the square-root law"
 # Try it: verify the square-root law
 ex_ratio     <- # your code here
 ex_predicted <- # your code here
@@ -429,7 +429,7 @@ c(empirical = ex_ratio, predicted = ex_predicted)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Square-root-law solution"
 ex_ratio     <- sd(means_n10) / sd(means_n100)
 ex_predicted <- sqrt(100 / 10)
 
@@ -450,7 +450,7 @@ These capstone problems combine what you have built across the tutorial. Each on
 
 Simulate 5,000 sample maxima from a Uniform(0, 1) population with `n = 25`. Save the simulated statistics to `my_max_dist`, compute its mean and standard deviation, and describe the shape of the histogram. What does the shape tell you about the appropriateness of a Normal approximation here?
 
-```r
+```r title="Exercise: uniform sample max distribution"
 # Exercise 1: Sample max from Uniform(0, 1)
 # Hint: use runif(25) inside replicate(), take max()
 
@@ -467,7 +467,7 @@ c(mean = mean(my_max_dist), sd = sd(my_max_dist))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Uniform-max solution"
 set.seed(2026)
 my_max_dist <- replicate(5000, max(runif(25)))
 
@@ -492,7 +492,7 @@ A survey finds 42 "yes" responses out of 100. Two approaches to build a 95% conf
 
 Compute both intervals, store them in `my_ci_sim` and `my_ci_formula`, and compare them.
 
-```r
+```r title="Exercise: two CIs for a proportion"
 # Exercise 2: Two CIs for a proportion
 phat <- 0.42
 nn   <- 100
@@ -512,7 +512,7 @@ list(simulation = my_ci_sim, formula = my_ci_formula)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-CI solution"
 phat <- 0.42
 nn   <- 100
 
@@ -542,7 +542,7 @@ list(simulation = my_ci_sim, formula = my_ci_formula)
 
 Let's tie everything together with an end-to-end analysis that a real pollster would run. A political campaign hires you to estimate support for a niche candidate whose true support rate, you later learn, is 4%. They can survey 500 voters. How precisely can they measure the true rate? Simulate the sampling distribution of the sample proportion, derive a margin of error, and check whether the Normal approximation is trustworthy at these parameters.
 
-```r
+```r title="End-to-end niche candidate poll"
 # Scenario: polling a 4%-support candidate with n = 500
 poll_true_p <- 0.04
 poll_n      <- 500

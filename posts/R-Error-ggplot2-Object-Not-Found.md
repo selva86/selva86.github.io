@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 `aes()` uses data masking. It first looks for every bare name in the data frame you passed to `ggplot()`, then in the calling environment. If the name is in neither, R raises `object 'X' not found`. Almost every instance is one of three root causes: a column name typo, a missing `data` argument, or a string variable that ggplot2 treats as a literal column name. Let's start with a working plot so you can see what a correct lookup looks like.
 
-```r
+```r title="Scatter that works: height vs weight"
 library(ggplot2)
 
 heights_weights <- data.frame(
@@ -45,7 +45,7 @@ Inside `aes()`, the bare names `height_cm` and `weight_kg` were not treated as o
 
 Now let's deliberately break it. Referencing a column that does not exist throws the error, but only when the plot is *printed*, not when it is constructed. We use `tryCatch()` around `print()` to catch the error message as a string so you can inspect it without crashing the cell.
 
-```r
+```r title="Trigger the object-not-found error"
 bad_plot <- ggplot(heights_weights, aes(x = heights, y = weight_kg)) +
   geom_point()
 
@@ -65,7 +65,7 @@ ggplot2 tried to find a column called `heights` inside `heights_weights`, failed
 
 **Try it:** Use the `heights_weights` data frame from above to plot `age_years` on the x-axis and `weight_kg` on the y-axis. The point color should be `"tomato"`.
 
-```r
+```r title="Exercise: plot age vs weight"
 # Try it: plot age_years vs weight_kg
 ex_plot <- ggplot(heights_weights, aes(x = ___, y = ___)) +
   geom_point(size = 4, color = "tomato") +
@@ -78,7 +78,7 @@ ex_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Age-vs-weight solution"
 ex_plot <- ggplot(heights_weights, aes(x = age_years, y = weight_kg)) +
   geom_point(size = 4, color = "tomato") +
   labs(title = "Age vs Weight")
@@ -97,7 +97,7 @@ Before you reach for a fix, answer one question: should this name refer to a col
 
 When debugging, run two quick checks at the REPL to figure out which category a name belongs to.
 
-```r
+```r title="Check column vs environment existence"
 threshold_val <- 70
 
 # Is "heights" a column in the data frame?
@@ -116,7 +116,7 @@ The diagnostic says everything: `heights` is neither a column nor an environment
 
 Here is the correct pattern: map a column (`age_years`) to color *inside* `aes()`, and use a constant environment value (`point_size`) *outside* `aes()`.
 
-```r
+```r title="Column inside aes, constant outside"
 point_size <- 5
 
 ggplot(heights_weights, aes(x = height_cm, y = weight_kg, color = age_years)) +
@@ -132,7 +132,7 @@ The rule is mechanical: if the value should vary across rows of the data, it bel
 
 **Try it:** Build a plot from `mtcars` where point color maps to the `mpg` column (inside `aes()`) and point size is a fixed `ex_size` value set outside `aes()`.
 
-```r
+```r title="Exercise: mapped color, fixed size"
 # Try it: constant size outside, mapped color inside
 ex_cars <- mtcars
 ex_size <- 3
@@ -146,7 +146,7 @@ ggplot(ex_cars, aes(x = wt, y = hp, color = ___)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Color-and-size solution"
 ex_cars <- mtcars
 ex_size <- 3
 
@@ -164,7 +164,7 @@ ggplot(ex_cars, aes(x = wt, y = hp, color = mpg)) +
 
 If you write a function that receives a column name as a string, the natural attempt `aes(x = col_name)` fails. ggplot2 captures the expression `col_name` and looks for a column literally named "col_name" inside the data frame, which isn't there. The modern fix is `.data[[col_name]]`, a tidy-evaluation pronoun exported by ggplot2 that treats `col_name` as a *string lookup* against the current data frame. One pattern replaces every older hack.
 
-```r
+```r title="Use .data[[colname]] for string columns"
 col_name <- "height_cm"
 
 # Broken (commented out — it would look for a column literally named "col_name"):
@@ -179,7 +179,7 @@ ggplot(heights_weights, aes(x = .data[[col_name]], y = weight_kg)) +
 
 The `.data[[col_name]]` syntax is how every tidyverse package, dplyr, tidyr, ggplot2, handles programmatic column access. Once you know this, you can build functions that accept column names as strings and pass them all the way through to the plot.
 
-```r
+```r title="Reusable plotpair function"
 plot_pair <- function(df, x_str, y_str) {
   ggplot(df, aes(x = .data[[x_str]], y = .data[[y_str]])) +
     geom_point(size = 4, color = "darkgreen") +
@@ -201,7 +201,7 @@ A single six-line function now handles any pair of numeric columns from any data
 
 **Try it:** Use `mtcars` and a string variable `ex_col <- "disp"`. Plot `mpg` on the y-axis and the column named by `ex_col` on the x-axis.
 
-```r
+```r title="Exercise: plot mpg vs disp via .data"
 # Try it: use .data[[ex_col]] inside aes()
 ex_col <- "disp"
 
@@ -214,7 +214,7 @@ ggplot(mtcars, aes(x = ___, y = mpg)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mpg-vs-disp solution"
 ex_col <- "disp"
 
 ggplot(mtcars, aes(x = .data[[ex_col]], y = mpg)) +
@@ -231,7 +231,7 @@ ggplot(mtcars, aes(x = .data[[ex_col]], y = mpg)) +
 
 When `ggplot()` sits at the end of a `dplyr` pipeline, a transformation upstream can silently drop or rename the column you meant to plot. The error surfaces at the ggplot step, but the real cause is a few pipes earlier. This is one of the most confusing sources of "object not found" because the column existed moments ago.
 
-```r
+```r title="Broken pipeline drops region too early"
 library(dplyr)
 
 pipe_df <- data.frame(
@@ -258,7 +258,7 @@ err_msg
 
 The `select(name, sales)` step kept only two columns, so by the time `aes(fill = region)` runs, there is no `region` column left in the piped data. The fix is to include `region` in the `select()` call, or drop the `select()` entirely if you need every column downstream.
 
-```r
+```r title="Fix: keep region in the pipeline"
 # Fix: keep region in the pipeline
 pipe_df |>
   select(name, sales, region) |>
@@ -275,7 +275,7 @@ When pipelines grow long, debugging becomes archaeology: work backwards from the
 
 **Try it:** Fix the following broken pipeline so `color = category` actually has a column to map to. `ex_sales` has three columns but the pipeline accidentally drops one.
 
-```r
+```r title="Exercise: keep category through select"
 # Try it: fix the select() so category survives to ggplot
 ex_sales <- data.frame(
   product  = c("P1", "P2", "P3", "P4"),
@@ -293,7 +293,7 @@ ex_sales |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Keep-category solution"
 ex_sales |>
   select(product, revenue, category) |>
   ggplot(aes(x = product, y = revenue, color = category)) +
@@ -309,7 +309,7 @@ ex_sales |>
 
 R lets data frames have any column name, with spaces, punctuation, even leading digits, but `aes()` parses bare tokens. Spaces split the name into two meaningless pieces, and ggplot2 then complains that neither piece exists. The fix is either backticks around the full name, or renaming columns to snake_case before plotting.
 
-```r
+```r title="Backticks for spaces and punctuation"
 scores_df <- data.frame(
   check.names = FALSE,
   `First Name` = c("Alice", "Bob", "Carol", "Dan"),
@@ -328,7 +328,7 @@ ggplot(scores_df, aes(x = `First Name`, y = `Test Score`)) +
 
 Backticks work, but they are noisy. The cleaner habit is to rename columns once at import time, then every downstream step, including `aes()`, uses simple snake_case names with no escaping.
 
-```r
+```r title="Rename once, forget backticks forever"
 # Rename once, forget forever
 names(scores_df) <- tolower(gsub(" ", "_", names(scores_df)))
 names(scores_df)
@@ -347,7 +347,7 @@ The one-liner `names(df) <- tolower(gsub(" ", "_", names(df)))` handles spaces. 
 
 **Try it:** The data frame `ex_income` has a column named `Annual Income`. Fix the broken `aes()` call so the bar chart renders.
 
-```r
+```r title="Exercise: fix aes for Annual Income"
 # Try it: fix the aes() call for "Annual Income"
 ex_income <- data.frame(
   check.names = FALSE,
@@ -367,7 +367,7 @@ ggplot(ex_income, aes(x = person, y = ___)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Annual-Income solution"
 ggplot(ex_income, aes(x = person, y = `Annual Income`)) +
   geom_col(fill = "darkorange")
 #> (Bar chart with 3 orange bars.)
@@ -383,7 +383,7 @@ ggplot(ex_income, aes(x = person, y = `Annual Income`)) +
 
 Write a function `my_plot_pair(df, x_col, y_col)` that takes a data frame and two column names as strings, then plots them as a scatter using `.data[[]]`. Test it on `mtcars` with `my_plot_pair(mtcars, "wt", "mpg")`. The plot should set a title of the form `"<y_col> vs <x_col>"`.
 
-```r
+```r title="Exercise: generic plotpair function"
 # Exercise 1: generic pair plotter
 # Hint: use aes(x = .data[[x_col]], y = .data[[y_col]])
 
@@ -399,7 +399,7 @@ my_plot_pair(mtcars, "wt", "mpg")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Generic-plot-pair solution"
 my_plot_pair <- function(df, x_col, y_col) {
   ggplot(df, aes(x = .data[[x_col]], y = .data[[y_col]])) +
     geom_point(size = 3, color = "steelblue") +
@@ -422,7 +422,7 @@ my_plot_pair(mtcars, "wt", "mpg")
 
 The pipeline below has two bugs that together cause the "object not found" error: a column is dropped too early by `select()`, and another column is referenced with the wrong case. Fix both bugs and return a working plot.
 
-```r
+```r title="Exercise: drop column plus case mismatch"
 # Exercise 2: two bugs — column dropped + case mismatch
 my_data <- data.frame(
   Year   = c(2020, 2021, 2022, 2023),
@@ -442,7 +442,7 @@ my_fixed_plot <- my_data |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-bug solution"
 my_fixed_plot <- my_data |>
   select(Year, Sales, Region) |>
   ggplot(aes(x = Year, y = Sales, fill = Region)) +
@@ -461,7 +461,7 @@ my_fixed_plot
 
 Let's pull every idea together on a real dataset. We'll use `airquality`, which ships with base R. Note that one of its columns is `Solar.R`, the dot is fine, R allows it as a regular name character, so no backticks needed.
 
-```r
+```r title="End-to-end airquality .data workflow"
 aq_plot <- function(df, y_col, color_col = "Month") {
   df |>
     filter(!is.na(.data[[y_col]]), !is.na(Solar.R)) |>

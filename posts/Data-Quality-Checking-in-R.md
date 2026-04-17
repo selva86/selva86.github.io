@@ -42,7 +42,7 @@ The three functions you need are `dim()`, `str()`, and `glimpse()` from dplyr. E
 
 Let's create a messy dataset that contains several quality problems. We will use it throughout the tutorial.
 
-```r
+```r title="Set up messy sample data"
 library(dplyr)
 
 # Create a messy dataset with deliberate quality issues
@@ -97,7 +97,7 @@ Notice that `age` is character, not numeric. That single detail tells you someth
 
 **Try it:** Use `dim()` and `glimpse()` on the built-in `mtcars` dataset. How many rows and columns does it have? How many columns are numeric?
 
-```r
+```r title="Exercise: inspect mtcars structure"
 # Try it: inspect mtcars structure
 ex_dims <- dim(mtcars)
 # your code here: use glimpse(mtcars) and count numeric columns
@@ -108,7 +108,7 @@ ex_dims <- dim(mtcars)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: inspect mtcars"
 ex_dims <- dim(mtcars)
 print(ex_dims)
 #> [1] 32 11
@@ -134,7 +134,7 @@ A column that looks numeric might be stored as character because one row contain
 
 Use `sapply(df, class)` to get a quick overview of all column types. Then compare against what each column should be.
 
-```r
+```r title="Check types and cast age"
 sapply(messy_df, class)
 #>         id       name        age     salary department start_date   end_date
 #>  "numeric""character""character"  "numeric""character""character""character"
@@ -163,7 +163,7 @@ After conversion, `age` is numeric and both date columns are proper Date objects
 
 **Try it:** Create a character vector `ex_ages <- c("25", "NA", "40", "unknown")` and convert it to numeric. How many NAs does the result have?
 
-```r
+```r title="Exercise: coerce character to numeric"
 # Try it: convert character to numeric
 ex_ages <- c("25", "NA", "40", "unknown")
 # your code here: convert to numeric and count NAs
@@ -174,7 +174,7 @@ ex_ages <- c("25", "NA", "40", "unknown")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: coerce to numeric"
 ex_ages <- c("25", "NA", "40", "unknown")
 ex_ages_num <- as.numeric(ex_ages)
 #> Warning: NAs introduced by coercion
@@ -195,7 +195,7 @@ Duplicate rows inflate counts, bias averages, and break unique-key assumptions. 
 
 In our dataset, employee 5 (Eve) appears twice, a classic sign of a faulty join or double-loaded data.
 
-```r
+```r title="Remove duplicates with distinct"
 # Count duplicates
 sum(duplicated(messy_df))
 #> [1] 1
@@ -219,7 +219,7 @@ We went from 10 rows to 9. The duplicate Eve row is gone. Note that `duplicated(
 
 **Try it:** Create a data frame with 5 rows where 2 rows are identical. Use `sum(duplicated())` to count the duplicates.
 
-```r
+```r title="Exercise: count duplicate rows"
 # Try it: detect duplicates
 ex_df <- data.frame(
   x = c(1, 2, 3, 1, 2),
@@ -233,7 +233,7 @@ ex_df <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: count duplicates"
 ex_df <- data.frame(
   x = c(1, 2, 3, 1, 2),
   y = c("a", "b", "c", "a", "b")
@@ -252,7 +252,7 @@ Missing values are the most common data quality issue. A column with 5% missing 
 
 Use `colSums(is.na())` for a quick per-column count. Then compute percentages and identify columns that cross your threshold.
 
-```r
+```r title="Report missing values per column"
 # Count NAs per column
 na_counts <- colSums(is.na(clean_df))
 na_counts
@@ -280,7 +280,7 @@ The `end_date` column is 77.8% missing. That makes sense if most employees are s
 
 **Try it:** Write code to find which columns in `clean_df` have more than 10% missing values.
 
-```r
+```r title="Exercise: flag columns above ten percent"
 # Try it: find columns with >10% missing
 ex_na_pct <- round(100 * colSums(is.na(clean_df)) / nrow(clean_df), 1)
 # your code here: filter for columns above 10%
@@ -291,7 +291,7 @@ ex_na_pct <- round(100 * colSums(is.na(clean_df)) / nrow(clean_df), 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: high missingness columns"
 ex_na_pct <- round(100 * colSums(is.na(clean_df)) / nrow(clean_df), 1)
 names(ex_na_pct[ex_na_pct > 10])
 #> [1] "name"     "age"      "salary"   "end_date"
@@ -305,7 +305,7 @@ names(ex_na_pct[ex_na_pct > 10])
 
 Even if a column is the right type and has no NAs, it can contain impossible values. An age of -3 is not a real age. A salary of -999 is almost certainly a sentinel value (a placeholder for missing data). Use `summary()` to quickly spot minimum and maximum values that fall outside expected ranges.
 
-```r
+```r title="Summarise age and salary ranges"
 # Quick range check for numeric columns
 summary(clean_df[, c("age", "salary")])
 #>       age            salary
@@ -334,7 +334,7 @@ Three rows have range problems. Diana has age -3, Frank has salary -999 (a senti
 
 Let's fix these issues.
 
-```r
+```r title="Replace sentinel values with NA"
 # Replace sentinel value -999 with NA
 clean_df$salary[clean_df$salary == -999] <- NA
 
@@ -359,7 +359,7 @@ Now all ages fall between 28 and 52, and all salaries are positive. We traded im
 
 **Try it:** Use `summary()` on the `salary` column of `clean_df` and confirm the minimum is now above zero.
 
-```r
+```r title="Exercise: salary range after cleaning"
 # Try it: verify salary range is clean
 # your code here: run summary on clean_df$salary
 
@@ -369,7 +369,7 @@ Now all ages fall between 28 and 52, and all salaries are positive. We traded im
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: clean salary range"
 summary(clean_df$salary)
 #>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's
 #>   43000   48000   56500   56143   63500   71000       2
@@ -383,7 +383,7 @@ summary(clean_df$salary)
 
 Categorical columns hide quality problems behind text. "Sales" and "sales" look identical to a human but are different values to R. "Marketing" and "Mktg" mean the same thing but create two separate groups. Use `unique()` and `table()` to see every distinct value.
 
-```r
+```r title="Standardise department labels"
 # Check unique values in department
 sort(unique(clean_df$department))
 #> [1] "Engineering" "HR"          "Marketing"   "Mktg"        "sales"
@@ -397,7 +397,7 @@ table(clean_df$department)
 
 We have six categories where there should be four. "sales" and "Sales" need to be merged. "Mktg" is an abbreviation for "Marketing." Let's fix both.
 
-```r
+```r title="Exercise: standardise colour labels"
 # Standardize department names
 clean_df <- clean_df |>
   mutate(department = case_when(
@@ -418,7 +418,7 @@ Now four clean categories, no duplicates, no case mismatches. The `case_when()` 
 
 **Try it:** Create a vector `ex_colors <- c("Red", "red", "RED", "Blue", "blue")` and count how many unique values exist. Then standardize them all to title case.
 
-```r
+```r title="Exercise solution: standardise colours"
 # Try it: standardize categories
 ex_colors <- c("Red", "red", "RED", "Blue", "blue")
 # your code here: count unique values, then make all title case
@@ -429,7 +429,7 @@ ex_colors <- c("Red", "red", "RED", "Blue", "blue")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cross check end date against start"
 ex_colors <- c("Red", "red", "RED", "Blue", "blue")
 length(unique(ex_colors))
 #> [1] 5
@@ -449,7 +449,7 @@ Single-column checks catch most problems, but some errors only appear when you c
 
 Our dataset has `start_date` and `end_date`. For employees who have left, the end date should be after the start date.
 
-```r
+```r title="Exercise: flag low engineering salaries"
 # Check: end_date should be >= start_date (where both exist)
 cross_check <- clean_df |>
   filter(!is.na(end_date)) |>
@@ -470,7 +470,7 @@ Charlie's end date (2017-01-01) is before his start date (2018-03-22). Either th
 
 **Try it:** Write a check that filters rows from `clean_df` where `salary` is below 50000 but `department` is "Engineering". This kind of cross-check can flag data entry errors.
 
-```r
+```r title="Exercise solution: engineering pay check"
 # Try it: cross-column check
 # your code here: find engineering employees with salary < 50000
 
@@ -480,7 +480,7 @@ Charlie's end date (2017-01-01) is before his start date (2018-03-22). Either th
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mistake: comparing NA with equals"
 clean_df |>
   filter(department == "Engineering" & salary < 50000)
 #> (result depends on current state of clean_df)
@@ -495,7 +495,7 @@ clean_df |>
 ### Mistake 1: Using == to check for NA
 
 ❌ **Wrong:**
-```r
+```r title="Correct: test missingness with is.na"
 x <- c(1, NA, 3)
 x[x == NA]
 #> [1] NA NA NA
@@ -504,7 +504,7 @@ x[x == NA]
 **Why it is wrong:** `NA == NA` returns `NA`, not `TRUE`. The comparison spreads NA to every element, so the subset returns all NAs instead of finding the missing values.
 
 ✅ **Correct:**
-```r
+```r title="Mistake: averaging sentinel values"
 x <- c(1, NA, 3)
 x[is.na(x)]
 #> [1] NA
@@ -513,7 +513,7 @@ x[is.na(x)]
 ### Mistake 2: Ignoring sentinel values like -999 or "N/A"
 
 ❌ **Wrong:**
-```r
+```r title="Correct: replace sentinels then average"
 salaries <- c(55000, -999, 62000, -999, 48000)
 mean(salaries)
 #> [1] 33000.4
@@ -522,7 +522,7 @@ mean(salaries)
 **Why it is wrong:** The -999 values are not real salaries. They are placeholders for missing data. Including them drags the mean down to 33,000 when the real average is about 55,000.
 
 ✅ **Correct:**
-```r
+```r title="Mistake: coercing sentinel strings"
 salaries <- c(55000, -999, 62000, -999, 48000)
 salaries[salaries == -999] <- NA
 mean(salaries, na.rm = TRUE)
@@ -532,7 +532,7 @@ mean(salaries, na.rm = TRUE)
 ### Mistake 3: Converting types before checking for sentinel values
 
 ❌ **Wrong:**
-```r
+```r title="Correct: strip sentinels before coercing"
 ages <- c("25", "-999", "40", "35")
 ages_num <- as.numeric(ages)
 mean(ages_num)
@@ -542,7 +542,7 @@ mean(ages_num)
 **Why it is wrong:** The sentinel value "-999" converts to -999 without warning. You lose the chance to catch it as a data quality issue.
 
 ✅ **Correct:**
-```r
+```r title="Mistake: dropping duplicates silently"
 ages <- c("25", "-999", "40", "35")
 # Check for sentinel values BEFORE converting
 ages[ages == "-999"] <- NA
@@ -554,7 +554,7 @@ mean(ages_num, na.rm = TRUE)
 ### Mistake 4: Removing duplicates without understanding the cause
 
 ❌ **Wrong:**
-```r
+```r title="Correct: count duplicates first"
 # Just remove them and move on
 df_clean <- distinct(raw_df)
 ```
@@ -562,7 +562,7 @@ df_clean <- distinct(raw_df)
 **Why it is wrong:** If duplicates came from a bad left join, removing them hides the real problem. The join itself needs fixing, or you will get new duplicates next time.
 
 ✅ **Correct:**
-```r
+```r title="Exercise one: airquality quality report"
 # First investigate: how many duplicates, which keys?
 cat("Total duplicates:", sum(duplicated(raw_df)), "\n")
 # Check if key column has duplicates
@@ -584,7 +584,7 @@ cat("Key duplicates:", sum(duplicated(raw_df$id)), "\n")
 
 Given the built-in `airquality` dataset, produce a quality summary that shows: (a) dimensions, (b) column types, (c) NA count per column, (d) percent missing per column, and (e) min/max of each numeric column.
 
-```r
+```r title="Exercise one solution: airquality report"
 # Exercise 1: Quality report for airquality
 # Hint: combine dim(), sapply(), colSums(is.na()), and summary()
 
@@ -595,7 +595,7 @@ Given the built-in `airquality` dataset, produce a quality summary that shows: (
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two: write checkquality function"
 aq <- airquality
 
 # (a) Dimensions
@@ -637,7 +637,7 @@ summary(aq)
 
 Write a function `check_quality(df)` that takes any data frame and prints: dimensions, type mismatches (character columns that could be numeric), duplicate count, NA summary, and columns with any NAs.
 
-```r
+```r title="Exercise two solution: checkquality function"
 # Exercise 2: Reusable quality check function
 # Hint: use dim(), sapply(), duplicated(), colSums(is.na())
 # Test it on both messy_df and mtcars
@@ -649,7 +649,7 @@ Write a function `check_quality(df)` that takes any data frame and prints: dimen
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three: end to end cleaning"
 check_quality <- function(df) {
   cat("=== Data Quality Report ===\n")
   cat("Dimensions:", nrow(df), "rows x", ncol(df), "cols\n\n")
@@ -693,7 +693,7 @@ check_quality(mtcars)
 
 Starting from this raw dataset, apply all quality fixes: convert types, remove duplicates, replace sentinel values, standardize categories, and validate ranges. The final clean data frame should have no duplicates, no sentinel values, correct types, and consistent categories.
 
-```r
+```r title="Exercise three solution: full pipeline"
 # Exercise 3: End-to-end cleaning
 raw <- data.frame(
   id = c(1, 2, 3, 3, 4, 5),
@@ -712,7 +712,7 @@ raw <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone: clean the employee data"
 raw <- data.frame(
   id = c(1, 2, 3, 3, 4, 5),
   score = c("85", "92", "-999", "-999", "78", "110"),
@@ -752,7 +752,7 @@ print(raw)
 
 Here is a complete end-to-end example that runs all 10 checks on a fresh dataset, fixes each issue, and produces a clean result. This is the template you can adapt for your own projects.
 
-```r
+```r title="Capstone: verify the cleaned data"
 # Complete data quality checking pipeline
 raw_data <- data.frame(
   emp_id = c(101, 102, 103, 104, 104, 105, 106),

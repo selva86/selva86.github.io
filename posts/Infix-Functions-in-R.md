@@ -20,7 +20,7 @@ difficulty: "Intermediate"
 
 Every operator you type in R, `+`, `-`, `*`, `<`, even `[`, is secretly a regular function. R just lets you write it *between* the arguments instead of wrapping them in parentheses. This "infix" placement is why `3 + 5` feels natural while `` `+`(3, 5) `` feels clunky. Let's prove it:
 
-```r
+```r title="Operators are just functions"
 # Every R operator is a function — you can call it in prefix form
 3 + 5
 #> [1] 8
@@ -45,7 +45,7 @@ This insight unlocks a powerful idea: if built-in operators are just two-argumen
 
 **Try it:** Convert the expression `x * y - z` into fully prefix form using backtick notation. Assign `x <- 4`, `y <- 3`, `z <- 2` and verify both forms give the same result.
 
-```r
+```r title="Exercise: Rewrite in prefix form"
 # Try it: rewrite x * y - z in prefix form
 ex_x <- 4
 ex_y <- 3
@@ -63,7 +63,7 @@ ex_x * ex_y - ex_z
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Prefix form solution"
 ex_x <- 4
 ex_y <- 3
 ex_z <- 2
@@ -85,7 +85,7 @@ ex_x * ex_y - ex_z
 
 Creating your own infix operator takes three steps: pick a name wrapped in `%`, define a function with exactly two arguments, and assign it using backticks around the `%name%`. Let's start with the simplest possible example:
 
-```r
+```r title="Define custom plus operator"
 # Step 1: Define the operator (backticks required around %name%)
 `%plus%` <- function(a, b) {
   a + b
@@ -104,7 +104,7 @@ That's it, `%plus%` is now a working infix operator. The backticks in the defini
 
 Let's build something more useful. A common need is checking divisibility:
 
-```r
+```r title="Custom divisible vectorised operator"
 # Check if x is evenly divisible by y
 `%divisible%` <- function(x, y) {
   x %% y == 0
@@ -125,7 +125,7 @@ Notice that `%divisible%` is automatically vectorized because `%%` and `==` are 
 
 Here's one more, a string concatenation operator that replaces nested `paste0()` calls:
 
-```r
+```r title="Custom paste string operator"
 # String concatenation operator
 `%paste%` <- function(a, b) {
   paste0(a, b)
@@ -146,7 +146,7 @@ The infix version reads left to right, just like the sentence it builds. The nes
 
 **Try it:** Create a `%between%` operator that checks if `x` falls between the minimum and maximum of a length-2 vector `y` (inclusive). Test with `15 %between% c(10, 20)`.
 
-```r
+```r title="Exercise: Build between operator"
 # Try it: create %between%
 `%between%` <- function(x, y) {
   # your code here
@@ -163,7 +163,7 @@ The infix version reads left to right, just like the sentence it builds. The nes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Between operator solution"
 `%between%` <- function(x, y) {
   x >= min(y) & x <= max(y)
 }
@@ -187,7 +187,7 @@ c(5, 15, 25) %between% c(10, 20)
 
 R is surprisingly permissive with infix operator names. The only hard rule is: **no `%` character inside the name**. Everything else, spaces, punctuation, Unicode, is technically allowed.
 
-```r
+```r title="Permissive operator name rules"
 # Spaces in the name — legal but weird
 `% %` <- function(a, b) paste(a, b)
 "hello" % % "world"
@@ -204,7 +204,7 @@ Both work because R allows any sequence of characters between the `%` delimiters
 
 The one thing you absolutely cannot do is put a `%` inside the name:
 
-```r
+```r title="Illegal percent in operator name"
 # This will NOT work — % inside the name breaks parsing
 # Uncomment to see the error:
 # `%50%%` <- function(a, b) a * 0.5 + b * 0.5
@@ -218,7 +218,7 @@ R's parser sees the second `%` as the closing delimiter and gets confused by wha
 
 **Try it:** Create an operator called `%greet%` that pastes the left argument, `" says hello to "`, and the right argument. Test with `"Alice" %greet% "Bob"`.
 
-```r
+```r title="Exercise: Build greet operator"
 # Try it: create %greet%
 `%greet%` <- function(a, b) {
   # your code here
@@ -232,7 +232,7 @@ R's parser sees the second `%` as the closing delimiter and gets confused by wha
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Greet operator solution"
 `%greet%` <- function(a, b) {
   paste(a, "says hello to", b)
 }
@@ -254,7 +254,7 @@ All custom `%op%` operators share the **same precedence level**, they sit betwee
 
 Let's see left-to-right association in action:
 
-```r
+```r title="Left-to-right operator associativity"
 # Build an operator that wraps its result in parentheses
 # so we can see evaluation order
 `%w%` <- function(a, b) paste0("(", a, " %w% ", b, ")")
@@ -267,7 +267,7 @@ The output shows that `"a" %w% "b"` evaluates first, then that result feeds into
 
 Now here's the precedence surprise. Custom `%op%` operators bind **tighter** than `+` and `-`:
 
-```r
+```r title="Custom operator precedence surprises"
 # What does 10 - 2 %plus% 3 give?
 10 - 2 %plus% 3
 #> [1] 5
@@ -293,7 +293,7 @@ Because `%plus%` has higher precedence than `-`, R evaluates `2 %plus% 3` first,
 
 **Try it:** Given the `%plus%` operator already defined, predict what `2 + 3 %plus% 4` returns. Then predict what `2 - 3 %plus% 4` returns. Run both to check.
 
-```r
+```r title="Exercise: Predict plus precedence"
 # Try it: predict the results, then run to verify
 # Remember: %plus% binds tighter than + and -
 
@@ -307,7 +307,7 @@ Because `%plus%` has higher precedence than `-`, R evaluates `2 %plus% 3` first,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Plus precedence solution"
 2 + 3 %plus% 4
 #> [1] 9
 
@@ -330,7 +330,7 @@ The toy examples above teach the syntax. Now let's build operators you'll actual
 
 **The "not in" operator** is the most-requested missing operator in base R. Every R programmer has written `!x %in% y` and wondered why there's no built-in negation:
 
-```r
+```r title="Practical not-in operator"
 # %ni% — "not in" (the inverse of %in%)
 `%ni%` <- function(x, y) {
   !(x %in% y)
@@ -354,7 +354,7 @@ users[users %ni% banned]
 
 **Null coalescing** gives a default value when the left side is `NULL`, like Python's `or` or JavaScript's `??`:
 
-```r
+```r title="Null-coalescing operator"
 # %??% — null coalescing (return left if not NULL, else right)
 `%??%` <- function(a, b) {
   if (is.null(a)) b else a
@@ -373,7 +373,7 @@ This is invaluable when working with function arguments or list elements that mi
 
 **Case-insensitive pattern matching** wraps `grepl()` into a readable operator:
 
-```r
+```r title="Case-insensitive like operator"
 # %like% — case-insensitive pattern match
 `%like%` <- function(x, pattern) {
   grepl(pattern, x, ignore.case = TRUE)
@@ -389,7 +389,7 @@ fruits[fruits %like% "apple"]
 
 And **string concatenation** without nested `paste0()`:
 
-```r
+```r title="String concatenation operator"
 # %+% — string concatenation
 `%+%` <- function(a, b) paste0(a, b)
 
@@ -407,7 +407,7 @@ dir %+% "/" %+% file %+% ext
 
 **Try it:** Create a `%clamp%` operator that clamps `x` to the range defined by a length-2 vector `y`. Values below `min(y)` become `min(y)`, values above `max(y)` become `max(y)`. Test with `150 %clamp% c(0, 100)`.
 
-```r
+```r title="Exercise: Build clamp operator"
 # Try it: create %clamp%
 `%clamp%` <- function(x, y) {
   # your code here
@@ -428,7 +428,7 @@ dir %+% "/" %+% file %+% ext
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Clamp operator solution"
 `%clamp%` <- function(x, y) {
   pmin(pmax(x, min(y)), max(y))
 }
@@ -457,7 +457,7 @@ Custom operators are powerful, but the power comes with a responsibility: every 
 
 Let's compare the same logic written with and without custom operators:
 
-```r
+```r title="Readable pipeline with operators"
 # --- With custom operators (defined earlier in this session) ---
 # Readable pipeline:
 cars <- mtcars[mtcars$mpg %between% c(20, 30), ]
@@ -488,7 +488,7 @@ The custom operator version reads more like English. But notice, the standard ve
 
 **Try it:** Write a `%titlecase%` operator that capitalizes the first letter of a string and leaves the rest unchanged. Test with `"hello" %titlecase% NULL`. Then think about whether this *should* be an infix operator or a regular function.
 
-```r
+```r title="Exercise: Build titlecase operator"
 # Try it: create %titlecase%
 # Hint: use substr() and toupper()
 `%titlecase%` <- function(x, unused) {
@@ -503,7 +503,7 @@ The custom operator version reads more like English. But notice, the standard ve
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Titlecase operator solution"
 # As an infix operator (works, but has a design smell):
 `%titlecase%` <- function(x, unused) {
   paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)))
@@ -529,7 +529,7 @@ titlecase("hello")
 
 Write a `%swap%` operator that takes a vector on the left and a length-2 integer vector on the right (two positions), then returns the vector with those positions swapped. For example, `c("a", "b", "c", "d") %swap% c(2, 4)` should return `c("a", "d", "c", "b")`.
 
-```r
+```r title="Exercise 1: Build swap operator"
 # Exercise 1: %swap% operator
 # Hint: copy the vector, then assign both positions from the original
 
@@ -547,7 +547,7 @@ Write a `%swap%` operator that takes a vector on the left and a length-2 integer
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Swap operator solution"
 `%swap%` <- function(vec, positions) {
   result <- vec
   result[positions[1]] <- vec[positions[2]]
@@ -570,7 +570,7 @@ c("a", "b", "c", "d") %swap% c(2, 4)
 
 Create a `%chain%` operator that composes two functions **left-to-right**: `(f %chain% g)(x)` should equal `g(f(x))`. This is the opposite of mathematical composition (which is right-to-left). Test with `(sqrt %chain% round)(10)`, it should compute `round(sqrt(10))` which is 3.
 
-```r
+```r title="Exercise 2: Build chain operator"
 # Exercise 2: %chain% operator
 # Hint: return a NEW function that applies f first, then g
 
@@ -588,7 +588,7 @@ Create a `%chain%` operator that composes two functions **left-to-right**: `(f %
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Chain operator solution"
 `%chain%` <- function(f, g) {
   function(...) g(f(...))
 }
@@ -608,7 +608,7 @@ Create a `%chain%` operator that composes two functions **left-to-right**: `(f %
 
 Create a `%where%` operator that filters a data frame (left side) using a quoted condition string (right side). For example, `mtcars %where% "mpg > 25 & cyl == 4"` should return only the matching rows. Use `parse()` and `eval()` to evaluate the condition string within the data frame's context.
 
-```r
+```r title="Exercise 3: Build where operator"
 # Exercise 3: %where% operator
 # Hint: parse() converts a string to an expression, eval() runs it
 
@@ -623,7 +623,7 @@ Create a `%where%` operator that filters a data frame (left side) using a quoted
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Where operator solution"
 `%where%` <- function(df, condition) {
   expr <- parse(text = condition)
   mask <- eval(expr, envir = df)
@@ -648,7 +648,7 @@ result[, 1:4]
 
 Let's use our operator toolkit in a realistic data-analysis workflow. We already defined `%ni%`, `%??%`, `%+%`, and `%between%` earlier in this session, so they're available in our WebR environment. Here's a complete example that chains them together:
 
-```r
+```r title="End-to-end mtcars operator analysis"
 # --- Complete Analysis: Find efficient, mid-range cars ---
 
 # Step 1: Filter to cars with 18-28 mpg

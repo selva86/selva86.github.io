@@ -24,7 +24,7 @@ R hits this warning whenever a pairwise operation, `+`, `*`, `==`, `ifelse()`, a
 
 Let's reproduce it in the smallest possible way and see what R actually did.
 
-```r
+```r title="Reproduce the recycling warning"
 x <- c(1, 2, 3, 4, 5)
 y <- c(10, 20)
 
@@ -39,7 +39,7 @@ R lined up `x` and `y`, ran out of `y` after the second element, started `y` aga
 
 **Try it:** Change `y` to a length-3 vector `c(10, 20, 30)` and predict the result before you run it. You should still get a warning, 5 is not a multiple of 3.
 
-```r
+```r title="Exercise: predict the recycled output"
 # Try it: predict the output
 ex_a <- c(1, 2, 3, 4, 5)
 ex_b <- c(10, 20, 30)
@@ -51,7 +51,7 @@ ex_a + ex_b
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Recycled-output solution"
 ex_a <- c(1, 2, 3, 4, 5)
 ex_b <- c(10, 20, 30)
 
@@ -71,7 +71,7 @@ Recycling is not a bug. It is a deliberate design feature R inherited from its p
 
 The problem is that R uses the exact same silent mechanism for "obvious" cases and "jagged" cases, and only warns you when the jagged edge appears.
 
-```r
+```r title="Three recycling cases"
 # Case 1: scalar recycle - silent, intentional, this is why vectorized R works
 prices <- c(100, 200, 300, 400)
 taxed <- prices * 1.1
@@ -98,7 +98,7 @@ Case 1 is so ordinary you probably never thought of it as recycling, but it is. 
 
 **Try it:** Build a length-8 vector of prices and a length-4 vector of tax rates. Add them and confirm there is no warning, even though recycling is clearly happening.
 
-```r
+```r title="Exercise: confirm silent recycle"
 # Try it: confirm silent recycle
 ex_prices <- c(100, 200, 300, 400, 500, 600, 700, 800)
 ex_tax <- c(5, 10, 15, 20)
@@ -110,7 +110,7 @@ ex_prices + ex_tax
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Silent-recycle solution"
 ex_prices <- c(100, 200, 300, 400, 500, 600, 700, 800)
 ex_tax <- c(5, 10, 15, 20)
 
@@ -128,7 +128,7 @@ The scariest bug is not the warning. It is the clean multiple. When the longer l
 
 Here is the classic trap: twelve months of data, four quarters of revenue.
 
-```r
+```r title="Silent recycle into a data frame"
 months <- month.name
 q_rev <- c(100, 120, 115, 130)  # only Q1 data
 
@@ -152,7 +152,7 @@ Notice anything missing? There is no warning. There is no error. `data.frame()` 
 
 **Try it:** The code below pairs a 10-element id vector with a 5-element flag vector. Spot the bug before running it, then run it to confirm.
 
-```r
+```r title="Exercise: spot the silent recycle"
 # Try it: spot the silent recycle
 ex_ids <- 1:10
 ex_flags <- c(TRUE, FALSE, TRUE, FALSE, TRUE)
@@ -164,7 +164,7 @@ data.frame(id = ex_ids, flag = ex_flags)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Silent-recycle spot solution"
 ex_ids <- 1:10
 ex_flags <- c(TRUE, FALSE, TRUE, FALSE, TRUE)
 
@@ -190,7 +190,7 @@ data.frame(id = ex_ids, flag = ex_flags)
 
 Every fix follows the same principle: decide what the correct length is, then make both sides match before the operation. Which specific fix you use depends on why the lengths diverged in the first place.
 
-```r
+```r title="Guard and pad to fix recycling"
 # Fix 1: fail fast with stopifnot() when you expect equal lengths
 safe_add <- function(x, y) {
   stopifnot(length(x) == length(y))
@@ -222,7 +222,7 @@ Fix 1 is the cheapest guardrail and the one you should reach for inside any func
 
 **Try it:** Write a length guard for the snippet below so it errors cleanly instead of warning.
 
-```r
+```r title="Exercise: add a length guard"
 # Try it: add a length guard
 ex_x <- c(1, 2, 3, 4, 5)
 ex_y <- c(10, 20, 30)
@@ -235,7 +235,7 @@ ex_x + ex_y
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Length-guard solution"
 ex_x <- c(1, 2, 3, 4, 5)
 ex_y <- c(10, 20, 30)
 
@@ -251,7 +251,7 @@ stopifnot(length(ex_x) == length(ex_y))
 
 The `vctrs` package (a dependency of dplyr and tibble that is already in your library) provides a strict alternative to base R's recycling rules. Its `vec_recycle_common()` function accepts a scalar recycle, because that is universally safe, and errors on every other length mismatch, including the dangerous clean-multiple case.
 
-```r
+```r title="Strict recycling with vctrs"
 library(vctrs)
 
 # Length 5 + length 1: accepted (scalar recycle)
@@ -277,7 +277,7 @@ The same strictness is baked into modern tidyverse tools. `tibble()` errors wher
 
 **Try it:** Wrap a length-5 / length-2 addition in `vec_recycle_common()` so it errors instead of warning.
 
-```r
+```r title="Exercise: strict vctrs wrapper"
 # Try it: strict wrapper
 ex_v1 <- c(1, 2, 3, 4, 5)
 ex_v2 <- c(10, 20)
@@ -289,7 +289,7 @@ ex_v2 <- c(10, 20)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Strict-wrapper solution"
 ex_v1 <- c(1, 2, 3, 4, 5)
 ex_v2 <- c(10, 20)
 
@@ -308,7 +308,7 @@ try(vec_recycle_common(ex_v1, ex_v2))
 
 Write a function `safe_diff(x, y)` that returns `x - y` only when the two inputs are exactly the same length **or** one of them is length 1. For any other input, it should error. Use `vctrs::vec_recycle_common()` instead of writing your own length checks.
 
-```r
+```r title="Exercise: write safediff function"
 # Exercise 1: strict safe_diff()
 # Hint: vec_recycle_common() returns a list of recycled vectors, or errors.
 
@@ -330,7 +330,7 @@ try(safe_diff(c(10, 20, 30), c(1, 2)))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="safediff function solution"
 library(vctrs)
 
 safe_diff <- function(x, y) {
@@ -357,7 +357,7 @@ try(safe_diff(c(10, 20, 30), c(1, 2)))
 
 You are handed `months <- month.name` (length 12) and `my_q1 <- c(100, 120, 115, 130)` (only Q1 revenue). Write code that produces a 12-row data frame with one column for month and one for revenue, where April through December contain `NA` instead of recycled Q1 values.
 
-```r
+```r title="Exercise: twelve months, four values"
 # Exercise 2: twelve months, four data points
 my_months <- month.name
 my_q1 <- c(100, 120, 115, 130)
@@ -370,7 +370,7 @@ my_q1 <- c(100, 120, 115, 130)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Padded-month solution"
 my_months <- month.name
 my_q1 <- c(100, 120, 115, 130)
 
@@ -400,7 +400,7 @@ payroll_df
 
 Here is a realistic payroll pipeline where silent recycling almost ships to production. Ten employees, but only four got a bonus this quarter. The naive version fails loudly on `data.frame()`, which is good, but a single typo that makes the lengths match could have made it silent.
 
-```r
+```r title="Payroll pipeline length mismatch"
 employees <- c("Alice", "Bob", "Carol", "Dave", "Eve",
                "Frank", "Grace", "Heidi", "Ivan", "Judy")
 bonuses <- c(500, 750, 1000, 600)  # only four employees earned one

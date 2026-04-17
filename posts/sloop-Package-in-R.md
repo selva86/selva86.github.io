@@ -24,7 +24,7 @@ Suppose a colleague hands you a fitted model and asks why `predict()` behaves od
 
 Here is what that looks like. The block below fits an ordinary linear model, asks sloop what kind of object it is, and then asks which method `print()` will dispatch to. Read the `#>` comments as the answers R prints back.
 
-```r
+```r title="Three facts about any fitted model"
 library(sloop)
 
 fit <- lm(mpg ~ wt, data = mtcars)
@@ -44,7 +44,7 @@ Three lines, three answers. `otype()` tells you the object is dispatched through
 
 **Try it:** Swap the linear model for a logistic regression and see which `print` method wins the dispatch race.
 
-```r
+```r title="Exercise: inspect a glm fit"
 # Try it: inspect a glm fit
 ex_fit <- glm(am ~ wt, data = mtcars, family = binomial)
 
@@ -61,7 +61,7 @@ ex_fit <- glm(am ~ wt, data = mtcars, family = binomial)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="glm-inspect solution"
 ex_fit <- glm(am ~ wt, data = mtcars, family = binomial)
 otype(ex_fit)
 #> [1] "S3"
@@ -82,7 +82,7 @@ s3_dispatch(print(ex_fit))
 
 The next block runs `otype()` across the four OOP systems using objects you already have: a base integer, a data frame (S3), a fitted model (S3), and a fresh S4 class. Expect one-word labels for each.
 
-```r
+```r title="otype on base, S3, and S4 objects"
 # Base R types (no OOP at all)
 otype(1L)
 #> [1] "base"
@@ -108,7 +108,7 @@ Four labels cover every R object you will ever inspect. The integer and string c
 
 When sloop is not available, you can reproduce its answer in base R with a single helper. The next block runs inside the in-browser editor and agrees with sloop on the same inputs.
 
-```r
+```r title="Base-R alternative to otype"
 # Base-R alternative to otype() — runs anywhere
 identify_oop <- function(x) {
   if (isS4(x))                                    return("S4")
@@ -139,7 +139,7 @@ The helper checks four signals in priority order: `isS4()` catches formal classe
 
 **Try it:** Return the OOP system of a factor in one line, using whichever function is available.
 
-```r
+```r title="Exercise: otype on a factor"
 # Try it: one-line OOP check on a factor
 ex_f <- factor(c("a", "b", "c"))
 
@@ -152,7 +152,7 @@ ex_f <- factor(c("a", "b", "c"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Factor-otype solution"
 ex_f <- factor(c("a", "b", "c"))
 identify_oop(ex_f)       # or: sloop::otype(ex_f)
 #> [1] "S3"
@@ -168,7 +168,7 @@ identify_oop(ex_f)       # or: sloop::otype(ex_f)
 
 The block below calls `ftype()` on five very different functions. Watch the returned character vectors, they pack two or three labels per call.
 
-```r
+```r title="ftype labels generics and methods"
 ftype(print)
 #> [1] "S3"      "generic"
 ftype(print.data.frame)
@@ -185,7 +185,7 @@ Read the labels left-to-right. `print` is a regular (non-primitive) S3 generic. 
 
 When sloop is missing, you can classify a function by inspecting its body for the telltale dispatch calls. The helper below runs in-browser and catches the common cases.
 
-```r
+```r title="Base-R body scan for dispatch markers"
 # Base-R alternative to ftype() — scans function body for dispatch markers
 is_generic_body <- function(f) {
   if (is.primitive(f)) return("primitive")
@@ -209,7 +209,7 @@ The helper hinges on two magic words. An S3 generic always calls `UseMethod()` i
 
 **Try it:** Is `t.test` a generic or a regular function? Classify it with whichever tool you have.
 
-```r
+```r title="Exercise: classify t.test"
 # Try it: classify t.test
 # your code here
 
@@ -220,7 +220,7 @@ The helper hinges on two magic words. An S3 generic always calls `UseMethod()` i
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="t.test-classify solution"
 is_generic_body(t.test)   # or: sloop::ftype(t.test)
 #> [1] "S3 generic"
 ```
@@ -235,7 +235,7 @@ Of sloop's functions, `s3_dispatch()` is the one you will reach for most often. 
 
 The next block runs dispatch on three familiar calls. Each `#>` line is a method name; the marker on the left tells you what happened to it.
 
-```r
+```r title="s3dispatch on common generics"
 s3_dispatch(print(mtcars))
 #> => print.data.frame
 #>  * print.default
@@ -259,7 +259,7 @@ Three dispatch traces, three winners. On a data frame, R finds `print.data.frame
 
 When you cannot load sloop, a short loop over `class(x)` reproduces the same arrow diagram. The block below walks the class vector manually, testing each `generic.class` combination with `exists()`.
 
-```r
+```r title="Base-R tracedispatch via class walk"
 # Base-R alternative to s3_dispatch() — walks class(obj) manually
 trace_dispatch <- function(generic, obj) {
   classes <- class(obj)
@@ -289,7 +289,7 @@ Same answers, same markers. The loop iterates through `class(obj)` in order, `ex
 
 **Try it:** Trace dispatch for `format()` on today's date. Which method wins?
 
-```r
+```r title="Exercise: dispatch on Sys.Date format"
 # Try it: dispatch trace for format(Sys.Date())
 # your code here
 
@@ -300,7 +300,7 @@ Same answers, same markers. The loop iterates through `class(obj)` in order, `ex
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sys.Date-format solution"
 trace_dispatch("format", Sys.Date())
 #> => format.Date 
 #>  * format.default 
@@ -314,7 +314,7 @@ trace_dispatch("format", Sys.Date())
 
 Once you know a generic exists, the next natural question is "what classes have overridden it?" And the mirror question, "given this class, what generics can I call on it?", is equally useful when you are shopping for a class to subclass. sloop answers both with `s3_methods_generic()` and `s3_methods_class()`.
 
-```r
+```r title="Methods per generic and per class"
 s3_methods_generic("mean")
 #> # A tibble: 7 × 4
 #>   generic class    visible source
@@ -342,7 +342,7 @@ Both calls return tibbles, which matters more than it sounds: you can `filter()`
 
 The base-R equivalent uses the built-in `methods()` function. It prints a character vector instead of a tibble, but the information content is the same.
 
-```r
+```r title="Base-R methods() equivalent calls"
 # Base-R alternative — same information, different shape
 methods("mean")
 #> [1] mean.Date     mean.POSIXct  mean.POSIXlt  mean.default  mean.difftime
@@ -361,7 +361,7 @@ Use `methods()` when you want a quick list in base R and `s3_methods_class()` wh
 
 **Try it:** Count how many S3 methods the `glm` class has in your current session.
 
-```r
+```r title="Exercise: count methods for glm"
 # Try it: count methods for class "glm"
 # your code here
 
@@ -372,7 +372,7 @@ Use `methods()` when you want a quick list in base R and `s3_methods_class()` wh
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="glm-methods solution"
 length(methods(class = "glm"))
 #> [1] 18
 # or, with sloop:
@@ -390,7 +390,7 @@ nrow(sloop::s3_methods_class("glm"))
 
 You are handed the following object. Use `otype()` (or the base-R helper) plus `class()` and `s3_dispatch()` to answer three questions: what OOP system is it, what is its class vector, and which `print` method actually runs?
 
-```r
+```r title="Exercise: inspect myobj"
 # Problem: inspect my_obj
 my_obj <- structure(list(price = 100), class = c("weekly", "list"))
 
@@ -402,7 +402,7 @@ my_obj <- structure(list(price = 100), class = c("weekly", "list"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="myobj solution"
 my_obj <- structure(list(price = 100), class = c("weekly", "list"))
 
 identify_oop(my_obj)
@@ -423,7 +423,7 @@ trace_dispatch("print", my_obj)
 
 Write `my_inspect(x)` that prints the object's class vector, its OOP system, and the first five methods registered for `class(x)[1]`. Run it on a linear model fit.
 
-```r
+```r title="Exercise: myinspect helper on lm"
 # Problem: write my_inspect() and run it on an lm fit
 my_inspect <- function(x) {
   # your code here
@@ -436,7 +436,7 @@ my_inspect(my_fit)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="myinspect solution"
 my_inspect <- function(x) {
   cat("Class:      ", paste(class(x), collapse = " > "), "\n")
   cat("OOP system: ", identify_oop(x), "\n")
@@ -461,7 +461,7 @@ my_inspect(my_fit)
 
 Create a toy generic `my_area()` with S3 methods for `circle` and `square`, build a `circle` object, and use `s3_dispatch()` (or the base-R tracer) to confirm which method runs.
 
-```r
+```r title="Exercise: myarea generic with two methods"
 # Problem: define my_area generic + methods, then trace dispatch
 # your code here
 
@@ -471,7 +471,7 @@ Create a toy generic `my_area()` with S3 methods for `circle` and `square`, buil
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="myarea solution"
 my_area <- function(x) UseMethod("my_area")
 my_area.circle <- function(x) pi * x$r^2
 my_area.square <- function(x) x$side^2
@@ -493,7 +493,7 @@ trace_dispatch("my_area", shape)
 
 A colleague hands you a fitted model named `mystery_fit` with no other context. Your job is to walk it through the full sloop/base-R toolkit and produce a one-page briefing: what it is, which OOP system it uses, which `print` method runs, which operations are legal on it, and what the `predict` method looks like.
 
-```r
+```r title="Investigate a mystery glm end to end"
 # Step 0: build the mystery (pretend this came from upstream)
 mystery_fit <- glm(am ~ wt + hp, data = mtcars, family = binomial)
 

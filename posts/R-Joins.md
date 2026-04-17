@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Real-world data rarely lives in one table. Customer names sit in one file, orders in another, products in a third, and the only way to answer "what did Alice buy?" is to combine them. A join does exactly that: it takes two tables, finds rows that share a key value, and glues matching rows side-by-side into one wider table. Here's the idea with two tiny tibbles, musicians and the instruments they play:
 
-```r
+```r title="innerjoin band and instruments"
 library(dplyr)
 
 band <- tibble(
@@ -55,7 +55,7 @@ Two rows survive, John and Paul, because they appear in both tables. George and 
 
 **Try it:** Create two tibbles, one with employee names and departments, one with names and salaries. Join them on `name` with `inner_join()`. Save to `ex_inner`.
 
-```r
+```r title="Exercise: Inner join employees salaries"
 # Try it: inner_join two tibbles
 ex_employees <- tibble(
   name = c("Alice", "Bob", "Carol"),
@@ -76,7 +76,7 @@ ex_inner
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Inner join solution"
 ex_inner <- ex_employees |> inner_join(ex_salaries, by = "name")
 ex_inner
 #> # A tibble: 2 × 3
@@ -97,7 +97,7 @@ Under the hood, a join is a lookup. For each row in the left table, dplyr takes 
 ![How dplyr matches rows](screenshots/R-Joins-matching-process.webp)
 *Figure 2: For each left row, dplyr looks up the key in the right table and decides whether to keep or drop.*
 
-```r
+```r title="innerjoin with duplicate matches"
 purchases <- tibble(
   customer_id = c(1, 2, 1, 3),
   product     = c("Pen", "Book", "Mug", "Pen")
@@ -121,7 +121,7 @@ Three rows out of four survive. Customer 3's purchase is dropped because custome
 
 **Try it:** Inner-join two small tibbles where one key has 2 matches on the right side. Save to `ex_multi`.
 
-```r
+```r title="Exercise: Left duplicates expand rows"
 ex_left <- tibble(id = 1:2, letter = c("A", "B"))
 ex_right <- tibble(id = c(1, 1, 2), score = c(10, 20, 30))
 
@@ -134,7 +134,7 @@ nrow(ex_multi)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Duplicate rows solution"
 ex_multi <- ex_left |> inner_join(ex_right, by = "id")
 ex_multi
 #> # A tibble: 3 × 3
@@ -153,7 +153,7 @@ ex_multi
 
 `inner_join()` drops unmatched rows, which is sometimes what you want and sometimes a disaster. If you're building a sales report with one row per customer, you don't want customers with zero purchases to silently vanish. `left_join()` keeps every row from the left table, if the right side has no match, the new columns fill with `NA`. `right_join()` does the mirror: keep everything on the right, fill left with `NA`. In practice, analysts almost always use `left_join()` and flip their arguments instead of reaching for `right_join()`.
 
-```r
+```r title="leftjoin preserves unmatched rows"
 band |> left_join(instruments, by = "name")
 #> # A tibble: 4 × 3
 #>   name   band    plays
@@ -171,7 +171,7 @@ Four rows, every member of `band` survives. George and Ringo get `NA` in the `pl
 
 **Try it:** Left-join `ex_employees` with `ex_salaries` so Carol appears with `NA` salary. Save to `ex_left`.
 
-```r
+```r title="Exercise: Left join retains Carol"
 ex_left_result <- ex_employees |>
   # your code here
 
@@ -182,7 +182,7 @@ ex_left_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Left join solution"
 ex_left_result <- ex_employees |> left_join(ex_salaries, by = "name")
 ex_left_result
 #> # A tibble: 3 × 3
@@ -201,7 +201,7 @@ ex_left_result
 
 Sometimes you want *everything*, every row from both tables, with `NA` wherever one side lacks a match. That's `full_join()`. It's the union of left and right join: rows that match get combined, rows unique to either side come through unchanged, and unmatched cells fill with `NA`. Use it when you're merging two partial datasets and need to know what each one contributed.
 
-```r
+```r title="fulljoin keeps both sides"
 band |> full_join(instruments, by = "name")
 #> # A tibble: 5 × 3
 #>   name   band    plays
@@ -217,7 +217,7 @@ Five rows, every unique name from either table. John and Paul get combined colum
 
 **Try it:** Full-join `ex_employees` with `ex_salaries`. Save to `ex_full`. Confirm the row count equals the union of unique names from both tables.
 
-```r
+```r title="Exercise: Full join four rows"
 ex_full <- ex_employees |>
   # your code here
 
@@ -228,7 +228,7 @@ nrow(ex_full)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Full join solution"
 ex_full <- ex_employees |> full_join(ex_salaries, by = "name")
 ex_full
 #> # A tibble: 4 × 3
@@ -248,7 +248,7 @@ ex_full
 
 `semi_join()` and `anti_join()` are the odd ones out, they're called "filtering joins" because they don't add columns, they just filter rows. `semi_join(x, y)` keeps rows in `x` that have *a match* in `y`, but adds no columns from `y`. `anti_join(x, y)` is the opposite, it keeps rows in `x` that have *no match* in `y`. Think of them as `filter()` statements that use another table as the condition.
 
-```r
+```r title="semijoin and antijoin filters"
 # Who in the band has a known instrument?
 band |> semi_join(instruments, by = "name")
 #> # A tibble: 2 × 2
@@ -273,7 +273,7 @@ band |> anti_join(instruments, by = "name")
 
 **Try it:** Use `anti_join()` to find employees with no salary record. Save to `ex_missing`.
 
-```r
+```r title="Exercise: Anti-join finds Carol"
 ex_missing <- ex_employees |>
   # your code here
 
@@ -284,7 +284,7 @@ ex_missing
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Anti-join solution"
 ex_missing <- ex_employees |> anti_join(ex_salaries, by = "name")
 ex_missing
 #> # A tibble: 1 × 2
@@ -301,7 +301,7 @@ ex_missing
 
 Real datasets rarely have matching column names. One table calls it `customer_id`, another calls it `cust_id` or just `id`. Pass a named vector to `by`, `by = c("left_col" = "right_col")`, and dplyr will match on those differently-named columns. The left name ends up in the result.
 
-```r
+```r title="Join on differently named keys"
 orders <- tibble(
   order_id    = 1:3,
   customer_id = c(1, 2, 1)
@@ -328,7 +328,7 @@ The `customer_id` column on the left matches the `id` column on the right, and t
 
 **Try it:** Left-join `orders` with a new tibble `shipping` keyed on `order_id` vs `ord_id`. Save to `ex_shipping`.
 
-```r
+```r title="Exercise: Join orderid to ordid"
 ex_shipping_info <- tibble(
   ord_id = c(1, 3),
   status = c("shipped", "pending")
@@ -344,7 +344,7 @@ ex_shipping
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Renamed keys solution"
 ex_shipping <- orders |>
   left_join(ex_shipping_info, by = c("order_id" = "ord_id"))
 
@@ -365,7 +365,7 @@ ex_shipping
 
 Here's where joins get tricky. If the left key has one row and the right key has two matches, you get two output rows (as we saw earlier). But what if *both* sides have duplicates? Then you get a Cartesian explosion, every left duplicate paired with every right duplicate. A 2×3 match produces 6 output rows, and this is almost always a bug.
 
-```r
+```r title="Cartesian expansion on duplicate keys"
 left_dup <- tibble(
   id  = c(1, 1),
   val = c("A", "B")
@@ -396,7 +396,7 @@ Six rows from a 2×3 key collision. Since dplyr 1.1.0, you must explicitly decla
 
 **Try it:** Try joining `left_dup` and `right_dup` with `relationship = "one-to-one"`. What happens? Save the error message (or success) to `ex_rel`.
 
-```r
+```r title="Exercise: Enforce one-to-one"
 # Try it: enforce one-to-one
 # Expect: error because the relationship is violated
 ex_rel <- try(
@@ -410,7 +410,7 @@ class(ex_rel)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="One-to-one solution"
 ex_rel <- try(
   left_dup |> inner_join(right_dup, by = "id", relationship = "one-to-one"),
   silent = TRUE
@@ -431,7 +431,7 @@ Use `my_*` variables to avoid clobbering earlier tutorial state.
 
 You have a `customers` table and an `orders` table. Compute each customer's total spend (sum of `amount` over all their orders). Include customers with zero orders (they should show `NA` or 0). Save to `my_ltv`.
 
-```r
+```r title="Exercise: Customer lifetime value"
 cust <- tibble(
   customer_id = 1:4,
   name        = c("Alice", "Bob", "Carol", "Dan")
@@ -449,7 +449,7 @@ my_ltv
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Lifetime value solution"
 my_ltv <- cust |>
   left_join(ord, by = "customer_id") |>
   group_by(customer_id, name) |>
@@ -473,7 +473,7 @@ my_ltv
 
 Find orders that reference non-existent customers (an `anti_join` use case). Save to `my_orphans`.
 
-```r
+```r title="Exercise: Find orphan orders"
 cust_v2 <- tibble(customer_id = 1:3, name = c("A", "B", "C"))
 ord_v2  <- tibble(order_id = 1:5, customer_id = c(1, 2, 5, 3, 7))
 
@@ -485,7 +485,7 @@ my_orphans
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Orphan orders solution"
 my_orphans <- ord_v2 |> anti_join(cust_v2, by = "customer_id")
 
 my_orphans
@@ -504,7 +504,7 @@ my_orphans
 
 Join `orders` with `people` from earlier (keys are named differently), then keep only rows where the customer name starts with "A". Save to `my_a_orders`.
 
-```r
+```r title="Exercise: Filter A-named customers"
 my_a_orders <- orders |>
   # your code here
 
@@ -514,7 +514,7 @@ my_a_orders
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="A-named customers solution"
 my_a_orders <- orders |>
   left_join(people, by = c("customer_id" = "id")) |>
   filter(startsWith(name, "A"))
@@ -535,7 +535,7 @@ my_a_orders
 
 Here's a three-table rollup: customers, orders, and products. Question: *for each customer, what's the total spent on "premium" products?*
 
-```r
+```r title="End-to-end premium spend rollup"
 cust3 <- tibble(customer_id = 1:3, name = c("Alice", "Bob", "Carol"))
 ord3  <- tibble(
   order_id    = 1:5,

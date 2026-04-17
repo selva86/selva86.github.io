@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Applicant tracking systems match resumes to job descriptions on exact strings. "Proficient in R" is a string almost no posting contains, postings ask for `dplyr`, `ggplot2`, `Shiny`, `tidymodels`. Hiring managers do the same on the human side: vague claims get skimmed, specific ones get questioned in interviews. The fix is a single-line rewrite. Run the block below to see the before-and-after on a real resume line.
 
-```r
+```r title="Vague versus ATS-friendly skills line"
 # A vague R skills line vs a specific, ATS-friendly one
 vague <- "Proficient in R for data analysis."
 
@@ -46,7 +46,7 @@ The "AFTER" line is one sentence longer but contains nine package names, four sk
 
 **Try it:** Rewrite your own current "skills" line. Define `your_vague` and `your_specific` and print both with `cat()`. Aim for at least four package names in `your_specific`.
 
-```r
+```r title="Exercise: rewrite your skills line"
 # Try it: rewrite your own skills line
 ex_vague <- "your current line here"
 ex_specific <- "your rewritten line with 4+ R packages"
@@ -58,7 +58,7 @@ cat("BEFORE: ", ex_vague, "\nAFTER:  ", ex_specific, "\n", sep = "")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rewrite-skills solution"
 ex_vague <- "Skilled in R, Python, and SQL."
 ex_specific <- "R (3 yrs): dplyr, ggplot2, tidymodels, Shiny, Quarto. Python: pandas, scikit-learn. SQL: PostgreSQL, BigQuery."
 
@@ -80,7 +80,7 @@ Trying to list every R package you've ever used produces a wall of text that sig
 
 Let's encode the taxonomy as a tibble so you can filter, sort, and reshape it for any role.
 
-```r
+```r title="Five skill-category buckets"
 library(tibble)
 library(dplyr)
 
@@ -111,7 +111,7 @@ Each row carries three things you need on the resume: a category label a recruit
 
 **Try it:** Filter `skills_df` to just the rows you'd keep for a "Visualization-heavy analyst" role.
 
-```r
+```r title="Exercise: filter for viz-heavy analyst"
 # Try it: filter skills_df for a viz-heavy analyst
 ex_keep <- skills_df |>
   filter(category %in% c(NA, NA))   # replace with the two best categories
@@ -123,7 +123,7 @@ ex_keep
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Viz-heavy solution"
 ex_keep <- skills_df |>
   filter(category %in% c("Visualization", "Wrangling"))
 
@@ -148,7 +148,7 @@ A claim with no proof is treated like no claim at all. Every R skill on your res
 
 Different proof types take different effort to produce and carry different signal. Let's rank them so you can decide where to invest.
 
-```r
+```r title="Proof inventory by time and impact"
 proof_df <- tribble(
   ~proof,                       ~time_cost,   ~impact,
   "GitHub repo (3-5 projects)", "Medium",     "High",
@@ -181,7 +181,7 @@ The arrangement reveals an obvious sweet spot. A GitHub repo of 3-5 polished pro
 
 **Try it:** Filter `proof_df` to just the rows where `time_cost == "Medium"`.
 
-```r
+```r title="Exercise: keep medium-cost proofs"
 # Try it: medium-cost proofs only
 ex_medium <- proof_df |>
   filter(time_cost == NA)   # replace NA with the right value
@@ -193,7 +193,7 @@ ex_medium
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Medium-cost solution"
 ex_medium <- proof_df |>
   filter(time_cost == "Medium")
 
@@ -214,7 +214,7 @@ ex_medium
 
 The same R toolkit looks different on a Data Analyst resume than on an R Engineer resume. Tailoring matters because ATS filters are configured per posting, a single resume sent to four different roles will fail four different keyword tests. Encode the must-have map once and you can generate four tailored versions in seconds.
 
-```r
+```r title="Must-haves by role"
 roles_df <- tribble(
   ~role,             ~must_have,                                        ~de_emphasize,
   "Data analyst",    "dplyr, ggplot2, R Markdown, SQL",                 "Rcpp, deep learning",
@@ -236,7 +236,7 @@ The single string returned by `pull()` is exactly what you'd paste into the skil
 
 **Try it:** Pull the `must_have` string for the `"Data analyst"` role.
 
-```r
+```r title="Exercise: must-haves for data analyst"
 # Try it: must-haves for Data analyst
 ex_da <- roles_df |>
   filter(role == NA) |>          # replace NA
@@ -249,7 +249,7 @@ ex_da
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Data-analyst solution"
 ex_da <- roles_df |>
   filter(role == "Data analyst") |>
   pull(must_have)
@@ -266,7 +266,7 @@ ex_da
 
 Some mistakes lose you the interview without anyone telling you why, the resume just disappears. Knowing the top mistakes and their fixes is cheaper than figuring them out across six rejections. Encode them as a ranked table.
 
-```r
+```r title="Six silent-killer resume mistakes"
 mistakes_df <- tribble(
   ~mistake,                          ~severity, ~fix,
   "Listing only 'R'",                "High",    "List 8-12 specific packages",
@@ -297,7 +297,7 @@ The three High-severity mistakes share a single root cause: missing specificity.
 
 **Try it:** Use `count()` to count mistakes by severity.
 
-```r
+```r title="Exercise: count mistakes by severity"
 # Try it: count by severity
 ex_counts <- mistakes_df |>
   count(severity)              # add an arrange() if you like
@@ -309,7 +309,7 @@ ex_counts
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Severity-count solution"
 ex_counts <- mistakes_df |>
   count(severity) |>
   arrange(desc(n))
@@ -335,7 +335,7 @@ These exercises combine multiple ideas from the tutorial. Each one builds someth
 
 Write a function `tailor_skills(df, keep)` that takes `skills_df` and a character vector of categories to keep, and returns a single string of the matching `resume_phrase` values joined by `"; "`. Call it with `c("Wrangling", "Visualization", "Reporting & apps")`.
 
-```r
+```r title="Exercise: write tailorskills function"
 # Exercise 1: write tailor_skills()
 # Hint: filter() then pull() then paste(..., collapse = "; ")
 
@@ -350,7 +350,7 @@ tailor_skills <- function(df, keep) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="tailorskills solution"
 tailor_skills <- function(df, keep) {
   df |>
     filter(category %in% keep) |>
@@ -375,7 +375,7 @@ ds_line
 
 Use `glue()` (or `paste()`) to build a four-line `TECHNICAL SKILLS` block from these inputs: `languages = c("R (4 yrs)", "Python (2 yrs)", "SQL (3 yrs)")`, `r_packages = c("tidyverse", "ggplot2", "Shiny", "tidymodels", "data.table")`, `tools = c("RStudio", "Git", "Docker", "PostgreSQL")`, `methods = c("regression", "mixed models", "A/B testing")`. Output should look like the format below, each line aligned by label.
 
-```r
+```r title="Exercise: build a skills block with glue"
 # Exercise 2: build a 4-line TECHNICAL SKILLS block
 library(glue)
 
@@ -399,7 +399,7 @@ cat(tech_block)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Skills-block solution"
 library(glue)
 
 tech_block <- glue(
@@ -427,7 +427,7 @@ cat(tech_block)
 
 Add an `owned` column (TRUE/FALSE) to `proof_df`, attach an integer weight per impact level (Very High = 5, High = 3, Medium-High = 2, Medium = 1), then compute a 0-100 readiness score: `100 * sum(weight * owned) / sum(weight)`.
 
-```r
+```r title="Exercise: portfolio readiness score"
 # Exercise 3: portfolio readiness score
 my_proof <- proof_df |>
   mutate(
@@ -450,7 +450,7 @@ score
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Readiness-score solution"
 my_proof <- proof_df |>
   mutate(
     owned  = c(TRUE, FALSE, FALSE, TRUE, TRUE, FALSE, FALSE),
@@ -477,7 +477,7 @@ score
 
 Tying it all together: take your personal skill inventory, filter to the must-haves for one target role, format with `glue()`, and emit a complete resume-ready block. The same pipeline produces a different output for any role, change one line and rebuild.
 
-```r
+```r title="Tailored resume skills pipeline"
 library(glue)
 
 my_skills_df <- tribble(

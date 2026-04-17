@@ -27,7 +27,7 @@ Every package has two environments:
 1. **Package environment**, contains exported functions (what users see)
 2. **Namespace environment**, contains *all* functions (exported + internal)
 
-```r
+```r title="Inspect the package environment"
 # The package environment (exported functions)
 pkg_env <- as.environment("package:stats")
 cat("Package env:", environmentName(pkg_env), "\n")
@@ -38,7 +38,7 @@ cat("Exported from stats:", length(exported), "functions\n")
 cat("First 10:", paste(head(exported, 10), collapse = ", "), "\n")
 ```
 
-```r
+```r title="Inspect the namespace environment"
 # The namespace environment (all functions, including internal)
 ns_env <- asNamespace("stats")
 cat("Namespace env:", environmentName(ns_env), "\n")
@@ -52,7 +52,7 @@ cat("More than exported?", length(all_fns) > length(ls(as.environment("package:s
 
 `::` accesses exported functions. `:::` accesses internal (non-exported) functions:
 
-```r
+```r title="Use :: and ::: operators"
 # :: accesses exported functions (safe, documented)
 cat("stats::median(1:10) =", stats::median(1:10), "\n")
 cat("base::sum(1:10) =", base::sum(1:10), "\n")
@@ -65,7 +65,7 @@ cat("stats:::Pillai exists:", exists("Pillai", envir = asNamespace("stats")), "\
 
 ### When to Use ::
 
-```r
+```r title="Disambiguate with :: for clarity"
 # Best practice: use :: for clarity and avoiding conflicts
 # Instead of loading the whole package:
 #   library(stats)
@@ -84,7 +84,7 @@ A package's `NAMESPACE` file declares:
 - **Exports**: functions available to users via `library()` or `::`
 - **Imports**: functions from other packages that this package uses internally
 
-```r
+```r title="List exports and imports of stats"
 # See what a package exports
 exports <- getNamespaceExports("stats")
 cat("stats exports", length(exports), "functions\n")
@@ -100,7 +100,7 @@ The import mechanism is why packages work reliably: when `ggplot2` calls a funct
 
 ## Namespace Resolution in Action
 
-```r
+```r title="How namespaces resolve internal calls"
 # Demonstrate: package functions find OTHER package functions
 # through the namespace, not through the search path
 
@@ -118,7 +118,7 @@ cat("Namespace ensures packages find the right functions\n")
 
 ## Practice Exercise
 
-```r
+```r title="Exercise: count base exports and internals"
 # Exercise: For the "base" package, find:
 # 1. How many functions are exported
 # 2. How many total objects are in the namespace
@@ -131,7 +131,7 @@ cat("Namespace ensures packages find the right functions\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Base exports and internals solution"
 exported <- getNamespaceExports("base")
 all_objects <- ls(asNamespace("base"))
 internal <- setdiff(all_objects, exported)

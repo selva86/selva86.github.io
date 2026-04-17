@@ -38,7 +38,7 @@ The most common case is splitting on a known character like a dash, underscore, 
 
 Let's start with a small order dataset where region, year, and ID are packed into one column.
 
-```r
+```r title="Sample orders tibble with codes"
 library(tidyr)
 library(dplyr)
 
@@ -57,7 +57,7 @@ orders
 
 Each `order_code` holds three pieces separated by dashes. Let's split them into `region`, `year`, and `id`.
 
-```r
+```r title="Split ordercode with separatewiderdelim"
 orders_split <- orders |>
   separate_wider_delim(
     cols  = order_code,
@@ -80,7 +80,7 @@ The original `order_code` column is gone (replaced by the three new ones). The n
 
 Here is a second example: splitting a date string into year, month, and day.
 
-```r
+```r title="Split a date string into parts"
 logs <- tibble(
   date_str = c("2026-04-06", "2025-12-31", "2026-01-15"),
   event    = c("login", "purchase", "logout")
@@ -105,7 +105,7 @@ Some data encodes meaning in character positions, not delimiters. A product code
 
 You pass a named integer vector where the names become column names and the values are the character widths.
 
-```r
+```r title="Fixed-width split with separatewiderposition"
 codes <- tibble(
   product_code = c("m1234", "f5678", "m9012", "f3456"),
   price        = c(29.99, 49.99, 15.00, 89.50)
@@ -134,7 +134,7 @@ When neither a single delimiter nor fixed widths describe your data, `separate_w
 
 Consider tags like `"v2.1-beta"` where you want the major version, minor version, and stage. The hyphen separates the version from the stage, but the dot separates major from minor.
 
-```r
+```r title="Regex split with separatewiderregex"
 tags <- tibble(
   tag = c("v2.1-beta", "v3.0-stable", "v1.12-alpha"),
   date = c("2026-01-10", "2026-03-20", "2025-11-05")
@@ -172,7 +172,7 @@ Real data is messy. Some rows may have fewer separators than expected, and other
 
 Let's see what happens when some orders have only two parts instead of three.
 
-```r
+```r title="Handle toofew and toomany rows"
 messy <- tibble(
   code = c("US-2026-1042", "EU-2025", "AP-2026-0217-RUSH"),
   amount = c(250, 180, 430)
@@ -219,7 +219,7 @@ Both arguments also accept `"debug"`, which keeps the original column plus adds 
 
 Let's combine year, month, and day columns back into a date string.
 
-```r
+```r title="Combine date parts with unite"
 date_parts <- tibble(
   year  = c("2026", "2025", "2026"),
   month = c("04", "12", "01"),
@@ -242,7 +242,7 @@ The `col` argument names the new combined column. The `sep` argument controls th
 
 When your data has missing values, `unite()` pastes the literal string `"NA"` by default. Use `na.rm = TRUE` to skip missing values.
 
-```r
+```r title="unite with NA removal"
 addr <- tibble(
   street = c("123 Main St", "456 Oak Ave"),
   apt    = c(NA, "Suite 2B"),
@@ -266,21 +266,21 @@ Without `na.rm = TRUE`, the first row would read `"123 Main St, NA, Portland"`. 
 ### Mistake 1: Using the deprecated separate() instead of separate_wider_delim()
 
 ❌ **Wrong:**
-```r
+```r title="Common mistake: legacy separate()"
 df |> separate(name, into = c("first", "last"), sep = " ")
 ```
 
 **Why it is wrong:** `separate()` is superseded in tidyr 1.3+. It still works but has weaker error handling and no `too_few`/`too_many` controls. New code should use the modern functions.
 
 ✅ **Correct:**
-```r
+```r title="Correct: separatewiderdelim"
 df |> separate_wider_delim(name, delim = " ", names = c("first", "last"))
 ```
 
 ### Mistake 2: Forgetting too_few when data has inconsistent splits
 
 ❌ **Wrong:**
-```r
+```r title="Common mistake: default toofew errors"
 messy_df |> separate_wider_delim(code, delim = "-", names = c("a", "b", "c"))
 #> Error: Expected 3 pieces in every row, but row 2 has only 2
 ```
@@ -288,7 +288,7 @@ messy_df |> separate_wider_delim(code, delim = "-", names = c("a", "b", "c"))
 **Why it is wrong:** The default `too_few = "error"` halts on the first row with fewer pieces than expected. If even one row is short, the entire call fails.
 
 ✅ **Correct:**
-```r
+```r title="Correct: alignstart on short rows"
 messy_df |>
   separate_wider_delim(code, delim = "-", names = c("a", "b", "c"),
                        too_few = "align_start")
@@ -297,7 +297,7 @@ messy_df |>
 ### Mistake 3: Getting "NA" strings from unite() with missing values
 
 ❌ **Wrong:**
-```r
+```r title="Common mistake: unite turns NA to string"
 df |> unite("full", first_name, last_name, sep = " ")
 #> Row with NA becomes "John NA" instead of just "John"
 ```
@@ -305,7 +305,7 @@ df |> unite("full", first_name, last_name, sep = " ")
 **Why it is wrong:** `unite()` converts `NA` to the string `"NA"` and pastes it. The result looks correct but contains a literal `"NA"` that passes `is.na()` as `FALSE`.
 
 ✅ **Correct:**
-```r
+```r title="Correct: unite with na.rm TRUE"
 df |> unite("full", first_name, last_name, sep = " ", na.rm = TRUE)
 ```
 
@@ -315,7 +315,7 @@ df |> unite("full", first_name, last_name, sep = " ", na.rm = TRUE)
 
 Split the `email` column into `username` and `domain` using the `@` delimiter.
 
-```r
+```r title="Exercise: split emails on @"
 # Exercise: split emails on "@"
 my_data <- tibble(
   email = c("alice@gmail.com", "bob@company.org", "carol@uni.edu"),
@@ -330,7 +330,7 @@ my_data <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Email-split solution"
 my_result <- my_data |>
   separate_wider_delim(email, delim = "@", names = c("username", "domain"))
 my_result
@@ -350,7 +350,7 @@ my_result
 
 Each `census_code` is exactly 7 characters: 2-character state, 3-digit county, 2-digit tract. Split it into three columns.
 
-```r
+```r title="Exercise: fixed-width census codes"
 # Exercise: split fixed-width census codes
 my_data2 <- tibble(
   census_code = c("CA12301", "NY45602", "TX78903"),
@@ -365,7 +365,7 @@ my_data2 <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Census-code split solution"
 my_result2 <- my_data2 |>
   separate_wider_position(
     census_code,
@@ -388,7 +388,7 @@ my_result2
 
 Combine `first_name`, `middle_name`, and `last_name` into a single `full_name` column, skipping any missing values.
 
-```r
+```r title="Exercise: unite names with NA"
 # Exercise: unite names with NA handling
 my_data3 <- tibble(
   first_name  = c("Ada", "Grace", "Alan"),
@@ -404,7 +404,7 @@ my_data3 <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Name-unite solution"
 my_result3 <- my_data3 |>
   unite("full_name", first_name, middle_name, last_name, sep = " ", na.rm = TRUE)
 my_result3
@@ -424,7 +424,7 @@ my_result3
 
 Let's combine splitting and combining in one realistic pipeline. You receive a dataset of employee records where the ID encodes department and hire year, and the name is a single column. You need to split the ID, split the name, and then unite department with last name for a label.
 
-```r
+```r title="End-to-end employee pipeline"
 employees <- tibble(
   emp_id = c("ENG-2019-042", "MKT-2021-108", "FIN-2020-007"),
   full_name = c("Alice Chen", "Bob Martinez", "Carol Singh"),

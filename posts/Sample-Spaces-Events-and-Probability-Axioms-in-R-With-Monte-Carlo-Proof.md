@@ -26,7 +26,7 @@ When you flip a coin, the sample space is {Heads, Tails}. When you roll a die, i
 
 Let's build both concepts in R and compute probabilities from them.
 
-```r
+```r title="Classical die probability calculation"
 # Define the sample space for a fair die
 S <- 1:6
 
@@ -50,7 +50,7 @@ The classical formula works perfectly when every outcome is equally likely. P(ev
 
 But what if you don't trust the formula? You can verify it by running the experiment thousands of times and counting.
 
-```r
+```r title="Monte Carlo die verification"
 # Monte Carlo verification
 set.seed(42)
 n_sims <- 100000
@@ -72,7 +72,7 @@ With 100,000 simulated rolls, the estimated probabilities land within a whisker 
 
 **Try it:** Define the sample space for flipping two coins simultaneously (four outcomes: HH, HT, TH, TT). Compute P(at least one head) by counting favourable outcomes.
 
-```r
+```r title="Exercise: Two-coin sample space"
 # Try it: two-coin sample space
 ex_S <- c("HH", "HT", "TH", "TT")
 
@@ -86,7 +86,7 @@ ex_p <- # your code here
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-coin sample space solution"
 ex_S <- c("HH", "HT", "TH", "TT")
 ex_favourable <- c("HH", "HT", "TH")
 ex_p <- length(ex_favourable) / length(ex_S)
@@ -116,7 +116,7 @@ $$\text{If } A \cap B = \emptyset, \quad P(A \cup B) = P(A) + P(B)$$
 
 Let's verify all three in one quick simulation.
 
-```r
+```r title="Verify all three Kolmogorov axioms"
 # Verify all three axioms with a die roll simulation
 set.seed(101)
 n <- 100000
@@ -157,7 +157,7 @@ All three axioms check out. The individual face probabilities are positive (axio
 
 **Try it:** A bag contains 5 red, 3 blue, and 2 green marbles (10 total). Simulate 50,000 draws and verify all three axioms: every colour probability is ≥ 0, probabilities sum to 1, and P(red or green) = P(red) + P(green) since they are disjoint.
 
-```r
+```r title="Exercise: Verify axioms on marble bag"
 # Try it: marble bag — verify all three axioms
 set.seed(202)
 ex_bag <- c(rep("red", 5), rep("blue", 3), rep("green", 2))
@@ -172,7 +172,7 @@ ex_draws <- sample(ex_bag, size = 50000, replace = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Marble bag axioms solution"
 set.seed(202)
 ex_bag <- c(rep("red", 5), rep("blue", 3), rep("green", 2))
 ex_draws <- sample(ex_bag, size = 50000, replace = TRUE)
@@ -198,7 +198,7 @@ Monte Carlo simulation estimates probability by repeating an experiment thousand
 
 Here's the recipe: simulate → count → divide → compare to theory. Let's watch convergence happen in real time by flipping a fair coin.
 
-```r
+```r title="Law of large numbers convergence"
 # Watch P(Heads) converge as we flip more coins
 set.seed(303)
 flips <- sample(c("H", "T"), size = 100000, replace = TRUE)
@@ -235,7 +235,7 @@ This is exactly how we'll verify each axiom in the sections ahead. We'll define 
 
 **Try it:** Estimate P(sum of two dice = 7) with 50,000 simulations. The theoretical answer is 6/36 ≈ 0.1667 (six ways to make 7 out of 36 possible outcomes).
 
-```r
+```r title="Exercise: Probability of sum seven"
 # Try it: P(sum of two dice = 7)
 set.seed(404)
 ex_die1 <- sample(1:6, size = 50000, replace = TRUE)
@@ -249,7 +249,7 @@ cat("Simulated P(sum=7) =", ex_p_seven, "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sum of seven solution"
 set.seed(404)
 ex_die1 <- sample(1:6, size = 50000, replace = TRUE)
 ex_die2 <- sample(1:6, size = 50000, replace = TRUE)
@@ -273,7 +273,7 @@ $$P(A) \geq 0 \quad \text{for every event } A$$
 
 Let's check it exhaustively. We'll simulate 100,000 die rolls and compute the probability for every event we can think of, including an impossible one.
 
-```r
+```r title="Verify axiom 1 non-negativity"
 # Verify Axiom 1: every event probability >= 0
 set.seed(501)
 rolls <- sample(1:6, size = 100000, replace = TRUE)
@@ -316,7 +316,7 @@ Every single probability is at least zero. The impossible event "roll a 7" gets 
 
 **Try it:** Simulate drawing from a standard deck of 52 cards (represented as numbers 1 through 52). Verify that P(draw card 53) = 0 and P(draw any card from 1 to 52) > 0.
 
-```r
+```r title="Exercise: Non-negativity on card deck"
 # Try it: deck of cards — non-negativity check
 set.seed(502)
 ex_deck <- 1:52
@@ -334,7 +334,7 @@ cat("P(card 1-52) =", ex_p_any, " (should be > 0)\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Card deck non-negativity solution"
 set.seed(502)
 ex_deck <- 1:52
 ex_draws2 <- sample(ex_deck, size = 50000, replace = TRUE)
@@ -359,7 +359,7 @@ $$P(S) = 1$$
 
 This axiom ties probability to certainty. It's the reason we can say "there's a 30% chance of rain" and implicitly know there's a 70% chance of no rain, because the total must be 100%.
 
-```r
+```r title="Verify axiom 2 normalization"
 # Verify Axiom 2: P(S) = 1
 set.seed(601)
 n <- 100000
@@ -391,7 +391,7 @@ Both checks confirm axiom 2. The six individual face probabilities sum to exactl
 
 **Try it:** Flip 3 coins (8 possible outcomes: HHH, HHT, HTH, HTT, THH, THT, TTH, TTT). Simulate 50,000 trials and verify that the probabilities of all 8 outcomes sum to 1.
 
-```r
+```r title="Exercise: Three coins normalization"
 # Try it: three coin flips — verify P(S) = 1
 set.seed(602)
 ex_outcomes <- c("HHH","HHT","HTH","HTT","THH","THT","TTH","TTT")
@@ -405,7 +405,7 @@ ex_flips3 <- sample(ex_outcomes, size = 50000, replace = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three coins normalization solution"
 set.seed(602)
 ex_outcomes <- c("HHH","HHT","HTH","HTT","THH","THT","TTH","TTT")
 ex_flips3 <- sample(ex_outcomes, size = 50000, replace = TRUE)
@@ -432,7 +432,7 @@ $$\text{If } A \cap B = \emptyset, \quad P(A \cup B) = P(A) + P(B)$$
 
 Two events are disjoint (mutually exclusive) when they share no outcomes. "Roll a 1 or 2" and "roll a 5 or 6" can't both happen on the same roll, they're disjoint.
 
-```r
+```r title="Verify axiom 3 two disjoint events"
 # Verify Axiom 3: additivity for disjoint events
 set.seed(701)
 n <- 100000
@@ -462,7 +462,7 @@ The sum P(A) + P(B) equals P(A ∪ B) exactly (to floating-point precision). Tha
 
 Axiom 3 extends to any number of mutually exclusive events. Let's verify it with three disjoint sets.
 
-```r
+```r title="Axiom 3 with three disjoint events"
 # Extend to 3 disjoint events
 C <- c(3)
 p_C    <- mean(rolls_ax3 %in% C)
@@ -483,7 +483,7 @@ Three disjoint events, same result. The additivity axiom scales to any number of
 
 **Try it:** Define event A = rolling an even number {2,4,6} and event B = rolling a 5. Confirm these are disjoint (no shared outcomes), then verify axiom 3 using the `rolls_ax3` simulation.
 
-```r
+```r title="Exercise: Even numbers versus five"
 # Try it: even numbers vs rolling a 5
 ex_A_even <- c(2, 4, 6)
 ex_B_five <- 5
@@ -499,7 +499,7 @@ cat("Shared outcomes:", ex_shared, "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Even versus five solution"
 ex_A_even <- c(2, 4, 6)
 ex_B_five <- 5
 
@@ -530,7 +530,7 @@ If event A is "roll an even number," then A' (the complement) is "roll an odd nu
 
 $$P(A') = 1 - P(A)$$
 
-```r
+```r title="Derive the complement rule"
 # Derived Rule 1: Complement rule
 p_even_r <- mean(rolls_ax3 %in% c(2, 4, 6))
 p_odd_r  <- mean(rolls_ax3 %in% c(1, 3, 5))
@@ -555,7 +555,7 @@ When events overlap, you can't just add their probabilities, you'd double-count 
 
 $$P(A \cup B) = P(A) + P(B) - P(A \cap B)$$
 
-```r
+```r title="Derive inclusion-exclusion rule"
 # Derived Rule 2: Inclusion-exclusion for overlapping events
 A2 <- c(1, 2, 3)
 B2 <- c(3, 4, 5)
@@ -583,7 +583,7 @@ If event A is a subset of event B (every outcome in A is also in B), then A can'
 
 $$A \subseteq B \implies P(A) \leq P(B)$$
 
-```r
+```r title="Derive monotonicity rule"
 # Derived Rule 3: Monotonicity
 small <- c(6)         # subset
 big   <- c(5, 6)      # superset
@@ -607,7 +607,7 @@ Rolling a 6 is a subset of rolling a 5 or 6. The probability of the smaller even
 
 **Try it:** Use the complement rule to estimate P(at least one 6 in 4 die rolls) via simulation. Hint: P(at least one 6) = 1 - P(no sixes in 4 rolls).
 
-```r
+```r title="Exercise: At least one six"
 # Try it: complement rule — at least one 6 in 4 rolls
 set.seed(703)
 ex_n <- 100000
@@ -629,7 +629,7 @@ cat("Complement: P(≥1 six) =", ex_p_complement, "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="At least one six solution"
 set.seed(703)
 ex_n <- 100000
 ex_roll_matrix <- matrix(sample(1:6, size = ex_n * 4, replace = TRUE),
@@ -659,7 +659,7 @@ cat("Theoretical: 1-(5/6)^4 =", round(1 - (5/6)^4, 5), "\n")
 
 Simulate rolling two dice 100,000 times. Define event A = "sum is 7" and event B = "sum is 11." Verify: (a) A and B are disjoint, (b) axiom 3 holds (P(A ∪ B) = P(A) + P(B)), and (c) the complement rule gives P(sum is neither 7 nor 11) = 1 - P(A ∪ B).
 
-```r
+```r title="Exercise 1: Two dice additivity"
 # Exercise 1: two dice — axiom 3 + complement
 set.seed(801)
 
@@ -673,7 +673,7 @@ set.seed(801)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two dice additivity solution"
 set.seed(801)
 my_d1 <- sample(1:6, 100000, replace = TRUE)
 my_d2 <- sample(1:6, 100000, replace = TRUE)
@@ -703,7 +703,7 @@ cat("    Theory: 1 - 8/36 =", round(1 - 8/36, 5), "\n")
 
 A standard deck has 52 cards (4 suits × 13 ranks). Simulate 100,000 single-card draws. Verify the inclusion-exclusion formula: P(Heart OR Face card) = P(Heart) + P(Face card) - P(Heart AND Face card). Compare your simulated values to the theoretical ones (13/52 + 12/52 - 3/52 = 22/52).
 
-```r
+```r title="Exercise 2: Card inclusion-exclusion"
 # Exercise 2: card deck — inclusion-exclusion
 set.seed(802)
 
@@ -716,7 +716,7 @@ set.seed(802)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Card inclusion-exclusion solution"
 set.seed(802)
 my_cards <- 1:52
 my_draws <- sample(my_cards, 100000, replace = TRUE)
@@ -760,7 +760,7 @@ Write a function `verify_axioms(sample_space, event_a, event_b, n_sims)` that:
 
 Test it on a die roll (A = {1}, B = {6}) and a coin flip (A = "H", B = "T").
 
-```r
+```r title="Exercise 3: Build verifyaxioms"
 # Exercise 3: write verify_axioms()
 verify_axioms <- function(sample_space, event_a, event_b, n_sims = 100000) {
   # Hint: use sample(), mean(), %in%, intersect()
@@ -777,7 +777,7 @@ verify_axioms <- function(sample_space, event_a, event_b, n_sims = 100000) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="verifyaxioms function solution"
 verify_axioms <- function(sample_space, event_a, event_b, n_sims = 100000) {
   if (length(intersect(event_a, event_b)) > 0) {
     cat("Events are NOT disjoint — axiom 3 test skipped.\n")
@@ -823,7 +823,7 @@ verify_axioms(c("H", "T"), event_a = "H", event_b = "T")
 
 Let's run a complete probability experiment from start to finish with a biased coin where P(Heads) = 0.6. We'll define the sample space, set up events, and systematically verify all three axioms plus the complement rule.
 
-```r
+```r title="End-to-end biased coin experiment"
 # Complete Example: biased coin (P(H) = 0.6)
 set.seed(901)
 n_trials <- 100000

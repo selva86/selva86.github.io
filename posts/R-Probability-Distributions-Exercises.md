@@ -23,7 +23,7 @@ difficulty: Intermediate
 
 Every distribution in R ships with four functions that share a prefix-plus-name pattern: `d` for density, `p` for the cumulative probability, `q` for the quantile (inverse of `p`), and `r` for random samples. Swap the name, `norm`, `binom`, `pois`, `t`, `chisq`, and the same four prefixes work. That single idea powers every problem below. Watch all four act on one example: adult male heights, modelled as normal with mean 69 inches and standard deviation 3 inches.
 
-```r
+```r title="Heights with d p q r prefixes"
 mu    <- 69
 sigma <- 3
 
@@ -54,7 +54,7 @@ The density `0.1258` is the height of the bell curve at 70 inches, not a probabi
 
 **Try it:** For the same height distribution N(69, 3), compute the density at 72 inches using `dnorm()`. Store the result in `p1_density`.
 
-```r
+```r title="Exercise: density at seventy two inches"
 # Problem 1: dnorm at x = 72, mu = 69, sigma = 3
 p1_density <- # your code here
 p1_density
@@ -64,7 +64,7 @@ p1_density
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Density at seventy two solution"
 p1_density <- dnorm(72, mean = 69, sd = 3)
 p1_density
 #> [1] 0.0807
@@ -78,7 +78,7 @@ p1_density
 
 **Try it:** What fraction of men are 75 inches or shorter on the same N(69, 3) distribution? Store the answer in `p2_prob`.
 
-```r
+```r title="Exercise: cumulative probability at seventy five"
 # Problem 2: P(height <= 75)
 p2_prob <- # your code here
 p2_prob
@@ -88,7 +88,7 @@ p2_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cumulative at seventy five solution"
 p2_prob <- pnorm(75, mean = 69, sd = 3)
 p2_prob
 #> [1] 0.9772
@@ -102,7 +102,7 @@ p2_prob
 
 **Try it:** Find the 90th percentile of heights on N(69, 3), the height below which 90% of men fall. Store it in `p3_quantile`.
 
-```r
+```r title="Exercise: ninetieth percentile of heights"
 # Problem 3: 90th percentile of N(69, 3)
 p3_quantile <- # your code here
 p3_quantile
@@ -112,7 +112,7 @@ p3_quantile
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ninetieth percentile solution"
 p3_quantile <- qnorm(0.90, mean = 69, sd = 3)
 p3_quantile
 #> [1] 72.8446
@@ -126,7 +126,7 @@ p3_quantile
 
 Most real distributions aren't standard normal, they have their own mean and spread. The same `pnorm()` handles them with no extra work; you just pass `mean` and `sd`. For a range like "between 600 and 700", subtract two `pnorm()` calls. For upper tails like "at least 45 minutes", use `lower.tail = FALSE`, it's more numerically stable than `1 - pnorm(...)` when you're far out in the tail. Here's the between-pattern on SAT scores modelled as N(500, 100).
 
-```r
+```r title="SAT scores between six and seven hundred"
 # SAT scores: N(500, 100). What fraction scored between 600 and 700?
 sat_between <- pnorm(700, 500, 100) - pnorm(600, 500, 100)
 sat_between
@@ -142,7 +142,7 @@ sat_between
 
 **Try it:** IQ scores are modelled as N(100, 15). What fraction of people have IQs between 90 and 110? Store the answer in `p4_prob`.
 
-```r
+```r title="Exercise: IQ between ninety and one ten"
 # Problem 4: P(90 <= IQ <= 110) on N(100, 15)
 p4_prob <- # your code here
 p4_prob
@@ -152,7 +152,7 @@ p4_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="IQ interval solution"
 p4_prob <- pnorm(110, 100, 15) - pnorm(90, 100, 15)
 p4_prob
 #> [1] 0.4950
@@ -166,7 +166,7 @@ p4_prob
 
 **Try it:** Commute times are modelled as N(35, 8) minutes. What fraction of commutes last longer than 45 minutes? Use `lower.tail = FALSE`. Store the answer in `p5_prob`.
 
-```r
+```r title="Exercise: commute probability upper tail"
 # Problem 5: P(commute > 45) on N(35, 8) using lower.tail = FALSE
 p5_prob <- # your code here
 p5_prob
@@ -176,7 +176,7 @@ p5_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Upper tail commute solution"
 p5_prob <- pnorm(45, mean = 35, sd = 8, lower.tail = FALSE)
 p5_prob
 #> [1] 0.1056
@@ -190,7 +190,7 @@ p5_prob
 
 **Try it:** For the same commute distribution N(35, 8), find the commute duration above which only the slowest 5% of commutes fall. Store the answer in `p6_threshold`.
 
-```r
+```r title="Exercise: commute threshold at five percent"
 # Problem 6: threshold T such that P(commute > T) = 0.05
 p6_threshold <- # your code here
 p6_threshold
@@ -200,7 +200,7 @@ p6_threshold
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Commute threshold solution"
 p6_threshold <- qnorm(0.95, mean = 35, sd = 8)
 p6_threshold
 #> [1] 48.1588
@@ -214,7 +214,7 @@ p6_threshold
 
 The binomial distribution models the count of successes in a fixed number of independent trials, each with the same success probability. The R parameters are `size` (number of trials) and `prob` (success probability). Because the counts are discrete, `dbinom` returns an actual probability, `P(X = k)`, not a density. `pbinom(k, ...)` returns `P(X ≤ k)`, inclusive of `k`. Here's a basketball free-throw example with ten attempts at 70% accuracy.
 
-```r
+```r title="Free throws exact and at most"
 # 10 free throws, p = 0.7
 # P(exactly 8 made) and P(at most 5 made)
 ft_exact8   <- dbinom(8, size = 10, prob = 0.7)
@@ -233,7 +233,7 @@ c(ft_exact8, ft_atmost5)
 
 **Try it:** A fair coin is tossed 10 times. What is the probability of exactly 3 heads? Store the answer in `p7_prob`.
 
-```r
+```r title="Exercise: exactly three heads in ten tosses"
 # Problem 7: P(exactly 3 heads in 10 tosses)
 p7_prob <- # your code here
 p7_prob
@@ -243,7 +243,7 @@ p7_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exactly three heads solution"
 p7_prob <- dbinom(3, size = 10, prob = 0.5)
 p7_prob
 #> [1] 0.1172
@@ -257,7 +257,7 @@ p7_prob
 
 **Try it:** A factory produces widgets with a 10% defective rate. In a batch of 20, what is the probability of finding 4 or fewer defectives? Store the answer in `p8_prob`.
 
-```r
+```r title="Exercise: at most four defectives"
 # Problem 8: P(at most 4 defectives in batch of 20, p = 0.10)
 p8_prob <- # your code here
 p8_prob
@@ -267,7 +267,7 @@ p8_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="At most four defectives solution"
 p8_prob <- pbinom(4, size = 20, prob = 0.10)
 p8_prob
 #> [1] 0.9568
@@ -281,7 +281,7 @@ p8_prob
 
 The Poisson distribution models counts of events that occur independently at a known average rate per unit time (or area, or volume). Its single parameter `lambda` is both the mean and the variance. R uses `dpois` for exact counts and `ppois` for cumulative. Here's a call-centre example at 12 calls per hour.
 
-```r
+```r title="Call centre exact and upper tail"
 # Call centre: lambda = 12 calls/hour
 # P(exactly 15 calls) and P(more than 20 calls)
 cc_exact15    <- dpois(15, lambda = 12)
@@ -297,7 +297,7 @@ c(cc_exact15, cc_morethan20)
 
 **Try it:** You receive on average 3 work emails per hour. Assuming a Poisson arrival process, what is the probability of receiving exactly 4 emails in the next hour? Store the answer in `p9_prob`.
 
-```r
+```r title="Exercise: exactly four emails"
 # Problem 9: P(exactly 4 emails) when lambda = 3
 p9_prob <- # your code here
 p9_prob
@@ -307,7 +307,7 @@ p9_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exactly four emails solution"
 p9_prob <- dpois(4, lambda = 3)
 p9_prob
 #> [1] 0.1680
@@ -321,7 +321,7 @@ p9_prob
 
 **Try it:** A town records on average 5 traffic accidents per week. What is the probability of more than 7 accidents in any given week? Store the answer in `p10_prob`.
 
-```r
+```r title="Exercise: more than seven events"
 # Problem 10: P(X > 7) when lambda = 5, using lower.tail = FALSE
 p10_prob <- # your code here
 p10_prob
@@ -331,7 +331,7 @@ p10_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="More than seven events solution"
 p10_prob <- ppois(7, lambda = 5, lower.tail = FALSE)
 p10_prob
 #> [1] 0.1334
@@ -345,7 +345,7 @@ p10_prob
 
 Hypothesis tests and confidence intervals need *critical values*, cutoffs that separate the typical from the extreme under a null distribution. The q-functions return them directly. `qt(p, df)` gives t critical values for any degrees of freedom, and `qchisq(p, df)` does the same for chi-squared. For a two-sided CI at confidence level `level`, pass `(1 + level) / 2` as the probability, you want the tail `(1 - level)/2` on *each* side.
 
-```r
+```r title="t critical and chi squared critical"
 # t critical for two-sided 95% CI, df = 24
 t_crit_95     <- qt(0.975, df = 24)
 
@@ -365,7 +365,7 @@ The t critical `2.0639` says: a 95% CI on a mean with 24 degrees of freedom exte
 
 **Try it:** Find the t critical value for a two-sided 99% confidence interval with 15 degrees of freedom. Store it in `p11_crit`.
 
-```r
+```r title="Exercise: t critical at ninety nine percent"
 # Problem 11: t critical for two-sided 99% CI, df = 15
 p11_crit <- # your code here
 p11_crit
@@ -375,7 +375,7 @@ p11_crit
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="t critical solution"
 p11_crit <- qt(0.995, df = 15)
 p11_crit
 #> [1] 2.9467
@@ -389,7 +389,7 @@ p11_crit
 
 **Try it:** Find the chi-squared critical value for an upper-tail test at α = 0.01 with 8 degrees of freedom. Store it in `p12_crit`.
 
-```r
+```r title="Exercise: chi squared critical at one percent"
 # Problem 12: chi-squared critical for alpha = 0.01, df = 8
 p12_crit <- # your code here
 p12_crit
@@ -399,7 +399,7 @@ p12_crit
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Chi squared critical solution"
 p12_crit <- qchisq(0.99, df = 8)
 p12_crit
 #> [1] 20.0902
@@ -417,7 +417,7 @@ These two capstone problems combine multiple concepts from the tutorial above. S
 
 Simulate 30 observations from N(50, 10) with `set.seed(2026)`. Compute a 95% confidence interval for the mean using the sample mean, sample standard deviation, and a t critical value. Store the lower and upper bounds in `cap1_ci` as a numeric vector of length 2.
 
-```r
+```r title="Exercise: confidence interval for sample mean"
 # Capstone 1: 95% CI for a sample mean
 set.seed(2026)
 cap1_sample <- rnorm(30, mean = 50, sd = 10)
@@ -431,7 +431,7 @@ cap1_ci
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Confidence interval solution"
 set.seed(2026)
 cap1_sample <- rnorm(30, mean = 50, sd = 10)
 
@@ -457,7 +457,7 @@ The recipe:
 1. Find the rejection threshold $\bar{x}^{*}$ on the sample-mean scale under $H_0$ using `qnorm()`.
 2. Compute the probability that the sample mean exceeds $\bar{x}^{*}$ under $H_1$ using `pnorm(..., lower.tail = FALSE)`.
 
-```r
+```r title="Exercise: power of one sided z test"
 # Capstone 2: power of a one-sided z-test
 sigma <- 15
 n     <- 25
@@ -473,7 +473,7 @@ cap2_power
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Power of z test solution"
 sigma <- 15
 n     <- 25
 mu0   <- 100
@@ -495,7 +495,7 @@ cap2_power
 
 End-to-end scenario combining three of the skills from this tutorial. A factory produces bolts whose diameters are normally distributed with mean 10 mm and standard deviation 0.1 mm. The spec window is 9.8–10.2 mm. Management asks three questions: (a) what fraction of bolts are in-spec, (b) if we sample 50 bolts, what's the probability that none are out of spec, and (c) at what diameter does the upper 1% of bolts start?
 
-```r
+```r title="End-to-end bolt factory quality check"
 # Factory diameters: N(10, 0.1). Spec window: 9.8 to 10.2.
 mu_d    <- 10
 sigma_d <- 0.1

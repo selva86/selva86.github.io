@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The error fires when `[[` or a matrix subscript asks for an index that is not there. R raises an error instead of silently returning `NA`, so you know something is wrong, but the message does not tell you *which* index is the culprit. The fastest way to learn the pattern is to trigger the error on purpose and read the size of the object that rejected you.
 
-```r
+```r title="Reproduce the out-of-bounds error"
 # A vector of three exam scores
 scores <- c(88, 92, 75)
 length(scores)
@@ -43,7 +43,7 @@ The vector has 3 elements, so slot 5 does not exist. `[[` is designed to extract
 
 **Try it:** Trigger the error yourself on a length-4 vector by asking for index 10. Wrap the call in `tryCatch()` so the page keeps running.
 
-```r
+```r title="Exercise: trigger with double brackets"
 ex_v <- c(10, 20, 30, 40)
 
 # Replace NULL with an expression that triggers the error on ex_v
@@ -58,7 +58,7 @@ ex_err
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Double-bracket error solution"
 ex_v <- c(10, 20, 30, 40)
 ex_err <- tryCatch(
   ex_v[[10]],
@@ -76,7 +76,7 @@ ex_err
 
 Three combinations of operator and object raise "subscript out of bounds": `[[` on a vector or list, a matrix row/column subscript, and a data.frame row subscript. Each one rejects an impossible index the same way, but the shape you need to compare against is different.
 
-```r
+```r title="Three operators that throw"
 # Case 1: double brackets on a short vector
 nums <- c(1, 2, 3)
 tryCatch(nums[[4]], error = function(e) message("vector: ", conditionMessage(e)))
@@ -102,7 +102,7 @@ Notice what single-bracket indexing would do in the vector case: `nums[4]` retur
 
 **Try it:** Build a 2x2 matrix and trigger the error by asking for row 3. Save the error message to `ex_mat_err`.
 
-```r
+```r title="Exercise: matrix row out of range"
 ex_mat <- matrix(1:4, nrow = 2, ncol = 2)
 
 # Replace NULL with a subscript that asks for row 3
@@ -117,7 +117,7 @@ ex_mat_err
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Matrix-row error solution"
 ex_mat <- matrix(1:4, nrow = 2, ncol = 2)
 ex_mat_err <- tryCatch(
   ex_mat[3, 1],
@@ -141,7 +141,7 @@ The error message in R is famously uninformative, it never tells you which index
 
 Let's wrap that recipe in a small helper you can paste into any debugging session. It prints the object's shape, the index you passed, and a clear "out of bounds by how much" verdict.
 
-```r
+```r title="Diagnose the bad subscript"
 diagnose_subscript <- function(x, i) {
   if (is.null(dim(x))) {
     n <- length(x)
@@ -172,7 +172,7 @@ Read the output line by line. The vector has length 3, you asked for 5, you are 
 
 **Try it:** Print the length of your object and your attempted index side by side in one line so you can see the mismatch immediately.
 
-```r
+```r title="Exercise: print length and index"
 ex_v2 <- c(1, 2, 3, 4, 5)
 ex_i <- 9
 
@@ -184,7 +184,7 @@ ex_i <- 9
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Length-and-index solution"
 ex_v2 <- c(1, 2, 3, 4, 5)
 ex_i <- 9
 cat("length=", length(ex_v2), " index=", ex_i, "\n", sep = "")
@@ -199,7 +199,7 @@ cat("length=", length(ex_v2), " index=", ex_i, "\n", sep = "")
 
 The single most common trigger in real R code is a loop that writes `1:length(x)`. It looks correct for a non-empty vector, but the moment `length(x)` is zero, `1:0` expands to `c(1, 0)`, two iterations on an empty object, and the first `x[[1]]` crashes. `seq_along(x)` solves it in one word.
 
-```r
+```r title="The 1:length(x) off-by-one trap"
 # The trap: 1:length(x) when x is empty
 empty <- integer(0)
 1:length(empty)
@@ -235,7 +235,7 @@ safe_sum(c(3, 4, 5))
 
 **Try it:** Rewrite the body of `ex_loop` to use `seq_along(ex_xs)` instead of `1:length(ex_xs)`, and confirm it returns 0 for an empty vector.
 
-```r
+```r title="Exercise: safe loop with seqalong"
 ex_xs <- integer(0)
 
 ex_loop <- function(xs) {
@@ -253,7 +253,7 @@ ex_loop(c(10, 20, 30))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="seqalong loop solution"
 ex_xs <- integer(0)
 
 ex_loop <- function(xs) {
@@ -276,7 +276,7 @@ ex_loop(c(10, 20, 30))
 
 Once you know which lines can trip, you wrap them in a guard. Three patterns cover almost every real case: an inline `if (i <= length(x))` check, a reusable `safe_get()` helper that returns a default, and `purrr::pluck()` for deeply nested lists.
 
-```r
+```r title="Bounds-checking safeget helper"
 # A helper that returns a default instead of crashing
 safe_get <- function(x, i, default = NA) {
   if (is.na(i) || i < 1 || i > length(x)) default else x[[i]]
@@ -301,7 +301,7 @@ The design rule is *crash at the edges, trust the middle*: validate indices at t
 
 **Try it:** Write `ex_get(x, i)` that returns `"bad index"` when `i` is `NA` or out of range, otherwise returns `x[[i]]`.
 
-```r
+```r title="Exercise: write exget helper"
 ex_get <- function(x, i) {
   # your code here
 }
@@ -317,7 +317,7 @@ ex_get(c("a", "b", "c"), NA)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="exget helper solution"
 ex_get <- function(x, i) {
   if (is.na(i) || i < 1 || i > length(x)) "bad index" else x[[i]]
 }
@@ -340,7 +340,7 @@ ex_get(c("a", "b", "c"), NA)
 
 The function below looks for pairs of numbers that sum to `target`. It works on normal input but crashes with "subscript out of bounds" when `x` has 0 or 1 elements. Find the bug and fix it. Your fix should return an empty list (not crash) for inputs shorter than 2.
 
-```r
+```r title="Exercise: fix findpairs function"
 # Broken version — do not change the signature
 find_pairs <- function(x, target) {
   pairs <- list()
@@ -365,7 +365,7 @@ find_pairs <- function(x, target) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="findpairs fix solution"
 find_pairs <- function(x, target) {
   my_pairs <- list()
   n <- length(x)
@@ -397,7 +397,7 @@ length(find_pairs(integer(0), 10))
 
 Write `explain_bounds(expr, x)` that runs `expr` (passed as a quoted R expression), catches any "subscript out of bounds" error, and prints the shape of `x` plus the exact error message. If `expr` runs without error, it should return the result. Use `tryCatch()` and `eval()`.
 
-```r
+```r title="Exercise: explainbounds diagnostic"
 # Expected:
 # explain_bounds(quote(scores[[5]]), scores)
 #   should print: "length=3, index attempted: 5" and return NULL
@@ -411,7 +411,7 @@ Write `explain_bounds(expr, x)` that runs `expr` (passed as a quoted R expressio
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="explainbounds solution"
 explain_bounds <- function(expr, x) {
   tryCatch(
     eval(expr),
@@ -441,7 +441,7 @@ explain_bounds(quote(scores[[2]]), scores)
 
 Let's combine every pattern from this post into one utility you can reuse: a function that extracts a row from a data.frame and returns a row of `NA`s if the index is out of bounds. It guards against `NA` indices, negative indices, and indices past `nrow()`.
 
-```r
+```r title="Safe row extraction from data frame"
 safe_row <- function(df, i) {
   na_row <- df[1, ]
   na_row[] <- NA

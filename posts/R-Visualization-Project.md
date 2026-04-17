@@ -25,7 +25,7 @@ difficulty: "Intermediate"
 
 The Economist's data team produces some of the most recognizable charts in journalism, clean scatter plots with a light blue-gray background, minimal gridlines, and bold titles positioned above the plot area. In this first project, you'll reproduce that signature look using the `mpg` dataset.
 
-```r
+```r title="Economist-style engine-vs-MPG scatter"
 library(ggplot2)
 library(dplyr)
 library(scales)
@@ -84,7 +84,7 @@ Let's break down the three key theme elements that do the heavy lifting.
 
 **Try it:** Modify the scatter plot to show `cty` (city MPG) on the y-axis instead of `hwy`, and add a subtitle that describes the city driving pattern.
 
-```r
+```r title="Exercise: switch to city MPG"
 # Try it: switch to city MPG
 # Hint: change aes(y = ...) and update the subtitle text
 ggplot(mpg, aes(x = displ, y = cty, color = class)) +
@@ -98,7 +98,7 @@ ggplot(mpg, aes(x = displ, y = cty, color = class)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="City-MPG solution"
 ggplot(mpg, aes(x = displ, y = cty, color = class)) +
   geom_point(size = 2.5, alpha = 0.8) +
   scale_color_manual(values = c(
@@ -143,7 +143,7 @@ ggplot(mpg, aes(x = displ, y = cty, color = class)) +
 
 FiveThirtyEight's charts are the opposite of flashy, a light gray background, no axis lines, no borders, bold headlines, and muted single-color fills. The design philosophy is "get out of the way and let the data speak." Let's recreate that with a bar chart showing vehicle class counts.
 
-```r
+```r title="FiveThirtyEight-style bar chart"
 class_counts <- mpg |>
   count(class) |>
   mutate(class = reorder(class, n))
@@ -188,7 +188,7 @@ The color choice is deliberate too. FiveThirtyEight typically uses a single stro
 
 **Try it:** Flip the bar chart to horizontal orientation and highlight the tallest bar ("suv") in a darker shade while keeping the rest in the standard blue.
 
-```r
+```r title="Exercise: horizontal bars with highlight"
 # Try it: horizontal bars with highlight
 # Hint: use coord_flip() and ifelse() inside aes(fill = ...)
 ggplot(class_counts, aes(x = class, y = n)) +
@@ -202,7 +202,7 @@ ggplot(class_counts, aes(x = class, y = n)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Highlighted-bars solution"
 ggplot(class_counts, aes(x = class, y = n,
                          fill = ifelse(class == "suv", "highlight", "normal"))) +
   geom_col(width = 0.7) +
@@ -240,7 +240,7 @@ ggplot(class_counts, aes(x = class, y = n,
 
 Scientific journals demand a specific aesthetic: white backgrounds, minimal decoration, black or gray color schemes, and properly labeled axes with units. Reviewers will reject figures with rainbow palettes or missing axis labels. Let's build one using the `iris` dataset.
 
-```r
+```r title="Journal-ready iris scatter"
 ggplot(iris, aes(x = Petal.Length, y = Petal.Width, color = Species, shape = Species)) +
   geom_point(size = 2, alpha = 0.7) +
   scale_color_manual(values = c(
@@ -285,7 +285,7 @@ The grayscale palette isn't just an aesthetic choice, many journals still print 
 
 **Try it:** Add a linear regression line for each species using `geom_smooth()`, and move the legend from upper-left to bottom-right.
 
-```r
+```r title="Exercise: regression lines and legend"
 # Try it: add regression lines + move legend
 # Hint: geom_smooth(method = "lm", se = FALSE) and legend.position = c(x, y)
 ggplot(iris, aes(x = Petal.Length, y = Petal.Width, color = Species)) +
@@ -299,7 +299,7 @@ ggplot(iris, aes(x = Petal.Length, y = Petal.Width, color = Species)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Regression-lines solution"
 ggplot(iris, aes(x = Petal.Length, y = Petal.Width,
                  color = Species, shape = Species)) +
   geom_point(size = 2, alpha = 0.7) +
@@ -330,7 +330,7 @@ ggplot(iris, aes(x = Petal.Length, y = Petal.Width,
 
 The New York Times data visualization team pioneered a style where annotations replace legends entirely. Instead of a color key off to the side, labels sit directly on or next to the data lines. The result is a chart that reads like a paragraph, your eye follows the line and picks up context as it goes. Let's recreate this with unemployment data.
 
-```r
+```r title="NYT annotated unemployment chart"
 recessions <- data.frame(
   start = as.Date(c("2001-03-01", "2007-12-01")),
   end = as.Date(c("2001-11-01", "2009-06-01")),
@@ -393,7 +393,7 @@ Three techniques make this chart feel like the NYT. First, `geom_rect()` draws s
 
 **Try it:** Add an annotation with an arrow pointing to the lowest unemployment point in the 1995-2015 window. Use `annotate("segment")` to draw the arrow.
 
-```r
+```r title="Exercise: annotate the minimum"
 # Try it: annotate the minimum unemployment point
 # Hint: find the min, then use annotate("segment", ..., arrow = arrow())
 # and annotate("text", ...) to label it
@@ -404,7 +404,7 @@ Three techniques make this chart feel like the NYT. First, `geom_rect()` draws s
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Min-annotation solution"
 econ_subset <- economics |>
   filter(date >= as.Date("1995-01-01") & date <= as.Date("2015-06-01"))
 min_point <- econ_subset |> filter(unemploy == min(unemploy))
@@ -449,7 +449,7 @@ ggplot(econ_subset, aes(x = date, y = unemploy / 1000)) +
 
 Lollipop charts are bar charts' sleeker cousin, a thin segment topped with a dot. They work especially well when you have many categories with similar values, because the dots are easier to compare than thick bar edges. Modern data journalism sites use them frequently for rankings. Let's build one with the top 15 most fuel-efficient cars in `mtcars`.
 
-```r
+```r title="Lollipop chart for top MPG cars"
 top_cars <- mtcars |>
   mutate(car = rownames(mtcars)) |>
   arrange(desc(mpg)) |>
@@ -505,7 +505,7 @@ The highlight strategy is key to data journalism. Instead of coloring all 15 car
 
 **Try it:** Instead of highlighting just the top car, highlight the top 3 cars in red and keep the rest in blue.
 
-```r
+```r title="Exercise: highlight top three"
 # Try it: highlight top 3 cars
 # Hint: change the ifelse() condition to use rank() or row_number()
 top_cars <- mtcars |>
@@ -523,7 +523,7 @@ top_cars <- mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top-three solution"
 ex_top_cars <- mtcars |>
   mutate(car = rownames(mtcars)) |>
   arrange(desc(mpg)) |>
@@ -576,7 +576,7 @@ Create an Economist-style box plot showing highway MPG (`hwy`) by vehicle `class
 - Add a subtitle and source caption
 - Use a single fill color (`#01a2d9`) for all boxes
 
-```r
+```r title="Exercise: Economist-style box plot"
 # Exercise 1: Economist-style box plot
 # Hint: reorder(class, hwy, FUN = median) sorts by median
 # Hint: coord_flip() makes horizontal boxes easier to read
@@ -588,7 +588,7 @@ Create an Economist-style box plot showing highway MPG (`hwy`) by vehicle `class
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Box-plot solution"
 ggplot(mpg, aes(x = reorder(class, hwy, FUN = median), y = hwy)) +
   geom_boxplot(fill = "#01a2d9", color = "#014d64", alpha = 0.8,
                outlier.color = "#c23b22", outlier.size = 2) +
@@ -629,7 +629,7 @@ ggplot(mpg, aes(x = reorder(class, hwy, FUN = median), y = hwy)) +
 
 Create a two-panel figure using `mpg` data. The left panel is a FiveThirtyEight-style bar chart of average highway MPG by class. The right panel is a journal-style scatter plot of `displ` vs `hwy`. Arrange them side by side using `gridExtra::grid.arrange()` or by saving each plot to a variable and printing them.
 
-```r
+```r title="Exercise: two-panel figure"
 # Exercise 2: Two-panel figure
 # Hint: save each ggplot to a variable (p1, p2)
 # Hint: print them separately since WebR renders one plot at a time
@@ -643,7 +643,7 @@ Create a two-panel figure using `mpg` data. The left panel is a FiveThirtyEight-
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-panel solution part one"
 # Panel 1: FiveThirtyEight-style bar chart
 my_means <- mpg |>
   group_by(class) |>
@@ -670,7 +670,7 @@ print(my_p1)
 #> Compact class has the highest average (~28 MPG).
 ```
 
-```r
+```r title="Two-panel solution part two"
 # Panel 2: Journal-style scatter plot
 my_p2 <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(size = 1.8, alpha = 0.6, color = "black") +
@@ -697,7 +697,7 @@ print(my_p2)
 
 Using the `economics` dataset, create an NYT-style chart that shows both unemployment count (`unemploy`) and personal savings rate (`psavert`) over the 2000-2015 period. Since these have different scales, normalize both to a 0-1 range so they can share the y-axis. Add recession shading and direct labels for each line (no legend).
 
-```r
+```r title="Exercise: dual-metric time series"
 # Exercise 3: Dual-metric annotated time series
 # Hint: use scale() or rescale to a 0-1 range
 # Hint: annotate() with text labels at the right end of each line
@@ -710,7 +710,7 @@ Using the `economics` dataset, create an NYT-style chart that shows both unemplo
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dual-metric solution"
 my_econ <- economics |>
   filter(date >= as.Date("2000-01-01") & date <= as.Date("2015-01-01")) |>
   mutate(
@@ -769,7 +769,7 @@ ggplot(my_econ, aes(x = date)) +
 
 Let's build one more chart from a blank canvas to a polished final product, applying everything you've learned. We'll create an Economist-style grouped bar chart showing average highway MPG by vehicle class, comparing 1999 vs 2008 model years.
 
-```r
+```r title="Economist-style grouped bar chart"
 year_class <- mpg |>
   group_by(year, class) |>
   summarise(avg_hwy = mean(hwy), .groups = "drop") |>

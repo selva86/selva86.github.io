@@ -34,7 +34,7 @@ The `treemapify` package integrates with ggplot2, so all your usual theme, scale
 
 `treemapify` works as a ggplot2 extension. Load both packages, build a data frame, and use `geom_treemap()` with an `area` aesthetic.
 
-```r
+```r title="Build a basic market-share treemap"
 library(ggplot2)
 library(treemapify)
 
@@ -65,7 +65,7 @@ The `area` aesthetic is the only required aesthetic, it controls the tile size. 
 
 `geom_treemap_text()` automatically resizes labels to fit inside each tile, small tiles get smaller text, large tiles get larger text. Labels that don't fit at all are hidden automatically.
 
-```r
+```r title="Add auto-sized labels to tiles"
 # Add auto-sized text labels
 p_labels <- ggplot(market_df, aes(area = share, fill = company, label = company)) +
   geom_treemap() +
@@ -92,7 +92,7 @@ To also show the share value, use `label = paste0(company, "\n", share, "%")`:
 
 Encoding a second numeric variable as color turns a treemap into a 2D visualization: area shows one metric, color shows another.
 
-```r
+```r title="Color tiles by growth rate"
 # Color by growth rate (positive = green, negative = red)
 p_color <- ggplot(market_df, aes(area = share, fill = growth, label = company)) +
   geom_treemap() +
@@ -125,7 +125,7 @@ At a glance: Samsung has the largest market share (biggest tile) but is shrinkin
 
 Real data often has a natural hierarchy, categories within sectors, products within brands. `treemapify` supports this with the `subgroup` aesthetic and `geom_treemap_subgroup_border()`.
 
-```r
+```r title="Hierarchical treemap with subgroups"
 # Hierarchical treemap: subgroup by region
 sub_df <- data.frame(
   company  = c("Apple", "Motorola",                           # US
@@ -176,7 +176,7 @@ p_subgroup
 
 ## Complete Example: Polished Treemap
 
-```r
+```r title="Polished treemap with dual encoding"
 # Full polished treemap with dual encoding
 p_final <- ggplot(market_df,
   aes(area = share, fill = growth, label = company,
@@ -216,7 +216,7 @@ p_final
 
 `geom_treemap()` requires `area`, without it, ggplot2 can't size the tiles.
 
-```r
+```r title="Common mistake: missing area aesthetic"
 # Wrong: missing area
 ggplot(df, aes(fill = category)) + geom_treemap()
 
@@ -234,7 +234,7 @@ When a category's share is very small, its tile becomes too small to show a labe
 
 ### Mistake 4: Not matching label color to fill contrast
 
-```r
+```r title="Common mistake: unreadable label colors"
 # Wrong: white labels on light tiles are invisible
 geom_treemap_text(color = "white")
 
@@ -255,7 +255,7 @@ The `GNP` column from R's built-in `longley` dataset contains economic data. Cre
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Longley GNP treemap solution"
 library(ggplot2)
 library(treemapify)
 
@@ -286,7 +286,7 @@ Create a hierarchical treemap using `mtcars` where:
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="mtcars horsepower treemap solution"
 library(ggplot2)
 library(treemapify)
 

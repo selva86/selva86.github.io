@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Short answer: sometimes, but not the way most learners expect. Hiring managers almost never read a certificate line out loud during an interview, automated resume screeners read it for them. Certifications mostly help in three concrete ways: passing keyword filters, signalling commitment during a career switch, and giving you a structured path when self-study feels overwhelming. Rather than trusting one review site, let us build a small data frame of the major R certifications and sort, filter, and score them ourselves.
 
-```r
+```r title="Build the certifications comparison tibble"
 # Load libraries and build the certifications data frame
 library(dplyr)
 library(tibble)
@@ -58,7 +58,7 @@ You now have a structured view of six certifications most R learners actually co
 
 **Try it:** Add a new row for a hypothetical employer-run internal certification called "Acme Analytics" with cost `0`, hours `60`, `employer_score` `4`, `hands_on_score` `4`. Save the result to `ex_certs` and print it.
 
-```r
+```r title="Exercise: add a row with addrow"
 # Try it: add a row with dplyr::add_row()
 ex_certs <- certs |>
   # your code here
@@ -71,7 +71,7 @@ tail(ex_certs, 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Add row solution"
 ex_certs <- certs |>
   add_row(
     cert = "Acme Analytics",
@@ -96,7 +96,7 @@ tail(ex_certs, 1)
 
 Watching videos feels productive, but R skill is built by typing code, hitting errors, and reading tracebacks. When we sort our certifications by `hands_on_score`, the picture shifts sharply away from the big-brand names.
 
-```r
+```r title="Rank certifications by hands-on score"
 # Rank by hands-on practice, break ties by employer recognition
 hands_on_ranked <- certs |>
   arrange(desc(hands_on_score), desc(employer_score)) |>
@@ -121,7 +121,7 @@ Posit Academy and DataCamp top the hands-on ranking because both force you to wr
 
 **Try it:** Filter `certs` to only the rows where `employer_score` is at least 4, and save the result to `ex_top`.
 
-```r
+```r title="Exercise: filter by employer score"
 # Try it: use filter()
 ex_top <- certs |>
   # your code here
@@ -133,7 +133,7 @@ ex_top
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter by employer solution"
 ex_top <- certs |> filter(employer_score >= 4)
 ex_top
 #> # A tibble: 5 × 6
@@ -154,7 +154,7 @@ ex_top
 
 Sticker price hides the real bargain. A $150 certificate that takes 40 hours costs $3.75 per hour of learning, while a $149 certificate that takes 80 hours is half the price per hour. Before you pick, compute the cost-per-hour and sort.
 
-```r
+```r title="Compute cost per learning hour"
 # Compute cost per learning hour and rank ascending
 cost_ranked <- certs |>
   mutate(cost_per_hr = round(cost_usd / hours, 2)) |>
@@ -180,7 +180,7 @@ Google Data Analytics delivers the cheapest learning hour at $1.25, and Posit Ac
 
 **Try it:** Compute the total cost and total hours you would spend if you bought every certification on this list. Save to `ex_total` as a single-row tibble with columns `total_cost` and `total_hours`.
 
-```r
+```r title="Exercise: total cost and hours"
 # Try it: use summarise()
 ex_total <- certs |>
   # your code here
@@ -192,7 +192,7 @@ ex_total
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Totals with summarise solution"
 ex_total <- certs |>
   summarise(
     total_cost  = sum(cost_usd),
@@ -213,7 +213,7 @@ ex_total
 
 No single certification wins for every reader. A career switcher from marketing needs employer brand more than anything else. An experienced analyst learning R wants hands-on depth. A student on a tight budget wants cost-per-hour. Let us write a small scoring function that takes three weights and returns the top-ranked certification for that reader.
 
-```r
+```r title="Weighted career-fit scoring function"
 # Weighted scoring function: higher score = better fit
 rank_certs <- function(data, w_employer, w_hands_on, w_cost) {
   data |>
@@ -248,7 +248,7 @@ For a career switcher who weights employer brand three times more than hands-on 
 
 **Try it:** Rank the certifications for an experienced analyst who weights hands-on practice heavily (weight 4), employer score lightly (weight 1), and cost moderately (weight 2). Save to `ex_custom` and inspect the top row.
 
-```r
+```r title="Exercise: call rankcerts with weights"
 # Try it: call rank_certs() with your own weights
 ex_custom <- rank_certs(certs,
   # your weights here
@@ -261,7 +261,7 @@ head(ex_custom, 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Custom weights solution"
 ex_custom <- rank_certs(certs, w_employer = 1, w_hands_on = 4, w_cost = 2)
 head(ex_custom, 1)
 #> # A tibble: 1 × 5
@@ -282,7 +282,7 @@ These exercises combine filtering, scoring, and function-writing. Use distinct v
 
 Filter `certs` to rows where `cost_usd` is at most 300 and `hours` is at most 140, rank the result by `employer_score` descending, and save the top row to `my_top_cert`. Print the `cert` column of the top row.
 
-```r
+```r title="Exercise: filter arrange slice"
 # Exercise: combine filter, arrange, and slice
 # Hint: filter() -> arrange() -> slice(1)
 
@@ -295,7 +295,7 @@ my_top_cert$cert
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top-cert filter solution"
 my_top_cert <- certs |>
   filter(cost_usd <= 300, hours <= 140) |>
   arrange(desc(employer_score)) |>
@@ -313,7 +313,7 @@ my_top_cert$cert
 
 Write a function `my_shortlist(data, max_budget, min_hands_on)` that filters a certification tibble to rows under the budget with at least the minimum hands-on score, and returns the result sorted by `employer_score` descending. Test it with `max_budget = 200` and `min_hands_on = 4`.
 
-```r
+```r title="Exercise: write a shortlist function"
 # Exercise: write a function that wraps a dplyr pipeline
 # Hint: wrap filter() and arrange() inside a function body
 
@@ -328,7 +328,7 @@ my_shortlist(certs, 200, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Shortlist function solution"
 my_shortlist <- function(data, max_budget, min_hands_on) {
   data |>
     filter(cost_usd <= max_budget, hands_on_score >= min_hands_on) |>
@@ -350,7 +350,7 @@ my_shortlist(certs, 200, 4)
 
 Let us put every step together into one end-to-end recommendation. We will rebuild the certifications data, filter by a realistic budget, apply the career-switcher weights from earlier, and print one recommendation with a reason.
 
-```r
+```r title="End-to-end recommendation pipeline"
 # End-to-end: filter, score, and pick one winner
 final_pick <- certs |>
   filter(cost_usd <= 300) |>

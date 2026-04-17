@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 You have a scatter plot, but one cluster hides behind another. How do you zoom in without losing the big picture? That's exactly what `facet_zoom()` solves, it creates a zoomed panel alongside the full view, connected by a shaded region that shows you exactly where you're looking.
 
-```r
+```r title="facetzoom by species condition"
 library(ggplot2)
 library(ggforce)
 
@@ -40,7 +40,7 @@ The left panel shows only the setosa data at full resolution, while the right pa
 
 You can also zoom by specifying exact axis limits instead of a logical condition. The `zoom.size` argument controls how large the zoomed panel is relative to the context panel, bigger values give more room to the zoomed view.
 
-```r
+```r title="facetzoom with manual range"
 ggplot(iris, aes(Petal.Length, Petal.Width, colour = Species)) +
   geom_point(size = 2) +
   facet_zoom(xlim = c(3, 5), ylim = c(1, 1.8), zoom.size = 1.5) +
@@ -51,7 +51,7 @@ ggplot(iris, aes(Petal.Length, Petal.Width, colour = Species)) +
 
 Sometimes you only want to show the relevant data inside the zoomed panel, not every point from the full dataset. The `zoom.data` parameter handles this. Set it to a logical expression, and only matching rows appear in the zoom panel.
 
-```r
+```r title="zoom.data filters zoom panel only"
 ggplot(iris, aes(Petal.Length, Petal.Width, colour = Species)) +
   geom_point(size = 2) +
   facet_zoom(x = Species == "versicolor",
@@ -68,7 +68,7 @@ This is especially useful when overlapping groups make the zoomed panel cluttere
 
 **Try it:** Create a facet_zoom scatter plot of `mtcars` with `wt` on the x-axis and `mpg` on the y-axis, coloured by `factor(cyl)`. Zoom into cars where `mpg > 25`.
 
-```r
+```r title="Exercise: Zoom into fuel-efficient cars"
 # Try it: zoom into fuel-efficient cars
 ex_zoom <- ggplot(mtcars, aes(wt, mpg, colour = factor(cyl))) +
   geom_point(size = 3)
@@ -80,7 +80,7 @@ ex_zoom <- ggplot(mtcars, aes(wt, mpg, colour = factor(cyl))) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fuel-efficient zoom solution"
 ex_zoom <- ggplot(mtcars, aes(wt, mpg, colour = factor(cyl))) +
   geom_point(size = 3) +
   facet_zoom(y = mpg > 25) +
@@ -100,7 +100,7 @@ Scatter plots often need annotations that say "these points belong together." Th
 
 Let's start with the most commonly used, `geom_mark_ellipse()`. It fits an optimal ellipse around each group using the Khachiyan algorithm.
 
-```r
+```r title="geommarkellipse around species"
 ggplot(iris, aes(Petal.Length, Petal.Width)) +
   geom_mark_ellipse(aes(fill = Species, label = Species),
                     alpha = 0.15) +
@@ -116,7 +116,7 @@ Each group gets a smooth ellipse with an automatically placed label. The labels 
 
 Now let's compare `geom_mark_rect()` and `geom_mark_hull()` side by side. Rectangles give bounding boxes, while hulls trace the tightest possible boundary around each group.
 
-```r
+```r title="Compare markrect and markhull"
 library(patchwork)
 
 p_rect <- ggplot(iris, aes(Petal.Length, Petal.Width)) +
@@ -142,7 +142,7 @@ The hull version is much tighter. The `concavity` argument controls how closely 
 
 You can also add descriptions and customise connector lines. The `con.type` argument controls whether the label connects with an elbow, a straight line, or no connector at all.
 
-```r
+```r title="Add descriptions to geommark"
 species_desc <- c(
   setosa = "Small petals,\neasily separated",
   versicolor = "Medium petals,\noverlaps virginica",
@@ -175,7 +175,7 @@ The `con.cap` argument controls how close the connector line gets to the mark, s
 
 **Try it:** Use `geom_mark_hull()` to highlight 6-cylinder cars in `mtcars`, plotting `wt` vs `mpg`. Use the `filter` aesthetic to show only the 6-cylinder hull.
 
-```r
+```r title="Exercise: Hull around six-cylinder cars"
 # Try it: highlight 6-cylinder cars with a hull
 ex_mark <- ggplot(mtcars, aes(wt, mpg)) +
   geom_point(aes(colour = factor(cyl)), size = 3)
@@ -188,7 +188,7 @@ ex_mark <- ggplot(mtcars, aes(wt, mpg)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Six-cylinder hull solution"
 ex_mark <- ggplot(mtcars, aes(wt, mpg)) +
   geom_mark_hull(aes(fill = factor(cyl),
                      filter = cyl == 6,
@@ -211,7 +211,7 @@ Unlike base R's `pie()`, ggforce gives you full ggplot2 control over pie and don
 
 The trade-off is that you need to pre-compute the angles yourself. Let's walk through it step by step.
 
-```r
+```r title="Pie chart with geomarcbar"
 library(dplyr)
 
 pie_data <- mtcars |>
@@ -242,7 +242,7 @@ Each slice is a wedge defined by `start` and `end` angles. The `x0` and `y0` set
 
 Converting this to a donut chart is a one-character change, set `r0` to something greater than zero.
 
-```r
+```r title="Donut chart of diamond cut"
 donut_data <- diamonds |>
   count(cut) |>
   mutate(
@@ -272,7 +272,7 @@ The donut's hole (`r0 = 0.5`) is a great place for a summary label or total coun
 
 **Try it:** Create a donut chart showing the distribution of `gear` values in `mtcars`. Use `r0 = 0.4` and `r = 1`.
 
-```r
+```r title="Exercise: Donut of gear counts"
 # Try it: donut chart of mtcars$gear
 ex_donut <- mtcars |>
   count(gear) |>
@@ -289,7 +289,7 @@ ex_donut <- mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Gear count donut solution"
 ex_donut <- mtcars |>
   count(gear) |>
   mutate(
@@ -317,7 +317,7 @@ ggplot(ex_donut) +
 
 A sina plot is a jittered strip chart where each point's horizontal spread matches the local density, like a violin plot filled with actual data points. This gives you the distribution shape of a violin plot and the individual observations of a jitter plot in one layer.
 
-```r
+```r title="geomsina layered over violin"
 ggplot(iris, aes(Species, Petal.Width)) +
   geom_violin(fill = "grey90", colour = "grey70") +
   geom_sina(aes(colour = Species), size = 1.8, alpha = 0.7) +
@@ -333,7 +333,7 @@ Notice how the points spread wider where more observations cluster together. Thi
 
 You can control the maximum width of the spread with `maxwidth` and adjust the bandwidth that determines the density estimate with `scale`.
 
-```r
+```r title="Sina over boxplot"
 ggplot(iris, aes(Species, Sepal.Length)) +
   geom_boxplot(width = 0.3, outlier.shape = NA, fill = "grey95") +
   geom_sina(aes(colour = Species), maxwidth = 0.6,
@@ -353,7 +353,7 @@ Overlaying sina on a boxplot is one of the most effective distribution plots you
 
 **Try it:** Create a sina plot of `mpg` by `factor(cyl)` using `mtcars`. Overlay it on a boxplot.
 
-```r
+```r title="Exercise: Sina over mtcars boxplot"
 # Try it: sina + boxplot for mtcars
 ex_sina <- ggplot(mtcars, aes(factor(cyl), mpg)) +
   geom_boxplot(width = 0.3, outlier.shape = NA, fill = "grey95")
@@ -365,7 +365,7 @@ ex_sina <- ggplot(mtcars, aes(factor(cyl), mpg)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sina over mtcars solution"
 ex_sina <- ggplot(mtcars, aes(factor(cyl), mpg)) +
   geom_boxplot(width = 0.3, outlier.shape = NA, fill = "grey95") +
   geom_sina(aes(colour = factor(cyl)), size = 2.5, alpha = 0.7) +
@@ -387,7 +387,7 @@ Sometimes you need smooth curved lines between points, for flow diagrams, annota
 
 A Bezier curve passes through its first and last control points, while intermediate points pull the curve toward them without touching. Let's draw one with three control points.
 
-```r
+```r title="Quadratic Bezier curve demo"
 library(tibble)
 
 bezier_pts <- tibble(
@@ -412,7 +412,7 @@ The red dots are the control points. Notice how the curve starts at P1, bends to
 
 B-splines work differently: they create a smooth curve that approximates all control points, producing a more uniformly smooth result.
 
-```r
+```r title="B-spline through six points"
 bspline_pts <- tibble(
   x = c(0, 1, 2, 3, 4, 5),
   y = c(1, 3, 1.5, 4, 2, 3.5),
@@ -436,7 +436,7 @@ B-splines are smoother than Bezier curves when you have many control points. The
 
 **Try it:** Create a Bezier curve with 4 control points forming an S-shape. Use coordinates: (0,0), (1,3), (2,-1), (3,2).
 
-```r
+```r title="Exercise: S-shaped four-point Bezier"
 # Try it: S-shaped bezier with 4 control points
 ex_bezier <- tibble(
   x = c(0, 1, 2, 3),
@@ -451,7 +451,7 @@ ex_bezier <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="S-shaped Bezier solution"
 ex_bezier <- tibble(
   x = c(0, 1, 2, 3),
   y = c(0, 3, -1, 2),
@@ -477,7 +477,7 @@ Beyond the major features above, ggforce offers several more geoms that solve sp
 
 `geom_circle()` draws circles at specified positions with given radii, great for bubble-style annotations or creating diagrams directly in ggplot2.
 
-```r
+```r title="geomcircle at fixed positions"
 circles_df <- tibble(
   x0 = c(1, 3, 5),
   y0 = c(2, 2, 2),
@@ -502,7 +502,7 @@ ggplot(circles_df) +
 
 `geom_voronoi_segment()` creates a Voronoi tessellation from a set of points. Each cell contains all space closer to its point than to any other, useful for spatial analysis and artistic data visualisation.
 
-```r
+```r title="Voronoi tessellation from points"
 set.seed(42)
 voronoi_pts <- tibble(
   x = runif(20, 0, 10),
@@ -528,7 +528,7 @@ Every cell boundary is equidistant between two neighbouring points. Voronoi diag
 
 **Try it:** Draw 5 circles of different sizes on a blank canvas using `geom_circle()`. Give each circle a different fill colour and use `coord_fixed()`.
 
-```r
+```r title="Exercise: Five coloured circles"
 # Try it: 5 coloured circles
 ex_circles <- tibble(
   x0 = c(1, 3, 5, 2, 4),
@@ -543,7 +543,7 @@ ex_circles <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Five circles solution"
 ex_circles <- tibble(
   x0 = c(1, 3, 5, 2, 4),
   y0 = c(1, 3, 1, 2.5, 2.5),
@@ -574,7 +574,7 @@ Create a scatter plot of `diamonds` (price vs carat) with these requirements:
 - Inside the zoomed panel, add `geom_mark_ellipse()` to highlight the different `cut` categories
 - Colour points by `cut`
 
-```r
+```r title="Exercise: Zoom plus ellipse on diamonds"
 # Exercise 1: facet_zoom + geom_mark_ellipse on diamonds
 # Hint: facet_zoom(x = carat <= 1) then layer mark_ellipse with aes(fill = cut)
 
@@ -585,7 +585,7 @@ Create a scatter plot of `diamonds` (price vs carat) with these requirements:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Diamonds zoom and ellipse solution"
 ggplot(diamonds, aes(carat, price, colour = cut)) +
   geom_point(alpha = 0.1, size = 0.5) +
   geom_mark_ellipse(aes(fill = cut), alpha = 0.05) +
@@ -609,7 +609,7 @@ Build a multi-layer plot using iris data:
 2. Annotation layer: `geom_mark_hull()` around each species group
 3. Zoom layer: `facet_zoom()` to zoom into setosa
 
-```r
+```r title="Exercise: Sina, hull, and zoom layered"
 # Exercise 2: combine sina + mark_hull + facet_zoom
 # Hint: all three layers stack with + just like any ggplot
 
@@ -620,7 +620,7 @@ Build a multi-layer plot using iris data:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sina hull zoom solution"
 ggplot(iris, aes(Species, Sepal.Width, colour = Species)) +
   geom_mark_hull(aes(fill = Species, group = Species),
                  alpha = 0.1, concavity = 3) +
@@ -642,7 +642,7 @@ ggplot(iris, aes(Species, Sepal.Width, colour = Species)) +
 
 Create a donut chart of `mtcars$am` (transmission type: 0 = automatic, 1 = manual) using `geom_arc_bar()`. Add percentage labels inside each arc and a total count in the centre of the donut.
 
-```r
+```r title="Exercise: Transmission donut chart"
 # Exercise 3: donut chart of transmission types
 # Hint: pre-compute angles with cumsum, use r0 = 0.5 for the hole
 
@@ -653,7 +653,7 @@ Create a donut chart of `mtcars$am` (transmission type: 0 = automatic, 1 = manua
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Transmission donut solution"
 my_donut <- mtcars |>
   mutate(transmission = ifelse(am == 0, "Automatic", "Manual")) |>
   count(transmission) |>
@@ -687,7 +687,7 @@ ggplot(my_donut) +
 
 Let's build a complete, polished visualisation that combines several ggforce features on the `diamonds` dataset.
 
-```r
+```r title="End-to-end diamonds showcase"
 diamonds_small <- diamonds |>
   slice_sample(n = 2000, seed = 123)
 

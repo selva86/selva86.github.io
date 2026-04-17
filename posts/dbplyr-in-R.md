@@ -32,7 +32,7 @@ The entry point is `tbl()`. You give it a DBI connection and a table name, and i
 
 Let's set up an in-memory SQLite database, copy `mtcars` into it, and create a lazy reference.
 
-```r
+```r title="tbl creates a lazy mtcars reference"
 # Set up: connect, copy data, create lazy reference
 library(DBI)
 library(RSQLite)
@@ -63,7 +63,7 @@ Notice the header says `Source: table<mtcars>` and `Database: sqlite`. This is n
 
 **Try it:** Create a lazy reference to the `iris` table (already copied above) and print it. How many columns does it show?
 
-```r
+```r title="Exercise: Lazy reference to iris"
 # Try it: create a tbl() reference to iris
 ex_iris_db <- tbl(con, # your code here
 )
@@ -76,7 +76,7 @@ print(ex_iris_db)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Lazy reference to iris solution"
 ex_iris_db <- tbl(con, "iris")
 print(ex_iris_db)
 #> # Source:   table<iris> [?? x 5]
@@ -97,7 +97,7 @@ print(ex_iris_db)
 
 The magic of dbplyr is that your dplyr code becomes SQL. You can see the generated SQL at any time with `show_query()`. This is invaluable for debugging and for learning SQL by seeing what your dplyr code compiles to.
 
-```r
+```r title="showquery prints translated SQL"
 # filter + select — then see the SQL
 query1 <- mtcars_db |>
   filter(mpg > 25) |>
@@ -114,7 +114,7 @@ dbplyr translated `filter(mpg > 25)` into `WHERE (mpg > 25.0)` and `select(mpg, 
 
 Now try a grouped aggregation:
 
-```r
+```r title="Aggregation translates to GROUP BY"
 # group_by + summarise — see the SQL
 query2 <- mtcars_db |>
   group_by(cyl) |>
@@ -137,7 +137,7 @@ show_query(query2)
 
 **Try it:** Write a pipeline on `mtcars_db` that filters to `am == 1` (manual transmission), groups by `gear`, and counts rows. Call `show_query()` on it.
 
-```r
+```r title="Exercise: Count gears for manuals"
 # Try it: write a pipeline and see its SQL
 ex_query <- mtcars_db |>
   # your code here
@@ -149,7 +149,7 @@ show_query(ex_query)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Count gears for manuals solution"
 ex_query <- mtcars_db |>
   filter(am == 1) |>
   group_by(gear) |>
@@ -177,7 +177,7 @@ dbplyr is lazy by design. Nothing runs until you force it. There are three ways 
 
 The most common pattern is: build a lazy pipeline, verify with `show_query()`, then `collect()` the final result.
 
-```r
+```r title="collect pulls query results into R"
 # Lazy: nothing executes yet
 lazy_result <- mtcars_db |>
   filter(hp > 150) |>
@@ -205,7 +205,7 @@ After `collect()`, `result` is a normal tibble in R memory. You can plot it, pas
 
 **Try it:** Build a lazy pipeline on `mtcars_db` that selects only `mpg` and `cyl`, filters to `cyl == 4`, and collects the result. How many rows come back?
 
-```r
+```r title="Exercise: Collect four-cylinder rows"
 # Try it: build lazy + collect
 ex_collected <- mtcars_db |>
   # your code here
@@ -218,7 +218,7 @@ nrow(ex_collected)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Collect four-cylinder rows solution"
 ex_collected <- mtcars_db |>
   select(mpg, cyl) |>
   filter(cyl == 4) |>
@@ -237,7 +237,7 @@ dbplyr translates most core dplyr verbs: `filter()`, `select()`, `mutate()`, `su
 
 Here is a join across two database tables:
 
-```r
+```r title="innerjoin runs on the database"
 # Create a second table: cylinder descriptions
 cyl_info <- data.frame(
   cyl = c(4, 6, 8),
@@ -276,7 +276,7 @@ The join, grouping, and aggregation all happen on the database in one SQL statem
 
 **Try it:** Join `mtcars_db` with `cyl_info_db`, then compute the max `hp` per `engine_type`. Collect the result.
 
-```r
+```r title="Exercise: Join then aggregate maxhp"
 # Try it: join + aggregate
 ex_joined <- mtcars_db |>
   # your code here
@@ -289,7 +289,7 @@ print(collect(ex_joined))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Join then aggregate maxhp solution"
 ex_joined <- mtcars_db |>
   inner_join(cyl_info_db, by = "cyl") |>
   group_by(engine_type) |>
@@ -312,7 +312,7 @@ print(collect(ex_joined))
 
 Sometimes you need SQL that dbplyr cannot generate, window functions, CTEs, or database-specific syntax. You can pass raw SQL through `tbl()` using the `sql()` helper.
 
-```r
+```r title="Pass raw SQL through tbl"
 # Pass raw SQL through tbl()
 raw_result <- tbl(con, sql("
   SELECT cyl, 
@@ -340,7 +340,7 @@ The `HAVING` clause filters groups after aggregation, something dplyr does not d
 
 **Try it:** Write a raw SQL query inside `tbl(con, sql(...))` that selects all columns from `mtcars` where `wt > 4`. Collect the result.
 
-```r
+```r title="Exercise: Raw SQL for heavy cars"
 # Try it: raw SQL through tbl()
 ex_raw <- tbl(con, sql(
   # your SQL here
@@ -354,7 +354,7 @@ print(collect(ex_raw))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Raw SQL for heavy cars solution"
 ex_raw <- tbl(con, sql("SELECT * FROM mtcars WHERE wt > 4"))
 print(collect(ex_raw))
 #> # A tibble: 4 x 11
@@ -375,7 +375,7 @@ print(collect(ex_raw))
 ### Mistake 1: Collecting the entire table before filtering
 
 ❌ **Wrong:**
-```r
+```r title="Common mistake: collect before filter"
 # Pulls millions of rows into R, then filters in memory
 big_result <- tbl(con, "big_table") |> collect() |> filter(year == 2025)
 ```
@@ -383,7 +383,7 @@ big_result <- tbl(con, "big_table") |> collect() |> filter(year == 2025)
 **Why it is wrong:** `collect()` materialises the entire table into R memory before `filter()` runs. If the table has 100 million rows, R will crash or crawl.
 
 ✅ **Correct:**
-```r
+```r title="Correct: filter before collect"
 # Filter on the database, collect only matching rows
 big_result <- tbl(con, "big_table") |> filter(year == 2025) |> collect()
 ```
@@ -391,7 +391,7 @@ big_result <- tbl(con, "big_table") |> filter(year == 2025) |> collect()
 ### Mistake 2: Using R functions that dbplyr cannot translate
 
 ❌ **Wrong:**
-```r
+```r title="Common mistake: ifelse fails to translate"
 # Custom R function — dbplyr cannot send this to SQL
 result <- mtcars_db |> mutate(category = ifelse(mpg > 25, "efficient", "normal"))
 # Error: Translation of `ifelse()` is not supported for SQLite
@@ -400,7 +400,7 @@ result <- mtcars_db |> mutate(category = ifelse(mpg > 25, "efficient", "normal")
 **Why it is wrong:** Not all R functions have SQL equivalents. `ifelse()` translates on some backends but not all. Check with `show_query()` before collecting.
 
 ✅ **Correct:**
-```r
+```r title="Correct: ifelse generates CASE WHEN"
 # Use if_else() from dplyr — dbplyr translates it to CASE WHEN
 result <- mtcars_db |> mutate(category = if_else(mpg > 25, "efficient", "normal"))
 show_query(result)
@@ -411,7 +411,7 @@ show_query(result)
 ### Mistake 3: Forgetting to disconnect
 
 ❌ **Wrong:**
-```r
+```r title="Common mistake: Forgetting to disconnect"
 # Script ends without closing the connection
 # Database locks may persist, file handles leak
 ```
@@ -419,7 +419,7 @@ show_query(result)
 **Why it is wrong:** Open connections consume resources and may lock database files. SQLite in particular keeps file locks until disconnection.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Always dbDisconnect when done"
 # Always disconnect when done
 dbDisconnect(con)
 ```
@@ -430,7 +430,7 @@ dbDisconnect(con)
 
 Connect to a new in-memory SQLite database, copy the `airquality` dataset into it, create a lazy reference, filter to rows where `Month == 7`, group by `Day`, compute `mean_temp = mean(Temp)`, show the generated SQL, and collect the result.
 
-```r
+```r title="Exercise: Full airquality pipeline"
 # Exercise: full dbplyr pipeline with airquality
 # Hint: dbConnect, copy_to, tbl, filter, group_by, summarise, show_query, collect
 
@@ -441,7 +441,7 @@ Connect to a new in-memory SQLite database, copy the `airquality` dataset into i
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Full airquality pipeline solution"
 my_con <- dbConnect(SQLite(), ":memory:")
 copy_to(my_con, airquality, name = "airquality", overwrite = TRUE)
 my_aq <- tbl(my_con, "airquality")
@@ -478,7 +478,7 @@ dbDisconnect(my_con)
 
 Using the original `con` connection (reconnect if needed), create a table `am_labels` with columns `am` (0, 1) and `trans_type` ("automatic", "manual"). Join it with `mtcars` on the database, compute mean `mpg` per `trans_type`, show the SQL, and collect. Compare the generated SQL to what you would write by hand.
 
-```r
+```r title="Exercise: Join plus aggregate SQL"
 # Exercise: join + aggregate + compare SQL
 # Hint: copy_to for the labels table, inner_join, group_by, summarise, show_query
 
@@ -489,7 +489,7 @@ Using the original `con` connection (reconnect if needed), create a table `am_la
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Join plus aggregate SQL solution"
 con2 <- dbConnect(SQLite(), ":memory:")
 copy_to(con2, mtcars, name = "mtcars", overwrite = TRUE)
 

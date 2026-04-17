@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 S3 dispatches on the class of the first argument only. If you call `combine(x, y)`, S3 checks `class(x)` and ignores `y` entirely. S4 flips this limitation, it examines the classes of *both* arguments together and picks the method that best matches the combination. Let's see the difference in action.
 
-```r
+```r title="Convert generic with two argument signature"
 # Define two S4 classes for unit systems
 setClass("Metric", slots = c(value = "numeric", unit = "character"))
 setClass("Imperial", slots = c(value = "numeric", unit = "character"))
@@ -75,7 +75,7 @@ Notice how `convert(m1, i1)` and `convert(i1, m1)` call completely different met
 
 **Try it:** Add a third method for the signature `c("Metric", "Metric")` that returns `"Already in metric — no conversion needed!"`. Test it by calling `convert(m1, m1)`.
 
-```r
+```r title="Exercise: metric to metric method"
 # Try it: add a Metric-to-Metric method
 # setMethod("convert", c(from = "???", to = "???"), function(from, to) {
 #   # your code here
@@ -89,7 +89,7 @@ Notice how `convert(m1, i1)` and `convert(i1, m1)` call completely different met
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 setMethod("convert", c(from = "Metric", to = "Metric"), function(from, to) {
   "Already in metric — no conversion needed!"
 })
@@ -105,7 +105,7 @@ convert(m1, m1)
 
 The key is the `signature` parameter in `setGeneric()`. It tells R which arguments participate in method dispatch. Arguments not listed in the signature are passed through to every method but never influence which method is chosen.
 
-```r
+```r title="Interact generic for cat and dog"
 # Create a generic that dispatches on x and y, but NOT on verbose
 setGeneric("interact", function(x, y, verbose = FALSE) {
   standardGeneric("interact")
@@ -133,7 +133,7 @@ Both calls route to the same method because `verbose` isn't in the signature, it
 
 If you omit the `signature` argument entirely, R defaults to dispatching on all formal arguments except `...`. That's usually fine for two-argument generics, but it can cause surprises when you have extra parameters you don't want in the dispatch.
 
-```r
+```r title="Warn on default signature"
 # Without explicit signature: ALL args (except ...) participate in dispatch
 setGeneric("demo_dispatch", function(a, b, mode = "fast") {
   standardGeneric("demo_dispatch")
@@ -148,7 +148,7 @@ setGeneric("demo_dispatch", function(a, b, mode = "fast") {
 
 **Try it:** Define a generic called `merge_data()` with arguments `source`, `target`, and `method = "inner"`. Make it dispatch on `source` and `target` only, not on `method`.
 
-```r
+```r title="Exercise: merge data source and target"
 # Try it: define merge_data with a two-arg signature
 # setGeneric("merge_data", function(source, target, method = "inner") {
 #   # your code here
@@ -162,7 +162,7 @@ setGeneric("demo_dispatch", function(a, b, mode = "fast") {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 setGeneric("merge_data", function(source, target, method = "inner") {
   standardGeneric("merge_data")
 }, signature = c("source", "target"))
@@ -180,7 +180,7 @@ merge_data
 
 Once your generic has a two-argument signature, you register methods by specifying the class name for each position. Think of it as filling in cells of a grid, each cell is a unique class combination.
 
-```r
+```r title="Combine text and numeric two by two"
 # Two simple classes
 setClass("TextData", slots = c(content = "character"))
 setClass("NumericData", slots = c(values = "numeric"))
@@ -226,7 +226,7 @@ Each combination runs a completely different method body. The order matters, `co
 
 You don't always need to fill every cell. The `"ANY"` pseudo-class acts as a wildcard, it matches any class in that argument position.
 
-```r
+```r title="ANY fallback for text combine"
 # A fallback for ANY + TextData
 setMethod("combine", c("ANY", "TextData"), function(x, y) {
   paste("Unknown type combined with text:", y@content)
@@ -239,7 +239,7 @@ combine(42, t1)
 
 The `"missing"` pseudo-class handles cases where an argument isn't supplied at all.
 
-```r
+```r title="Missing pseudo class for absent argument"
 # Handle missing second argument
 setMethod("combine", c("TextData", "missing"), function(x, y) {
   paste(x@content, "(standalone)")
@@ -254,7 +254,7 @@ combine(t1)
 
 **Try it:** Add a method for `combine()` with signature `c("NumericData", "missing")` that returns a NumericData object with doubled values. Test it with `combine(n1)`.
 
-```r
+```r title="Exercise: numeric with missing second"
 # Try it: handle combine(NumericData) with no second argument
 # setMethod("combine", c("NumericData", "missing"), function(x, y) {
 #   # your code here
@@ -268,7 +268,7 @@ combine(t1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 setMethod("combine", c("NumericData", "missing"), function(x, y) {
   new("NumericData", values = x@values * 2)
 })
@@ -284,7 +284,7 @@ combine(n1)@values
 
 When R can't find a method that exactly matches both argument classes, it doesn't give up immediately. Instead, it climbs the inheritance tree for each argument, looking for the closest inherited method. The method requiring the fewest total inheritance steps wins.
 
-```r
+```r title="Inheritance distance chooses the method"
 # A class hierarchy: Shape is the parent, Circle and Square are children
 setClass("Shape", slots = c(color = "character"))
 setClass("Circle", contains = "Shape", slots = c(radius = "numeric"))
@@ -311,7 +311,7 @@ No method exists for `(Circle, Square)`. R walks up: Circle inherits from Shape,
 
 Now let's add a more specific method and see how dispatch changes.
 
-```r
+```r title="Specialise circle over shape"
 # Add a specialized method for Circle + any Shape
 setMethod("overlap", c("Circle", "Shape"), function(a, b) {
   paste("Circle (r =", a@radius, ") overlaps with a shape")
@@ -337,7 +337,7 @@ R always picks the method requiring the fewest total inheritance steps. In this 
 
 **Try it:** Without running the code, predict which method `overlap(s1, c1)` will call, `(Shape, Shape)` or `(Circle, Shape)`? Then verify your prediction.
 
-```r
+```r title="Exercise: dispatch on circle and shape"
 # Try it: predict which method handles overlap(Square, Circle)
 # Think about inheritance steps before running!
 
@@ -348,7 +348,7 @@ R always picks the method requiring the fewest total inheritance steps. In this 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 overlap(s1, c1)
 #> [1] "Generic shape overlap check"
 ```
@@ -363,7 +363,7 @@ S4 provides several introspection functions that tell you exactly what's happeni
 
 `showMethods()` lists all registered methods for a generic.
 
-```r
+```r title="Inspect all methods with showMethods"
 showMethods("overlap")
 #> Function: overlap
 #> Signature:
@@ -375,7 +375,7 @@ showMethods("overlap")
 
 `selectMethod()` is the most useful debugging tool, it reveals exactly which method R would call for a given class combination, including inherited methods.
 
-```r
+```r title="Retrieve a method with selectMethod"
 # What method handles Circle + Square?
 selectMethod("overlap", c("Circle", "Square"))
 #> Method Definition (Class "derivedDefaultMethod"):
@@ -392,7 +392,7 @@ This tells you the `(Circle, Shape)` method handles the `(Circle, Square)` call,
 
 `existsMethod()` and `hasMethod()` check whether a method exists. The difference: `existsMethod()` checks for directly defined methods only, while `hasMethod()` includes inherited methods.
 
-```r
+```r title="Check existence with existsMethod and hasMethod"
 # Is there a DIRECT method for (Circle, Square)?
 existsMethod("overlap", c("Circle", "Square"))
 #> [1] FALSE
@@ -404,7 +404,7 @@ hasMethod("overlap", c("Circle", "Square"))
 
 `findMethod()` locates where a directly defined method lives in the search path.
 
-```r
+```r title="Find method using findMethod"
 findMethod("overlap", c("Shape", "Shape"))
 #> [[1]]
 #> [1] ".GlobalEnv"
@@ -415,7 +415,7 @@ findMethod("overlap", c("Shape", "Shape"))
 
 **Try it:** Use `showMethods()` to list all methods for the `convert` generic you defined in the first section.
 
-```r
+```r title="Exercise: inspect convert methods"
 # Try it: inspect the convert generic
 # showMethods("convert")
 #> Expected: shows methods for Metric/Imperial combinations
@@ -424,7 +424,7 @@ findMethod("overlap", c("Shape", "Shape"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 showMethods("convert")
 #> Function: convert
 #> Signature:
@@ -444,7 +444,7 @@ Multiple dispatch shines whenever the *correct behavior* depends on the *combina
 
 **Pattern 1: Arithmetic on custom types.** When you overload `+`, `-`, or other operators, the result depends on what's on both sides of the operator.
 
-```r
+```r title="Overload plus for money class"
 # A simple Money class
 setClass("Money", slots = c(amount = "numeric", currency = "character"))
 
@@ -473,7 +473,7 @@ The `+` operator dispatches on *both* `e1` and `e2`. Adding Money to Money check
 
 **Pattern 2: Data structure interactions.** In Bioconductor, S4 classes like GRanges, DataFrame, and RleList interact through generics such as `combine()`, `merge()`, and `findOverlaps()`. The behavior varies by the combination of inputs.
 
-```r
+```r title="Merge bioconductor gene lists"
 # Simplified Bioconductor-style example
 setClass("GeneList", slots = c(genes = "character", organism = "character"))
 
@@ -511,7 +511,7 @@ The same generic handles two completely different operations based on whether th
 
 **Try it:** Add a method for `+` with signature `c("numeric", "Money")` to make addition commutative. Test that `5 + wallet` works the same as `wallet + 5`.
 
-```r
+```r title="Exercise: add numeric to money"
 # Try it: make numeric + Money work
 # setMethod("+", c("numeric", "Money"), function(e1, e2) {
 #   # your code here
@@ -525,7 +525,7 @@ The same generic handles two completely different operations based on whether th
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 setMethod("+", c("numeric", "Money"), function(e1, e2) {
   new("Money", amount = e1 + e2@amount, currency = e2@currency)
 })
@@ -541,7 +541,7 @@ setMethod("+", c("numeric", "Money"), function(e1, e2) {
 
 Ambiguity arises when two methods are equally "close" to the target classes, they require the same number of total inheritance steps. R selects one but raises a warning, because the choice is arbitrary.
 
-```r
+```r title="Ambiguity from multiple inheritance"
 # Two parent classes
 setClass("Printable", slots = c(label = "character"))
 setClass("Saveable", slots = c(path = "character"))
@@ -575,7 +575,7 @@ process(doc1, doc2)
 
 R picks one (alphabetical order of class names breaks ties), but the warning tells you this is fragile. The fix is simple: define an explicit method for the ambiguous combination.
 
-```r
+```r title="Resolve by specialising both arguments"
 # Resolve: add explicit method for (Document, Document)
 setMethod("process", c("Document", "Document"), function(x, y) {
   "Route C: document-specific processing"
@@ -593,7 +593,7 @@ Now R has an exact match at 0 total steps, no ambiguity. Whenever you see an amb
 
 **Try it:** Use `selectMethod()` to confirm that `process(doc1, doc2)` now resolves to the `(Document, Document)` method without any ambiguity.
 
-```r
+```r title="Exercise: select document by document method"
 # Try it: verify the resolved dispatch
 # selectMethod("process", c("Document", "Document"))
 #> Expected: shows the Document#Document method
@@ -602,7 +602,7 @@ Now R has an exact match at 0 total steps, no ambiguity. Whenever you see an amb
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 selectMethod("process", c("Document", "Document"))
 #> Method Definition (Class "derivedDefaultMethod"):
 #> function (x, y)
@@ -624,7 +624,7 @@ selectMethod("process", c("Document", "Document"))
 
 Create a multiple-dispatch system for formatting data. Define two classes: `MatrixData` (with a slot `mat` of type "matrix") and `DataFrameData` (with a slot `df` of type "data.frame"). Define a generic `format_output()` dispatching on `(data, style)` where `style` is one of two classes: `CSVStyle` (with a slot `delimiter`) and `JSONStyle` (with a slot `pretty` of type "logical"). Write 4 methods that return a descriptive string of the format being used. Test all 4 combinations.
 
-```r
+```r title="Practice one: format matrix and data frame outputs"
 # Exercise 1: format_output() dispatcher
 # Hint: define 4 classes, 1 generic, and 4 methods
 
@@ -635,7 +635,7 @@ Create a multiple-dispatch system for formatting data. Define two classes: `Matr
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice one solution"
 setClass("MatrixData", slots = c(mat = "matrix"))
 setClass("DataFrameData", slots = c(df = "data.frame"))
 setClass("CSVStyle", slots = c(delimiter = "character"))
@@ -686,7 +686,7 @@ Create a class hierarchy: `Vehicle` (parent, with slot `weight`), `Car` (child),
 
 Test with different combinations and verify dispatch using `selectMethod()`.
 
-```r
+```r title="Practice two: truck towing hierarchy"
 # Exercise 2: vehicle towing with inheritance
 # Hint: HeavyCargo inherits from Cargo, so the (Truck, HeavyCargo) method
 # should be more specific than (Truck, Cargo)
@@ -698,7 +698,7 @@ Test with different combinations and verify dispatch using `selectMethod()`.
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice two solution"
 setClass("Vehicle", slots = c(weight = "numeric"))
 setClass("Car", contains = "Vehicle")
 setClass("Truck", contains = "Vehicle", slots = c(tow_capacity = "numeric"))
@@ -753,7 +753,7 @@ Intentionally create an ambiguous dispatch scenario:
 5. Fix the ambiguity by adding a method for `(AlphaBeta, AlphaBeta)`
 6. Use `showMethods()` and `selectMethod()` to verify the fix
 
-```r
+```r title="Practice three: resolve alpha beta ambiguity"
 # Exercise 3: ambiguity creation and resolution
 # Hint: AlphaBeta inherits from both Alpha and Beta,
 # so (Alpha, Beta) and (Beta, Alpha) are equidistant
@@ -765,7 +765,7 @@ Intentionally create an ambiguous dispatch scenario:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice three solution"
 setClass("Alpha", slots = c(a = "numeric"))
 setClass("Beta", slots = c(b = "numeric"))
 setClass("AlphaBeta", contains = c("Alpha", "Beta"))
@@ -802,7 +802,7 @@ selectMethod("resolve", c("AlphaBeta", "AlphaBeta"))
 
 Let's build a complete measurement unit system that demonstrates every concept from this tutorial: class definition, generic creation, multiple dispatch methods, inheritance, dispatch debugging, and ambiguity handling.
 
-```r
+```r title="End-to-end measurement hierarchy"
 # === Complete Example: Measurement Unit System ===
 
 # 1. Define a class hierarchy

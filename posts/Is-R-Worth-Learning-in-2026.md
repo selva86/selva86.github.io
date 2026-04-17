@@ -45,7 +45,7 @@ That specialization is both its greatest strength and its biggest limitation. R 
 
 Here's proof. Click **Run** below to execute real R code in your browser, no installation needed:
 
-```r
+```r title="First R code with basic stats"
 # Your first R code — run it right now
 numbers <- c(23, 45, 12, 67, 34, 89, 56)
 
@@ -108,7 +108,7 @@ R isn't just "as good as Python" in some areas, it's genuinely better. Here's wh
 
 R was built by statisticians for statisticians. It has native support for formulas, factors, missing values, and statistical distributions. Things that take 5 lines in R take 15 in Python.
 
-```r
+```r title="Fit multiple regression in one line"
 # Linear regression in R: one line
 model <- lm(mpg ~ wt + hp + cyl, data = mtcars)
 summary(model)
@@ -120,7 +120,7 @@ That single `lm()` call fits a multiple regression model. The `summary()` output
 
 The `ggplot2` package produces publication-quality graphics using a "grammar of graphics", a principled system for building plots layer by layer. It's widely considered the best data visualization library in any language.
 
-```r
+```r title="Publication-quality scatter with ggplot2"
 # Publication-quality scatter plot in 5 lines
 library(ggplot2)
 
@@ -144,7 +144,7 @@ The **Bioconductor** project provides over 2,200 packages for genomic data analy
 
 The **tidyverse**, a collection of packages including `dplyr`, `tidyr`, `readr`, `purrr`, and `stringr`, provides a consistent, readable syntax for data manipulation that many find more intuitive than Python's pandas.
 
-```r
+```r title="Tidyverse summary of mtcars"
 # Readable data wrangling with the tidyverse
 library(dplyr)
 
@@ -267,7 +267,7 @@ You've read enough about R, let's actually use it. These interactive code blocks
 
 ### Quick Statistics
 
-```r
+```r title="Analyse scores and compute CI"
 # Generate some data and analyze it
 set.seed(42)
 scores <- rnorm(100, mean = 75, sd = 12)
@@ -287,7 +287,7 @@ A t-test in two lines. That's R's sweet spot: statistical analysis with minimal 
 
 ### A ggplot2 Visualization
 
-```r
+```r title="Plot diamond price versus carat"
 library(ggplot2)
 
 # Built-in dataset: diamond prices
@@ -305,7 +305,7 @@ That code samples 1,000 diamonds, plots price against carat, colors by cut quali
 
 ### Data Wrangling
 
-```r
+```r title="Group mtcars and find best MPG"
 library(dplyr)
 
 # Analyze the built-in mtcars dataset

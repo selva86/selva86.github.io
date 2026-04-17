@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Three functions dominate CSV reading in R. Base R ships with `read.csv()`. The tidyverse offers `readr::read_csv()`. And `data.table::fread()` comes from the data.table camp. To compare them honestly, the only thing that matters is running them on the same file and timing the result. Let's generate a 50,000-row CSV right now and read it back with each function.
 
-```r
+```r title="Benchmark three readers on 50k rows"
 library(readr)
 library(data.table)
 
@@ -50,7 +50,7 @@ Across this 50k-row file, `fread()` is roughly 10× faster than `read.csv()` and
 
 **Try it:** Regenerate the CSV at 10,000 rows and rerun the three timings. Does the ratio between the readers stay roughly the same, or does it shrink?
 
-```r
+```r title="Exercise: rerun benchmark at 10k rows"
 # Try it: rerun the benchmark on a smaller file
 ex_tmp <- tempfile(fileext = ".csv")
 write.csv(df_big[1:10000, ], ex_tmp, row.names = FALSE)
@@ -65,7 +65,7 @@ write.csv(df_big[1:10000, ], ex_tmp, row.names = FALSE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="10k-benchmark solution"
 ex_t1 <- system.time(read.csv(ex_tmp))
 ex_t2 <- system.time(read_csv(ex_tmp, show_col_types = FALSE))
 ex_t3 <- system.time(fread(ex_tmp))
@@ -85,7 +85,7 @@ c(read.csv = ex_t1["elapsed"],
 
 The three readers do the same job but hand you back three different objects. That difference matters more than it looks: the return type controls how you subset, how it prints, and which downstream packages it plays with cleanly.
 
-```r
+```r title="Each reader returns a different class"
 r1 <- read.csv(tmp_csv)
 r2 <- read_csv(tmp_csv, show_col_types = FALSE)
 r3 <- fread(tmp_csv)
@@ -107,7 +107,7 @@ class(r3)
 
 **Try it:** Convert `r3` (the data.table) into a tibble using `tibble::as_tibble()` and check its class.
 
-```r
+```r title="Exercise: convert data.table to tibble"
 # Try it: convert a data.table to a tibble
 library(tibble)
 # ex_tbl <- ...
@@ -117,7 +117,7 @@ library(tibble)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tibble-convert solution"
 ex_tbl <- as_tibble(r3)
 class(ex_tbl)
 #> [1] "tbl_df"     "tbl"        "data.frame"
@@ -133,7 +133,7 @@ class(ex_tbl)
 
 Let's see the parallel side directly by forcing single-threaded mode and comparing.
 
-```r
+```r title="fread single versus two threads"
 t_one <- system.time(fread(tmp_csv, nThread = 1))
 t_two <- system.time(fread(tmp_csv, nThread = 2))
 
@@ -150,7 +150,7 @@ On this small file the threading gain is modest, there isn't enough work to spre
 
 **Try it:** Run `fread()` on the temp file with `verbose = TRUE` and look at the report, it tells you exactly how the parser sized columns and how many threads it used.
 
-```r
+```r title="Exercise: inspect fread with verbose"
 # Try it: see what fread is actually doing under the hood
 # ex_v <- fread(tmp_csv, verbose = TRUE)
 ```
@@ -158,7 +158,7 @@ On this small file the threading gain is modest, there isn't enough work to spre
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="fread-verbose solution"
 ex_v <- fread(tmp_csv, verbose = TRUE)
 #> Input contains no \n. Taking this to be a filename to open
 #> [01] Check arguments
@@ -181,7 +181,7 @@ ex_v <- fread(tmp_csv, verbose = TRUE)
 
 Below about 1 MB, the constant overhead of starting a parser dominates the measurement. The 40× headline disappears once your file shrinks to a few hundred rows, and on truly tiny files, `read.csv()` can even win because it doesn't pay the cost of loading a package.
 
-```r
+```r title="Benchmark on a tiny 32-row file"
 # Tiny file: just 32 rows of mtcars
 tmp_small <- tempfile(fileext = ".csv")
 write.csv(mtcars, tmp_small, row.names = FALSE)
@@ -210,7 +210,7 @@ On a 32-row file, all three finish in single-digit milliseconds, and the ranking
 
 **Try it:** Time `read_csv()` on `tmp_small` with `progress = FALSE` and see if the elapsed time changes meaningfully.
 
-```r
+```r title="Exercise: progress bar on tiny files"
 # Try it: does suppressing the progress bar matter on a tiny file?
 # system.time(read_csv(tmp_small, show_col_types = FALSE, progress = FALSE))
 ```
@@ -218,7 +218,7 @@ On a 32-row file, all three finish in single-digit milliseconds, and the ranking
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Progress-bar solution"
 system.time(read_csv(tmp_small, show_col_types = FALSE, progress = FALSE))["elapsed"]
 #> elapsed
 #>   0.009
@@ -232,7 +232,7 @@ system.time(read_csv(tmp_small, show_col_types = FALSE, progress = FALSE))["elap
 
 Speed is one axis. The other axes are: friendly tibble output, locale-aware date and decimal parsing, structured warnings when a column doesn't match its expected type, and the explicit `col_types` specification, `readr`'s killer feature for production pipelines.
 
-```r
+```r title="Lock the schema with coltypes"
 r_typed <- read_csv(
   tmp_csv,
   col_types = cols(
@@ -254,7 +254,7 @@ Specifying `col_types` upfront does two important things. First, it locks the sc
 
 **Try it:** Read `tmp_csv` again but pass `col_types = cols(.default = "c")` to force every column as character. Inspect the column classes.
 
-```r
+```r title="Exercise: force every column to character"
 # Try it: read everything as character
 # ex_chr <- read_csv(tmp_csv, col_types = cols(.default = "c"))
 # sapply(ex_chr, class)
@@ -263,7 +263,7 @@ Specifying `col_types` upfront does two important things. First, it locks the sc
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="All-character solution"
 ex_chr <- read_csv(tmp_csv, col_types = cols(.default = "c"))
 sapply(ex_chr, class)[1:4]
 #>         mpg         cyl        disp          hp
@@ -280,7 +280,7 @@ Real CSVs are messier than `mtcars`. ID columns have leading zeros. Date columns
 
 The classic trap is the leading-zero column. Watch what happens to four ZIP-style codes when each function reads them.
 
-```r
+```r title="Leading zeros drop in read.csv"
 tmp_zero <- tempfile(fileext = ".csv")
 writeLines(c("id,name", "01,Alice", "02,Bob", "03,Carol", "04,Dave"), tmp_zero)
 
@@ -305,7 +305,7 @@ z3$id
 
 **Try it:** Re-read the same file with `read.csv()` but pass `colClasses = c(id = "character")` to fix the issue without switching readers.
 
-```r
+```r title="Exercise: fix with colClasses"
 # Try it: fix read.csv() with colClasses
 # ex_fix <- read.csv(tmp_zero, colClasses = c(id = "character"))
 # ex_fix$id
@@ -314,7 +314,7 @@ z3$id
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="colClasses-fix solution"
 ex_fix <- read.csv(tmp_zero, colClasses = c(id = "character"))
 ex_fix$id
 #> [1] "01" "02" "03" "04"
@@ -330,7 +330,7 @@ ex_fix$id
 
 You have `tmp_csv` from earlier in this tutorial. Read it back as a **tibble** with **all columns as character**, in a single function call. Save the result to `my_tibble`.
 
-```r
+```r title="Exercise: all-character tibble"
 # Exercise: read tmp_csv as an all-character tibble
 # Hint: read_csv() with col_types = cols(.default = "c")
 
@@ -341,7 +341,7 @@ You have `tmp_csv` from earlier in this tutorial. Read it back as a **tibble** w
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="All-character-tibble solution"
 my_tibble <- read_csv(tmp_csv, col_types = cols(.default = "c"))
 class(my_tibble)
 #> [1] "spec_tbl_df" "tbl_df"      "tbl"         "data.frame"
@@ -359,7 +359,7 @@ sapply(my_tibble, class)[1:3]
 
 Write a function `time_all(path)` that takes a CSV path, times all three readers on it, and returns a sorted `data.frame` with two columns, `reader` and `elapsed_sec`, fastest first. Test it on `tmp_csv` and save the result to `my_bench`.
 
-```r
+```r title="Exercise: benchmark function for any file"
 # Exercise: build a small benchmark function
 # Hint: use system.time(...)["elapsed"] for each reader, then order()
 
@@ -374,7 +374,7 @@ time_all <- function(path) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Benchmark-function solution"
 time_all <- function(path) {
   out <- data.frame(
     reader = c("read.csv()", "read_csv()", "fread()"),
@@ -403,7 +403,7 @@ my_bench
 
 Write a CSV with a `zip` column containing `c("01010", "02134", "10001")`. Read it back with **`read.csv()`** so that the result preserves all leading zeros. Save to `my_zips`.
 
-```r
+```r title="Exercise: preserve ZIP leading zeros"
 # Exercise: fix the leading-zero trap with base R
 
 zip_path <- tempfile(fileext = ".csv")
@@ -416,7 +416,7 @@ writeLines(c("zip,city", "01010,Chicopee", "02134,Allston", "10001,New York"), z
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ZIP-preserve solution"
 my_zips <- read.csv(zip_path, colClasses = c(zip = "character"))
 my_zips
 #>     zip     city
@@ -433,7 +433,7 @@ my_zips
 
 Here's an end-to-end import workflow that ties the lessons together: generate a 5,000-row CSV with mixed types (an ID column with leading zeros, a numeric column, and a category), read it safely with `fread()` while pre-declaring types, and summarise it.
 
-```r
+```r title="End-to-end mixed-type import workflow"
 # 1. Build a realistic mixed-type CSV
 set.seed(2026)
 df_full <- data.frame(

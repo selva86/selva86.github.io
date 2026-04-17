@@ -40,7 +40,7 @@ The impact is dramatic. Before the ClinicalTrials.gov registry required pre-regi
 
 Let's see how easy it is to get a "significant" result from pure noise. The code below runs 20 t-tests on completely random data and counts how many cross the p < 0.05 threshold.
 
-```r
+```r title="Simulate p-hacking across 20 t-tests"
 # Simulate p-hacking: 20 t-tests on random data
 set.seed(2024)
 p_values <- numeric(20)
@@ -65,7 +65,7 @@ Even with zero real effect, you expect about 1 in 20 tests to be "significant" b
 
 **Try it:** Run 100 t-tests on random data (both groups drawn from the same normal distribution) and count how many produce p < 0.05. Store the count in `ex_false_pos`.
 
-```r
+```r title="Exercise: false positives across 100 tests"
 # Try it: 100 t-tests on random data
 set.seed(99)
 ex_pvals <- numeric(100)
@@ -80,7 +80,7 @@ cat("False positives:", ex_false_pos)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="False-positive solution"
 set.seed(99)
 ex_pvals <- numeric(100)
 for (i in 1:100) {
@@ -112,7 +112,7 @@ The Data Colada blog recommends the "Leif Test": imagine a skeptical reviewer wh
 
 Let's encode an analysis plan as a structured list in R. This approach keeps your plan version-controlled and machine-readable.
 
-```r
+```r title="Build a structured analysis plan"
 # Create a structured analysis plan as a named list
 analysis_plan <- list(
   title       = "Effect of Sleep on Reaction Time",
@@ -147,7 +147,7 @@ Each field is explicit and specific. Notice that the hypothesis states a directi
 
 **Try it:** The plan below is missing two critical fields. Add an `exclusions` field and a `deviation_rule` field to complete it. Store the result in `ex_plan`.
 
-```r
+```r title="Exercise: add exclusions and deviation rule"
 # Try it: complete this plan
 ex_plan <- list(
   hypothesis = "Treatment group has lower anxiety scores",
@@ -162,7 +162,7 @@ str(ex_plan)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Deviation-rule solution"
 ex_plan <- list(
   hypothesis     = "Treatment group has lower anxiety scores",
   test           = "Independent t-test, alpha = 0.05",
@@ -202,7 +202,7 @@ Once your plan is written, you file it on a public registry. The two most popula
 
 The OSF template walks you through six sections: Study Information, Design Plan, Sampling Plan, Variables, Analysis Plan, and Other. Here is what those sections ask you to specify.
 
-```r
+```r title="OSF template: six sections at a glance"
 # OSF Prereg template: 6 sections and their focus areas
 osf_sections <- c(
   "1. Study Information"  = "Title, authors, description, hypotheses",
@@ -229,7 +229,7 @@ data.frame(
 
 AsPredicted takes a different approach. It asks just 9 questions, deliberately limiting verbosity so you focus on what matters.
 
-```r
+```r title="AsPredicted: nine focused questions"
 # AsPredicted: 9 focused questions
 aspredicted_qs <- c(
   "1. Have any data been collected for this study already?",
@@ -262,7 +262,7 @@ Notice question 5: "Specify exactly which analyses you will conduct." That singl
 
 **Try it:** Create a character vector called `ex_hypothesis` that states a specific, directional hypothesis for a study comparing two teaching methods on exam scores. Include the direction, the DV, and the expected effect size.
 
-```r
+```r title="Exercise: write a specific hypothesis"
 # Try it: write a specific hypothesis
 ex_hypothesis <- # your code here (a single character string)
 
@@ -273,7 +273,7 @@ cat(ex_hypothesis)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Specific-hypothesis solution"
 ex_hypothesis <- "Students taught with method A score at least 5 points higher on the final exam (0-100 scale) than students taught with method B, corresponding to Cohen's d >= 0.4"
 cat(ex_hypothesis)
 #> [1] Students taught with method A score at least 5 points higher on the final exam (0-100 scale) than students taught with method B, corresponding to Cohen's d >= 0.4
@@ -289,7 +289,7 @@ The strongest pre-registrations include actual analysis code, not just verbal de
 
 Start with a power analysis to justify your sample size. Then write the full analysis pipeline: data loading, exclusion filters, transformations, the statistical test, and the decision criterion. Here is a complete pre-registered analysis script for a two-group experiment.
 
-```r
+```r title="Pre-registered sleep-and-reaction-time plan"
 # Pre-registered analysis: Sleep and Reaction Time
 # Step 1: Power analysis to justify sample size
 power_result <- power.t.test(
@@ -349,7 +349,7 @@ Every decision in this script was made before seeing the data. The power analysi
 
 **Try it:** Use `power.t.test()` to calculate the required sample size per group for detecting a medium effect (d = 0.5, which corresponds to delta = 0.5 and sd = 1) at 90% power and alpha = 0.05. Store the result in `ex_power`.
 
-```r
+```r title="Exercise: power analysis at 90%"
 # Try it: power analysis for d = 0.5 at 90% power
 ex_power <- power.t.test(
   # your code here
@@ -361,7 +361,7 @@ cat("N per group:", ceiling(ex_power$n))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Power-analysis solution"
 ex_power <- power.t.test(
   delta     = 0.5,
   sd        = 1,
@@ -394,7 +394,7 @@ There are five justifiable reasons to deviate from your pre-registration.
 
 A practical approach is to maintain a deviation log throughout your analysis. Every time you deviate from the plan, you record what changed, why, and how it affects the interpretation.
 
-```r
+```r title="Create and log first deviation"
 # Create a deviation log as a data frame
 deviation_log <- data.frame(
   deviation_id = integer(0),
@@ -441,7 +441,7 @@ This log becomes part of your final report. Readers can see exactly what changed
 
 **Try it:** Add a third entry to `deviation_log` where the planned analysis was "no covariates" but you actually included age as a covariate because the groups differed significantly in age. Store the updated log in `ex_deviation`.
 
-```r
+```r title="Exercise: add a third deviation entry"
 # Try it: add a deviation entry
 ex_deviation <- rbind(deviation_log, data.frame(
   deviation_id = 3,
@@ -458,7 +458,7 @@ print(ex_deviation[3, ])
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Third-deviation solution"
 ex_deviation <- rbind(deviation_log, data.frame(
   deviation_id = 3,
   planned  = "No covariates",
@@ -486,7 +486,7 @@ This is the most common failure. A vague hypothesis gives you room to reinterpre
 
 ❌ **Wrong:**
 
-```r
+```r title="Common mistake: vague hypothesis"
 # Vague hypothesis — fits any outcome
 vague_plan <- list(
   hypothesis = "We expect to find an effect of the treatment",
@@ -500,7 +500,7 @@ cat(vague_plan$hypothesis)
 
 ✅ **Correct:**
 
-```r
+```r title="Correct: quantified hypothesis"
 # Specific hypothesis — constrains the analysis
 specific_plan <- list(
   hypothesis = "Treatment group scores at least 10 points higher on the DASS-21 anxiety subscale (0-42) than control, d >= 0.5",
@@ -516,7 +516,7 @@ Without explicit exclusion rules, you can remove inconvenient observations after
 
 ❌ **Wrong:**
 
-```r
+```r title="Common mistake: undefined exclusions"
 # No exclusion criteria
 bad_exclusions <- list(
   exclusions = "We will remove outliers and problematic data points"
@@ -529,7 +529,7 @@ cat(bad_exclusions$exclusions)
 
 ✅ **Correct:**
 
-```r
+```r title="Correct: explicit exclusion rules"
 # Explicit exclusion criteria
 good_exclusions <- list(
   exclusions = "Remove observations > 3 SD from the group mean. Remove participants who answered < 80% of items. Remove sessions shorter than 5 minutes."
@@ -562,7 +562,7 @@ This defeats the entire purpose. A post-data pre-registration is not a pre-regis
 
 Write a complete analysis plan for a study comparing two fertilizers on plant growth. Create a named list with at least 7 fields: hypothesis, design, sample_size, dv, iv, test, exclusions, and deviation_rule. Use `power.t.test()` to justify your sample size (assume d = 0.6, power = 0.80, alpha = 0.05). Store the plan in `my_plan`.
 
-```r
+```r title="Exercise: complete fertilizer study plan"
 # Exercise: complete analysis plan for fertilizer study
 # Hint: start with power.t.test() to get sample size,
 # then build the list with all 7+ fields
@@ -574,7 +574,7 @@ Write a complete analysis plan for a study comparing two fertilizers on plant gr
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fertilizer-plan solution"
 # Power analysis first
 my_power <- power.t.test(delta = 0.6, sd = 1, sig.level = 0.05, power = 0.80,
                          type = "two.sample", alternative = "two.sided")
@@ -611,7 +611,7 @@ str(my_plan)
 
 The pre-registration below has at least 4 problems. Identify each flaw, explain why it is problematic, and write a corrected version. Store your corrected plan in `my_review`.
 
-```r
+```r title="Exercise: fix the flawed pre-registration"
 # Flawed pre-registration — find the problems
 flawed_plan <- list(
   hypothesis = "The intervention will have an effect on wellbeing",
@@ -630,7 +630,7 @@ flawed_plan <- list(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fixed-plan solution"
 my_review <- list(
   hypothesis  = "Intervention group scores >= 5 points higher on the WHO-5 Wellbeing Index (0-25) than control at 6-week follow-up (d >= 0.4)",
   design      = "Between-subjects RCT, two groups (intervention vs waitlist control), single-blind (assessor-blind)",
@@ -664,7 +664,7 @@ cat("6. Exclusions: subjective ('bad data') — undefined\n")
 
 Let's walk through a complete pre-registration workflow: define the study, write the analysis plan in R, simulate data collection, run the pre-registered analysis, and report deviations.
 
-```r
+```r title="End-to-end pre-registration workflow"
 # === COMPLETE PRE-REGISTRATION WORKFLOW ===
 
 # PART 1: Define the study plan

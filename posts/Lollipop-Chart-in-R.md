@@ -32,7 +32,7 @@ The tradeoff is that lollipops are slightly less precise than bars for length co
 
 A lollipop chart needs two geoms: `geom_segment()` for the stem (from 0 to the value) and `geom_point()` for the dot at the top.
 
-```r
+```r title="Basic lollipop chart of temperatures"
 library(ggplot2)
 
 # Sample: average temperature by month
@@ -66,7 +66,7 @@ p_basic
 
 When categories have no natural order (months, countries, products), ordering by value turns a random-looking plot into a clear ranking.
 
-```r
+```r title="Order lollipops by value"
 # Reorder categories by temperature value
 df_ordered <- df
 df_ordered$month <- reorder(df_ordered$month, df_ordered$temp)
@@ -94,7 +94,7 @@ p_ordered
 
 When category names are long, country names, product names, multi-word labels, flip the axes so labels run horizontally and are readable without tilting your head.
 
-```r
+```r title="Horizontal lollipop for long labels"
 # Horizontal lollipop: switch x and y, use long category names
 countries <- data.frame(
   country = c("Norway", "Switzerland", "Ireland", "Germany",
@@ -128,7 +128,7 @@ p_horiz
 
 Coloring by a condition (above/below average, above/below zero, pass/fail threshold) adds a semantic layer that helps readers immediately see which categories are "good" vs "bad".
 
-```r
+```r title="Color above and below average"
 # Color by above/below average temperature
 avg_temp <- mean(df$temp)
 
@@ -166,7 +166,7 @@ The stems now start at `avg_temp` (not 0) and extend to each value. Red dots are
 
 A diverging lollipop encodes positive values pointing right (or up) and negative values pointing left (or down). It's perfect for showing change, deviation, or gain/loss.
 
-```r
+```r title="Diverging lollipop for gains and losses"
 # Diverging lollipop: year-over-year change by sector
 div_df <- data.frame(
   sector = c("Technology", "Healthcare", "Finance", "Energy",
@@ -208,7 +208,7 @@ Value labels are placed to the right of positive dots and to the left of negativ
 
 ## Complete Example: Polished Lollipop Chart
 
-```r
+```r title="Polished lollipop highlighting R"
 # Polished lollipop: programming language popularity
 pop_df <- data.frame(
   language = c("Python", "JavaScript", "TypeScript", "Java", "C#",
@@ -259,14 +259,14 @@ p_final
 
 ❌ Omitting `y = 0` in `geom_segment()` makes stems appear as floating lines.
 
-```r
+```r title="Common mistake: missing baseline y"
 # Wrong: y must be the baseline
 geom_segment(aes(x = cat, xend = cat, yend = value))
 ```
 
 ✅ Always specify both endpoints:
 
-```r
+```r title="Correct segment with both endpoints"
 # Correct
 geom_segment(aes(x = cat, xend = cat, y = 0, yend = value))
 ```
@@ -275,14 +275,14 @@ geom_segment(aes(x = cat, xend = cat, y = 0, yend = value))
 
 ❌ Alphabetical or arbitrary category order makes it impossible to see ranking.
 
-```r
+```r title="Common mistake: alphabetical order"
 # Wrong: default alphabetical order
 ggplot(df, aes(x = country, y = gdp))
 ```
 
 ✅ Reorder by value when categories have no natural order.
 
-```r
+```r title="Correct order using reorder"
 # Correct
 df$country <- reorder(df$country, df$gdp)
 ```
@@ -295,7 +295,7 @@ Lollipops imply ranked comparison. For temporal data (months, years), a line cha
 
 When `size` (dot) is smaller than `linewidth` (stem), the dot disappears behind the stem. Keep the dot visually dominant.
 
-```r
+```r title="Common mistake: stem too thick"
 # Wrong: stem too thick relative to dot
 geom_segment(linewidth = 3) + geom_point(size = 2)
 
@@ -316,7 +316,7 @@ Create a horizontal lollipop chart using the `mtcars` dataset, showing average `
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Cylinder MPG lollipop solution"
 library(ggplot2)
 
 cyl_mpg <- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
@@ -342,7 +342,7 @@ Using `airquality`, compute the average `Temp` per month, then calculate each mo
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Airquality diverging lollipop solution"
 library(ggplot2)
 
 monthly <- aggregate(Temp ~ Month, data = airquality, FUN = mean)

@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 When you need to rank, compare, or just eyeball the biggest and smallest values, sorting is the first move. `arrange()` reorders rows by one or more columns, ascending by default, wrap a column in `desc()` for descending. Here are the fastest cars in `mtcars`, ranked by quarter-mile time (smaller `qsec` = faster):
 
-```r
+```r title="Sort rows with arrange"
 library(dplyr)
 
 fastest_cars <- mtcars |>
@@ -46,7 +46,7 @@ The Ford Pantera L comes out on top with a 14.5-second quarter mile, followed cl
 
 **Try it:** Sort `iris` so the longest `Sepal.Length` comes first. Save to `ex_iris_sorted` and show the top 3 rows.
 
-```r
+```r title="Exercise: Sort iris descending"
 # Try it: sort iris by Sepal.Length descending
 ex_iris_sorted <- iris |>
   # your code here
@@ -58,7 +58,7 @@ head(ex_iris_sorted, 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Iris sort solution"
 ex_iris_sorted <- iris |>
   arrange(desc(Sepal.Length))
 
@@ -77,7 +77,7 @@ head(ex_iris_sorted, 3)
 
 Single-column sorting is fine until you hit ties. What if you want all four-cylinder cars first, then six-cylinder, then eight, and within each cylinder group, the highest-mpg car on top? Pass multiple columns to `arrange()` and dplyr sorts by the first column, then uses the second as a tie-breaker, and so on. The order you list the columns matters.
 
-```r
+```r title="Sort by multiple columns"
 cyl_mpg_sort <- mtcars |>
   arrange(cyl, desc(mpg))
 
@@ -98,7 +98,7 @@ The four-cylinder block leads, and within it the Toyota Corolla (33.9 mpg) sits 
 
 **Try it:** Sort the `starwars` dataset by `species` alphabetically, then within each species by `mass` descending. Save to `ex_sw_sorted`.
 
-```r
+```r title="Exercise: Species then mass descending"
 # Try it: species A-Z, then heaviest first
 ex_sw_sorted <- starwars |>
   # your code here
@@ -110,7 +110,7 @@ head(ex_sw_sorted |> select(name, species, mass), 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Species mass solution"
 ex_sw_sorted <- starwars |>
   arrange(species, desc(mass))
 
@@ -131,7 +131,7 @@ head(ex_sw_sorted |> select(name, species, mass), 3)
 
 If you've used base R you already know `order()`, it returns the *indices* that would sort a vector, and you use those indices to subset the data frame. `arrange()` skips that indirection: it takes the whole data frame, sorts it, and hands it back. Same result, half the keystrokes and none of the bracket gymnastics.
 
-```r
+```r title="Compare arrange with base order"
 # Base R way
 base_sorted <- mtcars[order(mtcars$cyl, -mtcars$mpg), ]
 
@@ -150,7 +150,7 @@ Both lines produce the same sorted table, confirmed by `identical()` on the row 
 
 **Try it:** Rewrite `iris[order(-iris$Petal.Length), ][1:3, ]` using `arrange()` + `slice()` or `head()`. Save to `ex_base_rewrite`.
 
-```r
+```r title="Exercise: Rewrite base sort"
 # Try it: top 3 longest petals, rewritten with dplyr
 ex_base_rewrite <- iris |>
   # your code here
@@ -162,7 +162,7 @@ ex_base_rewrite
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Base rewrite solution"
 ex_base_rewrite <- iris |>
   arrange(desc(Petal.Length)) |>
   head(3)
@@ -182,7 +182,7 @@ ex_base_rewrite
 
 Sometimes you don't care about values, you just want "row 5" or "rows 10 through 15" or "everything except the first row." That's what `slice()` does: it subsets rows by their integer position in the table. It accepts a single index, a range with `:`, a vector with `c()`, or negative indices to *exclude* rows.
 
-```r
+```r title="Pick rows by position with slice"
 first_five <- mtcars |>
   slice(1:5)
 
@@ -202,7 +202,7 @@ That's the first five rows of `mtcars`, position 1 through 5, in their original 
 
 **Try it:** Extract rows 10 through 15 from `iris`. Save to `ex_iris_slice`.
 
-```r
+```r title="Exercise: Iris rows 10 to 15"
 # Try it: rows 10-15 of iris
 ex_iris_slice <- iris |>
   # your code here
@@ -214,7 +214,7 @@ ex_iris_slice
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Iris slice solution"
 ex_iris_slice <- iris |>
   slice(10:15)
 
@@ -249,7 +249,7 @@ dplyr ships a whole family of `slice_*()` helpers, each one answering a differen
 
 Here's `slice_max()` in action, no `arrange()` needed:
 
-```r
+```r title="Largest values with slicemax"
 heaviest_sw <- starwars |>
   filter(!is.na(mass)) |>
   slice_max(mass, n = 5)
@@ -272,7 +272,7 @@ Five lines of output, ranked heaviest first, with `Jabba` unsurprisingly dominat
 
 **Try it:** Get the 3 shortest Star Wars characters by `height`. Save to `ex_shortest_sw`.
 
-```r
+```r title="Exercise: Three shortest characters"
 # Try it: 3 shortest characters
 ex_shortest_sw <- starwars |>
   filter(!is.na(height)) |>
@@ -285,7 +285,7 @@ ex_shortest_sw |> select(name, height)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Shortest characters solution"
 ex_shortest_sw <- starwars |>
   filter(!is.na(height)) |>
   slice_min(height, n = 3)
@@ -310,7 +310,7 @@ Here's the pattern that makes `slice_max()` genuinely powerful: combine it with 
 ![Top-N-per-group with group_by() + slice_max()](screenshots/dplyr-arrange-slice-top-n-per-group.webp)
 *Figure 2: Getting the top rows within each group by combining group_by() and slice_max().*
 
-```r
+```r title="Top N per group"
 top_by_cyl <- mtcars |>
   group_by(cyl) |>
   slice_max(mpg, n = 2) |>
@@ -335,7 +335,7 @@ Six rows total, two per cylinder class, ranked highest mpg first within each gro
 
 **Try it:** Get the 2 tallest characters per `species` from `starwars`, ignoring rows with missing `height`. Save to `ex_top_by_species`.
 
-```r
+```r title="Exercise: Tallest two per species"
 # Try it: 2 tallest per species
 ex_top_by_species <- starwars |>
   filter(!is.na(height), !is.na(species)) |>
@@ -349,7 +349,7 @@ head(ex_top_by_species |> select(name, species, height), 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tallest per species solution"
 ex_top_by_species <- starwars |>
   filter(!is.na(height), !is.na(species)) |>
   group_by(species) |>
@@ -374,7 +374,7 @@ head(ex_top_by_species |> select(name, species, height), 4)
 
 If you've read older dplyr tutorials you've seen `top_n()`, a function that grabs the top N rows by some column. It still works, but as of dplyr 1.0.0 (May 2020) it's officially superseded by `slice_max()` and `slice_min()`. Superseded means "still supported forever, but not the recommended choice anymore", new code should use the slice family.
 
-```r
+```r title="topn superseded by slicemax"
 # Superseded (still works):
 old_top_n <- mtcars |>
   top_n(3, mpg)
@@ -395,7 +395,7 @@ Both lines return the three highest-mpg cars. Why was `top_n()` superseded? Two 
 
 **Try it:** Rewrite `mtcars |> top_n(4, hp)` using `slice_max()` and confirm the results match. Save to `ex_top_hp`.
 
-```r
+```r title="Exercise: Modernize topn call"
 # Try it: modernize top_n()
 ex_top_hp <- mtcars |>
   # your code here
@@ -407,7 +407,7 @@ nrow(ex_top_hp)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Modernize topn solution"
 ex_top_hp <- mtcars |>
   slice_max(hp, n = 4)
 
@@ -434,7 +434,7 @@ These capstones combine arrange, slice, and group_by patterns. Use `my_*` prefix
 
 In `starwars`, find the second-heaviest character of each species (not the heaviest, exactly the second). Ignore rows with missing `mass`. Save to `my_second_heaviest` with columns `name`, `species`, and `mass`.
 
-```r
+```r title="Exercise: Second heaviest per species"
 # Exercise 1: second-heaviest per species
 # Hint: arrange inside the group, then slice position 2
 
@@ -447,7 +447,7 @@ head(my_second_heaviest, 5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Second heaviest solution"
 my_second_heaviest <- starwars |>
   filter(!is.na(mass)) |>
   group_by(species) |>
@@ -475,7 +475,7 @@ head(my_second_heaviest, 5)
 
 From `mtcars`, build a single table containing the 3 worst-mpg and 3 best-mpg cars, with a `rank` column marking "bottom" or "top". Save to `my_extremes`.
 
-```r
+```r title="Exercise: Bottom and top combined"
 # Exercise 2: bottom 3 + top 3 combined
 # Hint: bind_rows() two slice results
 
@@ -489,7 +489,7 @@ my_extremes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bottom and top solution"
 my_extremes <- bind_rows(
   mtcars |> slice_min(mpg, n = 3) |> mutate(rank = "bottom"),
   mtcars |> slice_max(mpg, n = 3) |> mutate(rank = "top")
@@ -513,7 +513,7 @@ my_extremes |> select(mpg, rank)
 
 Take a random sample of 2 cars from each cylinder group in `mtcars`, reproducible with a seed. Save to `my_stratified_sample`. Result should have 6 rows total (2 per cylinder class × 3 classes).
 
-```r
+```r title="Exercise: Stratified random sample"
 # Exercise 3: stratified random sample
 # Hint: set.seed + group_by + slice_sample
 
@@ -529,7 +529,7 @@ nrow(my_stratified_sample)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stratified sample solution"
 set.seed(123)
 
 my_stratified_sample <- mtcars |>
@@ -560,7 +560,7 @@ my_stratified_sample |> select(mpg, cyl)
 
 Here's a realistic end-to-end pipeline that threads every verb from this tutorial together. Question: *what are the 3 tallest Star Wars characters in each homeworld that has at least 2 characters, sorted by homeworld and height?*
 
-```r
+```r title="End-to-end tallest per homeworld"
 sw_top_mass <- starwars |>
   filter(!is.na(height), !is.na(homeworld)) |>
   group_by(homeworld) |>

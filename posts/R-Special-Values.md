@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Every R user hits these four eventually, usually the hard way, a `mean()` that silently returns `NA`, a `length()` of 0 when they expected 1, or a model that explodes on `Inf`. The fix starts with understanding what each value represents.
 
-```r
+```r title="Four special values at a glance"
 x <- NA          # Missing data — we don't know the value
 y <- NULL        # Nothing — the object has zero length
 z <- 0 / 0       # NaN — Not a Number, math that has no answer
@@ -43,7 +43,7 @@ Notice `y` (NULL) vanished from the combined vector, `c()` just drops it. That's
 [KEY INSIGHT]
 NA is a value. NULL is not. That one sentence explains most of the confusion: `NA` takes up a slot in a vector, `NULL` doesn't.
 
-```r
+```r title="NA counted but NULL skipped"
 length(c(1, NA, 3))
 length(c(1, NULL, 3))
 #> [1] 3
@@ -54,7 +54,7 @@ length(c(1, NULL, 3))
 
 Each special value has its own test, and using the wrong one silently gives you the wrong answer. The four tests you need are `is.na()`, `is.null()`, `is.nan()`, and `is.infinite()`. Each returns `TRUE` only for its matching value.
 
-```r
+```r title="Four safe tests for special values"
 x <- c(1, NA, 0/0, 1/0, -1/0, 5)
 
 is.na(x)         # TRUE for NA — but also for NaN!
@@ -72,7 +72,7 @@ Two gotchas in those four lines. First: `is.na()` returns `TRUE` for both `NA` *
 [WARNING]
 Never compare with `==`, these values break equality. `NA == NA` returns `NA`, not `TRUE`. `NaN == NaN` returns `NA` too. Always use `is.na()`, `is.nan()`, etc.
 
-```r
+```r title="NA and NaN break equality"
 NA == NA
 NaN == NaN
 NA == 5
@@ -83,7 +83,7 @@ NA == 5
 
 NULL is different, it's not a value in a vector, it's an object of length 0. Test it with `is.null()`:
 
-```r
+```r title="is null only flags NULL itself"
 is.null(NULL)
 is.null(NA)
 is.null(list())
@@ -98,7 +98,7 @@ Only `NULL` itself is NULL, an empty list or empty vector is *not* NULL, they're
 
 **Try it:** Create `ex_vals <- c(1, NA, NaN, Inf, -Inf, 2)` and write one line using `is.finite()` to keep only the "real" numbers.
 
-```r
+```r title="Exercise: keep only finite values"
 ex_vals <- c(1, NA, NaN, Inf, -Inf, 2)
 # your one-liner here
 ```
@@ -106,7 +106,7 @@ ex_vals <- c(1, NA, NaN, Inf, -Inf, 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Keep only finite values solution"
 ex_vals <- c(1, NA, NaN, Inf, -Inf, 2)
 ex_vals[is.finite(ex_vals)]
 #> [1] 1 2
@@ -123,7 +123,7 @@ Any arithmetic touching `NA` returns `NA`. This is deliberate: R refuses to gues
 
 *Figure 2: Without na.rm, one NA poisons the whole result. With na.rm = TRUE, it's dropped before computing.*
 
-```r
+```r title="Arithmetic propagates NA without na rm"
 x <- c(4, 7, NA, 12, 15)
 
 sum(x)
@@ -141,7 +141,7 @@ This isn't a bug, it's R protecting you from silently wrong answers. If you `mea
 [TIP]
 Use `anyNA(x)` instead of `any(is.na(x))`, it's faster on large vectors and bails out at the first NA it finds.
 
-```r
+```r title="Detect any NA with anyNA"
 anyNA(c(1, 2, 3, NA, 5))
 anyNA(c(1, 2, 3, 4, 5))
 #> [1] TRUE
@@ -150,7 +150,7 @@ anyNA(c(1, 2, 3, 4, 5))
 
 Logical operations also propagate `NA`, but only when the answer genuinely depends on the unknown:
 
-```r
+```r title="Logical NA with short circuit"
 NA & FALSE        # FALSE wins — unknown AND false is still false
 NA & TRUE         # NA — answer depends on the unknown
 NA | TRUE         # TRUE wins — anything OR true is true
@@ -167,7 +167,7 @@ R is doing three-valued logic here, and it's smarter than most languages, if the
 
 `NA` has a type. By default it's *logical*, but R provides typed variants, `NA_integer_`, `NA_real_`, `NA_character_`, `NA_complex_`, for when you need missing values of a specific type. You'll hit this most often when initializing a result vector.
 
-```r
+```r title="Plain NA is logical by default"
 # Plain NA is logical — often not what you want
 typeof(NA)
 
@@ -183,7 +183,7 @@ typeof(NA_character_)
 
 Most of the time R coerces for you, so plain `NA` works fine. But in pre-allocated result vectors or tidyverse code that checks types strictly, the right typed `NA` prevents surprises.
 
-```r
+```r title="Pre allocate with typed NA real"
 # Pre-allocate a numeric result vector with NAs
 result <- rep(NA_real_, 5)
 result[1] <- 3.14
@@ -195,14 +195,14 @@ If you'd used `rep(NA, 5)` you'd have a logical vector and assigning `3.14` into
 
 **Try it:** Pre-allocate `ex_names` as a length-3 character vector of `NA_character_`, then assign `"Ada"` to position 1.
 
-```r
+```r title="Exercise: pre allocate character NAs"
 # Your code here — pre-allocate and assign
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Character NA pre allocation solution"
 ex_names <- rep(NA_character_, 3)
 ex_names[1] <- "Ada"
 ex_names
@@ -218,7 +218,7 @@ Using `NA_character_` keeps the vector's type as `"character"` from the start, s
 
 `NULL` represents *absence*, not missingness. You use it to say "this argument wasn't provided", "this list slot is empty", or "remove this element." It has length 0 and no type.
 
-```r
+```r title="NULL as optional argument sentinel"
 # NULL as a "missing argument" sentinel
 describe <- function(x, label = NULL) {
   if (is.null(label)) label <- "Vector"
@@ -235,7 +235,7 @@ That's the cleanest use of `NULL`, a default that means "figure it out for me." 
 
 `NULL` is also how you **remove** elements from a list:
 
-```r
+```r title="Remove list element by NULL"
 person <- list(name = "Ada", age = 36, city = "London")
 person$age <- NULL
 person
@@ -255,7 +255,7 @@ Don't put `NULL` *inside* a regular vector expecting a "missing" marker, use `NA
 
 `Inf` (infinity) and `NaN` (not-a-number) come from math operations that don't have finite answers. The classic sources: dividing by zero, taking `log(0)`, or computing `0/0`.
 
-```r
+```r title="Inf NaN and log zero sources"
 1 / 0          # Inf
 -1 / 0         # -Inf
 log(0)         # -Inf
@@ -275,7 +275,7 @@ Each one is telling you something different. `Inf` says "the answer is larger th
 
 They show up in real code most often after a `log()` transform or a rate calculation:
 
-```r
+```r title="Sales over visits yields Inf"
 sales <- c(100, 0, 250, 50)
 visits <- c(1000, 500, 0, 250)
 
@@ -286,7 +286,7 @@ rate
 
 One zero denominator, one `Inf`, and now any downstream `mean()` or `sum()` is broken. You need to decide what `Inf` means in your context, a missing rate? A capped value? Then handle it explicitly.
 
-```r
+```r title="Replace Inf with NA before mean"
 # Replace Inf with NA so na.rm can handle it
 rate[is.infinite(rate)] <- NA
 mean(rate, na.rm = TRUE)
@@ -295,14 +295,14 @@ mean(rate, na.rm = TRUE)
 
 **Try it:** Given `ex_x <- c(1, 2, 0, 4, 0, 6)`, compute `1 / ex_x`, then replace any `Inf` with `NA_real_`.
 
-```r
+```r title="Exercise: invert and replace Inf"
 # Your code here — invert ex_x and replace Inf with NA_real_
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Invert and replace Inf solution"
 ex_x <- c(1, 2, 0, 4, 0, 6)
 ex_inv <- 1 / ex_x
 ex_inv
@@ -319,7 +319,7 @@ Dividing by zero produces `Inf` (positive, since both operands are positive), so
 
 Most statistical and machine-learning functions in R refuse to work with `NA`, `NaN`, or `Inf`. Your data prep checklist is: **detect, decide, replace or drop**. There's no single right answer, dropping rows, imputing the mean, or replacing with zero all have trade-offs.
 
-```r
+```r title="Data frame with NA and Inf"
 df <- data.frame(
   score = c(85, NA, 92, 78, 100),
   rate = c(0.2, 0.5, Inf, 0.3, NaN)
@@ -336,7 +336,7 @@ df
 
 **Strategy 1: Drop any row with problems.**
 
-```r
+```r title="Drop rows with is finite"
 is_clean <- is.finite(df$score) & is.finite(df$rate)
 df_clean <- df[is_clean, ]
 df_clean
@@ -349,7 +349,7 @@ df_clean
 
 **Strategy 2: Replace with a sentinel.**
 
-```r
+```r title="Replace with mean or median"
 df$score[is.na(df$score)] <- mean(df$score, na.rm = TRUE)
 df$rate[!is.finite(df$rate)] <- median(df$rate[is.finite(df$rate)])
 df
@@ -368,14 +368,14 @@ There is no "just clean the data" function that's right for every project. Which
 
 **Try it:** Given `ex_df` with a `score` column `c(1, NA, 3, Inf, 5)`, keep only rows where score is finite. Use `is.finite()`.
 
-```r
+```r title="Exercise: keep finite score rows"
 # Your code here — keep only rows where score is finite
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Finite score filter solution"
 ex_df <- data.frame(score = c(1, NA, 3, Inf, 5))
 ex_df_clean <- ex_df[is.finite(ex_df$score), ]
 ex_df_clean
@@ -394,7 +394,7 @@ ex_df_clean
 
 Write `classify(x)` that takes a numeric vector and returns a character vector labelling each element as `"regular"`, `"NA"`, `"NaN"`, `"Inf"`, or `"-Inf"`. Use `is.na()`, `is.nan()`, and `is.infinite()` in the right order.
 
-```r
+```r title="Exercise: classify each special value"
 classify <- function(x) {
   # ...
 }
@@ -405,7 +405,7 @@ classify(c(1, NA, 0/0, 1/0, -1/0, 42))
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Classify special values solution"
 classify <- function(x) {
   out <- rep("regular", length(x))
   out[is.nan(x)] <- "NaN"
@@ -426,7 +426,7 @@ Order matters: test `is.nan()` before `is.na()`, because `is.na()` is TRUE for N
 
 Write `safe_div(a, b, replace = NA_real_)` that divides two vectors element-wise. Wherever the result would be `Inf`, `-Inf`, or `NaN`, substitute `replace`.
 
-```r
+```r title="Exercise: safe division with replacement"
 safe_div <- function(a, b, replace = NA_real_) {
   # ...
 }
@@ -437,7 +437,7 @@ safe_div(c(10, 20, 30), c(2, 0, 5))
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Safe division solution"
 safe_div <- function(a, b, replace = NA_real_) {
   out <- a / b
   out[!is.finite(out)] <- replace
@@ -456,7 +456,7 @@ safe_div(c(10, 20, 30), c(2, 0, 5), replace = 0)
 
 Write `na_report(df)` that returns a data frame listing each column and its count of `NA`s (treat `NaN` and `Inf` as NA too, so use `is.finite()` on numeric columns).
 
-```r
+```r title="Exercise: na report per column"
 na_report <- function(df) {
   # ...
 }
@@ -471,7 +471,7 @@ na_report(data.frame(
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="na report per column solution"
 na_report <- function(df) {
   missing_count <- sapply(df, function(col) {
     if (is.numeric(col)) sum(!is.finite(col))
@@ -500,7 +500,7 @@ na_report(data.frame(
 
 Here's the full workflow on a toy dataset with every kind of problem in it.
 
-```r
+```r title="Messy frame with every problem"
 set.seed(1)
 raw <- data.frame(
   id = 1:8,
@@ -524,7 +524,7 @@ raw
 
 Three kinds of problems in one column: `NA` from source data, `NaN` from `0/0`, and potentially `Inf` if cost were non-zero with a zero denominator elsewhere. `is.finite()` handles them all in one call:
 
-```r
+```r title="End-to-end messy dataset cleaning"
 # Step 2: flag problem rows
 raw$has_issue <- !is.finite(raw$margin)
 

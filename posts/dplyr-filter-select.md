@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 `filter()` takes a data frame and one or more conditions. It keeps the rows where every condition evaluates to `TRUE`. You refer to columns by their bare names, no `$`, no quotes.
 
-```r
+```r title="Filter mtcars rows by mpg"
 library(dplyr)
 
 filter(mtcars, mpg > 25)
@@ -39,7 +39,7 @@ filter(mtcars, mpg > 25)
 
 Compare that to base R: `mtcars[mtcars$mpg > 25, ]`. The dplyr version is shorter, and it composes cleanly with the pipe. The real wins show up with multiple conditions.
 
-```r
+```r title="Filter with two comma conditions"
 mtcars |> filter(mpg > 20, cyl == 4)
 #>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
 #> Datsun 710     22.8   4 108.0  93 3.85 2.320 18.61  1  1    4    1
@@ -56,7 +56,7 @@ Commas between conditions mean "and." Every row must satisfy all of them. This i
 
 **Try it:** Filter `mtcars` to rows where `gear == 4` and `carb == 4`.
 
-```r
+```r title="Exercise: Filter by gear and carb"
 library(dplyr)
 mtcars |> filter(gear == ___, carb == ___)
 
@@ -65,7 +65,7 @@ mtcars |> filter(gear == ___, carb == ___)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter by gear and carb solution"
 library(dplyr)
 mtcars |> filter(gear == 4, carb == 4)
 #>                mpg cyl  disp  hp drat   wt  qsec vs am gear carb
@@ -83,7 +83,7 @@ Each comma-separated condition is ANDed together, so only rows with both `gear =
 
 Commas mean "and", that's the common case. For "or" and "not," use the standard logical operators: `|` for or, `!` for not.
 
-```r
+```r title="OR, NOT, and in combinations"
 # OR — either condition matches
 mtcars |> filter(cyl == 8 | mpg > 30)
 
@@ -96,7 +96,7 @@ mtcars |> filter(cyl %in% c(4, 6), mpg > 25)
 
 The `%in%` operator is your friend for "is this value one of these values" checks, cleaner than chaining `==` with `|`.
 
-```r
+```r title="between and strdetect filters"
 # Between — numeric range
 mtcars |> filter(between(hp, 100, 150))
 
@@ -113,7 +113,7 @@ starwars |> filter(str_detect(name, "Luke"))
 
 **Try it:** Filter to rows where `am == 1` OR `gear == 5`.
 
-```r
+```r title="Exercise: am or gear filter"
 mtcars |> filter(am == 1 | gear == ___)
 
 ```
@@ -121,7 +121,7 @@ mtcars |> filter(am == 1 | gear == ___)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="am or gear filter solution"
 library(dplyr)
 mtcars |> filter(am == 1 | gear == 5) |> nrow()
 #> [1] 13
@@ -134,7 +134,7 @@ mtcars |> filter(am == 1 | gear == 5) |> nrow()
 
 `NA` propagates through comparisons: `NA > 5` is `NA`, not `FALSE`. `filter()` drops rows where the condition is `NA`, safer than base R, which sometimes returns mystery `NA` rows. But you still need `is.na()` to explicitly select missing rows.
 
-```r
+```r title="Filter around NA safely"
 df <- tibble(x = c(1, 2, NA, 4, NA))
 
 df |> filter(x > 2)
@@ -163,7 +163,7 @@ df |> filter(!is.na(x))
 
 **Try it:** On `starwars`, keep only rows where `mass` is not `NA`.
 
-```r
+```r title="Exercise: Drop NA mass rows"
 starwars |> filter(!is.na(___))
 
 ```
@@ -171,7 +171,7 @@ starwars |> filter(!is.na(___))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drop NA mass solution"
 library(dplyr)
 starwars |> filter(!is.na(mass)) |> nrow()
 #> [1] 59
@@ -184,7 +184,7 @@ starwars |> filter(!is.na(mass)) |> nrow()
 
 `select()` keeps (or drops) columns by name. The simplest form lists the columns you want:
 
-```r
+```r title="Pick columns with select"
 mtcars |> select(mpg, cyl, hp) |> head(3)
 #>                mpg cyl  hp
 #> Mazda RX4       21   6 110
@@ -194,7 +194,7 @@ mtcars |> select(mpg, cyl, hp) |> head(3)
 
 A minus sign drops columns instead:
 
-```r
+```r title="Drop columns with minus sign"
 mtcars |> select(-vs, -am, -gear, -carb) |> head(3)
 #>                mpg cyl disp  hp drat    wt  qsec
 #> Mazda RX4       21   6  160 110 3.90 2.620 16.46
@@ -204,7 +204,7 @@ mtcars |> select(-vs, -am, -gear, -carb) |> head(3)
 
 Ranges work with `:`, the colon operator picks every column between two names inclusive:
 
-```r
+```r title="Select column ranges with colon"
 mtcars |> select(mpg:drat) |> head(3)
 #>                mpg cyl disp  hp drat
 #> Mazda RX4       21   6  160 110 3.90
@@ -214,7 +214,7 @@ mtcars |> select(mpg:drat) |> head(3)
 
 **Try it:** Select just `mpg`, `wt`, and `hp` from `mtcars`.
 
-```r
+```r title="Exercise: Pick three columns"
 mtcars |> select(___, ___, ___) |> head()
 
 ```
@@ -222,7 +222,7 @@ mtcars |> select(___, ___, ___) |> head()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pick three columns solution"
 library(dplyr)
 mtcars |> select(mpg, wt, hp) |> head()
 #>                    mpg    wt  hp
@@ -241,7 +241,7 @@ mtcars |> select(mpg, wt, hp) |> head()
 
 Typing column names gets old fast when tables have 50+ columns. dplyr's tidyselect helpers let you pick by pattern.
 
-```r
+```r title="startswith, endswith, contains helpers"
 iris |> select(starts_with("Sepal")) |> head(3)
 #>   Sepal.Length Sepal.Width
 #> 1          5.1         3.5
@@ -263,7 +263,7 @@ iris |> select(contains("eng")) |> head(3)
 
 And `where()` lets you pick by column *type*:
 
-```r
+```r title="select with where helper"
 iris |> select(where(is.numeric)) |> head(3)
 #>   Sepal.Length Sepal.Width Petal.Length Petal.Width
 #> 1          5.1         3.5          1.4         0.2
@@ -276,7 +276,7 @@ iris |> select(where(is.numeric)) |> head(3)
 
 **Try it:** From `iris`, select all columns whose name starts with "Petal".
 
-```r
+```r title="Exercise: startswith variant"
 iris |> select(starts_with("___")) |> head()
 
 ```
@@ -284,7 +284,7 @@ iris |> select(starts_with("___")) |> head()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="startswith Petal solution"
 library(dplyr)
 iris |> select(starts_with("Petal")) |> head()
 #>   Petal.Length Petal.Width
@@ -303,7 +303,7 @@ iris |> select(starts_with("Petal")) |> head()
 
 `select()` can rename columns inline: the syntax is `new_name = old_name`. If you only want to rename without dropping anything, use `rename()`.
 
-```r
+```r title="Inline rename in select and rename"
 mtcars |>
   select(miles_per_gallon = mpg, cylinders = cyl, horsepower = hp) |>
   head(3)
@@ -324,7 +324,7 @@ mtcars |>
 
 **Try it:** Rename `wt` to `weight` in `mtcars`.
 
-```r
+```r title="Exercise: Rename wt to weight"
 mtcars |> rename(weight = ___) |> head()
 
 ```
@@ -332,7 +332,7 @@ mtcars |> rename(weight = ___) |> head()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rename wt to weight solution"
 library(dplyr)
 mtcars |> rename(weight = wt) |> head()
 #>                    mpg cyl disp  hp drat weight  qsec vs am gear carb
@@ -349,7 +349,7 @@ mtcars |> rename(weight = wt) |> head()
 
 The pair composes naturally. Filter first (reduce rows), then select (reduce columns), or vice versa, it doesn't affect the result but it can affect memory for huge tables.
 
-```r
+```r title="filter then select then arrange"
 mtcars |>
   filter(cyl == 4, mpg > 25) |>
   select(mpg, wt, hp, gear) |>
@@ -370,7 +370,7 @@ Three verbs, four lines, and you've answered "which 4-cylinder cars have the bes
 
 **Try it:** From `mtcars`, filter to `gear == 4`, then keep only `mpg`, `hp`, and `wt`.
 
-```r
+```r title="Exercise: Gear filter plus columns"
 mtcars |>
   filter(gear == ___) |>
   select(mpg, hp, ___)
@@ -380,7 +380,7 @@ mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Gear filter plus columns solution"
 library(dplyr)
 mtcars |>
   filter(gear == 4) |>
@@ -406,7 +406,7 @@ From `mtcars`, return the names and mpg of manual-transmission cars (`am == 1`) 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Above-median manual cars solution"
 library(dplyr)
 med <- median(mtcars$mpg)
 mtcars |>
@@ -424,7 +424,7 @@ From `iris`, select every numeric column whose name contains "Length".
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Numeric Length columns solution"
 iris |> select(where(is.numeric) & contains("Length"))
 #>   Sepal.Length Petal.Length
 #> 1          5.1          1.4
@@ -439,7 +439,7 @@ From `mtcars`, drop the `vs`, `am`, and `carb` columns, then rename `mpg` to `mi
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Drop and rename solution"
 mtcars |>
   select(-vs, -am, -carb) |>
   rename(miles_per_gallon = mpg) |>
@@ -451,7 +451,7 @@ mtcars |>
 
 A complete mini-analysis on `starwars`: find the tallest human characters with known homeworlds, keeping only the columns we care about.
 
-```r
+```r title="End-to-end tallest humans pipeline"
 library(dplyr)
 starwars |>
   filter(

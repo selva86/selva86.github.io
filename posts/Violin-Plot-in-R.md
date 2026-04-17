@@ -42,7 +42,7 @@ In this tutorial you will learn:
 
 Let's start with the basics:
 
-```r
+```r title="Basic violin plot by group"
 library(ggplot2)
 
 # Basic violin plot: highway MPG distribution by drive type
@@ -62,7 +62,7 @@ The widest part of the front-wheel-drive violin, around 25-30 mpg, shows where m
 
 Now add color and fill to distinguish groups:
 
-```r
+```r title="Add fill, color, and palette"
 p_fill <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.8, color = "white") +
   scale_fill_brewer(
@@ -85,14 +85,14 @@ p_fill
 
 **Try it:** Change `palette = "Set2"` to `palette = "Dark2"`. How does the visual impact change?
 
-```r
+```r title="Exercise: switch to Dark2 palette"
 # Your code here — switch the palette to Dark2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dark2 palette solution"
 ex_dark <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.8) +
   scale_fill_brewer(palette = "Dark2") +
@@ -109,7 +109,7 @@ ex_dark
 
 The classic pattern is violin + mini boxplot. The violin shows shape; the boxplot inside shows median, IQR, and outliers. The trick is sizing the inner boxplot small enough that it doesn't dominate the violin.
 
-```r
+```r title="Violin with embedded boxplot"
 # Violin + embedded boxplot
 p_combined <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.7, color = "white") +
@@ -138,14 +138,14 @@ p_combined
 
 **Try it:** Remove `outlier.shape = NA` from the boxplot. Do the outlier points add useful information, or do they clutter the violin?
 
-```r
+```r title="Exercise: show boxplot outliers"
 # Your code here — drop outlier.shape = NA and see the boxplot outliers
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Boxplot-outlier solution"
 ex_outliers <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.7, color = "white") +
   geom_boxplot(width = 0.12, fill = "white", color = "grey30") +
@@ -163,7 +163,7 @@ The outlier dots appear as small black circles outside the boxplot whiskers, and
 
 For smaller datasets (fewer than ~200 observations per group), showing the individual data points on top of the violin reveals exactly where each observation falls. Use `geom_jitter()` with a small width to prevent overlap:
 
-```r
+```r title="Violin, boxplot, and jitter combined"
 p_jitter <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.6, color = "white") +
   geom_boxplot(width = 0.1, fill = "white", color = "grey30",
@@ -197,14 +197,14 @@ The three layers now communicate:
 
 **Try it:** Set `width = 0.25` in `geom_jitter()`. Do the points still sit inside the violin, or do they spill outside?
 
-```r
+```r title="Exercise: wider jitter spread"
 # Your code here — try width = 0.25 and see where the points land
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Wide-jitter solution"
 ex_wide_jitter <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.6) +
   geom_jitter(width = 0.25, height = 0, size = 1.5, alpha = 0.5) +
@@ -226,7 +226,7 @@ Two parameters control the violin's shape: `adjust` (bandwidth) and `scale` (how
 
 The bandwidth controls how smooth or detailed the density estimate is. `adjust = 1` uses the default bandwidth (chosen automatically). `adjust < 1` gives a rougher, more detailed estimate that follows local peaks. `adjust > 1` gives a smoother, more generalized estimate.
 
-```r
+```r title="Bandwidth with adjust = 0.5"
 # Compare three bandwidth levels
 p_bw <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(adjust = 0.5, alpha = 0.7) +  # rough
@@ -238,7 +238,7 @@ p_bw <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 p_bw
 ```
 
-```r
+```r title="Smoother bandwidth comparison"
 # Smooth bandwidth for comparison
 p_smooth_bw <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(adjust = 2, alpha = 0.7) +  # smooth
@@ -258,7 +258,7 @@ p_smooth_bw
 | `"count"` | Width proportional to number of observations in that group |
 | `"width"` | All violins scaled to the same maximum width |
 
-```r
+```r title="Scale violin width by count"
 # scale = "count": wider violin = more data points in that group
 p_scale <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(scale = "count", alpha = 0.8, color = "white") +
@@ -279,14 +279,14 @@ p_scale
 
 **Try it:** Change `scale = "count"` to `scale = "width"`. Do the three violins now have the same maximum width?
 
-```r
+```r title="Exercise: swap count for width scale"
 # Your code here — swap scale = "count" for scale = "width"
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Width-scale solution"
 ex_width_scale <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(scale = "width", alpha = 0.8, color = "white") +
   scale_fill_brewer(palette = "Set2") +
@@ -305,7 +305,7 @@ Yes, with `scale = "width"` every violin hits the same maximum width regardless 
 
 ❌ With fewer than ~20-30 observations per group, the kernel density estimate is unreliable, the violin shows smooth curves that misrepresent sparse data:
 
-```r
+```r title="Common mistake: too few points"
 # Only 5 points per group - violin shape is misleading
 small_df <- data.frame(group = rep(c("A","B"), each=5),
                        value = c(1,2,2,3,10, 5,6,6,7,8))
@@ -344,7 +344,7 @@ ggplot(small_df, aes(x = group, y = value)) + geom_violin()
 
 Using the `diamonds` dataset, create a violin plot of `price` by `cut`. Add an embedded boxplot (`width = 0.1`). Use `scale = "count"` so the violin widths reflect how many diamonds are in each cut category. Add appropriate labels and a colorblind-safe palette.
 
-```r
+```r title="Exercise: diamonds price by cut"
 # Starter code
 # ggplot(diamonds, aes(x = cut, y = price, fill = cut)) +
 #   geom_violin(scale = "count", alpha = 0.8, color = "white") +
@@ -358,7 +358,7 @@ Using the `diamonds` dataset, create a violin plot of `price` by `cut`. Add an e
 
 Using the `iris` dataset (150 rows, 3 species with 50 each), create a violin + boxplot + jitter combination for `Sepal.Length` by `Species`. Since the sample is small (50 per group), set `adjust = 1.5` for a smoother bandwidth. Remove the legend since the x-axis already labels the groups.
 
-```r
+```r title="Exercise: iris three-layer violin"
 # Starter code
 # ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
 #   geom_violin(adjust = 1.5, alpha = 0.7, color = "white") +
@@ -372,7 +372,7 @@ Using the `iris` dataset (150 rows, 3 species with 50 each), create a violin + b
 
 This example compares the distribution of city MPG across vehicle classes with all three layers, a cleaned theme, and labeled axes:
 
-```r
+```r title="City MPG by vehicle class"
 # Full comparison: all vehicle classes, three-layer violin
 p_final <- ggplot(mpg, aes(x = reorder(class, cty, FUN = median),
                              y = cty, fill = class)) +

@@ -36,7 +36,7 @@ This post walks through each option with working code, explains the confidence b
 
 With no arguments, `geom_smooth()` fits a LOESS curve (locally estimated scatterplot smoothing) for datasets under 1,000 observations.
 
-```r
+```r title="Default LOESS smooth with CI"
 library(ggplot2)
 
 # Default geom_smooth: LOESS with 95% confidence band
@@ -61,7 +61,7 @@ The blue line is the LOESS fit, a local polynomial that adapts to the shape of t
 
 LOESS is flexible but hard to interpret quantitatively. When you want to say "for every 1 unit increase in x, y changes by...", use `method = "lm"` for a straight regression line.
 
-```r
+```r title="Add a linear regression line"
 # Linear regression line
 p_lm <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.4, color = "steelblue") +
@@ -91,7 +91,7 @@ The `formula = y ~ x` argument is optional but good practice, it makes explicit 
 
 When the relationship is clearly curved, like the U-shape in many biological dose-response relationships, a polynomial smooth fits a curve while remaining interpretable as a model.
 
-```r
+```r title="Fit a quadratic polynomial curve"
 # Polynomial fit: y ~ poly(x, 2) = quadratic curve
 p_poly <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.4, color = "steelblue") +
@@ -120,7 +120,7 @@ p_poly
 
 The shaded confidence band has several adjustable properties: its presence, width (confidence level), color, and transparency.
 
-```r
+```r title="Customize the confidence band"
 # Customize the confidence band
 p_ci <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.4, color = "steelblue") +
@@ -154,7 +154,7 @@ The `level` argument defaults to 0.95. Increasing to 0.99 widens the band, you'r
 
 When `color` or `group` is mapped to a variable, `geom_smooth()` automatically fits a separate smooth for each group.
 
-```r
+```r title="Separate smooth lines per group"
 # Per-group smooths — one per drive type
 p_group <- ggplot(mpg, aes(x = displ, y = hwy, color = drv, fill = drv)) +
   geom_point(alpha = 0.3) +
@@ -183,7 +183,7 @@ The slope of each line tells a story: rear-wheel drive cars show a steeper fuel-
 
 ## Complete Example: Multi-layer Smooth Plot
 
-```r
+```r title="Compare LOESS and linear fits"
 # Show both LOESS and LM on the same plot for comparison
 p_final <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.25, color = "grey50") +
@@ -230,7 +230,7 @@ When n ≥ 1,000, ggplot2 silently switches from LOESS to GAM. If you see "geom_
 
 The confidence band shows where the *true smooth/line* likely falls, not where individual new observations would fall. A prediction interval would be much wider.
 
-```r
+```r title="Common mistake: CI not prediction"
 # The CI band is NOT a prediction interval
 # For individual prediction bounds, compute them from predict() manually
 ```
@@ -239,7 +239,7 @@ The confidence band shows where the *true smooth/line* likely falls, not where i
 
 Without the explicit formula, ggplot2 may issue a warning. Always pair `method = "lm"` with `formula = y ~ x` (or your polynomial formula).
 
-```r
+```r title="Common mistake: missing formula"
 # Add formula explicitly
 geom_smooth(method = "lm", formula = y ~ x)
 ```
@@ -257,7 +257,7 @@ Using `cars` (speed vs dist), create a scatter plot with two overlaid `geom_smoo
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Cars LOESS plus linear solution"
 library(ggplot2)
 
 ggplot(cars, aes(x = speed, y = dist)) +
@@ -288,7 +288,7 @@ Using `cars`, fit a quadratic smooth (`formula = y ~ poly(x, 2)`) and compare wi
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Quadratic versus cubic fit solution"
 library(ggplot2)
 
 ggplot(cars, aes(x = speed, y = dist)) +

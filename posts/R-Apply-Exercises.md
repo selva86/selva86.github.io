@@ -34,7 +34,7 @@ The apply family replaces explicit for-loops with a single function call. The tr
 
 Let's see how three of these handle the same task, computing column means of `mtcars`, so you can spot the output differences immediately.
 
-```r
+```r title="Apply family on mtcars"
 # apply(): returns a named numeric vector
 col_means_apply <- apply(mtcars, 2, mean)
 col_means_apply[1:4]
@@ -67,7 +67,7 @@ Notice `apply()` and `sapply()` both returned named numeric vectors, while `lapp
 
 **Try it:** Use `sapply()` to get the class of every column in `iris`. Before you run it, predict: will the result be a vector or a list?
 
-```r
+```r title="Exercise: class of each iris column"
 # Try it: get column classes from iris
 ex_classes <- sapply(iris, function(col) {
   # your code here
@@ -79,7 +79,7 @@ ex_classes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_classes <- sapply(iris, class)
 ex_classes
 #> Sepal.Length  Sepal.Width Petal.Length  Petal.Width      Species
@@ -98,7 +98,7 @@ ex_classes
 
 Create a 5×4 numeric matrix with `matrix(1:20, nrow = 5)`. Use `apply()` twice: once to compute the **mean** of each row, and once to compute the **range** (max − min) of each row.
 
-```r
+```r title="Exercise one: matrix row means and ranges"
 # Exercise 1: Row-wise mean and range
 mat <- matrix(1:20, nrow = 5)
 mat
@@ -114,7 +114,7 @@ mat
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution"
 mat <- matrix(1:20, nrow = 5)
 mat
 #>      [,1] [,2] [,3] [,4]
@@ -143,7 +143,7 @@ row_ranges
 
 Write a function that computes the **coefficient of variation** (CV), that's the standard deviation divided by the mean, times 100, and use `apply()` with `MARGIN = 2` to compute the CV for each column of `mtcars[, 1:4]`.
 
-```r
+```r title="Exercise two: coefficient of variation"
 # Exercise 2: Coefficient of variation per column
 # CV = (sd / mean) * 100 — higher means more spread relative to the mean
 
@@ -154,7 +154,7 @@ Write a function that computes the **coefficient of variation** (CV), that's the
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution"
 cv_fn <- function(x) (sd(x) / mean(x)) * 100
 
 cv_results <- apply(mtcars[, 1:4], 2, cv_fn)
@@ -172,7 +172,7 @@ round(cv_results, 1)
 
 **Try it:** Use `apply()` to find which column has the **largest range** (max − min) in `airquality[, 1:4]`. Remember to pass `na.rm = TRUE`.
 
-```r
+```r title="Exercise: range of airquality columns"
 # Try it: which column has the largest range?
 ex_ranges <- apply(airquality[, 1:4], 2, function(x) {
   # your code here
@@ -184,7 +184,7 @@ ex_ranges <- apply(airquality[, 1:4], 2, function(x) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_ranges <- apply(airquality[, 1:4], 2, function(x) {
   max(x, na.rm = TRUE) - min(x, na.rm = TRUE)
 })
@@ -208,7 +208,7 @@ Both `lapply()` and `sapply()` iterate element-by-element over a list or vector.
 
 Given a list of city-name vectors (one vector per country), use `lapply()` to collapse each vector into a single comma-separated string.
 
-```r
+```r title="Exercise three: paste city lists"
 # Exercise 3: Collapse city names
 cities <- list(
   USA = c("New York", "Chicago", "Houston"),
@@ -224,7 +224,7 @@ cities <- list(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution"
 cities <- list(
   USA = c("New York", "Chicago", "Houston"),
   UK = c("London", "Manchester"),
@@ -251,7 +251,7 @@ city_strings
 
 Use `sapply()` on `mtcars` to count the number of **unique values** in each column. The result should be a named integer vector.
 
-```r
+```r title="Exercise four: unique counts per column"
 # Exercise 4: Unique value counts per column
 # Hint: combine length() and unique()
 # your code here
@@ -260,7 +260,7 @@ Use `sapply()` on `mtcars` to count the number of **unique values** in each colu
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise four solution"
 unique_counts <- sapply(mtcars, function(x) length(unique(x)))
 unique_counts
 #>  mpg  cyl disp   hp drat   wt qsec   vs   am gear carb
@@ -275,7 +275,7 @@ unique_counts
 
 Apply a function that returns **different-length results** to a list. Compare what `lapply()` and `sapply()` return. Why does `sapply()` not simplify this time?
 
-```r
+```r title="Exercise five: lapply versus sapply on ragged list"
 # Exercise 5: sapply() vs lapply() on ragged output
 mixed_list <- list(
   a = 1:3,
@@ -291,7 +291,7 @@ mixed_list <- list(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise five solution"
 mixed_list <- list(
   a = 1:3,
   b = 1:5,
@@ -331,7 +331,7 @@ class(result_sapply)
 
 **Try it:** Use `lapply()` to split the `iris` data frame by `Species`, then check the class and length of the result.
 
-```r
+```r title="Exercise: split iris by species"
 # Try it: split + lapply
 ex_split <- split(iris, iris$Species)
 # What is class(ex_split)?
@@ -342,7 +342,7 @@ ex_split <- split(iris, iris$Species)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_split <- split(iris, iris$Species)
 class(ex_split)
 #> [1] "list"
@@ -371,7 +371,7 @@ lapply(ex_split, nrow)
 
 Redo Exercise 4 (counting unique values per column in `mtcars`) using `vapply()` instead of `sapply()`. Specify `FUN.VALUE = integer(1)` to guarantee you get back an integer vector.
 
-```r
+```r title="Exercise six: vapply with integer template"
 # Exercise 6: vapply() for type-safe unique counts
 # Hint: vapply(X, FUN, FUN.VALUE)
 # your code here
@@ -380,7 +380,7 @@ Redo Exercise 4 (counting unique values per column in `mtcars`) using `vapply()`
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise six solution"
 unique_safe <- vapply(mtcars, function(x) length(unique(x)), FUN.VALUE = integer(1))
 unique_safe
 #>  mpg  cyl disp   hp drat   wt qsec   vs   am gear carb
@@ -395,7 +395,7 @@ unique_safe
 
 Write a `vapply()` call that **deliberately fails** because the function returns a character instead of a numeric. Wrap it in `tryCatch()` so your code handles the error gracefully instead of crashing.
 
-```r
+```r title="Exercise seven: vapply template mismatch"
 # Exercise 7: Deliberate vapply() failure + error handling
 # Step 1: Write a function that returns the class of a column (character)
 # Step 2: Call vapply() expecting numeric(1) — this should fail
@@ -406,7 +406,7 @@ Write a `vapply()` call that **deliberately fails** because the function returns
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise seven solution"
 safe_result <- tryCatch(
   vapply(mtcars, class, FUN.VALUE = numeric(1)),
   error = function(e) paste("Caught error:", e$message)
@@ -424,7 +424,7 @@ safe_result
 
 **Try it:** Use `vapply()` to extract the `class()` of every column in `mtcars`. What should `FUN.VALUE` be?
 
-```r
+```r title="Exercise: vapply class with character template"
 # Try it: vapply for column classes
 ex_types <- vapply(mtcars, class, FUN.VALUE = "placeholder")
 # What should replace "placeholder"?
@@ -434,7 +434,7 @@ ex_types <- vapply(mtcars, class, FUN.VALUE = "placeholder")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_types <- vapply(mtcars, class, FUN.VALUE = character(1))
 ex_types
 #>       mpg       cyl      disp        hp      drat        wt      qsec
@@ -455,7 +455,7 @@ ex_types
 
 Compute the mean `Sepal.Length` for each `Species` in the `iris` dataset using `tapply()`.
 
-```r
+```r title="Exercise eight: tapply sepal length by species"
 # Exercise 8: tapply() for group means
 # tapply(vector, grouping_factor, function)
 # your code here
@@ -465,7 +465,7 @@ Compute the mean `Sepal.Length` for each `Species` in the `iris` dataset using `
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise eight solution"
 species_means <- tapply(iris$Sepal.Length, iris$Species, mean)
 species_means
 #>     setosa versicolor  virginica
@@ -480,7 +480,7 @@ species_means
 
 Use `tapply()` with **two** grouping factors, `cyl` and `am` (transmission: 0 = automatic, 1 = manual), to compute the mean `mpg` for each combination in `mtcars`. The result should be a 3×2 matrix.
 
-```r
+```r title="Exercise nine: two factor tapply matrix"
 # Exercise 9: Two-way table with tapply()
 # Hint: pass a list of factors as the INDEX argument
 # your code here
@@ -490,7 +490,7 @@ Use `tapply()` with **two** grouping factors, `cyl` and `am` (transmission: 0 = 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise nine solution"
 mpg_table <- tapply(mtcars$mpg, list(cyl = mtcars$cyl, am = mtcars$am), mean)
 round(mpg_table, 1)
 #>      0     1
@@ -508,7 +508,7 @@ round(mpg_table, 1)
 
 **Try it:** Use `tapply()` to find the **maximum** `hp` for each combination of `cyl` and `gear` in `mtcars`.
 
-```r
+```r title="Exercise: tapply hp by cyl and gear"
 # Try it: max hp by cyl and gear
 ex_hp <- tapply(mtcars$hp, list(mtcars$cyl, mtcars$gear), max)
 ex_hp
@@ -518,7 +518,7 @@ ex_hp
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_hp <- tapply(mtcars$hp, list(cyl = mtcars$cyl, gear = mtcars$gear), max)
 ex_hp
 #>    3   4   5
@@ -539,7 +539,7 @@ ex_hp
 
 Given separate vectors of first names and last names, use `mapply()` with `paste()` to create full names.
 
-```r
+```r title="Exercise ten: mapply paste names"
 # Exercise 10: mapply() with paste
 first_names <- c("Ada", "Grace", "Linus")
 last_names <- c("Lovelace", "Hopper", "Torvalds")
@@ -552,7 +552,7 @@ last_names <- c("Lovelace", "Hopper", "Torvalds")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise ten solution"
 first_names <- c("Ada", "Grace", "Linus")
 last_names <- c("Lovelace", "Hopper", "Torvalds")
 
@@ -569,7 +569,7 @@ full_names
 
 Use `mapply()` to generate four different numeric sequences where the `from`, `to`, and `by` arguments come from three separate vectors. Since the sequences have different lengths, set `SIMPLIFY = FALSE` to get a list.
 
-```r
+```r title="Exercise eleven: mapply sequences unsimplified"
 # Exercise 11: mapply() with seq()
 starts <- c(1, 10, 100, 0)
 ends <- c(5, 50, 300, 1)
@@ -583,7 +583,7 @@ steps <- c(1, 10, 50, 0.25)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise eleven solution"
 starts <- c(1, 10, 100, 0)
 ends <- c(5, 50, 300, 1)
 steps <- c(1, 10, 50, 0.25)
@@ -612,7 +612,7 @@ sequences
 
 **Try it:** Use `mapply()` to compute `weighted.mean()` for three pairs of values and weights.
 
-```r
+```r title="Exercise: mapply weighted means"
 # Try it: weighted means with mapply
 ex_vals <- list(c(80, 90, 70), c(95, 85), c(60, 70, 80, 90))
 ex_wts <- list(c(0.3, 0.5, 0.2), c(0.6, 0.4), c(0.1, 0.2, 0.3, 0.4))
@@ -625,7 +625,7 @@ ex_wmeans
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_vals <- list(c(80, 90, 70), c(95, 85), c(60, 70, 80, 90))
 ex_wts <- list(c(0.3, 0.5, 0.2), c(0.6, 0.4), c(0.1, 0.2, 0.3, 0.4))
 
@@ -646,7 +646,7 @@ These capstone exercises combine multiple apply functions. They're harder than t
 
 Start with the `airquality` dataset. Remove rows with any `NA`. Split by `Month`. Use `lapply()` to fit a linear model (`Ozone ~ Solar.R`) for each month. Then use `sapply()` to extract the R-squared value from each model. Return a named vector of R-squared values.
 
-```r
+```r title="Exercise twelve: grouped linear models with split"
 # Exercise 12: split + lapply + sapply pipeline
 # Step 1: Remove rows with NA
 # Step 2: Split by Month
@@ -658,7 +658,7 @@ Start with the `airquality` dataset. Remove rows with any `NA`. Split by `Month`
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise twelve solution"
 # Step 1: Remove rows with NA
 aq_clean <- na.omit(airquality)
 
@@ -683,7 +683,7 @@ round(r_squared, 3)
 
 Let's walk through a complete analysis using every apply function. We'll analyze the `mtcars` dataset from five angles.
 
-```r
+```r title="End-to-end mtcars five angle review"
 # --- Step 1: apply() — Normalize columns to 0-1 range ---
 normalize <- function(x) (x - min(x)) / (max(x) - min(x))
 mtcars_norm <- apply(mtcars[, c("mpg", "hp", "wt")], 2, normalize)

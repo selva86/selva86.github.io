@@ -45,7 +45,7 @@ The key insight is that PPDAC is a cycle, not a checklist. You will revisit earl
 
 Let's build a structured PPDAC template in R. This function creates a consulting project as a named list, so every project you take on follows the same format.
 
-```r
+```r title="Build a PPDAC project structure"
 # Build a PPDAC project structure
 consulting_project <- list(
   problem = list(
@@ -99,7 +99,7 @@ The named list keeps every stage accessible. You can update `consulting_project$
 
 **Try it:** Create a PPDAC project list for a hospital that wants to know whether readmission rates differ between two wards. Fill in the `problem` and `plan` stages only.
 
-```r
+```r title="Exercise: hospital readmission PPDAC"
 # Try it: hospital readmission PPDAC
 ex_hospital <- list(
   problem = list(
@@ -118,7 +118,7 @@ cat("Question:", ex_hospital$problem$client_question)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hospital PPDAC solution"
 ex_hospital <- list(
   problem = list(
     client_question = "Do readmission rates differ between Ward A and Ward B?",
@@ -149,7 +149,7 @@ Clients rarely arrive with a testable hypothesis. They say things like "Is X rel
 
 Let's build a function that structures this translation. It takes a vague question and the four components, then prints a formatted hypothesis.
 
-```r
+```r title="Translate vague question into hypothesis"
 # Function to translate vague questions into structured hypotheses
 question_to_hypothesis <- function(vague_question,
                                    outcome,
@@ -191,7 +191,7 @@ q1 <- question_to_hypothesis(
 
 The vague question "Is advertising working?" becomes a precise, testable statement. Now let's apply this to two more real-world client questions to show the pattern.
 
-```r
+```r title="More vague-to-testable translations"
 # More translations
 q2 <- question_to_hypothesis(
   vague_question = "Why is employee turnover so high?",
@@ -228,7 +228,7 @@ Notice that each translation forced a choice. "Are students performing well?" co
 
 **Try it:** Translate the vague question "Do our customers like the new product?" into structured components using `question_to_hypothesis()`.
 
-```r
+```r title="Exercise: customer satisfaction translation"
 # Try it: translate a customer satisfaction question
 ex_q <- question_to_hypothesis(
   vague_question = "Do our customers like the new product?",
@@ -243,7 +243,7 @@ ex_q <- question_to_hypothesis(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Customer satisfaction solution"
 ex_q <- question_to_hypothesis(
   vague_question = "Do our customers like the new product?",
   outcome        = "product satisfaction rating",
@@ -268,7 +268,7 @@ The consulting literature calls this a Scope of Work (SOW). Peterson et al. (202
 
 Let's build a scoping function in R.
 
-```r
+```r title="Scope the consulting analysis"
 # Function to scope a consulting project
 scope_analysis <- function(project_name,
                            question,
@@ -327,7 +327,7 @@ The "out of scope" field is the most important line. It sets a boundary. When th
 
 **Try it:** Add a "risks" field to the scope template by modifying `scope_analysis()`. Include at least two risks for the employee satisfaction project.
 
-```r
+```r title="Exercise: add risks to scope"
 # Try it: add a risks field to the scope
 ex_scope <- scope_analysis(
   project_name = "Employee Satisfaction vs Age",
@@ -348,7 +348,7 @@ cat("Risks:", paste(ex_scope$risks, collapse = "; "))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Scope risks solution"
 ex_scope <- scope_analysis(
   project_name = "Employee Satisfaction vs Age",
   question     = "Is employee age associated with job satisfaction?",
@@ -379,7 +379,7 @@ The key is to set expectations before the analysis starts. Tell the client upfro
 
 Let's simulate a scenario where a client believes ice cream sales cause drowning deaths. The data will show a correlation, but the real cause is a confounding variable (temperature).
 
-```r
+```r title="Simulate confounded ice cream and drowning"
 # Simulate confounded data: ice cream sales and drowning
 set.seed(101)
 n <- 50
@@ -408,7 +408,7 @@ cat("Naive R-squared:", round(summary(lm_result)$r.squared, 3), "\n")
 
 The correlation looks convincing. The p-value is below 0.05. A careless consultant would stop here and tell the client that ice cream sales predict drowning. But you know better. Let's build a function that generates a plain-English expectation summary, including what the data can and cannot tell us.
 
-```r
+```r title="Plain-English expectation summary"
 # Function to create a plain-English expectation summary
 expectation_summary <- function(model, outcome_name, predictor_name,
                                 confounders = NULL) {
@@ -474,7 +474,7 @@ This function forces you to communicate both sides of every result. The client s
 
 **Try it:** Write a one-sentence plain-English interpretation of this result: a t-test comparing two groups yields p = 0.12 and a mean difference of 3.2 points.
 
-```r
+```r title="Exercise: plain-English interpretation"
 # Try it: plain-English interpretation
 ex_interpretation <- # your code here (a character string)
 
@@ -485,7 +485,7 @@ cat(ex_interpretation)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Interpretation solution"
 ex_interpretation <- paste(
   "The two groups differed by 3.2 points on average,",
   "but this difference was not statistically significant (p = 0.12),",
@@ -508,7 +508,7 @@ A good consulting report follows a predictable structure: Executive Summary, Met
 
 Let's build a report skeleton generator in R.
 
-```r
+```r title="Generate report skeleton"
 # Function to generate a consulting report skeleton
 generate_report_skeleton <- function(project_name, question,
                                      method_summary, key_finding,
@@ -590,7 +590,7 @@ The skeleton is deliberately simple. In practice, you would expand each section 
 
 **Try it:** Write an executive summary for this result: a chi-squared test shows a significant association between department and promotion rate (p = 0.003, Cramer's V = 0.31).
 
-```r
+```r title="Exercise: write executive summary"
 # Try it: write an executive summary
 ex_summary <- # your code here (a character string)
 
@@ -601,7 +601,7 @@ cat("EXECUTIVE SUMMARY:\n", ex_summary)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Executive summary solution"
 ex_summary <- paste(
   "Promotion rates differ significantly across departments",
   "(chi-squared test, p = 0.003).",
@@ -625,7 +625,7 @@ cat("EXECUTIVE SUMMARY:\n", ex_summary)
 ### Mistake 1: Starting analysis before defining the question
 
 **Wrong:**
-```r
+```r title="Mistake: exploring without a question"
 # Client sends data, you immediately start exploring
 summary(mtcars)
 cor(mtcars)
@@ -638,7 +638,7 @@ cor(mtcars)
 ### Mistake 2: Using jargon in client reports
 
 **Wrong:**
-```r
+```r title="Mistake: stats jargon in the report"
 # In your report you write:
 cat("We reject H0 at alpha = 0.05 (t(48) = 2.31, p = 0.025).\n")
 #> We reject H0 at alpha = 0.05 (t(48) = 2.31, p = 0.025).
@@ -647,7 +647,7 @@ cat("We reject H0 at alpha = 0.05 (t(48) = 2.31, p = 0.025).\n")
 **Why it is wrong:** The client does not know what H0, alpha, or t(48) mean. They hired you because they are not a statistician. A report full of jargon tells the client nothing and makes them feel excluded.
 
 ✅ **Correct:**
-```r
+```r title="Correct: client-friendly wording"
 # Write for the client
 cat("The data shows a statistically meaningful difference between\n")
 cat("the two groups (p = 0.025). Employees in Group A scored\n")
@@ -660,7 +660,7 @@ cat("3.2 points higher on average than Group B.\n")
 ### Mistake 3: Ignoring data quality checks before modeling
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: model before data checks"
 # Jump straight to the model
 bad_data <- data.frame(x = c(1, 2, NA, 4, 999), y = c(3, 4, 5, NA, 7))
 lm(y ~ x, data = bad_data)
@@ -674,7 +674,7 @@ lm(y ~ x, data = bad_data)
 **Why it is wrong:** The value 999 is almost certainly a data entry error, and R silently dropped the NA rows. The regression coefficient is meaningless because one outlier dominates the fit.
 
 ✅ **Correct:**
-```r
+```r title="Correct: audit missing and outliers"
 # Always check data first
 good_data <- data.frame(x = c(1, 2, NA, 4, 999), y = c(3, 4, 5, NA, 7))
 cat("Missing values:\n")
@@ -720,7 +720,7 @@ print(summary(good_data))
 
 A retail chain manager says: "Sales are down this quarter. Can you figure out why?" Using the `question_to_hypothesis()` and `scope_analysis()` functions from this tutorial, produce a complete PPDAC structure and scope document.
 
-```r
+```r title="Exercise 1: PPDAC for falling sales"
 # Exercise 1: PPDAC + scope for "sales are down"
 # Hint: first translate the vague question, then scope the analysis
 # Think about: what's the outcome? what are potential predictors?
@@ -733,7 +733,7 @@ A retail chain manager says: "Sales are down this quarter. Can you figure out wh
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 1 solution"
 # Step 1: Translate the question
 my_hypothesis <- question_to_hypothesis(
   vague_question = "Sales are down this quarter. Why?",
@@ -766,7 +766,7 @@ my_scope <- scope_analysis(
 
 A fleet manager at a car company asks: "Which of our car models are most fuel-efficient?" Using the `mtcars` dataset, walk through the entire consulting pipeline: define the PPDAC structure, scope the analysis, run the analysis, and generate a report skeleton.
 
-```r
+```r title="Exercise 2: full mtcars pipeline"
 # Exercise 2: Full consulting pipeline with mtcars
 # Hint: use question_to_hypothesis(), scope_analysis(),
 # lm() or aggregate(), and generate_report_skeleton()
@@ -779,7 +779,7 @@ A fleet manager at a car company asks: "Which of our car models are most fuel-ef
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 2 solution"
 # 1. Translate the question
 fleet_q <- question_to_hypothesis(
   vague_question = "Which car models are most fuel-efficient?",
@@ -848,7 +848,7 @@ fleet_report <- generate_report_skeleton(
 
 Let's walk through a complete consulting engagement from start to finish. A school principal asks: "Are students who attend tutoring sessions performing better on their final exams?"
 
-```r
+```r title="End-to-end tutoring study"
 # === COMPLETE CONSULTING EXAMPLE ===
 
 # 1. PROBLEM: Translate the question

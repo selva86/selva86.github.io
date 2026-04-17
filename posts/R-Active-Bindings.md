@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Normal R variables are dumb storage, `x <- 42` files the number away and that's that. An active binding upgrades a name into a function call: reading the binding triggers the function, and the result is what comes back. Here is the classic demo: a `now` binding that always returns the current time without parentheses, without a helper, just the bare symbol.
 
-```r
+```r title="Bind a name to Sys.time"
 # Create an active binding named `now` in the global environment.
 # Accessing `now` (no parentheses) runs the function each time.
 makeActiveBinding("now", function() Sys.time(), globalenv())
@@ -42,7 +42,7 @@ Two reads of `now`, separated by a one-second sleep, give two different timestam
 
 Here is a second angle: a counter that auto-increments on every access. We need to store the count somewhere, so we hide it in a dedicated environment and have the binding close over it.
 
-```r
+```r title="Counter binding with private state"
 # Private state lives inside a throwaway environment
 counter_env <- new.env(parent = emptyenv())
 counter_env$.n <- 0
@@ -69,7 +69,7 @@ Three reads of the same name, three different values. The getter closed over `co
 
 **Try it:** Create a read-only active binding called `ex_today_is` that returns `Sys.Date()` on every access. Clean up with `rm()` when you are done.
 
-```r
+```r title="Exercise: bind today's date"
 # Try it: write the binding below
 # your code here
 
@@ -81,7 +81,7 @@ Three reads of the same name, three different values. The getter closed over `co
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Today-binding solution"
 makeActiveBinding("ex_today_is", function() Sys.Date(), globalenv())
 ex_today_is
 #> [1] "2026-04-13"
@@ -98,7 +98,7 @@ R inspects the function you pass to `makeActiveBinding()` and decides its behavi
 
 First, a read-only binding. A hidden environment holds a numeric vector, and the binding `data_mean` computes its mean on every read. Mutating the underlying vector makes the binding report a new value automatically, no refresh step, no stale cache.
 
-```r
+```r title="Read-only binding from mean()"
 # Private state: a vector of values we want to summarise
 data_env <- new.env(parent = emptyenv())
 data_env$.values <- c(10, 20, 30, 40, 50)
@@ -123,7 +123,7 @@ The binding never caches, it calls `mean()` fresh on every read. That is the def
 
 Now the read-write version. The binding below stores a temperature internally in Celsius but exposes it as Fahrenheit. Reading the name converts Celsius to Fahrenheit on the fly; assigning a new Fahrenheit value converts back to Celsius and stores it.
 
-```r
+```r title="Read-write Fahrenheit binding"
 # Private Celsius state
 temp_env <- new.env(parent = emptyenv())
 temp_env$.celsius <- 0
@@ -156,7 +156,7 @@ The stored value is always Celsius; users see and write Fahrenheit. Both sides s
 
 **Try it:** Create a read-only active binding `ex_cm_to_inches` that converts a hidden `.cm` value to inches by dividing by `2.54`. Put the source value in an environment called `ex_cm_env`.
 
-```r
+```r title="Exercise: cm to inches binding"
 ex_cm_env <- new.env(parent = emptyenv())
 ex_cm_env$.cm <- 100
 
@@ -170,7 +170,7 @@ ex_cm_env$.cm <- 100
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="cm-to-inches solution"
 ex_cm_env <- new.env(parent = emptyenv())
 ex_cm_env$.cm <- 100
 
@@ -199,7 +199,7 @@ When the backing function accepts `value`, it becomes a gatekeeper. Every write 
 
 The example below wraps an `age` value in a binding that only accepts numbers between 0 and 150. A bad assignment raises an error; the stored value stays untouched.
 
-```r
+```r title="Validate assignments in setter"
 age_env <- new.env(parent = emptyenv())
 age_env$.age <- 25
 
@@ -238,7 +238,7 @@ The invalid write `age <- -5` never reaches storage: the setter raises an error,
 
 **Try it:** Write a read-write active binding `ex_positive_balance` that stores a number in `ex_balance_env$.balance`, rejects negative values with `stop("balance cannot be negative")`, and returns the stored value on read.
 
-```r
+```r title="Exercise: positive-only balance"
 ex_balance_env <- new.env(parent = emptyenv())
 ex_balance_env$.balance <- 100
 
@@ -253,7 +253,7 @@ ex_balance_env$.balance <- 100
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Positive-balance solution"
 ex_balance_env <- new.env(parent = emptyenv())
 ex_balance_env$.balance <- 100
 
@@ -291,7 +291,7 @@ R6 is the most common modern object system in R, and its `active` field is a thi
 
 The classic use case is derived attributes, values that depend on other fields and must never drift out of sync. Here is a `Rectangle` class with regular `width` and `height` fields and an `area` active field:
 
-```r
+```r title="R6 Rectangle with active area"
 library(R6)
 
 Rectangle <- R6Class("Rectangle",
@@ -328,7 +328,7 @@ r$area
 
 **Try it:** Define an R6 class `ex_RectanglePlus` with the same `width` and `height` fields plus a read-only `perimeter` active field equal to `2 * (width + height)`.
 
-```r
+```r title="Exercise: add perimeter field"
 # your code here: define ex_RectanglePlus with active = list(perimeter = ...)
 
 # Test:
@@ -340,7 +340,7 @@ r$area
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Perimeter-field solution"
 ex_RectanglePlus <- R6Class("ex_RectanglePlus",
   public = list(
     width  = NULL,
@@ -375,7 +375,7 @@ ex_rp$perimeter
 
 Active bindings look free because they read like variables, but every access is a function call under the hood. In hot paths, tight loops, scalar code inside a bigger pipeline, that cost compounds fast. A rough benchmark makes the difference visible.
 
-```r
+```r title="Benchmark binding versus normal read"
 # Set up a normal variable and an equivalent active binding
 bench_env <- new.env(parent = emptyenv())
 bench_env$.x <- 1
@@ -408,7 +408,7 @@ The numbers on your machine will vary (WebR runs noticeably slower than native R
 
 **Try it:** Cache the benchmark binding into a local variable before the loop and measure the three versions (normal, active, cached). Which one closes the gap?
 
-```r
+```r title="Exercise: time three loops"
 # Scaffold: compare three loops (normal, active, cached active)
 n <- 1e4
 normal_var <- 1
@@ -422,7 +422,7 @@ rm("ex_bench", envir = globalenv())
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-loops solution"
 n <- 1e4
 normal_var <- 1
 makeActiveBinding("ex_bench", function() 1, globalenv())
@@ -458,7 +458,7 @@ Build a `BankAccount`-style setup with three pieces:
 
 Test by setting `account_balance <- 250`, then `account_balance <- 50`, then attempting `account_balance <- -10`.
 
-```r
+```r title="Exercise: BankAccount with validation"
 # Exercise 1: BankAccount
 # Hint 1: branch on missing(value) in account_balance
 # Hint 2: account_status takes no arguments — read-only
@@ -470,7 +470,7 @@ Test by setting `account_balance <- 250`, then `account_balance <- 50`, then att
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="BankAccount solution"
 acct_env <- new.env(parent = emptyenv())
 acct_env$.balance <- 0
 
@@ -524,7 +524,7 @@ Create an R6 class `Thermostat` with two active fields:
 
 Construct a `Thermostat$new()` instance, set `celsius` to `30`, and confirm that `fahrenheit` returns `86`.
 
-```r
+```r title="Exercise: Thermostat R6 class"
 # Exercise 2: Thermostat R6 class
 # Hint: use the `private = list(.c_ = 0)` slot for backing state
 # Hint: active fields access private via `private$.c_`
@@ -536,7 +536,7 @@ Construct a `Thermostat$new()` instance, set `celsius` to `30`, and confirm that
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Thermostat solution"
 Thermostat <- R6Class("Thermostat",
   private = list(.c_ = 0),
   active = list(
@@ -578,7 +578,7 @@ my_t$celsius
 
 Here is everything in one piece. `LiveStats` wraps a numeric vector with active fields for `n`, `mean_val`, `sd_val`, and `range_val`. Every append automatically refreshes every statistic, no manual `update_stats()` call, no way to end up with stale numbers.
 
-```r
+```r title="LiveStats with auto-refreshing fields"
 LiveStats <- R6Class("LiveStats",
   public = list(
     initialize = function(values = numeric(0)) {

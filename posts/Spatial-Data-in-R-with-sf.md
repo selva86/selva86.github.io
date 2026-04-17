@@ -26,7 +26,7 @@ Spatial data connects locations on Earth to attributes you care about, city popu
 
 Let's create a simple spatial dataset and see what that looks like.
 
-```r
+```r title="Promote data frame to sf with crs"
 # Load packages
 library(sf)
 library(ggplot2)
@@ -63,7 +63,7 @@ Notice how it looks just like a regular data frame, except for that `geometry` c
 
 The built-in `plot()` function gives you a quick look at the data. It creates one panel per attribute column.
 
-```r
+```r title="Plot city points"
 # Quick plot — sf's built-in method
 plot(cities)
 ```
@@ -75,7 +75,7 @@ The plot shows three mini-maps (one for each attribute column). Each point is co
 
 **Try it:** Create an sf object called `ex_places` with 3 locations you know well. Include columns for "name" and "country", plus longitude and latitude. Set the CRS to 4326 and print it.
 
-```r
+```r title="Exercise: world capitals as sf"
 # Try it: create your own sf object
 ex_places <- data.frame(
   name = c("Place 1", "Place 2", "Place 3"),
@@ -91,7 +91,7 @@ ex_places
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_places <- data.frame(
   name = c("London", "Tokyo", "Sydney"),
   country = c("UK", "Japan", "Australia"),
@@ -125,7 +125,7 @@ sf supports several geometry types. The three you'll use most often are POINT (a
 
 Let's create a LINESTRING to represent a simplified river path.
 
-```r
+```r title="Build a linestring from coordinates"
 # Create a LINESTRING — a simplified river path
 river_coords <- matrix(c(
   -90, 45,   # start
@@ -148,7 +148,7 @@ river_path
 
 The river is stored as a sequence of coordinate pairs connected in order. Now let's make a POLYGON, a closed shape where the first and last coordinates must match.
 
-```r
+```r title="Build a polygon with closed ring"
 # Create a POLYGON — a simplified lake boundary
 lake_coords <- matrix(c(
   -89.0, 42.0,
@@ -174,7 +174,7 @@ lake
 
 Now let's plot all three geometry types together to see how they layer.
 
-```r
+```r title="Layered plot of lake river and city"
 # Plot all three geometry types together
 ggplot() +
   geom_sf(data = lake, fill = "lightblue", color = "steelblue") +
@@ -196,7 +196,7 @@ The polygon (lake) renders as a filled shape, the linestring (river) as a line, 
 
 **Try it:** Create a POLYGON representing a triangle with vertices at (0,0), (1,0), (0.5,1), and back to (0,0). Store it in `ex_triangle` and plot it.
 
-```r
+```r title="Exercise: triangle polygon"
 # Try it: create a triangle polygon
 ex_tri_coords <- matrix(c(
   # your coordinates here
@@ -216,7 +216,7 @@ plot(ex_triangle)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_tri_coords <- matrix(c(
   0, 0,
   1, 0,
@@ -240,7 +240,7 @@ In your own projects, you'll usually start by reading spatial files from disk. T
 
 Here's the pattern for the most common formats:
 
-```r
+```r title="Read shapefile geojson and geopackage"
 # Reading spatial files (run these in RStudio with real files)
 # Shapefile — point to the .shp file
 # my_shapefile <- st_read("data/us_states/us_states.shp")
@@ -260,7 +260,7 @@ Here's the pattern for the most common formats:
 
 A practical workaround for getting real map data without files is to convert R's built-in map data to sf. The `maps` package contains world, US state, and country boundaries.
 
-```r
+```r title="Convert maps world to sf"
 # Convert built-in map data to sf (works everywhere, no files needed)
 library(maps)
 
@@ -282,7 +282,7 @@ Now `world_sf` is a proper sf object with MULTIPOLYGON geometries for each count
 
 **Try it:** Convert the US state map to an sf object using `maps::map("state", plot = FALSE, fill = TRUE)` and st_as_sf(). Print the first 3 rows.
 
-```r
+```r title="Exercise: maps states as sf"
 # Try it: convert state map to sf
 ex_states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 head(ex_states, 3)
@@ -292,7 +292,7 @@ head(ex_states, 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 head(ex_states, 3)
 #> Simple feature collection with 3 features and 1 field
@@ -323,7 +323,7 @@ Geographic CRS stores positions as longitude and latitude on the globe's curved 
 
 Let's check the CRS on our world map.
 
-```r
+```r title="Inspect coordinate reference system"
 # Check the CRS of our world map
 st_crs(world_sf)
 #> Coordinate Reference System:
@@ -335,7 +335,7 @@ st_crs(world_sf)
 
 The output confirms this is WGS 84 (EPSG:4326), the most common geographic CRS. If you create spatial data from coordinates and forget to set a CRS, you'll get `NA`. Let's see how to assign one.
 
-```r
+```r title="Set missing CRS with st set crs"
 # Create points WITHOUT a CRS (common mistake)
 pts_no_crs <- st_as_sf(
   data.frame(x = c(10, 20), y = c(50, 55)),
@@ -361,7 +361,7 @@ st_crs(pts_no_crs)
 
 **Try it:** Create a data frame with 3 cities (include lon and lat columns), convert to sf with st_as_sf(), assign CRS 4326, and verify with st_crs().
 
-```r
+```r title="Exercise: assign four three two six to cities"
 # Try it: create sf with CRS
 ex_cities_df <- data.frame(
   city = c("Berlin", "Paris", "Rome"),
@@ -378,7 +378,7 @@ st_crs(ex_cities_sf)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_cities_df <- data.frame(
   city = c("Berlin", "Paris", "Rome"),
   lon = c(13.405, 2.352, 12.496),
@@ -401,7 +401,7 @@ st_set_crs() *assigns* a CRS to data that doesn't have one (it labels the coordi
 
 A common scenario: your data is in WGS 84 (degrees), but you need meters for distance or area calculations. Let's transform the US states from WGS 84 to Albers Equal Area, a projection designed for the contiguous US that preserves area proportions.
 
-```r
+```r title="Project to Albers equal area"
 # Create US states sf object
 us_states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 
@@ -426,7 +426,7 @@ The WGS 84 coordinates are in degrees (longitude, latitude). After transformatio
 
 Let's see the visual difference between the two projections.
 
-```r
+```r title="Base plot in WGS eighty four"
 # Compare projections side by side
 p1 <- ggplot(us_states) +
   geom_sf(fill = "lightyellow", color = "gray40") +
@@ -443,7 +443,7 @@ p1
 
 In the WGS 84 version, the map looks stretched east-west. The Albers projection gives the familiar, proportionally correct US shape.
 
-```r
+```r title="Base plot in Albers"
 p2
 ```
 
@@ -452,7 +452,7 @@ p2
 
 **Try it:** Transform `world_sf` to Mollweide projection using "+proj=moll" and plot it. The Mollweide projection is an equal-area projection often used for world maps.
 
-```r
+```r title="Exercise: project to Mollweide"
 # Try it: Mollweide world map
 ex_world_moll <- st_transform(world_sf, crs = "+proj=moll")
 ggplot(ex_world_moll) +
@@ -464,7 +464,7 @@ ggplot(ex_world_moll) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_world_moll <- st_transform(world_sf, crs = "+proj=moll")
 ggplot(ex_world_moll) +
   geom_sf(fill = "lightgreen", color = "gray40", linewidth = 0.2) +
@@ -482,7 +482,7 @@ geom_sf() is the ggplot2 layer built for sf objects. It automatically picks the 
 
 Let's create a basic map of US states and then build up from there.
 
-```r
+```r title="States choropleth with geom sf"
 # Basic US state map with ggplot2
 ggplot(us_states) +
   geom_sf(fill = "steelblue", color = "white", linewidth = 0.3) +
@@ -492,7 +492,7 @@ ggplot(us_states) +
 
 theme_void() strips away axes and gridlines, perfect for maps where coordinate labels add clutter. Now let's layer two sf objects: states as polygons and cities as points on top.
 
-```r
+```r title="Layer cities over states"
 # Layer points on top of polygons
 major_cities <- data.frame(
   name = c("New York", "Los Angeles", "Chicago",
@@ -516,7 +516,7 @@ Each geom_sf() layer can come from a different sf object. ggplot2 handles CRS al
 
 Now let's build a choropleth map, states colored by a data variable.
 
-```r
+```r title="Viridis continuous fill"
 # Choropleth map: color states by a random variable
 set.seed(42)
 us_states <- us_states |>
@@ -537,7 +537,7 @@ scale_fill_viridis_c() provides colorblind-friendly palettes that work well for 
 
 **Try it:** Create a map of US states filled by the `value` column, add a title "My Choropleth", and use theme_void() for a clean look. Try a different color scale like scale_fill_distiller(palette = "YlOrRd").
 
-```r
+```r title="Exercise: custom choropleth"
 # Try it: custom choropleth
 ggplot(us_states) +
   geom_sf(aes(fill = value)) +
@@ -549,7 +549,7 @@ ggplot(us_states) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ggplot(us_states) +
   geom_sf(aes(fill = value), color = "white", linewidth = 0.3) +
   scale_fill_distiller(palette = "YlOrRd", direction = 1, name = "Value") +
@@ -567,7 +567,7 @@ One of sf's biggest advantages over older spatial packages is that it works nati
 
 Let's filter and transform our US states data.
 
-```r
+```r title="Assign regions with case when"
 # Filter and mutate sf objects with dplyr
 # Add a region column first (simplified mapping)
 us_states <- us_states |>
@@ -599,7 +599,7 @@ ggplot(western_states) +
 
 The geometry column survived the filter, no extra steps needed. Now here's the powerful part: summarise() on sf objects *dissolves* (merges) geometries by group. Individual state boundaries disappear and you get one polygon per group.
 
-```r
+```r title="Dissolve geometries by region"
 # Dissolve states into regions with summarise()
 regions <- us_states |>
   group_by(region) |>
@@ -631,7 +631,7 @@ The 49 individual state polygons merged into 4 region polygons. This is called "
 
 **Try it:** Filter `us_states` to keep only states in the "South" region, count how many there are with nrow(), then plot them.
 
-```r
+```r title="Exercise: filter southern states"
 # Try it: filter and count
 ex_south <- us_states |>
   filter(region == "South")
@@ -642,7 +642,7 @@ nrow(ex_south)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_south <- us_states |>
   filter(region == "South")
 nrow(ex_south)
@@ -664,7 +664,7 @@ ggplot(ex_south) +
 
 Create an sf object of 5 world cities with columns for name, country, and population (in millions). Set the CRS to WGS 84. Then plot them on top of the world map using geom_sf(), sizing points by population and coloring them by country.
 
-```r
+```r title="Practice one: world cities by population"
 # Exercise 1: City population map
 # Hint: create a data frame, convert with st_as_sf(), then layer two geom_sf() calls
 
@@ -675,7 +675,7 @@ Create an sf object of 5 world cities with columns for name, country, and popula
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice one solution"
 my_cities <- data.frame(
   name = c("Tokyo", "Delhi", "Shanghai", "São Paulo", "Cairo"),
   country = c("Japan", "India", "China", "Brazil", "Egypt"),
@@ -701,7 +701,7 @@ ggplot() +
 
 Using the `us_albers` sf object (already projected), compute each state's area with st_area() and create a choropleth map colored by area. Add a title, use scale_fill_viridis_c(), and apply theme_void().
 
-```r
+```r title="Practice two: area choropleth with st area"
 # Exercise 2: Area choropleth
 # Hint: mutate() with st_area(), then map fill to area
 # st_area() returns units — wrap in as.numeric() for ggplot
@@ -713,7 +713,7 @@ Using the `us_albers` sf object (already projected), compute each state's area w
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice two solution"
 my_area_map <- us_albers |>
   mutate(area_km2 = as.numeric(st_area(geometry)) / 1e6)
 
@@ -733,7 +733,7 @@ ggplot(my_area_map) +
 
 Transform `world_sf` to Robinson projection ("+proj=robin"). Filter to keep only European countries (use approximate bounding box: longitude -25 to 45, latitude 35 to 72). Create a styled map with geom_sf_text() for country labels.
 
-```r
+```r title="Practice three: Europe Robinson with crop"
 # Exercise 3: European map with labels
 # Hint: filter by bounding box using st_crop() or by coordinates
 # geom_sf_text(aes(label = ID), size = 2) adds text labels
@@ -745,7 +745,7 @@ Transform `world_sf` to Robinson projection ("+proj=robin"). Filter to keep only
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice three solution"
 europe_bbox <- st_bbox(c(xmin = -25, ymin = 35, xmax = 45, ymax = 72),
                        crs = 4326)
 my_europe <- world_sf |>
@@ -769,7 +769,7 @@ Let's walk through a complete spatial analysis workflow, from raw data to a poli
 
 The goal: create a choropleth map of US states colored by area, with major cities overlaid as sized points, all in a proper equal-area projection.
 
-```r
+```r title="End-to-end Albers states and cities"
 # === Complete Spatial Data Workflow ===
 
 # Step 1: Get state boundaries and project to Albers

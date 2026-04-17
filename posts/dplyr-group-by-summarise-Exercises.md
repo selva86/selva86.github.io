@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Counts and means are where almost every group-wise analysis starts. Before you touch missing values or per-group percentages, you need to be fluent at "split this data into groups, then collapse each group to a single number." The first three exercises drill exactly that, and the payoff block right below shows the shape of answer you are aiming at.
 
-```r
+```r title="Mean mpg and count per cylinder"
 # Load dplyr and aggregate mtcars: average mpg + row count per cylinder
 library(dplyr)
 
@@ -52,7 +52,7 @@ Three lines of dplyr produce a clean three-row answer. `group_by(cyl)` splits th
 
 Count how many cars in `mtcars` have 4, 6, and 8 cylinders. Save the result to `my_counts`. The output should have two columns: `cyl` and `n`.
 
-```r
+```r title="Exercise: Count rows per cylinder"
 # Exercise 1: count rows per cyl group
 # Hint: group_by(cyl) then summarise(n = n())
 
@@ -63,7 +63,7 @@ Count how many cars in `mtcars` have 4, 6, and 8 cylinders. Save the result to `
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Count rows solution"
 my_counts <- mtcars |>
   group_by(cyl) |>
   summarise(n = n(), .groups = "drop")
@@ -85,7 +85,7 @@ print(my_counts)
 
 Compute the average `mpg` for each `cyl` group in `mtcars`. Round to one decimal. Save to `my_mpg`. The mean column should be named `avg_mpg`.
 
-```r
+```r title="Exercise: Mean mpg per cylinder"
 # Exercise 2: mean mpg per cyl
 # Hint: summarise(avg_mpg = round(mean(mpg), 1))
 
@@ -96,7 +96,7 @@ Compute the average `mpg` for each `cyl` group in `mtcars`. Round to one decimal
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean mpg solution"
 my_mpg <- mtcars |>
   group_by(cyl) |>
   summarise(avg_mpg = round(mean(mpg), 1), .groups = "drop")
@@ -118,7 +118,7 @@ print(my_mpg)
 
 Repeat the count idea from Exercise 1, but use `count()` instead of `group_by() + summarise(n = n())`. Count cars per `gear` value. Save to `my_gears`.
 
-```r
+```r title="Exercise: Use count shortcut"
 # Exercise 3: use count() shortcut
 # Hint: count(mtcars, gear) does the same thing in one call
 
@@ -129,7 +129,7 @@ Repeat the count idea from Exercise 1, but use `count()` instead of `group_by() 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="count shortcut solution"
 my_gears <- mtcars |> count(gear)
 
 print(my_gears)
@@ -147,7 +147,7 @@ print(my_gears)
 
 The first three exercises stayed inside one grouping column and one clean dataset. Real data is messier than that. The next three add two complications at once: a second grouping column, and missing values that quietly poison every summary you write. Here is a quick look at the dataset that brings the missing values, the `starwars` tibble that ships with dplyr.
 
-```r
+```r title="Preview starwars with missing values"
 # Preview the starwars dataset — note the NA values in height and mass
 starwars |>
   select(name, height, mass, species, homeworld) |>
@@ -168,7 +168,7 @@ The first five rows look clean, but `starwars` has 87 rows and several columns c
 
 Group `mtcars` by both `cyl` and `am` (automatic = 0, manual = 1). Compute the count and mean mpg per combination. Save to `my_combo`. Use `.groups = "drop"` to return a plain tibble.
 
-```r
+```r title="Exercise: Group by two columns"
 # Exercise 4: group by two columns
 # Hint: group_by(cyl, am) then summarise with n() and mean()
 
@@ -179,7 +179,7 @@ Group `mtcars` by both `cyl` and `am` (automatic = 0, manual = 1). Compute the c
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-column group solution"
 my_combo <- mtcars |>
   group_by(cyl, am) |>
   summarise(
@@ -208,7 +208,7 @@ print(my_combo)
 
 Use the `iris` dataset. Group by `Species` and compute the mean of every numeric column in one call. Save to `my_iris`. The result should have five columns: `Species` plus the four numeric means.
 
-```r
+```r title="Exercise: Summarise across numeric columns"
 # Exercise 5: summarise all numeric columns per species
 # Hint: summarise(across(where(is.numeric), mean))
 
@@ -219,7 +219,7 @@ Use the `iris` dataset. Group by `Species` and compute the mean of every numeric
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="across numeric columns solution"
 my_iris <- iris |>
   group_by(Species) |>
   summarise(across(where(is.numeric), mean), .groups = "drop")
@@ -244,7 +244,7 @@ print(my_iris)
 
 Use `starwars`. Group by `species` and compute mean `height` and mean `mass`. Drop any `NA` inputs from the means. Save to `my_species`. Sort the result by `mean_height` descending and keep only the top 5 rows.
 
-```r
+```r title="Exercise: NA-safe species averages"
 # Exercise 6: mean height and mass per species, NA-safe
 # Hint: mean(x, na.rm = TRUE); then arrange(desc(mean_height)) and head(5)
 
@@ -255,7 +255,7 @@ Use `starwars`. Group by `species` and compute mean `height` and mean `mass`. Dr
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="NA-safe species solution"
 my_species <- starwars |>
   group_by(species) |>
   summarise(
@@ -292,7 +292,7 @@ The last four exercises combine two or more dplyr ideas at once. You will filter
 
 From `starwars`, compute the mean height per `species`, but keep only species with at least 2 characters in the dataset. Use `na.rm = TRUE`. Save to `my_big_species` and sort it from biggest group to smallest.
 
-```r
+```r title="Exercise: Filter groups by size"
 # Exercise 7: filter groups by size
 # Hint: summarise n = n() AND mean_height together, then filter(n >= 2)
 
@@ -303,7 +303,7 @@ From `starwars`, compute the mean height per `species`, but keep only species wi
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter by size solution"
 my_big_species <- starwars |>
   group_by(species) |>
   summarise(
@@ -333,7 +333,7 @@ print(my_big_species)
 
 For `mtcars`, compute each `gear` group's share of total `mpg` as a percentage. The output should have three columns: `gear`, `sum_mpg`, and `pct_of_total`. Save to `my_share`. The `pct_of_total` column should sum to 100.
 
-```r
+```r title="Exercise: Group share as percent"
 # Exercise 8: group share as percent of total
 # Hint: summarise sum_mpg per gear first, then mutate pct = 100 * sum_mpg / sum(sum_mpg)
 
@@ -344,7 +344,7 @@ For `mtcars`, compute each `gear` group's share of total `mpg` as a percentage. 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Group share solution"
 my_share <- mtcars |>
   group_by(gear) |>
   summarise(sum_mpg = sum(mpg), .groups = "drop") |>
@@ -370,7 +370,7 @@ print(my_share)
 
 Run two near-identical pipelines on `mtcars`: group by `cyl` and `am`, then summarise `n = n()`. In the first, use `.groups = "drop"`. In the second, use `.groups = "keep"`. After each, call `group_vars()` to see which grouping remains. Save the results to `my_drop` and `my_keep`.
 
-```r
+```r title="Exercise: Contrast .groups values"
 # Exercise 9: contrast .groups values
 # Hint: same pipeline twice with different .groups; then group_vars(result)
 
@@ -381,7 +381,7 @@ Run two near-identical pipelines on `mtcars`: group by `cyl` and `am`, then summ
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="groups comparison solution"
 my_drop <- mtcars |>
   group_by(cyl, am) |>
   summarise(n = n(), .groups = "drop")
@@ -405,7 +405,7 @@ group_vars(my_keep)
 
 From `starwars`, find the two heaviest characters per `homeworld`. Only consider rows where `mass` and `homeworld` are not `NA`. Save to `my_top2`. Sort the result by `homeworld`, then by `mass` descending within each homeworld.
 
-```r
+```r title="Exercise: Top two per homeworld"
 # Exercise 10: top-2 per group
 # Hint: filter NA rows, group_by(homeworld), slice_max(mass, n = 2)
 
@@ -416,7 +416,7 @@ From `starwars`, find the two heaviest characters per `homeworld`. Only consider
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top two per homeworld solution"
 my_top2 <- starwars |>
   filter(!is.na(mass), !is.na(homeworld)) |>
   group_by(homeworld) |>
@@ -451,7 +451,7 @@ Four mistakes trip up almost everyone who is new to these verbs. Each one runs w
 
 The mean of a vector that contains even one `NA` is `NA`. Unless you tell R to ignore missing values, every group that contains a missing value returns `NA` for that group's summary.
 
-```r
+```r title="Mistake: Silent NA pollution"
 # Wrong: silent NA pollution
 starwars |>
   group_by(species) |>
@@ -465,7 +465,7 @@ starwars |>
 #> 3 Cerean     198
 ```
 
-```r
+```r title="Correct: Pass na.rm TRUE"
 # Right: na.rm = TRUE
 starwars |>
   group_by(species) |>
@@ -479,7 +479,7 @@ The fix is one extra argument. The habit is to always check `summary(your_data)`
 
 A grouped tibble behaves differently in downstream verbs. Percentages, joins, and even `mutate()` all change their meaning when grouping is silently still active.
 
-```r
+```r title="Mistake: Still grouped during mutate"
 # Wrong: still grouped, so mutate computes per-group, not overall
 bad <- mtcars |>
   group_by(cyl) |>
@@ -489,7 +489,7 @@ bad |> mutate(pct = 100 * total_hp / sum(total_hp))
 #> per-group sum divides by itself → every row 100%
 ```
 
-```r
+```r title="Correct: Drop groups before mutate"
 # Right: drop groups, then mutate sees the whole tibble
 good <- mtcars |>
   group_by(cyl) |>
@@ -504,7 +504,7 @@ Use `.groups = "drop"` or call `ungroup()` explicitly the moment your grouped st
 
 `across(everything(), mean)` errors out the instant any column is a character or factor. The fix is to scope `across()` to numeric columns only.
 
-```r
+```r title="Mistake: across on factor column"
 # Wrong: iris has a factor column
 iris |>
   group_by(Species) |>
@@ -512,7 +512,7 @@ iris |>
 #> Error: `across()` argument is not numeric
 ```
 
-```r
+```r title="Correct: Restrict to numeric columns"
 # Right: restrict to numeric columns
 iris |>
   group_by(Species) |>
@@ -525,13 +525,13 @@ iris |>
 
 dplyr prints a helpful note when you leave `.groups` off, but new users often mistake the note for an error.
 
-```r
+```r title="Noisy without .groups argument"
 # Noisy (prints message but still works)
 mtcars |> group_by(cyl, am) |> summarise(n = n())
 #> `summarise()` has grouped output by 'cyl'. You can override using the `.groups` argument.
 ```
 
-```r
+```r title="Quiet with .groups drop"
 # Quiet: state your intent
 mtcars |> group_by(cyl, am) |> summarise(n = n(), .groups = "drop")
 ```
@@ -549,7 +549,7 @@ The ten numbered problems above ARE your practice. Below are two bonus capstone 
 
 Using `starwars`, find the three homeworlds with the highest average character mass, but only consider homeworlds that have at least two characters. Drop any rows with missing `mass` or `homeworld` values. Save the result to `cap1_top_homeworlds` with three columns: `homeworld`, `n`, and `mean_mass`.
 
-```r
+```r title="Exercise: Top three homeworlds by mass"
 # Capstone 1: top 3 homeworlds by average mass
 # Hint: filter NA, group_by(homeworld), summarise n + mean_mass,
 #       filter(n >= 2), slice_max(mean_mass, n = 3)
@@ -561,7 +561,7 @@ Using `starwars`, find the three homeworlds with the highest average character m
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top three homeworlds solution"
 cap1_top_homeworlds <- starwars |>
   filter(!is.na(mass), !is.na(homeworld)) |>
   group_by(homeworld) |>
@@ -590,7 +590,7 @@ print(cap1_top_homeworlds)
 
 Using `mtcars`, group by both `cyl` and `am`. For each combination compute the total horsepower (`total_hp`), the mean mpg (`mean_mpg`), and that combination's share of grand-total horsepower as a percentage (`pct_of_grand_total`). Save the result to `cap2_share`. The percentage column should sum to 100.
 
-```r
+```r title="Exercise: Horsepower share pipeline"
 # Capstone 2: per-cyl/am share of total horsepower
 # Hint: group_by(cyl, am), summarise total_hp + mean_mpg with .groups = "drop",
 #       then mutate pct_of_grand_total = 100 * total_hp / sum(total_hp)
@@ -602,7 +602,7 @@ Using `mtcars`, group by both `cyl` and `am`. For each combination compute the t
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Horsepower share solution"
 cap2_share <- mtcars |>
   group_by(cyl, am) |>
   summarise(
@@ -633,7 +633,7 @@ print(cap2_share)
 
 The exercises above each isolated one idea. Real analysis combines them. Here is a small, end-to-end fuel-economy report using `mtcars` that uses every core technique from this page in a single pipeline: multi-column grouping, multi-summary `summarise()`, `.groups = "drop"`, post-summarise `mutate()` with a global denominator, and a final sort.
 
-```r
+```r title="End-to-end fuel economy report"
 # Complete example: fuel-economy report by cylinder + transmission
 report <- mtcars |>
   group_by(cyl, am) |>

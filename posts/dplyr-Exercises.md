@@ -23,7 +23,7 @@ difficulty: "Intermediate"
 
 The 15 problems below are grouped into three blocks of five. Exercises 1-5 cover one or two verbs at a time. Exercises 6-10 mix conditions, `across()`, `case_when()`, and joins. Exercises 11-15 stitch three or more concepts into real pipelines like grouped ranking and share of total. Every exercise gives you a starter block, hides the solution behind a reveal, and explains the result. Solve, compare, read the explanation, and move on. All code runs in a single shared R session, so the warm-up below loads `dplyr` once, the exercises after it do not need to reload it.
 
-```r
+```r title="Load dplyr and starwars"
 # Warm-up: one dplyr pipeline you should feel comfortable writing by Exercise 5
 library(dplyr)
 
@@ -47,7 +47,7 @@ These five exercises use one or two verbs each. If you have read the [dplyr filt
 
 Keep the cars with `mpg > 25` and show only `mpg`, `cyl`, `hp`, and the car name. `mtcars` stores the name as a row name, not a column, you will need to lift it into a column before `select()` can see it.
 
-```r
+```r title="Exercise: Filter and select"
 # Exercise 1: filter mpg > 25, show car name + mpg + cyl + hp
 # Hint: use tibble::rownames_to_column() or mutate(car = rownames(mtcars))
 
@@ -56,7 +56,7 @@ Keep the cars with `mpg > 25` and show only `mpg`, `cyl`, `hp`, and the car name
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter and select solution"
 mtcars |>
   mutate(car = rownames(mtcars)) |>
   filter(mpg > 25) |>
@@ -78,7 +78,7 @@ mtcars |>
 
 Add a new column `pwr_wt` equal to `hp / wt` rounded to one decimal, and show the first 5 rows with only the relevant columns (`mpg`, `hp`, `wt`, `pwr_wt`).
 
-```r
+```r title="Exercise: Mutate power-to-weight"
 # Exercise 2: mutate pwr_wt = round(hp / wt, 1)
 # Hint: pipe mtcars into mutate() then select() then head()
 
@@ -87,7 +87,7 @@ Add a new column `pwr_wt` equal to `hp / wt` rounded to one decimal, and show th
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Power-to-weight solution"
 mtcars |>
   mutate(pwr_wt = round(hp / wt, 1)) |>
   select(mpg, hp, wt, pwr_wt) |>
@@ -111,7 +111,7 @@ mtcars |>
 
 Arrange the cars in descending mpg order and show the top 5 with their name, mpg, and cylinder count.
 
-```r
+```r title="Exercise: Arrange by height"
 # Exercise 3: arrange(desc(mpg)) then show car + mpg + cyl for the top 5
 # Hint: mutate() the rownames first, then arrange(), then head()
 
@@ -120,7 +120,7 @@ Arrange the cars in descending mpg order and show the top 5 with their name, mpg
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Arrange by height solution"
 mtcars |>
   mutate(car = rownames(mtcars)) |>
   arrange(desc(mpg)) |>
@@ -142,7 +142,7 @@ mtcars |>
 
 For each cylinder group (4, 6, 8), compute the count of cars and the mean mpg rounded to one decimal.
 
-```r
+```r title="Exercise: Summarise by species"
 # Exercise 4: group_by(cyl) then summarise(n = n(), avg_mpg = ...)
 # Hint: remember to set .groups = "drop" to avoid a rowwise tibble warning
 
@@ -151,7 +151,7 @@ For each cylinder group (4, 6, 8), compute the count of cars and the mean mpg ro
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Summarise by species solution"
 mtcars |>
   group_by(cyl) |>
   summarise(n = n(), avg_mpg = round(mean(mpg), 1), .groups = "drop")
@@ -171,7 +171,7 @@ mtcars |>
 
 Use `count()` to count iris rows per `Species`, then `mutate()` a `pct` column that gives each species' share as a rounded percentage.
 
-```r
+```r title="Exercise: Count with percentage"
 # Exercise 5: iris |> count(Species) |> mutate(pct = round(n / sum(n) * 100, 1))
 # Hint: count() already returns a tibble with column n
 
@@ -180,7 +180,7 @@ Use `count()` to count iris rows per `Species`, then `mutate()` a `pct` column t
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Count with percentage solution"
 iris |>
   count(Species) |>
   mutate(pct = round(n / sum(n) * 100, 1))
@@ -202,7 +202,7 @@ These five exercises combine two or more concepts. If you can solve them without
 
 Keep only cars where mpg is above the dataset mean AND weight is below the dataset mean. Show `mpg`, `hp`, `wt`, sorted by mpg descending.
 
-```r
+```r title="Exercise: Filter above mean"
 # Exercise 6: filter(mpg > mean(mpg), wt < mean(wt))
 # Hint: comma inside filter() is AND
 
@@ -211,7 +211,7 @@ Keep only cars where mpg is above the dataset mean AND weight is below the datas
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter above mean solution"
 mtcars |>
   filter(mpg > mean(mpg), wt < mean(wt)) |>
   select(mpg, hp, wt) |>
@@ -236,7 +236,7 @@ mtcars |>
 
 Create a `type` column using `case_when()` with the rules: `mpg > 25` → Economy, `mpg >= 15` → Standard, everything else → Guzzler. Then count cars per type, sorted by count.
 
-```r
+```r title="Exercise: casewhen fuel classes"
 # Exercise 7: case_when(mpg > 25 ~ "Economy", mpg >= 15 ~ "Standard", TRUE ~ "Guzzler")
 # Hint: case_when() evaluates top to bottom; the first match wins
 
@@ -245,7 +245,7 @@ Create a `type` column using `case_when()` with the rules: `mpg > 25` → Econom
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="casewhen fuel classes solution"
 mtcars |>
   mutate(type = case_when(
     mpg > 25  ~ "Economy",
@@ -267,7 +267,7 @@ mtcars |>
 
 For each iris species, compute the mean and standard deviation of every numeric column in one call. Round both statistics to 2 decimals. The result columns should be named like `Sepal.Length_mean`, `Sepal.Length_sd`, etc.
 
-```r
+```r title="Exercise: across with mean and sd"
 # Exercise 8: across(where(is.numeric), list(mean = ..., sd = ...), .names = "{.col}_{.fn}")
 # Hint: use anonymous functions — \(x) round(mean(x), 2)
 
@@ -276,7 +276,7 @@ For each iris species, compute the mean and standard deviation of every numeric 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="across mean and sd solution"
 iris |>
   group_by(Species) |>
   summarise(
@@ -310,7 +310,7 @@ iris |>
 
 Rename every column of `iris` to snake_case (lowercase, dots replaced with underscores), then move `species` to the first position. Show the first 4 rows.
 
-```r
+```r title="Exercise: renamewith to upper"
 # Exercise 9: rename_with(~ tolower(gsub("\\.", "_", .x)))
 # Hint: select(species, everything()) to reorder
 
@@ -319,7 +319,7 @@ Rename every column of `iris` to snake_case (lowercase, dots replaced with under
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="renamewith to upper solution"
 iris |>
   rename_with(~ tolower(gsub("\\.", "_", .x))) |>
   select(species, everything()) |>
@@ -339,7 +339,7 @@ iris |>
 
 Create two small data frames as shown in the starter block, then use `anti_join()` to find the employees whose department is not listed in the departments table. As a sanity check, also `left_join()` the two tables so you can see every employee's budget (or `NA` when there is no match).
 
-```r
+```r title="Exercise: leftjoin two tables"
 # Exercise 10: anti_join(employees, departments, by = "dept")
 # Hint: anti_join keeps rows from x with no match in y
 employees   <- data.frame(name = c("Alice","Bob","Carol","David"),
@@ -352,7 +352,7 @@ departments <- data.frame(dept = c("Eng","Mkt","Sales"),
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="leftjoin solution"
 employees   <- data.frame(name = c("Alice","Bob","Carol","David"),
                           dept = c("Eng","Mkt","Eng","HR"))
 departments <- data.frame(dept = c("Eng","Mkt","Sales"),
@@ -382,7 +382,7 @@ These five stitch three or more concepts into the kind of pipelines you actually
 
 For each cylinder group, rank the cars by mpg (rank 1 = most efficient), keep the top 3 per group, and show the car name, cylinder count, mpg, and rank, sorted by cyl then rank.
 
-```r
+```r title="Exercise: Grouped rank column"
 # Exercise 11: rank(-mpg) inside a grouped mutate, then filter(rank <= 3)
 # Hint: ungroup() at the end so the result is a plain tibble
 
@@ -391,7 +391,7 @@ For each cylinder group, rank the cars by mpg (rank 1 = most efficient), keep th
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Grouped rank column solution"
 mtcars |>
   mutate(car = rownames(mtcars)) |>
   group_by(cyl) |>
@@ -422,7 +422,7 @@ mtcars |>
 
 For each cylinder group, compute every car's horsepower as a rounded percentage of that group's total horsepower. Show `car`, `cyl`, `hp`, and `hp_pct` for the top 10 rows sorted by cyl then `hp_pct` descending.
 
-```r
+```r title="Exercise: Group share of hp"
 # Exercise 12: group_by(cyl) then mutate(hp_pct = hp / sum(hp) * 100)
 # Hint: sum(hp) inside a grouped mutate is the group total, not the full-table total
 
@@ -431,7 +431,7 @@ For each cylinder group, compute every car's horsepower as a rounded percentage 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Group share of hp solution"
 mtcars |>
   mutate(car = rownames(mtcars)) |>
   group_by(cyl) |>
@@ -466,7 +466,7 @@ mtcars |>
 
 Use `slice_max()` to keep the two heaviest cars (by `wt`) in each cylinder group. Return `car`, `cyl`, `wt`, and `mpg`.
 
-```r
+```r title="Exercise: slicemax tallest"
 # Exercise 13: slice_max(wt, n = 2) inside a grouped pipeline
 # Hint: slice_max() handles the sort + head internally
 
@@ -475,7 +475,7 @@ Use `slice_max()` to keep the two heaviest cars (by `wt`) in each cylinder group
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="slicemax tallest solution"
 mtcars |>
   mutate(car = rownames(mtcars)) |>
   group_by(cyl) |>
@@ -510,7 +510,7 @@ Chain this five-step pipeline:
 4. Summarise: count of cars and mean `kpl` per group.
 5. Sort by mean `kpl` descending.
 
-```r
+```r title="Exercise: Five-verb pipeline"
 # Exercise 14: filter -> mutate -> group_by -> summarise -> arrange
 # Hint: this is a 5-verb pipeline; write it line-by-line and test each step if needed
 
@@ -519,7 +519,7 @@ Chain this five-step pipeline:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Five-verb pipeline solution"
 mtcars |>
   filter(am == 1) |>
   mutate(kpl = round(mpg * 0.425, 2)) |>
@@ -542,7 +542,7 @@ mtcars |>
 
 Take a random 30% sample from each iris species (so roughly 15 rows per species, 45 total). Use `set.seed(42)` for reproducibility and count the rows per species in the result to verify the stratification worked.
 
-```r
+```r title="Exercise: slicesample rows"
 # Exercise 15: slice_sample(prop = 0.3) inside group_by(Species)
 # Hint: set.seed before slice_sample so the same reader can reproduce your numbers
 
@@ -551,7 +551,7 @@ Take a random 30% sample from each iris species (so roughly 15 rows per species,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="slicesample solution"
 set.seed(42)
 
 iris |>

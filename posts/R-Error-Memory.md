@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 When you see this error, R hit a hard wall: it asked the operating system for a chunk of contiguous memory and the OS said no. The size in the message is the exact request, not your total memory use, not the size of everything in your session. Before touching any fix, reproduce the error and read that number carefully. It tells you whether you are 100MB short or 40GB short, and the answer points directly at the right solution.
 
-```r
+```r title="Reproduce the allocation error"
 # Reproduce the error on any machine by asking for an absurd allocation.
 # 1e10 doubles = 80 GB (8 bytes each) — no laptop can satisfy that.
 huge <- numeric(1e10)
@@ -36,7 +36,7 @@ The two parts of the message to notice: `cannot allocate vector` means the reque
 
 Once you have the number, estimate how big your actual objects are so you know how much headroom to recover. Base R's `object.size()` reports the exact byte count for any variable you already have in the session.
 
-```r
+```r title="Measure memory of a vector"
 # Estimate memory needs BEFORE creating the object
 mid_vec <- numeric(5e6)       # 5 million doubles
 object.size(mid_vec)
@@ -49,7 +49,7 @@ So a 5-million double vector is about 38MB. Doubling the length roughly doubles 
 
 R ships a second tool to read memory state: `gc()`, which triggers a garbage-collection pass and prints a before/after table.
 
-```r
+```r title="Read gc output for session usage"
 # gc() returns a matrix: "used" is current, "max used" is the high-water mark
 gc()
 #>           used  (Mb) gc trigger  (Mb) max used  (Mb)
@@ -61,7 +61,7 @@ Two numbers matter here: `Vcells used (Mb)` is how much R is holding right now f
 
 **Try it:** Estimate how many megabytes a 10-million-element numeric vector needs. Write the expression using `object.size()` and convert to MB.
 
-```r
+```r title="Exercise: measure ten million doubles"
 # Try it: measure memory for 10M doubles
 ex_vec <- numeric(1e7)
 # your code here — print the size in MB
@@ -71,7 +71,7 @@ ex_vec <- numeric(1e7)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Measure-vector solution"
 ex_vec <- numeric(1e7)
 ex_bytes <- object.size(ex_vec)
 format(ex_bytes, units = "MB")
@@ -86,7 +86,7 @@ format(ex_bytes, units = "MB")
 
 This is the zero-cost first move. Every interactive R session accumulates old objects, copies from pipelines, and intermediate results that you no longer need. If the shortage is modest, say the error is for 500MB and you have 4GB free, removing leftovers and triggering garbage collection often fixes it instantly.
 
-```r
+```r title="Free a 500MB object with rm and gc"
 # Create a dummy 500MB object to simulate a long session
 big_obj <- numeric(6e7)       # ~480 MB
 format(object.size(big_obj), units = "MB")
@@ -109,7 +109,7 @@ If you are inside a long loop that builds intermediate objects, sprinkle `rm()` 
 
 A full session wipe is also one line, useful as a panic button at the top of a script that keeps failing.
 
-```r
+```r title="Clear the global environment"
 # Nuclear option: remove everything in the global env, then collect
 rm(list = ls())
 gc()
@@ -122,7 +122,7 @@ gc()
 
 **Try it:** Create a 200MB numeric vector named `ex_big`, confirm its size, delete it, and verify with `gc()` that memory dropped.
 
-```r
+```r title="Exercise: create, measure, delete"
 # Try it: create, measure, delete, confirm
 # your code here
 
@@ -131,7 +131,7 @@ gc()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Create-and-delete solution"
 ex_big <- numeric(2.5e7)
 format(object.size(ex_big), units = "MB")
 #> [1] "190.7 Mb"
@@ -150,7 +150,7 @@ gc()
 
 The most common place the error appears is on a `read.csv()` call against a file that is 1–5 GB on disk. Base R's reader has three memory penalties: it converts strings to factors (doubling some columns), it keeps row names, and its parser uses temporary buffers that spike peak memory well above the final data frame size. The fix is to swap in `data.table::fread()`, which uses a fraction of the peak RAM and runs ~10× faster on the same file.
 
-```r
+```r title="Build a sample CSV for benchmarking"
 # Build a sample CSV so we can measure both readers
 library(data.table)
 set.seed(101)
@@ -168,7 +168,7 @@ format(file.info(tmp_csv)$size, big.mark = ",")
 
 So we have a ~3MB CSV with 100,000 rows. Now load it both ways and compare memory footprints.
 
-```r
+```r title="fread uses a third of the RAM"
 # Base R reader: slow, higher peak memory
 df_base <- read.csv(tmp_csv, stringsAsFactors = FALSE)
 format(object.size(df_base), units = "MB")
@@ -184,7 +184,7 @@ On the same file, `fread()` holds the data in about a third of the RAM. The win 
 
 The second win is column selection. If you only need three columns out of thirty, `fread()` can skip reading the rest entirely, memory use drops roughly proportional to the column count.
 
-```r
+```r title="fread with column selection"
 # Load only the columns you actually need
 df_cols <- fread(tmp_csv, select = c("id", "value"))
 format(object.size(df_cols), units = "MB")
@@ -204,7 +204,7 @@ Two columns instead of four cut memory by more than half. For a real-world 30-co
 
 **Try it:** Write `mtcars` to a temp CSV, then use `fread()` with `select=` to load only the `mpg`, `cyl`, and `hp` columns.
 
-```r
+```r title="Exercise: selective read with fread"
 # Try it: selective CSV read with fread
 # Write mtcars to a temp file, then load three columns.
 # your code here
@@ -214,7 +214,7 @@ Two columns instead of four cut memory by more than half. For a real-world 30-co
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Selective-read solution"
 ex_path <- tempfile(fileext = ".csv")
 write.csv(mtcars, ex_path, row.names = FALSE)
 ex_mtcars <- fread(ex_path, select = c("mpg", "cyl", "hp"))
@@ -237,7 +237,7 @@ head(ex_mtcars, 3)
 [NOTE]
 **arrow is a separate package you install once with install.packages("arrow").** The examples below show the pattern you would run in a local R session. The same pattern works on parquet files, partitioned CSV directories, and Arrow IPC files.
 
-```r
+```r title="Lazy parquet filter with arrow"
 # Pattern for reading a parquet file larger than RAM
 library(arrow)
 library(dplyr)
@@ -260,7 +260,7 @@ This works best when three conditions hold: (1) the file is in parquet or arrow 
 
 **Try it:** Write mtcars to a temporary parquet file, open it as a dataset, and filter to rows where `mpg > 20` *without* calling `collect()` until the very end.
 
-```r
+```r title="Exercise: lazy filter on mtcars"
 # Try it: lazy parquet filter
 # Use arrow::write_parquet() + open_dataset() + filter() + collect()
 # your code here
@@ -270,7 +270,7 @@ This works best when three conditions hold: (1) the file is in parquet or arrow 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Lazy-filter solution"
 library(arrow)
 library(dplyr)
 ex_path <- tempfile(fileext = ".parquet")
@@ -296,7 +296,7 @@ DuckDB is an in-process analytical SQL engine, think SQLite, but optimised for c
 [NOTE]
 **duckdb is a separate package you install once with install.packages("duckdb").** The pattern below shows how to open a connection, query a CSV directly from disk, and pull the result into an R data frame.
 
-```r
+```r title="Out-of-memory SQL with DuckDB"
 # Pattern for an out-of-memory CSV aggregation
 library(duckdb)
 library(DBI)
@@ -368,7 +368,7 @@ If none of those apply, you probably do not need more hardware yet, recheck whet
 
 You just hit `Error: cannot allocate vector of size 1.8 Gb` inside a script. Write a short diagnostic block that (a) lists the current top-3 largest objects in the global environment by size, (b) runs `gc()`, and (c) saves those three biggest objects' names to `my_biggest`.
 
-```r
+```r title="Exercise: memory triage script"
 # Exercise: memory triage script
 # Hint: use ls() + sapply(object.size) + sort + head(3)
 
@@ -379,7 +379,7 @@ You just hit `Error: cannot allocate vector of size 1.8 Gb` inside a script. Wri
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Memory-triage solution"
 # Create some dummy objects for the exercise
 a <- numeric(2e6); b <- numeric(5e5); c <- numeric(5e6); d <- "tiny"
 
@@ -402,7 +402,7 @@ gc()
 
 Simulate a 1-million-row data frame with columns `id`, `group`, `value`, and `description`, write it to a temp CSV, then use `fread()` with `select=` to load only `group` and `value`, and compute the mean `value` by `group`. Save the result to `my_summary`.
 
-```r
+```r title="Exercise: selective read and aggregate"
 # Exercise: avoid loading unneeded columns, then aggregate
 # Hint: fread(..., select = c("group", "value")) then data.table[, by=]
 
@@ -413,7 +413,7 @@ Simulate a 1-million-row data frame with columns `id`, `group`, `value`, and `de
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Slim-aggregate solution"
 library(data.table)
 set.seed(202)
 my_df <- data.frame(
@@ -446,7 +446,7 @@ my_summary
 
 Here is the workflow you should reach for whenever a script hits the error, reproduce the failure small, apply the cheapest fixes first, then escalate only if needed. Every step is runnable as-is.
 
-```r
+```r title="Full triage workflow end-to-end"
 library(data.table)
 
 # Step 1: reproduce small

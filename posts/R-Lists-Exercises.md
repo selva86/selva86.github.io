@@ -32,7 +32,7 @@ The code blocks share state across the whole page. We will build one list in Exe
 
 Create a list called `profile` with four elements: `name = "Ada"`, `age = 37`, `skills = c("R", "Python", "SQL")`, and `employed = TRUE`. Confirm its length and print its `str()`.
 
-```r
+```r title="Exercise: create profile list"
 # Your attempt here
 
 ```
@@ -40,7 +40,7 @@ Create a list called `profile` with four elements: `name = "Ada"`, `age = 37`, `
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Profile-list solution"
 profile <- list(
   name     = "Ada",
   age      = 37,
@@ -65,7 +65,7 @@ Unlike a vector, a list does not coerce its elements to a common type. Each elem
 
 Fit `m <- lm(mpg ~ wt, data = mtcars)`. Confirm that `m` is a list, report its class and its names.
 
-```r
+```r title="Exercise: inspect lm result as list"
 # Your attempt here
 
 ```
@@ -73,7 +73,7 @@ Fit `m <- lm(mpg ~ wt, data = mtcars)`. Confirm that `m` is a list, report its c
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="lm-as-list solution"
 m <- lm(mpg ~ wt, data = mtcars)
 
 is.list(m)  # TRUE
@@ -92,14 +92,14 @@ Almost every model object in R is a list with a class attribute. Knowing this is
 
 For the `profile` list, predict the class and length of each of the following *before* running them:
 
-```r
+```r title="Four subsetting expressions to predict"
 profile["age"]
 profile[["age"]]
 profile$age
 profile[c("name", "age")]
 ```
 
-```r
+```r title="Exercise: your prediction attempt"
 # Your attempt here
 
 ```
@@ -107,7 +107,7 @@ profile[c("name", "age")]
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Predictions solution"
 class(profile["age"])        # "list"
 length(profile["age"])       # 1
 
@@ -129,7 +129,7 @@ The rule: **`[` keeps the container (always returns a list), `[[` extracts the c
 
 Change `profile$age` to 38, and append a new element `city = "Brisbane"` to the list.
 
-```r
+```r title="Exercise: modify and add elements"
 # Your attempt here
 
 ```
@@ -137,7 +137,7 @@ Change `profile$age` to 38, and append a new element `city = "Brisbane"` to the 
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Modify-and-add solution"
 profile$age <- 38
 profile[["city"]] <- "Brisbane"
 
@@ -156,7 +156,7 @@ Assigning to an index that does not exist creates the element. Setting it to `NU
 
 Create `team` as a list of three members. Each member is itself a list with `name`, `role` and `years`. Use any made-up values.
 
-```r
+```r title="Exercise: create a team list"
 # Your attempt here
 
 ```
@@ -164,7 +164,7 @@ Create `team` as a list of three members. Each member is itself a list with `nam
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Team-list solution"
 team <- list(
   list(name = "Ava",  role = "analyst",  years = 3),
   list(name = "Ben",  role = "engineer", years = 5),
@@ -184,7 +184,7 @@ Each element of `team` is itself a list. `team[[1]]` extracts the first member (
 
 From `team`, return (a) the name of the third member, (b) the role of the second member, and (c) a vector of *all three* members' years of experience.
 
-```r
+```r title="Exercise: extract nested fields"
 # Your attempt here
 
 ```
@@ -192,7 +192,7 @@ From `team`, return (a) the name of the third member, (b) the role of the second
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Nested-extract solution"
 team[[3]]$name       # "Cho"
 team[[2]]$role       # "engineer"
 
@@ -210,7 +210,7 @@ sapply(team, function(m) m$years)
 
 Create `nums <- list(a = 1:5, b = 6:10, c = 11:20)`. Use `lapply()` to compute the mean of each element, and `sapply()` to do the same thing and get a named vector.
 
-```r
+```r title="Exercise: lapply and sapply of means"
 # Your attempt here
 
 ```
@@ -218,7 +218,7 @@ Create `nums <- list(a = 1:5, b = 6:10, c = 11:20)`. Use `lapply()` to compute t
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="lapply-sapply mean solution"
 nums <- list(a = 1:5, b = 6:10, c = 11:20)
 
 lapply(nums, mean)
@@ -239,7 +239,7 @@ sapply(nums, mean)
 
 Using `nums`, use `sapply()` to compute the mean of each element *ignoring* the first value. Hint: you can pass extra arguments to the applied function.
 
-```r
+```r title="Exercise: mean excluding first element"
 # Your attempt here
 
 ```
@@ -247,7 +247,7 @@ Using `nums`, use `sapply()` to compute the mean of each element *ignoring* the 
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Mean-excluding-first solution"
 sapply(nums, function(x) mean(x[-1]))
 #    a    b    c
 #  3.5  8.5 16.0
@@ -266,7 +266,7 @@ The anonymous function gives you full control over what happens to each element.
 
 Convert `nums` (a list of numeric vectors) into a single flat numeric vector, then into a character vector with every element joined by ", ".
 
-```r
+```r title="Exercise: flatten list to vector"
 # Your attempt here
 
 ```
@@ -274,7 +274,7 @@ Convert `nums` (a list of numeric vectors) into a single flat numeric vector, th
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Flatten-list solution"
 flat <- unlist(nums)
 flat
 #  a1  a2  a3  a4  a5  b1  b2  ... c10
@@ -292,7 +292,7 @@ paste(flat, collapse = ", ")
 
 Convert `team` (a list of three lists with the same fields) into a data frame with one row per team member.
 
-```r
+```r title="Exercise: list of rows to data frame"
 # Your attempt here
 
 ```
@@ -300,7 +300,7 @@ Convert `team` (a list of three lists with the same fields) into a data frame wi
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="List-to-data-frame solution"
 team_df <- do.call(rbind.data.frame, team)
 team_df
 #   name     role years

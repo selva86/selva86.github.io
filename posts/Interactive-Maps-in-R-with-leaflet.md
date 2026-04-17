@@ -23,7 +23,7 @@ sidebar_order: 33
 
 Every leaflet map starts with three steps: call `leaflet()`, add a tile layer for the basemap, and set a view centre. The result is a live, zoomable map you can embed in R Markdown, Shiny apps, or standalone HTML pages.
 
-```r
+```r title="First interactive map of London"
 library(leaflet)
 
 m <- leaflet() |>
@@ -43,7 +43,7 @@ m
 
 You can also set the initial view without `setView()` by passing coordinates directly to `leaflet()`.
 
-```r
+```r title="Set view in leaflet call"
 # Alternative: set view in leaflet() itself
 leaflet() |>
   addTiles() |>
@@ -53,7 +53,7 @@ leaflet() |>
 
 **Try it:** Create a leaflet map centred on your favourite city. Set the zoom level to 12 so you can see the street layout.
 
-```r
+```r title="Exercise: Map your favourite city"
 # Try it: create a map of your city
 ex_map <- leaflet() |>
   addTiles() |>
@@ -65,7 +65,7 @@ ex_map
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Tokyo map"
 # Example: Tokyo
 ex_map <- leaflet() |>
   addTiles() |>
@@ -82,7 +82,7 @@ ex_map
 
 Tile layers are the background images that give your map its visual style. OpenStreetMap is the default, but leaflet gives you access to over 100 provider tile sets, satellite imagery, minimalist designs for data dashboards, topographic maps, and dark themes.
 
-```r
+```r title="CartoDB Positron basemap tiles"
 # CartoDB Positron: clean, minimal — great for data overlays
 leaflet() |>
   addProviderTiles(providers$CartoDB.Positron) |>
@@ -93,7 +93,7 @@ leaflet() |>
 
 The `providers` list contains all available tile sets. Here are the most useful ones and when to reach for each.
 
-```r
+```r title="Esri World Imagery satellite tiles"
 # Satellite imagery: Esri World Imagery
 leaflet() |>
   addProviderTiles(providers$Esri.WorldImagery) |>
@@ -107,7 +107,7 @@ leaflet() |>
 
 You can let users choose their own basemap by adding a layer control. Stack multiple tile layers as base groups, and leaflet shows radio buttons to toggle between them.
 
-```r
+```r title="Stack three basemaps with switcher"
 leaflet() |>
   addTiles(group = "Streets") |>
   addProviderTiles(providers$CartoDB.Positron, group = "Minimal") |>
@@ -128,7 +128,7 @@ The `baseGroups` parameter creates radio buttons, only one basemap shows at a ti
 
 **Try it:** Create a map with OpenTopoMap and CartoDB.DarkMatter as two basemap options. Add a layer control to switch between them.
 
-```r
+```r title="Exercise: Topo and Dark layer control"
 # Try it: two basemap options with layer control
 ex_tiles <- leaflet() |>
   addProviderTiles(providers$OpenTopoMap, group = "Topo") |>
@@ -141,7 +141,7 @@ ex_tiles
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Two basemap switcher"
 ex_tiles <- leaflet() |>
   addProviderTiles(providers$OpenTopoMap, group = "Topo") |>
   addProviderTiles(providers$CartoDB.DarkMatter, group = "Dark") |>
@@ -162,7 +162,7 @@ ex_tiles
 
 Markers pin specific locations on the map. Popups appear when a user clicks a marker, they can contain plain text, formatted HTML, or even images. Labels appear on hover without clicking, giving users a quick preview.
 
-```r
+```r title="Add markers with popups and labels"
 m_markers <- leaflet() |>
   addTiles() |>
   addMarkers(lng = -0.1276, lat = 51.5074,
@@ -184,7 +184,7 @@ Each `addMarkers()` call places one pin. The `popup` text appears in a speech-bu
 
 Popups aren't limited to plain text. You can pass HTML for rich formatting, bold text, links, line breaks, even images.
 
-```r
+```r title="HTML popup with bold and link"
 m_html <- leaflet() |>
   addTiles() |>
   setView(lng = -0.1276, lat = 51.5074, zoom = 13) |>
@@ -207,7 +207,7 @@ The `paste0()` function concatenates HTML strings. Use `<b>` for bold, `<br>` fo
 
 When you have many points, icon markers (the blue pins) slow down the map because each one loads a PNG image. Circle markers are much faster, they render as lightweight SVG circles.
 
-```r
+```r title="Circle markers for European cities"
 m_circles <- leaflet() |>
   addTiles() |>
   setView(lng = 10, lat = 50, zoom = 4) |>
@@ -236,7 +236,7 @@ m_circles
 
 **Try it:** Add 3 markers for cities you'd like to visit. Each popup should include the city name in bold and the country on a second line.
 
-```r
+```r title="Exercise: Three cities with HTML popups"
 # Try it: 3 cities with HTML popups
 ex_markers <- leaflet() |>
   addTiles() |>
@@ -249,7 +249,7 @@ ex_markers
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Rio Bangkok Istanbul"
 ex_markers <- leaflet() |>
   addTiles() |>
   setView(lng = 0, lat = 30, zoom = 3) |>
@@ -271,7 +271,7 @@ ex_markers
 
 Real-world mapping means plotting data from a data frame, not typing coordinates by hand. leaflet accepts data frames with longitude and latitude columns, you reference columns using the tilde (`~`) syntax, similar to formula notation in R.
 
-```r
+```r title="Map cities from a data frame"
 cities <- data.frame(
   name = c("London", "Paris", "Tokyo", "New York", "Sydney", "Cairo"),
   lat = c(51.51, 48.86, 35.69, 40.71, -33.87, 30.04),
@@ -300,7 +300,7 @@ The `~` prefix tells leaflet to look up column names from the `data` argument. `
 
 To colour markers by a categorical variable, create a colour palette with `colorFactor()` and pass it to `fillColor`.
 
-```r
+```r title="Size and colour by continent"
 pal <- colorFactor(
   palette = c("red", "blue", "green", "orange", "purple"),
   domain = cities$continent
@@ -327,7 +327,7 @@ leaflet(data = cities) |>
 
 Now add a legend so readers can decode the colours without clicking every marker.
 
-```r
+```r title="Add a legend to the map"
 m_legend <- leaflet(data = cities) |>
   addTiles() |>
   addCircleMarkers(
@@ -355,7 +355,7 @@ m_legend
 
 **Try it:** Add a `region` column to a data frame and use it as hover labels with the `label` argument.
 
-```r
+```r title="Exercise: Hover labels from column"
 # Try it: add hover labels from a data frame column
 ex_cities <- data.frame(
   name = c("Seoul", "Mumbai", "Lagos"),
@@ -378,7 +378,7 @@ ex_label_map
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Region hover labels"
 ex_label_map <- leaflet(data = ex_cities) |>
   addTiles() |>
   addCircleMarkers(
@@ -399,7 +399,7 @@ ex_label_map
 
 Beyond point markers, leaflet can draw polygons (regions), polylines (routes), rectangles, and circles. These are essential for showing boundaries, coverage areas, or travel paths.
 
-```r
+```r title="Draw a polygon over central London"
 # Draw a triangle polygon over central London
 triangle_lngs <- c(-0.15, -0.10, -0.12, -0.15)
 triangle_lats <- c(51.50, 51.50, 51.53, 51.50)
@@ -426,7 +426,7 @@ Polygons need a closed path, the last coordinate pair should match the first. Th
 
 Polylines draw open paths, useful for showing routes, rivers, or transit lines.
 
-```r
+```r title="Polyline route across three cities"
 # Draw a route: London → Paris → Berlin
 route_lngs <- c(-0.13, 2.35, 13.41)
 route_lats <- c(51.51, 48.86, 52.52)
@@ -458,7 +458,7 @@ You can combine polylines with markers on the same map, each `add*()` call is a 
 
 Rectangles and circles are useful for marking bounding boxes and coverage areas.
 
-```r
+```r title="Rectangles and geographic circles"
 m_shapes <- leaflet() |>
   addTiles() |>
   addRectangles(
@@ -486,7 +486,7 @@ m_shapes
 
 **Try it:** Draw a rectangle bounding box around a region of your choice using `addRectangles()`.
 
-```r
+```r title="Exercise: Draw a bounding box"
 # Try it: draw a bounding box
 ex_bbox <- leaflet() |>
   addTiles()
@@ -499,7 +499,7 @@ ex_bbox
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Rome city rectangle"
 ex_bbox <- leaflet() |>
   addTiles() |>
   addRectangles(
@@ -521,7 +521,7 @@ ex_bbox
 
 Heatmaps show density patterns, where points cluster together. Instead of plotting individual markers, a heatmap draws a smooth colour gradient from cool (sparse) to hot (dense). The `leaflet.extras` package adds `addHeatmap()` to your leaflet toolkit.
 
-```r
+```r title="Basic heatmap over London points"
 library(leaflet.extras)
 
 # Generate 200 random points around London
@@ -551,7 +551,7 @@ m_heat
 
 You can fine-tune the heatmap's colour gradient, intensity scaling, and maximum opacity.
 
-```r
+```r title="Heatmap on dark tiles with gradient"
 m_heat2 <- leaflet(data = heat_pts) |>
   addProviderTiles(providers$CartoDB.DarkMatter) |>
   addHeatmap(
@@ -574,7 +574,7 @@ The `gradient` parameter maps intensity values (0 to 1) to colours. The `max` pa
 
 You can also weight points using an `intensity` column in your data. Points with higher intensity contribute more to the heatmap density.
 
-```r
+```r title="Weighted heatmap using intensity column"
 # Add intensity based on a "value" column
 heat_pts$value <- runif(200, min = 1, max = 10)
 
@@ -596,7 +596,7 @@ The `intensity` parameter accepts any numeric column. This is useful for weighti
 
 **Try it:** Generate 100 random points around a different city and create a heatmap with a custom radius of 20.
 
-```r
+```r title="Exercise: Paris heatmap with radius"
 # Try it: heatmap around a different city
 set.seed(99)
 ex_heat_pts <- data.frame(
@@ -615,7 +615,7 @@ ex_heat
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Paris point heatmap"
 ex_heat <- leaflet(data = ex_heat_pts) |>
   addTiles() |>
   addHeatmap(lng = ~lng, lat = ~lat, blur = 20, radius = 20)
@@ -632,7 +632,7 @@ ex_heat
 
 Layer control is what turns a simple map into an interactive dashboard. You assign each layer to a named group, then `addLayersControl()` builds a panel where users toggle groups on and off. Base groups use radio buttons (pick one), overlay groups use checkboxes (stack many).
 
-```r
+```r title="Dashboard with base and overlay groups"
 m_dashboard <- leaflet() |>
   addTiles(group = "Streets") |>
   addProviderTiles(providers$CartoDB.Positron, group = "Minimal") |>
@@ -672,7 +672,7 @@ The key is the `group` parameter. Every `add*()` function accepts it. Layers wit
 
 You can hide layers by default using `hideGroup()`. This is useful when you have many overlays and don't want to overwhelm the user on first load.
 
-```r
+```r title="Hide heatmap group on load"
 m_dashboard |>
   hideGroup("Heatmap")
 #> Same dashboard, but Heatmap layer is hidden on load
@@ -686,7 +686,7 @@ m_dashboard |>
 
 For even more control, you can add multiple legends that update with layer visibility.
 
-```r
+```r title="Full dashboard with legend and layers"
 m_full <- leaflet(data = cities) |>
   addTiles(group = "Streets") |>
   addProviderTiles(providers$CartoDB.DarkMatter, group = "Dark") |>
@@ -720,7 +720,7 @@ This pattern, basemap options + data overlays + legend + layer control, is the s
 
 **Try it:** Create a map with two overlay groups, one for circle markers and one for rectangles, and a layer control to toggle each.
 
-```r
+```r title="Exercise: Overlay groups layer control"
 # Try it: two overlay groups with layer control
 ex_layers <- leaflet() |>
   addTiles() |>
@@ -735,7 +735,7 @@ ex_layers
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Points and zone toggle"
 ex_layers <- leaflet() |>
   addTiles() |>
   setView(lng = -0.13, lat = 51.51, zoom = 12) |>
@@ -768,7 +768,7 @@ ex_layers
 
 Build a map of 5 European capitals with circle markers sized by population and coloured by region (Western/Eastern Europe). Add HTML popups showing city name, population, and region. Include a colour legend and a layer control to switch between street and satellite basemaps.
 
-```r
+```r title="Exercise one: European capitals dashboard"
 # Exercise 1: European Capitals Dashboard
 # Hint: create a data frame, use colorFactor() for region colours,
 # add baseGroups for tile layers and an overlayGroup for markers
@@ -787,7 +787,7 @@ Build a map of 5 European capitals with circle markers sized by population and c
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: Capitals by region"
 eu_cities <- data.frame(
   name = c("London", "Paris", "Warsaw", "Prague", "Rome"),
   lat = c(51.51, 48.86, 52.23, 50.08, 41.90),
@@ -833,7 +833,7 @@ leaflet(data = eu_cities) |>
 
 Create a dashboard-style map with 3 basemap options (Streets, Minimal, Dark), a heatmap of 150 random points around New York, a rectangle overlay marking Manhattan, and full layer control. Hide the heatmap by default.
 
-```r
+```r title="Exercise two: NYC heatmap with polygon"
 # Exercise 2: NYC Dashboard with heatmap + polygon overlay
 # Hint: New York coords: lat 40.71, lng -74.01
 # Manhattan bounding box: roughly lng -74.02 to -73.97, lat 40.70 to 40.80
@@ -846,7 +846,7 @@ Create a dashboard-style map with 3 basemap options (Streets, Minimal, Dark), a 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: Manhattan dashboard"
 set.seed(123)
 nyc_pts <- data.frame(
   lat = rnorm(150, mean = 40.71, sd = 0.03),
@@ -889,7 +889,7 @@ leaflet() |>
 
 Generate 30 random store locations in central Paris (lat ~48.86, lng ~2.35). Assign each store a random type ("Cafe", "Bakery", "Bookshop"). Colour circle markers by type, add popups with the store name and type, and create a legend. Add a heatmap of all store locations as a separate toggleable layer.
 
-```r
+```r title="Exercise three: Paris store explorer"
 # Exercise 3: Paris Store Explorer
 # Hint: use colorFactor() for store type colours
 # Generate names with paste0("Store_", 1:30)
@@ -902,7 +902,7 @@ Generate 30 random store locations in central Paris (lat ~48.86, lng ~2.35). Ass
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: Stores by type"
 set.seed(77)
 stores <- data.frame(
   name = paste0("Store_", 1:30),
@@ -947,7 +947,7 @@ leaflet(data = stores) |>
 
 Let's build a complete "World City Explorer", a polished interactive dashboard combining everything from this tutorial. This map features 10 cities with population-sized markers, continent colours, HTML popups, a heatmap layer, multiple basemaps, a legend, and full layer control.
 
-```r
+```r title="Capstone: World City Explorer dashboard"
 # World City Explorer — complete interactive dashboard
 world_cities <- data.frame(
   name = c("London", "Paris", "Tokyo", "New York", "Sydney",

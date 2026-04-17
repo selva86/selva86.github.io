@@ -40,7 +40,7 @@ ggplot2 ships with 8 complete themes. Each one is a pre-built collection of `the
 
 Let's create a base plot first, then cycle through all 8 themes. We'll use `mtcars` so the data stays familiar.
 
-```r
+```r title="Base mtcars scatter plot"
 # Load ggplot2 and create a base scatter plot
 library(ggplot2)
 
@@ -60,7 +60,7 @@ p_base
 
 This is `theme_grey()`, the default. The grey background with white grid lines was Hadley Wickham's deliberate design choice: it puts the data in the foreground while the grid recedes. Now let's compare all 8 themes.
 
-```r
+```r title="Compare all eight built-in themes"
 # Apply each built-in theme
 p_base + theme_grey()    # Default: grey background, white grid
 #> (grey background, white grid lines)
@@ -94,7 +94,7 @@ Each theme is a complete replacement. When you add `theme_bw()`, it overrides ev
 
 **Try it:** Take `p_base` and apply `theme_classic()` instead of the default. Then add a subtitle "No grid lines, just clean axes" using `labs()`.
 
-```r
+```r title="Exercise: Apply themeclassic with subtitle"
 # Try it: apply theme_classic with a custom subtitle
 ex_classic <- p_base +
   # your code here
@@ -107,7 +107,7 @@ ex_classic
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Classic theme scatter"
 ex_classic <- p_base +
   theme_classic() +
   labs(subtitle = "No grid lines — just clean axes")
@@ -129,7 +129,7 @@ Complete themes are all-or-nothing. The `theme()` function gives you surgical co
 
 Let's start by customising the plot title. The argument is `plot.title`, and because titles are text, we use `element_text()`.
 
-```r
+```r title="Customise plot title with elementtext"
 # Customise the plot title
 p_base +
   theme_minimal() +
@@ -147,7 +147,7 @@ The title jumps out now, 18pt, bold, navy. Every other element stays exactly as 
 
 Now let's remove the grid lines entirely. The argument is `panel.grid`, and to remove any element, you use `element_blank()`.
 
-```r
+```r title="Remove all grid lines"
 # Remove all grid lines
 p_base +
   theme_minimal() +
@@ -164,7 +164,7 @@ The plot area is now completely clean. Only the data points and axis labels rema
 
 **Try it:** Start from `theme_bw()` and change the axis title font size to 14pt using `element_text()`. The argument name is `axis.title`.
 
-```r
+```r title="Exercise: Resize axis titles"
 # Try it: change axis title size
 ex_axis <- p_base +
   theme_bw() +
@@ -179,7 +179,7 @@ ex_axis
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Fourteen point axis titles"
 ex_axis <- p_base +
   theme_bw() +
   theme(
@@ -202,7 +202,7 @@ Every visual property in a ggplot2 theme is set through one of four functions. L
 
 `element_text()` controls any text on the plot: titles, axis labels, legend text, facet strip labels. Its most useful arguments are `family` (font), `face` ("plain", "bold", "italic", "bold.italic"), `size` (points), `colour`, `angle`, and `hjust`/`vjust` (alignment from 0 to 1).
 
-```r
+```r title="Rotate axis text with angle"
 # element_text() — full demo
 p_base +
   theme_minimal() +
@@ -225,7 +225,7 @@ The `margin()` function adds spacing around text. The `b = 10` pushes the subtit
 
 `element_line()` controls axis lines, grid lines, and tick marks. Its key arguments are `colour`, `linewidth` (in mm), and `linetype` ("solid", "dashed", "dotted", "longdash").
 
-```r
+```r title="Dashed grid lines with elementline"
 # element_line() — axes and grid
 p_base +
   theme_minimal() +
@@ -245,7 +245,7 @@ This is a common pattern: add clear axis lines, soften the major grid to dashed 
 
 `element_rect()` controls rectangular areas: the plot background, the panel background (the data area), and the legend background. Its arguments are `fill` (interior colour), `colour` (border colour), and `linewidth`.
 
-```r
+```r title="Coloured plot and panel backgrounds"
 # element_rect() — backgrounds
 p_base +
   theme_minimal() +
@@ -266,7 +266,7 @@ Setting `colour = NA` on `plot.background` removes the outer border while keepin
 
 **Try it:** Use `element_rect()` to give `plot.background` a light yellow fill (`"#fffde7"`) while keeping the panel white.
 
-```r
+```r title="Element inheritance from text root"
 # Try it: yellow outer background, white panel
 ex_bg <- p_base +
   theme_minimal() +
@@ -281,7 +281,7 @@ ex_bg
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Move legend to the bottom"
 ex_bg <- p_base +
   theme_minimal() +
   theme(
@@ -306,7 +306,7 @@ Theme elements form a hierarchy. At the top sit three root elements: `text`, `li
 
 This means you can set a global default at the top and only override the specifics that differ. For example, setting `text = element_text(family = "serif")` changes every piece of text on the plot in one line. That includes the title, subtitle, axis labels, legend text, and facet strip labels.
 
-```r
+```r title="Legend inside the plotting area"
 # Inheritance: set global text, override specific elements
 p_base +
   theme_minimal() +
@@ -325,7 +325,7 @@ Notice what happened. `plot.title` inherited the `colour = "grey20"` from `text`
 
 **Try it:** Set all text to size 12 using the root `text` element, then override `plot.title` to size 18 and bold. Keep everything else at the inherited default.
 
-```r
+```r title="Exercise: Legend with top justification"
 # Try it: root text + title override
 ex_inherit <- p_base +
   theme_minimal() +
@@ -340,7 +340,7 @@ ex_inherit
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Top-aligned inside legend"
 ex_inherit <- p_base +
   theme_minimal() +
   theme(
@@ -362,7 +362,7 @@ The legend is one of the most frequently customised theme elements. ggplot2 give
 
 The `legend.position` argument accepts five string values: `"right"` (default), `"left"`, `"top"`, `"bottom"`, and `"none"` (hides it). You can also pass a numeric vector `c(x, y)` to place the legend inside the plot area.
 
-```r
+```r title="Build themecorporate custom function"
 # Move legend to bottom, clean up its appearance
 p_base +
   theme_minimal() +
@@ -380,7 +380,7 @@ Placing the legend at the bottom works well for wide plots and dashboards. Remov
 
 For more precise placement, you can position the legend inside the plot area. The coordinates are relative: `c(0, 0)` is bottom-left, `c(1, 1)` is top-right.
 
-```r
+```r title="Set theme globally with themeset"
 # Place legend inside the plot area (top-right corner)
 p_base +
   theme_minimal() +
@@ -402,7 +402,7 @@ The `legend.justification` argument controls which corner of the legend box alig
 
 **Try it:** Move the legend to the top of the plot using `legend.position`.
 
-```r
+```r title="Exercise: Build a personal theme"
 # Try it: move legend to top
 ex_legend <- p_base +
   theme_minimal() +
@@ -417,7 +417,7 @@ ex_legend
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Minimal brand theme"
 ex_legend <- p_base +
   theme_minimal() +
   theme(
@@ -438,7 +438,7 @@ Once you've settled on a look, maybe for your organisation, your thesis, or your
 
 The pattern is simple: create a function that returns the result of a complete theme plus your `theme()` overrides. Accept a `base_size` argument so users can scale everything up or down.
 
-```r
+```r title="Mistake: Theme placed before complete theme"
 # Build a reusable custom theme
 theme_corporate <- function(base_size = 12) {
   theme_minimal(base_size = base_size) +
@@ -473,7 +473,7 @@ This function produces a clean, professional look with bold titles, subtle grid 
 
 Now let's apply it.
 
-```r
+```r title="Correct: Complete theme then modifications"
 # Apply the custom theme
 p_base + theme_corporate()
 #> (clean scatter plot: bold navy title, subtle grid, legend at bottom)
@@ -483,7 +483,7 @@ One line changes the entire appearance. Anyone on your team can use `theme_corpo
 
 To make it the default for every plot in your session, use `theme_set()`.
 
-```r
+```r title="Mistake: elementblank on rect background"
 # Set as the default for all plots in this session
 theme_set(theme_corporate())
 
@@ -496,7 +496,7 @@ ggplot(mtcars, aes(x = hp, y = qsec)) +
 
 Call `theme_set(theme_grey())` to reset to the default when you're done.
 
-```r
+```r title="Correct: Use NA fill on elementrect"
 # Reset to default
 theme_set(theme_grey())
 ```
@@ -506,7 +506,7 @@ theme_set(theme_grey())
 
 **Try it:** Add a `base_size` argument to the following skeleton and make the title scale to 1.4 times the base size.
 
-```r
+```r title="Mistake: Theme call replaces previous"
 # Try it: add scaling to a custom theme
 ex_theme <- function(base_size = 11) {
   theme_minimal(base_size = base_size) +
@@ -525,7 +525,7 @@ p_base + ex_theme(base_size = 16)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Correct: Combine settings in one theme"
 ex_theme <- function(base_size = 11) {
   theme_minimal(base_size = base_size) +
     theme(
@@ -549,7 +549,7 @@ p_base + ex_theme(base_size = 16)
 ### Mistake 1: Putting theme() before the complete theme
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Missing legend justification"
 p_base +
   theme(plot.title = element_text(size = 20)) +
   theme_minimal()
@@ -558,7 +558,7 @@ p_base +
 **Why it is wrong:** Complete themes like `theme_minimal()` replace ALL theme settings. Your `theme()` call gets wiped out because `theme_minimal()` runs after it.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Position with legend justification"
 p_base +
   theme_minimal() +
   theme(plot.title = element_text(size = 20))
@@ -568,7 +568,7 @@ p_base +
 ### Mistake 2: Using element_blank() when you want transparent
 
 ❌ **Wrong:**
-```r
+```r title="Exercise one: Polished themebw variant"
 p_base +
   theme(panel.background = element_blank())
 # Panel background disappears AND loses its space allocation
@@ -577,7 +577,7 @@ p_base +
 **Why it is wrong:** `element_blank()` removes the element entirely, including the space it occupied. This can cause layout shifts.
 
 ✅ **Correct:**
-```r
+```r title="Exercise one solution: Tuned themebw"
 p_base +
   theme(panel.background = element_rect(fill = NA, colour = NA))
 #> (background is transparent but the space is preserved)
@@ -586,7 +586,7 @@ p_base +
 ### Mistake 3: Forgetting that later theme() calls override earlier ones
 
 ❌ **Wrong:**
-```r
+```r title="Exercise two: Build themedashboard function"
 p_base +
   theme_minimal() +
   theme(axis.text = element_text(size = 14)) +
@@ -597,7 +597,7 @@ p_base +
 **Why it is wrong:** Each `theme()` call replaces the element you name, it doesn't merge with the previous call. The second call sets `colour = "red"` but drops the `size = 14`.
 
 ✅ **Correct:**
-```r
+```r title="Exercise two solution: Reusable dashboard theme"
 p_base +
   theme_minimal() +
   theme(axis.text = element_text(size = 14, colour = "red"))
@@ -607,7 +607,7 @@ p_base +
 ### Mistake 4: Placing legend inside the plot without setting justification
 
 ❌ **Wrong:**
-```r
+```r title="Exercise three: Rebuild themevoid from blanks"
 p_base +
   theme(legend.position = c(0.9, 0.9))
 # Legend overflows the plot boundary because its default justification is centered
@@ -616,7 +616,7 @@ p_base +
 **Why it is wrong:** Without `legend.justification`, the center of the legend aligns to `c(0.9, 0.9)`, pushing half the legend outside the visible area.
 
 ✅ **Correct:**
-```r
+```r title="Exercise three solution: Void-style theme"
 p_base +
   theme_minimal() +
   theme(
@@ -632,7 +632,7 @@ p_base +
 
 Create a scatter plot of `mpg` vs `hp` from `mtcars`, coloured by `gear`. Start from `theme_bw()`. Customise: bold 16pt title, 12pt axis titles, legend at the bottom, no minor grid lines. Save to `my_styled`.
 
-```r
+```r title="Capstone step one: Define publication theme"
 # Exercise 1: combine theme_bw + multiple theme tweaks
 # Hint: use theme_bw() first, then theme() with plot.title, axis.title,
 #       legend.position, and panel.grid.minor
@@ -648,7 +648,7 @@ my_styled <- ggplot(mtcars, aes(x = hp, y = mpg, colour = factor(gear))) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step two: Apply to scatter plot"
 my_styled <- ggplot(mtcars, aes(x = hp, y = mpg, colour = factor(gear))) +
   geom_point(size = 3) +
   labs(title = "MPG vs Horsepower", x = "Horsepower", y = "MPG", colour = "Gears") +
@@ -672,7 +672,7 @@ my_styled
 
 Write a function `theme_dashboard()` that starts from `theme_light()` and accepts `base_size`. It should remove minor grid lines, use dashed grey90 major grid, scale the title to 1.5x base (bold), place the legend at bottom, and set a white background. Apply it to two plots.
 
-```r
+```r title="Capstone step three: Facet with publication theme"
 # Exercise 2: build theme_dashboard()
 # Hint: follow the theme_corporate() pattern from the tutorial
 # Start from theme_light(base_size = base_size)
@@ -693,7 +693,7 @@ my_plot2 <- ggplot(mtcars, aes(x = factor(cyl), y = hp)) + geom_boxplot() +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step four: Bar chart with theme"
 theme_dashboard <- function(base_size = 11) {
   theme_light(base_size = base_size) +
     theme(
@@ -726,7 +726,7 @@ my_plot2
 
 Start from `theme_void()` (which strips everything). Add back only: x and y axis lines (black, 0.5mm), axis text (size 10), a bold 16pt title, and dashed horizontal grid lines (grey85). Apply to a bar chart of `cyl` counts from `mtcars`.
 
-```r
+```r title="Capstone step five: Reuse across outputs"
 # Exercise 3: build up from theme_void()
 # Hint: axis.line, axis.text, plot.title, panel.grid.major.y
 
@@ -741,7 +741,7 @@ my_rebuilt <- ggplot(mtcars, aes(x = factor(cyl))) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step six: Save as theme object"
 my_rebuilt <- ggplot(mtcars, aes(x = factor(cyl))) +
   geom_bar(fill = "steelblue") +
   labs(title = "Car Count by Cylinders", x = "Cylinders", y = "Count") +
@@ -766,7 +766,7 @@ my_rebuilt
 
 Let's build a complete publication-quality plot from start to finish. We'll create a custom theme, apply it, and customise the data layer too.
 
-```r
+```r title="Capstone: Final publication theme showcase"
 # Reset to default theme first
 theme_set(theme_grey())
 

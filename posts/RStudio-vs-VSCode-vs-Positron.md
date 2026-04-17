@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The honest short answer: **RStudio** if you live inside R, **VS Code** if you jump between R, Python, and shell all day, **Positron** if you want RStudio-style data panes on a modern editor core. Before we dig into features, here's a neat trick, R itself can tell you which IDE is hosting the current session. Run this in your console right now and see which labels come back.
 
-```r
+```r title="Ask R which IDE is hosting it"
 # Ask the R session which IDE is hosting it
 ide_env <- Sys.getenv(c("RSTUDIO", "POSITRON_VERSION", "TERM_PROGRAM"))
 ide_env
@@ -37,7 +37,7 @@ The output depends on where you run it. RStudio sets `RSTUDIO=1`. Positron sets 
 
 **Try it:** Write a helper `ex_which_ide()` that returns `"RStudio"`, `"Positron"`, `"VS Code"`, or `"Other"` based on the environment variables above.
 
-```r
+```r title="Exercise: friendly IDE detector"
 # Try it: detect the IDE as a friendly string
 ex_which_ide <- function() {
   # your code here
@@ -51,7 +51,7 @@ ex_which_ide()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="IDE-detector solution"
 ex_which_ide <- function() {
   if (Sys.getenv("RSTUDIO") == "1") return("RStudio")
   if (nzchar(Sys.getenv("POSITRON_VERSION"))) return("Positron")
@@ -72,7 +72,7 @@ RStudio has been the default R workbench since 2011. Posit built it with one goa
 
 Most of that convenience is really a GUI wrapper around functions you already have in base R. The Environment pane, for example, is mostly just `str()` and `summary()` called on every binding in your workspace. Run the three inspection staples below and you'll see exactly what RStudio shows you in its sidebar.
 
-```r
+```r title="Inspect an object three ways"
 # The functions that power RStudio's Environment and data panes
 str(iris)
 #> 'data.frame': 150 obs. of  5 variables:
@@ -98,7 +98,7 @@ Read the three outputs in order and you already know the shape, the distribution
 
 **Try it:** Write `ex_inspect(x)` that calls `str()`, prints the class, and returns the first three rows (or first three elements if `x` is a list). Test it on `mtcars`.
 
-```r
+```r title="Exercise: one-call object inspector"
 # Try it: one-call object inspector
 ex_inspect <- function(x) {
   # your code here
@@ -112,7 +112,7 @@ ex_inspect(mtcars)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Object-inspector solution"
 ex_inspect <- function(x) {
   str(x)
   cat("class:", class(x), "\n")
@@ -137,7 +137,7 @@ VS Code is the world's most popular code editor, and its R support has grown up 
 
 The catch is that *nothing* comes preconfigured. Before you can be productive, you need a few R packages installed. Here's a tiny helper that checks whether your session is VS Code-ready, and returns a data frame that VS Code's own data viewer can render nicely.
 
-```r
+```r title="Check R-extension package status"
 # Check whether the packages VS Code's R extension needs are installed
 r_pkgs_check <- function(pkgs = c("languageserver", "httpgd", "rlang")) {
   data.frame(
@@ -162,7 +162,7 @@ A `FALSE` row is a hint, not an error, you'd run `install.packages("languageserv
 
 **Try it:** Write `ex_has_pkg(pkg)` that returns `TRUE` if a package is installed, `FALSE` otherwise. Test it on `"stats"` (ships with R) and `"not_a_real_pkg"`.
 
-```r
+```r title="Exercise: installed-or-not helper"
 # Try it: installed-or-not check
 ex_has_pkg <- function(pkg) {
   # your code here
@@ -178,7 +178,7 @@ ex_has_pkg("not_a_real_pkg")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Installed-check solution"
 ex_has_pkg <- function(pkg) {
   requireNamespace(pkg, quietly = TRUE)
 }
@@ -198,7 +198,7 @@ Positron is Posit's next-generation IDE, released in 2025 and licensed under Apa
 
 In practice the biggest win is portability. A `.Rprofile` you tune once works in RStudio, VS Code, and Positron without edits, because all three are just R sessions. Here's a cross-IDE startup snippet that shows a few `options()` before and after you tweak them.
 
-```r
+```r title="Read and set R session options"
 # A cross-IDE .Rprofile pattern — works in all three IDEs
 opts_before <- list(
   digits = getOption("digits"),
@@ -229,7 +229,7 @@ opts_after
 
 **Try it:** Write `ex_show_opts()` that returns a named list of three options of your choice (`digits`, `scipen`, `warn`) using `getOption()`.
 
-```r
+```r title="Exercise: read three options"
 # Try it: read three options at once
 ex_show_opts <- function() {
   # your code here
@@ -243,7 +243,7 @@ ex_show_opts()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Read-options solution"
 ex_show_opts <- function() {
   list(
     digits = getOption("digits"),
@@ -286,7 +286,7 @@ You can also build that same table as an R data frame and sort it however you li
 ![Where each IDE sits on the R-focus vs multi-language axis.](screenshots/RStudio-vs-VSCode-vs-Positron-positioning.webp)
 *Figure 1: Where each IDE sits on the R-focus vs multi-language axis.*
 
-```r
+```r title="Compare IDEs as a data frame"
 # Build the comparison programmatically
 ide_compare <- data.frame(
   feature  = c("data_viewer", "env_pane", "plot_pane", "quarto",
@@ -311,7 +311,7 @@ The two rows that pop out say something real: VS Code's Git and extension ecosys
 
 **Try it:** Write `ex_top_feature(df, ide)` that returns the feature(s) where the given IDE column holds the maximum score of that row. Test on `ide_compare` with `"Positron"`.
 
-```r
+```r title="Exercise: top-scoring features"
 # Try it: features where an IDE is the top scorer
 ex_top_feature <- function(df, ide) {
   # your code here
@@ -325,7 +325,7 @@ ex_top_feature(ide_compare, "Positron")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top-features solution"
 ex_top_feature <- function(df, ide) {
   score_cols <- c("RStudio", "VSCode", "Positron")
   row_max <- apply(df[, score_cols], 1, max)
@@ -355,7 +355,7 @@ Pick based on what you actually do, not on which logo looks prettiest. Three que
 
 You can also write the same flow as a small R function. Given a profile, a named list of yes/no answers, `recommend_ide()` returns the IDE that best fits. Two example profiles show the divergence: a stats-only researcher and a polyglot data platform engineer.
 
-```r
+```r title="Recommend an IDE from a profile"
 # Turn the decision tree into a function
 recommend_ide <- function(profile) {
   if (!profile$uses_other_languages) return("RStudio")
@@ -388,7 +388,7 @@ Two profiles, two different answers, and the function is small enough to extend.
 
 **Try it:** Extend the logic with `ex_recommend_remote(profile)` that short-circuits to `"VS Code"` any time `profile$remote_or_polyglot` is `TRUE`, regardless of other fields.
 
-```r
+```r title="Exercise: remote-first recommender"
 # Try it: remote-first recommender
 ex_recommend_remote <- function(profile) {
   # your code here
@@ -404,7 +404,7 @@ ex_recommend_remote(list(uses_other_languages = FALSE,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Remote-first solution"
 ex_recommend_remote <- function(profile) {
   if (isTRUE(profile$remote_or_polyglot)) return("VS Code")
   recommend_ide(profile)
@@ -427,7 +427,7 @@ Two capstone exercises. Both combine functions from earlier sections, so run the
 
 Write `startup_report()` that prints a labelled block with three pieces of information: which IDE is hosting the session, the installation status of `languageserver`/`httpgd`/`rlang`, and the current `digits` and `scipen` options. Use `cat()` for the labels and re-use the helpers from earlier blocks. Save the data frame you print to `my_report`.
 
-```r
+```r title="Exercise: startup report"
 # Exercise 1: assemble a startup report
 # Hint: call ex_which_ide() or replicate it, r_pkgs_check(), getOption()
 
@@ -438,7 +438,7 @@ Write `startup_report()` that prints a labelled block with three pieces of infor
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Startup-report solution"
 startup_report <- function() {
   ide <- if (Sys.getenv("RSTUDIO") == "1") "RStudio"
          else if (nzchar(Sys.getenv("POSITRON_VERSION"))) "Positron"
@@ -470,7 +470,7 @@ my_report
 
 Write `best_ide_for(user_answers)` that takes a named integer vector of weights over features, for example `c(data_viewer = 3, python = 1, git = 2)`, and returns the IDE with the highest weighted total based on `ide_compare`. Save the winner to `my_winner`.
 
-```r
+```r title="Exercise: weighted IDE picker"
 # Exercise 2: weight features, pick an IDE
 # Hint: subset ide_compare to the features in user_answers, then
 # multiply by the weights and colSums() over the IDE columns.
@@ -482,7 +482,7 @@ Write `best_ide_for(user_answers)` that takes a named integer vector of weights 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Weighted-picker solution"
 best_ide_for <- function(user_answers) {
   feats  <- names(user_answers)
   rows   <- ide_compare[ide_compare$feature %in% feats, ]
@@ -505,7 +505,7 @@ my_winner
 
 Here is the one startup script that uses everything above. Drop it into `~/.Rprofile` and every R session, in any of the three IDEs, prints a labelled report, sets sane defaults, and leaves you a `recommend_ide()` helper for when someone on your team asks which IDE to pick.
 
-```r
+```r title="Cross-IDE .Rprofile startup script"
 # A cross-IDE startup script — paste into ~/.Rprofile
 cross_ide_startup <- function() {
   options(digits = 4, scipen = 999)

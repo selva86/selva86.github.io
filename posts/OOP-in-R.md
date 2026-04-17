@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 R grew its OOP toolkit over three decades. S3 arrived in the early 1990s as a lightweight naming convention. S4 added formal type-checked slots in R 1.4. R5 (Reference Classes) brought mutable objects in R 2.12. R6, a CRAN package, refined the mutable approach with a cleaner, lighter API. Let's see S3, the most common system, at work right now.
 
-```r
+```r title="S3 dog class with describe"
 # Create an S3 object: a simple "dog" with name and breed
 dog <- list(name = "Buddy", breed = "Golden Retriever")
 class(dog) <- "dog"
@@ -66,7 +66,7 @@ Here's a quick overview of what makes each system unique:
 
 **Try it:** Create an S3 `"cat"` object with `name` and `lives` fields. Write a `describe.cat()` method that returns `"<name> has <lives> lives left"`. Test it.
 
-```r
+```r title="S3 puppy inheritance via NextMethod"
 # Try it: create an S3 cat object
 ex_cat <- list(name = "Whiskers", lives = 9)
 class(ex_cat) <- "cat"
@@ -83,7 +83,7 @@ describe(ex_cat)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise: S3 cat class"
 ex_cat <- list(name = "Whiskers", lives = 9)
 class(ex_cat) <- "cat"
 
@@ -105,7 +105,7 @@ S3 is the simplest and most widely used OOP system in R. Every time you call `pr
 
 Let's build a proper S3 class with a constructor, validation, and inheritance.
 
-```r
+```r title="S3 cat class solution"
 # Constructor function: creates a validated "dog" object
 new_dog <- function(name, breed, age) {
   if (!is.character(name)) stop("name must be a character string")
@@ -132,7 +132,7 @@ buddy
 
 Now let's see how S3 handles inheritance. It uses the class vector, a character vector where earlier entries take priority during method dispatch.
 
-```r
+```r title="S4 Animal with validity"
 # Puppy inherits from dog — just prepend "puppy" to the class vector
 new_puppy <- function(name, breed, age, training_level = "beginner") {
   obj <- new_dog(name, breed, age)  # reuse parent constructor
@@ -170,7 +170,7 @@ When you call `describe(pup)`, R looks for `describe.puppy` first. It finds it a
 
 **Try it:** Create an S3 `"book"` class with a constructor `new_book(title, author, pages)`. Write a `print.book()` method that displays `"<title> by <author> (<pages> pages)"`. Test it with your favourite book.
 
-```r
+```r title="S4 DogS4 inheritance"
 # Try it: build an S3 book class
 new_book <- function(title, author, pages) {
   # your code here
@@ -189,7 +189,7 @@ ex_book
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="S4 Rectangle with area generic"
 new_book <- function(title, author, pages) {
   obj <- list(title = title, author = author, pages = pages)
   class(obj) <- "book"
@@ -215,7 +215,7 @@ S4 brings formal class definitions with typed **slots** (named fields with decla
 
 Let's define an S4 class with slots, a validity function, and a custom `show()` method.
 
-```r
+```r title="Exercise: S4 Square class"
 library(methods)
 
 # Define an S4 class with typed slots
@@ -254,7 +254,7 @@ Notice the differences from S3: you declare each slot's type upfront, access fie
 
 Let's see inheritance and validity rejection in action.
 
-```r
+```r title="S4 Square class solution"
 # Dog extends Animal with an extra slot
 setClass("DogS4",
   contains = "Animal",
@@ -289,7 +289,7 @@ S4 inheritance uses the `contains` argument. The child class (`DogS4`) inherits 
 
 **Try it:** Create an S4 `"Rectangle"` class with `width` and `height` slots (both numeric). Add a validity check that both must be positive. Write a generic `area()` and a method that returns `width * height`.
 
-```r
+```r title="R5 BankAccount deposit and withdraw"
 # Try it: S4 Rectangle
 setClass("Rectangle",
   slots = list(
@@ -315,7 +315,7 @@ area(ex_rect)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="R5 reference gotcha and copy"
 setClass("Rectangle",
   slots = list(width = "numeric", height = "numeric"),
   validity = function(object) {
@@ -344,7 +344,7 @@ R5, officially called **Reference Classes (RC)**, brought mutable objects to bas
 
 Let's build a mutable BankAccount to see how reference semantics work.
 
-```r
+```r title="R5 Counter increment and reset"
 # R5 Reference Class: methods live inside the class
 BankAccount <- setRefClass("BankAccount",
   fields = list(
@@ -390,7 +390,7 @@ Notice how `acct$deposit(50)` changes the balance in place, no reassignment need
 
 Watch what happens when two variables reference the same account.
 
-```r
+```r title="Exercise: R5 TempSensor class"
 # The reference gotcha: both variables point to the SAME object
 acct2 <- acct
 acct2$deposit(1000)
@@ -414,7 +414,7 @@ This behaviour is powerful for modelling real-world entities (database connectio
 
 **Try it:** Create an R5 `"Counter"` class with a `count` field (starts at 0), an `increment()` method that adds 1, and a `reset()` method that sets count back to 0. Verify that incrementing 5 times gives count = 5.
 
-```r
+```r title="R5 TempSensor solution"
 # Try it: R5 Counter class
 Counter <- setRefClass("Counter",
   fields = list(count = "numeric"),
@@ -441,7 +441,7 @@ ex_ctr$count
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="R6 Account with private balance"
 Counter <- setRefClass("Counter",
   fields = list(count = "numeric"),
   methods = list(
@@ -468,7 +468,7 @@ ex_ctr$count
 
 R6 is a CRAN package that provides the same mutable, encapsulated OOP as R5 but with a cleaner, more modern API. It adds **private fields** (true encapsulation), **active bindings** (computed properties), and **method chaining**, features R5 lacks or makes awkward.
 
-```r
+```r title="R6 active binding for balance"
 library(R6)
 
 Account <- R6Class("Account",
@@ -526,7 +526,7 @@ The `private` list hides internal state. Users interact through `public` methods
 
 R6 also makes inheritance and method chaining clean.
 
-```r
+```r title="R6 SavingsAccount inheritance"
 # SavingsAccount inherits from Account
 SavingsAccount <- R6Class("SavingsAccount",
   inherit = Account,
@@ -559,7 +559,7 @@ Method chaining works because each method returns `invisible(self)`. This lets y
 
 **Try it:** Create an R6 `"Logger"` class with a private `messages` field (list), a public `log(msg)` method that appends to messages, and a public `show_all()` method that prints all messages. Test it by logging 3 messages.
 
-```r
+```r title="Exercise: R6 Logger class"
 # Try it: R6 Logger
 Logger <- R6Class("Logger",
   private = list(
@@ -590,7 +590,7 @@ ex_log$show_all()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="R6 Logger solution"
 Logger <- R6Class("Logger",
   private = list(messages = NULL),
   public = list(
@@ -655,7 +655,7 @@ Here's when real-world packages use each system:
 
 Let's see how each system handles the same tiny problem, a 2D point with x and y coordinates.
 
-```r
+```r title="Point class in all four systems"
 # S3 Point
 new_point_s3 <- function(x, y) {
   structure(list(x = x, y = y), class = "point_s3")
@@ -705,7 +705,7 @@ Four systems, same result. The differences show up in how much ceremony each req
 
 **Try it:** A game character has a name and HP (health points) that changes during combat. Which OOP system would you pick? Write a 1-line justification, then create the class with a `take_damage(amount)` method.
 
-```r
+```r title="Exercise: Choose OOP for Hero"
 # Try it: game character with mutable HP
 # Which system? (hint: HP changes in place)
 # Your justification: ___
@@ -722,7 +722,7 @@ Four systems, same result. The differences show up in how much ceremony each req
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="R6 Hero mutable solution"
 # R6 — because HP changes in place (mutable state) and we want a clean API
 Hero <- R6Class("Hero",
   public = list(
@@ -774,7 +774,7 @@ Here's the comprehensive comparison table. Bookmark this for quick reference.
 
 Let's see the practical difference with a full BankAccount example in all four systems, same operations, different mechanics.
 
-```r
+```r title="BankAccount four-system comparison"
 # --- S3 BankAccount (immutable — returns new copy) ---
 new_s3_bank <- function(owner, bal = 0) {
   structure(list(owner = owner, balance = bal), class = "s3_bank")
@@ -840,7 +840,7 @@ The key takeaway: S3 and S4 require `b <- deposit(b, amount)`, you reassign the 
 
 **Try it:** Look at the comparison table above. For each scenario, name the best system: (a) a quick analysis script that needs a custom print method, (b) a Bioconductor package with 20 interrelated classes, (c) a Shiny app with a stateful shopping cart.
 
-```r
+```r title="Exercise: Match scenario to system"
 # Try it: match scenario to system
 # (a) Quick analysis script, custom print: ____
 # (b) Bioconductor package, 20 classes:    ____
@@ -866,7 +866,7 @@ The key takeaway: S3 and S4 require `b <- deposit(b, amount)`, you reassign the 
 
 Create an R6 `"TodoList"` class where each task has a name and a `done` status (logical). Implement `add_task(name)` (adds a task, initially not done), `complete_task(name)` (marks a task as done), and `show()` (prints all tasks with `[x]` or `[ ]` markers).
 
-```r
+```r title="Exercise: R6 TodoList class"
 # Exercise: R6 TodoList
 # Hint: store tasks as a data.frame with name and done columns
 
@@ -887,7 +887,7 @@ TodoList <- R6Class("TodoList",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="R6 TodoList solution"
 TodoList <- R6Class("TodoList",
   private = list(
     tasks = NULL
@@ -936,7 +936,7 @@ my_todos$show()
 
 Create an S4 class hierarchy: `Shape` (abstract) → `Circle` (radius slot) and `Rect` (width, height slots). Write `area()` and `perimeter()` generics with methods for both. Include validity checks that all dimensions must be positive.
 
-```r
+```r title="Exercise: S4 Shape hierarchy"
 # Exercise: S4 Shape hierarchy
 # Hint: use setClass with contains for inheritance
 # Define area and perimeter generics, then methods for each
@@ -956,7 +956,7 @@ Create an S4 class hierarchy: `Shape` (abstract) → `Circle` (radius slot) and 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="S4 Shape hierarchy solution"
 setClass("Shape")
 
 setClass("Circle",
@@ -1012,7 +1012,7 @@ cat("Rect perimeter:", perimeter(my_rect), "\n")
 
 Implement a `Stack` data structure (push, pop, peek, size) in **both** S3 and R6. Compare how mutable vs immutable state changes the API.
 
-```r
+```r title="Exercise: Stack in S3 and R6"
 # Exercise: Stack in S3 and R6
 # S3 version: push/pop return a new stack (must reassign)
 # R6 version: push/pop modify in place
@@ -1038,7 +1038,7 @@ Implement a `Stack` data structure (push, pop, peek, size) in **both** S3 and R6
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stack S3 and R6 solution"
 # --- S3 Stack (immutable) ---
 new_stack_s3 <- function() {
   structure(list(items = list()), class = "stack_s3")
@@ -1109,7 +1109,7 @@ cat("R6 peek after pop:", s2$peek(), "\n")
 
 Let's build a small **Library system** that combines S3 and R6, proving that different OOP systems can coexist in one project. Books are simple data containers (S3), while the Library manages a mutable collection (R6).
 
-```r
+```r title="End-to-end Library in S3 and R6"
 # S3 book objects — immutable data records
 new_lib_book <- function(title, author, year) {
   structure(list(title = title, author = author, year = year),

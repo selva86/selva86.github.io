@@ -33,7 +33,7 @@ In this tutorial, you will learn how each function works, when to pick one over 
 
 Let's start by loading the libraries we need and creating a base plot to work with throughout this tutorial.
 
-```r
+```r title="Build the base scatter plot"
 # Load libraries (run this block first)
 library(ggplot2)
 library(ggrepel)
@@ -51,7 +51,7 @@ The `labs()` function is the single entry point for all plot metadata text. It s
 
 Every argument in `labs()` maps to a specific text element on the plot. The title sits at the top, the subtitle just below it, the caption in the bottom-right corner, and the tag in the top-left.
 
-```r
+```r title="Add title, subtitle, caption with labs"
 # Add metadata labels with labs()
 p_labs <- p_base +
   labs(
@@ -73,7 +73,7 @@ The title tells the reader what the chart shows. The subtitle adds the takeaway.
 
 You can also style these text elements with `theme()`. Here is how to make the title bold, center it, and shrink the caption.
 
-```r
+```r title="Style metadata text with theme"
 # Style the metadata text
 p_labs +
   theme(
@@ -87,7 +87,7 @@ The `hjust = 0.5` argument centers the text. A value of 0 aligns left, and 1 ali
 
 **Try it:** Create a scatter plot of `mtcars` with `hp` on the x-axis and `mpg` on the y-axis. Add a title, subtitle, and caption using `labs()`.
 
-```r
+```r title="Exercise: Add labs to hp scatter"
 # Try it: add labs() to a new scatter
 ex_plot <- ggplot(mtcars, aes(x = hp, y = mpg)) +
   geom_point() # add labs() below
@@ -101,7 +101,7 @@ ex_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="hp scatter labs solution"
 ex_plot <- ggplot(mtcars, aes(x = hp, y = mpg)) +
   geom_point() +
   labs(
@@ -125,7 +125,7 @@ When you want to attach a label to each data point, the car name next to its dot
 
 Let's label each point with the car's row name using `geom_text()`.
 
-```r
+```r title="geomtext labels every point"
 # geom_text() labels each point
 p_text <- ggplot(mtcars, aes(x = wt, y = mpg, label = rownames(mtcars))) +
   geom_point(color = "steelblue", size = 2) +
@@ -139,7 +139,7 @@ The result is messy because labels overlap heavily. That is expected, we will fi
 
 Now let's compare with `geom_label()`, which adds a background rectangle.
 
-```r
+```r title="geomlabel draws boxed subset labels"
 # geom_label() adds a background box
 p_label <- ggplot(
   mtcars[mtcars$mpg > 28, ],
@@ -173,7 +173,7 @@ Key positioning arguments for both functions:
 
 **Try it:** Filter `mtcars` to cars with `mpg > 30` and label those points using `geom_text()`. Use `nudge_y = 1` so labels sit above the dots.
 
-```r
+```r title="Exercise: Label cars above thirty mpg"
 # Try it: label high-mpg cars
 ex_high <- mtcars[mtcars$mpg > 30, ]
 ex_text <- ggplot(ex_high, aes(x = wt, y = mpg, label = rownames(ex_high))) +
@@ -188,7 +188,7 @@ ex_text
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="High-mpg label solution"
 ex_high <- mtcars[mtcars$mpg > 30, ]
 ex_text <- ggplot(ex_high, aes(x = wt, y = mpg, label = rownames(ex_high))) +
   geom_point(size = 3) +
@@ -206,7 +206,7 @@ The `ggrepel` package solves the biggest pain point in plot labeling: overlappin
 
 Let's see the difference. Here is the same all-cars scatter, but with `geom_text_repel()` instead of `geom_text()`.
 
-```r
+```r title="geomtextrepel prevents overlaps"
 # geom_text_repel() pushes labels apart
 set.seed(42)
 p_repel <- ggplot(mtcars, aes(x = wt, y = mpg, label = rownames(mtcars))) +
@@ -224,7 +224,7 @@ Much cleaner. The `max.overlaps` argument controls how many overlapping labels t
 
 Now let's style `geom_label_repel()` for a polished look.
 
-```r
+```r title="Styled geomlabelrepel for top ten"
 # Styled geom_label_repel()
 set.seed(99)
 top10 <- mtcars[order(mtcars$mpg, decreasing = TRUE)[1:10], ]
@@ -259,7 +259,7 @@ Useful `ggrepel` parameters at a glance:
 
 **Try it:** Take the 5 heaviest cars in `mtcars` (highest `wt`) and label them with `geom_text_repel()`. Set the seed to 123.
 
-```r
+```r title="Exercise: Label five heaviest cars"
 # Try it: label the 5 heaviest cars
 set.seed(123)
 ex_heavy <- mtcars[order(mtcars$wt, decreasing = TRUE)[1:5], ]
@@ -276,7 +276,7 @@ ex_repel
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Five heaviest solution"
 set.seed(123)
 ex_heavy <- mtcars[order(mtcars$wt, decreasing = TRUE)[1:5], ]
 
@@ -298,7 +298,7 @@ Unlike `geom_text()`, which maps data columns to aesthetics, `annotate()` places
 
 Let's add a text annotation to our base scatter.
 
-```r
+```r title="annotate text at fixed position"
 # annotate() places text at fixed coordinates
 p_ann <- p_base +
   annotate(
@@ -319,7 +319,7 @@ The `\n` inside the label string creates a line break. The `fontface` argument a
 
 Now let's combine a highlighted rectangle with an arrow and a label.
 
-```r
+```r title="Combine rect, arrow, and text"
 # Combine rect, segment with arrow, and text
 p_shapes <- p_base +
   annotate(
@@ -364,7 +364,7 @@ Here is a quick reference for common `annotate()` geom types:
 
 **Try it:** Add an `annotate("segment")` arrow to the base scatter pointing from coordinates (4, 30) to the data point for "Toyota Corolla" (wt = 1.835, mpg = 33.9). Add a text annotation at (4.2, 30) that says "Best mpg".
 
-```r
+```r title="Exercise: Arrow pointing to Toyota Corolla"
 # Try it: arrow pointing to Toyota Corolla
 ex_ann <- p_base # add annotate() calls below
 
@@ -377,7 +377,7 @@ ex_ann
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Toyota Corolla arrow solution"
 ex_ann <- p_base +
   annotate(
     "segment",
@@ -408,7 +408,7 @@ Every text element on a ggplot2 chart, the title, axis labels, tick marks, legen
 
 The key parameters inside `element_text()` are `size`, `face`, `color`, `family`, `hjust`, `vjust`, `angle`, and `lineheight`. Let's see them in action.
 
-```r
+```r title="Full theme customization of text"
 # Full theme customization of text elements
 p_styled <- p_base +
   labs(
@@ -455,7 +455,7 @@ Here is a reference table for the most useful `theme()` text components:
 
 **Try it:** Take the `p_base` scatter and add `labs()` with a title and axis labels. Then center the title with `theme()` and make the axis titles bold.
 
-```r
+```r title="Exercise: Center title and bold axes"
 # Try it: center title, bold axes
 ex_theme <- p_base +
   labs(title = "My Custom Plot", x = "Weight", y = "MPG") # add theme() below
@@ -469,7 +469,7 @@ ex_theme
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Center and bold solution"
 ex_theme <- p_base +
   labs(title = "My Custom Plot", x = "Weight", y = "MPG") +
   theme(
@@ -487,7 +487,7 @@ ex_theme
 
 ### Mistake 1: Using geom_text() size as if it were points
 
-```r
+```r title="Mistake: size fourteen swallows chart"
 # Wrong: size = 14 is huge in geom_text (it uses mm)
 ggplot(mtcars[1:3, ], aes(x = wt, y = mpg, label = rownames(mtcars[1:3, ]))) +
   geom_point() +
@@ -496,7 +496,7 @@ ggplot(mtcars[1:3, ], aes(x = wt, y = mpg, label = rownames(mtcars[1:3, ]))) +
 
 **Why it is wrong:** `geom_text()` measures size in millimeters, not points. A `size = 14` creates enormous text that swallows the chart. The `theme()` function uses points.
 
-```r
+```r title="Correct: size three or four"
 # Correct: size = 3 to 4 is normal for geom_text
 ggplot(mtcars[1:3, ], aes(x = wt, y = mpg, label = rownames(mtcars[1:3, ]))) +
   geom_point() +
@@ -505,7 +505,7 @@ ggplot(mtcars[1:3, ], aes(x = wt, y = mpg, label = rownames(mtcars[1:3, ]))) +
 
 ### Mistake 2: Using geom_text() on dense data instead of ggrepel
 
-```r
+```r title="Mistake: All thirty-two labels pile up"
 # Wrong: all 32 labels pile up
 ggplot(mtcars, aes(x = wt, y = mpg, label = rownames(mtcars))) +
   geom_point() +
@@ -514,7 +514,7 @@ ggplot(mtcars, aes(x = wt, y = mpg, label = rownames(mtcars))) +
 
 **Why it is wrong:** With 32 points close together, `geom_text()` draws every label at its exact data coordinate. The result is an unreadable mess of overlapping text.
 
-```r
+```r title="Correct: ggrepel spreads labels"
 # Correct: ggrepel pushes labels apart
 set.seed(42)
 ggplot(mtcars, aes(x = wt, y = mpg, label = rownames(mtcars))) +
@@ -524,7 +524,7 @@ ggplot(mtcars, aes(x = wt, y = mpg, label = rownames(mtcars))) +
 
 ### Mistake 3: Putting fixed text inside aes() instead of using annotate()
 
-```r
+```r title="Mistake: Fixed label inside aes"
 # Wrong: aes(label = "Note") repeats the label for every row
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -534,7 +534,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 
 **Why it is wrong:** When a fixed string goes inside `aes()`, ggplot2 maps it to every row of the data. You get 32 overlapping copies of the same text, which renders slowly and looks like one bold label (but is not).
 
-```r
+```r title="Correct: annotate for fixed text"
 # Correct: use annotate() for fixed-position text
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -543,7 +543,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 
 ### Mistake 4: Hardcoding annotate() coordinates that break with new data
 
-```r
+```r title="Mistake: Hardcoded coordinates drift"
 # Fragile: coordinates only work for this specific data range
 p <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -554,7 +554,7 @@ p <- ggplot(mtcars, aes(x = wt, y = mpg)) +
 
 **Why it is wrong:** If the data range changes (new data, different filter), hardcoded coordinates can land outside the plot area or in the wrong spot.
 
-```r
+```r title="Correct: Inf anchors to corner"
 # Better: use Inf or data-derived coordinates
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -574,7 +574,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 
 Build a scatter plot of `mtcars` with `wt` on the x-axis and `mpg` on the y-axis. Add a title, subtitle, and caption using `labs()`. Then label only the 6-cylinder cars using `geom_text_repel()`. Color the 6-cylinder points differently.
 
-```r
+```r title="Exercise: Highlight six-cylinder cars"
 # Exercise 1: combine labs() + ggrepel for 6-cylinder cars
 # Hint: create a subset for cyl == 6, pass it as the data argument to geom_text_repel()
 
@@ -585,7 +585,7 @@ Build a scatter plot of `mtcars` with `wt` on the x-axis and `mpg` on the y-axis
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Six-cylinder highlight solution"
 my_cyl6 <- mtcars[mtcars$cyl == 6, ]
 
 set.seed(42)
@@ -618,7 +618,7 @@ my_plot1
 
 Create a bar chart showing mean `mpg` by `cyl` group. Add the numeric value on top of each bar using `geom_text()`. Then use `annotate("rect")` to highlight the tallest bar with a gold rectangle, and add a curved arrow with `annotate("curve")` pointing to it with a text note saying "Most efficient".
 
-```r
+```r title="Exercise: Bar chart with annotations"
 # Exercise 2: bar chart + value labels + annotation
 # Hint: first compute mean mpg per cyl with aggregate()
 # Then use geom_col() for bars and geom_text() for value labels
@@ -631,7 +631,7 @@ Create a bar chart showing mean `mpg` by `cyl` group. Add the numeric value on t
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bar chart annotations solution"
 my_agg <- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
 
 my_plot2 <- ggplot(my_agg, aes(x = factor(cyl), y = mpg)) +
@@ -682,7 +682,7 @@ my_plot2
 
 Here is a complete example that combines every labeling technique from this tutorial into one polished chart.
 
-```r
+```r title="End-to-end labelled mtcars chart"
 # Complete example: all labeling tools in one chart
 set.seed(77)
 

@@ -24,7 +24,7 @@ Every code block on this page runs live. Edit the values, hit Run, and watch the
 
 You didn't come here to read, you came to look something up. So let's open with the one pattern that covers 80% of real R work: load a built-in dataset, pick a few rows, compute a summary. Every function used below appears in the tables further down, but seeing them together first builds the mental model that makes the rest of this page easier to scan.
 
-```r
+```r title="Filter and summarise mtcars in base R"
 # Base R snapshot: pick fast cars, then summarise their horsepower
 fast_cars <- mtcars[mtcars$mpg > 25, c("mpg", "hp", "wt")]
 nrow(fast_cars)
@@ -94,7 +94,7 @@ Six cars in `mtcars` clear 25 mpg, and their horsepower sits mostly between 62 a
 
 **Try it:** Use `seq_len()` to build a vector of length 7, then reverse it with `rev()`. Save the reversed vector as `ex_countdown`.
 
-```r
+```r title="Exercise: reverse a sequence"
 # Try it: reverse a sequence
 ex_countdown <- # your code here
 
@@ -106,7 +106,7 @@ ex_countdown
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Countdown solution"
 ex_countdown <- rev(seq_len(7))
 ex_countdown
 #> [1] 7 6 5 4 3 2 1
@@ -120,7 +120,7 @@ ex_countdown
 
 dplyr gives you a small grammar, about a dozen verbs, that composes into almost any wrangling task you can describe. The verbs chain together with the pipe `|>`, so the code reads left-to-right the way you'd explain it out loud: "take mtcars, filter rows where mpg > 20, group by cylinder count, summarise mean horsepower."
 
-```r
+```r title="Filter, group, and summarise with dplyr"
 # dplyr: filter, group, summarise — the core workflow
 library(dplyr)
 
@@ -203,7 +203,7 @@ Fourteen efficient cars made it through the filter. Four-cylinder cars average 8
 
 **Try it:** Use `airquality` to count the number of days where `Temp > 80`. Save the count as `ex_hot_days`. Hint: combine `filter()` with `nrow()` or `count()`.
 
-```r
+```r title="Exercise: count hot days"
 # Try it: count hot days in airquality
 ex_hot_days <- # your code here
 
@@ -215,7 +215,7 @@ ex_hot_days
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hot-days solution"
 ex_hot_days <- airquality |>
   filter(Temp > 80) |>
   nrow()
@@ -231,7 +231,7 @@ ex_hot_days
 
 ggplot2 treats a plot as layers you add together: a dataset, a mapping from variables to visual properties (aesthetics), one or more geometric shapes (geoms), and optional scales, facets, and themes. Once the grammar clicks, you can describe any chart as a short recipe.
 
-```r
+```r title="Scatter with trend line in ggplot2"
 # ggplot2: scatter plot with a trend line and color by cylinder
 library(ggplot2)
 
@@ -297,7 +297,7 @@ Each `+` adds a layer. `aes()` maps weight to x, mpg to y, and cylinder count to
 
 **Try it:** Modify the plot below so it uses `theme_minimal()` and has the title "MPG distribution".
 
-```r
+```r title="Exercise: title the histogram"
 # Try it: add title and minimal theme
 ex_hist <- ggplot(mtcars, aes(x = mpg)) +
   geom_histogram(bins = 10, fill = "steelblue", color = "white")
@@ -309,7 +309,7 @@ ex_hist
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Histogram-title solution"
 ex_hist <- ggplot(mtcars, aes(x = mpg)) +
   geom_histogram(bins = 10, fill = "steelblue", color = "white") +
   labs(title = "MPG distribution") +
@@ -325,7 +325,7 @@ Each new behaviour is another `+` layer, `labs()` for the title, `theme_minimal(
 
 R was built for statistics. The functions below have been refined since 1993 and form the backbone of every statistical workflow, from a quick descriptive summary to a full linear model with diagnostics. Most statistical distributions follow a consistent `r/d/p/q` naming convention: `rnorm()` draws random values, `dnorm()` is the density, `pnorm()` is the CDF, `qnorm()` is the quantile function. Learn the pattern once, apply it to `binom`, `pois`, `unif`, `exp`, `chisq`, `t`, `f`, `gamma`, and `beta`.
 
-```r
+```r title="t-test and linear model side by side"
 # Stats: a t-test and a linear model, side by side
 set.seed(42)
 tt <- t.test(mpg ~ am, data = mtcars)
@@ -402,7 +402,7 @@ Automatic cars average 7.2 mpg more than manuals, with a p-value of 0.0014, unus
 
 **Try it:** Fit a linear model of `hp` explained by `mpg` on `mtcars`, save it as `ex_fit`, and print only the coefficients.
 
-```r
+```r title="Exercise: fit hp on mpg"
 # Try it: fit hp ~ mpg
 ex_fit <- # your code here
 
@@ -414,7 +414,7 @@ coef(ex_fit)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="hp-on-mpg solution"
 ex_fit <- lm(hp ~ mpg, data = mtcars)
 round(coef(ex_fit), 2)
 #> (Intercept)         mpg
@@ -429,7 +429,7 @@ Every 1 mpg increase predicts an 8.83 hp decrease, the fuel-economy / horsepower
 
 Text and time are the two fiddliest parts of R for beginners, every locale, format, and edge case can bite. Base R covers the essentials; `stringr` and `lubridate` cover the rest with friendlier argument orders. The payoff block below parses three character strings into real Date objects, extracts the year, and computes the day of the week.
 
-```r
+```r title="Parse, format, and label dates"
 # Parse, extract, compute — dates in 4 lines
 dates <- as.Date(c("2024-01-15", "2025-06-30", "2026-12-01"))
 years <- format(dates, "%Y")
@@ -506,7 +506,7 @@ cbind(date = as.character(dates), year = years, day = weekdays(dates))
 
 **Try it:** Given the vector below, extract just the 4-digit year from each string and save as `ex_years`. The result should be a character vector.
 
-```r
+```r title="Exercise: extract year from strings"
 # Try it: extract year from date strings
 raw <- c("2024-01-15", "2025-06-30", "2026-12-01")
 ex_years <- # your code here
@@ -519,7 +519,7 @@ ex_years
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extract-year solution"
 raw <- c("2024-01-15", "2025-06-30", "2026-12-01")
 ex_years <- substr(raw, 1, 4)
 ex_years
@@ -534,7 +534,7 @@ Since the format is fixed-width, `substr()` is the simplest answer. For variable
 
 The last category covers the glue that holds scripts together: reading and writing files, branching and looping, applying functions over collections, and catching errors. R has two layers here, base R's `apply()` family and the more consistent `purrr::map()` family from the tidyverse, and you'll see both in the wild.
 
-```r
+```r title="sapply column means and safe log"
 # sapply over columns; tryCatch for safe logs
 col_means <- sapply(mtcars[, 1:4], mean)
 round(col_means, 2)
@@ -611,7 +611,7 @@ sapply(c(10, -1, 0.5), safe_log)
 
 **Try it:** Use `sapply()` on the `iris` data frame to return the class of each column. Save the result as `ex_classes`.
 
-```r
+```r title="Exercise: class of each iris column"
 # Try it: class of each iris column
 ex_classes <- # your code here
 
@@ -623,7 +623,7 @@ ex_classes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="iris-class solution"
 ex_classes <- sapply(iris, class)
 ex_classes
 #> Sepal.Length  Sepal.Width Petal.Length  Petal.Width      Species
@@ -642,7 +642,7 @@ Two capstone exercises combining multiple sections of the cheat sheet. Work them
 
 Using `mtcars`, write one pipeline that: keeps cars with `mpg > 20`, groups by `cyl`, computes the mean `hp` per group as `mean_hp`, and arranges the result from highest `mean_hp` to lowest. Save the result as `my_result`.
 
-```r
+```r title="Exercise: four-verb dplyr pipeline"
 # Exercise 1: combine 4 dplyr verbs
 # Hint: use |> to chain filter, group_by, summarise, arrange
 
@@ -655,7 +655,7 @@ my_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four-verb solution"
 my_result <- mtcars |>
   filter(mpg > 20) |>
   group_by(cyl) |>
@@ -677,7 +677,7 @@ Four dplyr verbs, one pipeline. `arrange(desc(...))` sorts descending; the `.gro
 
 Build a plot from `mtcars` showing `mpg` versus `wt`, colored by `factor(cyl)`, with a linear trend line per cylinder group (no confidence ribbon), a title "MPG by weight and cylinders", and a minimal theme. Save the plot object as `my_plot`.
 
-```r
+```r title="Exercise: layered ggplot2 scatter"
 # Exercise 2: a ggplot2 recipe with 4 layers
 # Hint: ggplot() + geom_point() + geom_smooth(method="lm", se=FALSE) + labs() + theme_minimal()
 
@@ -689,7 +689,7 @@ my_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Layered-scatter solution"
 my_plot <- ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
   geom_point(size = 2.5) +
   geom_smooth(method = "lm", se = FALSE) +
@@ -708,7 +708,7 @@ Five layers, five concepts: aesthetic mapping, points, linear smoother per color
 
 To tie the cheat sheet together, here's a 20-line analysis of the built-in `airquality` dataset: drop missing ozone readings, compute the monthly mean, and plot it as a bar chart. Functions from dplyr, ggplot2, and base R all appear in one pipeline.
 
-```r
+```r title="End-to-end airquality analysis"
 # Complete example: airquality end-to-end
 library(tidyr)
 

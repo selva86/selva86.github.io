@@ -38,7 +38,7 @@ The code blocks share state across the whole page, just like a notebook. A varia
 
 Create a variable `x` holding the number 17 and a variable `y` holding 5. Print their sum, difference, product, and integer quotient (`%/%`).
 
-```r
+```r title="Exercise: Sum, diff, product, quotient"
 # Your attempt here
 
 ```
@@ -46,7 +46,7 @@ Create a variable `x` holding the number 17 and a variable `y` holding 5. Print 
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Arithmetic with integer division solution"
 x <- 17
 y <- 5
 
@@ -63,7 +63,7 @@ x %% y     # 2  (remainder, bonus)
 
 Create `a <- 3.14`, `b <- 3L`, `c <- "3"`, `d <- TRUE`. Use `class()` on each. Then compute `b + d`, predict the result before running it.
 
-```r
+```r title="Exercise: class of four types"
 # Your attempt here
 
 ```
@@ -71,7 +71,7 @@ Create `a <- 3.14`, `b <- 3L`, `c <- "3"`, `d <- TRUE`. Use `class()` on each. T
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="class and logical coercion solution"
 a <- 3.14
 b <- 3L
 c <- "3"
@@ -93,7 +93,7 @@ The key lesson: logical values become 1 and 0 in arithmetic. This is useful for 
 
 Given `p <- 3.87`, produce 3.87 rounded to 1 decimal, the floor, the ceiling, and the result truncated toward zero.
 
-```r
+```r title="Exercise: round, floor, ceiling, trunc"
 # Your attempt here
 
 ```
@@ -101,7 +101,7 @@ Given `p <- 3.87`, produce 3.87 rounded to 1 decimal, the floor, the ceiling, an
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Rounding helpers solution"
 p <- 3.87
 
 round(p, 1)   # 3.9
@@ -120,7 +120,7 @@ trunc(-3.87)  # -3 (differs from floor(-3.87) which gives -4)
 
 Create a vector `temps` containing the values 22, 25, 19, 30, 28, 24, 21. Find its length, mean, and sort it in descending order.
 
-```r
+```r title="Exercise: Length, mean, sort temps"
 # Your attempt here
 
 ```
@@ -128,7 +128,7 @@ Create a vector `temps` containing the values 22, 25, 19, 30, 28, 24, 21. Find i
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Length, mean, sort solution"
 temps <- c(22, 25, 19, 30, 28, 24, 21)
 
 length(temps)               # 7
@@ -143,7 +143,7 @@ sort(temps, decreasing = TRUE)
 
 From `temps`, extract the first value, the last value, and the third through fifth values (inclusive).
 
-```r
+```r title="Exercise: First, last, middle values"
 # Your attempt here
 
 ```
@@ -151,7 +151,7 @@ From `temps`, extract the first value, the last value, and the third through fif
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Index first, last, range solution"
 temps[1]              # 22
 temps[length(temps)]  # 21
 temps[3:5]            # 19 30 28
@@ -165,7 +165,7 @@ temps[3:5]            # 19 30 28
 
 Return only the values in `temps` greater than 23.
 
-```r
+```r title="Exercise: Values over threshold"
 # Your attempt here
 
 ```
@@ -173,7 +173,7 @@ Return only the values in `temps` greater than 23.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Logical indexing solution"
 temps[temps > 23]
 # 25 30 28 24
 
@@ -191,7 +191,7 @@ Logical indexing is the most important R idiom: build a TRUE/FALSE vector the sa
 
 Return `temps` with the second and fourth elements removed.
 
-```r
+```r title="Exercise: Drop second and fourth"
 # Your attempt here
 
 ```
@@ -199,7 +199,7 @@ Return `temps` with the second and fourth elements removed.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Negative indexing solution"
 temps[-c(2, 4)]
 # 22 19 28 24 21
 
@@ -213,7 +213,7 @@ temps[-c(2, 4)]
 
 Create a named vector `scores` with three entries: `alice = 87`, `bob = 72`, `carol = 95`. Then extract Bob's score two different ways.
 
-```r
+```r title="Exercise: Extract named score"
 # Your attempt here
 
 ```
@@ -221,7 +221,7 @@ Create a named vector `scores` with three entries: `alice = 87`, `bob = 72`, `ca
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Named vector extraction solution"
 scores <- c(alice = 87, bob = 72, carol = 95)
 
 scores["bob"]   # bob: 72
@@ -238,7 +238,7 @@ Both return the same value with the name attached. Use name-based indexing when 
 
 Create (a) the integers 1 through 20, (b) the even integers from 2 to 20, and (c) a sequence of five equally spaced values from 0 to 1.
 
-```r
+```r title="Exercise: Three sequence builders"
 # Your attempt here
 
 ```
@@ -246,7 +246,7 @@ Create (a) the integers 1 through 20, (b) the even integers from 2 to 20, and (c
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Sequence builders solution"
 1:20
 seq(2, 20, by = 2)
 seq(0, 1, length.out = 5)    # 0.00 0.25 0.50 0.75 1.00
@@ -260,7 +260,7 @@ seq(0, 1, length.out = 5)    # 0.00 0.25 0.50 0.75 1.00
 
 Create `x <- 1:5`. Compute `x` squared, `x` plus 10, and `x` minus its own mean. Do all three in one line each, with no loops.
 
-```r
+```r title="Exercise: Square, add, center"
 # Your attempt here
 
 ```
@@ -268,7 +268,7 @@ Create `x <- 1:5`. Compute `x` squared, `x` plus 10, and `x` minus its own mean.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Vector arithmetic solution"
 x <- 1:5
 
 x^2          # 1 4 9 16 25
@@ -284,7 +284,7 @@ R applies scalar operations element by element on vectors. Explicit `for` loops 
 
 Create `v <- c(4, NA, 7, 2, NA, 10)`. Compute its mean naively, then correctly, and count how many NAs it contains.
 
-```r
+```r title="Exercise: Mean with NA poison"
 # Your attempt here
 
 ```
@@ -292,7 +292,7 @@ Create `v <- c(4, NA, 7, 2, NA, 10)`. Compute its mean naively, then correctly, 
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="na.rm and is.na solution"
 v <- c(4, NA, 7, 2, NA, 10)
 
 mean(v)               # NA — any NA poisons the result
@@ -309,7 +309,7 @@ Forgetting `na.rm = TRUE` is the single most common source of "my mean is NA" co
 
 Write a function `celsius_to_fahrenheit(c)` that converts a temperature in Celsius to Fahrenheit using the formula `F = C * 9/5 + 32`. Test it with 0, 100, and `temps` from Exercise 4.
 
-```r
+```r title="Exercise: Write celsiustofahrenheit"
 # Your attempt here
 
 ```
@@ -317,7 +317,7 @@ Write a function `celsius_to_fahrenheit(c)` that converts a temperature in Celsi
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="celsiustofahrenheit solution"
 celsius_to_fahrenheit <- function(c) {
   c * 9 / 5 + 32
 }
@@ -337,7 +337,7 @@ Notice the function works on a vector with zero modification, because the arithm
 
 Predict the output: `identical(1, 1L)`. Then predict `identical(1:3, c(1, 2, 3))`. Run both.
 
-```r
+```r title="Exercise: identical integer versus double"
 # Your attempt here
 
 ```
@@ -345,7 +345,7 @@ Predict the output: `identical(1, 1L)`. Then predict `identical(1:3, c(1, 2, 3))
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="identical type check solution"
 identical(1, 1L)             # FALSE — 1 is double, 1L is integer
 identical(1:3, c(1, 2, 3))   # FALSE — 1:3 is integer, c(1,2,3) is double
 ```
@@ -358,7 +358,7 @@ identical(1:3, c(1, 2, 3))   # FALSE — 1:3 is integer, c(1,2,3) is double
 
 Create `a <- 0.1 + 0.2`. Check whether `a == 0.3`. Explain the result, then compute it correctly with `all.equal()`.
 
-```r
+```r title="Exercise: Floating-point equality"
 # Your attempt here
 
 ```
@@ -366,7 +366,7 @@ Create `a <- 0.1 + 0.2`. Check whether `a == 0.3`. Explain the result, then comp
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="all.equal for floating point solution"
 a <- 0.1 + 0.2
 a                 # 0.3
 a == 0.3          # FALSE  — floating point rounding
@@ -385,7 +385,7 @@ Never compare doubles with `==`. Use `all.equal()` wrapped in `isTRUE()` inside 
 
 Predict the output of `c(1, 2, 3, 4, 5, 6) + c(10, 20)`. Then predict `c(1, 2, 3, 4, 5) + c(10, 20)`. Run both and read the warning carefully.
 
-```r
+```r title="Exercise: Recycling length mismatch"
 # Your attempt here
 
 ```
@@ -393,7 +393,7 @@ Predict the output of `c(1, 2, 3, 4, 5, 6) + c(10, 20)`. Then predict `c(1, 2, 3
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Recycling warning solution"
 c(1, 2, 3, 4, 5, 6) + c(10, 20)
 # 11 22 13 24 15 26
 # The shorter vector is recycled: 10 20 10 20 10 20

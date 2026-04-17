@@ -22,7 +22,7 @@ difficulty: Advanced
 
 Take any sample of `n` numbers and sort them. The smallest value is called the **first order statistic**, written $X_{(1)}$. The largest is the **n-th order statistic**, $X_{(n)}$. In between sit $X_{(2)}, X_{(3)}, \ldots, X_{(n-1)}$, in sorted order. The subscript is always in parentheses to distinguish $X_{(k)}$ (the k-th smallest) from $X_k$ (the k-th sample point in the order you collected it). Let's see all of them in one sample.
 
-```r
+```r title="Sort and index to get any order statistic"
 # Draw 10 values from a standard normal, then sort them
 set.seed(1)
 x10 <- rnorm(10)
@@ -46,7 +46,7 @@ The sorted vector *is* the vector of order statistics. The first entry is the sa
 
 **Try it:** Draw a sample of 12 values from `rexp(12, rate = 1)` and extract its 7th order statistic into `ex_x7`.
 
-```r
+```r title="Exercise: seventh order statistic of Exp"
 # Try it: get the 7th order statistic of an exponential sample
 set.seed(42)
 ex_x <- rexp(12, rate = 1)
@@ -60,7 +60,7 @@ ex_x7
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Seventh-exp solution"
 set.seed(42)
 ex_x <- rexp(12, rate = 1)
 ex_x7 <- sort(ex_x)[7]
@@ -86,7 +86,7 @@ Where:
 
 The CDF gets pushed to the right as $n$ grows, because the max of more draws tends to be larger. Let's verify this by simulating 10,000 samples of size 5 from a uniform distribution on $[0, 1]$, where $F(x) = x$, and compare the empirical CDF to the theoretical $x^5$.
 
-```r
+```r title="Empirical vs theoretical CDF of max"
 # Simulate 10,000 maxima, each from a size-5 Uniform(0,1) sample
 library(ggplot2)
 set.seed(2026)
@@ -113,7 +113,7 @@ The blue step function (empirical) hugs the red curve (theoretical $x^5$) across
 
 **Try it:** Simulate the distribution of the maximum of 20 `rexp(20, rate = 1)` samples, then find the 95th percentile of those maxima.
 
-```r
+```r title="Exercise: 95th percentile of Exp max"
 # Try it: distribution of max of 20 Exp(1)
 set.seed(7)
 ex_max_exp <- numeric(0)  # your code here
@@ -127,7 +127,7 @@ ex_q95
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exp-max-quantile solution"
 set.seed(7)
 ex_max_exp <- replicate(10000, max(rexp(20, rate = 1)))
 ex_q95 <- quantile(ex_max_exp, 0.95)
@@ -154,7 +154,7 @@ Where:
 
 For uniform $[0, 1]$ samples, this becomes $1 - (1-x)^n$, which you may recognise as the CDF of a $\text{Beta}(1, n)$ random variable. That connection, uniform order statistics follow beta distributions, is the key that unlocks the general case. Let's verify the minimum of a size-5 uniform sample against a $\text{Beta}(1, 5)$ density.
 
-```r
+```r title="Histogram vs Beta(1, 5) for the min"
 # Simulate 10,000 minima from size-5 Uniform(0,1) samples
 set.seed(2026)
 min_sim <- replicate(reps, min(runif(n_sample)))
@@ -179,7 +179,7 @@ The histogram matches the red $\text{Beta}(1, 5)$ density almost perfectly. The 
 
 **Try it:** Simulate 10,000 minima of size-10 Uniform(0,1) samples. Compare the sample mean to the theoretical mean $1/(n+1)$.
 
-```r
+```r title="Exercise: mean of min of 10 uniform"
 # Try it: compare simulated mean to 1/(n+1)
 set.seed(3)
 ex_min_sim <- numeric(0)  # your code here
@@ -194,7 +194,7 @@ ex_mean
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Uniform-min-mean solution"
 set.seed(3)
 ex_min_sim <- replicate(10000, min(runif(10)))
 ex_mean <- mean(ex_min_sim)
@@ -221,7 +221,7 @@ Where:
 
 For a Uniform(0,1) sample, $F(x) = x$ and $f(x) = 1$, so the density reduces to the **Beta(k, n-k+1)** density. This is the master result: every uniform order statistic is a beta random variable with shape parameters $k$ and $n-k+1$. Let's confirm it by simulating $X_{(2)}$, $X_{(5)}$, and $X_{(8)}$ for $n = 10$ and overlaying the corresponding Beta densities.
 
-```r
+```r title="Beta densities for k equals 2, 5, 8"
 # Simulate k = 2, 5, 8 order statistics from n = 10 Uniform samples
 set.seed(2026)
 n_sample10 <- 10
@@ -256,7 +256,7 @@ Three histograms, three perfect fits. $X_{(2)}$ sits low (it's close to the min)
 
 **Try it:** For a sample of size $n = 15$ from Uniform(0,1), what Beta parameters describe $X_{(5)}$? Verify by simulation: the theoretical mean is $5/16 = 0.3125$.
 
-```r
+```r title="Exercise: X(5) for n equals 15 uniform"
 # Try it: X(5) for n = 15 Uniform
 set.seed(9)
 ex_x5 <- numeric(0)  # your code here
@@ -270,7 +270,7 @@ c(simulated = mean(ex_x5), theoretical = ex_theo_mean)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="X-five solution"
 set.seed(9)
 ex_x5 <- replicate(10000, sort(runif(15))[5])
 ex_theo_mean <- 5 / (15 + 1)
@@ -287,7 +287,7 @@ c(simulated = mean(ex_x5), theoretical = ex_theo_mean)
 
 Here's where the abstract theory gets practical. Every time you call `quantile(x, 0.75)` in R, you are computing a weighted average of order statistics. The 0% quantile is literally $X_{(1)}$. The 100% quantile is $X_{(n)}$. The median is the middle order statistic (or the average of the two middle ones). All nine `type` options in R are just different rules for interpolating between consecutive order statistics.
 
-```r
+```r title="Quantile endpoints equal min and max"
 # Quantiles at 0 and 1 are exactly the min and max
 sample_vec <- c(3, 7, 12, 1, 9, 15, 4, 11, 6, 8)
 sort(sample_vec)
@@ -315,7 +315,7 @@ The 0% and 100% quantiles are always the min and max, no matter which `type` you
 [NOTE]
 **R has 9 quantile types** (Hyndman & Fan 1996). The default is `type = 7`, which interpolates between order statistics using $(i - 1)/(n - 1)$. `type = 4` is pure linear interpolation between order statistics, and `type = 1` is a step function picking individual order statistics. All use order statistics under the hood.
 
-```r
+```r title="Three quantile types, three answers"
 # Three types give three slightly different 60th percentiles
 q_compare <- sapply(c(1, 4, 7), function(t)
   quantile(sample_vec, probs = 0.60, type = t))
@@ -331,7 +331,7 @@ For the 60th percentile of this 10-value sample, types 1 and 4 both return 8 (th
 
 **Try it:** For `type = 1` (step function, no interpolation), the 25th percentile of `1:20` should equal the 5th order statistic. Compute it by hand from the order statistic formula, then check with `quantile(..., type = 1)`.
 
-```r
+```r title="Exercise: 25th percentile via type 1"
 # Try it: 25th percentile of 1:20 via type=1
 ex_vec <- 1:20
 
@@ -347,7 +347,7 @@ c(manual = ex_q25_manual, quantile_fn = ex_q25_fn)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Type-1-quantile solution"
 ex_vec <- 1:20
 ex_q25_manual <- sort(ex_vec)[5]              # X(5)
 ex_q25_fn <- quantile(ex_vec, 0.25, type = 1)
@@ -366,7 +366,7 @@ Three places show up over and over. The first is **non-parametric confidence int
 
 Let's build the non-parametric CI for the median from scratch. If you pick order statistics $X_{(l)}$ and $X_{(u)}$, the probability that they bracket the true population median equals the probability that at least $l$ and at most $u - 1$ of your sample points fall below the median, a binomial tail probability with success probability 0.5 (since the median is defined as the 50% mark).
 
-```r
+```r title="Distribution-free median CI via Binomial"
 # Distribution-free 95% CI for the median, sample size n = 20
 set.seed(11)
 ci_n <- 20
@@ -404,7 +404,7 @@ The distribution-free 95% CI for the population median is $[X_{(6)}, X_{(15)}]$,
 
 **Try it:** For a sample of size $n = 30$, find the pair $(l, u)$ that gives at least 95% coverage for the median CI using order statistics.
 
-```r
+```r title="Exercise: 95% median CI at n 30"
 # Try it: find l, u for 95% median CI, n = 30
 ex_np <- 30
 ex_ci <- c(NA, NA)  # your code here: assign c(l, u)
@@ -416,7 +416,7 @@ cat("l =", ex_ci[1], " u =", ex_ci[2], "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="n-30 CI solution"
 ex_np <- 30
 for (l in 1:15) {
   u <- ex_np + 1 - l
@@ -439,7 +439,7 @@ cat("l =", ex_ci[1], " u =", ex_ci[2],
 
 Write a function `simulate_order_stat(k, n, dist, reps)` where `dist` is a string like `"norm"`, `"exp"`, or `"unif"`. The function should draw `reps` samples of size `n` from that distribution, return the `k`-th order statistic of each. Use it to simulate $X_{(3)}$ from $n = 8$ Normal(0,1) samples and plot the density. Save the simulated values to `my_x3`.
 
-```r
+```r title="Exercise: reusable order-stat simulator"
 # Exercise 1: reusable simulator
 # Hint: use get(paste0("r", dist)) to dispatch rnorm/rexp/runif
 
@@ -455,7 +455,7 @@ plot(density(my_x3), main = "X(3) of n=8 Normal(0,1)")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Simulator solution"
 simulate_order_stat <- function(k, n, dist, reps) {
   rfun <- get(paste0("r", dist))
   replicate(reps, sort(rfun(n))[k])
@@ -482,7 +482,7 @@ $$\text{Cor}(X_{(i)}, X_{(j)}) = \sqrt{\frac{i\,(n-j+1)}{j\,(n-i+1)}}$$
 
 Simulate 10,000 samples of $n = 10$ uniforms, extract $X_{(3)}$ and $X_{(7)}$ from each, and check that the empirical correlation matches the theoretical value. Save the result to `my_corr` and the theory to `my_theo_corr`.
 
-```r
+```r title="Exercise: correlation of X(3) and X(7)"
 # Exercise 2: correlation between X(3) and X(7) for n=10 U(0,1)
 # Hint: replicate() can return a matrix with simplify = TRUE
 
@@ -498,7 +498,7 @@ c(empirical = my_corr, theoretical = my_theo_corr)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Correlation solution"
 set.seed(2026)
 my_os_mat <- t(replicate(10000, {
   s <- sort(runif(10))
@@ -519,7 +519,7 @@ c(empirical = my_corr, theoretical = my_theo_corr)
 
 For $n = 20$ Normal(0,1) samples, the expected value of the maximum is not a textbook closed form, but simulation gives it instantly. Estimate $E[X_{(20)}]$ by averaging 10,000 simulated maxima. The published value is about 1.8675 (from normal order statistic tables, Harter 1961). Save the simulated maxima to `my_maxes` and the estimated expectation to `my_emean`.
 
-```r
+```r title="Exercise: expected max of 20 normals"
 # Exercise 3: E[X(20)] from N(0,1)
 
 set.seed(2026)
@@ -534,7 +534,7 @@ c(estimate = my_emean, reference = 1.8675)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Normal-max solution"
 set.seed(2026)
 my_maxes <- replicate(10000, max(rnorm(20)))
 my_emean <- mean(my_maxes)
@@ -551,7 +551,7 @@ c(estimate = my_emean, reference = 1.8675)
 
 Put everything together on a realistic scenario. Suppose you have daily river flow data for 50 years. Each year, only the **annual maximum flow** matters for flood-risk planning. The sample maximum of a year's data is an order statistic, and across years you build up a sampling distribution of maxima that can be summarised, mean, quantiles, return periods, using the tools above.
 
-```r
+```r title="End-to-end annual flood maxima study"
 # Simulate 50 years of daily river flows (365 days each, Exp-ish shape)
 set.seed(2026)
 years <- 50

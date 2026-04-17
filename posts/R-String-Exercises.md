@@ -24,7 +24,7 @@ Every real dataset has messy strings: trailing whitespace, inconsistent case, da
 
 ## Setup
 
-```r
+```r title="Setup: load stringr and sample names"
 library(stringr)
 
 # A small messy dataset we'll reuse throughout
@@ -38,7 +38,7 @@ names_raw <- c("  Ada Lovelace ", "alan TURING", "grace Hopper",
 
 From `names_raw`, produce a vector where leading and trailing whitespace is removed and each name is converted to title case (first letter of each word capitalised).
 
-```r
+```r title="Exercise: trim and title case"
 # Your attempt here
 
 ```
@@ -46,7 +46,7 @@ From `names_raw`, produce a vector where leading and trailing whitespace is remo
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Trim-and-title solution"
 library(stringr)
 
 names_clean <- str_to_title(str_trim(names_raw))
@@ -62,7 +62,7 @@ names_clean
 
 Given `ids <- c("7", "42", "309", "1024")`, pad each to width 5 with leading zeros so they become `"00007", "00042", "00309", "01024"`.
 
-```r
+```r title="Exercise: left-pad ids with zeros"
 # Your attempt here
 
 ```
@@ -70,7 +70,7 @@ Given `ids <- c("7", "42", "309", "1024")`, pad each to width 5 with leading zer
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Left-pad solution"
 ids <- c("7", "42", "309", "1024")
 
 str_pad(ids, width = 5, side = "left", pad = "0")
@@ -87,7 +87,7 @@ str_pad(ids, width = 5, side = "left", pad = "0")
 
 Using `names_clean` from Exercise 1, return a logical vector that is `TRUE` for names containing the letter `"a"` (case-insensitive).
 
-```r
+```r title="Exercise: detect letter a in names"
 # Your attempt here
 
 ```
@@ -95,7 +95,7 @@ Using `names_clean` from Exercise 1, return a logical vector that is `TRUE` for 
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Detect-letter solution"
 str_detect(names_clean, regex("a", ignore_case = TRUE))
 # TRUE TRUE TRUE FALSE TRUE
 
@@ -111,7 +111,7 @@ str_detect(tolower(names_clean), "a")
 
 Count how many times the letter `"e"` appears in each element of `names_clean`.
 
-```r
+```r title="Exercise: count letter e per name"
 # Your attempt here
 
 ```
@@ -119,7 +119,7 @@ Count how many times the letter `"e"` appears in each element of `names_clean`.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Count-letter solution"
 str_count(names_clean, "e")
 # 1 0 1 0 0
 
@@ -137,7 +137,7 @@ str_count(tolower(names_clean), "e")
 
 Return the first word (the given name) from each element of `names_clean`.
 
-```r
+```r title="Exercise: extract first word"
 # Your attempt here
 
 ```
@@ -145,7 +145,7 @@ Return the first word (the given name) from each element of `names_clean`.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="First-word solution"
 str_extract(names_clean, "^\\S+")
 # "Ada" "Alan" "Grace" "Donald" "Barbara"
 
@@ -161,7 +161,7 @@ word(names_clean, 1)
 
 Given `txt <- "Year 2024, month 03, day 15 — score 42.7"`, extract every number (including the decimal) as a character vector.
 
-```r
+```r title="Exercise: extract every number"
 # Your attempt here
 
 ```
@@ -169,7 +169,7 @@ Given `txt <- "Year 2024, month 03, day 15 — score 42.7"`, extract every numbe
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Extract-numbers solution"
 txt <- "Year 2024, month 03, day 15 — score 42.7"
 
 str_extract_all(txt, "\\d+\\.?\\d*")[[1]]
@@ -189,7 +189,7 @@ as.numeric(str_extract_all(txt, "\\d+\\.?\\d*")[[1]])
 
 In `"2024-03-15"`, replace the first `-` with a space, keeping the rest intact.
 
-```r
+```r title="Exercise: replace the first dash"
 # Your attempt here
 
 ```
@@ -197,7 +197,7 @@ In `"2024-03-15"`, replace the first `-` with a space, keeping the rest intact.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Replace-first solution"
 str_replace("2024-03-15", "-", " ")
 # "2024 03-15"
 
@@ -214,7 +214,7 @@ str_replace_all("2024-03-15", "-", " ")
 
 Given `paths <- c("data/raw/file1.csv", "data/clean/file2.csv", "output/file3.csv")`, extract just the file name (the part after the last `/`).
 
-```r
+```r title="Exercise: extract filename from path"
 # Your attempt here
 
 ```
@@ -222,7 +222,7 @@ Given `paths <- c("data/raw/file1.csv", "data/clean/file2.csv", "output/file3.cs
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Extract-filename solution"
 paths <- c("data/raw/file1.csv", "data/clean/file2.csv", "output/file3.csv")
 
 sapply(str_split(paths, "/"), tail, 1)
@@ -242,7 +242,7 @@ basename(paths)
 
 Given `text <- "Contact: ada@example.org for help, or bob@work.dev"`, extract both email addresses.
 
-```r
+```r title="Exercise: extract emails from text"
 # Your attempt here
 
 ```
@@ -250,7 +250,7 @@ Given `text <- "Contact: ada@example.org for help, or bob@work.dev"`, extract bo
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Extract-emails solution"
 text <- "Contact: ada@example.org for help, or bob@work.dev"
 
 str_extract_all(text, "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")[[1]]
@@ -265,7 +265,7 @@ The pattern says: one or more allowed local-part characters, then `@`, then one 
 
 Write a function `is_valid_phone(x)` that returns `TRUE` for strings of the form `xxx-xxx-xxxx` where each `x` is a digit, and `FALSE` otherwise. Test with `c("555-123-4567", "5551234567", "abc-def-ghij", "555-12-4567")`.
 
-```r
+```r title="Exercise: phone number validator"
 # Your attempt here
 
 ```
@@ -273,7 +273,7 @@ Write a function `is_valid_phone(x)` that returns `TRUE` for strings of the form
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Phone-validator solution"
 is_valid_phone <- function(x) {
   str_detect(x, "^\\d{3}-\\d{3}-\\d{4}$")
 }

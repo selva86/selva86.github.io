@@ -28,7 +28,7 @@ Control flow in R is simpler than in most languages, and that simplicity hides t
 
 Write code that prints `"pass"` if a variable `score` is at least 60, otherwise `"fail"`. Test it with `score <- 72` and `score <- 45`.
 
-```r
+```r title="Exercise: Pass/fail from score"
 # Your attempt here
 
 ```
@@ -36,7 +36,7 @@ Write code that prints `"pass"` if a variable `score` is at least 60, otherwise 
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Pass/fail from score solution"
 score <- 72
 if (score >= 60) "pass" else "fail"   # "pass"
 
@@ -52,7 +52,7 @@ In R, `if` is an expression, it returns a value. You can assign its result: `gra
 
 Turn a numeric `score` into a letter grade: 90+ = A, 80-89 = B, 70-79 = C, 60-69 = D, below 60 = F. Write it with a chain of `else if`.
 
-```r
+```r title="Exercise: Letter grade from score"
 # Your attempt here
 
 ```
@@ -60,7 +60,7 @@ Turn a numeric `score` into a letter grade: 90+ = A, 80-89 = B, 70-79 = C, 60-69
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Letter grade from score solution"
 grade <- function(score) {
   if (score >= 90)      "A"
   else if (score >= 80) "B"
@@ -82,7 +82,7 @@ Order matters, we test from highest to lowest. Each branch is only reached when 
 
 Predict what each of these returns, then run them:
 
-```r
+```r title="Predict & versus && on vectors"
 x <- c(TRUE, TRUE, FALSE)
 y <- c(TRUE, FALSE, FALSE)
 
@@ -90,7 +90,7 @@ x & y
 x && y
 ```
 
-```r
+```r title="Exercise: Predict vector logical output"
 # Your attempt here
 
 ```
@@ -98,7 +98,7 @@ x && y
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Predict vector logical output solution"
 x & y     # TRUE FALSE FALSE   — element-wise AND
 x && y    # in R 4.3+: errors (length > 1).
           # In older R: returned only the first comparison.
@@ -112,7 +112,7 @@ Rule: **use `&` and `|` for vectors, `&&` and `||` only inside `if` statements**
 
 Using `x <- c(-3, -1, 0, 2, 5)`, return a vector of the same length where negatives become `"neg"`, zero becomes `"zero"`, and positives become `"pos"`.
 
-```r
+```r title="Exercise: Label signs with nested ifelse"
 # Your attempt here
 
 ```
@@ -120,7 +120,7 @@ Using `x <- c(-3, -1, 0, 2, 5)`, return a vector of the same length where negati
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Label signs with nested ifelse solution"
 x <- c(-3, -1, 0, 2, 5)
 
 ifelse(x < 0, "neg",
@@ -138,7 +138,7 @@ Nested `ifelse()` is the base R way to build more than two branches. For larger 
 
 Write a for loop that computes the sum of squares from 1 to `n` (inclusive). Test it with `n <- 10`. Then compute the same thing in one line without a loop.
 
-```r
+```r title="Exercise: Sum of squares one-liner"
 # Your attempt here
 
 ```
@@ -146,7 +146,7 @@ Write a for loop that computes the sum of squares from 1 to `n` (inclusive). Tes
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Sum of squares solution"
 n <- 10
 
 total <- 0
@@ -167,7 +167,7 @@ The vectorised version is shorter, faster, and harder to get wrong. Reach for lo
 
 Rewrite this slow loop:
 
-```r
+```r title="Slow loop that grows a vector"
 # Slow — grows the result vector on every iteration
 out <- c()
 for (i in 1:1000) out <- c(out, i^2)
@@ -175,7 +175,7 @@ for (i in 1:1000) out <- c(out, i^2)
 
 To pre-allocate `out` to length 1000 first, then assign into `out[i]`.
 
-```r
+```r title="Exercise: Pre-allocate the output vector"
 # Your attempt here
 
 ```
@@ -183,7 +183,7 @@ To pre-allocate `out` to length 1000 first, then assign into `out[i]`.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Pre-allocate the output solution"
 n <- 1000
 out <- numeric(n)         # pre-allocated, filled with 0
 for (i in seq_len(n)) {
@@ -201,7 +201,7 @@ Growing a vector with `c(out, x)` re-copies the whole vector on every iteration,
 
 Given `nums <- list(a = 1:5, b = 6:10, c = 11:20)`, use a for loop to print each element's name and its mean.
 
-```r
+```r title="Exercise: Mean of each named list element"
 # Your attempt here
 
 ```
@@ -209,7 +209,7 @@ Given `nums <- list(a = 1:5, b = 6:10, c = 11:20)`, use a for loop to print each
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Mean of each named list solution"
 nums <- list(a = 1:5, b = 6:10, c = 11:20)
 
 for (nm in names(nums)) {
@@ -230,7 +230,7 @@ Looping over `names()` gives you both the name and a way to extract the element 
 
 Write a while loop that starts at `x <- 1` and repeatedly replaces `x` with `(x + 10/x) / 2` (Babylonian method for the square root of 10). Stop when the change is less than 1e-8. Report the final `x` and the number of iterations.
 
-```r
+```r title="Exercise: Babylonian square root loop"
 # Your attempt here
 
 ```
@@ -238,7 +238,7 @@ Write a while loop that starts at `x <- 1` and repeatedly replaces `x` with `(x 
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Babylonian square root loop solution"
 x    <- 1
 iter <- 0
 
@@ -261,7 +261,7 @@ iter          # around 5
 
 Write a for loop over 1:20 that prints only the even numbers, using `next` to skip the odd ones.
 
-```r
+```r title="Exercise: Skip odd numbers with next"
 # Your attempt here
 
 ```
@@ -269,7 +269,7 @@ Write a for loop over 1:20 that prints only the even numbers, using `next` to sk
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Skip odd numbers solution"
 for (i in 1:20) {
   if (i %% 2 != 0) next
   cat(i, "")
@@ -295,7 +295,7 @@ Write a function `describe(season)` that returns a short description:
 
 Use `switch()`, not `if/else`.
 
-```r
+```r title="Exercise: Season to description with switch"
 # Your attempt here
 
 ```
@@ -303,7 +303,7 @@ Use `switch()`, not `if/else`.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Season to description solution"
 describe <- function(season) {
   switch(season,
     spring = "mild",
@@ -327,7 +327,7 @@ The trailing unnamed argument is the default. `switch()` is typically faster and
 
 Write a function `count_negative(x)` that takes a numeric vector and returns the count of strictly negative elements, using an explicit for loop with an `if` inside. Then compare to the vectorised `sum(x < 0)`.
 
-```r
+```r title="Exercise: countnegative with a for loop"
 # Your attempt here
 
 ```
@@ -335,7 +335,7 @@ Write a function `count_negative(x)` that takes a numeric vector and returns the
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="countnegative solution"
 count_negative <- function(x) {
   k <- 0L
   for (v in x) {
@@ -356,7 +356,7 @@ Both give the same answer. The vectorised version is significantly faster on lar
 
 Write `first_negative(x)` that returns the first strictly negative element of a numeric vector, or `NA` if there are none. Use `return()` to exit as soon as you find one.
 
-```r
+```r title="Exercise: firstnegative with early return"
 # Your attempt here
 
 ```
@@ -364,7 +364,7 @@ Write `first_negative(x)` that returns the first strictly negative element of a 
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="firstnegative with early return solution"
 first_negative <- function(x) {
   for (v in x) {
     if (v < 0) return(v)

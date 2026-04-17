@@ -26,7 +26,7 @@ Before `forcats` and modern tidyverse, R had `factor()`, and the reason it exist
 
 Let's build one by hand and peek at what's inside. The underlying representation is the whole point.
 
-```r
+```r title="Factor is an integer with levels"
 # A factor is an integer vector wearing a levels hat
 sizes <- c("small", "large", "medium", "small", "large")
 f <- factor(sizes)
@@ -52,7 +52,7 @@ class(f)
 
 **Try it:** Build a factor `ex_grade` from `c("B", "A", "C", "B", "A")` and print (a) the underlying integer codes and (b) the levels.
 
-```r
+```r title="Exercise: grade factor anatomy"
 # Try it: anatomy of a factor
 ex_grade <- factor(c("B", "A", "C", "B", "A"))
 as.integer(ex_grade)
@@ -64,7 +64,7 @@ levels(ex_grade)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Grade factor solution"
 ex_grade <- factor(c("B", "A", "C", "B", "A"))
 as.integer(ex_grade)
 #> [1] 2 1 3 2 1
@@ -84,7 +84,7 @@ The default order is alphabetical, which is almost never what you want. "Low / M
 
 *Figure 2: Unordered factors have a level sequence used for plots and model coding but can't be compared with `<`. Ordered factors add comparisons and use polynomial contrasts in models.*
 
-```r
+```r title="Four ways to control level order"
 # Four ways to control level order
 x <- c("high", "low", "medium", "low", "high", "medium")
 
@@ -118,7 +118,7 @@ levels(f4)
 
 **Try it:** Turn `ex_days <- c("Wed", "Mon", "Fri", "Tue", "Thu")` into a factor whose levels are ordered `Mon, Tue, Wed, Thu, Fri`.
 
-```r
+```r title="Exercise: chronological day factor"
 # Try it: chronological day order
 ex_days <- c("Wed", "Mon", "Fri", "Tue", "Thu")
 ex_f <- NULL   # your code here
@@ -130,7 +130,7 @@ levels(ex_f)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Chronological day solution"
 ex_days <- c("Wed", "Mon", "Fri", "Tue", "Thu")
 ex_f <- factor(ex_days, levels = c("Mon","Tue","Wed","Thu","Fri"))
 levels(ex_f)
@@ -147,7 +147,7 @@ An **ordered factor** (`ordered = TRUE`) adds one thing: you can compare its ele
 
 Ordered factors are the right choice for genuine ordinal variables, survey responses (`strongly disagree < disagree < neutral < agree < strongly agree`), clinical stages, letter grades. They also change how `lm()` dummy-codes the variable: ordered factors get polynomial contrasts by default, which you may or may not want.
 
-```r
+```r title="Ordered factor enables comparison"
 # Ordered factor unlocks comparison
 ord <- factor(c("low","high","med","low"),
               levels = c("low","med","high"),
@@ -180,7 +180,7 @@ The printed `Levels: low < med < high` line is how you spot an ordered factor at
 
 **Try it:** Build an ordered factor `ex_tee` from `c("M","XL","S","L")` with the size order `S < M < L < XL`, then return the smallest value with `min()`.
 
-```r
+```r title="Exercise: ordered tee-shirt sizes"
 # Try it: ordered factor + min
 ex_tee <- NULL  # your code here
 
@@ -192,7 +192,7 @@ min(ex_tee)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tee-shirt size solution"
 ex_tee <- factor(c("M","XL","S","L"),
                  levels  = c("S","M","L","XL"),
                  ordered = TRUE)
@@ -211,7 +211,7 @@ min(ex_tee)
 
 The six you'll use most are `fct_relevel`, `fct_recode`, `fct_collapse`, `fct_lump`, `fct_reorder`, and `fct_drop`. They solve 90% of factor chores in one line each.
 
-```r
+```r title="forcats: reorder, rename, collapse"
 library(forcats)
 
 fruit <- factor(c("apple","banana","apple","cherry","durian","apple","banana","kiwi"))
@@ -252,7 +252,7 @@ Each function takes a factor and returns a new factor, nothing mutates in place,
 
 **Try it:** Use `forcats` to relabel the `fruit` factor so `"apple"` and `"kiwi"` both become `"green"` and everything else becomes `"other"`.
 
-```r
+```r title="Exercise: collapse with fctcollapse"
 # Try it: collapse with fct_collapse
 library(forcats)
 ex_grouped <- NULL  # your code here
@@ -264,7 +264,7 @@ levels(ex_grouped)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="fctcollapse solution"
 library(forcats)
 ex_grouped <- fct_collapse(fruit,
                            green = c("apple", "kiwi"),
@@ -284,7 +284,7 @@ levels(ex_grouped)
 
 Three bugs account for most factor pain. Each one has a specific fix, and once you've seen them, you'll never fall for them again.
 
-```r
+```r title="Three classic factor gotchas"
 # Gotcha 1: as.numeric(factor) returns the codes, not the labels
 years <- factor(c("2020","2021","2019","2021"))
 as.numeric(years)
@@ -326,7 +326,7 @@ Gotcha 1, `as.numeric(factor)`, is the single most destructive. If you load a CS
 
 **Try it:** `ex_yr <- factor(c("2030","2028","2029","2028"))`. Compute the *correct* mean of the years using the two-step idiom.
 
-```r
+```r title="Exercise: mean of a year factor"
 # Try it: mean of a year factor
 ex_yr <- factor(c("2030","2028","2029","2028"))
 ex_mean <- NULL  # your code here
@@ -338,7 +338,7 @@ ex_mean
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Year-factor mean solution"
 ex_yr <- factor(c("2030","2028","2029","2028"))
 ex_mean <- mean(as.numeric(as.character(ex_yr)))
 ex_mean
@@ -357,7 +357,7 @@ Two capstone exercises that combine factor creation, reordering, and level hygie
 
 Given `my_months <- c("Mar","Jan","Feb","Mar","Jan","Dec")`, build `my_fac` as a factor whose levels are the twelve months in chronological order (`"Jan"` through `"Dec"`). Then run `droplevels()` to get a version that contains only the months that actually appear.
 
-```r
+```r title="Exercise: chronological factor with hygiene"
 # Exercise 1: chronological factor with clean levels
 my_months <- c("Mar","Jan","Feb","Mar","Jan","Dec")
 
@@ -373,7 +373,7 @@ levels(my_trim)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Chronological factor solution"
 my_months <- c("Mar","Jan","Feb","Mar","Jan","Dec")
 
 month_levels <- c("Jan","Feb","Mar","Apr","May","Jun",
@@ -396,7 +396,7 @@ levels(my_trim)
 
 Given `my_score <- factor(c("85","72","91","72","60"))`, build `my_num`, the numeric vector of the same scores, and `my_lumped`, a new factor where scores below 80 are recoded to `"low"` and scores 80+ are `"high"`. Use `forcats::fct_collapse` for the second part.
 
-```r
+```r title="Exercise: convert and collapse scores"
 # Exercise 2: convert and collapse
 library(forcats)
 my_score <- factor(c("85","72","91","72","60"))
@@ -413,7 +413,7 @@ my_lumped
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Convert-and-collapse solution"
 library(forcats)
 my_score  <- factor(c("85","72","91","72","60"))
 
@@ -441,7 +441,7 @@ my_lumped
 
 A small end-to-end flow that simulates survey data, cleans the categorical column, fixes the level order, and feeds the result to `table()` and `barplot()`, no downstream surprises.
 
-```r
+```r title="End-to-end survey factor cleanup"
 # Complete example: survey responses -> plot-ready factor
 set.seed(42)
 responses <- sample(

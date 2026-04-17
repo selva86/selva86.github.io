@@ -41,7 +41,7 @@ This is most useful when category labels are long and would overlap on a vertica
 
 Let's build the example from scratch:
 
-```r
+```r title="Vertical bars before coordflip"
 library(ggplot2)
 
 # Summarize average highway MPG per vehicle class
@@ -59,7 +59,7 @@ p_base
 
 Now apply `coord_flip()` to rotate it horizontal:
 
-```r
+```r title="Flip to horizontal bars"
 # Flip to horizontal - labels now have room to breathe
 p_flipped <- p_base +
   coord_flip() +
@@ -70,7 +70,7 @@ p_flipped
 
 `coord_flip()` also works naturally with other geoms. Here's a boxplot of highway MPG by drive type, where horizontal layout makes quartile comparison easier:
 
-```r
+```r title="Flipped boxplot by drive type"
 p_box_flipped <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_boxplot(show.legend = FALSE) +
   coord_flip() +
@@ -89,14 +89,14 @@ p_box_flipped
 
 **Try it:** Apply `coord_flip()` to a bar chart of `cut` frequency in the `diamonds` dataset. Use `fct_infreq()` to sort bars by count before flipping.
 
-```r
+```r title="Exercise: flip diamonds cut bar"
 # Your code here — horizontal bar chart of diamonds cut with fct_infreq()
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Diamonds-flip solution"
 library(forcats)
 ex_flip <- ggplot(diamonds, aes(x = fct_infreq(cut))) +
   geom_bar(fill = "tomato") +
@@ -115,7 +115,7 @@ ex_flip
 
 The magic trick: a stacked bar chart with `position = "fill"` plus `coord_polar(theta = "y")` becomes a pie chart. The stacked segments become slices; their widths become their angular sizes.
 
-```r
+```r title="Pie chart with coordpolar"
 # Step 1: Create a stacked bar (one x-group, fill by category)
 df_pie <- data.frame(
   category = c("SUV", "Pickup", "Sedan", "Minivan", "Compact"),
@@ -139,7 +139,7 @@ p_pie
 
 For a **coxcomb (rose) chart**, a bar chart in polar coordinates where bars fan out from the center, use `theta = "x"` instead:
 
-```r
+```r title="Coxcomb chart with theta x"
 p_rose <- ggplot(df_pie, aes(x = category, y = count, fill = category)) +
   geom_col(width = 1, color = "white") +
   coord_polar(theta = "x") +
@@ -158,14 +158,14 @@ p_rose
 
 **Try it:** Turn `p_rose` into a standard pie chart by changing `theta = "x"` to `theta = "y"` and adding `x = ""` to the aesthetic mapping. What changes?
 
-```r
+```r title="Exercise: rose chart to pie"
 # Your code here — change theta = "x" to "y" and set x = ""
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rose-to-pie solution"
 ex_rose_to_pie <- ggplot(df_pie, aes(x = "", y = count, fill = category)) +
   geom_col(width = 1, color = "white") +
   coord_polar(theta = "y") +
@@ -187,7 +187,7 @@ This matters when your axes measure the same thing (e.g., two length measurement
 
 Without `coord_fixed()`, ggplot2 stretches or shrinks axes to fill the available plot area:
 
-```r
+```r title="Scatter without coordfixed"
 # Sepal dimensions — both in cm, should compare at equal scale
 p_scatter <- ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width,
                                color = Species)) +
@@ -199,7 +199,7 @@ p_scatter <- ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width,
 p_scatter
 ```
 
-```r
+```r title="Same scatter with coordfixed"
 # Same data, but now 1 cm on x = 1 cm on y
 p_fixed <- ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width,
                              color = Species)) +
@@ -218,14 +218,14 @@ The fixed version immediately shows that sepal length varies across a wider rang
 
 **Try it:** Add `coord_fixed(ratio = 0.5)` to `p_scatter`. How does the chart shape change compared to `ratio = 1`?
 
-```r
+```r title="Exercise: coordfixed at half ratio"
 # Your code here — apply coord_fixed(ratio = 0.5) to p_scatter
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Half-ratio solution"
 ex_fixed_half <- p_scatter + coord_fixed(ratio = 0.5)
 ex_fixed_half
 ```
@@ -239,7 +239,7 @@ This is the most subtle but most important coord function. When you want to zoom
 
 `coord_cartesian()` clips only the *view*, not the data. All statistics are computed on the complete dataset; then the plot window is cropped to show only the specified range.
 
-```r
+```r title="Common mistake: scale limits drop data"
 # Dataset: diamonds, focusing on the 1-2 carat range
 # First: scale limits (drops data outside range → smooth is wrong)
 p_zoom_scale <- ggplot(diamonds, aes(x = carat, y = price)) +
@@ -252,7 +252,7 @@ p_zoom_scale <- ggplot(diamonds, aes(x = carat, y = price)) +
 p_zoom_scale
 ```
 
-```r
+```r title="Correct: coordcartesian keeps data"
 # Second: coord_cartesian (data kept, view cropped → smooth is accurate)
 p_zoom_coord <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.05, color = "steelblue") +
@@ -270,14 +270,14 @@ The regression lines will look different, and the `coord_cartesian` version is t
 
 **Try it:** Add `coord_cartesian(ylim = c(0, 10000))` to `p_zoom_coord` to also limit the y view. Does the regression line position change?
 
-```r
+```r title="Exercise: add y-axis zoom"
 # Your code here — add ylim to coord_cartesian as well
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Zoom-ylim solution"
 ex_zoom_xy <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.05, color = "steelblue") +
   geom_smooth(method = "lm", color = "firebrick") +
@@ -302,7 +302,7 @@ The regression line's *position and slope* don't change because `coord_cartesian
 
 ❌ `coord_polar(theta = "x")` with a stacked bar produces a coxcomb/rose chart, not a pie:
 
-```r
+```r title="Common mistake: theta x for pie"
 # Wrong for a pie — this makes a rose chart
 ggplot(df_pie, aes(x = "", y = pct, fill = category)) +
   geom_col() + coord_polar(theta = "x")
@@ -310,7 +310,7 @@ ggplot(df_pie, aes(x = "", y = pct, fill = category)) +
 
 ✅ For a standard pie chart, always use `theta = "y"`, the proportional y-values become the angular slices:
 
-```r
+```r title="Correct: theta y for pie"
 # Correct for a pie
 ggplot(df_pie, aes(x = "", y = pct, fill = category)) +
   geom_col(width = 1) + coord_polar(theta = "y")
@@ -340,7 +340,7 @@ ggplot(df_pie, aes(x = "", y = pct, fill = category)) +
 
 Using the `mpg` dataset, create a grouped bar chart showing the count of cars per drive type (`drv`) within each vehicle class (`class`). Use `position = "dodge"` and `coord_flip()` for a horizontal layout. Sort the classes by total count.
 
-```r
+```r title="Exercise: grouped horizontal bars"
 # Starter code
 # ggplot(mpg, aes(x = reorder(class, class, FUN = length), fill = drv)) +
 #   geom_bar(position = "dodge") +
@@ -354,7 +354,7 @@ Using the `mpg` dataset, create a grouped bar chart showing the count of cars pe
 
 Using the `df_pie` object created earlier, build a labeled pie chart. Add percentage labels inside each slice using `geom_text()` with `position = position_stack(vjust = 0.5)`.
 
-```r
+```r title="Exercise: labeled pie chart"
 # Starter code
 # ggplot(df_pie, aes(x = "", y = pct, fill = category)) +
 #   geom_col(width = 1, color = "white") +
@@ -368,7 +368,7 @@ Using the `df_pie` object created earlier, build a labeled pie chart. Add percen
 
 In the `economics` dataset, the unemployment count (`unemploy`) may show different local trends within different ranges. Plot `date` vs `unemploy` with a loess smooth. Then use `coord_cartesian()` to zoom in on the 2005–2012 period and compare the trend within that window to the full-dataset trend. Does the zoom change the shape of the smooth?
 
-```r
+```r title="Exercise: loess with coordcartesian"
 # Starter code
 # p_full <- ggplot(economics, aes(x = date, y = unemploy)) +
 #   geom_line(color = "steelblue") +
@@ -384,7 +384,7 @@ In the `economics` dataset, the unemployment count (`unemploy`) may show differe
 
 Here is a side-by-side demonstration of all four coordinate systems applied to the same base data, showing how a single dataset transforms across different coordinate views:
 
-```r
+```r title="All four coord systems compared"
 library(patchwork)
 
 # Base data: vehicle class counts

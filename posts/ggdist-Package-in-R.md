@@ -24,7 +24,7 @@ A raincloud plot shows three things at once: the raw observations (the rain), th
 
 The code below layers three geoms on the same `Species → Sepal.Length` mapping: `stat_halfeye()` for the half-density cloud, `geom_boxplot()` for the quartile box, and `stat_dots()` for the raw observations pushed to one side. Run the block and watch three familiar plots fuse into one.
 
-```r
+```r title="Raincloud plot for iris species"
 library(ggplot2)
 library(ggdist)
 
@@ -47,7 +47,7 @@ Look at `virginica`: the cloud is noticeably wider than the box suggests, and th
 
 **Try it:** Rebuild the same plot, but show `Petal.Width` instead of `Sepal.Length`. The rest stays the same, only the `y` mapping changes.
 
-```r
+```r title="Exercise: raincloud for Petal.Width"
 # Try it: raincloud for Petal.Width
 ggplot(iris, aes(x = Species, y = ___, fill = Species)) +
   stat_halfeye(adjust = 0.5, width = 0.6, justification = -0.2,
@@ -62,7 +62,7 @@ ggplot(iris, aes(x = Species, y = ___, fill = Species)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Petal-width raincloud solution"
 ggplot(iris, aes(x = Species, y = Petal.Width, fill = Species)) +
   stat_halfeye(adjust = 0.5, width = 0.6, justification = -0.2,
                .width = 0, point_colour = NA) +
@@ -83,7 +83,7 @@ ggplot(iris, aes(x = Species, y = Petal.Width, fill = Species)) +
 
 The code below shows `stat_halfeye()` in isolation on iris, with two different `adjust` values so you can see how bandwidth changes the shape. Lower `adjust` = wigglier density; higher `adjust` = smoother.
 
-```r
+```r title="Compare adjust bandwidths side by side"
 library(patchwork)  # to place plots side by side
 
 p1 <- ggplot(iris, aes(x = Sepal.Length, y = Species, fill = Species)) +
@@ -109,7 +109,7 @@ Notice the intervals underneath each density. The thick black bar is the 66% int
 
 **Try it:** Draw the same halfeye but suppress the interval bar entirely by setting `.width = 0`.
 
-```r
+```r title="Exercise: density only, no interval"
 # Try it: density only, no interval bar
 ggplot(iris, aes(x = Sepal.Length, y = Species, fill = Species)) +
   stat_halfeye(adjust = 1, .width = ___) +
@@ -120,7 +120,7 @@ ggplot(iris, aes(x = Sepal.Length, y = Species, fill = Species)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="No-interval solution"
 ggplot(iris, aes(x = Sepal.Length, y = Species, fill = Species)) +
   stat_halfeye(adjust = 1, .width = 0) +
   theme_minimal()
@@ -137,7 +137,7 @@ ggplot(iris, aes(x = Sepal.Length, y = Species, fill = Species)) +
 
 The block below stacks all three on a single iris plot, styled more carefully than the opening example. Pay attention to `side = "left"` on `stat_dots()`, that's what pushes the rain to one side while the cloud floats on the other.
 
-```r
+```r title="Combine statslab, boxplot, and dots"
 ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
   stat_slab(adjust = 0.5, width = 0.6, justification = -0.2,
             slab_alpha = 0.6) +
@@ -160,7 +160,7 @@ Each dot in `stat_dots()` is not a raw observation, it's a *quantile dot*, place
 
 **Try it:** Move `stat_dots()` to `side = "right"` so the rain and the cloud switch sides. Leave everything else.
 
-```r
+```r title="Exercise: flip which side dots sit on"
 # Try it: flip which side the dots sit on
 ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
   stat_slab(adjust = 0.5, width = 0.6, justification = -0.2) +
@@ -173,7 +173,7 @@ ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Flipped-side solution"
 ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
   stat_slab(adjust = 0.5, width = 0.6, justification = -0.2) +
   geom_boxplot(width = 0.12, outlier.shape = NA) +
@@ -192,7 +192,7 @@ Most raincloud tutorials stop at the cloud. But ggdist's real superpower is visu
 
 The code below summarises `mpg` by number of cylinders from `mtcars`, then uses `stat_pointinterval()` to show the mean and three nested intervals at 50%, 80%, and 95% widths. No model needed, ggdist computes the intervals directly from the data.
 
-```r
+```r title="Uncertainty bars with statpointinterval"
 mt_df <- mtcars
 mt_df$cyl <- factor(mt_df$cyl)
 
@@ -215,7 +215,7 @@ The three nested bars do the work of a conventional error bar plus two reference
 
 **Try it:** Swap `stat_pointinterval()` for `stat_interval()` (same `.width` values) and see how the plot changes.
 
-```r
+```r title="Exercise: statinterval bands only"
 # Try it: stat_interval shows only the bands, no point
 ggplot(mt_df, aes(x = cyl, y = mpg, colour = cyl)) +
   ___(.width = c(0.5, 0.8, 0.95)) +
@@ -226,7 +226,7 @@ ggplot(mt_df, aes(x = cyl, y = mpg, colour = cyl)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bands-only solution"
 ggplot(mt_df, aes(x = cyl, y = mpg, colour = cyl)) +
   stat_interval(.width = c(0.5, 0.8, 0.95)) +
   theme_minimal()
@@ -243,7 +243,7 @@ So far every plot has been driven by raw data. But sometimes you want to draw a 
 
 The trick is the `xdist` aesthetic. Instead of mapping `x` to a variable, you map `xdist` to a distribution object built with `dist_normal()`, `dist_beta()`, `dist_student_t()`, and friends. Then `stat_slab()` draws the parametric density directly.
 
-```r
+```r title="Parametric distributions via distnormal"
 library(distributional)  # provides dist_normal, dist_beta, dist_student_t
 
 df <- data.frame(
@@ -270,7 +270,7 @@ Not a single data point touches `stat_slab()` here, ggdist asks the `distributio
 
 **Try it:** Change the Student-t's degrees of freedom from 3 to 30. The shape should converge toward a Normal curve (a standard result from probability theory).
 
-```r
+```r title="Exercise: heavier versus lighter Student-t"
 # Try it: heavier vs lighter Student-t tails
 df2 <- data.frame(
   name = c("t(df=3)", "t(df=___)"),
@@ -283,7 +283,7 @@ ggplot(df2, aes(y = name, xdist = dist)) + stat_slab() + theme_minimal()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Student-t comparison solution"
 df2 <- data.frame(
   name = c("t(df=3)", "t(df=30)"),
   dist = c(dist_student_t(df = 3), dist_student_t(df = 30))
@@ -302,7 +302,7 @@ ggplot(df2, aes(y = name, xdist = dist)) + stat_slab() + theme_minimal()
 
 Build a raincloud plot of `mpg` grouped by `cyl` from `mtcars`. Use `stat_halfeye()` for the cloud, `geom_boxplot()` for the box, and `stat_dots()` for the rain. Flip the coordinates so cylinder counts appear on the y-axis.
 
-```r
+```r title="Exercise: raincloud of mpg by cyl"
 # Exercise 1: build a raincloud of mpg by cyl
 # Hint: convert cyl to a factor first; use coord_flip()
 
@@ -316,7 +316,7 @@ ex_mt$cyl <- factor(ex_mt$cyl)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mpg-raincloud solution"
 ex_mt <- mtcars
 ex_mt$cyl <- factor(ex_mt$cyl)
 
@@ -341,7 +341,7 @@ ggplot(ex_mt, aes(x = cyl, y = mpg, fill = cyl)) +
 
 Build a single plot that layers `stat_halfeye()` with a thin `.width = 0` (density only) and `stat_pointinterval()` at `.width = c(0.66, 0.95)` on top. Use `iris` and show `Sepal.Length` by `Species`. The effect: a density cloud *and* an explicit interval summary on the same figure.
 
-```r
+```r title="Exercise: halfeye plus pointinterval overlay"
 # Exercise 2: overlay halfeye density + pointinterval summary
 # Hint: call both stat_* functions; give stat_halfeye .width = 0
 
@@ -354,7 +354,7 @@ ex_combo <- iris
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Halfeye-overlay solution"
 ex_combo <- iris
 
 ggplot(ex_combo, aes(x = Species, y = Sepal.Length, fill = Species)) +
@@ -375,7 +375,7 @@ ggplot(ex_combo, aes(x = Species, y = Sepal.Length, fill = Species)) +
 
 Use `dist_beta()` and `stat_slab()` to plot Beta(1, 1), Beta(2, 5), and Beta(5, 2) on the same figure. These three shapes illustrate the uniform, right-skewed, and left-skewed cases of the Beta family.
 
-```r
+```r title="Exercise: three Beta distributions"
 # Exercise 3: plot three Beta distributions
 # Hint: build a data.frame with name + dist columns, then stat_slab
 
@@ -386,7 +386,7 @@ Use `dist_beta()` and `stat_slab()` to plot Beta(1, 1), Beta(2, 5), and Beta(5, 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-Beta solution"
 beta_df <- data.frame(
   name = c("Beta(1, 1)", "Beta(2, 5)", "Beta(5, 2)"),
   dist = c(dist_beta(1, 1), dist_beta(2, 5), dist_beta(5, 2))
@@ -409,7 +409,7 @@ ggplot(beta_df, aes(y = name, xdist = dist, fill = name)) +
 
 Let's close with an end-to-end raincloud on a larger dataset: `diamonds$price` by `cut`. This one uses every pattern from the tutorial, halfeye cloud, boxplot summary, quantile dots, coordinate flip, custom palette, and shows what a publication-ready figure looks like.
 
-```r
+```r title="Polished raincloud on diamonds price"
 set.seed(314)
 dia_df <- diamonds[sample(nrow(diamonds), 2000), ]  # sub-sample for speed
 

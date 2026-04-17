@@ -26,7 +26,7 @@ Bookmark it. Hit `Ctrl+F`, paste the error text, and jump to the fix. Every code
 
 Every R error has the same shape: the function that exploded, the thing that went wrong, and a pointer back to your code. If you can spot those three parts, you can fix most errors in under a minute, even ones you've never seen before. Let's trigger a real error inside a safe wrapper (so the page keeps running) and pull it apart.
 
-```r
+```r title="Parse the three parts of an error"
 # Trigger a real error and capture the message
 err_msg <- tryCatch(
   mean(missing_vec),
@@ -54,7 +54,7 @@ The call `mean(missing_vec)` blew up because `missing_vec` doesn't exist. Instea
 
 **Try it:** Use `tryCatch()` to capture the error from calling `ex_nope()` (a function that doesn't exist) and store the message in `ex_err`. Then print it.
 
-```r
+```r title="Exercise: capture an error message"
 # Try it: capture an error message
 # Replace NULL with a call to ex_nope()
 ex_err <- tryCatch(
@@ -68,7 +68,7 @@ ex_err
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capture error message solution"
 ex_err <- tryCatch(
   ex_nope(),
   error = function(e) conditionMessage(e)
@@ -87,7 +87,7 @@ Thousands of distinct error strings exist in R, but they collapse into seven tig
 
 Here's a tiny classifier that maps a few error phrases to their family, so you can see the buckets in action before we drill into each one.
 
-```r
+```r title="Classify error into seven families"
 # Map an error phrase to its family
 bucket_of <- function(msg) {
   if (grepl("unexpected", msg))            return("Syntax / parse")
@@ -118,7 +118,7 @@ The first call classifies the earlier `err_msg` as a **Name lookup** failure, th
 
 **Try it:** Extend `bucket_of()` to return `"Models / formulas"` for the error phrase `"factor has new levels"`. Test it on that exact string.
 
-```r
+```r title="Exercise: extend the classifier"
 # Try it: extend the classifier
 ex_bucket <- function(msg) {
   # your code here
@@ -131,7 +131,7 @@ ex_bucket("factor has new levels Wed")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extend the classifier solution"
 ex_bucket <- function(msg) {
   if (grepl("new levels|contrasts|singular", msg)) return("Models / formulas")
   return("Unknown")
@@ -150,7 +150,7 @@ Syntax errors are the ones R catches before it even runs your code. The parser r
 
 Let's walk through the eight most common syntax errors, errors **1 through 8** in the master table at the bottom, and fix each one in place.
 
-```r
+```r title="Unexpected symbol parse fix"
 # Error 1: unexpected symbol
 # Cause: two tokens with no operator or comma between them
 # Bad : x y <- 5
@@ -165,7 +165,7 @@ fix_syntax()
 
 The parser sees `x`, then `y`, and has no rule that says two bare names can sit next to each other, so it complains about the second one. Joining them with an underscore (or adding a real operator between them) makes the line parse. The same shape fixes errors like `x.y` typos and missing commas in argument lists.
 
-```r
+```r title="Unexpected paren and numeric constant"
 # Error 2: unexpected ')'
 # Cause: one too many closing parens, or a trailing comma
 # Bad : mean(c(1,2,3),)
@@ -189,7 +189,7 @@ Both of these are parser complaints about what comes *after* a valid expression.
 
 **Try it:** The line below has a trailing-comma syntax error. Fix it so it parses and returns `6`.
 
-```r
+```r title="Exercise: fix the syntax"
 # Try it: fix the syntax
 # ex_broken <- sum(c(1, 2, 3),)
 # your fix here:
@@ -201,7 +201,7 @@ ex_fixed
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fix the syntax solution"
 ex_fixed <- sum(c(1, 2, 3))
 ex_fixed
 #> [1] 6
@@ -217,7 +217,7 @@ R looks up names in a chain of environments, starting with the current one and w
 
 These are errors **9 through 16** in the master table. The fixes are almost always one of: fix a typo, assign the variable first, or call `library()` on the package.
 
-```r
+```r title="Object not found lookup failure"
 # Error 9: object 'x' not found
 # Cause: typo or the variable was never assigned (or got wiped by rm())
 # Fix : assign it first
@@ -228,7 +228,7 @@ my_val * 2
 
 This is the #1 most-seen R error on Stack Overflow. The lookup chain is strict: `my_value` and `myvalue` are different names, and R does not guess. A frequent surprise is that variables created inside a function are not visible outside, if `my_val` was assigned inside `f()`, calling `my_val` at the top level still errors.
 
-```r
+```r title="Could not find function fix"
 # Error 10: could not find function "filter"
 # Cause: the package providing filter() is not attached
 # Fix : load the package
@@ -243,7 +243,7 @@ mtc
 
 `library(dplyr)` attaches dplyr to the search path, so `filter()`, `mutate()`, and friends become visible. Until you call `library()`, those functions exist inside the installed package but aren't reachable by their short names. Error **11** (`there is no package called 'dplyr'`) is a level worse: the package isn't even installed, and you need `install.packages("dplyr")` first.
 
-```r
+```r title="Masking dplyr versus stats filter"
 # Error 12: masking — dplyr::filter vs stats::filter
 # Cause: two packages on the search path both export filter();
 #        the later one wins and silently hides the earlier one.
@@ -261,7 +261,7 @@ When you load a package that defines a function with the same name as one alread
 
 **Try it:** The code below fails with `could not find function "select"` when dplyr isn't loaded. Write the call with an explicit namespace so it works even if the package hasn't been attached.
 
-```r
+```r title="Exercise: fix missing function error"
 # Try it: fix the missing-function error
 # select(mtcars, mpg, cyl)   # fails without dplyr
 # your fix here:
@@ -273,7 +273,7 @@ head(ex_sel, 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fix missing function solution"
 ex_sel <- dplyr::select(mtcars, mpg, cyl)
 head(ex_sel, 2)
 #>                mpg cyl
@@ -289,7 +289,7 @@ head(ex_sel, 2)
 
 R is strict about types at operation time but lazy about them at assignment time. You can stuff anything into a variable without a complaint, then get screamed at the moment you try to use it. That mismatch is where errors **17 through 26** come from, operations that demanded numeric and found character, or vice versa.
 
-```r
+```r title="Non numeric binary operator coercion"
 # Error 17: non-numeric argument to binary operator
 # Cause: one side is a character, even though it "looks like" a number
 # Fix : coerce explicitly with as.numeric()
@@ -302,7 +302,7 @@ price_num + 8
 
 The string `"42"` prints like a number but is stored as character. R's `+` has no rule for `character + numeric`, so it errors instead of guessing. Wrapping the string in `as.numeric()` makes the intent explicit and the operation safe. The same pattern fixes error **18** (`"3" * 2`), error **19** (`mean(c("1","2"))`), and error **20** (`log("10")`).
 
-```r
+```r title="NAs introduced by coercion"
 # Error 21: NAs introduced by coercion
 # Cause: as.numeric() on a value that isn't a parseable number
 # Fix : clean the input before coercing
@@ -318,7 +318,7 @@ This one is a **warning**, not a hard error, the call still returns a vector. Bu
 
 **Try it:** The vector `ex_vals` mixes character and numeric. Coerce it, then compute the mean ignoring NAs.
 
-```r
+```r title="Exercise: coerce and average"
 # Try it: coerce and average
 ex_vals <- c("10", "20", "thirty", "40")
 ex_avg <- NULL  # your code here
@@ -329,7 +329,7 @@ ex_avg
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Coerce and average solution"
 ex_vals <- c("10", "20", "thirty", "40")
 ex_avg <- mean(suppressWarnings(as.numeric(ex_vals)), na.rm = TRUE)
 ex_avg
@@ -344,7 +344,7 @@ ex_avg
 
 Subsetting is where R's "vectors are nice, matrices and data frames are strict" rule bites hardest. A vector tolerates out-of-range indices silently. A matrix or data frame does not. Errors **27 through 36** live in this gap, plus the NA-in-condition family that breaks `if()` statements.
 
-```r
+```r title="Subscript out of bounds on matrix"
 # Error 27: subscript out of bounds (matrix/data frame)
 # Cause: row or column index exceeds the actual dimensions
 # Fix : check with dim() and nrow() before indexing
@@ -363,7 +363,7 @@ x[10]
 
 This asymmetry is one of the top-5 R gotchas. `x[10]` on a length-5 vector returns `NA` with no warning. `mtx[3, 1]` on a 2×2 matrix throws a hard error. If you built your code expecting vector-style silent NAs and then generalised to a matrix, you get a surprise error in production. Always bounds-check with `nrow()` or `ncol()` before subsetting matrices and data frames.
 
-```r
+```r title="Undefined columns selected fix"
 # Error 28: undefined columns selected
 # Cause: referenced a column name that doesn't exist in the data frame
 # Fix : check names() first, then either create or rename
@@ -377,7 +377,7 @@ df_demo[, "cyl"]
 
 "Undefined columns selected" is the data-frame version of "name not found". Use `names(df)` or `"col" %in% names(df)` to probe before indexing, especially when column names come from user input or a `read.csv()` whose headers got mangled.
 
-```r
+```r title="Missing value where TRUE FALSE needed"
 # Error 32: missing value where TRUE/FALSE needed
 # Cause: the condition inside if() evaluated to NA
 # Fix : wrap with isTRUE() (or check with is.na() first)
@@ -394,7 +394,7 @@ The `if()` statement demands a single `TRUE` or `FALSE`. When your condition inv
 
 **Try it:** The code below errors because `ex_na_flag` is NA. Fix it with `isTRUE()` so it returns `"skip"`.
 
-```r
+```r title="Exercise: isTRUE fix for NA flag"
 # Try it: isTRUE fix
 ex_na_flag <- NA
 # if (ex_na_flag) "do it" else "skip"   # errors
@@ -406,7 +406,7 @@ ex_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="isTRUE NA flag solution"
 ex_na_flag <- NA
 ex_result <- if (isTRUE(ex_na_flag)) "do it" else "skip"
 ex_result
@@ -421,7 +421,7 @@ ex_result
 
 The last stretch covers errors that surface when R talks to the outside world, packages, files, URLs, the working directory, and errors from statistical modelling functions like `lm()` and `glm()`. Together they make up errors **37 through 50** in the reference table. The patterns are mostly about missing resources and unexpected data shapes.
 
-```r
+```r title="No such package called error"
 # Error 37: there is no package called 'ghostpkg'
 # Cause: package not installed (or installed for a different R version)
 # Fix : install.packages("ghostpkg"), then library(ghostpkg)
@@ -435,7 +435,7 @@ pkg_err
 
 This error blocks `library()` itself. The fix is always `install.packages("<name>")` first, then `library(<name>)`. If install fails with "package is not available for this version of R", you're on an older R; upgrade R or install from the CRAN archive. Error **38** (`cannot open file 'data.csv'`) means the file path is wrong relative to `getwd()`, fix it with `file.exists(path)` before `read.csv()`. Error **39** (`cannot change working directory`) points at a typo in `setwd()`.
 
-```r
+```r title="Contrasts error from single level factor"
 # Error 45: contrasts can be applied only to factors with 2 or more levels
 # Cause: a factor used in a model has only 1 level after filtering or NA removal
 # Fix : droplevels() then check table() of each factor
@@ -459,7 +459,7 @@ The `lm()` call failed because `grp` has only one level, you can't fit a coeffic
 
 **Try it:** `predict()` on new data with an unseen factor level will error. Handle it by using `droplevels()` on the training data first, then fitting. Fill in the fit step.
 
-```r
+```r title="Exercise: drop unused levels before fit"
 # Try it: drop unused levels before fitting
 ex_train <- data.frame(
   y = c(1, 2, 3, 4),
@@ -474,7 +474,7 @@ levels(ex_train_clean$g)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drop unused levels solution"
 ex_train <- data.frame(
   y = c(1, 2, 3, 4),
   g = factor(c("a", "a", "b", "b"), levels = c("a", "b", "c"))
@@ -498,7 +498,7 @@ coef(ex_fit)
 
 The pipeline below tries to filter `mtcars` to 6-cylinder cars with decent mileage, then compute the mean horsepower. It has three bugs spanning three error families. Find and fix them all so `my_result` is a one-row data frame.
 
-```r
+```r title="Exercise: fix three pipeline errors"
 # Exercise 1: fix the 3 errors
 # Hint: one is a typo, one is a masking bug, one is a type bug
 # Broken (commented out so this block still runs):
@@ -514,7 +514,7 @@ my_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three pipeline errors solution"
 my_result <- mtcars |>
   dplyr::filter(cyl == 6, mpg > 20) |>
   dplyr::summarise(avg_hp = mean(hp))
@@ -531,7 +531,7 @@ my_result
 
 For each error message below, name the family and write the one-line fix. Save your answers as a named character vector called `my_diag`.
 
-```r
+```r title="Exercise: diagnose four error messages"
 # Exercise 2: diagnose 4 errors
 # e1: "non-numeric argument to binary operator"
 # e2: "could not find function \"mutate\""
@@ -551,7 +551,7 @@ my_diag
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four error messages solution"
 my_diag <- c(
   e1 = "Types / coercion -> as.numeric() the character side",
   e2 = "Name lookup -> library(dplyr) first",
@@ -571,7 +571,7 @@ my_diag["e1"]
 
 For each snippet below, predict whether it errors, warns with an NA, or silently returns something wrong. Save your predictions as a named character vector called `my_predict`.
 
-```r
+```r title="Exercise: predict error or silent NA"
 # Exercise 3: predict the behaviour
 # s1: sum(c(1, 2, "3"))
 # s2: (1:5)[10]
@@ -593,7 +593,7 @@ my_predict
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Predict error or silent NA solution"
 my_predict <- c(
   s1 = "error",
   s2 = "silent NA",
@@ -614,7 +614,7 @@ my_predict
 
 Let's put it all together. Below is a messy pipeline that takes some survey-style data, cleans it, and fits a linear model. It has six latent bugs across four error families. We'll walk through fixing each one using the four-question diagnostic.
 
-```r
+```r title="End-to-end messy pipeline debug"
 # Raw data (intentionally messy: strings, NAs, one single-level factor)
 raw <- data.frame(
   id    = 1:6,

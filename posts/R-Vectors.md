@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Here's the secret nobody tells beginners: in R, a single number is already a vector (of length 1). There are no "scalars." Once you understand this, vectorized operations, recycling, and indexing all make sense. Let's build one and run a few summary functions on it.
 
-```r
+```r title="Create a numeric price vector"
 prices <- c(19.99, 24.50, 9.75, 32.00, 15.25)
 prices
 #> [1] 19.99 24.50  9.75 32.00 15.25
@@ -44,7 +44,7 @@ The `c()` function ("combine") is how you build vectors from individual values. 
 
 **Try it:** Create a character vector of three city names and print its length.
 
-```r
+```r title="Exercise: Build a character vector"
 # your turn — use c() and length()
 ex_cities <- c("___", "___", "___")
 
@@ -53,7 +53,7 @@ ex_cities <- c("___", "___", "___")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Character vector solution"
 ex_cities <- c("Mumbai", "Bengaluru", "Chennai")
 length(ex_cities)
 #> [1] 3
@@ -66,7 +66,7 @@ length(ex_cities)
 
 A vector can only hold one type at a time, all numeric, all character, all logical, and so on. What happens if you mix types? R silently coerces every element to the most flexible type in the group. This rule trips up beginners constantly, so let's see it in action.
 
-```r
+```r title="Type coercion across mixed vectors"
 typeof(c(1, 2, 3))
 #> [1] "double"
 typeof(c(1L, 2L, 3L))
@@ -84,7 +84,7 @@ Watch the third example carefully. The number `1` and `3` got converted to the s
 
 **Try it:** Predict what `typeof(c(FALSE, 2L))` returns, then run it.
 
-```r
+```r title="Exercise: Predict mixed-type result"
 # guess first, then verify
 typeof(c(FALSE, 2L))
 
@@ -93,7 +93,7 @@ typeof(c(FALSE, 2L))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mixed-type prediction solution"
 typeof(c(FALSE, 2L))
 #> [1] "integer"
 ```
@@ -110,7 +110,7 @@ Indexing, pulling out specific elements, is where R gets powerful. R offers four
 
 First, **positive integer indexing**. You pass the positions you want inside `[`. R uses one-based indexing, so the first element is `prices[1]`, not `prices[0]`.
 
-```r
+```r title="Positive integer indexing"
 prices[1]
 #> [1] 19.99
 prices[c(1, 3, 5)]
@@ -119,7 +119,7 @@ prices[c(1, 3, 5)]
 
 Next, **negative integer indexing** says "give me everything except these positions." This is the fastest way to drop an element you don't want.
 
-```r
+```r title="Negative integer drop indexing"
 prices[-1]
 #> [1] 24.50  9.75 32.00 15.25
 prices[-c(1, 2)]
@@ -128,7 +128,7 @@ prices[-c(1, 2)]
 
 **Logical indexing** is where vectorization pays off. You write a condition that produces a logical vector, then use it to filter. This is how you'll do almost all your real-world subsetting.
 
-```r
+```r title="Logical condition indexing"
 prices > 20
 #> [1] FALSE  TRUE FALSE  TRUE FALSE
 prices[prices > 20]
@@ -137,7 +137,7 @@ prices[prices > 20]
 
 Finally, **named indexing**. If you give your vector element names, you can pull values by label, a cleaner, more self-documenting style.
 
-```r
+```r title="Named element indexing"
 scores <- c(math = 92, english = 85, science = 78)
 scores["english"]
 #> english 
@@ -152,7 +152,7 @@ scores[c("math", "science")]
 
 **Try it:** From `prices`, select only the values greater than or equal to 15.25 using logical indexing.
 
-```r
+```r title="Exercise: Filter by threshold"
 # use a comparison inside [
 ex_prices <- c(19.99, 24.50, 9.75, 32.00, 15.25)
 
@@ -161,7 +161,7 @@ ex_prices <- c(19.99, 24.50, 9.75, 32.00, 15.25)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Threshold filter solution"
 ex_prices <- c(19.99, 24.50, 9.75, 32.00, 15.25)
 ex_prices[ex_prices >= 15.25]
 #> [1] 19.99 24.50 32.00 15.25
@@ -174,7 +174,7 @@ ex_prices[ex_prices >= 15.25]
 
 In most languages, if you want to add 10 to every element of a list, you write a loop. In R, you just write `x + 10`. R applies arithmetic element-by-element across the entire vector. This isn't just shorter, it's typically 10 to 100 times faster than a loop because the work happens in compiled C code under the hood.
 
-```r
+```r title="Vectorized Celsius to Fahrenheit"
 temps_c <- c(18, 22, 15, 27, 30)
 temps_f <- temps_c * 9/5 + 32
 temps_f
@@ -191,7 +191,7 @@ Every arithmetic operator (`+`, `-`, `*`, `/`, `^`), every comparison (`>`, `<`,
 
 **Try it:** Scale `temps_c` to a 0-to-1 range using `(x - min(x)) / (max(x) - min(x))`.
 
-```r
+```r title="Exercise: Min-max scale temps"
 ex_temps <- c(18, 22, 15, 27, 30)
 # compute scaled values
 
@@ -200,7 +200,7 @@ ex_temps <- c(18, 22, 15, 27, 30)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Min-max scale solution"
 ex_temps <- c(18, 22, 15, 27, 30)
 (ex_temps - min(ex_temps)) / (max(ex_temps) - min(ex_temps))
 #> [1] 0.2000000 0.4666667 0.0000000 0.8000000 1.0000000
@@ -218,7 +218,7 @@ Here's what happens when you combine two vectors of different lengths: R silentl
 
 Let's see the friendly case first.
 
-```r
+```r title="Clean recycling of shorter vector"
 x <- c(1, 2, 3, 4, 5, 6)
 x + c(10, 20)
 #> [1] 11 22 13 24 15 26
@@ -226,7 +226,7 @@ x + c(10, 20)
 
 The shorter vector `c(10, 20)` was recycled three times to match `x`'s length of 6. No warning, because 6 is a clean multiple of 2. Now the messy case:
 
-```r
+```r title="Recycle with length mismatch warning"
 x + c(10, 20, 30, 40)
 #> Warning message:
 #> In x + c(10, 20, 30, 40) :
@@ -241,7 +241,7 @@ R still gives you a result, but with a warning. It recycled `c(10, 20, 30, 40)` 
 
 **Try it:** Predict the output of `c(1, 2, 3, 4) * c(10, 100)`, then run it.
 
-```r
+```r title="Exercise: Predict recycled product"
 # guess first
 c(1, 2, 3, 4) * c(10, 100)
 
@@ -250,7 +250,7 @@ c(1, 2, 3, 4) * c(10, 100)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Recycled product solution"
 c(1, 2, 3, 4) * c(10, 100)
 #> [1]  10 200  30 400
 ```
@@ -262,7 +262,7 @@ The length-2 vector `c(10, 100)` recycles twice to become `c(10, 100, 10, 100)` 
 
 Typing out long vectors by hand is painful. R gives you three tools to generate them: the `:` operator for integer ranges, `seq()` for custom spacing, and `rep()` for repetition. These three cover 95% of the "I need a vector of N things" cases.
 
-```r
+```r title="Sequences with seq and rep"
 1:10
 #>  [1]  1  2  3  4  5  6  7  8  9 10
 
@@ -289,7 +289,7 @@ Notice the difference between `times` and `each` in `rep()`, `times` repeats the
 
 **Try it:** Use `seq()` to make 7 evenly-spaced numbers between -1 and 1.
 
-```r
+```r title="Exercise: Seven evenly spaced values"
 # use length.out
 seq(-1, 1, length.out = 7)
 
@@ -298,7 +298,7 @@ seq(-1, 1, length.out = 7)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Seven spaced values solution"
 seq(-1, 1, length.out = 7)
 #> [1] -1.0000000 -0.6666667 -0.3333333  0.0000000  0.3333333  0.6666667  1.0000000
 ```
@@ -310,7 +310,7 @@ seq(-1, 1, length.out = 7)
 
 You can update any element, or a whole slice, by assigning into an index. The same four indexing modes from earlier all work on the left-hand side of `<-`.
 
-```r
+```r title="Modify vectors by index"
 grades <- c(72, 85, 91, 68, 77)
 grades[4] <- 95
 grades
@@ -329,7 +329,7 @@ Three things worth noting. First, logical-index assignment (`grades[grades < 80]
 
 **Try it:** Set all negative values in `v` to zero using logical-index assignment.
 
-```r
+```r title="Exercise: Replace negatives with zero"
 ex_v <- c(3, -1, 4, -2, 5)
 # replace negatives with 0
 
@@ -338,7 +338,7 @@ ex_v <- c(3, -1, 4, -2, 5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Replace negatives solution"
 ex_v <- c(3, -1, 4, -2, 5)
 ex_v[ex_v < 0] <- 0
 ex_v
@@ -356,7 +356,7 @@ Three capstones that combine everything above.
 
 You have 10 exam scores. Students below 60 get curved up to 60. Students at or above 90 get a 5-point bonus (capped at 100). Everyone else stays the same.
 
-```r
+```r title="Exercise 1: Curve exam scores"
 scores <- c(45, 72, 88, 91, 55, 67, 94, 78, 82, 99)
 # your code here
 ```
@@ -364,7 +364,7 @@ scores <- c(45, 72, 88, 91, 55, 67, 94, 78, 82, 99)
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Curve exam scores solution"
 curved <- scores
 curved[curved < 60] <- 60
 curved[curved >= 90] <- pmin(curved[curved >= 90] + 5, 100)
@@ -377,7 +377,7 @@ curved
 
 Given hourly temperatures for a day, return the hours (1-24) more than one standard deviation from the mean.
 
-```r
+```r title="Exercise 2: Find outlier hours"
 temps <- c(12, 13, 14, 15, 18, 22, 25, 28, 30, 32, 33, 34,
            35, 34, 32, 29, 26, 22, 19, 17, 15, 14, 13, 12)
 # return the hour numbers that are outliers
@@ -386,7 +386,7 @@ temps <- c(12, 13, 14, 15, 18, 22, 25, 28, 30, 32, 33, 34,
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Outlier hours solution"
 hours <- 1:24
 outlier_hours <- hours[abs(temps - mean(temps)) > sd(temps)]
 outlier_hours
@@ -398,7 +398,7 @@ outlier_hours
 
 You have 8 product prices. Apply a repeating discount pattern of 10%, 15%, 20%, 25% and return the final prices.
 
-```r
+```r title="Exercise 3: Recycled discount pattern"
 prices <- c(100, 200, 150, 300, 250, 180, 120, 90)
 discounts <- c(0.10, 0.15, 0.20, 0.25)
 # use recycling
@@ -407,7 +407,7 @@ discounts <- c(0.10, 0.15, 0.20, 0.25)
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Recycled discount solution"
 final_prices <- prices * (1 - discounts)
 final_prices
 #> [1]  90.0 170.0 120.0 225.0 225.0 153.0  96.0  67.5
@@ -418,7 +418,7 @@ final_prices
 
 A realistic workflow: a month of daily sales. Find which days beat the average, flag slow days, and report summary stats, all without a single loop.
 
-```r
+```r title="End-to-end daily sales workflow"
 day <- 1:30
 sales <- c(420, 380, 510, 495, 610, 720, 680,
            450, 390, 440, 520, 560, 640, 700,

@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 The typed `map_*()` family is the workhorse of purrr. You hand it a list (or a data frame, which is a list of columns) and a function, and it applies the function to every element, returning a guaranteed-type atomic vector instead of a list. Reach for `map_dbl()` when the answer is numeric, `map_chr()` for text, `map_int()` for counts, and `map_lgl()` for yes/no. The first three warm-ups all fit this one idea, starting with the simplest: one number per column.
 
-```r
+```r title="mapdbl column means of mtcars"
 library(purrr)
 
 # Mean of every column in mtcars, one line, named numeric output
@@ -42,7 +42,7 @@ That one line replaces `sapply(mtcars, mean)` and a ritual `as.numeric()` call. 
 
 **Try it:** Compute the mean of every column in `airquality` and store it in `ex_means`. The dataset has missing values, so pass `na.rm = TRUE` through `map_dbl()` using its `...` slot.
 
-```r
+```r title="Exercise: airquality column means"
 # Warm-up 1: per-column means on airquality
 ex_means <- map_dbl(airquality, mean, ___)
 ex_means
@@ -52,7 +52,7 @@ ex_means
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="airquality column means solution"
 ex_means <- map_dbl(airquality, mean, na.rm = TRUE)
 ex_means
 #>     Ozone   Solar.R      Wind      Temp     Month       Day
@@ -65,7 +65,7 @@ ex_means
 
 **Try it:** Return the class of every column in `iris` as a character vector called `ex_classes`. The right variant here is `map_chr()` because each call returns one string.
 
-```r
+```r title="Exercise: iris column classes"
 # Warm-up 2: column classes of iris
 ex_classes <- ___(iris, class)
 ex_classes
@@ -75,7 +75,7 @@ ex_classes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="iris column classes solution"
 ex_classes <- map_chr(iris, class)
 ex_classes
 #> Sepal.Length  Sepal.Width Petal.Length  Petal.Width      Species
@@ -88,7 +88,7 @@ ex_classes
 
 **Try it:** Count the number of unique values in every column of `iris` and save the result as `ex_uniques`. Use `map_int()` with a lambda that calls `length(unique(x))`.
 
-```r
+```r title="Exercise: Distinct counts per column"
 # Warm-up 3: distinct value counts per iris column
 ex_uniques <- map_int(iris, ___)
 ex_uniques
@@ -98,7 +98,7 @@ ex_uniques
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Distinct counts per column solution"
 ex_uniques <- map_int(iris, \(x) length(unique(x)))
 ex_uniques
 #> Sepal.Length  Sepal.Width Petal.Length  Petal.Width      Species
@@ -116,7 +116,7 @@ ex_uniques
 
 The next tier of purrr covers four patterns that come up constantly in real analysis code. `map_lgl()` answers TRUE/FALSE questions about every element. `map_dfr()` stacks data frames returned by each iteration into one tidy frame, the purrr answer to `do.call(rbind, ...)`. `map2()` walks two inputs in parallel, useful for pairwise arithmetic. And `pmap()` generalises to three or more inputs by iterating over the rows of a data frame or list of vectors.
 
-```r
+```r title="maplgl strictly positive columns"
 # Which columns of mtcars are strictly positive?
 pos_cols <- map_lgl(mtcars, \(x) all(x > 0))
 pos_cols
@@ -131,7 +131,7 @@ Every column gets the same check, `all(x > 0)`, and the result is a named logica
 
 **Try it:** `airquality` has some values that become negative after centering. Center every numeric column (`subtract the mean`) then find which columns still contain only non-negative values. Save the result to `ex_pos`. Handle NAs with `na.rm = TRUE`.
 
-```r
+```r title="Exercise: Centered non-negative check"
 # Warm-up 4: centered airquality, then check non-negative
 centered <- map(airquality, \(x) x - mean(x, na.rm = TRUE))
 ex_pos <- ___(centered, \(x) all(x >= 0, na.rm = TRUE))
@@ -142,7 +142,7 @@ ex_pos
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Centered non-negative check solution"
 centered <- map(airquality, \(x) x - mean(x, na.rm = TRUE))
 ex_pos <- map_lgl(centered, \(x) all(x >= 0, na.rm = TRUE))
 ex_pos
@@ -156,7 +156,7 @@ ex_pos
 
 **Try it:** For each cylinder group in `mtcars`, fit `lm(mpg ~ wt)` and row-bind the tidy coefficient tables into one data frame called `ex_models`. Use `split()` to get a list of three data frames, `map()` to fit a model per group, and `map_dfr()` to stack the tidy results with a `.id` column naming the group.
 
-```r
+```r title="Exercise: Per-cyl tidy regression"
 # Warm-up 5: per-cylinder regression, row-bound tidy output
 library(dplyr)
 library(broom)
@@ -171,7 +171,7 @@ ex_models
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Per-cyl tidy regression solution"
 library(dplyr)
 library(broom)
 
@@ -199,7 +199,7 @@ ex_models
 
 **Try it:** Given two numeric vectors of equal length, compute the pointwise maximum for each index and store it in `ex_paired`. Use `map2_dbl()` so the output is a plain numeric vector.
 
-```r
+```r title="Exercise: Pointwise maximum with map2"
 # Warm-up 6: pointwise maximum of two vectors
 a <- c(3, 8, 1, 6, 10)
 b <- c(5, 4, 7, 2, 9)
@@ -212,7 +212,7 @@ ex_paired
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pointwise maximum solution"
 a <- c(3, 8, 1, 6, 10)
 b <- c(5, 4, 7, 2, 9)
 
@@ -227,7 +227,7 @@ ex_paired
 
 **Try it:** You have a tibble with columns `principal`, `rate`, and `years` describing three loans. Compute the compound interest final value for each row using `pmap_dbl()` and the formula `principal * (1 + rate)^years`. Save the result as `ex_compound`.
 
-```r
+```r title="Exercise: Compound interest with pmap"
 # Warm-up 7: compound interest with pmap_dbl
 loans <- data.frame(
   principal = c(1000, 5000, 2500),
@@ -243,7 +243,7 @@ ex_compound
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Compound interest solution"
 loans <- data.frame(
   principal = c(1000, 5000, 2500),
   rate      = c(0.05, 0.04, 0.07),
@@ -263,7 +263,7 @@ ex_compound
 
 The hardest purrr patterns show up when iteration meets three real-world wrinkles: grouped data that you want to keep in one tidy frame (list-columns via `nest()` + `map()`), iterations that might fail on some inputs (`safely()`), and short one-off functions that would clutter your code if you had to name them (`\(x)` lambdas). The three closing problems cover exactly these.
 
-```r
+```r title="split, map, and lambda row counts"
 # Row counts per species using split + map + lambda shortcut
 row_counts <- split(iris, iris$Species) |> map(\(df) nrow(df))
 row_counts
@@ -281,7 +281,7 @@ The pipeline reads left-to-right: split `iris` into one data frame per species, 
 
 **Try it:** For each cylinder group in `mtcars`, compute the Pearson correlation between `mpg` and `wt`. Nest the data frame with `tidyr::nest()`, map a correlation function over the `data` list-column, and save the result as `ex_corr`.
 
-```r
+```r title="Exercise: Per-cyl nested correlation"
 # Warm-up 8: per-cyl correlation using nest + map_dbl
 library(tidyr)
 
@@ -298,7 +298,7 @@ ex_corr |> select(cyl, corr)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Per-cyl nested correlation solution"
 library(tidyr)
 
 nested <- mtcars |>
@@ -323,7 +323,7 @@ ex_corr |> select(cyl, corr)
 
 **Try it:** Wrap `log()` with `safely()` so that a negative input returns the error instead of stopping the pipeline. Map the safe version over `c(4, -2, 9)` and pull out the successful results. Save the error-tolerant function as `safe_log` and the list of results as `ex_safe`.
 
-```r
+```r title="Exercise: safely log tolerant"
 # Warm-up 9: error-tolerant log with safely()
 safe_log <- ___(log)
 ex_safe <- map(c(4, -2, 9), safe_log)
@@ -338,7 +338,7 @@ ex_safe[[2]]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="safely log tolerant solution"
 safe_log <- safely(log)
 ex_safe <- map(c(4, -2, 9), safe_log)
 
@@ -366,7 +366,7 @@ ex_safe[[2]]
 
 **Try it:** Z-score every numeric column of `iris` (i.e. subtract the mean, divide by the standard deviation) using a `\(x)` lambda inside `map()`. The `Species` column isn't numeric, so filter it out first with `keep(is.numeric)`. Save the result as `ex_scaled`.
 
-```r
+```r title="Exercise: z-score numeric columns"
 # Warm-up 10: z-score every numeric column with a lambda
 ex_scaled <- iris |>
   keep(is.numeric) |>
@@ -380,7 +380,7 @@ head(ex_scaled$Sepal.Length, 6)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="z-score numeric columns solution"
 ex_scaled <- iris |>
   keep(is.numeric) |>
   map(\(x) (x - mean(x)) / sd(x))
@@ -401,7 +401,7 @@ Three capstone problems that combine multiple purrr concepts from above. These a
 
 For `mtcars`, nest by `cyl` and compute three per-group aggregates in one `mutate()` + `map_dbl()` sweep: mean `mpg`, max `hp`, and row count. Return a single tidy frame with one row per cylinder group and columns `cyl`, `mean_mpg`, `max_hp`, `n_rows`. Save the result as `my_summary`.
 
-```r
+```r title="Capstone 1: starter nested frame"
 # Capstone 1: your code here. Start with mtcars |> group_by(cyl) |> nest()
 
 ```
@@ -409,7 +409,7 @@ For `mtcars`, nest by `cyl` and compute three per-group aggregates in one `mutat
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone 1: per-cyl mpg summary"
 my_summary <- mtcars |>
   group_by(cyl) |>
   nest() |>
@@ -437,7 +437,7 @@ my_summary
 
 You receive a list of three character vectors. Two are cleanly convertible to numeric, one contains a non-numeric token. Wrap `as.numeric` in `safely()`, map it over the list, and build a tidy data frame called `my_parse` with two columns: `input_id` (which vector) and `status` (`"ok"` if the conversion produced no warnings, `"failed"` otherwise). Hint: use `purrr::quietly()` if you want warnings captured alongside errors.
 
-```r
+```r title="Capstone 2: starter raw list"
 # Capstone 2: your code here
 raw <- list(
   a = c("1", "2", "3"),
@@ -450,7 +450,7 @@ raw <- list(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone 2: quietly parse status"
 raw <- list(
   a = c("1", "2", "3"),
   b = c("4.5", "oops", "6"),
@@ -481,7 +481,7 @@ my_parse
 
 You have a tibble with three numeric columns `x`, `y`, `w`. Compute the three pairwise Pearson correlations, `cor(x,y)`, `cor(x,w)`, `cor(y,w)`, in a single `pmap_dbl()` call over a helper tibble that lists the column pairs. Save the result as `my_corrs` (named numeric vector with entries `x_y`, `x_w`, `y_w`).
 
-```r
+```r title="Capstone 3: starter correlation setup"
 # Capstone 3: your code here
 library(tibble)
 set.seed(17)
@@ -496,7 +496,7 @@ df <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone 3: pmap pairwise correlations"
 library(tibble)
 set.seed(17)
 df <- tibble(
@@ -525,7 +525,7 @@ my_corrs
 
 Here's what a real-world purrr pipeline looks like: per-cylinder multiple regression of `mpg ~ wt + hp`, extracting both the tidy coefficient tables and the R² values in one flow. Every step uses a concept from the warm-ups above.
 
-```r
+```r title="End-to-end per-cyl tidy and R-squared"
 final_nested <- mtcars |>
   group_by(cyl) |>
   nest() |>

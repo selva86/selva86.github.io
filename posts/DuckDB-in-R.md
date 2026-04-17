@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Reading a CSV into R with `read.csv` loads every column and every row into memory as R vectors. For a 10-million-row file, that can take minutes and gigabytes of RAM. DuckDB does something fundamentally different: it opens the file, reads only the columns and rows your query needs, and never builds a full in-memory copy. The payoff is a 10x-100x speedup on realistic analytical queries, and you can query files larger than your RAM.
 
-```r
+```r title="Aggregate one million rows fast"
 library(DBI)
 library(duckdb)
 
@@ -57,7 +57,7 @@ Same API as any DBI database, but the engine behind it is a columnar, vectorised
 
 **Try it:** Connect to DuckDB and run a trivial query.
 
-```r
+```r title="Exercise: First DuckDB query"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
 dbGetQuery(con, "SELECT 42 AS answer")
@@ -67,7 +67,7 @@ dbDisconnect(con, shutdown = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="First DuckDB query solution"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
 
@@ -86,20 +86,20 @@ This is the smallest possible DuckDB session, connect, run a single SELECT that 
 
 Installation is one line:
 
-```r
+```r title="Load DBI and duckdb"
 # install.packages("duckdb")
 library(DBI); library(duckdb)
 ```
 
 Because DuckDB is C++ compiled into the R package, there is no separate binary to install, no environment variable, no driver to configure. The `duckdb` R package contains the entire database engine.
 
-```r
+```r title="Open in-memory connection"
 con <- dbConnect(duckdb())
 ```
 
 By default this gives you an in-memory database that vanishes when you disconnect. For persistent storage, pass a file path:
 
-```r
+```r title="Persistent and read-only connections"
 # Persistent database (creates the file if missing)
 con_disk <- dbConnect(duckdb(), dbdir = "my.duckdb")
 
@@ -109,7 +109,7 @@ con_ro <- dbConnect(duckdb(), dbdir = "my.duckdb", read_only = TRUE)
 
 From there, everything you already know from DBI works. Let's walk through a minimal workflow:
 
-```r
+```r title="Query iris table with SQL"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
 
@@ -136,7 +136,7 @@ Three steps: connect, write, query. The column names from `iris` have dots in th
 
 **Try it:** Open an in-memory DuckDB, write `mtcars`, and query for the five cars with the highest `mpg`.
 
-```r
+```r title="Exercise: Top five mpg cars"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
 dbWriteTable(con, "cars", mtcars)
@@ -147,7 +147,7 @@ dbDisconnect(con, shutdown = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top five mpg solution"
 dbGetQuery(con, "SELECT * FROM cars ORDER BY mpg DESC LIMIT 5")
 #>    mpg cyl  disp hp drat    wt  qsec vs am gear carb
 #> 1 33.9   4  71.1 65 4.22 1.835 19.90  1  1    4    1
@@ -165,7 +165,7 @@ dbGetQuery(con, "SELECT * FROM cars ORDER BY mpg DESC LIMIT 5")
 
 This is where DuckDB really shines. You can point it at a file on disk and it queries the file directly, no `read.csv`, no temporary table, no RAM spike.
 
-```r
+```r title="Query CSV and Parquet files"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
 
@@ -193,7 +193,7 @@ Read "SELECT ... FROM 'file.csv'" as "treat this file as if it were a table in t
 
 For multiple files that share a schema, say, one CSV per day, use a glob pattern:
 
-```r
+```r title="Union multiple Parquet files"
 # Read all 2025 Parquet files at once
 # dbGetQuery(con, "SELECT COUNT(*) FROM 'data/2025-*.parquet'")
 ```
@@ -204,7 +204,7 @@ The query planner treats the union of all matching files as one logical table. T
 
 **Try it:** Write `mtcars` to a CSV and then query it directly from DuckDB without loading it first.
 
-```r
+```r title="Exercise: Group mtcars CSV"
 library(DBI); library(duckdb)
 write.csv(mtcars, "mtcars_tmp.csv", row.names = FALSE)
 con <- dbConnect(duckdb())
@@ -215,7 +215,7 @@ dbDisconnect(con, shutdown = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Group mtcars CSV solution"
 dbGetQuery(con, "SELECT cyl, AVG(mpg) AS avg_mpg FROM 'mtcars_tmp.csv' GROUP BY cyl ORDER BY cyl")
 #>   cyl  avg_mpg
 #> 1   4 26.66364
@@ -246,7 +246,7 @@ All three are fast, but they target different problems.
 
 **DuckDB** fills the sweet spot between the two: analytical speed on datasets that might or might not fit in memory, with a query language (SQL) that is widely understood and already known by anyone with a data warehouse background.
 
-```r
+```r title="Register data frame zero-copy"
 library(DBI); library(duckdb)
 
 # DuckDB can register an R data frame as a zero-copy view
@@ -269,7 +269,7 @@ dbDisconnect(con, shutdown = TRUE)
 
 **Try it:** Register `iris` as a DuckDB view using `duckdb_register()` and run a GROUP BY query on it.
 
-```r
+```r title="Exercise: Register iris view"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
 duckdb_register(con, "iris_v", iris)
@@ -280,7 +280,7 @@ dbDisconnect(con, shutdown = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Register iris view solution"
 dbGetQuery(con, "SELECT Species, COUNT(*) AS n FROM iris_v GROUP BY Species ORDER BY Species")
 #>      Species  n
 #> 1     setosa 50
@@ -299,7 +299,7 @@ Two options. The older path is **dbplyr** via DBI, exactly like any other databa
 ![Two interfaces: SQL via DBI vs dplyr via duckplyr](screenshots/DuckDB-in-R-two-interfaces.webp)
 *Figure 3: Two ways to talk to DuckDB from R. Pick the one that matches your team's background.*
 
-```r
+```r title="dbplyr pipeline over DuckDB"
 library(DBI); library(duckdb); library(dplyr); library(dbplyr)
 
 con <- dbConnect(duckdb())
@@ -323,7 +323,7 @@ Same dplyr you write every day. The `collect()` at the end runs the generated SQ
 
 The newer `duckplyr` package goes one step further: you do not even see the DBI calls.
 
-```r
+```r title="duckplyr drop-in replacement"
 # library(duckplyr)
 # mtcars |>
 #   as_duckplyr_df() |>
@@ -338,7 +338,7 @@ Syntactically identical to dplyr. Behind the scenes, duckplyr turns each verb in
 
 **Try it:** Use dbplyr to filter and summarize a DuckDB-registered `iris`.
 
-```r
+```r title="Exercise: dbplyr filter irisv"
 library(DBI); library(duckdb); library(dplyr); library(dbplyr)
 con <- dbConnect(duckdb())
 duckdb_register(con, "iris_v", iris)
@@ -349,7 +349,7 @@ dbDisconnect(con, shutdown = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="dbplyr irisv solution"
 tbl(con, "iris_v") |>
   filter(Petal.Length > 4) |>
   group_by(Species) |>
@@ -380,7 +380,7 @@ Persistent mode (`dbConnect(duckdb(), dbdir = "file.duckdb")`) is the right choi
 - You have **intermediate tables** from ETL jobs that are expensive to re-compute.
 - Multiple processes **need to share** the same tables (though only one can write at a time).
 
-```r
+```r title="Materialise table with CTAS"
 library(DBI); library(duckdb)
 
 # Build-once, query-many pattern
@@ -407,7 +407,7 @@ The `CREATE OR REPLACE TABLE ... AS SELECT` pattern (CTAS) materializes the resu
 
 **Try it:** Create a persistent DuckDB file, write a table, disconnect, reconnect, and verify the table is still there.
 
-```r
+```r title="Exercise: Round-trip persistent table"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb(), dbdir = "tmp.duckdb")
 dbWriteTable(con, "t", data.frame(x = 1:5))
@@ -421,7 +421,7 @@ dbDisconnect(con2, shutdown = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Persistent table round-trip solution"
 con2 <- dbConnect(duckdb(), dbdir = "tmp.duckdb")
 dbReadTable(con2, "t")
 #>   x
@@ -441,7 +441,7 @@ Because the first connection wrote to a file (`dbdir = "tmp.duckdb"`) instead of
 
 DuckDB's secret weapon is that it can spill to disk when a query's intermediate state exceeds RAM. Joins, sorts, and large GROUP BY operations all spill automatically. You do not have to configure anything.
 
-```r
+```r title="Query 50GB Parquet on laptop"
 # Imagine 'big.parquet' is 50 GB; your laptop has 16 GB RAM
 
 library(DBI); library(duckdb)
@@ -467,7 +467,7 @@ Three tips for very large data:
 2. **Filter early.** Put `WHERE` clauses on columns that exist in the file, so DuckDB can skip entire row groups via predicate pushdown.
 3. **Limit memory with `memory_limit` if needed.** `dbExecute(con, "SET memory_limit = '4GB'")` caps DuckDB to 4 GB and forces aggressive spilling.
 
-```r
+```r title="Set memorylimit and threads"
 # Set a memory limit for a big ETL job
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
@@ -483,7 +483,7 @@ dbDisconnect(con, shutdown = TRUE)
 
 **Try it:** Use `SET memory_limit` to cap DuckDB at 2 GB and `SET threads` to 2.
 
-```r
+```r title="Exercise: Configure DuckDB limits"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
 dbExecute(con, "SET memory_limit = '2GB'")
@@ -494,7 +494,7 @@ dbDisconnect(con, shutdown = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Configure DuckDB limits solution"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
 
@@ -523,7 +523,7 @@ Register the `mtcars` data frame with DuckDB, then compute the average `mpg` per
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Practice: Average mpg per cyl"
 library(DBI); library(duckdb)
 con <- dbConnect(duckdb())
 duckdb_register(con, "mt", mtcars)
@@ -539,7 +539,7 @@ Write `iris` to a CSV file and query it with DuckDB without loading it into R fi
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Practice: Group iris CSV"
 library(DBI); library(duckdb)
 write.csv(iris, "iris_tmp.csv", row.names = FALSE)
 con <- dbConnect(duckdb())
@@ -555,7 +555,7 @@ Create a persistent DuckDB file with a materialised table of average petal lengt
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Practice: Persist avgpetal table"
 library(DBI); library(duckdb)
 
 con <- dbConnect(duckdb(), dbdir = "iris.duckdb")
@@ -574,7 +574,7 @@ dbDisconnect(con2, shutdown = TRUE)
 
 End-to-end analytics workflow: load data, query with both SQL and dplyr, materialise the result.
 
-```r
+```r title="End-to-end sales analytics pipeline"
 library(DBI); library(duckdb); library(dplyr); library(dbplyr); library(tibble)
 
 con <- dbConnect(duckdb())

@@ -24,7 +24,7 @@ sidebar_order: 21
 
 Before meeting the four distributions one at a time, it pays to learn the single pattern R uses for every one of them. Base R provides four sibling functions with an identical naming scheme: `d` for density, `p` for cumulative probability, `q` for quantile, and `r` for random draws. Once you know the pattern on one distribution, it generalises to all of them. Let's try it on the Standard Normal N(0, 1).
 
-```r
+```r title="d, p, q, r on the Normal"
 # All four d/p/q/r verbs on the Standard Normal
 set.seed(1)
 
@@ -60,7 +60,7 @@ The table below pairs each prefix with its job and the kind of return value you 
 
 **Try it:** Use `pnorm()` to compute the probability that a Standard Normal random variable is less than −2. Then decide whether that number is a left-tail or upper-tail probability.
 
-```r
+```r title="Exercise: Left-tail at z = -2"
 # Try it: left-tail probability at z = -2
 ex_p <- NA    # your code here
 
@@ -71,7 +71,7 @@ ex_p
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Left-tail solution"
 ex_p <- pnorm(-2)
 ex_p
 #> [1] 0.02275013
@@ -99,7 +99,7 @@ Where:
 
 Let's plot the density of a Standard Normal and locate its two-tailed 95% critical value.
 
-```r
+```r title="Plot Normal with critical value"
 # Plot the Standard Normal density and mark +/- 1.96
 curve(dnorm(x), from = -4, to = 4,
       ylab = "density", main = "Standard Normal N(0, 1)")
@@ -121,7 +121,7 @@ The two dashed lines at ±1.96 enclose roughly 95% of the Normal's mass, leaving
 
 **Try it:** IQ scores are modelled as Normal with mean 100 and standard deviation 15. What is the probability that a randomly chosen person has an IQ above 130?
 
-```r
+```r title="Exercise: IQ above 130"
 # Try it: P(IQ > 130) for Normal(100, 15)
 ex_iq_mu <- 100
 ex_iq_sd <- 15
@@ -134,7 +134,7 @@ ex_p_iq
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="IQ probability solution"
 ex_iq_mu <- 100
 ex_iq_sd <- 15
 ex_p_iq  <- pnorm(130, mean = ex_iq_mu, sd = ex_iq_sd, lower.tail = FALSE)
@@ -162,7 +162,7 @@ Where:
 
 Let's verify the genesis definition with a simulation. We'll square 5 standard normals 10,000 times, sum each batch, and check that the resulting histogram matches `dchisq(x, df = 5)`.
 
-```r
+```r title="Simulate Chi-Squared from Normals"
 # Build chi-squared(5) by summing 5 squared standard normals
 set.seed(42)
 k_df <- 5
@@ -180,7 +180,7 @@ The red curve from `dchisq()` tracks the histogram almost perfectly, confirming 
 
 Now let's compute a critical value and a p-value.
 
-```r
+```r title="Chi-Squared critical and tail"
 # Chi-squared critical value at alpha = 0.05 for df = 5
 chi_crit <- qchisq(0.95, df = 5)
 chi_crit
@@ -198,7 +198,7 @@ A test statistic of 7.3 sits inside the non-rejection region because 7.3 < 11.07
 
 **Try it:** Find the 95th-percentile critical value of a Chi-Squared with 10 degrees of freedom.
 
-```r
+```r title="Exercise: qchisq at df 10"
 # Try it: qchisq at 0.95 with df = 10
 ex_chi_crit <- NA   # your code here
 
@@ -209,7 +209,7 @@ ex_chi_crit
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="qchisq solution"
 ex_chi_crit <- qchisq(0.95, df = 10)
 ex_chi_crit
 #> [1] 18.30704
@@ -233,7 +233,7 @@ Where:
 
 As `k` grows, `W / k` stabilises near 1 and the t converges to the Standard Normal. That convergence is quick: at `df = 30` the t and Normal are almost indistinguishable.
 
-```r
+```r title="Overlay t densities versus Normal"
 # Overlay t densities at several df against the Standard Normal
 curve(dnorm(x),       from = -4, to = 4, lwd = 2, col = "black",
       ylab = "density", main = "t(df) approaches Normal as df grows")
@@ -250,7 +250,7 @@ The `t(df = 2)` curve has visibly fatter tails than the Normal, so the same prob
 
 Now the small-sample 95% CI critical value:
 
-```r
+```r title="Small-sample t critical value"
 # 95% critical value for a 10-sample t-test (df = n - 1 = 9)
 qt(0.975, df = 9)
 #> [1] 2.262157
@@ -267,7 +267,7 @@ For `n = 10`, the correct two-sided 95% cutoff is about 2.26, noticeably larger 
 
 **Try it:** Compute the 95% two-sided t critical value for a very small sample with 4 degrees of freedom, and compare it to 1.96.
 
-```r
+```r title="Exercise: qt at df = 4"
 # Try it: qt at 0.975 with df = 4
 ex_t_crit <- NA   # your code here
 
@@ -278,7 +278,7 @@ ex_t_crit
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="qt solution"
 ex_t_crit <- qt(0.975, df = 4)
 ex_t_crit
 #> [1] 2.776445
@@ -304,7 +304,7 @@ The F takes only non-negative values and is right-skewed. It has two degree-of-f
 
 Let's confirm the genesis by simulation. We'll construct F samples from two chi-squared samples and overlay the theoretical density.
 
-```r
+```r title="Simulate F from chi-sq ratio"
 # Build F(3, 27) as a ratio of scaled chi-squareds
 set.seed(123)
 d1 <- 3
@@ -325,7 +325,7 @@ The theoretical curve from `df()` sits right on top of the simulated histogram, 
 
 Now an ANOVA critical value. Suppose you have 3 groups (so `d1 = 3 - 1 = 2`) and 30 total observations (so `d2 = 30 - 3 = 27`).
 
-```r
+```r title="F critical and p-value"
 # ANOVA critical value at alpha = 0.05 for 3 groups, n = 30
 qf(0.95, df1 = 2, df2 = 27)
 #> [1] 3.354131
@@ -342,7 +342,7 @@ A computed F of 4 exceeds the critical value of 3.35, and the p-value of about 0
 
 **Try it:** Compute the upper-tail p-value of F = 4 with `df1 = 2, df2 = 27` using `pf()`.
 
-```r
+```r title="Exercise: Upper-tail F p-value"
 # Try it: upper-tail p-value for F = 4
 ex_f_p <- NA   # your code here
 
@@ -353,7 +353,7 @@ ex_f_p
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="F p-value solution"
 ex_f_p <- pf(4, df1 = 2, df2 = 27, lower.tail = FALSE)
 ex_f_p
 #> [1] 0.03024462
@@ -384,7 +384,7 @@ Take the ratio of two scaled chi-squareds to get F(d1, d2). And if you square a 
 
 Let's check the `t² = F(1, k)` identity empirically.
 
-```r
+```r title="Verify t squared equals F density"
 # Square 10,000 draws from t(10) and compare to F(1, 10)
 set.seed(7)
 t_draws <- rt(10000, df = 10)
@@ -404,7 +404,7 @@ The simulated histogram of `t_draws^2` sits right under the theoretical F(1, 10)
 
 **Try it:** Use `pnorm()` two different ways to compute P(Z < −2): once directly with `pnorm(-2)`, and once via `1 - pnorm(2)`. Confirm they agree.
 
-```r
+```r title="Exercise: Two routes same tail"
 # Try it: two routes to the same tail probability
 ex_p_direct <- NA   # pnorm(-2)
 ex_p_compl  <- NA   # 1 - pnorm(2)
@@ -416,7 +416,7 @@ c(ex_p_direct, ex_p_compl)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two routes solution"
 ex_p_direct <- pnorm(-2)
 ex_p_compl  <- 1 - pnorm(2)
 c(ex_p_direct, ex_p_compl)
@@ -433,7 +433,7 @@ c(ex_p_direct, ex_p_compl)
 
 For a sample with `n = 25`, mean 52, and sample standard deviation 8, build a 95% confidence interval for the mean using the t distribution. Then build the same interval using the Normal's 1.96 cutoff and report how much wider the t-based interval is.
 
-```r
+```r title="Exercise: t versus z confidence"
 # Your code below — produce my_tci and my_zci
 my_mean <- 52
 my_sd   <- 8
@@ -446,7 +446,7 @@ my_n    <- 25
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Confidence interval solution"
 my_mean <- 52
 my_sd   <- 8
 my_n    <- 25
@@ -473,7 +473,7 @@ diff(my_tci) / diff(my_zci)
 
 Generate 5,000 Chi-Squared(8) samples two ways: (a) directly with `rchisq()`, and (b) by summing 8 squared standard normals per draw. Plot both histograms on the same axes and confirm they align.
 
-```r
+```r title="Exercise: Chi-Squared two ways"
 # Your code below — produce my_rchi and my_sumsq
 set.seed(2026)
 my_rchi  <- NA   # direct rchisq route
@@ -483,7 +483,7 @@ my_sumsq <- NA   # sum-of-squared-Z route
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Chi-Squared simulation solution"
 set.seed(2026)
 my_rchi  <- rchisq(5000, df = 8)
 my_sumsq <- replicate(5000, sum(rnorm(8)^2))
@@ -507,7 +507,7 @@ c(mean(my_rchi), mean(my_sumsq))
 
 An ANOVA on 4 groups with 40 observations returns an observed F of 3.2. Compute the 5% critical value and the p-value, and decide whether to reject the null of equal group means.
 
-```r
+```r title="Exercise: ANOVA critical and p"
 # Your code below — produce my_fcrit and my_fp
 my_groups <- 4
 my_n_obs  <- 40
@@ -520,7 +520,7 @@ my_fstat  <- 3.2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ANOVA critical solution"
 my_groups <- 4
 my_n_obs  <- 40
 my_fstat  <- 3.2
@@ -543,7 +543,7 @@ c(df1 = my_d1, df2 = my_d2, fcrit = my_fcrit, fp = my_fp)
 
 Let's run one compact analysis that touches all four distributions. The `sleep` dataset has 10 patients measured on two drugs, and we'll apply Normal, t, F, and Chi-Squared tools to it.
 
-```r
+```r title="End-to-end sleep dataset analysis"
 # All four distributions on one tiny dataset
 data(sleep)
 

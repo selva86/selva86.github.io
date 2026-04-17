@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The MGF is a *transform*: it repackages everything a random variable knows about itself into a single function of a dummy variable $t$. The payoff is that routine questions like "what is $E[X]$?" or "what is $Var(X)$?" become derivative evaluations, no integrals required once you have the MGF. Let's compute the MGF of an Exponential($\lambda = 2$) random variable at a few values of $t$ and check it matches the closed form $\lambda / (\lambda - t)$.
 
-```r
+```r title="Exponential MGF evaluated on a grid"
 # MGF of Exponential(rate = lambda): M(t) = lambda / (lambda - t), valid for t < lambda
 mgf_exp <- function(t, lambda = 2) lambda / (lambda - t)
 
@@ -40,7 +40,7 @@ Three things to notice. First, $M_X(0) = 1$, this is always true for any MGF, si
 
 That's the formula, but does it match reality? Let's draw samples from the distribution and approximate $E[e^{tX}]$ by the sample average.
 
-```r
+```r title="Empirical MGF from Monte Carlo"
 # Empirical MGF: replace the expectation with a sample mean
 set.seed(2026)
 x_samples <- rexp(n = 1e5, rate = 2)
@@ -64,7 +64,7 @@ The Monte Carlo estimates track the theoretical values to three decimal places, 
 
 **Try it:** Write a function `ex_mgf_exp3(t)` for the MGF of Exponential(rate = 3). Evaluate it at t = 1, then confirm by Monte Carlo using 1e5 samples.
 
-```r
+```r title="Exercise: Exp(3) MGF at t = 1"
 # Try it: MGF of Exp(3) at t = 1
 ex_mgf_exp3 <- function(t) {
   # your code here
@@ -82,7 +82,7 @@ ex_samples <- rexp(1e5, rate = 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exp(3) MGF solution"
 ex_mgf_exp3 <- function(t) 3 / (3 - t)
 ex_mgf_exp3(1)
 #> [1] 1.5
@@ -110,7 +110,7 @@ $$M_X(t) = E\left[1 + tX + \frac{t^2 X^2}{2!} + \cdots\right] = 1 + t\, E[X] + \
 
 Differentiating $k$ times and setting $t=0$ pops out $E[X^k]$ and kills every other term. In R, we don't even have to do the calculus by hand, base R's `D()` function performs symbolic differentiation on expressions.
 
-```r
+```r title="Derivatives of MGF give moments"
 # MGF of Exp(lambda=2) as a symbolic expression, then differentiate
 mgf_expr <- expression(2 / (2 - t))
 
@@ -135,7 +135,7 @@ The numbers line up with the textbook formulas for Exp($\lambda$): mean is $1/\l
 
 **Try it:** Use `D()` to compute the second moment $E[X^2]$ and variance of an Exponential(rate = 3) random variable. Compare your variance to the formula $1/\lambda^2$.
 
-```r
+```r title="Exercise: Exp(3) moments via D()"
 # Try it: moments of Exp(3) via symbolic differentiation
 ex_mgf_expr3 <- expression(3 / (3 - t))
 # your code here — compute ex_d1, ex_d2, then ex_mean, ex_second, ex_var
@@ -144,7 +144,7 @@ ex_mgf_expr3 <- expression(3 / (3 - t))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exp(3) moments solution"
 ex_mgf_expr3 <- expression(3 / (3 - t))
 ex_d1 <- D(ex_mgf_expr3, "t")
 ex_d2 <- D(ex_d1, "t")
@@ -178,7 +178,7 @@ Most named distributions have simple closed-form MGFs. The table below is the si
 
 Seeing the formulas side-by-side tells you something deep: the Gamma MGF is the Exponential MGF to a power, hinting that a Gamma($k, \lambda$) is a sum of $k$ independent Exp($\lambda$) variables, we'll prove exactly that in the capstone exercises. Let's encode the six MGFs in R and plot them.
 
-```r
+```r title="Plot MGFs for common distributions"
 library(ggplot2)
 
 mgf_bern  <- function(t, p = 0.3)              (1 - p) + p * exp(t)
@@ -213,7 +213,7 @@ All six MGFs pass through $(0, 1)$, as they must. Near $t = 0$ they all curve ge
 
 **Try it:** Write `ex_mgf_pois(t, lambda)` from scratch and evaluate it at t = 0.5 for both lambda = 2 and lambda = 5. Which Poisson has the larger MGF at t = 0.5, and why?
 
-```r
+```r title="Exercise: Poisson MGF function"
 # Try it: Poisson MGF
 ex_mgf_pois <- function(t, lambda) {
   # your code here
@@ -227,7 +227,7 @@ ex_mgf_pois(0.5, 5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Poisson MGF solution"
 ex_mgf_pois <- function(t, lambda) exp(lambda * (exp(t) - 1))
 
 ex_mgf_pois(0.5, 2)
@@ -246,7 +246,7 @@ The uniqueness theorem says: if $M_X(t)$ and $M_Y(t)$ exist and agree on any ope
 
 Let's see this visually. Exp(2) has mean 0.5 and variance 0.25. A Normal($\mu = 0.5$, $\sigma^2 = 0.25$) also has mean 0.5 and variance 0.25. Identical first two moments, so a moment-matching check would declare them equivalent. Their MGFs, however, diverge sharply.
 
-```r
+```r title="Exp vs Normal with matched moments"
 # Exp(2) and Normal(0.5, 0.25) share mean and variance but not distribution
 t_vec <- seq(-1, 1.5, length.out = 200)
 df_compare <- data.frame(
@@ -270,7 +270,7 @@ The two curves are tangent at $t = 0$ (both have value 1 and slope 0.5) and they
 
 **Try it:** Plot the MGF of Poisson(1) versus the MGF of a Normal with mean 1 and variance 1 on `t` in $[-1, 1]$. They share mean and variance, do their MGFs agree?
 
-```r
+```r title="Exercise: Poisson vs Normal MGFs"
 # Try it: Poisson(1) vs Normal(1, 1)
 ex_t <- seq(-1, 1, length.out = 100)
 ex_pois_m  <- mgf_pois(ex_t, lambda = 1)
@@ -282,7 +282,7 @@ ex_norm_m  <- mgf_norm(ex_t, mu = 1, sigma = 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Poisson versus Normal plot solution"
 ex_df <- data.frame(
   t = rep(ex_t, 2),
   M_t = c(ex_pois_m, ex_norm_m),
@@ -312,7 +312,7 @@ In one line this turns a convolution integral, the direct way to compute the dis
 
 The textbook application: a Binomial($n, p$) is a sum of $n$ independent Bernoulli($p$) variables. So its MGF should be the Bernoulli MGF raised to the $n$-th power. Let's check numerically.
 
-```r
+```r title="Binomial MGF from Bernoulli product"
 # Binomial(10, 0.3) MGF at t = 0.5, two ways
 t0 <- 0.5
 
@@ -326,7 +326,7 @@ c(direct = direct_binom, from_bernoulli_product = from_bern)
 
 Identical to machine precision, as expected, $[(1-p) + p e^t]^{10}$ is literally $[mgf\_bern(t,p)]^{10}$. This is how Binomial-as-sum-of-Bernoullis is proved in textbooks. Let's stretch the idea further: the sum of two independent Poissons should itself be Poisson, with rate equal to the sum of the rates.
 
-```r
+```r title="Poisson sum verified via MGF"
 # Sum of independent Poisson(3) and Poisson(2) should be Poisson(5)
 set.seed(11)
 lambda1 <- 3; lambda2 <- 2
@@ -351,7 +351,7 @@ Agreement to three significant figures, and the match would tighten as `n` grows
 
 **Try it:** Using MGFs alone, identify the distribution of $X + Y$ where $X \sim \text{Normal}(\mu_1, \sigma_1^2)$ and $Y \sim \text{Normal}(\mu_2, \sigma_2^2)$ are independent. Write out the MGF product.
 
-```r
+```r title="Exercise: MGF of Normal plus Normal"
 # Try it: MGF of Normal + Normal
 # your analysis here (no code required, just reasoning about the MGF product)
 ```
@@ -365,7 +365,7 @@ $$= \exp\left((\mu_1 + \mu_2) t + (\sigma_1^2 + \sigma_2^2) t^2 / 2\right)$$
 
 This is the MGF of a Normal with mean $\mu_1 + \mu_2$ and variance $\sigma_1^2 + \sigma_2^2$. By uniqueness, $X + Y \sim \text{Normal}(\mu_1 + \mu_2, \sigma_1^2 + \sigma_2^2)$. Numerical check:
 
-```r
+```r title="Normal sum simulation solution"
 set.seed(1)
 x <- rnorm(1e5, mean = 1, sd = 2)    # Normal(1, 4)
 y <- rnorm(1e5, mean = 3, sd = 1)    # Normal(3, 1)
@@ -385,7 +385,7 @@ An MGF requires $E[e^{tX}]$ to be finite for $t$ in an open interval around zero
 
 Let's see the non-existence empirically. If the MGF doesn't exist, the sample-average approximation should be unstable: it will not converge as `n` grows, and different sample sizes give wildly different values.
 
-```r
+```r title="Cauchy MGF diverges as n grows"
 # Cauchy MGF at t = 0.1 — should NOT stabilize as n grows
 set.seed(3)
 t0 <- 0.1
@@ -408,7 +408,7 @@ The exact numbers will differ between runs, that's the whole point. Because extr
 
 **Try it:** Run the Cauchy Monte Carlo MGF estimate twice with different seeds and `n = 500`. Do you get similar values?
 
-```r
+```r title="Exercise: Cauchy MGF instability"
 # Try it: Cauchy MGF instability
 set.seed(99); ex_run1 <- mean(exp(0.1 * rcauchy(500)))
 set.seed(41); ex_run2 <- mean(exp(0.1 * rcauchy(500)))
@@ -418,7 +418,7 @@ c(run1 = ex_run1, run2 = ex_run2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cauchy instability solution"
 set.seed(99); ex_run1 <- mean(exp(0.1 * rcauchy(500)))
 set.seed(41); ex_run2 <- mean(exp(0.1 * rcauchy(500)))
 c(run1 = ex_run1, run2 = ex_run2)
@@ -436,7 +436,7 @@ c(run1 = ex_run1, run2 = ex_run2)
 
 You're told that $M_X(t) = (1 - 2t)^{-3}$ for $t < 1/2$. Identify the distribution of $X$, then compute its mean and variance in R using `D()`.
 
-```r
+```r title="Exercise: identify Gamma from MGF"
 # Exercise 1: identify distribution and find moments from MGF
 # Hint: compare the form to entries in the MGF reference table
 
@@ -449,7 +449,7 @@ You're told that $M_X(t) = (1 - 2t)^{-3}$ for $t < 1/2$. Identify the distributi
 
 The MGF $(1 - 2t)^{-3}$ can be rewritten as $\left(\frac{1/2}{1/2 - t}\right)^3$, which matches the Gamma($k, \lambda$) MGF $(\lambda/(\lambda - t))^k$ with $k = 3$, $\lambda = 1/2$. So $X \sim \text{Gamma}(3, 1/2)$, with mean $k/\lambda = 6$ and variance $k/\lambda^2 = 12$.
 
-```r
+```r title="Identify Gamma solution"
 my_expr <- expression((1 - 2 * t)^(-3))
 my_d1 <- D(my_expr, "t")
 my_d2 <- D(my_d1, "t")
@@ -471,7 +471,7 @@ c(mean = my_mean, variance = my_var)
 
 Simulate 10,000 draws from Gamma(shape = 4, rate = 2). Compute the empirical MGF on the grid `seq(-0.5, 1, length.out = 50)`. Overlay it with the theoretical Gamma MGF. How well do they match?
 
-```r
+```r title="Exercise: empirical vs theoretical Gamma MGF"
 # Exercise 2: empirical vs theoretical Gamma MGF
 # Hint: theoretical MGF is (lambda/(lambda-t))^k
 
@@ -482,7 +482,7 @@ Simulate 10,000 draws from Gamma(shape = 4, rate = 2). Compute the empirical MGF
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Empirical Gamma MGF solution"
 set.seed(22)
 gamma_draws <- rgamma(1e4, shape = 4, rate = 2)
 my_grid <- seq(-0.5, 1, length.out = 50)
@@ -510,7 +510,7 @@ ggplot(my_df, aes(t, M_t, colour = source)) +
 
 Using MGFs, show that the sum of $k$ independent Exp($\lambda$) random variables has a Gamma($k, \lambda$) distribution. Verify numerically with $k = 5$, $\lambda = 2$.
 
-```r
+```r title="Exercise: sum of Exponentials is Gamma"
 # Exercise 3: sum of k independent Exp(lambda) is Gamma(k, lambda)
 # Hint: use the product rule for MGFs and match the resulting form
 
@@ -527,7 +527,7 @@ $$M_{X_1 + \cdots + X_k}(t) = \prod_{i=1}^{k} M_{X_i}(t) = \left(\frac{\lambda}{
 
 This is the MGF of Gamma($k, \lambda$). By uniqueness, the sum is Gamma($k, \lambda$).
 
-```r
+```r title="Exp sum as Gamma solution"
 set.seed(31)
 k <- 5; lambda <- 2
 n <- 1e5
@@ -549,7 +549,7 @@ A small insurance book writes 5 independent claims per year, with each claim siz
 
 Using the result from Exercise 3, the sum of 5 iid Exp(0.01) variables is Gamma(5, 0.01). We can derive the mean and variance directly from the MGF using `D()`, then sanity-check by simulation.
 
-```r
+```r title="End-to-end annual insurance payout"
 # Annual payout = sum of 5 iid Exp(rate=0.01) claims -> Gamma(5, 0.01)
 payout_expr <- expression((0.01 / (0.01 - t))^5)
 p_d1 <- D(payout_expr, "t")

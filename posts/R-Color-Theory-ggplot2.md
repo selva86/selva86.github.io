@@ -42,7 +42,7 @@ Every color scale used in data visualization falls into one of three categories.
 
 **Qualitative palettes** use distinct, unordered hues to encode categorical membership. No hue should appear "more" or "less" than another. Use them for nominal categories, country, species, product type.
 
-```r
+```r title="Display every ColorBrewer palette"
 library(ggplot2)
 library(RColorBrewer)
 
@@ -62,14 +62,14 @@ The output groups palettes into three rows: sequential (top), qualitative (middl
 
 **Try it:** Run `brewer.pal(n = 5, name = "Blues")` to see the 5-color sequential blue palette. Then try `brewer.pal(n = 5, name = "RdYlGn")` for a 5-color diverging palette.
 
-```r
+```r title="Exercise: inspect Blues and RdYlGn hexes"
 # Your code here — use brewer.pal() and show_col()
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Blues-and-RdYlGn solution"
 ex_blues <- brewer.pal(n = 5, name = "Blues")
 ex_rdylgn <- brewer.pal(n = 5, name = "RdYlGn")
 ex_blues
@@ -89,7 +89,7 @@ ColorBrewer palettes are built into ggplot2 via two scale functions:
 
 **Sequential palette on a heatmap:**
 
-```r
+```r title="Sequential fill for correlation heatmap"
 # Heatmap of mtcars correlation matrix - needs a sequential palette
 cor_mat <- cor(mtcars)
 cor_df  <- as.data.frame(as.table(cor_mat))
@@ -108,7 +108,7 @@ p_seq
 
 **Diverging palette, correlations that go both positive and negative:**
 
-```r
+```r title="Diverging RdBu palette for correlations"
 # Diverging palette centers at 0 - perfect for correlation
 p_div <- ggplot(cor_df, aes(x = Var1, y = Var2, fill = Corr)) +
   geom_tile() +
@@ -129,7 +129,7 @@ Notice how the diverging palette immediately shows that variables positively cor
 
 **Qualitative palette for categorical groups:**
 
-```r
+```r title="Qualitative Set2 for drive types"
 p_qual <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point(size = 2.5, alpha = 0.8) +
   scale_color_brewer(
@@ -151,14 +151,14 @@ p_qual
 
 **Try it:** Change `palette = "Set2"` to `palette = "Paired"` in `p_qual`. How does the chart's readability change?
 
-```r
+```r title="Exercise: swap Set2 for Paired"
 # Your code here — swap Set2 for Paired
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Set2-to-Paired solution"
 ex_paired <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point(size = 2.5, alpha = 0.8) +
   scale_color_brewer(palette = "Paired") +
@@ -181,7 +181,7 @@ Viridis was also designed from the start to be:
 
 The viridis family includes five palettes: `viridis` (purple-blue-yellow), `magma` (black-red-yellow), `plasma` (purple-orange-yellow), `inferno` (black-red-yellow, higher contrast), and `cividis` (optimized for deuteranopia).
 
-```r
+```r title="Viridis plasma on log-scaled density"
 # viridis for continuous fill (e.g., diamond carat density)
 p_vir <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_bin2d(bins = 50) +
@@ -202,7 +202,7 @@ p_vir
 
 For **discrete** variables, use `scale_color_viridis_d()` or `scale_fill_viridis_d()`:
 
-```r
+```r title="Discrete viridis with turbo option"
 p_vir_d <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2.5, alpha = 0.8) +
   scale_color_viridis_d(option = "turbo") +
@@ -221,14 +221,14 @@ p_vir_d
 
 **Try it:** Change `option = "plasma"` to `option = "magma"` in `p_vir`. Then try `option = "cividis"`. Which looks best for the diamond density data?
 
-```r
+```r title="Exercise: swap option and re-render"
 # Your code here — swap the option argument and re-render
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Magma-option solution"
 ex_magma <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_bin2d(bins = 50) +
   scale_fill_viridis_c(option = "magma", trans = "log10") +
@@ -244,7 +244,7 @@ ex_magma
 
 When built-in palettes don't fit your brand or data story, you can specify exact colors with `scale_color_manual()` or `scale_fill_manual()`.
 
-```r
+```r title="Brand-aligned colors with scalefillmanual"
 # Custom brand-aligned colors for vehicle drive types
 p_manual <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "dodge") +
@@ -273,14 +273,14 @@ R accepts colors as hex codes (`"#2166ac"`), named colors (`"steelblue"`, `"toma
 
 **Try it:** Replace the three hex codes in `p_manual` with named R colors (`"navy"`, `"coral"`, `"forestgreen"`). Do the resulting colors look as distinct?
 
-```r
+```r title="Exercise: manual palette with named colors"
 # Your code here — use scale_fill_manual() with R named colours
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Named-colors solution"
 ex_named <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "dodge") +
   scale_fill_manual(values = c("4" = "navy", "f" = "coral", "r" = "forestgreen"))
@@ -301,7 +301,7 @@ Three practical strategies:
 
 **Strategy 2: Dual-encode with shape or linetype.** Map the same variable to both color and shape, even in grayscale or with color blindness, the shapes are distinguishable.
 
-```r
+```r title="Dual-encode color and shape"
 # Dual encoding: color + shape for the same variable
 p_cb <- ggplot(mpg, aes(x = displ, y = hwy,
                           color = drv, shape = drv)) +
@@ -335,14 +335,14 @@ The three hex colors above (`#0072B2`, `#E69F00`, `#009E73`) are from the Okabe-
 
 **Try it:** Change the `scale_color_manual` colors in `p_cb` to use red (`"#CC0000"`) and green (`"#009900"`) for the `f` and `r` groups. Can you tell them apart if you squint, simulating a colorblind reader?
 
-```r
+```r title="Exercise: try the risky red-green combo"
 # Your code here — try the red/green combo and inspect the result
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Red-green combo solution"
 ex_redgreen <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point(size = 3, alpha = 0.8) +
   scale_color_manual(values = c("4" = "#0072B2", "f" = "#CC0000", "r" = "#009900"))
@@ -395,7 +395,7 @@ The `airquality` dataset has daily temperature (`Temp`) and ozone (`Ozone`) meas
 2. A scatter plot of `Wind` vs `Temp` colored by `Ozone` (continuous, one direction), choose a sequential palette
 3. Create a new column `Ozone_diff = Ozone - mean(Ozone, na.rm=TRUE)` and color by it, choose a diverging palette
 
-```r
+```r title="Exercise: three palette types on airquality"
 # Starter code
 air <- na.omit(airquality)
 air$Month_f  <- factor(air$Month)
@@ -419,7 +419,7 @@ air$Ozone_diff <- air$Ozone - mean(air$Ozone)
 
 Take the following basic scatter plot and make it accessible:
 
-```r
+```r title="Baseline scatter using only color"
 # Starting point - uses only color, red-green combination
 ggplot(mpg, aes(x = cty, y = hwy, color = fl)) +
   geom_point(size = 2)
@@ -427,7 +427,7 @@ ggplot(mpg, aes(x = cty, y = hwy, color = fl)) +
 
 Improve it by: (1) switching to a colorblind-safe palette, (2) adding `shape = fl` as a second encoding, and (3) reducing to the 3 most common fuel types for clarity.
 
-```r
+```r title="Accessible scatter with shape plus palette"
 # Improved version starter
 # mpg_fuel <- subset(mpg, fl %in% c("r", "p", "d"))
 # ggplot(mpg_fuel, aes(x = cty, y = hwy, color = fl, shape = fl)) +
@@ -442,7 +442,7 @@ Improve it by: (1) switching to a colorblind-safe palette, (2) adding `shape = f
 
 This example builds a polished heatmap of monthly average temperature from the `airquality` dataset, using a perceptually uniform sequential palette:
 
-```r
+```r title="Polished monthly temperature heatmap"
 # Aggregate: mean temperature per month and temperature bin
 air_complete <- na.omit(airquality)
 air_complete$Month_name <- factor(

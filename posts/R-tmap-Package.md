@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Why write ten lines of ggplot2 when tmap does it in three? tmap wraps spatial plotting in a grammar that mirrors ggplot2: start with the data using tm_shape(), add layers with tm_polygons() or tm_bubbles(), then tweak legends and palettes. The payoff is a publication-ready choropleth in a single pipeline.
 
-```r
+```r title="Three-line world choropleth"
 # Load tmap — World, metro, and rivers datasets come bundled
 library(tmap)
 
@@ -36,7 +36,7 @@ tm_shape(World) +
 
 That is the entire map: one tm_shape() call to set the data, one tm_polygons() call to fill countries by a column. Compare that to the ggplot2 equivalent, which needs separate calls for geom_sf(), scale_fill_viridis_c(), theme_void(), and manual legend formatting.
 
-```r
+```r title="Same map in ggplot2 sf"
 # The same map in ggplot2 + sf — more code, same result
 library(sf)
 library(ggplot2)
@@ -56,7 +56,7 @@ Both maps tell the same story, but the tmap version is half the code. When you a
 
 **Try it:** Create a choropleth of the "HPI" (Happy Planet Index) column from the built-in World dataset.
 
-```r
+```r title="Exercise: HPI choropleth"
 # Try it: choropleth of HPI
 ex_hpi_map <- tm_shape(World) +
   tm_polygons(fill = "HPI")
@@ -69,7 +69,7 @@ ex_hpi_map
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="HPI choropleth solution"
 ex_hpi_map <- tm_shape(World) +
   tm_polygons(fill = "HPI")
 ex_hpi_map
@@ -86,7 +86,7 @@ ex_hpi_map
 
 The default palette works, but real-world maps need intentional colour choices. tmap classifies continuous data into intervals, quantile, jenks, equal, or pretty, and maps each interval to a colour. You control this through the `fill.scale` argument, which accepts a tm_scale_intervals() or tm_scale_continuous() call.
 
-```r
+```r title="Quantile breaks with palette"
 # Quantile breaks with a blue-green palette
 tm_shape(World) +
   tm_polygons(
@@ -101,7 +101,7 @@ tm_shape(World) +
 
 Quantile breaks guarantee equal-count bins, so every colour appears on roughly the same number of countries. That makes the map look balanced, but it hides how extreme the outliers are. Now compare with Jenks natural breaks, which groups values by natural clusters in the data.
 
-```r
+```r title="Jenks natural breaks"
 # Jenks natural breaks — clusters by data gaps
 tm_shape(World) +
   tm_polygons(
@@ -121,7 +121,7 @@ The Jenks map reveals the skew: most countries cluster in the bottom two bins, w
 
 For categorical variables like continent or income group, tmap automatically switches to a qualitative palette.
 
-```r
+```r title="Categorical continent fill"
 # Categorical fill — continent
 tm_shape(World) +
   tm_polygons(
@@ -138,7 +138,7 @@ tm_shape(World) +
 
 **Try it:** Create a choropleth of "inequality" using the "Reds" palette with equal-interval breaks and 6 classes.
 
-```r
+```r title="Exercise: Equal intervals in Reds"
 # Try it: inequality with Reds, equal intervals
 ex_ineq <- tm_shape(World) +
   tm_polygons(
@@ -154,7 +154,7 @@ ex_ineq
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Equal intervals in Reds solution"
 ex_ineq <- tm_shape(World) +
   tm_polygons(
     fill = "inequality",
@@ -175,7 +175,7 @@ ex_ineq
 
 A map without context is just a coloured shape. Compass, scale bar, title, and credits tell the reader where north is, how big the regions are, and where the data came from. tmap adds each as a separate layer you stack with `+`.
 
-```r
+```r title="Compass, scalebar, and credits"
 # Full map with cartographic elements
 tm_shape(World) +
   tm_polygons(
@@ -200,7 +200,7 @@ The `position` argument takes a two-element vector: horizontal ("left", "center"
 
 Let's adjust the title styling and move elements around.
 
-```r
+```r title="Title, arrow compass, styling"
 # Title outside the map frame, compass in top-right
 tm_shape(World) +
   tm_polygons(fill = "life_exp",
@@ -216,7 +216,7 @@ tm_shape(World) +
 
 **Try it:** Add a compass in the top-left corner and credits reading "Source: Natural Earth" in the bottom-right to any World choropleth.
 
-```r
+```r title="Exercise: Compass and credits"
 # Try it: compass top-left, credits bottom-right
 ex_elements <- tm_shape(World) +
   tm_polygons(fill = "economy") +
@@ -229,7 +229,7 @@ ex_elements
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Compass and credits solution"
 ex_elements <- tm_shape(World) +
   tm_polygons(fill = "economy") +
   tm_compass(position = c("left", "top")) +
@@ -247,7 +247,7 @@ ex_elements
 
 Here is the single best feature of tmap: one function call turns any static map into a zoomable, pannable, clickable web map. Call tmap_mode("view") before plotting and the exact same code produces an interactive leaflet-powered map. Call tmap_mode("plot") to switch back.
 
-```r
+```r title="Switch to interactive view mode"
 # Switch to interactive mode
 tmap_mode("view")
 
@@ -261,7 +261,7 @@ tm_shape(World) +
 
 The code is identical to the static version. The only change is tmap_mode("view"). This means you can develop a map in static mode (fast rendering, easy export) and flip to interactive mode for exploration, without rewriting a single line.
 
-```r
+```r title="Switch back to plot mode"
 # Switch back to static mode for the rest of the tutorial
 tmap_mode("plot")
 #> tmap mode set to plotting
@@ -275,7 +275,7 @@ tmap_mode("plot")
 
 **Try it:** Create an interactive bubble map of metropolitan populations using the built-in `metro` dataset. Use tm_bubbles() with size mapped to "pop2020".
 
-```r
+```r title="Exercise: Interactive metro bubbles"
 # Try it: interactive bubble map
 tmap_mode("view")
 
@@ -293,7 +293,7 @@ tmap_mode("plot")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Interactive metro bubbles solution"
 tmap_mode("view")
 
 ex_bubbles <- tm_shape(metro) +
@@ -315,7 +315,7 @@ tmap_mode("plot")
 
 Faceting splits one map into panels by a grouping variable, just like ggplot2's facet_wrap() but for maps. This is powerful for comparing patterns across regions or time periods side by side, without forcing the reader to flip between separate maps.
 
-```r
+```r title="Faceted continents shared scale"
 # Faceted choropleth by continent
 tm_shape(World) +
   tm_polygons(fill = "life_exp",
@@ -328,7 +328,7 @@ tm_shape(World) +
 
 By default, all facets share the same colour scale, a continent coloured dark green in one panel means the same value in every other panel. This makes cross-continent comparison fair. But sometimes each facet has a wildly different range, and a shared scale wastes most of the palette on unused intervals.
 
-```r
+```r title="Faceted continents free scales"
 # Free scales — each continent gets its own range
 tm_shape(World) +
   tm_polygons(fill = "life_exp",
@@ -344,7 +344,7 @@ tm_shape(World) +
 
 **Try it:** Create a faceted map showing only Europe and Africa side by side, coloured by life expectancy with a shared scale.
 
-```r
+```r title="Exercise: Europe versus Africa facet"
 # Try it: facet Europe vs Africa
 ex_facet <- tm_shape(World[World$continent %in% c("Europe", "Africa"), ]) +
   tm_polygons(fill = "life_exp",
@@ -358,7 +358,7 @@ ex_facet
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Europe and Africa facet solution"
 ex_facet <- tm_shape(World[World$continent %in% c("Europe", "Africa"), ]) +
   tm_polygons(fill = "life_exp",
               fill.scale = tm_scale_intervals(values = "viridis")) +
@@ -377,7 +377,7 @@ ex_facet
 
 Real maps rarely show a single variable. You might want country borders filled by GDP, city bubbles sized by population, and labels on the largest cities, all in one figure. tmap handles this with multiple tm_shape() calls, each introducing a new data layer.
 
-```r
+```r title="Polygons, bubbles, and text"
 # Multi-layer: polygons + bubbles + text
 tm_shape(World) +
   tm_polygons(fill = "life_exp",
@@ -396,7 +396,7 @@ Each tm_shape() call resets the data context. The first tm_shape(World) feeds th
 
 Let's clean up the labels so only the largest cities show names, and adjust the bubble sizing.
 
-```r
+```r title="Filter labels to megacities"
 # Filter labels to cities > 10 million, customise bubbles
 big_cities <- metro[metro$pop2020 > 10000, ]
 
@@ -420,7 +420,7 @@ tm_shape(big_cities) +
 
 **Try it:** Overlay the built-in `rivers` dataset as blue lines on top of a world polygon base map filled in light grey.
 
-```r
+```r title="Exercise: World polygons and rivers"
 # Try it: world polygons + river lines
 ex_rivers <- tm_shape(World) +
   tm_polygons(fill = "grey95") +
@@ -433,7 +433,7 @@ ex_rivers
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="World polygons and rivers solution"
 ex_rivers <- tm_shape(World) +
   tm_polygons(fill = "grey95") +
 tm_shape(rivers) +
@@ -454,7 +454,7 @@ ex_rivers
 
 Build a choropleth of GDP per capita (`gdp_cap_est`) from the `World` dataset. Use Jenks natural breaks with 6 classes, the "viridis" palette, and add a title ("Global GDP per Capita"), compass (bottom-left), and scale bar (bottom-right).
 
-```r
+```r title="Practice: Jenks GDP with elements"
 # Exercise 1: GDP choropleth with full cartographic elements
 # Hint: combine tm_scale_intervals(style = "jenks") with tm_compass() and tm_scalebar()
 
@@ -465,7 +465,7 @@ Build a choropleth of GDP per capita (`gdp_cap_est`) from the `World` dataset. U
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Jenks GDP with elements solution"
 my_gdp_map <- tm_shape(World) +
   tm_polygons(
     fill = "gdp_cap_est",
@@ -490,7 +490,7 @@ my_gdp_map
 
 Create a multi-layer map that: (1) fills World polygons by life expectancy using the "YlOrRd" palette and quantile breaks, (2) overlays bubbles for cities with population > 15,000 (in thousands) from the `metro` dataset sized by `pop2020`, and (3) adds text labels for those cities. Save the full map object as `my_multi`.
 
-```r
+```r title="Practice: Multi-layer bubbles map"
 # Exercise 2: multi-layer map
 # Hint: filter metro first, then stack three tm_shape() + layer calls
 
@@ -501,7 +501,7 @@ Create a multi-layer map that: (1) fills World polygons by life expectancy using
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multi-layer bubbles map solution"
 my_big_cities <- metro[metro$pop2020 > 15000, ]
 
 my_multi <- tm_shape(World) +
@@ -526,7 +526,7 @@ my_multi
 
 Build a faceted map comparing HPI (Happy Planet Index) across continents. Use the "RdYlGn" palette with 5 interval classes, free scales so each continent shows its local variation, and add a descriptive title. Display only continents that have at least 5 countries in the dataset.
 
-```r
+```r title="Practice: Faceted HPI comparison"
 # Exercise 3: faceted HPI comparison
 # Hint: filter World by continent count, use tm_facets with free.scales = TRUE
 
@@ -537,7 +537,7 @@ Build a faceted map comparing HPI (Happy Planet Index) across continents. Use th
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Faceted HPI comparison solution"
 # Keep continents with 5+ countries
 my_continent_counts <- table(World$continent)
 my_keep <- names(my_continent_counts[my_continent_counts >= 5])
@@ -564,7 +564,7 @@ my_faceted
 
 Let's build a complete, publication-ready map from scratch: a life expectancy choropleth with megacity bubbles, cartographic elements, and a clean layout.
 
-```r
+```r title="End-to-end publication-ready map"
 # Complete example: publication-ready thematic map
 library(tmap)
 

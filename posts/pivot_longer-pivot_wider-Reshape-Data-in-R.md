@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Most datasets arrive "wide" because humans like compact tables that fit on a screen. Sales by quarter, scores by subject, sensor readings by hour, the label sits in a column header and the number sits in a cell. Analysis tools, however, prefer "long" data where each row is a single observation. Let's see the same data in both shapes so the payoff is obvious before we touch arguments.
 
-```r
+```r title="Sales wide to long pivot"
 library(tidyr)
 library(dplyr)
 
@@ -70,7 +70,7 @@ Why prefer long? Because ggplot2, dplyr's `group_by()`, and most statistical fun
 
 **Try it:** Build a wide tibble with `student` and three grade columns `math`, `science`, `english`, then pivot it to a long form with columns `student`, `subject`, `grade`.
 
-```r
+```r title="Exercise: Grades wide to long"
 # Starter code
 library(tidyr)
 
@@ -87,7 +87,7 @@ grades_wide <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Grades long solution"
 library(tidyr); library(tibble)
 grades_wide <- tibble(
   student = c("Asha", "Bilal", "Cleo"),
@@ -121,7 +121,7 @@ grades_wide |>
 ![pivot_longer argument anatomy](screenshots/pivot_longer-pivot_wider-longer-anatomy.webp)
 *Figure 2: How pivot_longer() maps wide columns into a name column and a value column.*
 
-```r
+```r title="Weather pivot with year conversion"
 library(tidyr)
 
 weather <- tibble(
@@ -159,7 +159,7 @@ Three things worth noticing. First, `cols = 2021:2023` selects a range of column
 
 **Try it:** Pivot this expense table so each row is one month-category pair. Drop NA values.
 
-```r
+```r title="Exercise: Expenses long drop NAs"
 # Starter code
 expenses <- tibble(
   category = c("rent", "food", "travel"),
@@ -174,7 +174,7 @@ expenses <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Expenses long solution"
 library(tidyr); library(tibble)
 expenses <- tibble(
   category = c("rent", "food", "travel"),
@@ -212,7 +212,7 @@ expenses |>
 ![pivot_wider argument anatomy](screenshots/pivot_longer-pivot_wider-wider-anatomy.webp)
 *Figure 3: How pivot_wider() maps a name column and a value column into new wide columns.*
 
-```r
+```r title="Round-trip with pivotwider"
 # Reuse sales_long from section 1
 sales_back <- sales_long |>
   pivot_wider(names_from = quarter, values_from = sales)
@@ -227,7 +227,7 @@ sales_back
 
 That is the same shape as the original `sales_wide`. Round-trip confirmed, pivot_longer and pivot_wider undo each other exactly. When would you actually *want* to go long→wide? The classic case is preparing a report table for humans: a row per customer, a column per month, ready to paste into a slide. Another is computing differences across groups, like churn rate between Q1 and Q2, which is easier when each quarter is its own column.
 
-```r
+```r title="Student scores report-ready table"
 # A report-ready table: students as rows, subjects as columns
 scores_long <- tibble(
   student = c("Asha","Asha","Asha","Bilal","Bilal","Bilal"),
@@ -248,7 +248,7 @@ scores_long |>
 
 **Try it:** Spread this long survey table into wide form, one row per respondent.
 
-```r
+```r title="Exercise: Survey answers wide"
 # Starter code
 survey <- tibble(
   id = c(1,1,1,2,2,2),
@@ -262,7 +262,7 @@ survey <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Survey answers wide solution"
 library(tidyr); library(tibble)
 survey <- tibble(
   id = c(1,1,1,2,2,2),
@@ -285,7 +285,7 @@ survey |>
 
 Real datasets often pack two pieces of information into a single column name. Think `sales_2022_Q1`, `temp_min`, or `height_cm`. `pivot_longer()` can split these into separate columns during the reshape, no extra `separate()` step needed.
 
-```r
+```r title="Split stock headers with namessep"
 library(tidyr)
 
 stocks <- tibble(
@@ -318,7 +318,7 @@ stocks_long
 
 When your headers follow a more complex pattern, say `sales_q1_2022` where a regex would help, use `names_pattern` with capture groups:
 
-```r
+```r title="Regex split with namespattern"
 messy <- tibble(
   id = 1:2,
   sales_q1_2022 = c(100, 200),
@@ -348,7 +348,7 @@ Three capture groups → three destination columns. No nested `mutate()` or `sub
 
 **Try it:** Pivot this table so `country` and `year` become separate columns.
 
-```r
+```r title="Exercise: Country-year pivot with drops"
 # Starter code
 pop <- tibble(
   region = c("Asia","Europe"),
@@ -364,7 +364,7 @@ pop <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Country-year pivot solution"
 library(tidyr); library(tibble)
 pop <- tibble(
   region = c("Asia","Europe"),
@@ -398,7 +398,7 @@ pop |>
 
 Going long is always safe, every row lands somewhere. Going wide is riskier. If the long table is missing a combination of `names_from` and row-ID columns, pivot_wider fills the gap with `NA`. Sometimes that is what you want. Sometimes it is a bug.
 
-```r
+```r title="pivotwider introduces NAs"
 attendance <- tibble(
   student = c("Asha","Asha","Bilal","Cleo","Cleo"),
   day = c("Mon","Tue","Mon","Mon","Wed"),
@@ -417,7 +417,7 @@ attendance |>
 
 Bilal has no Tuesday record, so pivot_wider inserts NA. Often you would rather see a 0, absence means "not present", not "unknown". Use `values_fill`:
 
-```r
+```r title="Fill missing values with zero"
 attendance |>
   pivot_wider(names_from = day, values_from = present, values_fill = 0)
 #> # A tibble: 3 x 4
@@ -430,7 +430,7 @@ attendance |>
 
 The other trap is duplicate keys. If more than one row shares the same `student`/`day` pair, pivot_wider cannot decide which `present` value to use and produces list-columns (with a warning). The fix is either to deduplicate first or pass `values_fn = sum` (or `mean`, `max`, etc.) to aggregate.
 
-```r
+```r title="Handle duplicates with valuesfn"
 log <- tibble(
   student = c("Asha","Asha","Asha"),
   day = c("Mon","Mon","Tue"),
@@ -449,7 +449,7 @@ log |>
 
 **Try it:** Fix this pivot so missing months become 0 instead of NA.
 
-```r
+```r title="Exercise: User visits wide with fill"
 # Starter code
 visits <- tibble(
   user = c("a","a","b","c"),
@@ -463,7 +463,7 @@ visits <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="User visits wide solution"
 library(tidyr); library(tibble)
 visits <- tibble(
   user = c("a","a","b","c"),
@@ -487,7 +487,7 @@ Without `values_fill`, users `b` and `c` would get `NA` for the months they neve
 
 Sometimes one row of long data carries several kinds of measurement. Think: per student, per subject, both a grade and a rank. You want a wide table where each subject gets *two* columns, one for grade, one for rank. `pivot_wider()` handles this naturally.
 
-```r
+```r title="Multiple value columns at once"
 exam <- tibble(
   student = c("Asha","Asha","Bilal","Bilal"),
   subject = c("math","science","math","science"),
@@ -509,7 +509,7 @@ exam |>
 
 With `values_from = c(grade, rank)`, pivot_wider produces column names by concatenating the value name and the subject. You control the order and glue character with `names_sep` or `names_glue`:
 
-```r
+```r title="Custom namesglue templating"
 exam |>
   pivot_wider(
     names_from = subject,
@@ -529,7 +529,7 @@ exam |>
 
 **Try it:** Widen this long table so each product becomes two columns, `units` and `revenue`.
 
-```r
+```r title="Exercise: Orders wide with units and revenue"
 # Starter code
 orders <- tibble(
   region = c("N","N","S","S"),
@@ -544,7 +544,7 @@ orders <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Orders wide solution"
 library(tidyr); library(tibble)
 orders <- tibble(
   region = c("N","N","S","S"),
@@ -583,7 +583,7 @@ Triggers for going wide:
 - **You are computing ratios or differences** between specific columns, for example Q2 revenue divided by Q1 revenue is trivial when they are two columns and awkward when they share one.
 - **You are exporting to a spreadsheet** where analysts expect the wide layout.
 
-```r
+```r title="Long-first compute then widen"
 # Long-first workflow: pivot, compute, then pivot back for the final table
 sales_long |>
   group_by(quarter) |>
@@ -599,7 +599,7 @@ sales_long |>
 
 **Try it:** Given this long table of temperatures, produce a wide report showing min and max temperature per city per year.
 
-```r
+```r title="Exercise: Temperatures by year and kind"
 # Starter code
 temps <- tibble(
   city = rep(c("Pune","Berlin"), each = 4),
@@ -614,7 +614,7 @@ temps <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Temperatures wide solution"
 library(tidyr); library(tibble)
 temps <- tibble(
   city = rep(c("Pune","Berlin"), each = 4),
@@ -642,7 +642,7 @@ These exercises combine multiple ideas from the post. Work through them in order
 
 You receive this survey export. Reshape it so each row is one respondent-question pair, then compute the mean score per question.
 
-```r
+```r title="Exercise: Survey mean score pipeline"
 library(tidyr); library(dplyr)
 
 survey_wide <- tibble(
@@ -658,7 +658,7 @@ survey_wide <- tibble(
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Survey mean score solution"
 survey_wide |>
   pivot_longer(
     cols = -respondent,
@@ -676,7 +676,7 @@ survey_wide |>
 
 Turn this sales log into a wide report: one row per store, one column per product, and a final column with the store total. Fill missing combinations with 0.
 
-```r
+```r title="Exercise: Sales wide with row totals"
 sales_log <- tibble(
   store = c("N","N","N","S","S","E"),
   product = c("A","B","C","A","C","B"),
@@ -689,7 +689,7 @@ sales_log <- tibble(
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Sales wide with totals solution"
 sales_log |>
   pivot_wider(names_from = product, values_from = units, values_fill = 0) |>
   mutate(total = rowSums(across(A:C)))
@@ -701,7 +701,7 @@ sales_log |>
 
 Take this exam table, go wide with two value columns, then long again to recover the original shape.
 
-```r
+```r title="Exercise: Exam round-trip reshape"
 exam_long <- tibble(
   student = rep(c("Asha","Bilal"), each = 3),
   subject = rep(c("math","sci","eng"), 2),
@@ -715,7 +715,7 @@ exam_long <- tibble(
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Exam round-trip solution"
 wide <- exam_long |>
   pivot_wider(
     names_from = subject,
@@ -737,7 +737,7 @@ wide |>
 
 Here is an end-to-end pipeline on a messy fake dataset. We start wide, reshape to long for analysis, then widen again for the final report.
 
-```r
+```r title="End-to-end GDP and population pipeline"
 library(tidyr); library(dplyr)
 
 # Step 1: raw wide data as it arrives from a spreadsheet

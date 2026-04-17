@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Every time you roll a die, flip a coin, or measure a patient's blood pressure, the result is uncertain, but you can still attach numbers to the possible outcomes. That mapping from outcome to number is a **random variable**. Let's see one in action: we'll simulate 1,000 dice rolls and count how often each face appears.
 
-```r
+```r title="Simulate one thousand dice rolls"
 # Simulate 1,000 rolls of a fair six-sided die
 set.seed(1)
 rolls <- sample(1:6, size = 1000, replace = TRUE)
@@ -49,7 +49,7 @@ In probability notation, we write the random variable as a capital letter like $
 
 Here's another example. A coin flip can be turned into a random variable by mapping Heads to 1 and Tails to 0.
 
-```r
+```r title="Coin flip as random variable"
 # Coin flip as a random variable: Heads = 1, Tails = 0
 set.seed(7)
 coin_flips <- sample(c(0, 1), size = 500, replace = TRUE)
@@ -66,7 +66,7 @@ The mean of 0.488 is close to the theoretical 0.5, our simulated coin is approxi
 
 **Try it:** Simulate 2,000 rolls of an 8-sided die (faces 1 through 8) and compute the sample mean. It should be close to 4.5.
 
-```r
+```r title="Exercise: eight sided die simulation"
 # Try it: 8-sided die simulation
 set.seed(123)
 ex_rolls <- sample(1:8, size = 2000, replace = TRUE)
@@ -77,7 +77,7 @@ mean(ex_rolls)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Eight sided die solution"
 set.seed(123)
 ex_rolls <- sample(1:8, size = 2000, replace = TRUE)
 mean(ex_rolls)
@@ -97,7 +97,7 @@ Not all random variables work the same way. The crucial distinction is whether t
 
 Let's see how this plays out visually. A discrete distribution looks like a bar chart (each value gets its own bar), while a continuous distribution looks like a smooth curve.
 
-```r
+```r title="Discrete bar versus continuous curve"
 # Side-by-side: discrete bar chart vs continuous curve
 par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
 
@@ -128,7 +128,7 @@ The left panel shows that each die face has an exact probability of 1/6. The rig
 
 **Try it:** Classify each of the following as discrete or continuous: (a) number of typos on a page, (b) waiting time at a bus stop, (c) shoe size in EU (36, 37, ..., 46). Store your answers in a character vector.
 
-```r
+```r title="Exercise: classify discrete or continuous"
 # Try it: classify as "discrete" or "continuous"
 ex_types <- c(
   typos      = "___",  # (a)
@@ -142,7 +142,7 @@ ex_types
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Classify discrete or continuous solution"
 ex_types <- c(
   typos      = "discrete",     # countable: 0, 1, 2, ...
   wait_time  = "continuous",   # any positive real number
@@ -178,7 +178,7 @@ Where:
 
 In R, the `dbinom()` function computes this PMF. The "d" prefix stands for "density", but for discrete distributions it returns an actual probability.
 
-```r
+```r title="Binomial probability mass function"
 # Binomial PMF: 10 coin flips with P(heads) = 0.3
 x_binom <- 0:10
 pmf_binom <- dbinom(x_binom, size = 10, prob = 0.3)
@@ -203,7 +203,7 @@ The tallest bar is at $x = 3$, meaning 3 successes out of 10 is the single most 
 
 The Poisson distribution is another important discrete distribution. It counts events in a fixed interval (emails per hour, accidents per month) and has a single parameter $\lambda$ (lambda), the average rate.
 
-```r
+```r title="Poisson probability mass function"
 # Poisson PMF: average 5 events per interval
 x_pois <- 0:15
 pmf_pois <- dpois(x_pois, lambda = 5)
@@ -221,7 +221,7 @@ The Poisson PMF is skewed right and peaks near $\lambda = 5$. Compared to the bi
 
 **Try it:** A basketball player makes 60% of free throws. What is the probability of making exactly 7 out of 10? Use `dbinom()`.
 
-```r
+```r title="Exercise: free throw probability"
 # Try it: free throw probability
 ex_prob <- dbinom(___, size = ___, prob = ___)
 ex_prob
@@ -231,7 +231,7 @@ ex_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Free throw probability solution"
 ex_prob <- dbinom(7, size = 10, prob = 0.6)
 ex_prob
 #> [1] 0.2149908
@@ -255,7 +255,7 @@ Think of it like a hill: the PDF draws the shape of the hill, and the probabilit
 
 The most famous continuous distribution is the **normal** (bell curve) with mean $\mu$ and standard deviation $\sigma$. In R, `dnorm()` computes the density and `pnorm()` computes the area (cumulative probability). Let's plot the standard normal PDF and shade the area between -1 and 1.
 
-```r
+```r title="Normal density with shaded area"
 # Normal PDF with shaded area between -1 and 1
 x_norm <- seq(-4, 4, length.out = 500)
 y_norm <- dnorm(x_norm)
@@ -279,7 +279,7 @@ About 68.3% of the probability falls within one standard deviation of the mean, 
 
 A common misconception is that `dnorm(0)` gives you a probability. It does not, it gives you a density value.
 
-```r
+```r title="Density versus tiny interval probability"
 # dnorm(0) is a density, NOT a probability
 dnorm(0)
 #> [1] 0.3989423
@@ -296,7 +296,7 @@ The density at $x = 0$ is about 0.399, but the probability of $X$ falling in the
 
 **Try it:** For a normal distribution with mean = 100 and sd = 15 (IQ scores), what fraction of people score between 85 and 115? Use `pnorm()`.
 
-```r
+```r title="Exercise: IQ between eighty five and one fifteen"
 # Try it: IQ scores between 85 and 115
 ex_iq_prob <- pnorm(___, mean = 100, sd = 15) - pnorm(___, mean = 100, sd = 15)
 ex_iq_prob
@@ -306,7 +306,7 @@ ex_iq_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="IQ interval probability solution"
 ex_iq_prob <- pnorm(115, mean = 100, sd = 15) - pnorm(85, mean = 100, sd = 15)
 ex_iq_prob
 #> [1] 0.6826895
@@ -328,7 +328,7 @@ The difference is in the *shape*: discrete CDFs are staircase functions (flat be
 
 Let's plot both side by side.
 
-```r
+```r title="Discrete versus continuous cumulative function"
 # Side-by-side: discrete CDF (step) vs continuous CDF (smooth)
 par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
 
@@ -359,7 +359,7 @@ The binomial CDF jumps at each integer, the jump height at $x$ equals the PMF va
 
 The **quantile function** is the inverse of the CDF: given a probability $p$, it finds the value $x$ such that $P(X \le x) = p$. R uses the `q` prefix for quantile functions.
 
-```r
+```r title="Quantile function as inverse CDF"
 # Quantile function: inverse CDF
 # Normal: what value has 97.5% of data below it?
 qnorm(0.975)
@@ -381,7 +381,7 @@ The value 1.96 appears everywhere in statistics, it is the 97.5th percentile of 
 
 **Try it:** A Poisson(lambda=7) variable counts daily customer complaints. What is the probability of receiving at most 5 complaints? Use `ppois()`.
 
-```r
+```r title="Exercise: poisson cumulative probability"
 # Try it: Poisson CDF
 ex_complaints <- ppois(___, lambda = ___)
 ex_complaints
@@ -391,7 +391,7 @@ ex_complaints
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Poisson cumulative probability solution"
 ex_complaints <- ppois(5, lambda = 7)
 ex_complaints
 #> [1] 0.3007083
@@ -414,7 +414,7 @@ Every distribution in R follows the same naming convention with four function pr
 
 Attach the prefix to any distribution name, `binom`, `norm`, `pois`, `unif`, `exp`, `t`, `chisq`, `gamma`, and you get the function. Let's see this consistency in action across four distributions.
 
-```r
+```r title="The d p q r pattern across distributions"
 # The d/p/q/r pattern works identically across distributions
 # ---- Binomial(n=10, p=0.5) ----
 dbinom(5, size = 10, prob = 0.5)  # P(X = 5)
@@ -480,7 +480,7 @@ Here is a quick reference table of common distributions in R:
 
 **Try it:** For a Uniform(0, 10) distribution, compute: (a) the density at x = 3, (b) P(X ≤ 7), (c) the median, (d) five random draws with `set.seed(55)`.
 
-```r
+```r title="Exercise: uniform d p q r"
 # Try it: Uniform(0, 10) — all four d/p/q/r functions
 set.seed(55)
 ex_d <- dunif(___, min = 0, max = 10)  # (a)
@@ -495,7 +495,7 @@ cat("Density:", ex_d, "\nCDF:", ex_p, "\nMedian:", ex_q, "\nDraws:", ex_r)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Uniform d p q r solution"
 set.seed(55)
 ex_d <- dunif(3, min = 0, max = 10)
 ex_p <- punif(7, min = 0, max = 10)
@@ -519,7 +519,7 @@ Simulation is the best way to build intuition about distributions. The idea is s
 
 Let's start with a discrete example. We'll draw 10,000 samples from a Binomial(10, 0.3) distribution and overlay the theoretical PMF.
 
-```r
+```r title="Simulate binomial against theoretical pmf"
 # Simulate 10,000 binomial draws and overlay theoretical PMF
 set.seed(42)
 sim_binom <- rbinom(10000, size = 10, prob = 0.3)
@@ -543,7 +543,7 @@ The red dots (theoretical PMF) sit right on top of the histogram bars. With 10,0
 
 Now let's do the same for a continuous distribution. We'll simulate 10,000 IQ scores from a Normal(100, 15) distribution.
 
-```r
+```r title="Simulate normal against theoretical pdf"
 # Simulate 10,000 normal draws and overlay theoretical PDF
 set.seed(99)
 sim_norm <- rnorm(10000, mean = 100, sd = 15)
@@ -562,7 +562,7 @@ The smooth red curve fits the histogram beautifully. This is the power of simula
 
 How many draws do you need before the histogram looks right? Let's compare 100, 1,000, and 10,000 samples.
 
-```r
+```r title="Convergence by sample size"
 # Convergence demo: how sample size affects the histogram
 par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
 
@@ -587,7 +587,7 @@ With $n = 100$, the histogram is lumpy and rough. At $n = 1{,}000$, the bell sha
 
 **Try it:** Simulate 5,000 draws from Poisson(lambda=4), plot a histogram, and check that the sample mean is close to 4.
 
-```r
+```r title="Exercise: poisson simulation histogram"
 # Try it: Poisson simulation
 set.seed(200)
 ex_sim <- rpois(5000, lambda = 4)
@@ -602,7 +602,7 @@ mean(ex_sim)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Poisson simulation solution"
 set.seed(200)
 ex_sim <- rpois(5000, lambda = 4)
 hist(ex_sim, breaks = seq(-0.5, max(ex_sim) + 0.5, 1),
@@ -623,7 +623,7 @@ mean(ex_sim)
 
 Generate 10,000 samples from Binomial(20, 0.4). Plot the histogram (as proportions) and overlay the theoretical PMF as red points. Compute the sample mean and compare it to the theoretical mean ($n \times p = 8$).
 
-```r
+```r title="Exercise: binomial simulation and verification"
 # Exercise 1: Binomial simulation and verification
 # Hint: use rbinom(), hist(freq = FALSE), and points() with dbinom()
 set.seed(300)
@@ -635,7 +635,7 @@ set.seed(300)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Binomial simulation solution"
 set.seed(300)
 my_binom <- rbinom(10000, size = 20, prob = 0.4)
 
@@ -659,7 +659,7 @@ cat("Sample mean:", mean(my_binom), "\nTheoretical mean:", 20 * 0.4)
 
 An exam has 30 multiple-choice questions, each with 4 options. A student guesses randomly on all of them. Compute: (a) the probability of passing (≥15 correct), (b) the expected score, (c) the probability of getting exactly the expected score. Use binomial functions.
 
-```r
+```r title="Exercise: multiple choice exam probabilities"
 # Exercise 2: Multiple-choice exam probabilities
 # Hint: n=30, p=1/4=0.25
 # (a) P(X >= 15) = 1 - P(X <= 14) — use pbinom with lower.tail
@@ -673,7 +673,7 @@ An exam has 30 multiple-choice questions, each with 4 options. A student guesses
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multiple choice exam solution"
 n_questions <- 30
 p_guess <- 1/4
 
@@ -703,7 +703,7 @@ cat("\nP(X = 8):", dbinom(8, n_questions, p_guess))
 
 A machine part's lifetime follows an Exponential distribution with rate = 0.01 (mean = 100 hours). Compute: (a) P(lifetime > 150 hours), (b) the median lifetime, (c) simulate 5,000 lifetimes and plot a histogram with the theoretical PDF overlaid.
 
-```r
+```r title="Exercise: exponential lifetime probabilities"
 # Exercise 3: Exponential distribution
 # Hint: use pexp(), qexp(), rexp() with rate = 0.01
 # For P(X > 150), remember P(X > x) = 1 - P(X <= x)
@@ -717,7 +717,7 @@ set.seed(500)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exponential lifetime solution"
 my_rate <- 0.01
 
 # (a) P(lifetime > 150 hours)
@@ -748,7 +748,7 @@ curve(dexp(x, rate = my_rate), add = TRUE, col = "tomato", lwd = 2)
 
 Let's combine everything we've learned in a realistic scenario. Suppose a small website receives an average of 50 visits per day, and we model daily visits as a Poisson random variable with $\lambda = 50$.
 
-```r
+```r title="End-to-end poisson website visits"
 # === Complete Example: Poisson Model for Website Visits ===
 lambda <- 50
 

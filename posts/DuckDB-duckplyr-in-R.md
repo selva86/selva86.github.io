@@ -35,7 +35,7 @@ duckplyr is a tidyverse package that overrides dplyr's core verbs, `filter()`, `
 
 Loading the package is all it takes. Your existing dplyr code works unchanged.
 
-```r
+```r title="Load duckplyr and run dplyr on DuckDB"
 # Load duckplyr — this overrides dplyr methods for the session
 library(duckplyr)
 
@@ -60,7 +60,7 @@ The output is identical to what plain dplyr would produce. The difference is inv
 
 **Try it:** Using duckplyr, filter `mtcars` to rows where `hp > 100`, group by `cyl`, and compute the mean `mpg`. Save to `ex_result`.
 
-```r
+```r title="Exercise: filter, group, summarise with duckplyr"
 # Try it: filter + group + summarise with duckplyr
 ex_result <- mtcars |>
   # your code here
@@ -73,7 +73,7 @@ print(ex_result)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter-group-summarise solution"
 ex_result <- mtcars |>
   filter(hp > 100) |>
   group_by(cyl) |>
@@ -95,7 +95,7 @@ print(ex_result)
 
 The biggest payoff of duckplyr is querying files directly on disk. `df_from_csv()` and `df_from_parquet()` create lazy references to files, no data enters R memory until you `collect()`.
 
-```r
+```r title="Lazy CSV query with dffromcsv"
 # Write a sample CSV for demonstration
 write.csv(nycflights13::flights, "flights.csv", row.names = FALSE)
 
@@ -125,7 +125,7 @@ Everything before `collect()` is a query plan. DuckDB reads only the columns and
 
 Parquet files work the same way but are faster because Parquet stores data in a columnar, compressed format that DuckDB reads natively.
 
-```r
+```r title="Lazy Parquet query with dffromparquet"
 # Write a Parquet file (requires the arrow package for writing)
 arrow::write_parquet(nycflights13::flights, "flights.parquet")
 
@@ -155,7 +155,7 @@ print(pq_result)
 
 **Try it:** Using `df_from_parquet("flights.parquet")`, find the 3 destinations (`dest`) with the most flights in January (`month == 1`). Save to `ex_pq`.
 
-```r
+```r title="Exercise: top destinations from Parquet"
 # Try it: query parquet — top 3 destinations in January
 ex_pq <- df_from_parquet("flights.parquet") |>
   # your code here
@@ -168,7 +168,7 @@ print(ex_pq)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top destinations solution"
 ex_pq <- df_from_parquet("flights.parquet") |>
   filter(month == 1) |>
   count(dest, sort = TRUE) |>
@@ -191,7 +191,7 @@ print(ex_pq)
 
 duckplyr covers most common dplyr verbs and functions, but not everything. When it encounters an operation it cannot translate, a custom R function inside `mutate()`, for example, it **falls back** to regular dplyr. The fallback loads the data into memory and processes it the traditional way.
 
-```r
+```r title="Standard aggregations run on DuckDB"
 # Supported: standard aggregation functions
 summary_result <- mtcars |>
   group_by(cyl) |>
@@ -213,7 +213,7 @@ print(summary_result)
 
 That ran entirely on DuckDB. Now watch what happens with a custom R function:
 
-```r
+```r title="Custom R function triggers fallback"
 # Custom R function — DuckDB cannot translate this
 my_cv <- function(x) sd(x) / mean(x) * 100
 
@@ -240,7 +240,7 @@ The "materializing" message means duckplyr fell back to dplyr for that step. The
 
 **Try it:** Write a duckplyr pipeline that groups `mtcars` by `cyl` and computes `min_mpg` and `max_mpg` using only built-in functions (no custom R functions). Save to `ex_fallback`.
 
-```r
+```r title="Exercise: no-fallback group summary"
 # Try it: group + summarise with built-in functions (no fallback)
 ex_fallback <- mtcars |>
   # your code here
@@ -253,7 +253,7 @@ print(ex_fallback)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="No-fallback solution"
 ex_fallback <- mtcars |>
   group_by(cyl) |>
   summarise(min_mpg = min(mpg), max_mpg = max(mpg))
@@ -274,7 +274,7 @@ print(ex_fallback)
 
 duckplyr and raw DuckDB SQL access the same engine. The choice is about ergonomics, not speed.
 
-```r
+```r title="Raw DuckDB SQL via DBI"
 library(DBI)
 
 # Connect to an in-memory DuckDB instance
@@ -314,7 +314,7 @@ The duckplyr version of that same query is the `mtcars_result` code from the fir
 
 **Try it:** Write a duckplyr pipeline on `mtcars` that filters to cars with `wt < 3`, groups by `gear`, and counts the rows. Sort by count descending. Save to `ex_duckplyr`.
 
-```r
+```r title="Exercise: duckplyr filter and count"
 # Try it: filter + group + count with duckplyr
 ex_duckplyr <- mtcars |>
   # your code here
@@ -327,7 +327,7 @@ print(ex_duckplyr)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter and count solution"
 ex_duckplyr <- mtcars |>
   filter(wt < 3) |>
   count(gear, sort = TRUE)
@@ -348,7 +348,7 @@ print(ex_duckplyr)
 
 Speed depends on data size, operation type, and whether the data fits in memory. For small data frames (under 100K rows), all three are fast enough. The gap opens on millions of rows, especially for grouped aggregations.
 
-```r
+```r title="Benchmark dplyr vs duckplyr vs data.table"
 library(microbenchmark)
 library(data.table)
 
@@ -398,7 +398,7 @@ On 1 million rows, duckplyr is roughly 6x faster than dplyr and competitive with
 
 **Try it:** Using `big_df` from above, write a duckplyr pipeline that filters rows where `value > 0`, groups by `group`, and computes `total = sum(value)`. Save to `ex_bench`.
 
-```r
+```r title="Exercise: big-frame duckplyr benchmark"
 # Try it: filter + group + sum on big_df with duckplyr
 ex_bench <- big_df |>
   # your code here
@@ -411,7 +411,7 @@ print(head(ex_bench, 5))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Big-frame benchmark solution"
 ex_bench <- big_df |>
   filter(value > 0) |>
   group_by(group) |>
@@ -437,7 +437,7 @@ print(head(ex_bench, 5))
 ### Mistake 1: Forgetting that library(duckplyr) overrides dplyr
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: silent fallback on custom function"
 library(duckplyr)
 # Later in the script, assuming dplyr behaviour:
 result <- df |> mutate(x = my_custom_r_function(y))
@@ -447,7 +447,7 @@ result <- df |> mutate(x = my_custom_r_function(y))
 **Why it is wrong:** Loading duckplyr replaces dplyr's methods for the entire session. Every dplyr verb now goes through DuckDB first, falls back if unsupported. If your pipeline has many custom R functions, you pay overhead on every fallback.
 
 ✅ **Correct:**
-```r
+```r title="Correct: selective duckplyr prefix"
 # Use duckplyr selectively via the package prefix
 result <- df |>
   duckplyr::filter(x > 0) |>         # runs on DuckDB
@@ -457,7 +457,7 @@ result <- df |>
 ### Mistake 2: Calling collect() too early
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: early collect kills laziness"
 # Defeats lazy evaluation — loads entire file into memory
 all_data <- df_from_parquet("huge.parquet") |> collect()
 filtered <- all_data |> filter(year == 2025)
@@ -466,7 +466,7 @@ filtered <- all_data |> filter(year == 2025)
 **Why it is wrong:** `collect()` materialises the entire dataset into R memory. The subsequent `filter()` runs on an in-memory data frame, you lost DuckDB's file-scanning advantage.
 
 ✅ **Correct:**
-```r
+```r title="Correct: stay lazy until collect"
 # Keep it lazy until the end
 filtered <- df_from_parquet("huge.parquet") |>
   filter(year == 2025) |>
@@ -476,7 +476,7 @@ filtered <- df_from_parquet("huge.parquet") |>
 ### Mistake 3: Assuming all dplyr functions are translated
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: stringr trips translation"
 # str_detect() is a stringr function — DuckDB does not know it
 result <- df |> filter(str_detect(name, "^A"))
 # Falls back to dplyr, loading everything into memory
@@ -485,7 +485,7 @@ result <- df |> filter(str_detect(name, "^A"))
 **Why it is wrong:** duckplyr translates standard dplyr verbs and base R functions (`mean`, `sd`, `sum`, `grepl`, etc.) but not tidyverse extension functions like `str_detect()` or `lubridate::ymd()`.
 
 ✅ **Correct:**
-```r
+```r title="Correct: base grepl stays on DuckDB"
 # Use grepl() — DuckDB translates base R pattern matching
 result <- df |> filter(grepl("^A", name))
 ```
@@ -496,7 +496,7 @@ result <- df |> filter(grepl("^A", name))
 
 Write a complete pipeline that reads `flights.csv` with `df_from_csv()`, filters to December flights with departure delay over 30 minutes, groups by carrier, computes the mean and max delay, and collects the result. Sort by mean delay descending.
 
-```r
+```r title="Exercise: file-to-summary pipeline"
 # Exercise: complete file-to-summary pipeline
 # Hint: df_from_csv() |> filter() |> group_by() |> summarise() |> arrange() |> collect()
 
@@ -507,7 +507,7 @@ Write a complete pipeline that reads `flights.csv` with `df_from_csv()`, filters
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="File-to-summary solution"
 my_result <- df_from_csv("flights.csv") |>
   filter(month == 12, dep_delay > 30) |>
   group_by(carrier) |>
@@ -536,7 +536,7 @@ print(my_result)
 
 Generate a 5-million-row data frame with columns `id` (1:5e6), `category` (sample of LETTERS), and `amount` (runif). Benchmark a grouped sum by category using both dplyr and duckplyr. Report which is faster and by how much.
 
-```r
+```r title="Exercise: duckplyr vs dplyr benchmark"
 # Exercise: benchmark duckplyr vs dplyr
 # Hint: use microbenchmark with times = 5 to keep it fast
 
@@ -547,7 +547,7 @@ Generate a 5-million-row data frame with columns `id` (1:5e6), `category` (sampl
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="End-to-end duckplyr benchmark"
 set.seed(99)
 my_big <- data.frame(
   id       = 1:5e6,

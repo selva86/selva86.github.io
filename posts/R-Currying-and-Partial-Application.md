@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 If you've ever written `na.rm = TRUE` for the hundredth time inside a pipeline, you've already felt the pain that partial application solves. Let's fix that right now.
 
-```r
+```r title="Repeating na.rm versus partial"
 # The problem: repeating na.rm = TRUE everywhere
 library(purrr)
 
@@ -50,7 +50,7 @@ Three calls, zero repeated arguments. `partial(mean, na.rm = TRUE)` returns a br
 
 The manual alternative works too, but it's more ceremony for the same result:
 
-```r
+```r title="Manual wrapper alternative"
 # Manual wrapper — works, but verbose
 mean_no_na <- function(x, ...) mean(x, na.rm = TRUE, ...)
 
@@ -65,7 +65,7 @@ Both approaches produce the same output. The difference is that `partial()` is d
 
 **Try it:** Create a partially applied function `ex_round2` that rounds to 2 decimal places, then test it on `pi`.
 
-```r
+```r title="Exercise: Round-to-two-digits partial"
 # Try it: create ex_round2
 ex_round2 <- partial(round, digits = 2)
 
@@ -77,7 +77,7 @@ ex_round2(pi)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Round-to-two solution"
 ex_round2 <- partial(round, digits = 2)
 ex_round2(pi)
 #> [1] 3.14
@@ -91,7 +91,7 @@ ex_round2(pi)
 
 Understanding what `partial()` returns helps you debug and compose functions confidently. Let's create a simple partial function and inspect it.
 
-```r
+```r title="Inspect a partial function"
 # Create a partial function and inspect it
 add5 <- partial(`+`, 5)
 
@@ -110,7 +110,7 @@ When you print `add5`, R shows you the partially applied call: `` `+`(5, ...) ``
 
 Notice the `...` signature, `partial()` always returns a function with `...` as its arguments, regardless of the original function's signature. This is a deliberate design choice that lets `partial()` work with functions that use non-standard evaluation (like `dplyr::filter()` or `ggplot2::aes()`).
 
-```r
+```r title="partial always returns dots formals"
 # The returned function always has ... formals
 formals(add5)
 #> $...
@@ -124,7 +124,7 @@ The trade-off is that you lose autocomplete for the remaining arguments. If you 
 
 **Try it:** Create a `ex_dash_paste` function using `partial(paste, sep = "-")`, then call it with `"R"`, `"is"`, `"fun"`.
 
-```r
+```r title="Exercise: Dash-separated paste partial"
 # Try it: create ex_dash_paste
 ex_dash_paste <- partial(paste, sep = "-")
 
@@ -136,7 +136,7 @@ ex_dash_paste("R", "is", "fun")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dash paste solution"
 ex_dash_paste <- partial(paste, sep = "-")
 ex_dash_paste("R", "is", "fun")
 #> [1] "R-is-fun"
@@ -152,7 +152,7 @@ By default, `partial()` evaluates pre-filled arguments *lazily*, they're re-eval
 
 Think of it this way: lazy evaluation is like checking the weather each morning before you dress. Eager evaluation is like setting your thermostat once when you move in.
 
-```r
+```r title="Lazy evaluation rerolls each call"
 # Lazy: n is re-evaluated every call
 set.seed(99)
 f_lazy <- partial(runif, n = rpois(1, 5))
@@ -167,7 +167,7 @@ length(f_lazy())
 
 Each call to `f_lazy()` draws a fresh Poisson random number for `n`, so the length changes. Now compare with eager evaluation:
 
-```r
+```r title="Eager evaluation freezes with bangs"
 # Eager: n is fixed at creation time with !!
 set.seed(99)
 f_eager <- partial(runif, n = !!rpois(1, 5))
@@ -184,7 +184,7 @@ With `!!`, the `rpois(1, 5)` call runs once, at the moment `partial()` executes,
 
 Here's a practical scenario where the distinction matters. Suppose you want a function that stamps the current time onto a message:
 
-```r
+```r title="Lazy timestamp example"
 # Lazy: captures current time on each call (usually what you want)
 stamp_lazy <- partial(paste, "Logged at", Sys.time(), "->")
 
@@ -202,7 +202,7 @@ The lazy version updates the timestamp each call, perfect for logging. But if yo
 
 **Try it:** Create a partial function `ex_rnorm` that generates 10 random normals with a mean of 100, using eager evaluation so the mean can't change later.
 
-```r
+```r title="Exercise: Eager rnorm with bangs"
 # Try it: create ex_rnorm with eager evaluation
 my_mean_val <- 100
 ex_rnorm <- partial(rnorm, n = 10, mean = !!my_mean_val)
@@ -216,7 +216,7 @@ round(mean(ex_rnorm()), 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Eager rnorm solution"
 my_mean_val <- 100
 ex_rnorm <- partial(rnorm, n = 10, mean = !!my_mean_val)
 
@@ -233,7 +233,7 @@ round(mean(ex_rnorm()), 1)
 
 By default, pre-filled arguments go first and the caller's arguments come after. But some base R functions have the argument you want to pre-fill in the *middle* or at the *end*. The `... = ` syntax lets you control exactly where new arguments get inserted.
 
-```r
+```r title="Default prefilled args come first"
 # Default: pre-filled args go first
 prefix_paste <- partial(paste, ">>")
 
@@ -243,7 +243,7 @@ prefix_paste("hello", "world")
 
 That works because `paste()` takes `...`, all arguments just concatenate. But what if you need to insert new arguments *between* pre-filled ones?
 
-```r
+```r title="Slot new args with dots equals"
 # ... = inserts caller's args at that position
 between <- partial(list, "start", ... = , "end")
 
@@ -259,7 +259,7 @@ The caller's arguments (`"middle_1"`, `"middle_2"`) slot in where `... = ` sits,
 
 Here's a practical use case. `grepl()` takes `pattern` first and `x` second, but you might want to pre-fill the options while leaving both `pattern` and `x` free:
 
-```r
+```r title="Case-insensitive grepl shortcut"
 # Case-insensitive, Perl-regex grepl shortcut
 igrepl <- partial(grepl, ... = , ignore.case = TRUE, perl = TRUE)
 
@@ -277,7 +277,7 @@ The `... = ` tells `partial()` that `pattern` and `x` (the first two positional 
 
 **Try it:** Create a case-insensitive grep shortcut `ex_igrep` using `partial(grep, ... = , ignore.case = TRUE, value = TRUE)`. Test it by searching for `"the"` in `c("The End", "beginning", "THERE")`.
 
-```r
+```r title="Exercise: Case-insensitive grep value"
 # Try it: create ex_igrep
 ex_igrep <- partial(grep, ... = , ignore.case = TRUE, value = TRUE)
 
@@ -289,7 +289,7 @@ ex_igrep("the", c("The End", "beginning", "THERE"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Case-insensitive grep solution"
 ex_igrep <- partial(grep, ... = , ignore.case = TRUE, value = TRUE)
 ex_igrep("the", c("The End", "beginning", "THERE"))
 #> [1] "The End" "THERE"
@@ -305,7 +305,7 @@ You'll often see "currying" and "partial application" used interchangeably, but 
 
 In Haskell, every function is automatically curried, `add 3 5` is actually `(add 3) 5`, where `add 3` returns a function that adds 3. R doesn't do this automatically, but you can build it yourself.
 
-```r
+```r title="Manual currying with closures"
 # Manual currying: a chain of single-argument functions
 curry_add <- function(a) {
   function(b) a + b
@@ -324,7 +324,7 @@ curry_add(10)(7)
 
 You can generalise this into a helper that curries any function:
 
-```r
+```r title="Generic curry helper"
 # Simple curry helper for any function
 my_curry <- function(fn) {
   params <- formals(fn)
@@ -352,7 +352,7 @@ This works, but it's more of a learning exercise than production code. In practi
 
 **Try it:** Write a manually curried `ex_multiply` function that takes one argument and returns a function that multiplies by it. Test that `ex_multiply(3)(7)` returns 21.
 
-```r
+```r title="Exercise: Curried multiply function"
 # Try it: write ex_multiply
 ex_multiply <- function(a) {
   # your code here
@@ -366,7 +366,7 @@ ex_multiply(3)(7)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Curried multiply solution"
 ex_multiply <- function(a) {
   function(b) a * b
 }
@@ -390,7 +390,7 @@ Now that you understand the mechanics, let's see where `partial()` earns its kee
 
 **Pattern 1: Cleaner map() pipelines.** Instead of writing anonymous functions inside `map()`, pre-fill the fixed arguments:
 
-```r
+```r title="Cleaner map pipeline with partial"
 library(stringr)
 
 messy <- list("hello world", "foo bar", "one two three")
@@ -409,7 +409,7 @@ Both produce the same result, but the `partial()` version names the operation, `
 
 **Pattern 2: Summarise helpers across columns.** Build a family of NA-safe summary functions and use them with `across()`:
 
-```r
+```r title="NA-safe summarise helpers"
 library(dplyr)
 
 mean_na   <- partial(mean, na.rm = TRUE)
@@ -433,7 +433,7 @@ Three lines of `partial()` replace six anonymous functions. Every analyst on you
 
 **Try it:** Use `partial()` to create `ex_log10` that computes base-10 logarithms, then map it over the list `list(1, 10, 100, 1000)`.
 
-```r
+```r title="Exercise: Base-ten log partial"
 # Try it: create ex_log10
 ex_log10 <- partial(log, base = 10)
 
@@ -445,7 +445,7 @@ map_dbl(list(1, 10, 100, 1000), ex_log10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Base-ten log solution"
 ex_log10 <- partial(log, base = 10)
 map_dbl(list(1, 10, 100, 1000), ex_log10)
 #> [1] 0 1 2 3
@@ -465,7 +465,7 @@ Create two functions using `partial()` and `paste()`:
 
 Then use `map_chr()` to apply `my_log_info` to the vector `c("model started", "data loaded", "training complete")`.
 
-```r
+```r title="Exercise: Logging toolkit with partial"
 # Exercise: logging toolkit with partial()
 # Hint: partial(paste, "[INFO]") is a starting point
 
@@ -476,7 +476,7 @@ Then use `map_chr()` to apply `my_log_info` to the vector `c("model started", "d
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Logging toolkit solution"
 my_log_info  <- partial(paste, "[INFO]", Sys.time(), "-")
 my_log_error <- partial(paste, "[ERROR]", Sys.time(), "-")
 
@@ -500,7 +500,7 @@ Use `partial()` to create specialised versions of string functions, then chain t
 
 Your pipeline should: (1) trim whitespace, (2) convert to lowercase, (3) remove all `!` characters.
 
-```r
+```r title="Exercise: Text-cleaning pipeline"
 # Exercise: text cleaning pipeline
 # Hint: compose() chains functions right-to-left,
 #   so the last function in compose() runs first
@@ -512,7 +512,7 @@ Your pipeline should: (1) trim whitespace, (2) convert to lowercase, (3) remove 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Text-cleaning pipeline solution"
 remove_bangs <- partial(str_replace_all, pattern = "!", replacement = "")
 
 my_clean_text <- compose(remove_bangs, tolower, str_trim)
@@ -530,7 +530,7 @@ map_chr(my_texts, my_clean_text)
 
 Write a `my_curry_power(exp)` function that returns a single-argument function raising its input to the `exp` power. Use it to create `my_square`, `my_cube`, and `my_fourth`. Verify that `map_dbl(1:5, my_square)` returns `c(1, 4, 9, 16, 25)`.
 
-```r
+```r title="Exercise: Curried power function"
 # Exercise: curried power function
 # Hint: the returned function should compute x^exp
 
@@ -541,7 +541,7 @@ Write a `my_curry_power(exp)` function that returns a single-argument function r
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Curried power solution"
 my_curry_power <- function(exp) {
   function(x) x^exp
 }
@@ -566,7 +566,7 @@ map_dbl(1:5, my_fourth)
 
 Let's build a reusable data-analysis helper toolkit with partial application and run a complete pipeline on the `airquality` dataset.
 
-```r
+```r title="End-to-end airquality toolkit"
 # Step 1: Create NA-safe summary helpers
 mean_na   <- partial(mean, na.rm = TRUE)
 sd_na     <- partial(sd, na.rm = TRUE)

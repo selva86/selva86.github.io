@@ -55,7 +55,7 @@ rvest ships with the tidyverse. If it's not installed: `install.packages("rvest"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extract GDP table solution"
 ex_gdp <- gdp_tables[[2]]
 head(ex_gdp, 3)
 ```
@@ -105,7 +105,7 @@ The pattern is always the same: **fetch → select → extract**. `read_html()` 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extract first title solution"
 ex_one <- html |> html_element("li.title")
 ex_one
 #> {html_node}
@@ -167,7 +167,7 @@ Always prefer `html_text2()` over `html_text()`. The former trims whitespace and
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Parse prices to numeric solution"
 ex_prices <- readr::parse_number(prices)
 ex_prices
 #> [1] 29.99 39.99
@@ -225,7 +225,7 @@ Selectors are brittle. If a site redesigns, your scraper breaks. Keep selectors 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Select sidebar links solution"
 ex_sidebar <- page |> html_elements("#sidebar a") |> html_text2()
 ex_sidebar
 #> [1] "Sidebar link"
@@ -277,7 +277,7 @@ Sprinkle `Sys.sleep(1)` (or `Sys.sleep(runif(1, 1, 3))`) inside the loop to thro
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Paginated scrape labeling solution"
 ex_labeled <- map_dfr(pages, function(p) {
   df <- scrape_quotes(p)
   df$page <- p
@@ -330,7 +330,7 @@ Even if `robots.txt` allows scraping, a site's **Terms of Service** may forbid i
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Check robots.txt paths solution"
 ex_cran <- paths_allowed(paths = "/web/views/", domain = "cran.r-project.org")
 ex_cran
 #> [1] TRUE

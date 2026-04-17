@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 For two decades, "R or SAS" ran on anecdote. You can settle the usage side of it with four public datasets, the TIOBE language index, the Kaggle ML & DS Survey, Indeed job listings, and the Stack Overflow Developer Survey. Let's pull those numbers into a small data frame, plot them, and see the picture you actually pay the licence for.
 
-```r
+```r title="Compare usage across four datasets"
 # Load the tools we'll use on this page
 library(ggplot2)
 library(dplyr)
@@ -60,7 +60,7 @@ Only one of the four indices still favours SAS, Indeed listings, and that margin
 
 Let's compute the R-advantage ratio per source so the numbers tell the story directly.
 
-```r
+```r title="Compute R-to-SAS usage ratios"
 ratio_df <- usage_df |>
   mutate(r_advantage = round(r_share / sas_share, 1)) |>
   select(source, r_advantage)
@@ -82,7 +82,7 @@ Three datasets out of four put R ahead by 4–8×. The one SAS still wins is the
 
 **Try it:** Add a 5th row to `usage_df` for the PYPL (Popularity of Programming Languages) index and re-plot. PYPL gives R roughly 5% share and SAS roughly 0.5%. Reuse the plotting pipeline from above.
 
-```r
+```r title="Exercise: add a PYPL row"
 # Try it: extend usage_df with a 5th source
 ex_usage <- usage_df |>
   tibble::add_row(
@@ -98,7 +98,7 @@ ex_usage
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="PYPL-row solution"
 ex_usage <- usage_df |>
   tibble::add_row(
     source = "PYPL Index 2026",
@@ -126,7 +126,7 @@ SAS has no public price list. Enterprise deals are negotiated behind NDAs, so an
 
 Let's put that on a single chart. We'll model a 5-year total cost of ownership for four team sizes.
 
-```r
+```r title="Licence cost gap by team size"
 tco_df <- tribble(
   ~team_size, ~tool, ~annual_cost_usd,
   1,   "R",   2000,      # Posit personal, optional
@@ -160,7 +160,7 @@ The gap starts at 6× for a single analyst and widens to 7× for a 250-person te
 
 **Try it:** Recompute the annual cost for a **25-analyst team** using your own assumptions. Assume R costs $35,000/year (Posit Team server + admin) and SAS costs $280,000/year (negotiated discount from list).
 
-```r
+```r title="Exercise: 25-analyst TCO"
 # Try it: 25-analyst team TCO
 ex_tco <- tibble(
   team_size = 25,
@@ -176,7 +176,7 @@ ex_tco
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="25-analyst solution"
 ex_tco <- tibble(
   team_size = 25,
   r_cost    = 35000,
@@ -200,7 +200,7 @@ This is the single question that keeps SAS alive in pharma, and the answer surpr
 
 Three recent submissions settle the practical question. Roche ran an end-to-end R submission for a breast-cancer trial. Novo Nordisk piloted a dual R+SAS submission to de-risk the transition. The R Consortium's R Submissions Working Group maintains public reference submissions on GitHub that any sponsor can use as a starting template.
 
-```r
+```r title="FDA submission history table"
 submissions_df <- tribble(
   ~sponsor,        ~year, ~indication,        ~dual_programmed,
   "Roche",          2020, "Breast cancer",     FALSE,
@@ -232,7 +232,7 @@ Three of these submissions used R as the only statistical tool. Two used dual pr
 
 **Try it:** Filter `submissions_df` to show only the dual-programmed submissions.
 
-```r
+```r title="Exercise: filter dual-programmed rows"
 # Try it: dual-programmed submissions only
 ex_dual <- submissions_df |>
   filter(___)
@@ -244,7 +244,7 @@ ex_dual
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dual-programmed solution"
 ex_dual <- submissions_df |>
   filter(dual_programmed)
 ex_dual
@@ -268,7 +268,7 @@ SAS ships roughly 300 procedures (PROCs) covering classical statistics, and they
 
 Let's score each tool across eight capability areas on a 1–5 scale. The numbers come from a rough synthesis of package counts, first-class language support, and community activity.
 
-```r
+```r title="Score capabilities across eight areas"
 cap_df <- tribble(
   ~area,                  ~r_score, ~sas_score,
   "Classical statistics",      5,         5,
@@ -306,7 +306,7 @@ Classical statistics is the one area where the two tools are genuinely comparabl
 
 **Try it:** Compute the capability gap (`r_score − sas_score`) per area and sort descending to find the biggest gaps.
 
-```r
+```r title="Exercise: biggest capability gaps"
 # Try it: gap per capability area
 ex_gap <- cap_df |>
   mutate(gap = ___) |>
@@ -320,7 +320,7 @@ ex_gap
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capability-gap solution"
 ex_gap <- cap_df |>
   mutate(gap = r_score - sas_score) |>
   arrange(desc(gap)) |>
@@ -347,7 +347,7 @@ ex_gap
 
 Job listings lag technology trends by years, which is why they're the one indicator that still favours SAS in some industries. The picture is very different when you slice listings by sector. Pharma and banking lean SAS. Tech, consulting, and academia lean R. Government is close to split.
 
-```r
+```r title="Job listings by industry"
 jobs_df <- tribble(
   ~industry,       ~r_listings, ~sas_listings,
   "Pharma",             4200,         5800,
@@ -384,7 +384,7 @@ SAS is not "dying" as a job market. It's consolidating. The roles that remain ar
 
 **Try it:** Add a new row for "Tech" with 6000 R listings and 400 SAS listings, then re-plot.
 
-```r
+```r title="Exercise: add the tech industry"
 # Try it: add the tech industry row
 ex_jobs <- jobs_df |>
   tibble::add_row(
@@ -400,7 +400,7 @@ ex_jobs |> arrange(desc(r_listings))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tech-industry solution"
 ex_jobs <- jobs_df |>
   tibble::add_row(
     industry = "Tech",
@@ -428,7 +428,7 @@ Here's the framework I'd recommend for a team making this choice in 2026. It's e
 ![R vs SAS decision tree](screenshots/R-vs-SAS-decision-tree.webp)
 *Figure 2: When to pick R, SAS, or both, a practical decision tree for 2026 teams.*
 
-```r
+```r title="Eight-scenario decision table"
 decision_df <- tribble(
   ~scenario,                             ~recommend,     ~why,
   "New pharma team, no legacy",          "R",            "Lower cost, larger talent pool, FDA accepts it.",
@@ -461,7 +461,7 @@ Most teams that land on "R + SAS dual" eventually migrate to pure R over 3–5 y
 
 **Try it:** Add a row for "Geospatial epidemiology", pick the right tool and justify it in one sentence.
 
-```r
+```r title="Exercise: add a geospatial scenario"
 # Try it: add a new scenario
 ex_decision <- decision_df |>
   tibble::add_row(
@@ -477,7 +477,7 @@ tail(ex_decision, 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Geospatial solution"
 ex_decision <- decision_df |>
   tibble::add_row(
     scenario = "Geospatial epidemiology",
@@ -501,7 +501,7 @@ tail(ex_decision, 1)
 
 Build a 5-year total cost of ownership for a **25-analyst team**. Assume R costs $35,000/year flat (no inflation modelled), SAS list price is $450,000/year with a **40% negotiated discount**, and annual cost escalators of 3% on the SAS side. Compute cumulative cost and the dollar savings after year 5. Save the result to `capstone1`.
 
-```r
+```r title="Exercise: five-year TCO with inflation"
 # Exercise 1: 5-year TCO with discount + inflation
 # Hint: build a 5-row tibble with year, r_cost, sas_cost; use cumsum() for cumulative totals.
 
@@ -512,7 +512,7 @@ Build a 5-year total cost of ownership for a **25-analyst team**. Assume R costs
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Five-year-TCO solution"
 capstone1 <- tibble(year = 1:5) |>
   mutate(
     r_cost   = 35000,
@@ -541,7 +541,7 @@ capstone1 |> select(year, r_cost, sas_cost, savings)
 
 Using `jobs_df`, compute the R-advantage ratio (`r_listings / sas_listings`) per industry and return only rows where the ratio exceeds 2.0. Save the result to `capstone2`.
 
-```r
+```r title="Exercise: high-R-advantage industries"
 # Exercise 2: high-R-advantage industries
 # Hint: mutate() the ratio, filter() the threshold, arrange() to sort.
 
@@ -552,7 +552,7 @@ Using `jobs_df`, compute the R-advantage ratio (`r_listings / sas_listings`) per
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="High-advantage solution"
 capstone2 <- jobs_df |>
   mutate(r_advantage = r_listings / sas_listings) |>
   filter(r_advantage > 2.0) |>
@@ -575,7 +575,7 @@ capstone2
 
 Let's run a realistic scenario. You're the analytics lead at a **50-analyst biotech** currently spending $500,000 per year on SAS. You want to project the 5-year savings from migrating to R, after accounting for a one-time $250,000 migration cost (training, validation, package library build-out).
 
-```r
+```r title="Biotech migration savings projection"
 migration_df <- tibble(year = 0:5) |>
   mutate(
     sas_annual = ifelse(year == 0, 0, 500000),

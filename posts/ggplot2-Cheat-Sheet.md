@@ -24,7 +24,7 @@ ggplot2 follows a layered grammar: start with data and a coordinate system, add 
 
 The basic template is always:
 
-```r
+```r title="Minimal ggplot2 template"
 library(ggplot2)
 
 # The universal ggplot2 template
@@ -67,7 +67,7 @@ A geom defines the visual mark drawn for each data point. Add multiple geoms to 
 | `geom_ribbon()` | Shaded band between y bounds | `ymin`, `ymax`, `fill` |
 | `geom_segment()` | Arbitrary line segments | `x`, `xend`, `y`, `yend` |
 
-```r
+```r title="Quick geom gallery"
 # Quick geom gallery - 4 charts on one dataset
 p_point <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(color = "steelblue", alpha = 0.6) +
@@ -96,14 +96,14 @@ library(patchwork)
 
 **Try it:** Replace `geom_boxplot()` with `geom_violin()` in `p_box`. How does the shape of the distribution change compared to the boxplot?
 
-```r
+```r title="Exercise: swap boxplot for violin"
 # Your code here — swap geom_boxplot() for geom_violin()
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Violin solution"
 ex_violin <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(show.legend = FALSE) +
   scale_fill_brewer(palette = "Set2") +
@@ -131,7 +131,7 @@ Aesthetics map data columns to visual properties. Mappings inside `aes()` are da
 | `label` | Text content | Character | `aes(label = name)` |
 | `group` | Grouping without visual change | Discrete | `aes(group = id)` |
 
-```r
+```r title="Four aesthetics at once"
 # Demonstrate 4 aesthetics mapped simultaneously
 p_aes <- ggplot(mpg, aes(
     x     = displ,
@@ -159,14 +159,14 @@ p_aes
 
 **Try it:** Move `size = cyl` from inside `aes()` to outside as `size = 3`. How does the chart change?
 
-```r
+```r title="Exercise: move size outside aes()"
 # Your code here — move size out of aes() into geom_point()
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fixed-size solution"
 ex_fixed_size <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point(size = 3, alpha = 0.7) +
   scale_color_brewer(palette = "Set1")
@@ -206,7 +206,7 @@ Scale functions control how data values map to visual properties, axis range, br
 | `scale_color_gradient()` | Continuous, 2-color | Simple low-to-high gradient |
 | `scale_color_gradient2()` | Continuous, diverging | Low-mid-high with midpoint |
 
-```r
+```r title="Customize scales and breaks"
 # Demonstrate scale customization
 p_scales <- ggplot(mpg, aes(x = displ, y = hwy, color = hwy)) +
   geom_point(size = 3) +
@@ -236,14 +236,14 @@ p_scales
 
 **Try it:** Add `scale_x_log10()` to any scatter plot. How does a log-transformed axis change the appearance of the data distribution?
 
-```r
+```r title="Exercise: add log10 scale"
 # Your code here — add scale_x_log10() to a scatter plot
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Log10-scale solution"
 ex_log <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.05, color = "steelblue") +
   scale_x_log10() +
@@ -268,7 +268,7 @@ Facets split your data by a variable and draw one panel per group, all with the 
 | `facet_grid(. ~ cols)` | Facet columns only |, |
 | `facet_grid(rows ~ .)` | Facet rows only |, |
 
-```r
+```r title="facetwrap with labeller"
 # facet_wrap: one panel per drive type
 p_facet <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(alpha = 0.7) +
@@ -304,14 +304,14 @@ The `scales` argument controls axis behavior across panels:
 
 **Try it:** Add `scales = "free"` to `facet_wrap()` in `p_facet`. How does this change the axes across the three panels?
 
-```r
+```r title="Exercise: facets with free scales"
 # Your code here — add scales = "free" to facet_wrap()
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Free-scales solution"
 ex_free_scales <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.6, color = "steelblue") +
   facet_wrap(~ drv, scales = "free")
@@ -341,7 +341,7 @@ Themes control all non-data visual elements: background, grid lines, axis text, 
 
 **Customizing with `theme()`:**
 
-```r
+```r title="Customize every theme element"
 # Build a fully customized theme
 p_theme <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "dodge") +
@@ -396,14 +396,14 @@ p_theme
 
 **Try it:** Replace `theme_minimal()` with `theme_classic()`. How does the chart's overall feel change?
 
-```r
+```r title="Exercise: swap to themeclassic"
 # Your code here — swap theme_minimal() for theme_classic()
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="themeclassic solution"
 ex_classic <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "dodge") +
   scale_fill_brewer(palette = "Set2",
@@ -425,14 +425,14 @@ ex_classic
 
 ❌ `geom_point(color = drv)` passes the string `"drv"` as color, coloring all points one color:
 
-```r
+```r title="Common mistake: color outside aes"
 # Wrong: color = drv outside aes() is literal, not a column lookup
 ggplot(mpg, aes(x = displ, y = hwy)) + geom_point(color = drv)
 ```
 
 ✅ Move data mappings inside `aes()`:
 
-```r
+```r title="Correct: color inside aes"
 ggplot(mpg, aes(x = displ, y = hwy, color = drv)) + geom_point()
 ```
 
@@ -458,7 +458,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = drv)) + geom_point()
 
 ❌ Placing `theme_minimal()` after `theme()` resets all the custom `theme()` changes:
 
-```r
+```r title="Common mistake: theme after theme()"
 # Wrong order - theme_minimal() resets everything after it
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point() +
@@ -468,7 +468,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 ✅ Always put the base theme function *before* your `theme()` customizations:
 
-```r
+```r title="Correct: base theme before theme()"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point() +
   theme_minimal() +  # base theme first
@@ -485,7 +485,7 @@ Using only this cheat sheet as a reference, create a scatter plot of `mpg`'s `ct
 - Facets by `drv` using `facet_wrap()`
 - `theme_minimal()` + a bold title
 
-```r
+```r title="Exercise: hwy vs cty scatter"
 # Build it here — use the tables in each section for reference
 # ggplot(mpg, aes(x = cty, y = hwy, color = class)) + ...
 ```
@@ -498,7 +498,7 @@ Build a horizontal bar chart of average `hwy` per `manufacturer` (top 10 only) t
 - Adds value labels with `geom_text(hjust = -0.2)`
 - Removes grid lines with `theme(panel.grid.major.y = element_blank())`
 
-```r
+```r title="Exercise: top-ten manufacturers bar"
 library(forcats)
 mfr_avg <- aggregate(hwy ~ manufacturer, mpg, mean)
 mfr_top <- head(mfr_avg[order(-mfr_avg$hwy), ], 10)
@@ -512,7 +512,7 @@ mfr_top <- head(mfr_avg[order(-mfr_avg$hwy), ], 10)
 
 This end-to-end example assembles all five sections, geoms, aesthetics, scales, facets, and themes, into a single publication-quality chart:
 
-```r
+```r title="Publication-quality chart in one plot"
 # Complete example: ggplot2 grammar in one chart
 p_final <- ggplot(
     mpg,

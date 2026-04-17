@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 `mutate()` takes a data frame and any number of `new_column = expression` arguments. Each expression can reference other columns by bare name and is computed vectorially across all rows.
 
-```r
+```r title="mutate a single new column"
 library(dplyr)
 
 mtcars |>
@@ -39,7 +39,7 @@ mtcars |>
 
 One line: new column, computed from an existing one. Multiple new columns at once work too, and later ones can reference earlier ones within the same `mutate()` call.
 
-```r
+```r title="Chain derived columns in mutate"
 mtcars |>
   mutate(
     kpl = mpg * 0.425,
@@ -57,7 +57,7 @@ This left-to-right resolution is a feature, not a bug. It lets you build derived
 
 **Try it:** Add a `weight_tons` column to `mtcars` by dividing `wt` by 2.205 (kips per ton).
 
-```r
+```r title="Exercise: weighttons from wt"
 mtcars |>
   mutate(weight_tons = wt / ___) |>
   select(wt, weight_tons) |>
@@ -68,7 +68,7 @@ mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="weighttons solution"
 library(dplyr)
 mtcars |>
   mutate(weight_tons = wt / 2.205) |>
@@ -90,7 +90,7 @@ mtcars |>
 
 Assign to a column name that already exists and `mutate()` overwrites it. This is the dplyr way to clean, rescale, or retype data.
 
-```r
+```r title="Overwrite existing column in place"
 df <- tibble(name = c("Ann", "Bo", "Cal"), score = c(72, 91, 65))
 
 df |> mutate(score = score / 100)
@@ -114,7 +114,7 @@ Overwriting is safe: the original data frame isn't mutated, and a new one is ret
 
 **Try it:** Upper-case the `Species` column of `iris`.
 
-```r
+```r title="Exercise: Upper-case Species"
 iris |> mutate(Species = toupper(___)) |> head()
 
 ```
@@ -122,7 +122,7 @@ iris |> mutate(Species = toupper(___)) |> head()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Upper-case Species solution"
 library(dplyr)
 iris |> mutate(Species = toupper(Species)) |> head()
 #>   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
@@ -141,7 +141,7 @@ Because `Species` is a factor, `toupper()` coerces it to character first and the
 
 `if_else()` is dplyr's strict version of base `ifelse()`: it checks that both branches return the same type, so you can't accidentally get a character column back from a numeric operation.
 
-```r
+```r title="ifelse two-way branching"
 mtcars |>
   mutate(economy = if_else(mpg > 25, "high", "low")) |>
   select(mpg, economy) |>
@@ -156,7 +156,7 @@ mtcars |>
 
 When you need more than two branches, `case_when()` is cleaner than nested `if_else()`:
 
-```r
+```r title="casewhen multi-way sizing"
 mtcars |>
   mutate(
     size = case_when(
@@ -181,7 +181,7 @@ The `TRUE ~ "large"` is the catch-all, every row that didn't match an earlier co
 
 **Try it:** Use `case_when()` to add a `cylinder_class` column: "small" for 4 cyl, "mid" for 6, "large" for 8.
 
-```r
+```r title="Exercise: casewhen cylinder class"
 mtcars |>
   mutate(cylinder_class = case_when(
     cyl == 4 ~ "small",
@@ -195,7 +195,7 @@ mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="casewhen cylinder class solution"
 library(dplyr)
 mtcars |>
   mutate(cylinder_class = case_when(
@@ -217,7 +217,7 @@ mtcars |>
 
 When you need to apply the same function to several columns, `across()` is the answer. It plugs into `mutate()` (and `summarise()`) and takes two arguments: which columns and what function.
 
-```r
+```r title="across for per-column rounding"
 iris |>
   mutate(across(where(is.numeric), ~ round(., 1))) |>
   head(3)
@@ -229,7 +229,7 @@ iris |>
 
 The `~ round(., 1)` is a compact anonymous function: `.` stands for the current column. You can also pass a named function directly: `across(where(is.numeric), log)`.
 
-```r
+```r title="across with startswith"
 iris |>
   mutate(across(starts_with("Sepal"), ~ . * 10)) |>
   head(3)
@@ -241,7 +241,7 @@ iris |>
 
 To run multiple functions at once and get multiple new columns, pass a named list:
 
-```r
+```r title="across with multiple functions"
 iris |>
   mutate(across(where(is.numeric),
                 list(log = log, sqrt = sqrt),
@@ -254,7 +254,7 @@ The `.names = "{.col}_{.fn}"` glue pattern controls the output column names, `{.
 
 **Try it:** Use `across()` to take the log of every numeric column in `iris`.
 
-```r
+```r title="Exercise: log every numeric column"
 iris |> mutate(across(where(is.numeric), log)) |> head()
 
 ```
@@ -262,7 +262,7 @@ iris |> mutate(across(where(is.numeric), log)) |> head()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="log every numeric column solution"
 library(dplyr)
 iris |> mutate(across(where(is.numeric), log)) |> head()
 #>   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
@@ -281,7 +281,7 @@ iris |> mutate(across(where(is.numeric), log)) |> head()
 
 dplyr bundles a set of window functions specifically for ordering and time-series work. `rank()`, `dense_rank()`, `row_number()`, `lag()`, and `lead()` are the ones you'll reach for most.
 
-```r
+```r title="Window functions lag, lead, rank"
 sales <- tibble(
   day = 1:6,
   revenue = c(420, 510, 380, 620, 455, 580)
@@ -312,7 +312,7 @@ sales |>
 
 **Try it:** Add a `revenue_change` column to `sales` using `lag()`.
 
-```r
+```r title="Exercise: Day-over-day change"
 sales |> mutate(revenue_change = revenue - lag(___))
 
 ```
@@ -320,7 +320,7 @@ sales |> mutate(revenue_change = revenue - lag(___))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Day-over-day change solution"
 library(dplyr); library(tibble)
 sales <- tibble(
   day = 1:6,
@@ -345,7 +345,7 @@ sales |> mutate(revenue_change = revenue - lag(revenue))
 
 Within `mutate()`, assigning `NULL` removes a column. If you only want to rename without adding anything, use `rename()`, cleaner than a full `select()`.
 
-```r
+```r title="Drop columns with NULL"
 mtcars |>
   mutate(vs = NULL, am = NULL) |>
   head(1) |>
@@ -361,7 +361,7 @@ mtcars |>
 
 `rename_with()` applies a function to rename many columns at once, useful for converting styles en masse (e.g., `.` to `_`).
 
-```r
+```r title="renamewith for bulk renames"
 iris |>
   rename_with(~ gsub("\\.", "_", tolower(.))) |>
   head(1)
@@ -371,7 +371,7 @@ iris |>
 
 **Try it:** Use `rename_with(toupper)` to upper-case every column name in `mtcars`.
 
-```r
+```r title="Exercise: Upper-case column names"
 mtcars |> rename_with(___) |> head()
 
 ```
@@ -379,7 +379,7 @@ mtcars |> rename_with(___) |> head()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Upper-case column names solution"
 library(dplyr)
 mtcars |> rename_with(toupper) |> head()
 #>                    MPG CYL DISP  HP DRAT    WT  QSEC VS AM GEAR CARB
@@ -398,7 +398,7 @@ mtcars |> rename_with(toupper) |> head()
 
 `transmute()` is `mutate()` that drops every column you didn't mention. Use it when you want a clean new data frame with only the computed columns (and any existing columns you explicitly kept).
 
-```r
+```r title="transmute for clean projection"
 mtcars |>
   transmute(
     model = rownames(mtcars),
@@ -416,7 +416,7 @@ In modern dplyr (1.0+), `mutate(.keep = "none")` does the same thing and is slig
 
 **Try it:** Use `transmute()` to return only `mpg` and a new `log_mpg` column from `mtcars`.
 
-```r
+```r title="Exercise: transmute mpg and log"
 mtcars |> transmute(mpg, log_mpg = log(___)) |> head()
 
 ```
@@ -424,7 +424,7 @@ mtcars |> transmute(mpg, log_mpg = log(___)) |> head()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="transmute mpg and log solution"
 library(dplyr)
 mtcars |> transmute(mpg, log_mpg = log(mpg)) |> head()
 #>                    mpg  log_mpg
@@ -448,7 +448,7 @@ On `mtcars`, add three features: `power_to_weight` (hp/wt), `displacement_per_cy
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Three engineered features solution"
 library(dplyr)
 mtcars |>
   mutate(
@@ -468,7 +468,7 @@ Rescale every numeric column of `iris` to z-scores using `across()`.
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="z-score every numeric column solution"
 iris |>
   mutate(across(where(is.numeric), ~ (. - mean(.)) / sd(.))) |>
   head()
@@ -482,7 +482,7 @@ Create an `mpg_grade` column on `mtcars` using `case_when()`: "A" if mpg ≥ 25,
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="casewhen mpg grade solution"
 mtcars |>
   mutate(mpg_grade = case_when(
     mpg >= 25 ~ "A",
@@ -498,7 +498,7 @@ mtcars |>
 
 A typical feature-engineering pipeline: load, clean strings, add derived features, transform numeric columns, summarize.
 
-```r
+```r title="End-to-end feature pipeline"
 library(dplyr)
 
 mtcars |>

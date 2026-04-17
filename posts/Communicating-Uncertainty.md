@@ -26,7 +26,7 @@ This guide walks through how to draw error bars, confidence bands, and quantile 
 
 Two studies report the same 12% improvement. One sampled 30 patients; the other sampled 500. Without uncertainty bars, the two results look identical and the smaller study punches above its weight. Add 95% confidence intervals and the picture flips: one estimate is rock solid, the other could swing anywhere from negligible to large. Here is the same data drawn both ways so you can feel the difference.
 
-```r
+```r title="Same 12% effect, very different certainty"
 library(ggplot2)
 
 study_results <- data.frame(
@@ -53,7 +53,7 @@ Both studies report a 12% point estimate, but Study A's interval ranges from 2% 
 
 **Try it:** Add an error bar layer to a one-row data frame. The mean is 50, the lower bound is 45, the upper bound is 55. Plot a single bar with the interval drawn on top.
 
-```r
+```r title="Exercise: add geomerrorbar to green bar"
 # Try it
 ex_means <- data.frame(group = "A", mean = 50, lower = 45, upper = 55)
 
@@ -68,7 +68,7 @@ ex_p1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Green-errorbar solution"
 ex_p1 <- ggplot(ex_means, aes(x = group, y = mean)) +
   geom_col(fill = "#59a14f", width = 0.4) +
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.15, linewidth = 0.8) +
@@ -87,7 +87,7 @@ The phrase "error bar" hides three very different things. Standard deviation tel
 ![What each error bar type measures](screenshots/Communicating-Uncertainty-error-bar-types.webp)
 *Figure 1: What each error bar type measures, all from the same sample.*
 
-```r
+```r title="Compute SD, SE, and 95% CI widths"
 set.seed(1042)
 sample_x <- rnorm(50, mean = 100, sd = 15)
 n <- length(sample_x)
@@ -108,7 +108,7 @@ data.frame(
 
 The SD bar is roughly seven times wider than the CI bar. They answer different questions, so the choice changes the chart's meaning. SD bars say "look how spread out the data are." CI bars say "look how confident I am about the mean." Picking the wrong one is not a stylistic choice, it changes the claim.
 
-```r
+```r title="Plot three interval widths side by side"
 bar_widths <- data.frame(
   type  = factor(c("SD", "SE", "95% CI"), levels = c("SD", "SE", "95% CI")),
   mean  = m,
@@ -131,7 +131,7 @@ Notice that the dot, the sample mean, is in the same place in all three columns.
 
 **Try it:** Compute a 99% confidence interval (use 2.576 instead of 1.96) for a fresh sample of 100 draws from N(50, 8). Save the half-width to `ex_ci99`.
 
-```r
+```r title="Exercise: half-width of a 99% CI"
 # Try it
 set.seed(7)
 ex_x <- rnorm(100, mean = 50, sd = 8)
@@ -145,7 +145,7 @@ ex_ci99
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="99%-CI solution"
 ex_ci99 <- 2.576 * sd(ex_x) / sqrt(length(ex_x))
 ex_ci99
 #> [1] 2.057
@@ -159,7 +159,7 @@ ex_ci99
 
 ggplot2 gives you two core tools. `geom_errorbar()` draws discrete bars on top of categorical summaries, useful for comparing group means. `geom_smooth()` or `geom_ribbon()` draws a continuous band around a fitted line, useful for regressions or trends. Pick the one that matches the shape of your data.
 
-```r
+```r title="Species means with 95% CI bars"
 iris_summary <- aggregate(Sepal.Length ~ Species, data = iris,
                           FUN = function(z) c(m = mean(z),
                                               se = sd(z) / sqrt(length(z))))
@@ -188,7 +188,7 @@ Each species gets one column (the mean) and one vertical interval (the 95% CI on
 
 For a continuous predictor, switch to `geom_smooth()`. The grey ribbon is the 95% confidence interval around the fitted regression line, wider where the data are sparse, narrower where the data are dense.
 
-```r
+```r title="MPG vs weight with confidence ribbon"
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point(colour = "#4e79a7", size = 2) +
   geom_smooth(method = "lm", level = 0.95,
@@ -206,7 +206,7 @@ The ribbon balloons at the extremes of weight because we have fewer cars there, 
 
 **Try it:** Repeat the mtcars regression plot with a 99% confidence band instead of 95%.
 
-```r
+```r title="Exercise: switch ribbon to 99%"
 # Try it: change the smooth's confidence level to 0.99
 ex_p_smooth <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point(colour = "#4e79a7") +
@@ -219,7 +219,7 @@ ex_p_smooth
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="99%-ribbon solution"
 ex_p_smooth <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point(colour = "#4e79a7") +
   geom_smooth(method = "lm", level = 0.99,
@@ -239,7 +239,7 @@ Error bars are not magic. The same chart with a 95% CI bar can still mislead if 
 ![Honest vs misleading uncertainty](screenshots/Communicating-Uncertainty-honest-vs-misleading.webp)
 *Figure 2: Three habits that flip a chart from honest to misleading.*
 
-```r
+```r title="Misleading vs honest y-axis"
 days_df <- data.frame(
   day   = factor(c("Mon", "Tue", "Wed", "Thu", "Fri"),
                  levels = c("Mon", "Tue", "Wed", "Thu", "Fri")),
@@ -268,7 +268,7 @@ The numbers 98 to 101 are nearly identical. On the truncated chart the Friday ba
 
 The second trap is hidden distribution shape. A bar with a CI tells you where the mean is, but a mean of 50 can come from data clustered at 50 or from data split between 0 and 100. Showing the raw points alongside makes this visible.
 
-```r
+```r title="Bimodal distribution hidden by error bar"
 set.seed(2026)
 unimodal_x <- rnorm(60, mean = 50, sd = 5)
 bimodal_x  <- c(rnorm(30, mean = 30, sd = 3),
@@ -297,7 +297,7 @@ Both groups share roughly the same mean, but one cluster is tightly packed and t
 
 **Try it:** A colleague shows you a bar chart of monthly revenue where the y-axis starts at $98,000 and ends at $102,000. The bars look dramatically different. Should you trust the visual impression? Print "honest" or "misleading" with one sentence of reasoning.
 
-```r
+```r title="Exercise: label the misleading chart"
 # Try it
 ex_check <- ""  # set to "honest" or "misleading"
 ex_check
@@ -307,7 +307,7 @@ ex_check
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Misleading-label solution"
 ex_check <- "misleading: the y-axis spans only $4k of a $100k base, so a 1% wobble looks like a giant swing"
 ex_check
 ```
@@ -320,7 +320,7 @@ ex_check
 
 Even a perfectly drawn 95% CI is hard for non-statisticians to interpret. Research on how people read uncertainty shows that a row of discrete dots, each representing a chunk of probability, is more accurate for laypeople than a continuous ribbon. This is called frequency framing: humans count better than they integrate. Below is a hand-built quantile dotplot in ggplot2 with no extra packages.
 
-```r
+```r title="Quantile dotplot of 20 probability slices"
 set.seed(99)
 qd_sample <- rnorm(5000, mean = 100, sd = 12)
 
@@ -366,7 +366,7 @@ The chart is only half of the message. Whatever words you wrap around it shape h
 
 **Try it:** Rewrite this misleading caption to be honest: *"Treatment X works, patients improved by 8 points."*
 
-```r
+```r title="Exercise: rewrite as an honest caption"
 # Try it
 ex_caption <- ""  # rewrite as an honest one-sentence caption
 ex_caption
@@ -376,7 +376,7 @@ ex_caption
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Honest-caption solution"
 ex_caption <- "Patients on Treatment X improved by an estimated 8 points (n = 60, 95% CI: 2 to 14)."
 ex_caption
 ```
@@ -391,7 +391,7 @@ ex_caption
 
 You have four group means and standard errors: A=25/2.1, B=30/3.5, C=28/1.8, D=33/2.7 (all n=40). Build a ggplot bar chart with 95% CI error bars and add a subtitle stating sample size and interval type.
 
-```r
+```r title="Exercise: four-group 95% CI bar chart"
 # Exercise 1
 # Hint: build a data frame with group, mean, se, then compute lower/upper
 
@@ -402,7 +402,7 @@ You have four group means and standard errors: A=25/2.1, B=30/3.5, C=28/1.8, D=3
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four-group-CI solution"
 my_groups <- data.frame(
   group = c("A", "B", "C", "D"),
   mean  = c(25, 30, 28, 33),
@@ -431,7 +431,7 @@ my_plot1
 
 Draw 1000 samples from N(20, 4). Build a 20-dot quantile dotplot and add a vertical line at the sample mean.
 
-```r
+```r title="Exercise: quantile dotplot from 1000 draws"
 # Exercise 2
 # Hint: probs <- (seq_len(20) - 0.5) / 20; use quantile() then geom_dotplot()
 
@@ -442,7 +442,7 @@ Draw 1000 samples from N(20, 4). Build a 20-dot quantile dotplot and add a verti
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Quantile-dotplot solution"
 set.seed(31)
 my_sample <- rnorm(1000, mean = 20, sd = 4)
 my_qdf <- data.frame(
@@ -470,7 +470,7 @@ my_plot2
 
 Study A has n=30, mean=12, sd=10. Study B has n=500, mean=12, sd=10. Compute the 95% CI for each mean and draw a ggplot showing both as dot + interval.
 
-```r
+```r title="Exercise: compare two-study confidence"
 # Exercise 3
 # Hint: SE = sd / sqrt(n); CI = mean +/- 1.96 * SE
 
@@ -481,7 +481,7 @@ Study A has n=30, mean=12, sd=10. Study B has n=500, mean=12, sd=10. Compute the
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-study solution"
 my_studies <- data.frame(
   study = c("Study A (n=30)", "Study B (n=500)"),
   mean  = c(12, 12),
@@ -511,7 +511,7 @@ my_plot3
 
 Here is the whole pipeline end to end on the iris dataset: compute the mean and 95% CI of sepal length per species, draw a dot + interval plot, and write an honest caption.
 
-```r
+```r title="End-to-end iris CI plot"
 iris_ci <- aggregate(Sepal.Length ~ Species, data = iris,
                      FUN = function(z) {
                        n  <- length(z)

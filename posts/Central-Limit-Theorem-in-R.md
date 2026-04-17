@@ -24,7 +24,7 @@ difficulty: Intermediate
 
 Here's the claim the CLT makes, and why it feels strange the first time: if you repeatedly draw small samples from any population and average each sample, those averages start to form a bell curve, even when the population itself looks nothing like a bell. The fastest way to believe this is to watch it happen. Let's draw 1,000 sample means from a heavily right-skewed exponential distribution and plot them.
 
-```r
+```r title="Exponential sample means form a bell"
 library(ggplot2)
 set.seed(42)
 
@@ -49,7 +49,7 @@ The histogram is a textbook bell curve centered close to 1. The red line is the 
 
 To appreciate what just happened, compare the parent population to what came out. Here is the exponential itself, 10,000 raw draws, no averaging.
 
-```r
+```r title="Parent exponential is heavily right-skewed"
 set.seed(1)
 exp_parent <- rexp(10000, rate = 1)
 
@@ -80,7 +80,7 @@ The standard error shrinks with $\sqrt{n}$, which is why doubling your sample si
 
 **Try it:** Change the exponential rate from 1 to 0.5 and predict the mean and standard error of the resulting sample means at n = 30. Hint: for `Exponential(rate = r)`, $\mu = 1/r$ and $\sigma = 1/r$.
 
-```r
+```r title="Exercise: Sample means at rate 0.5"
 # Try it: sample means from a rate-0.5 exponential
 ex_rate_means <- replicate(1000, mean(rexp(30, rate = 0.5)))
 
@@ -95,7 +95,7 @@ ex_rate_means <- replicate(1000, mean(rexp(30, rate = 0.5)))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sample means at rate 0.5 solution"
 mean(ex_rate_means)
 #> [1] 2.003
 sd(ex_rate_means)
@@ -110,7 +110,7 @@ sd(ex_rate_means)
 
 Sample size is the dial that controls how close the sampling distribution gets to normal. Small $n$ means lumpy, skewed histograms. Large $n$ means a tight, symmetric bell. Rather than eyeball three separate plots, let's build a small helper function and then run the experiment across three sample sizes at once.
 
-```r
+```r title="simulatemeans helper for repeated sampling"
 # Helper: simulate k sample means of size n from an R random-number function
 simulate_means <- function(rdist, n, k = 1000) {
   replicate(k, mean(rdist(n)))
@@ -130,7 +130,7 @@ The mean of means lands on 1.0 (the population mean) and the observed spread lan
 
 Now compare three sample sizes on the same exponential. We stack them into a data frame and use `facet_wrap()` so the three histograms share axes.
 
-```r
+```r title="Three sample sizes side by side"
 set.seed(7)
 df_exp <- rbind(
   data.frame(n = "n = 5",   m = simulate_means(function(n) rexp(n, 1), 5)),
@@ -154,7 +154,7 @@ At $n = 5$ the sampling distribution still leans right, you can see the tail. At
 
 **Try it:** Simulate 1,000 sample means of size n = 50 from Exponential(rate = 1) and verify that the standard error is close to $1/\sqrt{50}$.
 
-```r
+```r title="Exercise: Standard error at n = 50"
 # Try it: SE at n = 50
 ex_n50 <- simulate_means(function(n) rexp(n, 1), 50)
 
@@ -168,7 +168,7 @@ ex_n50 <- simulate_means(function(n) rexp(n, 1), 50)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Standard error at n = 50 solution"
 sd(ex_n50)
 #> [1] 0.1407
 1 / sqrt(50)
@@ -183,7 +183,7 @@ sd(ex_n50)
 
 Skewed data was the dramatic case. Two other shapes test the theorem from opposite ends: a **uniform** distribution (symmetric, bounded, no tails) and a **bimodal** mixture (two separate humps). Uniform parents converge fastest because they are already symmetric. Bimodal parents are the most visually interesting because averaging literally fuses the two peaks into one.
 
-```r
+```r title="Uniform sample means converge quickly"
 # Uniform(0, 1): symmetric, already gentle on the CLT
 set.seed(11)
 u_means5  <- simulate_means(function(n) runif(n, 0, 1), 5)
@@ -206,7 +206,7 @@ Even at $n = 5$ the uniform means are approximately bell-shaped (technically a t
 
 Bimodal is more striking. Let's build a population that draws from one of two normal components 50/50, a visibly double-humped shape, and then compute sample means.
 
-```r
+```r title="Bimodal parent versus sample means"
 # Bimodal: 50/50 mixture of N(-2, 0.5) and N(2, 0.5)
 set.seed(21)
 rbimodal <- function(n) {
@@ -236,7 +236,7 @@ The parent has two obvious modes near $-2$ and $+2$. The sampling distribution o
 
 **Try it:** Simulate 1,000 sample means of size n = 20 from `Uniform(-1, 1)` and confirm the mean of means is close to 0.
 
-```r
+```r title="Exercise: Symmetric uniform around zero"
 # Try it: symmetric uniform around zero
 ex_uni_sym <- simulate_means(function(n) runif(n, -1, 1), 20)
 
@@ -251,7 +251,7 @@ ex_uni_sym <- simulate_means(function(n) runif(n, -1, 1), 20)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Symmetric uniform around zero solution"
 mean(ex_uni_sym)
 #> [1] 0.0018
 sd(ex_uni_sym)
@@ -266,7 +266,7 @@ sd(ex_uni_sym)
 
 Eyeballing histograms is a start. For a sharper diagnostic, statisticians use two tools: the **Q-Q plot** (visual) and the **Shapiro-Wilk test** (numeric). A Q-Q plot compares the quantiles of your data against the quantiles a normal distribution would have, points that fall on a straight line mean the data is normal. Shapiro-Wilk returns a p-value where a high p (typically > 0.05) means you cannot reject the hypothesis that the data is normal.
 
-```r
+```r title="Q-Q plot for exponential means"
 # Q-Q plot for the n = 30 exponential means
 ggplot(data.frame(m = exp_means30), aes(sample = m)) +
   stat_qq(color = "steelblue") +
@@ -280,7 +280,7 @@ The points hug the reference line across the bulk of the distribution. A slight 
 
 Now the numeric test. We run Shapiro-Wilk across three sample sizes to see the p-value change.
 
-```r
+```r title="Shapiro-Wilk across three sample sizes"
 set.seed(99)
 sw_results <- data.frame(
   n = c(5, 30, 100),
@@ -304,7 +304,7 @@ At $n = 5$ the p-value is essentially zero, the means are clearly non-normal. At
 
 **Try it:** Run Shapiro-Wilk on 1,000 uniform `U(0,1)` sample means at n = 5 and predict whether the p-value will be large or small.
 
-```r
+```r title="Exercise: Shapiro on uniform n=5"
 # Try it: Shapiro on uniform means at n=5
 ex_sw_uni5 <- simulate_means(function(n) runif(n, 0, 1), 5)
 
@@ -317,7 +317,7 @@ ex_sw_uni5 <- simulate_means(function(n) runif(n, 0, 1), 5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Shapiro on uniform n=5 solution"
 shapiro.test(ex_sw_uni5)
 #> 
 #>     Shapiro-Wilk normality test
@@ -334,7 +334,7 @@ shapiro.test(ex_sw_uni5)
 
 The CLT is powerful, but it has two requirements written in fine print: (1) the population must have a **finite variance**, and (2) the samples must be **independent**. Break either one and the theorem stops working. The textbook counter-example for the variance rule is the **Cauchy distribution**, it has infinite variance, and its sample means do not converge to normal at any $n$.
 
-```r
+```r title="Cauchy refuses to converge"
 # Cauchy: heavy-tailed, infinite variance — CLT fails
 set.seed(33)
 cauchy_means <- data.frame(
@@ -365,7 +365,7 @@ Independence is the second trap. Time-series data with strong autocorrelation br
 
 **Try it:** Compute the spread (standard deviation) of Cauchy sample means at n = 30 and n = 1000 and confirm that increasing n does NOT shrink it.
 
-```r
+```r title="Exercise: Cauchy ignores 1/sqrt(n)"
 # Try it: Cauchy does not obey the 1/sqrt(n) law
 ex_c30   <- simulate_means(function(n) rcauchy(n), 30)
 ex_c1000 <- simulate_means(function(n) rcauchy(n), 1000)
@@ -380,7 +380,7 @@ ex_c1000 <- simulate_means(function(n) rcauchy(n), 1000)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cauchy ignores 1/sqrt(n) solution"
 sd(ex_c30)
 #> [1] 34.7
 sd(ex_c1000)
@@ -399,7 +399,7 @@ Three capstone exercises that combine multiple ideas from the post. The `simulat
 
 Both Lognormal(0, 1) and Exponential(1) are right-skewed, but they skew differently. Draw 1,000 sample means of size n = 30 from each, run Shapiro-Wilk on both, and save the p-values to `my_lnorm` and `my_exp`. Which one converges to normal faster at n = 30?
 
-```r
+```r title="Exercise: Exponential versus lognormal race"
 # Exercise 1: convergence race
 # Hint: simulate_means() accepts any R random-number function
 
@@ -410,7 +410,7 @@ Both Lognormal(0, 1) and Exponential(1) are right-skewed, but they skew differen
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exponential versus lognormal race solution"
 set.seed(55)
 my_exp   <- shapiro.test(simulate_means(function(n) rexp(n, 1),      30))$p.value
 my_lnorm <- shapiro.test(simulate_means(function(n) rlnorm(n, 0, 1), 30))$p.value
@@ -427,7 +427,7 @@ c(exp = my_exp, lnorm = my_lnorm)
 
 Write `needed_n(rdist, threshold = 0.05)` that returns the smallest value from `c(5, 10, 20, 30, 50, 100)` whose simulated sample means at that size pass Shapiro-Wilk with `p > threshold`. If none pass, return `NA`. Test it on Uniform(0,1) and Exponential(1).
 
-```r
+```r title="Exercise: Find smallest passing n"
 # Exercise 2: convergence search
 # Hint: loop through sizes, return the first pass
 
@@ -438,7 +438,7 @@ Write `needed_n(rdist, threshold = 0.05)` that returns the smallest value from `
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Smallest passing n solution"
 needed_n <- function(rdist, threshold = 0.05) {
   for (n in c(5, 10, 20, 30, 50, 100)) {
     m <- simulate_means(rdist, n, k = 1000)
@@ -462,7 +462,7 @@ needed_n(function(n) rexp(n, 1))
 
 Create a mixture population that draws equally from N(-3, 0.5), N(0, 0.5), and N(3, 0.5). Plot the parent (10,000 draws) and the sampling distribution of the mean at n = 30 side by side. Confirm the sampling distribution is unimodal and roughly normal.
 
-```r
+```r title="Exercise: Three-hump mixture sample means"
 # Exercise 3: three-hump mixture
 # Hint: pick a component with sample(1:3, n, replace = TRUE) and rnorm from it
 
@@ -473,7 +473,7 @@ Create a mixture population that draws equally from N(-3, 0.5), N(0, 0.5), and N
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-hump mixture solution"
 set.seed(88)
 rtri <- function(n) {
   comp <- sample(1:3, n, replace = TRUE)
@@ -504,7 +504,7 @@ ggplot(df_tri, aes(x)) +
 
 Let's bring everything together in one four-panel plot: sample means at n = 30 from each of the four populations we studied, exponential, uniform, bimodal, and Cauchy. Three of the four should look normal. One should not.
 
-```r
+```r title="End-to-end four parents compared"
 set.seed(2024)
 all_means <- rbind(
   data.frame(parent = "Exponential(1)",  m = simulate_means(function(n) rexp(n, 1), 30)),

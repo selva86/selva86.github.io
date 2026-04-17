@@ -24,7 +24,7 @@ Imagine you are cold-calling prospects. Each call either lands a meeting (succes
 
 Let's compute the probability of three rejections then a yes when each call has a 25% chance of success, and also the long-run average number of rejections before a yes.
 
-```r
+```r title="Three failures before first success"
 # Geometric payoff: exactly 3 failures before the first success
 p <- 0.25
 prob_exact_3 <- dgeom(x = 3, prob = p)
@@ -44,7 +44,7 @@ There is about a 10.5% chance that you face exactly three rejections before land
 
 **Try it:** Compute the probability of exactly 5 failures before the first success when each trial has `p = 0.30`. Save it to `ex_geom_prob`.
 
-```r
+```r title="Try it: Five failures at p = 0.30"
 # Try it: P(5 failures before first success) when p = 0.30
 ex_geom_prob <- # your code here
 
@@ -55,7 +55,7 @@ ex_geom_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Geometric probability solution"
 ex_geom_prob <- dgeom(x = 5, prob = 0.30)
 ex_geom_prob
 #> [1] 0.05042
@@ -81,7 +81,7 @@ $$E[X] = \frac{1 - p}{p}, \qquad \text{Var}(X) = \frac{1 - p}{p^2}$$
 
 Larger `p` means fewer expected failures and a tighter distribution. Let's visualize how the PMF changes when success becomes easier.
 
-```r
+```r title="Geometric PMF for two p values"
 # PMF for p = 0.25 vs p = 0.5
 library(ggplot2)
 library(dplyr)
@@ -104,7 +104,7 @@ At `p = 0.5` the mass piles up on zero, most of the time the very first trial is
 
 **Try it:** Use the formula to predict the mean number of failures before the first success for `p = 0.2`, then confirm it with a large simulation using `rgeom()`. Save the theoretical mean to `ex_mean_theory` and the simulated mean to `ex_mean_sim`.
 
-```r
+```r title="Try it: Theory versus simulation"
 # Try it: theoretical vs simulated geometric mean
 set.seed(11)
 
@@ -118,7 +118,7 @@ c(theory = ex_mean_theory, sim = ex_mean_sim)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Theory vs simulation solution"
 set.seed(11)
 ex_mean_theory <- (1 - 0.2) / 0.2
 ex_mean_sim <- mean(rgeom(n = 50000, prob = 0.2))
@@ -140,7 +140,7 @@ The negative binomial distribution generalizes the geometric by waiting for more
 
 In R, `dnbinom(x, size, prob)` gives the probability of exactly `x` failures before the `size`-th success. Let's compute the probability of three rejections before landing the second meeting.
 
-```r
+```r title="Three failures before second success"
 # P(3 failures before 2nd success) at p = 0.25
 prob_nb_3 <- dnbinom(x = 3, size = 2, prob = p)
 prob_nb_3
@@ -151,7 +151,7 @@ There is about a 7.9% chance that you face exactly three rejections before closi
 
 To see that shift, plot the PMF for three values of `size` on one chart.
 
-```r
+```r title="Negative binomial PMF by size"
 # NB PMF for size = 1, 3, 5 at p = 0.25
 nb_df <- expand.grid(x = 0:30, size = c(1, 3, 5)) |>
   mutate(prob = dnbinom(x, size = size, prob = 0.25),
@@ -172,7 +172,7 @@ At `size = 1`, the curve is the geometric, monotonically decreasing from zero. A
 
 **Try it:** Compute the probability of exactly 10 failures before the 3rd success when `p = 0.4`. Save it to `ex_nb_prob`.
 
-```r
+```r title="Try it: Ten failures before third success"
 # Try it: P(10 failures before 3rd success) at p = 0.4
 ex_nb_prob <- # your code here
 
@@ -183,7 +183,7 @@ ex_nb_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="NB probability solution"
 ex_nb_prob <- dnbinom(x = 10, size = 3, prob = 0.4)
 ex_nb_prob
 #> [1] 0.04519337
@@ -206,7 +206,7 @@ The `mu` form is what `MASS::glm.nb()` and modern regression packages report, so
 
 Let's verify they give the same answer for one example.
 
-```r
+```r title="Classic and mu forms agree"
 # Same probability, two parameterizations
 mu <- 9       # expected count of failures
 size_val <- 3
@@ -226,7 +226,7 @@ Both calls return the same probability. The takeaway: you can report NB results 
 
 **Try it:** Convert `size = 5`, `mu = 12` into the matching `prob`, and verify that `dnbinom(8, size = 5, prob = <your prob>)` equals `dnbinom(8, size = 5, mu = 12)`. Save the probability to `ex_prob_convert`.
 
-```r
+```r title="Try it: Convert mu to prob"
 # Try it: convert mu = 12 into prob for size = 5
 ex_size <- 5
 ex_mu <- 12
@@ -240,7 +240,7 @@ c(from_prob = dnbinom(8, size = ex_size, prob = ex_prob_convert),
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Parameterization conversion solution"
 ex_size <- 5
 ex_mu <- 12
 ex_prob_convert <- ex_size / (ex_size + ex_mu)   # 5 / 17
@@ -259,7 +259,7 @@ c(from_prob = dnbinom(8, size = ex_size, prob = ex_prob_convert),
 
 Simulation is the fastest way to build intuition. `rgeom(n, prob)` draws `n` independent geometric samples, and `rnbinom(n, size, prob)` does the same for the negative binomial. Each draw is a single waiting time.
 
-```r
+```r title="Simulate geometric waits"
 # 10,000 geometric samples at p = 0.25
 set.seed(42)
 sim_geom <- rgeom(n = 10000, prob = p)
@@ -273,7 +273,7 @@ The histogram's shape matches the theoretical PMF from earlier, most runs end fa
 
 A quick sanity check: the empirical mean should be close to the theoretical mean `(1 - p)/p = 3`.
 
-```r
+```r title="Empirical mean matches theory"
 # Empirical vs theoretical
 mean_sim <- mean(sim_geom)
 mean_theory <- (1 - p) / p
@@ -289,7 +289,7 @@ The simulated mean of 3.009 is within rounding of the exact value 3. With 10,000
 
 **Try it:** Simulate 1,000 geometric draws with `p = 0.1`, set seed `123`, and compute the mean. Save to `ex_sim_mean`. The theoretical mean is `(1 - 0.1)/0.1 = 9`.
 
-```r
+```r title="Try it: Simulate and check mean"
 # Try it: simulate and check mean
 set.seed(123)
 ex_sim_mean <- # your simulation here
@@ -301,7 +301,7 @@ ex_sim_mean
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Simulation mean solution"
 set.seed(123)
 ex_sim_mean <- mean(rgeom(n = 1000, prob = 0.1))
 ex_sim_mean
@@ -326,7 +326,7 @@ Where:
 
 So NB variance is always `mu` plus an extra term, making it strictly greater than the Poisson variance at the same mean. Let's see that in one comparison.
 
-```r
+```r title="NB variance exceeds Poisson"
 # Same mean, different variance: Poisson vs NB
 set.seed(7)
 target_mean <- 5
@@ -347,7 +347,7 @@ Both samples average near 5, but the Poisson variance is ~5 and the NB variance 
 
 **Try it:** Simulate 2,000 negative binomial draws with `mu = 5` and `size = 2`. Compute the sample variance and compare it to the theoretical `5 + 25/2 = 17.5`. Save the sample variance to `ex_nb_var`.
 
-```r
+```r title="Try it: Verify NB variance"
 # Try it: check NB variance formula
 set.seed(99)
 ex_nb_var <- # your code here
@@ -359,7 +359,7 @@ ex_nb_var
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="NB variance solution"
 set.seed(99)
 ex_nb_var <- var(rnbinom(n = 2000, size = 2, mu = 5))
 ex_nb_var
@@ -376,7 +376,7 @@ ex_nb_var
 
 Your sales team lands a meeting on about 15% of cold calls. Compute (a) the expected number of failed calls before the first meeting using the formula, and (b) the 90th-percentile number of failed calls before the first meeting using `qgeom()`. Save the two numbers to `my_expected` and `my_budget`.
 
-```r
+```r title="Exercise: Prospecting budget"
 # Exercise 1: prospecting budget
 my_p <- 0.15
 my_expected <- # formula for geometric mean
@@ -390,7 +390,7 @@ c(expected = my_expected, budget_p90 = my_budget)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Prospecting budget solution"
 my_p <- 0.15
 my_expected <- (1 - my_p) / my_p
 my_budget <- qgeom(p = 0.90, prob = my_p)
@@ -408,7 +408,7 @@ c(expected = my_expected, budget_p90 = my_budget)
 
 You need to close 3 deals. Each offer lands with probability 0.2. Compute (a) `P(exactly 10 rejections before closing 3 deals)` with `dnbinom()` and (b) `P(at most 15 rejections before closing 3 deals)` with `pnbinom()`. Save them to `my_fail_exact` and `my_fail_cum`.
 
-```r
+```r title="Exercise: Multi-offer negotiation"
 # Exercise 2: multi-offer negotiation
 my_fail_exact <- # dnbinom for exactly 10 failures
 my_fail_cum <- # pnbinom for at most 15 failures
@@ -421,7 +421,7 @@ c(exact_10 = my_fail_exact, at_most_15 = my_fail_cum)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multi-offer negotiation solution"
 my_fail_exact <- dnbinom(x = 10, size = 3, prob = 0.2)
 my_fail_cum   <- pnbinom(q = 15, size = 3, prob = 0.2)
 
@@ -438,7 +438,7 @@ c(exact_10 = my_fail_exact, at_most_15 = my_fail_cum)
 
 Simulate 3,000 negative binomial draws with `mu = 4` and `size = 2`, seed `2026`. Compute the sample variance-to-mean ratio and compare it to the Poisson null of 1. Save the ratio to `od_ratio`.
 
-```r
+```r title="Exercise: Overdispersion diagnostic"
 # Exercise 3: overdispersion diagnostic
 set.seed(2026)
 od_sample <- # simulate
@@ -452,7 +452,7 @@ od_ratio
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Overdispersion diagnostic solution"
 set.seed(2026)
 od_sample <- rnbinom(n = 3000, size = 2, mu = 4)
 od_ratio <- var(od_sample) / mean(od_sample)
@@ -469,7 +469,7 @@ od_ratio
 
 A first-line support agent resolves a ticket on each attempt with probability 0.35. You want to answer four questions: what is the probability of resolving on exactly the 3rd attempt? What is the expected number of failed attempts before resolution? What is the probability of resolving within 5 attempts (i.e., at most 4 failures)? And if an SLA requires resolving 2 tickets by the 8th total attempt (at most 6 failures), what is that probability?
 
-```r
+```r title="End-to-end support resolution"
 # Complete example: support resolution
 p_res <- 0.35
 

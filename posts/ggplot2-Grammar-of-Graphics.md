@@ -51,7 +51,7 @@ Here is what each layer controls:
 
 Let's see all seven layers in a single explicit call. Normally you would let ggplot2 handle the defaults, but writing them out reveals what is happening behind the scenes.
 
-```r
+```r title="Seven layers of the grammar"
 # Load ggplot2
 library(ggplot2)
 
@@ -74,7 +74,7 @@ Most of those layers are defaults you never need to type. The minimal version of
 
 **Try it:** Take the basic scatterplot above and add a `labs()` call to set the x-axis label to "Weight (1000 lbs)" and the y-axis label to "Miles per Gallon".
 
-```r
+```r title="Exercise: add axis labels with labs"
 # Try it: add axis labels with labs()
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point()
@@ -84,7 +84,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Axis labels solution"
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
   labs(x = "Weight (1000 lbs)", y = "Miles per Gallon")
@@ -102,7 +102,7 @@ The most common aesthetics are `x` and `y` (position), but colour, fill, size, s
 
 Let's start with a basic positional mapping using the `mpg` dataset (fuel economy for 234 cars).
 
-```r
+```r title="Map displ to x and hwy to y"
 # Basic aes: map displ to x, hwy to y
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point()
@@ -113,7 +113,7 @@ Each point represents one car. The x-position encodes engine displacement and th
 
 Now let's map additional columns to colour and size. This encodes more information without adding more axes.
 
-```r
+```r title="Map class to colour and cyl to size"
 # Map class to colour, cyl to size
 ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
   geom_point(alpha = 0.7)
@@ -130,7 +130,7 @@ SUVs and pickups cluster at high displacement and low mileage. Compact cars clus
 
 **Try it:** Add `shape = drv` to the aesthetics of the scatterplot above to encode the drivetrain (front, rear, 4wd) as point shapes.
 
-```r
+```r title="Exercise: map drv to shape"
 # Try it: map drv to shape
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(alpha = 0.7)
@@ -140,7 +140,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Map drv to shape solution"
 ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
   geom_point(alpha = 0.7)
 #> Points now vary by both colour (class) and shape (drivetrain)
@@ -158,7 +158,7 @@ Think of it this way: aesthetics say *what* data to show. Geoms say *how* to sho
 
 Let's see the same data rendered with three different geoms.
 
-```r
+```r title="Same data three different geoms"
 # Same data, three different geoms
 # 1. Scatter plot
 p1 <- ggplot(mpg, aes(x = class, y = hwy)) +
@@ -180,7 +180,7 @@ p1
 
 The scatter plot shows every individual point. It reveals the raw distribution but can suffer from overplotting when points overlap.
 
-```r
+```r title="Boxplot version of the same data"
 # Show the boxplot version
 p2
 ```
@@ -189,7 +189,7 @@ The boxplot summarizes each group with a median, quartiles, and whiskers. It is 
 
 One of ggplot2's most powerful features is *layering* multiple geoms. You are not limited to one geometry per plot.
 
-```r
+```r title="Layer points with loess smooth"
 # Layer two geoms: points + smooth trend line
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.5) +
@@ -208,7 +208,7 @@ The smooth line reveals the overall relationship while the individual points pre
 
 **Try it:** Replace `geom_point()` with `geom_jitter(width = 0.2)` in the class vs hwy plot to spread overlapping points.
 
-```r
+```r title="Exercise: use geom jitter instead"
 # Try it: use geom_jitter instead of geom_point
 ggplot(mpg, aes(x = class, y = hwy)) +
   geom_point()
@@ -218,7 +218,7 @@ ggplot(mpg, aes(x = class, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="geom jitter solution"
 ggplot(mpg, aes(x = class, y = hwy)) +
   geom_jitter(width = 0.2) +
   labs(title = "Jittered Points")
@@ -235,7 +235,7 @@ Scales control *how* data values translate to visual ranges. Coordinates define 
 
 Let's start with scales. Every aesthetic has a default scale, but you can override it to change colours, axis limits, or transformations.
 
-```r
+```r title="Custom palette and log y axis"
 # Custom scales: colour palette + log-transformed y-axis
 ggplot(diamonds, aes(x = carat, y = price, colour = cut)) +
   geom_point(alpha = 0.3, size = 0.5) +
@@ -250,7 +250,7 @@ The log scale reveals patterns in the lower price range that a linear scale woul
 
 Facets are one of the grammar's most powerful ideas. Instead of cramming everything into one plot, you split the data into a grid of smaller panels.
 
-```r
+```r title="Facet wrap by cylinder count"
 # Facet: one panel per cylinder count
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point() +
@@ -267,7 +267,7 @@ Each panel shows cars with the same cylinder count. The trend lines within each 
 
 **Try it:** Change `facet_wrap(~cyl)` to `facet_grid(drv ~ cyl)` to create a 2D panel grid with drivetrain on rows and cylinders on columns.
 
-```r
+```r title="Exercise: facet grid by drivetrain and cylinders"
 # Try it: create a 2D facet grid
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point() +
@@ -278,7 +278,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Facet grid solution"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point() +
   facet_grid(drv ~ cyl) +
@@ -296,7 +296,7 @@ Themes control every non-data visual element: background colour, gridlines, font
 
 ggplot2 ships with several built-in themes. Let's compare two common ones.
 
-```r
+```r title="Default theme grey baseline"
 # Compare theme_grey (default) vs theme_minimal
 p_base <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point() +
@@ -307,7 +307,7 @@ p_base
 
 The default grey theme has a grey background with white gridlines. It works well for exploratory analysis.
 
-```r
+```r title="Switch to theme minimal"
 # Switch to theme_minimal
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point() +
@@ -320,7 +320,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 
 For fine-grained control, use `theme()` to override individual elements. Every part of the plot -- from the title font to the legend background -- is a theme element you can modify.
 
-```r
+```r title="Custom theme overrides"
 # Custom theme adjustments
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point() +
@@ -344,7 +344,7 @@ The title is now bold and 16pt. Minor gridlines are removed to reduce clutter. T
 
 **Try it:** Change the legend position to "top" and set the plot background to light blue using `theme(panel.background = element_rect(fill = "lightblue"))`.
 
-```r
+```r title="Exercise: move legend and recolour background"
 # Try it: move legend to top, set background colour
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point() +
@@ -355,7 +355,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Legend and background solution"
 ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point() +
   theme_minimal() +
@@ -374,7 +374,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
 
 ### Mistake 1: Forgetting the + between layers
 
-```r
+```r title="Mistake: missing plus between layers"
 # This causes an error
 ggplot(mtcars, aes(x = wt, y = mpg))
   geom_point()
@@ -384,7 +384,7 @@ ggplot(mtcars, aes(x = wt, y = mpg))
 
 **Why it is wrong:** Without `+`, R evaluates `ggplot(...)` as a complete expression and then tries to run `geom_point()` on its own. The geom has no plot to attach to.
 
-```r
+```r title="Correct: connect layers with plus"
 # Correct: connect with +
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point()
@@ -392,7 +392,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 
 ### Mistake 2: Placing aes() arguments outside the function
 
-```r
+```r title="Mistake: colour outside aes"
 # Wrong: colour is set to a fixed value, not mapped to data
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point(colour = "blue")
@@ -401,7 +401,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 
 **Why it is wrong:** Putting `colour = "blue"` outside `aes()` sets a fixed colour for all points. To map colour to a data column, it must be inside `aes()`.
 
-```r
+```r title="Correct: colour mapped inside aes"
 # Correct: map colour to a data column inside aes()
 ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
   geom_point()
@@ -410,7 +410,7 @@ ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
 
 ### Mistake 3: Using geom_bar() when you already have y-values
 
-```r
+```r title="Mistake: geom bar with y aesthetic"
 # Wrong: geom_bar() tries to count rows
 ex_data <- data.frame(
   fruit = c("Apple", "Banana", "Cherry"),
@@ -424,7 +424,7 @@ ex_data <- data.frame(
 
 **Why it is wrong:** `geom_bar()` uses `stat = "count"` by default. It counts how many rows belong to each x category. If you already have the y-values computed, use `geom_col()` instead.
 
-```r
+```r title="Correct: geom col for precomputed values"
 # Correct: use geom_col() for pre-computed values
 ggplot(ex_data, aes(x = fruit, y = sales)) +
   geom_col(fill = "steelblue") +
@@ -435,7 +435,7 @@ ggplot(ex_data, aes(x = fruit, y = sales)) +
 
 ### Mistake 4: Mapping a continuous variable to shape
 
-```r
+```r title="Mistake: continuous shape mapping"
 # Wrong: shape cannot represent continuous values
 # ggplot(mtcars, aes(x = wt, y = mpg, shape = hp)) +
 #   geom_point()
@@ -444,7 +444,7 @@ ggplot(ex_data, aes(x = fruit, y = sales)) +
 
 **Why it is wrong:** Shape is a discrete aesthetic. You cannot use it with a continuous variable like `hp`. Use `size` or `colour` for continuous mappings instead.
 
-```r
+```r title="Correct: size continuous shape discrete"
 # Correct: use size for continuous, shape for discrete
 ggplot(mtcars, aes(x = wt, y = mpg, size = hp, shape = factor(cyl))) +
   geom_point(alpha = 0.7)
@@ -457,7 +457,7 @@ ggplot(mtcars, aes(x = wt, y = mpg, size = hp, shape = factor(cyl))) +
 
 Create a scatter plot of the `mpg` dataset with `displ` on x, `hwy` on y, coloured by `class`, faceted by `drv`, using `theme_minimal()`. Add a descriptive title and axis labels.
 
-```r
+```r title="Exercise: faceted scatterplot by drivetrain"
 # Exercise 1: faceted scatterplot
 # Hint: combine aes(), geom_point(), facet_wrap(), theme_minimal(), and labs()
 
@@ -468,7 +468,7 @@ Create a scatter plot of the `mpg` dataset with `displ` on x, `hwy` on y, colour
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Faceted scatterplot solution"
 my_plot1 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(alpha = 0.7) +
   facet_wrap(~drv) +
@@ -490,7 +490,7 @@ my_plot1
 
 Using the `mtcars` dataset, create a scatter plot of `wt` vs `mpg`. Add a `geom_smooth()` trend line. Then use `geom_text()` to label any car with `mpg > 30` (Hint: create a filtered dataset for the text layer).
 
-```r
+```r title="Exercise: points smooth and text labels"
 # Exercise 2: points + smooth + text annotations
 # Hint: geom_text() accepts a 'data' argument for a subset
 # Hint: use label = rownames(mtcars) inside aes() for car names
@@ -502,7 +502,7 @@ Using the `mtcars` dataset, create a scatter plot of `wt` vs `mpg`. Add a `geom_
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Points smooth and labels solution"
 my_labels <- mtcars
 my_labels$car_name <- rownames(mtcars)
 my_efficient <- my_labels[my_labels$mpg > 30, ]
@@ -536,7 +536,7 @@ Let's build a complete, polished visualization from scratch using the grammar of
 
 The plan: map `displ` to x, `hwy` to y, and colour by class. Then add points, a smooth trend, facet by cylinders, and apply a clean theme with labels.
 
-```r
+```r title="End-to-end polished mpg visualization"
 # Complete example: grammar of graphics in action
 final_plot <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   # Geometry: points + trend line

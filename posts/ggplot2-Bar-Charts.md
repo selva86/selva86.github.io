@@ -48,7 +48,7 @@ This is the question that trips up nearly every ggplot2 beginner. Both functions
 
 Let's set up data for both scenarios:
 
-```r
+```r title="Raw data versus precomputed averages"
 library(ggplot2)
 library(forcats)
 
@@ -64,7 +64,7 @@ mpg_avg
 
 Now use `geom_bar()` on the raw data, it counts how many cars fall in each class:
 
-```r
+```r title="geombar counts rows per class"
 # geom_bar: count rows per class automatically
 p_bar <- ggplot(mpg, aes(x = class)) +
   geom_bar(fill = "steelblue") +
@@ -79,7 +79,7 @@ p_bar
 
 Now use `geom_col()` on the pre-computed averages, the bar height is the actual `hwy` value:
 
-```r
+```r title="geomcol plots precomputed averages"
 # geom_col: use pre-computed average highway mpg per class
 p_col <- ggplot(mpg_avg, aes(x = class, y = hwy)) +
   geom_col(fill = "tomato") +
@@ -96,14 +96,14 @@ p_col
 
 **Try it:** Try adding a `y` aesthetic to `geom_bar()` without `stat = "identity"`. What error does ggplot2 produce?
 
-```r
+```r title="Try it: Supply y to geombar"
 # Your code here — supply both x and y to geom_bar() and observe the result
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="geombar y-aesthetic error solution"
 ex_error <- tryCatch(
   ggplot(mpg, aes(x = class, y = hwy)) + geom_bar(),
   error = function(e) message("Error: ", e$message)
@@ -124,7 +124,7 @@ When your data has a second categorical variable (like drive type within each ve
 
 **Stacked bars** (default) place sub-categories on top of each other, showing totals and composition simultaneously:
 
-```r
+```r title="Stacked bar by drive type"
 # Stacked bar: fill = drv adds drive type as a second categorical dimension
 p_stack <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "stack") +
@@ -144,7 +144,7 @@ p_stack
 
 **Dodged bars** place sub-categories side-by-side, making it easier to compare values within each group:
 
-```r
+```r title="Dodged bar side by side"
 # Dodged bar: sub-categories placed side by side
 p_dodge <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = position_dodge(preserve = "single")) +
@@ -166,7 +166,7 @@ p_dodge
 
 **Percent-stacked bars** normalize each stack to 100%, letting you compare proportions across groups regardless of total count:
 
-```r
+```r title="Percent-stacked drive type mix"
 p_fill <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "fill") +
   scale_y_continuous(labels = scales::percent) +
@@ -188,14 +188,14 @@ p_fill
 
 **Try it:** Change `position = "fill"` to `position = "stack"` in `p_fill`. How does the chart interpretation change?
 
-```r
+```r title="Try it: Switch fill to stack"
 # Your code here — swap "fill" for "stack" and drop the percent y-axis
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stack switch solution"
 ex_stack_switch <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "stack") +
   scale_fill_brewer(palette = "Set2")
@@ -210,7 +210,7 @@ ex_stack_switch
 
 Bars in alphabetical order are almost never the right choice. A reader's eye moves from left to right, sorting by descending value puts the most important category first and makes comparisons effortless. The `fct_reorder()` function from the `forcats` package handles this.
 
-```r
+```r title="Reorder bars by average MPG"
 # Sort vehicle classes by average highway mpg (ascending for coord_flip)
 mpg_avg$class_ordered <- fct_reorder(mpg_avg$class, mpg_avg$hwy)
 
@@ -231,14 +231,14 @@ p_ordered
 
 **Try it:** Change `fct_reorder(mpg_avg$class, mpg_avg$hwy)` to `fct_reorder(mpg_avg$class, -mpg_avg$hwy)` (note the minus sign). How does the bar order change?
 
-```r
+```r title="Try it: Sort bars descending"
 # Your code here — negate the sort key to flip the direction
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Descending sort solution"
 ex_desc <- ggplot(mpg_avg,
     aes(x = fct_reorder(class, -hwy), y = hwy)) +
   geom_col(fill = "steelblue") +
@@ -254,7 +254,7 @@ Negating the sort key (`-hwy`) reverses the ordering, bars now read left-to-righ
 
 Labels on bars let readers read exact values without estimating from the axis. The positioning depends on whether you want labels inside, above, or at the end of each bar.
 
-```r
+```r title="Add value labels above bars"
 # Add value labels above bars (vjust controls vertical position)
 p_label <- ggplot(mpg_avg, aes(x = fct_reorder(class, hwy), y = hwy)) +
   geom_col(fill = "steelblue", width = 0.7) +
@@ -278,7 +278,7 @@ p_label
 
 For labels *inside* the bar (useful for long bars with enough room), change `vjust` and color:
 
-```r
+```r title="Place labels inside the bars"
 # Labels inside the bars (good when bars are tall enough)
 p_label_in <- ggplot(mpg_avg, aes(x = fct_reorder(class, hwy), y = hwy)) +
   geom_col(fill = "steelblue", width = 0.7) +
@@ -298,14 +298,14 @@ p_label_in
 
 **Try it:** Change `vjust = -0.4` to `vjust = 2` in `p_label`. Does the label move inside the bar? Does it still look readable?
 
-```r
+```r title="Try it: Push labels inside bar"
 # Your code here — push vjust positive and switch the text colour
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Inside labels solution"
 ex_label_pos <- ggplot(mpg_avg, aes(x = fct_reorder(class, hwy), y = hwy)) +
   geom_col(fill = "steelblue") +
   geom_text(aes(label = hwy), vjust = 2, color = "white", size = 3.5)
@@ -320,7 +320,7 @@ ex_label_pos
 
 Horizontal bars are easier to read when category names are long. `coord_flip()` rotates the entire chart 90 degrees, x becomes y and vice versa. Apply it to any of the charts built so far:
 
-```r
+```r title="Flip to horizontal with coordflip"
 # Flip p_ordered to horizontal - long names are now easy to read
 p_horiz <- p_ordered +
   coord_flip() +
@@ -339,14 +339,14 @@ Because `p_ordered` was already sorted ascending by `fct_reorder()`, after flipp
 
 **Try it:** Apply `coord_flip()` to `p_fill` (the percent-stacked chart). Does the horizontal layout make the proportion comparison easier?
 
-```r
+```r title="Try it: coordflip the percent stack"
 # Your code here — add coord_flip() to p_fill
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Flipped percent stack solution"
 ex_horiz_fill <- p_fill + coord_flip()
 ex_horiz_fill
 ```
@@ -360,14 +360,14 @@ After `coord_flip()` the bars run left-to-right with class names listed down the
 
 ❌ This produces an error because `geom_bar()` tries to count rows and conflicts with the supplied y variable:
 
-```r
+```r title="Common mistake: y with geombar"
 # Wrong: geom_bar can't handle a y aesthetic by default
 ggplot(mpg_avg, aes(x = class, y = hwy)) + geom_bar()
 ```
 
 ✅ Use `geom_col()` for pre-computed values:
 
-```r
+```r title="Correct: geomcol for precomputed values"
 ggplot(mpg_avg, aes(x = class, y = hwy)) + geom_col()
 ```
 
@@ -381,14 +381,14 @@ ggplot(mpg_avg, aes(x = class, y = hwy)) + geom_col()
 
 ❌ `geom_bar(color = "steelblue")` colors only the outline of the bars, not the interior:
 
-```r
+```r title="Common mistake: color outlines only"
 # Wrong: outlines only
 ggplot(mpg, aes(x = class)) + geom_bar(color = "steelblue")
 ```
 
 ✅ Use `fill` to color the bar interior:
 
-```r
+```r title="Correct: fill for bar interior"
 ggplot(mpg, aes(x = class)) + geom_bar(fill = "steelblue")
 ```
 
@@ -415,7 +415,7 @@ Using the `diamonds` dataset, create two bar charts side-by-side (use `gridExtra
 
 Are the highest-frequency cuts also the most expensive?
 
-```r
+```r title="Exercise: Diamonds cut frequency and price"
 # Starter code
 # library(patchwork) or library(gridExtra)
 
@@ -432,7 +432,7 @@ Are the highest-frequency cuts also the most expensive?
 
 Using the `mpg` dataset, create a stacked and a percent-stacked bar chart of `class` vs `drv` (drive type). Then answer: which vehicle classes are most dominated by front-wheel drive? Does the absolute count chart or the proportion chart make this clearer?
 
-```r
+```r title="Exercise: Stacked and percent-stacked drv"
 # Starter: stacked counts
 # p1 <- ggplot(mpg, aes(x = class, fill = drv)) +
 #   geom_bar(position = "stack")
@@ -447,7 +447,7 @@ Using the `mpg` dataset, create a stacked and a percent-stacked bar chart of `cl
 
 This final chart combines everything: pre-computed averages, sorted bars, data labels, a clean theme, and colorblind-friendly colors, ready for a report or presentation.
 
-```r
+```r title="End-to-end top-10 manufacturer chart"
 # Pre-compute mean highway mpg per manufacturer (top 10 by mpg)
 mfr_avg <- aggregate(hwy ~ manufacturer, data = mpg, FUN = mean)
 mfr_avg$hwy <- round(mfr_avg$hwy, 1)

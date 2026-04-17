@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 You want one number that says "these two variables are related, and by how much." The number you pick has to match your data: two numeric columns want a correlation coefficient, two categorical columns want a chi-square–based measure, and ordinal data has its own toolbox. Let's start with the most familiar case, two numeric columns from `mtcars`, so you can see the payoff before we walk through the full taxonomy.
 
-```r
+```r title="Pearson r for mpg and weight"
 # Load the two packages we will use throughout this tutorial.
 library(DescTools)
 library(vcd)
@@ -49,7 +49,7 @@ Read the flowchart left to right. Both variables numeric? Use Pearson r (or Spea
 
 **Try it:** Compute Pearson r between `mtcars$hp` (horsepower) and `mtcars$mpg` and store it in `ex_r_hp_mpg`. Round to 4 decimals.
 
-```r
+```r title="Exercise: hp vs mpg correlation"
 # Try it: Pearson r for hp vs mpg
 ex_r_hp_mpg <- NA  # replace NA with your code
 
@@ -60,7 +60,7 @@ round(ex_r_hp_mpg, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="hp-vs-mpg solution"
 ex_r_hp_mpg <- cor(mtcars$hp, mtcars$mpg)
 round(ex_r_hp_mpg, 4)
 #> [1] -0.7762
@@ -80,7 +80,7 @@ For two numeric variables, R's `cor()` function gives you three options through 
 
 Here are all three on the same `mtcars` pair we saw above.
 
-```r
+```r title="Three correlation methods compared"
 pearson_r    <- cor(mtcars$mpg, mtcars$wt, method = "pearson")
 spearman_rho <- cor(mtcars$mpg, mtcars$wt, method = "spearman")
 kendall_tau  <- cor(mtcars$mpg, mtcars$wt, method = "kendall")
@@ -94,7 +94,7 @@ All three agree on the *direction* (negative) and broadly agree on *strength*. S
 
 To see why Spearman can win decisively, here is a case where the relationship is perfectly monotonic but not linear.
 
-```r
+```r title="Monotonic but non-linear pattern"
 # A strictly monotonic but exponential pattern.
 x_mono <- 1:20
 y_mono <- exp(x_mono / 3)
@@ -117,7 +117,7 @@ Spearman nails the relationship at exactly 1 because the ranks line up perfectly
 
 **Try it:** Compute both Pearson and Spearman for `mtcars$hp` vs `mtcars$qsec` (quarter-mile time). Store them in `ex_pr_hp_qsec` and `ex_sp_hp_qsec`.
 
-```r
+```r title="Exercise: hp vs qsec methods"
 # Try it: Pearson and Spearman for hp vs qsec
 ex_pr_hp_qsec <- NA  # replace NA with your code
 ex_sp_hp_qsec <- NA  # replace NA with your code
@@ -129,7 +129,7 @@ round(c(pearson = ex_pr_hp_qsec, spearman = ex_sp_hp_qsec), 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="hp-qsec solution"
 ex_pr_hp_qsec <- cor(mtcars$hp, mtcars$qsec, method = "pearson")
 ex_sp_hp_qsec <- cor(mtcars$hp, mtcars$qsec, method = "spearman")
 
@@ -156,7 +156,7 @@ Phi ranges from 0 (no association) to 1 (perfect association), and for 2×2 tabl
 
 Let's build a real 2×2 from `mtcars`: does transmission type (`am`: 0 auto, 1 manual) go with engine shape (`vs`: 0 V-shaped, 1 straight)?
 
-```r
+```r title="Phi coefficient on a 2x2 table"
 # Cross-tabulate the two binary columns.
 tbl_am_vs <- table(am = mtcars$am, vs = mtcars$vs)
 tbl_am_vs
@@ -175,7 +175,7 @@ A Phi of about **0.17** says the association between transmission and engine sha
 
 For the same 2×2 you can also compute **Yule's Q**, which rescales the odds ratio into the –1 to 1 range and is much more sensitive to association in small tables.
 
-```r
+```r title="Yule's Q on the same table"
 # Yule's Q on the same 2x2 table.
 yule_q_am_vs <- YuleQ(tbl_am_vs)
 round(yule_q_am_vs, 4)
@@ -189,7 +189,7 @@ Yule's Q lands at **0.33**, about twice as strong as Phi on the same table. That
 
 **Try it:** Build a 2×2 from `mtcars` of `am` vs a new binary variable `high_mpg` (1 if `mpg > 20`, 0 otherwise) and compute Phi.
 
-```r
+```r title="Exercise: Phi with highmpg"
 # Try it: Phi for am vs high_mpg
 ex_high_mpg <- as.integer(mtcars$mpg > 20)
 ex_tbl_phi  <- NA  # build the 2x2 table
@@ -202,7 +202,7 @@ round(ex_phi, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="High-mpg Phi solution"
 ex_high_mpg <- as.integer(mtcars$mpg > 20)
 ex_tbl_phi  <- table(am = mtcars$am, high_mpg = ex_high_mpg)
 ex_phi      <- Phi(ex_tbl_phi)
@@ -230,7 +230,7 @@ V always lives in [0, 1]. The denominator corrects for the fact that bigger tabl
 
 Let's use `HairEyeColor`, a built-in 3-dimensional contingency table of hair, eye color, and sex. We first collapse across sex to get a flat 4×4 table.
 
-```r
+```r title="Cramer's V for hair and eye"
 # Collapse the 4 x 4 x 2 table across sex to get hair by eye only.
 hair_eye <- apply(HairEyeColor, c("Hair", "Eye"), sum)
 hair_eye
@@ -254,7 +254,7 @@ Cramer's V of **0.28** means hair color and eye color share a medium-strength as
 
 When you want every nominal measure at once, `vcd::assocstats()` prints Phi, contingency coefficient, Cramer's V, and the underlying chi-square test in a single call.
 
-```r
+```r title="assocstats for the male slice"
 # All nominal association measures in one call, for the male slice.
 assoc_male <- assocstats(HairEyeColor[, , "Male"])
 assoc_male
@@ -274,7 +274,7 @@ The output tells you three things at once: the chi-square test is highly signifi
 
 **Try it:** Compute Cramer's V for the 2×2 table of `admit` vs `gender` from `UCBAdmissions`, collapsed across department.
 
-```r
+```r title="Exercise: V on UCBAdmissions"
 # Try it: Cramer's V on UCBAdmissions collapsed
 ex_ucb_tbl <- NA  # collapse across Dept to get a 2x2
 ex_ucb_v   <- NA  # compute Cramer's V
@@ -286,7 +286,7 @@ round(ex_ucb_v, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="UCBAdmissions V solution"
 ex_ucb_tbl <- apply(UCBAdmissions, c("Admit", "Gender"), sum)
 ex_ucb_v   <- CramerV(ex_ucb_tbl)
 
@@ -310,7 +310,7 @@ Three measures dominate this space:
 
 Let's build a small 3×3 ordinal table, age group vs an income bracket, and compute all three.
 
-```r
+```r title="Ordinal table: gamma, tau-b, D"
 # A 3x3 ordinal table: age group by income bracket.
 ord_tbl <- matrix(
   c(7, 3, 1,
@@ -348,7 +348,7 @@ Which should you report? For a symmetric hypothesis, "are age and income associa
 
 **Try it:** Build a 3×3 ordinal table of study hours (Low/Med/High) vs exam grade (C/B/A) with a clear positive pattern and compute Kendall's τ-b. Use this starter data: `c(8, 3, 1, 2, 7, 3, 1, 2, 8)` byrow.
 
-```r
+```r title="Exercise: tau-b on hours and grade"
 # Try it: Kendall tau-b on an ordinal study-hours / grade table
 ex_ord_tbl <- NA  # build the 3x3 table from the vector above
 ex_tau_b   <- NA  # compute Kendall's tau-b
@@ -360,7 +360,7 @@ round(ex_tau_b, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hours-grade tau-b solution"
 ex_ord_tbl <- matrix(
   c(8, 3, 1,
     2, 7, 3,
@@ -390,7 +390,7 @@ Time to put it all together. These two exercises each combine multiple concepts,
 
 Given three variables, `mtcars$mpg` (numeric continuous), `mtcars$cyl` (ordinal: 4, 6, 8) and `mtcars$am` (binary), compute the *correct* measure of association for each of the three pairs and save the results to `my_assoc_mpg_cyl`, `my_assoc_mpg_am`, and `my_assoc_cyl_am`.
 
-```r
+```r title="Exercise: pick the right measure"
 # Exercise 1: pick and compute the right measure for each pair
 # Hint: mpg vs cyl -> Spearman (numeric vs ordinal)
 #       mpg vs am  -> Pearson  (numeric vs binary, which is a special case of numeric)
@@ -408,7 +408,7 @@ round(c(mpg_cyl = my_assoc_mpg_cyl,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Right-measure solution"
 my_assoc_mpg_cyl <- cor(mtcars$mpg, mtcars$cyl, method = "spearman")
 my_assoc_mpg_am  <- cor(mtcars$mpg, mtcars$am,  method = "pearson")
 my_assoc_cyl_am  <- KendallTauB(table(mtcars$cyl, mtcars$am))
@@ -428,7 +428,7 @@ round(c(mpg_cyl = my_assoc_mpg_cyl,
 
 Compute Cramer's V for the female slice of `HairEyeColor`, save it to `my_v_female`, and print the full `assocstats()` summary for the same slice into `my_assoc_female`.
 
-```r
+```r title="Exercise: V and assocstats female"
 # Exercise 2: V + assocstats for female slice
 # Hint: HairEyeColor[, , "Female"] gives a 4 x 4 matrix
 
@@ -442,7 +442,7 @@ my_assoc_female
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Female-slice solution"
 my_v_female     <- CramerV(HairEyeColor[, , "Female"])
 my_assoc_female <- assocstats(HairEyeColor[, , "Female"])
 
@@ -467,7 +467,7 @@ my_assoc_female
 
 Let's tie everything together. We'll walk through `mtcars`, classify each column as numeric, binary, or ordinal-like, pick the right measure for every pair, and build a tidy summary table.
 
-```r
+```r title="Profile every mtcars variable pair"
 # Classify columns by the kind of association measure they should use.
 classify_col <- function(x) {
   u <- length(unique(x))

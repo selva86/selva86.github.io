@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Most languages draw a variable like a box with a value inside. R flips that picture. The name `x` is a sticky label attached to a value sitting somewhere in memory, and two names can share the same label target. The `lobstr` package lets you look at those memory addresses directly, so you can see exactly when two names are pointing at the same thing.
 
-```r
+```r title="Two names share one address"
 library(lobstr)
 
 x <- c(1, 2, 3)
@@ -43,7 +43,7 @@ Both calls print the same address. Assigning `y <- x` did not allocate a new vec
 
 **Try it:** Create two vectors `ex_a` and `ex_b` where `ex_b` is assigned from `ex_a`. Use `obj_addr()` to confirm they share the same memory address.
 
-```r
+```r title="Exercise: bind two names to 1:5"
 # Your turn — bind two names to the same value
 ex_a <- 1:5
 ex_b <- # your code here
@@ -56,7 +56,7 @@ obj_addr(ex_b)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Shared-address solution"
 ex_a <- 1:5
 ex_b <- ex_a
 
@@ -77,7 +77,7 @@ So far, no copies. The interesting moment is when you change one of the names. T
 ![How copy-on-modify works: y <- x shares the address, modifying y allocates a new one.](screenshots/R-Names-and-Values-copy-on-modify-flow.webp)
 *Figure 1: When you reassign one element of `y`, R allocates a new value and re-binds `y` to it. `x` stays put.*
 
-```r
+```r title="Tracemem catches the copy on modify"
 tracemem(y)
 #> [1] "<0x55d4a8c1b3d0>"
 
@@ -99,7 +99,7 @@ The `tracemem[OLD -> NEW]` line is R telling you "I just copied this object." `x
 
 **Try it:** Use `tracemem()` on a new vector `ex_v`, then modify an element. Count how many `tracemem` lines print. Why that number?
 
-```r
+```r title="Exercise: trace change to element 2"
 ex_v <- c(10, 20, 30)
 # your code here — trace ex_v and change element 2
 
@@ -109,7 +109,7 @@ ex_v <- c(10, 20, 30)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Trace-change solution"
 ex_v <- c(10, 20, 30)
 tracemem(ex_v)
 ex_v[2] <- 200
@@ -125,7 +125,7 @@ untracemem(ex_v)
 
 Lists change the picture in one important way. A list isn't a single blob of data, it is a *container* of pointers to other objects. When you copy a list, R copies the container (the pointers) but not the things the pointers point to. This is a **shallow copy**, and the `ref()` function from `lobstr` makes it visible.
 
-```r
+```r title="Inspect list element addresses with ref"
 lst <- list(a = 1:3, b = 4:6, c = 7:9)
 ref(lst)
 #> o [1:0x55d4aa001000] <list>
@@ -139,7 +139,7 @@ Each element has its own memory address. Now clone the list and change one eleme
 ![Modifying one element of a copied list only allocates a new address for that element.](screenshots/R-Names-and-Values-shallow-copy.webp)
 *Figure 2: Changing `lst2$a` allocates a new vector for `a`. The elements `b` and `c` keep the same addresses as `lst`.*
 
-```r
+```r title="Modify one list element, share the rest"
 lst2 <- lst
 lst2$a <- c(99, 99, 99)
 
@@ -162,7 +162,7 @@ Only `a` got a new address. Elements `b` and `c` still live at the same memory a
 
 **Try it:** Copy `mtcars` to `ex_mt`, change the `mpg` column to all zeros, and use `ref()` on both to confirm that only `mpg` has a new address.
 
-```r
+```r title="Exercise: copy mpg column only"
 ex_mt <- mtcars
 # your code here
 
@@ -173,7 +173,7 @@ ref(mtcars, ex_mt)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Copy-mpg solution"
 ex_mt <- mtcars
 ex_mt$mpg <- rep(0, nrow(ex_mt))
 ref(mtcars, ex_mt)
@@ -188,7 +188,7 @@ ref(mtcars, ex_mt)
 
 The copy-on-modify rule has two real exceptions, and knowing them is what separates R users from R *tuners*. The first is the single-reference optimisation: if R can prove that exactly one name points at an object, it is free to skip the copy and change the bytes in place. The second is environments, which are always reference objects and never copy at all.
 
-```r
+```r title="Single-reference modify in place"
 v <- c(10, 20, 30)
 
 tracemem(v)
@@ -204,7 +204,7 @@ Whether the in-place optimisation actually kicks in depends on R's internal refe
 
 Environments are the other exception. Every environment is a **reference object**. Assigning `e2 <- e1` does not copy the environment; it makes `e2` *another handle on the same environment*. Mutating through either handle mutates the single underlying environment. That is the only way in base R to get true pass-by-reference.
 
-```r
+```r title="Environments mutate in place"
 e <- new.env()
 e$val <- 1
 
@@ -225,7 +225,7 @@ Calling `bump(e)` did not receive a copy of `e`. It received the same environmen
 
 **Try it:** Write a function `ex_set_flag(env)` that sets `env$flag <- TRUE`. Call it on a fresh environment, then print `flag` from outside the function.
 
-```r
+```r title="Exercise: function sets env flag"
 ex_env <- new.env()
 ex_set_flag <- function(env) {
   # your code here
@@ -239,7 +239,7 @@ ex_env$flag
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Env-flag solution"
 ex_env <- new.env()
 ex_set_flag <- function(env) {
   env$flag <- TRUE
@@ -257,7 +257,7 @@ ex_env$flag
 
 Every rule you just learned has a dollar-and-cents consequence: copies cost time. A loop that modifies a data frame one cell at a time will, in the worst case, trigger one full column copy per iteration. A vectorised assignment does the same work in one copy. The difference between "slow" and "fast" R code is usually "how many hidden copies am I making?", and `tracemem()` is how you answer that question.
 
-```r
+```r title="Loop copies vs one vectorised pass"
 grow_in_loop <- function(n) {
   df <- data.frame(x = 1:n)
   df$y <- NA_integer_
@@ -284,7 +284,7 @@ Both functions return the same data frame. The loop version, however, rewrites `
 
 The other side of the coin is that shared values are *free*. Packing the same vector into a list three times does not triple your memory, the list just holds three pointers at the same address.
 
-```r
+```r title="Size of a list that shares a vector"
 big <- 1:1e5
 lst3 <- list(big, big, big)
 
@@ -301,7 +301,7 @@ The list stores three pointers plus a tiny container, not three copies of the ve
 
 **Try it:** Rewrite the loop below as a single vectorised assignment and confirm they return the same result.
 
-```r
+```r title="Exercise: vectorise the slow squares loop"
 ex_slow <- function() {
   out <- numeric(100)
   for (i in seq_len(100)) out[i] <- i^2
@@ -319,7 +319,7 @@ identical(ex_slow(), ex_fast())
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Vectorise-squares solution"
 ex_fast <- function() {
   (seq_len(100))^2
 }
@@ -339,7 +339,7 @@ These capstones combine several concepts from above. Use distinct variable names
 
 Read the code below. **Before running it**, predict which of `my_a`, `my_b`, `my_c` share a memory address after all three lines execute. Then run it and verify with `obj_addr()`.
 
-```r
+```r title="Exercise: which two names share memory"
 my_a <- c(5, 10, 15)
 my_b <- my_a
 my_c <- my_a
@@ -355,7 +355,7 @@ obj_addr(my_c)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Shared-memory solution"
 my_a <- c(5, 10, 15)
 my_b <- my_a
 my_c <- my_a
@@ -374,7 +374,7 @@ obj_addr(my_c)  #> "0x...Y"
 
 The function below is slow because the body grows `result$col` one row at a time, and each assignment copies the column. Rewrite it so it runs in a single vectorised step. Confirm with `tracemem()` that the new version triggers far fewer copies.
 
-```r
+```r title="Exercise: vectorise the slow column loop"
 my_slow <- function(n) {
   result <- data.frame(id = seq_len(n))
   result$col <- 0
@@ -395,7 +395,7 @@ identical(my_slow(50), my_fast(50))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Vectorise-loop solution"
 my_fast <- function(n) {
   result <- data.frame(id = seq_len(n))
   result$col <- result$id * 3 + 1
@@ -420,7 +420,7 @@ untracemem(df)
 
 Run the code below and use `ref(my_lst1, my_lst2)` to inspect the result. In plain English, explain which elements are shared between the two lists and why.
 
-```r
+```r title="Exercise: ref lists after modifying q"
 my_lst1 <- list(p = 1:4, q = letters[1:3], r = c(TRUE, FALSE))
 my_lst2 <- my_lst1
 my_lst2$q <- letters[10:12]
@@ -432,7 +432,7 @@ ref(my_lst1, my_lst2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ref-list solution"
 ref(my_lst1, my_lst2)
 #> my_lst1: p[A]  q[B]  r[C]
 #> my_lst2: p[A]  q[D]  r[C]
@@ -446,7 +446,7 @@ ref(my_lst1, my_lst2)
 
 Here is the whole story in one session. Start with a vector, clone it, modify it, and watch each address. Then do the same with a list and an environment so all four behaviours show up side by side.
 
-```r
+```r title="Full copy-on-modify walkthrough"
 library(lobstr)
 
 # 1. Vectors: shared until modified

@@ -24,7 +24,7 @@ When you meet a new data object, the first question is always the same, what is 
 
 Let's point those four at the built-in `mtcars` data frame and see what they print.
 
-```r
+```r title="Inspect with class and str"
 cars <- mtcars
 class(cars)
 #> [1] "data.frame"
@@ -49,7 +49,7 @@ Three function calls and we already know `mtcars` is a data frame with 32 rows a
 
 `summary()` goes one level deeper. It returns a per-column five-number summary (min, 1st quartile, median, mean, 3rd quartile, max) and counts `NA` values for free, which is exactly what you want when screening a dataset for missing data.
 
-```r
+```r title="Summarise ozone and count NAs"
 aq <- airquality
 summary(aq$Ozone)
 #>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's
@@ -81,7 +81,7 @@ sum(is.na(aq$Ozone))
 
 **Try it:** Use `str()` and `summary()` on the `iris` dataset, then figure out how many `iris` rows belong to the `setosa` species.
 
-```r
+```r title="Exercise: Inspect iris and count setosa"
 # Try it: inspect iris and count setosa rows
 ex_iris <- iris
 # your code here
@@ -92,7 +92,7 @@ ex_iris <- iris
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="iris inspection solution"
 str(ex_iris)
 #> 'data.frame':	150 obs. of  5 variables:
 #>  $ Sepal.Length: num  5.1 4.9 4.7 4.6 5 5.4 4.6 5 4.4 4.9 ...
@@ -113,7 +113,7 @@ Before you can analyse anything you need to build it. Base R has a compact set o
 
 Start with the sequence generators. `seq()` is the general form, `seq_len()` is the safe version for "1 to n", and `seq_along()` gives you the positions of an existing vector, which is the correct way to loop, since `seq_along()` returns `integer(0)` on an empty input where `1:length(x)` would misfire.
 
-```r
+```r title="Sequences with seq and rep"
 s1 <- seq(0, 1, by = 0.25)
 s1
 #> [1] 0.00 0.25 0.50 0.75 1.00
@@ -131,7 +131,7 @@ Three short calls cover 90% of what you'll ever need from sequence generators. N
 
 Next, combine a few vectors into a data frame, then stack another row onto it with `rbind()`.
 
-```r
+```r title="Build and grow a data frame"
 students <- data.frame(
   name = c("Ada", "Bo", "Cy"),
   score = c(92, 78, 85)
@@ -178,7 +178,7 @@ students2
 
 **Try it:** Build a data frame of 5 students with `name` and `score` columns, then add a sixth row using `rbind()`.
 
-```r
+```r title="Exercise: Add Fay to students frame"
 # Try it: build + grow a data.frame
 ex_students <- data.frame(
   name = c("Amy", "Ben", "Cid", "Dia", "Eli"),
@@ -192,7 +192,7 @@ ex_students <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Add Fay solution"
 ex_students <- rbind(ex_students, data.frame(name = "Fay", score = 77))
 nrow(ex_students)
 #> [1] 6
@@ -208,7 +208,7 @@ Once data exists, most of your time goes into *picking the right rows*. Base R g
 
 Let's pull the rows from `mtcars` where horsepower is above 200 and the car has 6 or 8 cylinders. `which()` converts a logical vector into row positions, and `%in%` tests set membership.
 
-```r
+```r title="Filter cars by horsepower and cyl"
 idx <- which(cars$hp > 200 & cars$cyl %in% c(6, 8))
 idx
 #> [1]  7 17 24 29 31
@@ -227,7 +227,7 @@ Five cars match. Subsetting by row positions (`cars[idx, ...]`) is base R's work
 
 To rank those cars by `mpg`, use `order()`, not `sort()`. `sort()` returns sorted *values* and loses the row identity; `order()` returns the *positions* you need to reshuffle the original rows.
 
-```r
+```r title="Sort cars by mpg descending"
 ord <- order(cars$mpg, decreasing = TRUE)
 by_mpg <- cars[ord, c("mpg", "hp", "cyl")]
 head(by_mpg, 3)
@@ -266,7 +266,7 @@ The top three cars by `mpg` are all four-cylinder compacts, unsurprising, but th
 
 **Try it:** Find the three cars in `mtcars` with the highest `hp`, return a small data frame showing `hp`, `mpg`, and `cyl` for just those rows.
 
-```r
+```r title="Exercise: Top three by horsepower"
 # Try it: top-3 by hp
 ex_cars <- mtcars
 # your code here — use order() and head()
@@ -277,7 +277,7 @@ ex_cars <- mtcars
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top three horsepower solution"
 ex_top_hp <- ex_cars[order(ex_cars$hp, decreasing = TRUE), c("hp", "mpg", "cyl")]
 head(ex_top_hp, 3)
 #>                 hp  mpg cyl
@@ -296,7 +296,7 @@ Every summary stat you'd grab from a textbook is one call away in base R. The bi
 
 Let's compute a manual five-number summary of `mpg` using these primitives, which is a useful drill even when `summary()` does it for you.
 
-```r
+```r title="Seven-stat mpg summary"
 mpg_summary <- c(
   min    = min(cars$mpg),
   q1     = quantile(cars$mpg, 0.25, names = FALSE),
@@ -315,7 +315,7 @@ The median (19.2) is noticeably lower than the mean (20.09), hinting at a right-
 
 Correlation is the other statistic you'll run constantly. `cor()` takes two numeric vectors and returns Pearson's coefficient, which `round()` cleans up for display.
 
-```r
+```r title="Correlation between mpg and wt"
 cor_mw <- cor(cars$mpg, cars$wt)
 round(cor_mw, 3)
 #> [1] -0.868
@@ -351,7 +351,7 @@ round(cor_mw, 3)
 
 **Try it:** Compute the mean and standard deviation of `mtcars$hp`, rounded to 2 decimals.
 
-```r
+```r title="Exercise: Mean and sd of hp"
 # Try it: mean + sd of hp, rounded
 ex_hp <- mtcars$hp
 # your code here
@@ -362,7 +362,7 @@ ex_hp <- mtcars$hp
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean and sd solution"
 round(c(mean = mean(ex_hp), sd = sd(ex_hp)), 2)
 #>   mean     sd
 #> 146.69  68.56
@@ -378,7 +378,7 @@ String handling in base R is less elegant than `stringr`, but every function you
 
 For building strings, `paste0()` concatenates without a separator and `sprintf()` handles format specifiers like `%d` and `%.2f`. Use `sprintf()` whenever you need fixed decimal places or zero-padding.
 
-```r
+```r title="Padded filenames with sprintf"
 ids <- 1:3
 fnames <- paste0("report_", sprintf("%03d", ids), ".csv")
 fnames
@@ -389,7 +389,7 @@ fnames
 
 For search and replace, `grepl()` returns a logical vector ("does this row match?"), `grep()` returns positions, and `gsub()` replaces all matches. Regex is supported by default.
 
-```r
+```r title="Trim, lowercase, grepl, and gsub"
 messy <- c("  Alice ", "BOB", "  carol", "DAVE ")
 cleaned <- trimws(tolower(messy))
 cleaned
@@ -428,7 +428,7 @@ Three common operations, trim, lowercase, search, chained in four lines, all bas
 
 **Try it:** From a vector of email addresses, extract just the domains using `sub()` and a regular expression.
 
-```r
+```r title="Exercise: Extract email domains"
 # Try it: extract email domains
 ex_emails <- c("ada@rstats.co", "bo@example.com", "cy@x.io")
 # your code here — use sub() with "^.*@"
@@ -439,7 +439,7 @@ ex_emails <- c("ada@rstats.co", "bo@example.com", "cy@x.io")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Email domains solution"
 ex_domains <- sub("^.*@", "", ex_emails)
 ex_domains
 #> [1] "rstats.co"   "example.com" "x.io"
@@ -459,7 +459,7 @@ Most R beginners reach for `for` loops out of habit from other languages. Base R
 
 `sapply()` is the friendliest starting point, it runs a function over each element of a vector or list and *tries* to simplify the result into a vector or matrix. For the common case of "column means of a numeric data frame", it's a one-liner.
 
-```r
+```r title="Column means with sapply"
 col_means <- sapply(cars[, c("mpg", "hp", "wt", "qsec")], mean)
 round(col_means, 2)
 #>    mpg     hp     wt   qsec
@@ -470,7 +470,7 @@ One line, four means. Internally `sapply()` calls `mean()` on each column and wr
 
 When you need a grouped statistic, "mean mpg by cylinder count", `tapply()` is the right tool. It splits the first argument by the second, then applies the function to each group.
 
-```r
+```r title="Grouped means with tapply"
 mpg_by_cyl <- tapply(cars$mpg, cars$cyl, mean)
 round(mpg_by_cyl, 2)
 #>     4     6     8
@@ -497,7 +497,7 @@ Four-cylinder cars average 26.7 mpg; V8s drop to 15.1. `tapply()` returns a name
 
 **Try it:** Use `sapply()` to compute the maximum of every numeric column in `mtcars`.
 
-```r
+```r title="Exercise: Column maxes with sapply"
 # Try it: column maxes with sapply
 ex_mt <- mtcars
 # your code here
@@ -508,7 +508,7 @@ ex_mt <- mtcars
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Column maxes solution"
 ex_maxes <- sapply(ex_mt, max)
 ex_maxes
 #>    mpg    cyl   disp     hp   drat     wt   qsec     vs     am   gear   carb
@@ -528,7 +528,7 @@ The last group covers the plumbing, reading files, branching on conditions, loop
 
 Start with vectorised branching. `ifelse()` walks through each element of its condition and picks from two parallel vectors. That makes it perfect for recoding.
 
-```r
+```r title="ifelse versus for loop accumulator"
 grades <- c(92, 61, 78, 45, 88)
 labels <- ifelse(grades >= 60, "pass", "fail")
 labels
@@ -546,7 +546,7 @@ total
 
 Last, wrap a failure-prone operation in `tryCatch()` so a single bad input doesn't crash the whole script. The classic example is dividing by a user-supplied value that might be zero.
 
-```r
+```r title="Safe divide with tryCatch"
 safe_div <- function(a, b) {
   tryCatch(
     a / b,
@@ -590,7 +590,7 @@ safe_div("ten", 2)
 
 **Try it:** Write a `safe_log()` function that returns `NA` for any non-positive input, using `tryCatch()`.
 
-```r
+```r title="Exercise: Safe log with tryCatch"
 # Try it: safe_log
 ex_safe_log <- function(x) {
   # your code here — use tryCatch and check x > 0
@@ -604,7 +604,7 @@ ex_safe_log(-1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Safe log solution"
 ex_safe_log <- function(x) {
   tryCatch(
     {
@@ -632,7 +632,7 @@ Two capstone problems that combine functions from several of the categories abov
 
 From `mtcars`, return the 3 cars with the best `mpg` within each `cyl` group. The output should be a single data frame sorted by `cyl` then by `mpg` descending. Use `split()` to break the data into groups, `lapply()` to process each group, and `do.call(rbind, ...)` to stitch the pieces back together.
 
-```r
+```r title="Exercise: Top three mpg per cyl"
 # Exercise 1: top 3 mpg per cyl group
 # Hint: split(mtcars, mtcars$cyl) then lapply()
 
@@ -643,7 +643,7 @@ my_top3 <- NULL  # your code here
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top three per cyl solution"
 groups  <- split(mtcars, mtcars$cyl)
 top_per <- lapply(groups, function(g) head(g[order(-g$mpg), ], 3))
 my_top3 <- do.call(rbind, top_per)
@@ -668,7 +668,7 @@ my_top3[, c("mpg", "cyl", "hp")]
 
 Write a function `describe(df)` that takes a data frame and returns a new data frame with one row per **numeric** column, showing `n`, `mean`, `sd`, `min`, `max`, and `n_na`. Use `sapply()` over numeric columns and build the output with `data.frame()`. Test it on `airquality`, which has missing values.
 
-```r
+```r title="Exercise: Roll-your-own describe"
 # Exercise 2: roll-your-own describe()
 # Hint: pick numeric cols with sapply(df, is.numeric),
 # then sapply over those columns with a summary function
@@ -683,7 +683,7 @@ my_describe <- function(df) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Roll-your-own describe solution"
 my_describe <- function(df) {
   num <- df[, sapply(df, is.numeric), drop = FALSE]
   stats <- sapply(num, function(x) c(
@@ -716,7 +716,7 @@ my_desc
 
 Let's close the loop by solving a real task end-to-end with only the functions above: load `airquality`, drop rows where `Ozone` is missing, summarise `Ozone` by `Month`, and print a short report.
 
-```r
+```r title="End-to-end airquality ozone report"
 aq_clean <- airquality[!is.na(airquality$Ozone), ]
 nrow(aq_clean)
 #> [1] 116

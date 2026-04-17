@@ -24,7 +24,7 @@ The fastest way to feel the multivariate normal is to draw a handful of samples 
 
 Let's simulate five draws from a two-dimensional normal with means at zero and a strong positive correlation of 0.7.
 
-```r
+```r title="Five correlated mvrnorm draws"
 # Load MASS and simulate 5 correlated (X1, X2) draws
 library(MASS)
 set.seed(42)
@@ -47,7 +47,7 @@ Each row is one observation of the pair $(X_1, X_2)$. Notice how rows where `X1`
 
 Five rows is a taste. For real work you want hundreds or thousands of draws so the sample moments stabilise.
 
-```r
+```r title="Simulate 500 draws and inspect shape"
 # Simulate 500 draws and inspect the shape
 sim <- mvrnorm(n = 500, mu = mu, Sigma = Sigma)
 dim(sim)
@@ -67,7 +67,7 @@ The output is always a matrix with `n` rows and `length(mu)` columns. One row, o
 
 **Try it:** Simulate 3 draws with mean vector `c(5, 10)` and a covariance matrix whose diagonal is 1 and off-diagonals are `-0.5`. The two columns should trend in opposite directions.
 
-```r
+```r title="Exercise: flip the correlation sign"
 # Try it: flip the correlation sign
 ex_mu <- c(5, 10)
 ex_Sigma <- matrix(c(1, -0.5,
@@ -83,7 +83,7 @@ ex_sim
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Flip-correlation solution"
 set.seed(7)
 ex_sim <- mvrnorm(3, ex_mu, ex_Sigma)
 ex_sim
@@ -116,7 +116,7 @@ Where:
 
 That formula lets you design `Sigma` from quantities you can actually reason about, spreads and correlations, instead of covariances that mix the two.
 
-```r
+```r title="Build Sigma from sds and correlation"
 # Build Sigma from standard deviations and a correlation
 sds  <- c(2, 3)          # sd of X1 and X2
 rho  <- 0.6              # correlation between them
@@ -139,7 +139,7 @@ Reading `Sigma2` left-to-right: variable 1 has variance 4 (sd = 2), variable 2 h
 
 `mvrnorm()` requires `Sigma` to be **positive semi-definite**, every eigenvalue non-negative. Intuitively this rules out impossible correlations like 0.9 between A and B, 0.9 between B and C, and -0.9 between A and C.
 
-```r
+```r title="Positive-definite eigenvalue check"
 # Positive-definite check: all eigenvalues should be > 0
 eigen(Sigma2)$values
 #> [1] 10.744563  2.255437
@@ -152,7 +152,7 @@ Both eigenvalues are positive, so `Sigma2` defines a valid multivariate normal.
 
 **Try it:** Build a Sigma for variables with variances 4 and 9 and correlation -0.5. Then verify with `cov2cor()`.
 
-```r
+```r title="Exercise: negative correlation unequal variances"
 # Try it: negative correlation, unequal variances
 ex_sds <- c(sqrt(4), sqrt(9))
 ex_rho <- -0.5
@@ -167,7 +167,7 @@ cov2cor(ex_Sigma2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Negative-correlation solution"
 ex_Sigma2 <- diag(ex_sds) %*% matrix(c(1, ex_rho,
                                        ex_rho, 1), 2) %*% diag(ex_sds)
 ex_Sigma2
@@ -191,7 +191,7 @@ A scatter plot alone is a fine start, but two extras make the shape pop: **densi
 
 Let's bring the 500-row `sim` from earlier into a data frame and layer all three.
 
-```r
+```r title="Scatter with 2-D density contours"
 # Scatter + 2-D density contours
 library(ggplot2)
 
@@ -211,7 +211,7 @@ ggplot(df, aes(x, y)) +
 
 The 95% confidence ellipse is the most common visual summary. `stat_ellipse()` draws it directly from the data, assuming a normal distribution.
 
-```r
+```r title="Add 95% and 68% ellipses"
 # Add 95% and 68% confidence ellipses
 ggplot(df, aes(x, y)) +
   geom_point(alpha = 0.3, color = "steelblue") +
@@ -230,7 +230,7 @@ Roughly 95% of the draws should sit inside the solid red ellipse and 68% inside 
 
 **Try it:** Swap the ellipse level to a single `stat_ellipse(level = 0.50)`, the region that contains half of the distribution.
 
-```r
+```r title="Exercise: single 50% ellipse"
 # Try it: 50% ellipse
 # your code here — start from the base ggplot and add one stat_ellipse
 
@@ -246,7 +246,7 @@ ex_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="50%-ellipse solution"
 ex_plot <- ggplot(df, aes(x, y)) +
   geom_point(alpha = 0.3, color = "steelblue") +
   stat_ellipse(level = 0.5, color = "darkgreen", linewidth = 1) +
@@ -263,7 +263,7 @@ ex_plot
 
 Simulations are easy to trust and easy to get wrong, so always check that the draws actually match the inputs. Three summaries cover it: sample mean (should approach `mu`), sample covariance (should approach `Sigma`), and sample correlation (should approach `cov2cor(Sigma)`).
 
-```r
+```r title="Sample moments vs population inputs"
 # Sample moments vs. population inputs
 round(colMeans(sim), 2)
 #> [1] 0.05 0.03
@@ -283,7 +283,7 @@ With 500 draws the sample means land near 0, the sample variances near 1, and th
 
 When you want an exact match for teaching or reproducible demos, pass `empirical = TRUE`.
 
-```r
+```r title="empirical = TRUE forces textbook moments"
 # empirical = TRUE makes sample moments exactly equal the inputs
 sim_emp <- mvrnorm(n = 500, mu = mu, Sigma = Sigma, empirical = TRUE)
 
@@ -303,7 +303,7 @@ The sample mean is exactly zero and the sample correlation is exactly 0.7. `mvrn
 
 **Try it:** Simulate 50 draws from the same `mu` and `Sigma` **without** `empirical = TRUE` and print the sample correlation. How close is it to 0.7?
 
-```r
+```r title="Exercise: small-sample noise at n 50"
 # Try it: small-sample noise
 # your code here — simulate 50 draws and print cor()
 
@@ -316,7 +316,7 @@ cor(ex_small)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Small-sample solution"
 set.seed(123)
 ex_small <- mvrnorm(50, mu, Sigma)
 round(cor(ex_small), 2)
@@ -338,7 +338,7 @@ The API stays the same for any number of variables: give `mvrnorm()` a k-length 
 
 Suppose you want to simulate three test scores (math, reading, writing) with means 60, 70, 75, standard deviations 10, 8, 9, and a moderate correlation structure.
 
-```r
+```r title="Three correlated variables with named mu"
 # Three correlated variables
 set.seed(2026)
 
@@ -362,7 +362,7 @@ Column names flow through from `mu3` because we gave it a named vector, a small 
 
 `pairs()` is the quickest way to eyeball a three- or four-variable simulation. It draws a grid of scatter plots, one per pair.
 
-```r
+```r title="Pair scatter grid plus sample cor"
 # Scatter grid for all variable pairs
 pairs(sim3,
       pch = 19,
@@ -381,7 +381,7 @@ The off-diagonal entries of `cor(sim3)` land close to the 0.5 / 0.4 / 0.6 you sp
 
 **Try it:** Extend to four variables, add a "science" score with mean 65, sd 11, and correlations 0.3, 0.55, 0.5 with math, reading, writing (in that order). Simulate 200 draws and run `pairs()`.
 
-```r
+```r title="Exercise: 4-D simulation"
 # Try it: 4-D simulation
 ex_mu4  <- c(60, 70, 75, 65)
 ex_sds4 <- c(10, 8, 9, 11)
@@ -401,7 +401,7 @@ pairs(ex_sim4, pch = 19, col = adjustcolor("steelblue", 0.3))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four-dimensional solution"
 ex_Sigma4 <- diag(ex_sds4) %*% ex_cor4 %*% diag(ex_sds4)
 set.seed(55)
 ex_sim4 <- mvrnorm(200, ex_mu4, ex_Sigma4)
@@ -424,7 +424,7 @@ round(cor(ex_sim4), 2)
 
 Simulate 300 students with mean math score 75 and reading score 65, variance 100 for each, and correlation 0.5. Put the result in a data frame with columns `math` and `reading`, then make a `ggplot` scatter with 95% and 68% confidence ellipses. Compute and print the sample correlation.
 
-```r
+```r title="Exercise: 300 students with rho 0.5"
 # Exercise 1: correlated scores + ellipses
 # Hint: build Sigma from sqrt(100) = 10 on each axis
 
@@ -435,7 +435,7 @@ Simulate 300 students with mean math score 75 and reading score 65, variance 100
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="300-students solution"
 set.seed(1)
 my_mu    <- c(math = 75, reading = 65)
 my_Sigma <- diag(c(10, 10)) %*% matrix(c(1, 0.5,
@@ -465,7 +465,7 @@ ggplot(my_df, aes(math, reading)) +
 
 Simulate 200 draws with means `c(10, 20)`, variances `c(4, 9)`, and correlation `-0.6`. Print the sample correlation and plot a 90% ellipse. In one line, explain why the ellipse tilts the opposite way from Exercise 1.
 
-```r
+```r title="Exercise: 200 draws with negative correlation"
 # Exercise 2: negative-correlation ellipse
 # Hint: reuse the diag() %*% cor %*% diag() pattern with rho = -0.6
 
@@ -476,7 +476,7 @@ Simulate 200 draws with means `c(10, 20)`, variances `c(4, 9)`, and correlation 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Negative-correlation-200 solution"
 set.seed(2)
 my_mu2    <- c(10, 20)
 my_sds2   <- c(sqrt(4), sqrt(9))
@@ -506,7 +506,7 @@ ggplot(my_neg_df, aes(x, y)) +
 
 Tying every step together: you're simulating 400 students' math, reading, and writing scores with realistic correlations for a teaching demo. You want sample moments that match the specification, a pairs plot for the visual, and a sanity-check summary of each score.
 
-```r
+```r title="End-to-end exam scores simulation"
 # End-to-end: simulate, verify, visualize
 set.seed(99)
 

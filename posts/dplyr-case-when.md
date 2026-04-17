@@ -24,7 +24,7 @@ Picture a column of student scores you need to bucket into letter grades. Five t
 
 Here is the same grading rule written both ways. The first version uses the nested approach. The second uses `case_when()`, notice how each rule sits on its own line and reads almost like English.
 
-```r
+```r title="Nested ifelse tower of parentheses"
 library(dplyr)
 
 students <- data.frame(
@@ -70,7 +70,7 @@ Both versions produce identical grades, but the `case_when()` block is what you 
 
 **Try it:** Bucket the vector `c(12, 45, 78, 33, 91)` into "low" (under 30), "mid" (30–69), and "high" (70+). Use `case_when()` with `.default`.
 
-```r
+```r title="Exercise: three-bucket casewhen"
 ex_vals <- c(12, 45, 78, 33, 91)
 ex_buckets <- case_when(
   # your code here
@@ -82,7 +82,7 @@ ex_buckets
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-bucket solution"
 ex_vals <- c(12, 45, 78, 33, 91)
 ex_buckets <- case_when(
   ex_vals < 30  ~ "low",
@@ -106,7 +106,7 @@ The function takes a sequence of two-sided formulas. The left side is a logical 
 
 Since dplyr 1.1.0, you can pass a `.default` argument to set the fallback value for rows that match no condition. Before 1.1.0, the idiom was a final `TRUE ~ default_value` line, `TRUE` always matches, so it acts as the catch-all.
 
-```r
+```r title="Modern .default syntax"
 # Modern .default form (dplyr 1.1+)
 students_graded2 <- students |>
   mutate(grade = case_when(
@@ -125,7 +125,7 @@ students_graded2
 
 The `.default` argument is the cleaner, more discoverable form. It also lets you skip the `TRUE` trick that always confuses newcomers ("why does TRUE go on the left?").
 
-```r
+```r title="Legacy TRUE-tilde fallback"
 # Legacy TRUE ~ form — still works, common in older code
 students |>
   mutate(grade = case_when(
@@ -148,7 +148,7 @@ Both produce the same result. Use `.default` in new code; recognise `TRUE ~` whe
 
 **Try it:** Rewrite the following legacy snippet to use the modern `.default` argument. The behaviour should be identical.
 
-```r
+```r title="Exercise: rewrite TRUE as .default"
 ex_x <- c(2, 7, 15)
 ex_legacy <- case_when(
   ex_x < 5  ~ "small",
@@ -166,7 +166,7 @@ identical(ex_legacy, ex_modern)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="default rewrite solution"
 ex_modern <- case_when(
   ex_x < 5  ~ "small",
   ex_x < 10 ~ "medium",
@@ -184,7 +184,7 @@ identical(ex_legacy, ex_modern)
 
 This is the gotcha that bites everyone at least once. When a left-hand-side condition involves an NA value, the comparison returns NA, and `case_when()` treats NA on the LHS the same as FALSE. The row falls through to the next rule, and eventually to `.default` if nothing matches.
 
-```r
+```r title="NA on LHS behaves as FALSE"
 x_vals <- c(1, NA, 3, NA, 5)
 
 na_demo <- case_when(
@@ -200,7 +200,7 @@ Look at positions 2 and 4. The original values were NA, but the result says `"lo
 
 The fix is to put an explicit `is.na()` check **first**, before any numeric comparison. Because `case_when()` returns on the first TRUE match, the NA rows get caught before they fall through to the wrong rule.
 
-```r
+```r title="Fix NA lumping with is.na check"
 na_demo_fixed <- case_when(
   is.na(x_vals) ~ "missing",
   x_vals > 3    ~ "high",
@@ -218,7 +218,7 @@ Now positions 2 and 4 carry the `"missing"` label. Same logic, same data, but th
 
 **Try it:** Tag the vector `c(10, NA, 25, 30, NA)` as "missing" for NA rows, "small" for values under 20, and "big" otherwise.
 
-```r
+```r title="Exercise: tag NA with missing bucket"
 ex_input <- c(10, NA, 25, 30, NA)
 ex_tagged <- case_when(
   # your code here
@@ -230,7 +230,7 @@ ex_tagged
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="NA tagging solution"
 ex_tagged <- case_when(
   is.na(ex_input) ~ "missing",
   ex_input < 20   ~ "small",
@@ -248,7 +248,7 @@ ex_tagged
 
 The left-hand side of each formula is just an R logical expression, so it can reference any column in scope, not only the one you are creating. Combine multiple columns with `&` (AND) and `|` (OR), and remember that order matters: the most specific rule should come first.
 
-```r
+```r title="Combine multiple columns in conditions"
 mtcars_typed <- mtcars |>
   mutate(car_type = case_when(
     mpg > 25 & hp < 100 ~ "Efficient & Light",
@@ -274,7 +274,7 @@ Notice the rule ordering. "Efficient & Light" is a strict subset of "Efficient &
 
 **Try it:** Tag mtcars rows as `"sporty"` when `cyl == 8` AND `hp > 180`, `"economy"` when `mpg > 25`, otherwise `"regular"`.
 
-```r
+```r title="Exercise: three-class car labeller"
 ex_cars <- mtcars |>
   mutate(class = case_when(
     # your code here
@@ -287,7 +287,7 @@ ex_cars
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-class solution"
 ex_cars <- mtcars |>
   mutate(class = case_when(
     cyl == 8 & hp > 180 ~ "sporty",
@@ -310,7 +310,7 @@ ex_cars
 
 `case_when()` is built for arbitrary logical conditions. When all you want to do is map specific values to new values, recode `"M"` to `"Male"`, `"F"` to `"Female"`, and so on, you end up writing a wall of `x == "M"` checks that adds noise without adding meaning. dplyr 1.1.0 introduced `case_match()` exactly for this case: a vectorised `switch()` that matches values directly.
 
-```r
+```r title="Equality mapping with casematch"
 iris_recoded <- iris |>
   mutate(bloom_size = case_match(
     Species,
@@ -336,7 +336,7 @@ The rule of thumb: if every condition is `column == "literal"`, prefer `case_mat
 
 **Try it:** Rewrite the following `case_when()` as a `case_match()` call. The behaviour should be identical.
 
-```r
+```r title="Exercise: casewhen to casematch"
 ex_letters <- c("a", "b", "c", "d")
 ex_via_when <- case_when(
   ex_letters == "a"             ~ "alpha",
@@ -354,7 +354,7 @@ identical(ex_via_when, ex_via_match)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="casematch solution"
 ex_via_match <- case_match(
   ex_letters,
   "a"            ~ "alpha",
@@ -373,7 +373,7 @@ identical(ex_via_when, ex_via_match)
 
 Every right-hand-side value in a `case_when()` call must be coercible to a single common type. Mixing a character `"yes"` with a numeric `0` will fail because there is no shared type that holds both safely. dplyr 1.1+ uses the vctrs package for type coercion, so the error message is usually clear about what went wrong.
 
-```r
+```r title="Type mismatch error and fix"
 # This fails: "yes" is character, 0 is numeric
 bad_demo <- tryCatch(
   case_when(
@@ -401,7 +401,7 @@ The fix is to choose one type and convert. If you wanted a labelled column, retu
 
 **Try it:** The call below fails. Fix it so it returns `"adult"` for ages 18+ and `"minor"` otherwise.
 
-```r
+```r title="Exercise: unify outcome types"
 ex_ages <- c(12, 25, 17, 40)
 ex_label <- case_when(
   ex_ages >= 18 ~ "adult",
@@ -413,7 +413,7 @@ ex_label <- case_when(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Unified type solution"
 ex_label <- case_when(
   ex_ages >= 18 ~ "adult",
   .default      = "minor"
@@ -432,7 +432,7 @@ ex_label
 
 Build a data frame with the income vector `c(18000, 42000, 75000, 120000, 9500, NA)` and add a `bracket` column that labels rows as `"Missing"` for NA, `"Low"` under 25,000, `"Mid"` from 25,000 to 79,999, and `"High"` for 80,000+. Save the result to `my_income_df`.
 
-```r
+```r title="Exercise: income bracket with NA"
 # Hint: put is.na() FIRST, then numeric thresholds
 income <- c(18000, 42000, 75000, 120000, 9500, NA)
 
@@ -443,7 +443,7 @@ income <- c(18000, 42000, 75000, 120000, 9500, NA)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Income bracket solution"
 income <- c(18000, 42000, 75000, 120000, 9500, NA)
 
 my_income_df <- data.frame(income) |>
@@ -471,7 +471,7 @@ my_income_df
 
 From the built-in `mtcars` dataset, create a `risk` column using these rules: `"Reckless"` if `hp > 200` AND `wt < 3.5`, `"Cruiser"` if `wt > 4`, `"Sippy"` if `mpg > 25`, otherwise `"Normal"`. Save the result to `my_risk_summary` as a count by category.
 
-```r
+```r title="Exercise: order specific rule first"
 # Hint: most specific rule (Reckless) goes first
 
 # Write your code below
@@ -481,7 +481,7 @@ From the built-in `mtcars` dataset, create a `risk` column using these rules: `"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Specific rule first solution"
 my_risk_summary <- mtcars |>
   mutate(risk = case_when(
     hp > 200 & wt < 3.5 ~ "Reckless",
@@ -506,7 +506,7 @@ my_risk_summary
 
 Using the built-in `airquality` dataset, create two new columns: `season` using `case_match()` (Month 5 → `"Spring"`, Months 6–8 → `"Summer"`, Month 9 → `"Fall"`), and `temp_class` using `case_when()` (Temp ≥ 80 → `"Hot"`, Temp ≥ 70 → `"Warm"`, otherwise `"Cool"`). Show the first 6 rows of the result. Save it to `my_aq_class`.
 
-```r
+```r title="Exercise: season and temperature tags"
 # Hint: use case_match() on Month, case_when() on Temp
 
 # Write your code below
@@ -516,7 +516,7 @@ Using the built-in `airquality` dataset, create two new columns: `season` using 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Season and temperature solution"
 my_aq_class <- airquality |>
   mutate(
     season = case_match(
@@ -550,7 +550,7 @@ head(my_aq_class, 6)
 
 Here is everything woven together into one realistic pipeline. We tag daily air-quality readings by season and ozone level, handle missing values explicitly, and produce a clean labelled table.
 
-```r
+```r title="End-to-end air-quality classifier"
 aq_classified <- airquality |>
   mutate(
     season = case_match(

@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 For years, the "R or Python" debate has run on vibes. You can actually settle most of it with four public datasets: the Kaggle ML & DS Survey, the TIOBE Index, the PYPL Index, and the JetBrains State of Developer Ecosystem. Let's pull the numbers into a small tibble, plot them, and see the gap with your own eyes.
 
-```r
+```r title="Python vs R usage across four surveys"
 # Load the tools we'll use for every example on this page
 library(ggplot2)
 library(dplyr)
@@ -62,7 +62,7 @@ Every dataset shows the same shape: Python is dominant across developer populati
 
 TIOBE tells a second story: R is actually climbing, not fading. In February 2026, TIOBE ranked R eighth with a 2.19% score, up from 15th a year earlier. Let's chart that.
 
-```r
+```r title="TIOBE rank for R over five years"
 # TIOBE rank for R over 5 snapshots (rank 1 = most popular)
 tiobe_df <- tibble::tibble(
   snapshot = c("2022-02", "2023-02", "2024-02", "2025-02", "2026-02"),
@@ -87,7 +87,7 @@ R spent 2023-2025 hovering between ranks 11 and 15, then jumped to rank 8 in ear
 
 **Try it:** Compute the ratio of Python users to R users inside `usage_df` for each source, and show which source has the *narrowest* gap.
 
-```r
+```r title="Exercise: narrowest Python to R ratio"
 # Try it: compute python/r ratio per source, find the smallest
 ex_ratios <- usage_df |>
   # your code here
@@ -100,7 +100,7 @@ ex_ratios
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Python-R-ratio solution"
 ex_ratios <- usage_df |>
   mutate(ratio = round(python / r, 1)) |>
   arrange(ratio)
@@ -125,7 +125,7 @@ Job-posting counts and salaries are where "Python has 5x more jobs" claims come 
 
 Here's a rough snapshot of US job posting volume and median base salary for the three main data-oriented titles, built from aggregated 2025-2026 figures on LinkedIn and Glassdoor.
 
-```r
+```r title="Job volume and median pay by role"
 # US job market snapshot, typical ranges from 2025-2026 public listings
 jobs_df <- tibble::tibble(
   title       = c("Data Scientist", "ML Engineer", "Data Analyst",
@@ -151,7 +151,7 @@ Read that `py_to_r` column carefully. For ML Engineer roles, Python has roughly 
 
 Now let's visualize volume vs pay so you can see which quadrant each language owns.
 
-```r
+```r title="Scatter jobs vs pay by language"
 p3 <- jobs_df |>
   tidyr::pivot_longer(python_jobs:r_jobs,
                       names_to = "language", values_to = "jobs") |>
@@ -175,7 +175,7 @@ The high-volume, high-pay corner belongs to Python ML Engineer roles, that's the
 
 **Try it:** Add a Data Engineer row (python_jobs = 35000, r_jobs = 900, median_usd = 145000) and recompute `py_to_r`. Which role now has the biggest gap?
 
-```r
+```r title="Exercise: append Data Engineer row"
 # Try it: bind a new row and re-check the ratios
 ex_jobs <- jobs_df |>
   # your code here
@@ -188,7 +188,7 @@ ex_jobs
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Data-Engineer solution"
 ex_jobs <- jobs_df |>
   dplyr::bind_rows(tibble::tibble(
     title = "Data Engineer",
@@ -217,7 +217,7 @@ Most "Python is faster" or "R is slower" claims are benchmark-free. When you act
 
 Let's measure it. We'll aggregate one million rows of synthetic sales data two ways in R: base R's `aggregate()` (the slow path) and `data.table` (the fast path).
 
-```r
+```r title="One-million-row aggregation: base vs data.table"
 library(data.table)
 set.seed(42)
 
@@ -253,7 +253,7 @@ On a 1 million row aggregation, `data.table` finishes roughly 20-30x faster than
 
 For a fairer language-to-language comparison, here are typical timings from the H2O.ai `db-benchmark` project for a 100 million row join and group-by on commodity hardware.
 
-```r
+```r title="db-benchmark join and group-by speeds"
 # Published figures from the duckdblabs db-benchmark project (100M rows)
 bench_table <- tibble::tribble(
   ~language, ~library,      ~join_sec, ~group_sec,
@@ -284,7 +284,7 @@ bench_table |> arrange(join_sec)
 
 **Try it:** Rerun the benchmark above with `n <- 5e5` (500K rows). By what factor does each method speed up?
 
-```r
+```r title="Exercise: benchmark on 500k rows"
 # Try it: run the same benchmark on a smaller dataset
 ex_n <- 5e5
 # your code here — reuse the aggregate() and data.table calls
@@ -295,7 +295,7 @@ ex_n <- 5e5
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="500k-benchmark solution"
 ex_n <- 5e5
 ex_sales <- data.frame(
   region  = sample(c("N", "S", "E", "W"), ex_n, replace = TRUE),
@@ -329,7 +329,7 @@ The Python side maps to domains that reward general-purpose tooling: deep learni
 
 Let's turn that into a scoring pipeline you can actually run.
 
-```r
+```r title="Score R vs Python on use cases"
 # Use cases and a rough "which language is the default" score
 use_cases <- tibble::tribble(
   ~use_case,                   ~r_score, ~python_score,
@@ -368,7 +368,7 @@ The scoring is not a popularity contest, it reflects which ecosystem has the mat
 
 **Try it:** Add two rows to `use_cases`: "Bayesian hierarchical modeling" (R 9, Python 6) and "Computer vision" (R 2, Python 9). Re-run the pipeline.
 
-```r
+```r title="Exercise: append two use cases"
 # Try it: append two new use cases and rescore
 ex_use_cases <- use_cases |>
   # your code here
@@ -380,7 +380,7 @@ ex_use_cases <- use_cases |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Use-case-append solution"
 ex_use_cases <- use_cases |>
   dplyr::bind_rows(tibble::tribble(
     ~use_case,                        ~r_score, ~python_score,
@@ -408,7 +408,7 @@ tail(ex_use_cases, 2)
 
 "R is dying" is the longest-running claim in this debate. It is also the easiest to falsify. Two datasets contradict it directly: the TIOBE rank trend you already saw, and CRAN's package growth.
 
-```r
+```r title="CRAN package count by year"
 # CRAN published package count by end of year (rounded public figures)
 cran_df <- tibble::tibble(
   year = 2016:2025,
@@ -435,7 +435,7 @@ What is actually happening is that data science is growing *faster* than R is. I
 
 **Try it:** Compute the year-over-year growth rate for CRAN packages using `lag()` from dplyr, and show which years had the strongest growth.
 
-```r
+```r title="Exercise: year-over-year CRAN growth"
 # Try it: compute year-over-year growth rate
 ex_growth <- cran_df |>
   # your code here
@@ -448,7 +448,7 @@ ex_growth
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="YoY-growth solution"
 ex_growth <- cran_df |>
   mutate(yoy_pct = round(100 * (packages - lag(packages)) / lag(packages), 1)) |>
   arrange(desc(yoy_pct))
@@ -475,7 +475,7 @@ The honest answer depends on three things: your end goal, your existing backgrou
 
 Let's express that flowchart as a function you can actually call with your own inputs.
 
-```r
+```r title="picklanguage from goal and background"
 pick_language <- function(goal, background = "unknown") {
   goal <- tolower(goal)
   background <- tolower(background)
@@ -509,7 +509,7 @@ The function compresses the flowchart into 10 lines of R. Notice the branch on `
 
 **Try it:** Call `pick_language()` for three profiles that describe your own situation or a friend's. Do the answers match your gut?
 
-```r
+```r title="Exercise: three profiles through picklanguage"
 # Try it: call pick_language() on three goals of your own
 ex_profiles <- c(
   "epidemiology research",
@@ -524,7 +524,7 @@ sapply(ex_profiles, pick_language)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-profiles solution"
 ex_profiles <- c(
   "epidemiology research",
   "building an LLM chatbot",
@@ -546,7 +546,7 @@ sapply(ex_profiles, pick_language)
 
 Combine `usage_df` (share per source) and `jobs_df` (salary by role) into a single tibble of five rows, compute a `popularity_adjusted = median_usd * (python_share / 100)` column using the Kaggle survey Python share, and print the top three roles.
 
-```r
+```r title="Exercise: popularity-adjusted salary"
 # Exercise 1: popularity-adjusted salary
 # Hint: pull the Kaggle Python share as a scalar, then mutate jobs_df
 
@@ -560,7 +560,7 @@ my_adjusted
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Popularity-adjusted solution"
 my_py_share <- usage_df |>
   filter(source == "Kaggle DS Survey 2022") |>
   pull(python)
@@ -587,7 +587,7 @@ head(my_adjusted, 3)
 
 Write a function `my_classify(text)` that takes one job description string and returns `"R-biased"`, `"Python-biased"`, or `"neutral"` based on how many times each language name appears. Apply it to five sample strings with `sapply()`.
 
-```r
+```r title="Exercise: language-bias classifier"
 # Exercise 2: language-bias classifier
 # Hint: use stringr::str_count() with fixed() patterns, compare counts
 
@@ -610,7 +610,7 @@ sapply(my_samples, my_classify)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Classifier solution"
 my_classify <- function(text) {
   r_hits  <- stringr::str_count(text, stringr::regex("\\bR\\b"))
   py_hits <- stringr::str_count(text, stringr::regex("\\bPython\\b", ignore_case = TRUE))
@@ -642,7 +642,7 @@ sapply(my_samples, my_classify)
 
 Let's pull four independent signals, Kaggle usage, TIOBE rank, job volume, and median salary, into one tibble, normalize each signal to a 0-100 score, and plot who wins each dimension. This is the kind of multi-signal summary you would build for a real "which should we teach" decision at a company or a course.
 
-```r
+```r title="Four-signal normalized R vs Python summary"
 # End-to-end: four signals per language, normalized to 0-100
 summary_df <- tibble::tribble(
   ~signal,          ~r_raw, ~python_raw,

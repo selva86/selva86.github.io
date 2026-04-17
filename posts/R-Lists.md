@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Vectors force every element to be the same type. Data frames force every column to be the same length. Lists throw away both restrictions. Any slot can hold anything, a number, a string, a vector of 1,000 values, a linear model object, another list. That's why `lm()`, `summary()`, and virtually every statistical function returns a list.
 
-```r
+```r title="Build a heterogeneous list"
 result <- list(
   model_name = "linear regression",
   coefficients = c(intercept = 2.5, slope = 0.8),
@@ -63,7 +63,7 @@ Five elements, five different types and shapes, all in one object. No vector or 
 
 **Try it:** Create a list holding your name (character), three favorite numbers (vector), and `TRUE`.
 
-```r
+```r title="Exercise: Describe yourself as list"
 ex_me <- list(
   name = "___",
   numbers = c(___, ___, ___),
@@ -75,7 +75,7 @@ ex_me <- list(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Self-description solution"
 ex_me <- list(
   name    = "Selva",
   numbers = c(3, 7, 42),
@@ -99,7 +99,7 @@ Each `list()` slot takes whatever you hand it, a single character, a three-eleme
 
 This is the single biggest confusion in R for beginners. Lists have three access operators, and they return different things. Let's disentangle them.
 
-```r
+```r title="Access with dollar, bracket, double-bracket"
 result$model_name
 #> [1] "linear regression"
 
@@ -120,7 +120,7 @@ Look carefully: the second call returns the vector itself, but the third returns
 
 Single brackets are for *sub-setting* a list (returning a smaller list), double brackets are for *extracting* (pulling one element out).
 
-```r
+```r title="Double versus single bracket types"
 class(result[["coefficients"]])
 #> [1] "numeric"
 class(result["coefficients"])
@@ -132,7 +132,7 @@ class(result["coefficients"])
 
 **Try it:** From `result`, extract the `residuals` as a numeric vector and compute its sum.
 
-```r
+```r title="Exercise: Sum the residuals vector"
 ex_sum <- sum(result[[___]])
 ex_sum
 
@@ -141,7 +141,7 @@ ex_sum
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Residual sum solution"
 ex_sum <- sum(result[["residuals"]])
 ex_sum
 #> [1] 0
@@ -154,7 +154,7 @@ Double brackets pull the numeric vector straight out of the list, so `sum()` ope
 
 Modifying a list works like a data frame column: assign into a named slot. If the slot exists, you update it; if it doesn't, you create it. To remove, assign `NULL`.
 
-```r
+```r title="Add, modify, and remove elements"
 result$r_squared <- 0.87
 length(result)
 #> [1] 6
@@ -177,7 +177,7 @@ Three edits, three different access styles, all valid. Pick whichever is cleares
 
 **Try it:** Add a new element `notes` containing the string "looks good".
 
-```r
+```r title="Exercise: Add a notes field"
 result$notes <- "___"
 result$notes
 
@@ -186,7 +186,7 @@ result$notes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Notes field solution"
 result$notes <- "looks good"
 result$notes
 #> [1] "looks good"
@@ -199,7 +199,7 @@ Assigning into a name the list doesn't have (`notes`) appends a new slot at the 
 
 A list element can itself be a list, and the inner list can have its own list elements, and so on. Nested lists are everywhere: JSON responses, model outputs, configuration objects. The rule for accessing them is: chain the operators.
 
-```r
+```r title="Navigate nested list paths"
 experiment <- list(
   name = "A/B test 42",
   groups = list(
@@ -217,7 +217,7 @@ experiment[["groups"]][["control"]][["n"]]
 
 Both styles work. `$` chains are shorter for interactive use; `[[ ]]` chains let you parameterize the path (e.g., `experiment[["groups"]][[grp]]`).
 
-```r
+```r title="Compute difference across groups"
 diff_in_means <- experiment$groups$treatment$mean - experiment$groups$control$mean
 diff_in_means
 #> [1] 0.3
@@ -227,7 +227,7 @@ That's extracting and computing in a single expression, the everyday pattern whe
 
 **Try it:** Pull the standard deviation of the treatment group from `experiment`.
 
-```r
+```r title="Exercise: Pull treatment sd"
 ex_sd <- experiment$groups$___$___
 ex_sd
 
@@ -236,7 +236,7 @@ ex_sd
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Treatment sd solution"
 ex_sd <- experiment$groups$treatment$sd
 ex_sd
 #> [1] 0.9
@@ -249,7 +249,7 @@ Chaining `$` descends one level at a time: first into the top-level `groups` lis
 
 When every element of a list is the same shape (say, five numeric vectors), you often want to apply a function to each one. `lapply()` does this and returns a list; `sapply()` simplifies the result to a vector or matrix when possible.
 
-```r
+```r title="Iterate with lapply and sapply"
 numbers <- list(
   a = 1:5,
   b = 10:15,
@@ -283,7 +283,7 @@ sapply(numbers, function(x) c(min = min(x), max = max(x)))
 
 **Try it:** Use `sapply()` to get the length of each element in `numbers`.
 
-```r
+```r title="Exercise: Length of each element"
 sapply(numbers, ___)
 
 ```
@@ -291,7 +291,7 @@ sapply(numbers, ___)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Element length solution"
 sapply(numbers, length)
 #> a b c
 #> 5 6 3
@@ -304,7 +304,7 @@ sapply(numbers, length)
 
 Sometimes you just want all the values from a list as a single flat vector. `unlist()` does it, walking the list recursively and concatenating everything into one vector of the most flexible type.
 
-```r
+```r title="Flatten a list with unlist"
 unlist(numbers)
 #>  a1  a2  a3  a4  a5  b1  b2  b3  b4  b5  b6  c1  c2  c3 
 #>   1   2   3   4   5  10  11  12  13  14  15 100 200 300
@@ -324,7 +324,7 @@ Notice the second example: `unlist()` still obeys the coercion hierarchy, mix a 
 
 **Try it:** Flatten `numbers` and compute its total sum.
 
-```r
+```r title="Exercise: Sum all list values"
 sum(unlist(___))
 
 ```
@@ -332,7 +332,7 @@ sum(unlist(___))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sum list values solution"
 sum(unlist(numbers))
 #> [1] 690
 ```
@@ -344,7 +344,7 @@ sum(unlist(numbers))
 
 A data frame *is* a list (of equal-length columns), so converting between them is common. The key constraint: to become a data frame, list elements must all have the same length.
 
-```r
+```r title="Convert list to data frame"
 columns <- list(
   id = 1:4,
   name = c("Ann", "Bo", "Cal", "Di"),
@@ -372,7 +372,7 @@ as.list(df)
 
 Going the other way, a list where elements are *rows* rather than columns, needs `do.call(rbind, ...)`:
 
-```r
+```r title="Row-wise list to data frame"
 rows <- list(
   list(id = 1, name = "Ann"),
   list(id = 2, name = "Bo"),
@@ -388,7 +388,7 @@ do.call(rbind, lapply(rows, as.data.frame))
 
 **Try it:** Convert `columns` to a data frame and print its dimensions.
 
-```r
+```r title="Exercise: Dimensions of converted frame"
 dim(as.data.frame(columns))
 
 ```
@@ -396,7 +396,7 @@ dim(as.data.frame(columns))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Conversion dimensions solution"
 dim(as.data.frame(columns))
 #> [1] 4 3
 ```
@@ -413,7 +413,7 @@ Write a function that takes a numeric vector and returns a list with `n`, `mean`
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Describe function returning a list"
 describe <- function(x) {
   list(n = length(x), mean = mean(x), sd = sd(x),
        min = min(x), max = max(x))
@@ -439,7 +439,7 @@ Fit a linear model on `mtcars` and pull the R² and the residual standard error 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Extract R-squared from summary"
 fit <- lm(mpg ~ wt, data = mtcars)
 s <- summary(fit)
 s$r.squared
@@ -456,7 +456,7 @@ Fit three models (`mpg ~ wt`, `mpg ~ hp`, `mpg ~ wt + hp`) on `mtcars`, store th
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Compare models in named list"
 models <- list(
   wt = lm(mpg ~ wt, data = mtcars),
   hp = lm(mpg ~ hp, data = mtcars),
@@ -472,7 +472,7 @@ sapply(models, function(m) summary(m)$r.squared)
 
 A realistic pattern: run three models, collect the results in a nested list, extract key metrics, and assemble a summary data frame.
 
-```r
+```r title="End-to-end predictor report"
 predictors <- c("wt", "hp", "disp")
 fits <- lapply(predictors, function(p) {
   f <- as.formula(paste("mpg ~", p))

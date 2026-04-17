@@ -24,7 +24,7 @@ R throws this error the moment an arithmetic operator, `+`, `-`, `*`, `/`, `^`, 
 
 Let's reproduce the error on purpose, then solve it in three lines.
 
-```r
+```r title="Reproduce the non-numeric error"
 # A "price" that looks numeric but isn't
 price <- "19.99"
 qty   <- 3
@@ -53,7 +53,7 @@ The string `"19.99"` and the number `19.99` print identically, but `class()` exp
 
 **Try it:** You have `ex_price <- "42"` and `ex_qty <- 2`. Write one line that computes the numeric total and stores it in `ex_total`.
 
-```r
+```r title="Exercise: coerce price and multiply"
 # Try it: compute the total as a number
 ex_price <- "42"
 ex_qty <- 2
@@ -67,7 +67,7 @@ ex_qty <- 2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Coerce-and-multiply solution"
 ex_total <- as.numeric(ex_price) * ex_qty
 ex_total
 #> [1] 84
@@ -83,7 +83,7 @@ When the error comes from a data frame expression like `df$revenue * df$qty`, th
 
 Let's build a tiny shop data frame with one obvious character column hiding among numeric ones, then find it three different ways.
 
-```r
+```r title="Find guilty columns with sapply"
 shop <- data.frame(
   item     = c("Widget", "Gadget", "Doohickey"),
   price    = c("12.50", "8.00", "15.75"),   # LOOKS numeric, is character
@@ -116,7 +116,7 @@ names(shop)[!sapply(shop, is.numeric)]
 
 **Try it:** Using the data frame `ex_df` below, write one line that returns the names of every non-numeric column.
 
-```r
+```r title="Exercise: list non-numeric column names"
 # Try it: list non-numeric column names
 ex_df <- data.frame(
   id    = 1:3,
@@ -133,7 +133,7 @@ ex_df <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Non-numeric columns solution"
 names(ex_df)[!sapply(ex_df, is.numeric)]
 #> [1] "score" "team"
 ```
@@ -155,7 +155,7 @@ The hardest version of this bug is the column that *looks* numeric when you `pri
 
 The cleanest fix is `readr::parse_number()`, which strips everything that isn't part of a number and converts in one call. It also keeps the bad rows as `NA` instead of crashing, which is what you usually want.
 
-```r
+```r title="Clean messy strings with parsenumber"
 library(readr)
 
 raw_prices <- c(" 19.99", "$20.00", "1,200.50", "N/A", "42kg")
@@ -181,7 +181,7 @@ sum(cleaned, na.rm = TRUE)
 
 **Try it:** Clean the price vector `ex_prices` so its values become a numeric vector. Use any approach, `gsub()` + `as.numeric()` or `parse_number()`.
 
-```r
+```r title="Exercise: clean a dollar-prefixed vector"
 # Try it: clean a messy price vector
 ex_prices <- c("$12.50", "$8.00", "$15.75")
 
@@ -193,7 +193,7 @@ ex_prices <- c("$12.50", "$8.00", "$15.75")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dollar-strip solution"
 # Option A — parse_number is the shortest:
 parse_number(ex_prices)
 #> [1] 12.50  8.00 15.75
@@ -219,7 +219,7 @@ Every instance of this error reduces to one of three root causes. Once you've di
 
 Let's apply all three to one small data frame so you can see the patterns side-by-side.
 
-```r
+```r title="Fix character factor and messy columns"
 mess <- data.frame(
   clean_char   = c("10", "20", "30"),                  # Pattern A
   factor_score = factor(c("85", "92", "78")),          # Pattern B
@@ -251,7 +251,7 @@ All three columns are numeric after the fix, and `rowSums(mess)`, which would ha
 
 **Try it:** `ex_scores` is a factor of test scores. Convert it to numeric and compute the mean.
 
-```r
+```r title="Exercise: factor scores to mean"
 # Try it: factor to numeric mean
 ex_scores <- factor(c("88", "92", "79", "95", "84"))
 
@@ -263,7 +263,7 @@ ex_scores <- factor(c("88", "92", "79", "95", "84"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Factor-mean solution"
 mean(as.numeric(as.character(ex_scores)))
 #> [1] 87.6
 ```
@@ -278,7 +278,7 @@ mean(as.numeric(as.character(ex_scores)))
 
 The `orders` data frame has two type problems: `price` is a character with dollar signs, and `quantity` is a factor. Compute `total_cost = price * quantity` for each row, then `sum()` them into a grand total called `grand_total`.
 
-```r
+```r title="Exercise: fix orders grand total"
 # Capstone 1: fix the orders table and compute grand_total
 orders <- data.frame(
   item     = c("Widget", "Gadget", "Doohickey"),
@@ -297,7 +297,7 @@ orders <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Orders grand-total solution"
 orders$price    <- parse_number(orders$price)
 orders$quantity <- as.numeric(as.character(orders$quantity))
 
@@ -321,7 +321,7 @@ grand_total
 
 `survey` has three suspect columns (`q1`, `q2`, `q3`) that should all be numeric but look like they were typed by humans. Write a short pipeline that (a) finds the non-numeric columns, (b) cleans each with `parse_number()`, and (c) adds a `row_total` column. Don't hard-code column names, use `sapply()` so your code works on any survey.
 
-```r
+```r title="Exercise: generic parse pipeline"
 # Capstone 2: detect + clean + total, all from a generic pipeline
 survey <- data.frame(
   respondent = c("A", "B", "C"),
@@ -341,7 +341,7 @@ survey <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Generic parse solution"
 bad_cols <- names(survey)[!sapply(survey, is.numeric) & names(survey) != "respondent"]
 
 survey[bad_cols] <- lapply(survey[bad_cols], parse_number)
@@ -363,7 +363,7 @@ print(survey)
 
 Here's the kind of mess that shows up in real CSV exports. The `revenue_df` data frame should let us compute total revenue per region, but every numeric column is secretly a character, and one is a factor. Watch the diagnostic workflow end-to-end.
 
-```r
+```r title="Debug a broken revenue report"
 # A real-world messy CSV-style data frame
 revenue_df <- data.frame(
   region     = c("North", "South", "East", "West"),

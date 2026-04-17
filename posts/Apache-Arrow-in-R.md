@@ -24,7 +24,7 @@ If you've ever waited two minutes for a CSV to load, only to discover that R gue
 
 The fastest way to feel why Arrow matters is to write a small data frame to Parquet and read it back. Watch what happens to the file size, the column types, and the time it takes, all in one block. We'll generate a 50,000-row tibble, save it as both Parquet and CSV, and compare.
 
-```r
+```r title="Write arrowdemo to Parquet and CSV"
 library(arrow)
 library(dplyr)
 
@@ -67,7 +67,7 @@ Three things just happened. Parquet stored the same data in roughly a third of t
 
 **Try it:** Write `arrow_demo` to a second Parquet file using snappy compression and report the file size.
 
-```r
+```r title="Exercise: write with snappy compression"
 # Try it: write with explicit compression
 ex_path <- tempfile(fileext = ".parquet")
 
@@ -80,7 +80,7 @@ cat("Snappy size:", file.size(ex_path), "bytes\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Snappy-compression solution"
 ex_path <- tempfile(fileext = ".parquet")
 write_parquet(arrow_demo, ex_path, compression = "snappy")
 cat("Snappy size:", file.size(ex_path), "bytes\n")
@@ -95,7 +95,7 @@ cat("Snappy size:", file.size(ex_path), "bytes\n")
 
 The basic call is one line: `read_parquet(path)`. The interesting argument is `col_select`, which tells Arrow to read only the columns you ask for. For wide tables, think 200-column survey exports, this can turn a 30-second read into a 1-second read because the unread columns never leave disk.
 
-```r
+```r title="Read only two columns"
 demo_subset <- read_parquet(parquet_path, col_select = c(id, value))
 cat("Columns loaded:", names(demo_subset), "\n")
 cat("Rows:", nrow(demo_subset), "\n\n")
@@ -115,7 +115,7 @@ Notice that `category` and `created` never entered R's memory. The Parquet file'
 
 Type preservation is the other quiet win. Watch what happens to a tibble with four different column types:
 
-```r
+```r title="Write and read typed columns"
 typed_path <- tempfile(fileext = ".parquet")
 typed_df <- tibble(
   int_col    = 1:5L,
@@ -142,7 +142,7 @@ Every type round-tripped: integer stayed integer (not coerced to double), the da
 
 **Try it:** Read only the `created` column from `parquet_path` and confirm it comes back as a `Date`.
 
-```r
+```r title="Exercise: read just the created column"
 # Try it: read just one column
 ex_dates <- # your code here
 
@@ -153,7 +153,7 @@ class(ex_dates$created)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Single-column read solution"
 ex_dates <- read_parquet(parquet_path, col_select = "created")
 class(ex_dates$created)
 #> [1] "Date"
@@ -178,7 +178,7 @@ Three reasons stack up. First, Parquet is binary, there are no commas to parse, 
 
 Numbers beat tables. Let's actually time a write-and-read round trip on a 100,000-row dataset:
 
-```r
+```r title="Time CSV vs Parquet round trip"
 big_df <- tibble(
   id  = 1:100000,
   x   = rnorm(100000),
@@ -211,7 +211,7 @@ The exact numbers will vary by machine, but the ratio is what matters. A 10-15x 
 
 **Try it:** Print only the read-time speedup ratio (Parquet vs CSV) to one decimal place.
 
-```r
+```r title="Exercise: compute the read speedup"
 # Try it: compute and print the speedup
 speedup <- # your code here
 
@@ -221,7 +221,7 @@ cat("Parquet read is", speedup, "x faster\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Read-speedup solution"
 speedup <- round(t_csv_read["elapsed"] / t_pq_read["elapsed"], 1)
 cat("Parquet read is", speedup, "x faster\n")
 #> Parquet read is 14.6 x faster
@@ -237,7 +237,7 @@ This is the feature that justifies installing Arrow even on small datasets. `ope
 
 To make this concrete, let's split our `arrow_demo` tibble into four Parquet files (simulating a partitioned dataset) and run a lazy query against the directory:
 
-```r
+```r title="Open a partitioned dataset lazily"
 partition_dir <- tempfile()
 dir.create(partition_dir)
 
@@ -276,7 +276,7 @@ The `lazy_ds` object holds zero rows in R memory, it's a pointer plus a schema. 
 
 **Try it:** Run a `group_by(category) |> summarise(mean_value = mean(value))` against `lazy_ds` (without the `filter` step) and collect.
 
-```r
+```r title="Exercise: lazy mean by category"
 # Try it: summarise the full lazy dataset
 ex_summary <- lazy_ds |>
   # your pipeline here
@@ -288,7 +288,7 @@ print(ex_summary)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Lazy-mean solution"
 ex_summary <- lazy_ds |>
   group_by(category) |>
   summarise(mean_value = mean(value)) |>
@@ -311,7 +311,7 @@ print(ex_summary)
 
 `write_parquet()` produces a single file. `write_dataset()` produces a directory of files, optionally partitioned by one or more columns. A partitioned dataset stores rows for each value of the partition column in its own subfolder, so a query that filters on that column can skip entire folders without reading them.
 
-```r
+```r title="Write a partitioned Parquet dataset"
 part_dir2 <- tempfile()
 write_dataset(
   arrow_demo,
@@ -334,7 +334,7 @@ The `category=A/` folder layout is called Hive-style partitioning, and it's the 
 
 **Try it:** List the files inside `part_dir2` and confirm there are four (one per category folder).
 
-```r
+```r title="Exercise: count partition files"
 # Try it: count files in the partitioned directory
 ex_files <- # your code here
 
@@ -345,7 +345,7 @@ cat("Files:", length(ex_files), "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="File-count solution"
 ex_files <- list.files(part_dir2, recursive = TRUE)
 cat("Files:", length(ex_files), "\n")
 #> Files: 4
@@ -372,7 +372,7 @@ The good news is that you don't have to pick one. `arrow::to_duckdb()` hands a l
 
 **Try it:** Given a 5 GB Parquet file from which you only need 3 of 50 columns, which tool would you reach for first, and why?
 
-```r
+```r title="Exercise: pick the right tool"
 # Try it: write your reasoning as a comment.
 
 # Tool: ?
@@ -382,7 +382,7 @@ The good news is that you don't have to pick one. `arrow::to_duckdb()` hands a l
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tool-choice solution"
 # Tool: arrow::read_parquet(path, col_select = c(...))
 # Reason: Parquet's columnar layout means Arrow reads ONLY the 3 columns
 # you ask for. data.table::fread() can't read Parquet, and duckdb would
@@ -400,7 +400,7 @@ The good news is that you don't have to pick one. `arrow::to_duckdb()` hands a l
 
 Write `mtcars` as a Parquet dataset partitioned by `cyl`, open it lazily, filter to rows where `mpg > 20`, collect the result, and verify the row count matches a pure-dplyr filter on the in-memory `mtcars`.
 
-```r
+```r title="Exercise: partition mtcars by cyl"
 # Exercise 1: partition mtcars by cyl, lazy-filter mpg > 20
 # Hint: use write_dataset() + open_dataset() + filter() + collect()
 
@@ -412,7 +412,7 @@ my_dir <- tempfile()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Partitioned-mtcars solution"
 my_dir <- tempfile()
 write_dataset(mtcars, path = my_dir, format = "parquet", partitioning = "cyl")
 
@@ -438,7 +438,7 @@ cat("Match:", identical(nrow(my_filtered), nrow(baseline)), "\n")
 
 Build a 4-step lazy pipeline against the partitioned mtcars dataset from Exercise 1: filter `mpg > 15`, group by `cyl`, summarise `mean_hp = mean(hp)` and `mean_wt = mean(wt)`, arrange by `mean_hp` descending, collect. Verify the result matches a pure-dplyr baseline run on the in-memory `mtcars`.
 
-```r
+```r title="Exercise: multi-step lazy pipeline"
 # Exercise 2: lazy multi-step pipeline against my_dir
 # Hint: chain filter -> group_by -> summarise -> arrange -> collect
 
@@ -449,7 +449,7 @@ Build a 4-step lazy pipeline against the partitioned mtcars dataset from Exercis
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multi-step pipeline solution"
 my_lazy_result <- open_dataset(my_dir) |>
   filter(mpg > 15) |>
   group_by(cyl) |>
@@ -482,7 +482,7 @@ cat("Match:", isTRUE(all.equal(my_lazy_result, my_baseline)), "\n")
 
 A realistic end-to-end flow: simulate 100,000 rows of sales data, write it as a Parquet dataset partitioned by region, run a lazy aggregation, and compare against the CSV baseline.
 
-```r
+```r title="End-to-end sales Parquet pipeline"
 set.seed(1)
 sales <- tibble(
   order_id = 1:100000,

@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Under the hood, a data frame is just a list of equal-length vectors, with each vector being one column. That's why columns can be different types (numeric, character, logical) but a column itself must be one type. Let's build one and look at it.
 
-```r
+```r title="Build employees with four columns"
 employees <- data.frame(
   name = c("Alice", "Bob", "Carol", "David", "Eve"),
   age = c(29, 42, 31, 55, 38),
@@ -50,7 +50,7 @@ Five rows, four columns, two types (numeric and logical plus character). That's 
 
 **Try it:** Build a data frame with three cities, their populations, and whether they're coastal.
 
-```r
+```r title="Exercise: Build excities"
 # your turn
 ex_cities <- data.frame(
   city = c("___", "___", "___"),
@@ -63,7 +63,7 @@ ex_cities <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Build excities solution"
 ex_cities <- data.frame(
   city       = c("Mumbai", "Bengaluru", "Chennai"),
   population = c(20411000, 12765000, 11324000),
@@ -83,7 +83,7 @@ Each argument to `data.frame()` becomes one column, and the three input vectors 
 
 Before you touch a new data frame, you want a quick profile: how big is it, what types are the columns, what's in the first few rows? R gives you a handful of inspection functions that together answer every "what am I looking at?" question.
 
-```r
+```r title="Profile a data frame with str"
 dim(employees)
 #> [1] 5 4
 nrow(employees)
@@ -113,7 +113,7 @@ summary(employees$salary)
 
 **Try it:** Print the names of all columns in `employees` using `names()` or `colnames()`.
 
-```r
+```r title="Exercise: List column names"
 # one line
 names(employees)
 
@@ -122,7 +122,7 @@ names(employees)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="List column names solution"
 names(employees)
 #> [1] "name"   "age"    "salary" "remote"
 ```
@@ -134,7 +134,7 @@ names(employees)
 
 There are four ways to pull a column out of a data frame, and you'll see all of them in real code. Let's work through them, because the differences matter, especially when one returns a vector and another returns a one-column data frame.
 
-```r
+```r title="Four ways to select a column"
 employees$salary
 #> [1] 65000 82000 70000 95000 78000
 
@@ -160,7 +160,7 @@ The first three return the column as a plain vector. The fourth, selecting multi
 
 **Try it:** Pull just the `age` column out of `employees` as a vector, then compute its mean.
 
-```r
+```r title="Exercise: Mean of the age column"
 ex_mean_age <- mean(employees$___)
 ex_mean_age
 
@@ -169,7 +169,7 @@ ex_mean_age
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean of the age column solution"
 ex_mean_age <- mean(employees$age)
 ex_mean_age
 #> [1] 39
@@ -182,7 +182,7 @@ ex_mean_age
 
 Filtering rows is the operation you'll do most often. In base R, you index with a logical vector in the row position: `df[condition, ]`. The comma is critical, it says "all columns." Leave it out and R gets confused.
 
-```r
+```r title="Filter rows with a logical index"
 employees[employees$age > 35, ]
 #>    name age salary remote
 #> 2   Bob  42  82000  FALSE
@@ -208,7 +208,7 @@ Combine conditions with `&` (and) and `|` (or). Never use `&&` or `||`, those ar
 
 **Try it:** Filter `employees` to rows where salary is below 75000.
 
-```r
+```r title="Exercise: Filter by salary threshold"
 # include the comma!
 employees[employees$salary < 75000, ]
 
@@ -217,7 +217,7 @@ employees[employees$salary < 75000, ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter by salary threshold solution"
 employees[employees$salary < 75000, ]
 #>    name age salary remote
 #> 1 Alice  29  65000   TRUE
@@ -231,7 +231,7 @@ employees[employees$salary < 75000, ]
 
 Adding a column is the same syntax as selecting one, just assign into it. This works whether the column already exists (modify) or doesn't (create). The new column can be a constant, a vector, or a vectorized computation on existing columns.
 
-```r
+```r title="Add bonus and seniority columns"
 employees$bonus <- employees$salary * 0.10
 employees
 #>    name age salary remote  bonus
@@ -254,7 +254,7 @@ employees$salary
 
 **Try it:** Add a column `high_earner` that is `TRUE` when salary is above 80000.
 
-```r
+```r title="Exercise: Flag high earners"
 employees$high_earner <- employees$salary > ___
 employees
 
@@ -263,7 +263,7 @@ employees
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Flag high earners solution"
 employees$high_earner <- employees$salary > 80000
 employees
 #>    name age salary remote high_earner
@@ -281,7 +281,7 @@ Assigning into a new name, `employees$high_earner`, appends a column because the
 
 Sorting a data frame means reordering its rows by one or more columns. Base R uses `order()`, which returns the *positions* that would put a vector in sorted order. You then use those positions as a row index.
 
-```r
+```r title="Sort by salary ascending and descending"
 employees[order(employees$salary), ]
 #>    name age salary remote bonus seniority
 #> 3 Carol  31  77000   TRUE  7000    junior
@@ -311,7 +311,7 @@ A negative sign in front of a numeric column reverses that column's sort order. 
 
 **Try it:** Sort `employees` by `age` ascending.
 
-```r
+```r title="Exercise: Sort employees by age"
 employees[order(employees$___), ]
 
 ```
@@ -319,7 +319,7 @@ employees[order(employees$___), ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sort employees by age solution"
 employees[order(employees$age), ]
 #>    name age salary remote
 #> 1 Alice  29  65000   TRUE
@@ -336,7 +336,7 @@ employees[order(employees$age), ]
 
 The "split-apply-combine" pattern, group rows by a column, compute something on each group, combine the results, is the core of most analyses. Base R's `aggregate()` does it in one call.
 
-```r
+```r title="Aggregate salary by seniority"
 aggregate(salary ~ seniority, data = employees, FUN = mean)
 #>   seniority salary
 #> 1    junior  78100
@@ -360,7 +360,7 @@ The `~` is formula syntax: "compute this on the left, grouped by that on the rig
 
 **Try it:** Compute the maximum salary grouped by `remote`.
 
-```r
+```r title="Exercise: Max salary by remote"
 aggregate(salary ~ remote, data = employees, FUN = ___)
 
 ```
@@ -368,7 +368,7 @@ aggregate(salary ~ remote, data = employees, FUN = ___)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Max salary by remote solution"
 aggregate(salary ~ remote, data = employees, FUN = max)
 #>   remote salary
 #> 1  FALSE  95000
@@ -384,7 +384,7 @@ The formula `salary ~ remote` says "compute on salary, split by remote", and pas
 
 Build a data frame of 8 employees across 3 departments, then return the top earner in each.
 
-```r
+```r title="Exercise: Top earner per department"
 df <- data.frame(
   name = c("A","B","C","D","E","F","G","H"),
   dept = c("eng","eng","sales","sales","sales","hr","hr","eng"),
@@ -396,7 +396,7 @@ df <- data.frame(
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Top earner per department solution"
 top <- do.call(rbind, by(df, df$dept, function(g) g[which.max(g$pay), ]))
 top
 #>       name  dept pay
@@ -413,7 +413,7 @@ From `mtcars`, return the mean `mpg` for 4-cylinder cars weighing under 2.5.
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Mean mpg for light 4-cyl cars"
 mean(mtcars[mtcars$cyl == 4 & mtcars$wt < 2.5, "mpg"])
 #> [1] 28.01429
 ```
@@ -426,7 +426,7 @@ Add a column `mpg_class` to `mtcars`: "low" if mpg < 18, "mid" if 18-25, "high" 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Bin mpg into classes with cut"
 mtcars$mpg_class <- cut(mtcars$mpg,
                         breaks = c(-Inf, 18, 25, Inf),
                         labels = c("low", "mid", "high"))
@@ -441,7 +441,7 @@ table(mtcars$mpg_class)
 
 A complete mini-analysis on `iris`, load it, inspect, filter, add a derived column, sort, and summarize by species.
 
-```r
+```r title="End-to-end iris analysis pipeline"
 data(iris)
 str(iris)
 #> 'data.frame':   150 obs. of  5 variables:

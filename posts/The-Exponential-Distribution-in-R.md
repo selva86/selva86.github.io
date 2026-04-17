@@ -24,7 +24,7 @@ Picture a bus stop where buses arrive at a constant average rate, one every 10 m
 
 Intuition screams that *you* should wait less; you've already paid ten minutes. But under the exponential distribution, you and the stranger face the same expected wait. The past doesn't shorten your future. Let's show it in three lines of R.
 
-```r
+```r title="Simulate bus waits and check memory"
 set.seed(42)
 waits <- rexp(10000, rate = 0.1)   # mean wait = 1 / rate = 10 minutes
 mean(waits)
@@ -44,7 +44,7 @@ Both means hug 10. The people who've already waited past 10 minutes face, on ave
 
 **Try it:** Using the same `waits` vector, compute the mean *remaining* wait among draws that have already exceeded 20 minutes. Store it in `ex_remaining`.
 
-```r
+```r title="Exercise: remaining wait past 20"
 # Try it: conditional mean remaining wait past t = 20
 ex_remaining <- # your code here
 
@@ -56,7 +56,7 @@ ex_remaining
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Remaining-wait solution"
 ex_remaining <- mean(waits[waits > 20] - 20)
 ex_remaining
 #> [1] 9.88
@@ -72,7 +72,7 @@ R exposes the exponential through the standard four-letter family: `dexp`, `pexp
 
 Here's one block that demonstrates all four with `rate = 0.1`, matching our 10-minute bus scenario.
 
-```r
+```r title="Four exponential functions demonstrated"
 # Density at 5 minutes: how tall is the PDF there?
 dexp(5, rate = 0.1)
 #> [1] 0.06065307
@@ -99,7 +99,7 @@ Read the outputs as a story about waits: the density at 5 minutes is 0.06 (usefu
 
 **Try it:** Compute the probability a wait exceeds 15 minutes when `rate = 0.1`. Store it in `ex_prob`.
 
-```r
+```r title="Exercise: survival past 15 minutes"
 # Try it: P(X > 15) when rate = 0.1
 ex_prob <- # your code here
 
@@ -110,7 +110,7 @@ ex_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Survival-past-15 solution"
 ex_prob <- 1 - pexp(15, rate = 0.1)
 # or equivalently:
 ex_prob <- pexp(15, rate = 0.1, lower.tail = FALSE)
@@ -130,7 +130,7 @@ $$\text{rate} = \frac{1}{\text{mean}}$$
 
 If average wait is 30 minutes, rate is 1/30 ≈ 0.033. Passing 30 as the rate to `rexp()` produces waits with a mean of 1/30, hundredths of a minute, not half-hour buses. It's a silent bug; the function returns numbers, they just mean something else.
 
-```r
+```r title="Rate versus mean, wrong versus right"
 set.seed(1)
 # WRONG: treating mean (30 min) as the rate
 bad <- rexp(5, rate = 30)
@@ -150,7 +150,7 @@ The `bad` vector has values in hundredths of a minute. The `good` vector scatter
 
 **Try it:** Suppose the mean wait between phone calls is 8 minutes. Draw 5 simulated waits into `ex_waits`.
 
-```r
+```r title="Exercise: simulate from a mean"
 # Try it: rate from mean, then simulate
 set.seed(2)
 ex_waits <- # your code here
@@ -162,7 +162,7 @@ ex_waits
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean-to-rate solution"
 set.seed(2)
 ex_waits <- rexp(5, rate = 1 / 8)
 round(ex_waits, 2)
@@ -187,7 +187,7 @@ Where:
 
 In plain language: given that you've already waited `s`, the chance of waiting at least another `t` equals the chance of waiting at least `t` from scratch. Let's check it empirically on our simulated waits.
 
-```r
+```r title="Simulate the memoryless property"
 # Using the `waits` vector from Section 1 (10,000 draws, rate = 0.1)
 s <- 10
 t <- 5
@@ -211,7 +211,7 @@ Both sides agree to two decimal places. The conditional probability of waiting a
 
 **Try it:** Check the memoryless property at `s = 15` and `t = 10` on the same `waits` vector. Store LHS and RHS.
 
-```r
+```r title="Exercise: memoryless check at s=15"
 # Try it: memoryless check at s=15, t=10
 ex_s <- 15
 ex_t <- 10
@@ -225,7 +225,7 @@ c(ex_lhs, ex_rhs)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Memoryless-check solution"
 ex_lhs <- mean(waits[waits > 15] > 25)
 ex_rhs <- mean(waits > 10)
 c(ex_lhs, ex_rhs)
@@ -246,7 +246,7 @@ The hazard is flat. An exponential component has the same chance of failing in t
 
 Let's compute the empirical hazard from simulated failure times and plot it. A flat curve is the signature.
 
-```r
+```r title="Empirical hazard is flat"
 library(ggplot2)
 
 set.seed(99)
@@ -277,7 +277,7 @@ The solid line is the empirical hazard; the red dashed line is the true rate (0.
 
 **Try it:** Compute the probability a failure hasn't happened by `t = 20` in two ways, theoretically with `pexp()` and empirically from `fail_times`. Store both.
 
-```r
+```r title="Exercise: survival at t equals 20"
 # Try it: survival at t = 20, theoretical and empirical
 ex_surv_theo <- # your code here
 ex_surv_emp  <- # your code here
@@ -289,7 +289,7 @@ c(ex_surv_theo, ex_surv_emp)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Survival-at-20 solution"
 ex_surv_theo <- 1 - pexp(20, rate = 0.1)   # = exp(-0.1 * 20)
 ex_surv_emp  <- mean(fail_times > 20)
 c(ex_surv_theo, ex_surv_emp)
@@ -314,7 +314,7 @@ Where:
 
 You just invert the sample mean. Let's verify it matches what a numerical optimiser finds when we hand it the log-likelihood by hand.
 
-```r
+```r title="Closed-form and numerical MLE"
 set.seed(2026)
 real_x <- rexp(500, rate = 0.25)   # truth: rate = 0.25, mean = 4
 
@@ -339,7 +339,7 @@ Both methods land on the same estimate, 0.2517, satisfyingly close to the true 0
 
 **Try it:** Here is a vector `ex_sample` of 200 waits. Estimate the rate and store it in `ex_rate`.
 
-```r
+```r title="Exercise: closed-form rate estimate"
 # Try it: closed-form MLE
 set.seed(123)
 ex_sample <- rexp(200, rate = 0.4)
@@ -352,7 +352,7 @@ ex_rate
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rate-estimate solution"
 set.seed(123)
 ex_sample <- rexp(200, rate = 0.4)
 ex_rate <- 1 / mean(ex_sample)
@@ -370,7 +370,7 @@ ex_rate
 
 Calls arrive at a support line at a mean rate of one every 3 minutes. Compute (a) the probability that the next call arrives within 1 minute and (b) the 95th-percentile wait. Simulate 1000 inter-call times into `my_calls`, report its mean, and compare to the theoretical mean.
 
-```r
+```r title="Exercise: support-line arrival model"
 # Exercise: exponential as an arrival model
 # Hint: convert mean to rate; use pexp() and qexp(); use rexp() for the sample.
 
@@ -381,7 +381,7 @@ Calls arrive at a support line at a mean rate of one every 3 minutes. Compute (a
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Arrival-model solution"
 rate_calls <- 1 / 3
 p_within_1 <- pexp(1, rate = rate_calls)
 q95 <- qexp(0.95, rate = rate_calls)
@@ -403,7 +403,7 @@ c(p_within_1 = p_within_1, q95 = q95, sample_mean = mean(my_calls))
 
 You observe 50 inter-order times, `my_waits`. Fit an exponential (closed-form MLE), then compute a 95% predictive interval for the *next* wait using `qexp()` at 0.025 and 0.975. Store the rate estimate in `my_rate`, the interval bounds in `pi_low` and `pi_high`.
 
-```r
+```r title="Exercise: fit and predict waits"
 # Exercise: fit and predict
 set.seed(44)
 my_waits <- rexp(50, rate = 0.15)
@@ -420,7 +420,7 @@ c(my_rate = my_rate, pi_low = pi_low, pi_high = pi_high)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fit-and-predict solution"
 set.seed(44)
 my_waits <- rexp(50, rate = 0.15)
 
@@ -441,7 +441,7 @@ c(my_rate = my_rate, pi_low = pi_low, pi_high = pi_high)
 
 Let's put everything together. Suppose an online store wants to model the time between consecutive orders to predict short-term load. We'll simulate a realistic arrival stream, fit an exponential, and use it to answer a business question: what's the probability the next order arrives within 2 minutes?
 
-```r
+```r title="End-to-end e-commerce arrival model"
 library(ggplot2)
 
 # Simulate 500 inter-order waits with a true rate of 0.2 / min (mean = 5 min)

@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 You hit this error the moment you try to be clever about grouping. Instead of writing `group_by(cyl)`, you store the column name in a variable and pass it in, and dplyr complains with a message about strings, lengths, or missing columns. Below is the smallest reproduction. Run it once, then we'll unpack why dplyr disagrees with what you meant.
 
-```r
+```r title="Reproduce the single-string error"
 library(dplyr)
 
 my_col <- "cyl"
@@ -39,7 +39,7 @@ Notice what dplyr is really saying: *"I looked for a column literally named `my_
 
 **Try it:** Store `"gear"` in `ex_col` and reproduce the same error by passing `ex_col` to `group_by()`.
 
-```r
+```r title="Exercise: reproduce with your variable"
 # Try it: reproduce the error with your own variable
 ex_col <- "gear"
 # your code here
@@ -48,7 +48,7 @@ ex_col <- "gear"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Reproduce-error solution"
 ex_col <- "gear"
 mtcars |> group_by(ex_col) |> summarise(n = n())
 #> Error in `group_by()`:
@@ -66,7 +66,7 @@ dplyr uses **tidy evaluation**, a system that captures the expression you type, 
 
 The same trap appears with vectors of column names.
 
-```r
+```r title="Vector column variable also fails"
 cols <- c("cyl", "gear")
 mtcars |> group_by(cols) |> tally()
 #> Error in `group_by()`:
@@ -81,7 +81,7 @@ dplyr isn't being stubborn, it's protecting you from ambiguity. If it silently d
 
 **Try it:** Predict what happens if you assign `ex_valid <- "mpg"` and run `group_by(ex_valid)`. Does the error mention `mpg` or `ex_valid`?
 
-```r
+```r title="Exercise: confirm dplyr sees the symbol"
 ex_valid <- "mpg"
 # your code here: group_by(ex_valid) and see which name dplyr complains about
 ```
@@ -89,7 +89,7 @@ ex_valid <- "mpg"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Symbol-confirm solution"
 ex_valid <- "mpg"
 mtcars |> group_by(ex_valid) |> tally()
 #> Error in `group_by()`:
@@ -107,7 +107,7 @@ mtcars |> group_by(ex_valid) |> tally()
 
 Wrap `my_col` in `.data[[ ]]` and the grouping works.
 
-```r
+```r title="Fix with .data[[col]] pronoun"
 mtcars |>
   group_by(.data[[my_col]]) |>
   summarise(mean_mpg = mean(mpg), .groups = "drop")
@@ -126,7 +126,7 @@ dplyr evaluated `my_col` (getting `"cyl"`), handed the string to `.data[[ ]]`, a
 
 **Try it:** Fix this broken pipeline by wrapping the string variable with `.data[[ ]]`.
 
-```r
+```r title="Exercise: fix the pipeline"
 # Try it: this pipeline errors — fix it
 ex_col <- "gear"
 mtcars |>
@@ -137,7 +137,7 @@ mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pipeline-fix solution"
 ex_col <- "gear"
 mtcars |>
   group_by(.data[[ex_col]]) |>
@@ -160,7 +160,7 @@ The `.data[[col]]` pattern works when the column name arrives as a string. But w
 
 Here's a helper that takes a bare column and returns a grouped mean.
 
-```r
+```r title="Reusable function with embrace operator"
 group_summary <- function(df, group_col) {
   df |>
     group_by({{ group_col }}) |>
@@ -183,7 +183,7 @@ The caller writes `cyl` with no quotes, exactly the ergonomics of built-in dplyr
 
 **Try it:** Write `ex_median_summary(df, group_col)` that groups by a bare column and returns the **median** of `mpg` per group. Test it on `mtcars` with `cyl`.
 
-```r
+```r title="Exercise: mediansummary with embrace"
 # Try it: median_summary with an embraced argument
 ex_median_summary <- function(df, group_col) {
   # your code here
@@ -196,7 +196,7 @@ ex_median_summary(mtcars, cyl)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mediansummary solution"
 ex_median_summary <- function(df, group_col) {
   df |>
     group_by({{ group_col }}) |>
@@ -233,7 +233,7 @@ Use the table below as a cheat sheet. Pick the pattern that matches how your col
 
 When you have a vector of column names, `across(all_of())` is the idiomatic solution. It accepts a character vector and applies any dplyr selection to those columns.
 
-```r
+```r title="Multiple columns with across allof"
 group_cols <- c("cyl", "gear")
 
 mtcars |>
@@ -256,7 +256,7 @@ mtcars |>
 
 **Try it:** Regroup `mtcars` by `c("am", "gear")` using `across(all_of())` and summarise the mean horsepower.
 
-```r
+```r title="Exercise: across with new vector"
 # Try it: across(all_of()) with a different vector
 ex_group_cols <- c("am", "gear")
 # your code here
@@ -265,7 +265,7 @@ ex_group_cols <- c("am", "gear")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="New-vector solution"
 ex_group_cols <- c("am", "gear")
 mtcars |>
   group_by(across(all_of(ex_group_cols))) |>
@@ -287,7 +287,7 @@ mtcars |>
 
 The same pattern applies everywhere in dplyr, not just `group_by()`. Any verb that takes a column reference, `filter()`, `arrange()`, `mutate()`, `summarise()`, `select()`, `pull()`, accepts `.data[[col]]` when you're holding the column name as a string.
 
-```r
+```r title="data pronoun in other verbs"
 my_col <- "hp"
 
 # filter
@@ -316,7 +316,7 @@ Three things to notice. First, the `.data[[my_col]]` idiom is identical across a
 
 **Try it:** Using `ex_col <- "wt"`, filter `mtcars` to rows where `wt > 3`, then arrange by descending `wt`. Use `.data[[ex_col]]` throughout.
 
-```r
+```r title="Exercise: filter and arrange by wt"
 # Try it: filter + arrange with .data[[]]
 ex_col <- "wt"
 # your code here
@@ -325,7 +325,7 @@ ex_col <- "wt"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter-arrange solution"
 ex_col <- "wt"
 mtcars |>
   filter(.data[[ex_col]] > 3) |>
@@ -347,7 +347,7 @@ mtcars |>
 
 Write a function `summarise_by_col(df, col_string, metric_col)` that groups `df` by the column whose name is in `col_string` (a string) and returns the mean of `metric_col` (also a string) per group. Test it on `mtcars` with `col_string = "cyl"` and `metric_col = "mpg"`. Save the result to `my_result`.
 
-```r
+```r title="Exercise: string-based grouping helper"
 # Exercise 1: string-based grouping helper
 # Hint: use .data[[col_string]] inside group_by and .data[[metric_col]] inside mean()
 
@@ -363,7 +363,7 @@ print(my_result)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="summarisebycol solution"
 summarise_by_col <- function(df, col_string, metric_col) {
   df |>
     group_by(.data[[col_string]]) |>
@@ -388,7 +388,7 @@ print(my_result)
 
 Write `flex_group_summary(df, group_col)` that works whether the caller passes a bare column name (`cyl`) or a string (`"cyl"`). Return a tibble with the group column and a `mean_mpg` column. Hint: try the bare-name path first with `{{ }}`; if that fails, catch the error and fall back to `.data[[ ]]` using `rlang::as_string(rlang::ensym(group_col))` to recover the name.
 
-```r
+```r title="Exercise: accept bare or string"
 # Exercise 2: accept both bare names and strings
 # Hint: tryCatch({ ... use {{ group_col }} ... },
 #                error = function(e) { ... use .data[[as_string(ensym(group_col))]] ... })
@@ -405,7 +405,7 @@ flex_group_summary(mtcars, "cyl")      # string
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="flexgroupsummary solution"
 flex_group_summary <- function(df, group_col) {
   # If group_col is a string, use .data[[ ]]; otherwise use the embrace operator.
   if (is.character(rlang::enexpr(group_col))) {
@@ -445,7 +445,7 @@ flex_group_summary(mtcars, "cyl")
 
 Putting everything together: a config-driven summary function that reads a vector of grouping columns and a single metric column, all as strings, and returns the grouped mean. This is the shape real pipelines take when column choices come from a YAML config, a Shiny input, or a loop over many metrics.
 
-```r
+```r title="Config-driven grouped summary"
 config_cols <- c("cyl", "am")
 metric_col <- "mpg"
 

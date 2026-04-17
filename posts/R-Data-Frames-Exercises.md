@@ -26,7 +26,7 @@ Data frames are the workhorse of R. Almost every analysis you will ever write co
 
 Every exercise uses the built-in `mtcars` and `iris` datasets, plus one small data frame we construct in the first exercise. The code blocks share state, so what you create in Exercise 1 is available in Exercise 15.
 
-```r
+```r title="Load mtcars and iris"
 data("mtcars")
 data("iris")
 
@@ -41,7 +41,7 @@ head(mtcars, 3)
 
 Create a data frame `students` with three columns, `name` (character), `age` (integer), `score` (double), and five rows of your own made-up data. Confirm the types with `str()`.
 
-```r
+```r title="Exercise: Build students data frame"
 # Your attempt here
 
 ```
@@ -49,7 +49,7 @@ Create a data frame `students` with three columns, `name` (character), `age` (in
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Students data frame solution"
 students <- data.frame(
   name  = c("Ava", "Ben", "Cho", "Dee", "Eli"),
   age   = c(21L, 24L, 19L, 22L, 25L),
@@ -72,7 +72,7 @@ In R 4.0 and later, `stringsAsFactors = FALSE` is the default, the argument is o
 
 Using `mtcars`, report: its dimensions, the column names, the class of every column, and a compact summary with `summary()`.
 
-```r
+```r title="Exercise: Inspect mtcars structure"
 # Your attempt here
 
 ```
@@ -80,7 +80,7 @@ Using `mtcars`, report: its dimensions, the column names, the class of every col
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Inspect mtcars structure solution"
 dim(mtcars)           # 32 11
 names(mtcars)         # "mpg" "cyl" ... "carb"
 sapply(mtcars, class) # all numeric
@@ -95,7 +95,7 @@ summary(mtcars)
 
 From `students`, extract the `score` column using: `$`, `[[`, `[, "score"]`, and `[, 3]`. Confirm all four return the same numeric vector.
 
-```r
+```r title="Exercise: Extract score four ways"
 # Your attempt here
 
 ```
@@ -103,7 +103,7 @@ From `students`, extract the `score` column using: `$`, `[[`, `[, "score"]`, and
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Extract score four ways solution"
 students$score
 students[["score"]]
 students[, "score"]
@@ -124,7 +124,7 @@ All four return an *atomic vector*. Note that `students["score"]` (without the c
 
 From `mtcars`, return a new data frame with only `mpg`, `cyl` and `hp`.
 
-```r
+```r title="Exercise: Keep selected columns"
 # Your attempt here
 
 ```
@@ -132,7 +132,7 @@ From `mtcars`, return a new data frame with only `mpg`, `cyl` and `hp`.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Keep selected columns solution"
 mtcars[, c("mpg", "cyl", "hp")] |> head()
 
 # Or equivalently:
@@ -147,7 +147,7 @@ When you use character names instead of integer positions, the code keeps workin
 
 From `mtcars`, return a data frame with everything *except* `qsec` and `vs`.
 
-```r
+```r title="Exercise: Drop two columns"
 # Your attempt here
 
 ```
@@ -155,7 +155,7 @@ From `mtcars`, return a data frame with everything *except* `qsec` and `vs`.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Drop two columns solution"
 mtcars[, !(names(mtcars) %in% c("qsec", "vs"))] |> head()
 
 # Or, set those columns to NULL on a copy:
@@ -173,7 +173,7 @@ Both idioms are common. The first is safer inside a pipeline; the second is clea
 
 Return the rows of `mtcars` where `mpg > 25`.
 
-```r
+```r title="Exercise: Filter rows by mpg"
 # Your attempt here
 
 ```
@@ -181,7 +181,7 @@ Return the rows of `mtcars` where `mpg > 25`.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Filter rows by mpg solution"
 mtcars[mtcars$mpg > 25, ]
 ```
 
@@ -193,7 +193,7 @@ Note the trailing comma, `mtcars[mtcars$mpg > 25]` (no comma) tries to index col
 
 Return the rows of `mtcars` where `mpg > 20` AND `cyl == 4`, keeping only the columns `mpg`, `cyl`, `hp`.
 
-```r
+```r title="Exercise: Filter with two conditions"
 # Your attempt here
 
 ```
@@ -201,7 +201,7 @@ Return the rows of `mtcars` where `mpg > 20` AND `cyl == 4`, keeping only the co
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Two-condition filter solution"
 mtcars[mtcars$mpg > 20 & mtcars$cyl == 4, c("mpg", "cyl", "hp")]
 ```
 
@@ -215,7 +215,7 @@ Combine the row filter with column selection in a single `[ , ]` call. Use `&` f
 
 Add a column `kpl` to a copy of `mtcars` that converts `mpg` (US miles per US gallon) to kilometres per litre. The conversion is `kpl = mpg * 0.425`.
 
-```r
+```r title="Exercise: Add kpl conversion column"
 # Your attempt here
 
 ```
@@ -223,7 +223,7 @@ Add a column `kpl` to a copy of `mtcars` that converts `mpg` (US miles per US ga
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Add kpl column solution"
 mt <- mtcars
 mt$kpl <- mt$mpg * 0.425
 head(mt[, c("mpg", "kpl")])
@@ -237,7 +237,7 @@ Assigning to `mt$kpl` creates the column if it does not exist, otherwise overwri
 
 Add a column `efficiency` to `mt` with value `"high"` when `mpg > 25`, `"medium"` when `mpg` is between 15 and 25 inclusive, and `"low"` otherwise.
 
-```r
+```r title="Exercise: Add efficiency bucket column"
 # Your attempt here
 
 ```
@@ -245,7 +245,7 @@ Add a column `efficiency` to `mt` with value `"high"` when `mpg > 25`, `"medium"
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Efficiency bucket solution"
 mt$efficiency <- ifelse(mt$mpg > 25, "high",
                  ifelse(mt$mpg >= 15, "medium", "low"))
 
@@ -262,7 +262,7 @@ table(mt$efficiency)
 
 Rename the column `wt` to `weight_1000lbs` in `mt`.
 
-```r
+```r title="Exercise: Rename wt column"
 # Your attempt here
 
 ```
@@ -270,7 +270,7 @@ Rename the column `wt` to `weight_1000lbs` in `mt`.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Rename wt column solution"
 names(mt)[names(mt) == "wt"] <- "weight_1000lbs"
 head(mt)
 ```
@@ -285,7 +285,7 @@ You assign into `names(mt)` at the position where the current name matches. This
 
 Use `aggregate()` on `mtcars` to compute the mean `mpg` for each number of cylinders.
 
-```r
+```r title="Exercise: Aggregate mean mpg by cyl"
 # Your attempt here
 
 ```
@@ -293,7 +293,7 @@ Use `aggregate()` on `mtcars` to compute the mean `mpg` for each number of cylin
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Aggregate mean mpg solution"
 aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
 #   cyl      mpg
 # 1   4 26.66364
@@ -309,7 +309,7 @@ The formula syntax `mpg ~ cyl` reads as "mpg by cyl". You can group by multiple 
 
 Count how many cars in `mtcars` have each combination of `cyl` and `gear`.
 
-```r
+```r title="Exercise: Count cyl gear combinations"
 # Your attempt here
 
 ```
@@ -317,7 +317,7 @@ Count how many cars in `mtcars` have each combination of `cyl` and `gear`.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Cyl gear combination solution"
 table(mtcars$cyl, mtcars$gear)
 #      3  4  5
 #   4  1  8  2
@@ -336,7 +336,7 @@ as.data.frame(table(cyl = mtcars$cyl, gear = mtcars$gear))
 
 Create a small data frame `cyl_info` with columns `cyl` (4, 6, 8) and `fuel_type` ("economy", "mid", "performance"). Merge it onto `mtcars` so every car gets a `fuel_type` label.
 
-```r
+```r title="Exercise: Merge cyl info table"
 # Your attempt here
 
 ```
@@ -344,7 +344,7 @@ Create a small data frame `cyl_info` with columns `cyl` (4, 6, 8) and `fuel_type
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Merge cyl info solution"
 cyl_info <- data.frame(
   cyl       = c(4, 6, 8),
   fuel_type = c("economy", "mid", "performance")
@@ -362,11 +362,11 @@ head(m3[, c("mpg", "cyl", "fuel_type")])
 
 Create a small wide data frame of quarterly sales and reshape it to long format with one row per (quarter, sales) combination.
 
-```r
+```r title="Build wide quarterly data frame"
 wide <- data.frame(q1 = 100, q2 = 150, q3 = 200, q4 = 175)
 ```
 
-```r
+```r title="Exercise: Reshape wide to long"
 # Your attempt here
 
 ```
@@ -374,7 +374,7 @@ wide <- data.frame(q1 = 100, q2 = 150, q3 = 200, q4 = 175)
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Reshape wide to long solution"
 wide <- data.frame(q1 = 100, q2 = 150, q3 = 200, q4 = 175)
 
 long <- stack(wide)
@@ -396,7 +396,7 @@ long
 
 Sort `mtcars` by `cyl` ascending and then by `mpg` descending within each cylinder group. Return the first 10 rows.
 
-```r
+```r title="Exercise: Sort by cyl then mpg"
 # Your attempt here
 
 ```
@@ -404,7 +404,7 @@ Sort `mtcars` by `cyl` ascending and then by `mpg` descending within each cylind
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Sort and slice solution"
 mtcars[order(mtcars$cyl, -mtcars$mpg), ][1:10, ]
 ```
 

@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 A matrix is a vector with a `dim` attribute that tells R "pretend this is rows and columns." Every element must be the same type, all numeric, all character, all logical. Mixing types is a data frame's job; uniform numeric arithmetic is a matrix's job.
 
-```r
+```r title="Anatomy of a matrix object"
 m <- matrix(1:12, nrow = 3, ncol = 4)
 m
 #>      [,1] [,2] [,3] [,4]
@@ -50,7 +50,7 @@ The trade-off is simple: matrices are faster and enable math operators; data fra
 
 Three common ways: `matrix()`, `cbind()` (bind columns), and `rbind()` (bind rows). Each has its moment.
 
-```r
+```r title="Create a matrix with matrix()"
 # matrix() — fill from a vector, specify dimensions
 m1 <- matrix(c(1, 2, 3, 4, 5, 6), nrow = 2)
 m1
@@ -68,7 +68,7 @@ m2
 
 R fills columns first by default, a surprise if you're coming from Python's row-major NumPy. `byrow = TRUE` switches to the more intuitive left-to-right fill.
 
-```r
+```r title="Combine vectors with cbind and rbind"
 # cbind() — each argument becomes a column
 a <- c(1, 2, 3)
 b <- c(10, 20, 30)
@@ -92,14 +92,14 @@ Row and column names are optional. Set them with `rownames(m)` and `colnames(m)`
 
 **Try it:** Create a 2x3 matrix `ex_m` from `c(10, 20, 30, 40, 50, 60)`, row-major. Give it rownames `"r1", "r2"` and colnames `"a", "b", "c"`.
 
-```r
+```r title="Exercise: name matrix rows and columns"
 # Your code here — build ex_m and set row/column names
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Named matrix solution"
 ex_m <- matrix(c(10, 20, 30, 40, 50, 60), nrow = 2, byrow = TRUE)
 rownames(ex_m) <- c("r1", "r2")
 colnames(ex_m) <- c("a", "b", "c")
@@ -116,7 +116,7 @@ ex_m
 
 Matrix indexing uses `[row, col]`. Leave either blank to mean "all of them." The result is another matrix, unless you ask for a single row or column, in which case R drops it to a vector (you can prevent that with `drop = FALSE`).
 
-```r
+```r title="Index a matrix by row and column"
 m <- matrix(1:20, nrow = 4)
 m
 #>      [,1] [,2] [,3] [,4] [,5]
@@ -139,7 +139,7 @@ m[1:2, 3:4]      # 2x2 block
 
 That third call, `m[, 2]`, returned a plain vector, not a column matrix. If you're writing code that expects a matrix back, add `drop = FALSE`:
 
-```r
+```r title="Preserve shape with drop = FALSE"
 m[, 2, drop = FALSE]
 #>      [,1]
 #> [1,]    5
@@ -152,7 +152,7 @@ Now you get a 4x1 matrix, preserving the 2D shape. This matters inside functions
 
 You can also subset with logical vectors and negative indices, just like regular vectors:
 
-```r
+```r title="Logical and negative index subsetting"
 m[m[, 1] > 2, ]           # rows where column 1 > 2
 m[, -c(2, 4)]             # all columns except 2 and 4
 #>      [,1] [,2] [,3] [,4] [,5]
@@ -167,14 +167,14 @@ m[, -c(2, 4)]             # all columns except 2 and 4
 
 **Try it:** From `ex_m2 <- matrix(1:20, nrow = 4)`, extract the 2x2 block at rows 3-4, columns 4-5.
 
-```r
+```r title="Exercise: extract a 2x2 block"
 # Your code here — extract rows 3-4, cols 4-5
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Block-extraction solution"
 ex_m2 <- matrix(1:20, nrow = 4)
 ex_block <- ex_m2[3:4, 4:5]
 ex_block
@@ -190,7 +190,7 @@ ex_block
 
 Because `*` does **elementwise** multiplication, not matrix multiplication. If you want the mathematical matrix product, row-dot-column, you need `%*%`. Mixing them up is one of the most common R bugs in linear algebra code.
 
-```r
+```r title="Elementwise versus matrix multiplication"
 A <- matrix(c(1, 2, 3, 4), nrow = 2)
 B <- matrix(c(5, 6, 7, 8), nrow = 2)
 
@@ -214,7 +214,7 @@ If `%*%` says "non-conformable arguments," your inner dimensions don't match. Tr
 
 Other core linear algebra functions:
 
-```r
+```r title="Transpose, determinant, and inverse"
 A <- matrix(c(2, 1, 1, 3), nrow = 2)
 
 t(A)              # transpose
@@ -237,14 +237,14 @@ A %*% solve(A)    # should be identity
 
 **Try it:** Solve $Ax = b$ for $A = \begin{pmatrix}3 & 1\\1 & 2\end{pmatrix}$ and $b = \begin{pmatrix}9\\8\end{pmatrix}$ using `solve(A, b)`.
 
-```r
+```r title="Exercise: solve a linear system"
 # Your code here — solve Ax = b
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Linear-system solution"
 ex_A <- matrix(c(3, 1, 1, 2), nrow = 2)
 ex_b <- c(9, 8)
 ex_x <- solve(ex_A, ex_b)
@@ -265,7 +265,7 @@ Three situations where matrices are the clear choice:
 
 **1. All-numeric tabular data used for math.** If you're computing correlations, covariances, PCA, or doing anything with `%*%`, use a matrix. Most statistical and ML functions in R convert data frames to matrices internally anyway, you save that cost by starting with one.
 
-```r
+```r title="Matrix use case: covariance of mtcars"
 # Covariance of mtcars — need a matrix
 m <- as.matrix(mtcars)
 cov(m[, c("mpg", "hp", "wt")])
@@ -291,7 +291,7 @@ Create a 4x3 matrix `M` filled row-major with values 1-12. Print its dimensions,
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Row-major fill with sums and means"
 M <- matrix(1:12, nrow = 4, byrow = TRUE)
 dim(M)
 rowSums(M)
@@ -311,7 +311,7 @@ Standardize each column of `M` to have mean 0 and sd 1 using base `scale()`. Ver
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Scale columns for preprocessing"
 M <- matrix(1:12, nrow = 4, byrow = TRUE)
 S <- scale(M)
 S
@@ -329,7 +329,7 @@ For $A = \begin{pmatrix}2 & 1 & 0\\1 & 3 & 1\\0 & 1 & 2\end{pmatrix}$ and $b = (
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Three-equation linear system solution"
 A <- matrix(c(2, 1, 0,
               1, 3, 1,
               0, 1, 2), nrow = 3, byrow = TRUE)

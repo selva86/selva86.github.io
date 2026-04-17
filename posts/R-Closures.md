@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 The fastest way to feel closures click is to build one. The function below, `make_counter()`, returns *another* function. Each counter you create then remembers its own running total even though the original `make_counter()` call has long since finished. If you've ever wondered how Shiny's `reactive()` "remembers" its last value between button clicks, this six-line block is the whole trick.
 
-```r
+```r title="Two independent counters share nothing"
 make_counter <- function() {
   count <- 0
   function() {
@@ -53,7 +53,7 @@ Three things just happened. First, `make_counter()` created a local variable `co
 
 **Try it:** Write a function `ex_make_greeter(salutation)` that returns a function which, given a name, pastes the salutation before the name followed by `"!"`. Prove it works for two different salutations.
 
-```r
+```r title="Try it: Greeter factory"
 # Try it: build a greeter factory
 ex_make_greeter <- function(salutation) {
   # your code here
@@ -71,7 +71,7 @@ hola("Maria")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Greeter factory solution"
 ex_make_greeter <- function(salutation) {
   function(name) {
     paste0(salutation, ", ", name, "!")
@@ -97,7 +97,7 @@ Every R function carries an invisible field called its **enclosing environment**
 
 For a closure, the enclosing environment is the little world created by the outer factory call. You can inspect it directly.
 
-```r
+```r title="Inspect countera's enclosing environment"
 environment(counter_a)
 #> <environment: 0x...>
 
@@ -121,7 +121,7 @@ The diagram captures the whole mental model. The factory call creates a fresh en
 
 **Try it:** Write a tiny factory `ex_capture(x)` that returns a function taking no arguments and returning `x`. Then prove that changing the outer `x` *after* calling the factory doesn't affect the captured value, by reading the environment of the returned function.
 
-```r
+```r title="Try it: Capture and inspect a value"
 # Try it: capture a value, then inspect it
 ex_capture <- function(x) {
   # your code here
@@ -137,7 +137,7 @@ environment(f)$x
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capture value solution"
 ex_capture <- function(x) {
   function() x
 }
@@ -160,7 +160,7 @@ A **function factory** is a function whose only job is to return another functio
 
 Here is a factory that builds power functions, one that squares, one that cubes, one that computes any power you like.
 
-```r
+```r title="powerof factory builds specialized tools"
 power_of <- function(exponent) {
   function(x) {
     x ^ exponent
@@ -185,7 +185,7 @@ When should you reach for this pattern? Any time the "configuration" step is mor
 
 **Try it:** Write a factory `ex_make_discounter(pct)` that returns a function taking a price and returning the discounted price. Build a 10%-off and a 25%-off discounter and test each.
 
-```r
+```r title="Try it: Discount factory"
 # Try it: discount factory
 ex_make_discounter <- function(pct) {
   # your code here
@@ -203,7 +203,7 @@ quarter_off(80)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Discount factory solution"
 ex_make_discounter <- function(pct) {
   function(price) {
     price * (1 - pct)
@@ -233,7 +233,7 @@ Once you recognise the pattern, you'll see it everywhere in the R ecosystem. Man
 
 The clearest example is a ggplot2 theme generator. When you call `theme_minimal(base_size = 14)`, the result is essentially a bundle of plot modifications with the size baked in. You can write the same kind of factory yourself, one that captures brand colours and a base size, and returns a theme you can drop onto any plot.
 
-```r
+```r title="themebrand factory captures styling"
 library(ggplot2)
 
 theme_brand <- function(primary = "#2C3E50", base_size = 12) {
@@ -256,7 +256,7 @@ p + theme_brand(primary = "#1ABC9C", base_size = 13)
 
 The same trick builds a `scales`-style formatter. Here is a tiny currency formatter factory that remembers the symbol and digit count you asked for.
 
-```r
+```r title="makecurrency factory produces formatters"
 make_currency <- function(symbol = "$", digits = 2) {
   function(x) {
     paste0(symbol, formatC(x, format = "f", digits = digits, big.mark = ","))
@@ -279,7 +279,7 @@ Both `usd` and `eur` are closures. Each captured its own `symbol` and `digits`, 
 
 **Try it:** Write a factory `ex_make_labeller(prefix, suffix)` that returns a function which wraps any character vector with the prefix and suffix. Build one that wraps values in square brackets and another in angle brackets.
 
-```r
+```r title="Try it: Prefix and suffix labeller"
 # Try it: labeller factory
 ex_make_labeller <- function(prefix, suffix) {
   # your code here
@@ -297,7 +297,7 @@ angle_brackets("tag")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Labeller factory solution"
 ex_make_labeller <- function(prefix, suffix) {
   function(x) {
     paste0(prefix, x, suffix)
@@ -323,7 +323,7 @@ Closures are elegant, but R's lazy evaluation creates three traps that almost ev
 
 The first trap is the **lazy evaluation of factory arguments**. When you call `make_power(2)`, R does not immediately evaluate `2`, it stores an unevaluated promise that says "evaluate `2` the first time you need it." If you build several closures in a loop and reuse the loop variable, all of them will end up sharing whatever value the variable has **after** the loop ends.
 
-```r
+```r title="Lazy evaluation loop bug"
 make_power_bad <- function(exponent) {
   function(x) x ^ exponent
 }
@@ -346,7 +346,7 @@ All three calls returned `10000`. The bug is that `exponent` inside each closure
 
 The fix is `force()`. Calling `force(exponent)` inside the factory evaluates the promise right away, turning it from "a reference to `e`" into "the actual number `3`." From that moment on, the closure captures a concrete value, not a pointer to a live variable.
 
-```r
+```r title="force() locks in factory arguments"
 make_power_good <- function(exponent) {
   force(exponent)
   function(x) x ^ exponent
@@ -374,7 +374,7 @@ The third trap is more subtle: a closure keeps its entire enclosing environment 
 
 **Try it:** The factory below has the lazy-eval bug. Fix it by adding one line, then build three adders and verify they produce 11, 12, and 13 when called with `1`.
 
-```r
+```r title="Try it: Fix adder with force()"
 # Try it: fix the lazy-eval bug by adding force()
 ex_make_adder <- function(delta) {
   # add one line here
@@ -393,7 +393,7 @@ sapply(ex_adders, function(f) f(1))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="force() adder solution"
 ex_make_adder <- function(delta) {
   force(delta)
   function(x) x + delta
@@ -416,7 +416,7 @@ sapply(ex_adders, function(f) f(1))
 
 When a closure misbehaves, the fastest fix is to open it up and look inside. R gives you a small but powerful toolkit for exactly that: `environment()`, `ls()`, `get()`, and `environmentName()`. Together they let you enumerate every variable a closure captured and read its current value.
 
-```r
+```r title="Peek inside a closure's environment"
 # Reuse counter_a from the first section and square from earlier
 env_a <- environment(counter_a)
 
@@ -446,7 +446,7 @@ Four calls revealed everything. `counter_a` captured one variable (`count`, curr
 
 **Try it:** Use `environment()` and `get()` to read `counter_b`'s current `count` without calling the counter. Then call `counter_b()` once and re-read the value to confirm it changed.
 
-```r
+```r title="Try it: Inspect counterb state"
 # Try it: inspect counter_b
 get("count", envir = environment(counter_b))
 #> Expected: 1 (from the opening section)
@@ -460,7 +460,7 @@ get("count", envir = environment(counter_b))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="counterb inspection solution"
 get("count", envir = environment(counter_b))
 #> [1] 1
 
@@ -483,7 +483,7 @@ These exercises combine multiple ideas from the tutorial. Use distinct variable 
 
 Write a factory `make_account(balance)` that returns a **list of three closures**: `deposit(x)`, `withdraw(x)`, and `get_balance()`. All three should read and write the same internal `balance` variable. Create two independent accounts and prove they don't share state.
 
-```r
+```r title="Exercise: Account factory with closures"
 # Exercise: build a stateful account factory
 # Hint: create balance inside the factory, then return a list of three
 # inner functions. Each inner function uses <<- to modify balance.
@@ -511,7 +511,7 @@ acct_b$get_balance()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Account factory solution"
 make_account <- function(balance = 0) {
   deposit <- function(x) {
     balance <<- balance + x
@@ -550,7 +550,7 @@ acct_b$get_balance()
 
 The factory below has the lazy-evaluation bug from the gotchas section. Fix it so that `multipliers[[1]](10)`, `multipliers[[2]](10)`, and `multipliers[[3]](10)` return `20`, `30`, and `40` respectively.
 
-```r
+```r title="Exercise: Fix the multiplier bug"
 # Exercise: the bug is in make_multiplier — add one line to fix it
 make_multiplier <- function(factor) {
   function(x) x * factor
@@ -568,7 +568,7 @@ sapply(multipliers, function(g) g(10))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multiplier force() solution"
 make_multiplier <- function(factor) {
   force(factor)
   function(x) x * factor
@@ -591,7 +591,7 @@ sapply(multipliers, function(g) g(10))
 
 Write a function `logged(fn)` that takes any function and returns a list with two things: a wrapped version of `fn` that records each call, and a `get_log()` function that returns a data frame of what's been logged. Each log entry should capture the input passed in and the result returned. You only need to handle single-argument functions.
 
-```r
+```r title="Exercise: Log calls through a wrapper"
 # Exercise: wrap a function with a call log
 logged <- function(fn) {
   # your code here:
@@ -612,7 +612,7 @@ logged_sqrt$get_log()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Logged wrapper solution"
 logged <- function(fn) {
   log_entries <- list()
 
@@ -648,7 +648,7 @@ logged_sqrt$get_log()
 
 Let's tie everything together with a single, practically useful factory: a running-statistics calculator. You hand it nothing up front, and it returns a function that you can feed new observations one at a time. Each call updates the internal state and returns the current count, mean, and variance.
 
-```r
+```r title="End-to-end running statistics factory"
 make_running_stats <- function() {
   n    <- 0
   mean <- 0

@@ -36,7 +36,7 @@ An outcome variable (also called the dependent variable or response variable) is
 
 Let's inspect both types in R using built-in datasets.
 
-```r
+```r title="Classify outcome variable type"
 # Question 1: What type is your outcome?
 # Continuous example: miles per gallon in mtcars
 class(mtcars$mpg)
@@ -65,7 +65,7 @@ If your outcome is continuous (numeric), you are heading toward t-tests, ANOVA, 
 
 **Try it:** For each variable below, decide whether it is continuous or categorical: (a) patient weight in kg, (b) tumor stage (I, II, III, IV), (c) reaction time in milliseconds, (d) smoker yes/no.
 
-```r
+```r title="Exercise: Classify four variables"
 # Try it: classify each variable
 # Write "continuous" or "categorical" for each
 ex_a <- "___"  # patient weight in kg
@@ -85,7 +85,7 @@ cat("a:", ex_a, "\nb:", ex_b, "\nc:", ex_c, "\nd:", ex_d)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four variables classification solution"
 ex_a <- "continuous"   # weight is numeric and measurable
 ex_b <- "categorical"  # tumor stage is ordered categories (ordinal)
 ex_c <- "continuous"   # reaction time is numeric
@@ -111,7 +111,7 @@ Once you know your outcome type, the next question is how many groups you are co
 
 Let's count groups in practice.
 
-```r
+```r title="Count groups with unique and table"
 # Question 2: How many groups?
 # mtcars has 3 cylinder groups: 4, 6, 8
 groups <- unique(mtcars$cyl)
@@ -136,7 +136,7 @@ With 3 cylinder groups, we need a multi-sample test (ANOVA or Kruskal-Wallis), n
 
 **Try it:** The `iris` dataset has a `Species` column. How many groups does it contain, and how many observations per group?
 
-```r
+```r title="Exercise: Count iris species groups"
 # Try it: count groups in iris
 ex_iris_groups <- length(unique(iris$Species))
 ex_iris_table <- table(iris$Species)
@@ -151,7 +151,7 @@ print(ex_iris_table)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Iris species count solution"
 ex_iris_groups <- length(unique(iris$Species))
 ex_iris_table <- table(iris$Species)
 cat("Number of groups:", ex_iris_groups, "\n")
@@ -175,7 +175,7 @@ When you have two (or more) groups, the next question is whether the observation
 
 Let's create both types and see how the test choice differs.
 
-```r
+```r title="Simulate paired versus independent data"
 # Question 3: Paired or independent?
 set.seed(101)
 
@@ -195,7 +195,7 @@ The distinction matters because paired designs reduce noise. Each subject serves
 
 Now let's run both the correct and incorrect test to see the difference.
 
-```r
+```r title="Compare paired versus independent tests"
 # Paired t-test (correct for paired data)
 paired_result <- t.test(before, after, paired = TRUE)
 cat("Paired t-test p-value:", format.pval(paired_result$p.value), "\n")
@@ -214,7 +214,7 @@ Notice the dramatic difference. The paired test correctly detects the treatment 
 
 **Try it:** A researcher measures typing speed (words per minute) for 8 employees before and after an ergonomic keyboard upgrade. Is this paired or independent? Assign your answer to `ex_design`.
 
-```r
+```r title="Exercise: Identify design type"
 # Try it: paired or independent?
 ex_design <- "___"  # "paired" or "independent"
 
@@ -225,7 +225,7 @@ cat("Design type:", ex_design)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Design type solution"
 ex_design <- "paired"
 cat("Design type:", ex_design)
 #> Design type: paired
@@ -243,7 +243,7 @@ Normality matters because parametric tests like the t-test calculate probabiliti
 
 The Shapiro-Wilk test is the most widely used formal normality check. It tests whether your data could plausibly come from a normal distribution. A small p-value (typically < 0.05) means the data departs significantly from normality.
 
-```r
+```r title="Shapiro-Wilk normality test"
 # Question 4: Is the data normally distributed?
 set.seed(202)
 
@@ -269,7 +269,7 @@ The normal data passes the test (p = 0.55, no evidence against normality). The s
 
 A QQ plot gives you a visual sanity check alongside the formal test.
 
-```r
+```r title="QQ plot normality check"
 # Visual check: QQ plots
 par(mfrow = c(1, 2))
 
@@ -302,7 +302,7 @@ Every parametric test has a non-parametric partner. When normality fails, swap t
 
 **Try it:** Generate 25 random values from a chi-squared distribution with 3 degrees of freedom using `rchisq(25, df = 3)`. Run `shapiro.test()` on the result. Based on the p-value, would you use a parametric or non-parametric test?
 
-```r
+```r title="Exercise: Chi-squared normality check"
 # Try it: normality check on chi-squared data
 set.seed(303)
 ex_chisq <- rchisq(25, df = 3)
@@ -318,7 +318,7 @@ cat("Decision:", ex_decision)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Chi-squared normality solution"
 set.seed(303)
 ex_chisq <- rchisq(25, df = 3)
 ex_shapiro <- shapiro.test(ex_chisq)
@@ -341,7 +341,7 @@ A p-value tells you whether an effect exists. An effect size tells you how big t
 
 Here is the complete decision map. Find your row based on your answers to questions 1 through 4, then read off the correct test and its effect size metric.
 
-```r
+```r title="Complete decision-map reference table"
 # Question 5: Complete decision reference
 # Print the decision map as a data frame
 decision_map <- data.frame(
@@ -369,7 +369,7 @@ Now let's compute effect sizes for the two most common scenarios: Cohen's d for 
 
 **Cohen's d** measures how many standard deviations apart two group means are. The formula is straightforward: the difference in means divided by the pooled standard deviation.
 
-```r
+```r title="Cohens d for independent groups"
 # Effect size: Cohen's d for two independent groups
 # Using treatment and control from earlier
 pooled_sd <- sqrt((sd(treatment)^2 + sd(control)^2) / 2)
@@ -388,7 +388,7 @@ A Cohen's d of around 1.0 means the two groups differ by a full standard deviati
 
 **Eta-squared** measures the proportion of total variance explained by the grouping variable. It ranges from 0 to 1, where higher values mean the groups explain more of the variation.
 
-```r
+```r title="Eta-squared for one-way ANOVA"
 # Effect size: Eta-squared for one-way ANOVA
 aov_result <- aov(mpg ~ factor(cyl), data = mtcars)
 ss <- summary(aov_result)[[1]]
@@ -416,7 +416,7 @@ An eta-squared of 0.73 is extraordinarily large. Cylinder count explains nearly 
 
 **Try it:** Two groups have means of 50 and 55, both with a standard deviation of 12. Calculate Cohen's d and classify the effect as small, medium, or large.
 
-```r
+```r title="Exercise: Calculate Cohens d"
 # Try it: calculate Cohen's d
 ex_mean1 <- 50
 ex_mean2 <- 55
@@ -433,7 +433,7 @@ cat("Effect size:", ex_size)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cohens d calculation solution"
 ex_mean1 <- 50
 ex_mean2 <- 55
 ex_sd <- 12
@@ -454,7 +454,7 @@ cat("Effect size:", ex_size)
 ### Mistake 1: Running multiple t-tests instead of ANOVA
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Multiple t-tests for groups"
 # Comparing 3 groups with separate t-tests (BAD)
 t.test(mtcars$mpg[mtcars$cyl == 4], mtcars$mpg[mtcars$cyl == 6])
 t.test(mtcars$mpg[mtcars$cyl == 4], mtcars$mpg[mtcars$cyl == 8])
@@ -465,7 +465,7 @@ t.test(mtcars$mpg[mtcars$cyl == 6], mtcars$mpg[mtcars$cyl == 8])
 **Why it is wrong:** Each t-test has a 5% false positive chance. Running three raises the family-wise error rate to 1 - (0.95)^3 = 14.3%. With 10 groups you would have 45 comparisons and a 90%+ false positive chance.
 
 ✅ **Correct:**
-```r
+```r title="Correct: ANOVA with Tukey HSD"
 # Use ANOVA for 3+ groups, then post-hoc if significant
 aov_fit <- aov(mpg ~ factor(cyl), data = mtcars)
 summary(aov_fit)
@@ -480,7 +480,7 @@ TukeyHSD(aov_fit)
 ### Mistake 2: Treating paired data as independent
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Independent test on paired"
 # Before-after data analyzed as independent (BAD)
 t.test(before, after, paired = FALSE)
 #> p-value: 0.1082  (misses the real effect!)
@@ -489,7 +489,7 @@ t.test(before, after, paired = FALSE)
 **Why it is wrong:** Ignoring the pairing adds between-subject variability to the error term. The test loses power and may fail to detect a real effect.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Use paired t-test"
 # Correct: use paired = TRUE
 t.test(before, after, paired = TRUE)
 #> p-value: 1.1e-06  (strong evidence of treatment effect)
@@ -498,7 +498,7 @@ t.test(before, after, paired = TRUE)
 ### Mistake 3: Reporting only p-values without effect sizes
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Report p-value alone"
 # "The groups differed significantly (p < 0.001)."
 # But how MUCH did they differ? No one knows.
 ```
@@ -506,7 +506,7 @@ t.test(before, after, paired = TRUE)
 **Why it is wrong:** A p-value says whether an effect exists, not how big it is. With n = 100,000, a half-point difference can be "highly significant." Without effect size, nobody can judge practical importance.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Report p-value with effect"
 # Always report both
 cat("Groups differed significantly",
     "(p < 0.001, Cohen's d =", round(abs(cohens_d), 2), ")\n")
@@ -517,7 +517,7 @@ cat("Groups differed significantly",
 ### Mistake 4: Using parametric tests on heavily skewed small samples
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: t-test on skewed sample"
 # Small, heavily skewed sample — t-test is unreliable
 set.seed(404)
 skewed_small <- rexp(12, rate = 0.5)
@@ -527,7 +527,7 @@ t.test(skewed_small, mu = 2)
 **Why it is wrong:** With only 12 observations and strong skewness, the t-test's normality assumption is badly violated. The Central Limit Theorem does not rescue you at n = 12.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Wilcoxon non-parametric test"
 # Use the non-parametric Wilcoxon test instead
 wilcox.test(skewed_small, mu = 2)
 #> Wilcoxon signed rank test
@@ -546,7 +546,7 @@ wilcox.test(skewed_small, mu = 2)
 
 A researcher measured reaction times (in milliseconds) for two independent groups: 20 participants who drank coffee and 20 who drank water. The reaction time data is roughly normal. Walk through all 5 questions and run the correct test.
 
-```r
+```r title="Exercise 1: Coffee versus water"
 # Exercise 1: Apply the 5-question decision framework
 set.seed(501)
 my_coffee <- rnorm(20, mean = 250, sd = 30)
@@ -565,7 +565,7 @@ my_water  <- rnorm(20, mean = 270, sd = 30)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Coffee versus water solution"
 set.seed(501)
 my_coffee <- rnorm(20, mean = 250, sd = 30)
 my_water  <- rnorm(20, mean = 270, sd = 30)
@@ -598,7 +598,7 @@ cat("Cohen's d:", round(my_d, 3), "\n")
 
 Three dosage levels of a medication (low, medium, high) are tested on different patients. The outcome is pain score (0-10 scale). The low-dose group's data is heavily skewed. Decide between ANOVA and Kruskal-Wallis, run the test, and report the appropriate effect size.
 
-```r
+```r title="Exercise 2: ANOVA versus Kruskal-Wallis"
 # Exercise 2: Choose between ANOVA and Kruskal-Wallis
 set.seed(602)
 my_low    <- round(rexp(15, rate = 0.3), 1)  # skewed!
@@ -619,7 +619,7 @@ my_dose   <- factor(rep(c("low", "medium", "high"), each = 15))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ANOVA versus Kruskal-Wallis solution"
 set.seed(602)
 my_low    <- round(rexp(15, rate = 0.3), 1)
 my_medium <- round(rnorm(15, mean = 4, sd = 1.5), 1)
@@ -655,7 +655,7 @@ Let's walk through a complete real-world example from start to finish. The resea
 
 We will answer all 5 questions, run the appropriate test, check assumptions, and report the effect size.
 
-```r
+```r title="End-to-end cylinder mpg analysis"
 # Complete example: Does cylinder count affect fuel efficiency?
 # Dataset: mtcars (built-in)
 

@@ -35,7 +35,7 @@ Every visual channel in ggplot2 is controlled by a different aesthetic. Colour d
 
 Let's see how mapping two aesthetics at once turns a plain scatter into a rich, multi-variable chart.
 
-```r
+```r title="Intro multi aesthetic scatter"
 # Load ggplot2 and create a multi-aesthetic scatter
 library(ggplot2)
 
@@ -56,7 +56,7 @@ One scatter plot, four variables encoded (x, y, colour, size). That is the power
 
 **Try it:** In the scatter above, replace `colour = class` with `shape = drv`, what changes?
 
-```r
+```r title="Exercise: swap shape and colour"
 # Try it: swap colour for shape
 ggplot(mpg, aes(x = displ, y = hwy, shape = drv, size = cyl)) +
   geom_point(alpha = 0.7) +
@@ -67,7 +67,7 @@ ggplot(mpg, aes(x = displ, y = hwy, shape = drv, size = cyl)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: swap shape and colour"
 ggplot(mpg, aes(x = displ, y = hwy, shape = drv, size = cyl)) +
   geom_point(alpha = 0.7, colour = "steelblue") +
   labs(x = "Engine Displacement (L)", y = "Highway MPG",
@@ -91,7 +91,7 @@ Colour and fill are the two most-used aesthetics, but they behave differently de
 
 **Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `class` to colour. Add informative axis labels and a legend title.
 
-```r
+```r title="Exercise one: colour a scatter"
 # Exercise 1: colour a scatter by category
 # Hint: colour goes inside aes()
 
@@ -106,7 +106,7 @@ p1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: colour scatter"
 p1 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2.5) +
   labs(x = "Engine Displacement (L)", y = "Highway MPG",
@@ -127,7 +127,7 @@ p1
 
 **Task:** Create a bar chart counting vehicles per `class`. Fill the bars by `drv` (drive type: 4, f, r). Use `position = "dodge"` to place bars side-by-side instead of stacked.
 
-```r
+```r title="Exercise two: dodged bar chart"
 # Exercise 2: filled dodged bar chart
 # Hint: fill goes inside aes(), position inside geom_bar()
 
@@ -141,7 +141,7 @@ p2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: dodged bar"
 p2 <- ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "dodge") +
   labs(x = "Vehicle Class", y = "Count", fill = "Drive Type")
@@ -161,7 +161,7 @@ p2
 
 **Task:** Create a scatter plot of `wt` (x) vs `mpg` (y). Use `shape = 21` (fillable circle). Map `factor(cyl)` to fill. Set colour (border) to `"black"` and size to 3.
 
-```r
+```r title="Exercise three: shape with fill and colour"
 # Exercise 3: fill + colour with shape 21
 # Hint: shape 21 accepts both colour (border) and fill (interior)
 
@@ -175,7 +175,7 @@ p3
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: shape fill colour"
 p3 <- ggplot(mtcars, aes(x = wt, y = mpg, fill = factor(cyl))) +
   geom_point(shape = 21, colour = "black", size = 3) +
   labs(x = "Weight (1000 lbs)", y = "Miles per Gallon",
@@ -196,7 +196,7 @@ p3
 
 **Try it:** Change Exercise 3 from `shape = 21` to `shape = 16` (regular filled circle). What happens to the fill aesthetic?
 
-```r
+```r title="Exercise: shape 16 ignores fill"
 # Try it: shape 16 vs 21
 ex_fill <- ggplot(mtcars, aes(x = wt, y = mpg, fill = factor(cyl))) +
   geom_point(shape = 16, colour = "black", size = 3) +
@@ -208,7 +208,7 @@ ex_fill
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: shape 16 ignores fill"
 # Shape 16 ignores fill entirely
 ex_fill_16 <- ggplot(mtcars, aes(x = wt, y = mpg, fill = factor(cyl))) +
   geom_point(shape = 16, colour = "black", size = 3)
@@ -236,7 +236,7 @@ Size and alpha are the go-to aesthetics for continuous variables. Size encodes m
 
 **Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `cty` (city mpg) to size. Set colour to `"steelblue"` and alpha to 0.5.
 
-```r
+```r title="Exercise four: size for continuous"
 # Exercise 4: size mapping for continuous variable
 # Hint: size goes inside aes(), colour and alpha go outside
 
@@ -251,7 +251,7 @@ p4
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise four solution: size continuous"
 p4 <- ggplot(mpg, aes(x = displ, y = hwy, size = cty)) +
   geom_point(colour = "steelblue", alpha = 0.5) +
   labs(x = "Engine Displacement (L)", y = "Highway MPG",
@@ -272,7 +272,7 @@ p4
 
 **Task:** Create a scatter plot of `carat` (x) vs `price` (y) using the first 2000 rows of diamonds. Map `cut` to colour. Set alpha to 0.15 so dense regions stand out.
 
-```r
+```r title="Exercise five: alpha for overplotting"
 # Exercise 5: alpha for overplotting
 # Hint: subset diamonds first, then alpha outside aes()
 
@@ -288,7 +288,7 @@ p5
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise five solution: alpha overplotting"
 diamonds_sub <- diamonds[1:2000, ]
 p5 <- ggplot(diamonds_sub, aes(x = carat, y = price, colour = cut)) +
   geom_point(alpha = 0.15, size = 1.5) +
@@ -309,7 +309,7 @@ p5
 
 **Task:** Create a scatter plot of `wt` (x) vs `mpg` (y). Map `hp` to size (bubble chart), `factor(gear)` to colour, and set alpha to 0.7.
 
-```r
+```r title="Exercise six: bubble size and colour"
 # Exercise 6: bubble chart — size + colour
 # Hint: size and colour both inside aes()
 
@@ -323,7 +323,7 @@ p6
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise six solution: bubble chart"
 p6 <- ggplot(mtcars, aes(x = wt, y = mpg, size = hp, colour = factor(gear))) +
   geom_point(alpha = 0.7) +
   labs(x = "Weight (1000 lbs)", y = "Miles per Gallon",
@@ -344,7 +344,7 @@ p6
 
 **Try it:** In Exercise 6, swap `size = hp` for `size = factor(gear)`. Why is the result misleading?
 
-```r
+```r title="Exercise: size on categorical"
 # Try it: size on a categorical variable
 ex_size <- ggplot(mtcars, aes(x = wt, y = mpg, size = factor(gear),
                                colour = factor(gear))) +
@@ -357,7 +357,7 @@ ex_size
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: size on categorical"
 # Bad: size on categorical variable
 ex_size_bad <- ggplot(mtcars, aes(x = wt, y = mpg, size = factor(gear),
                                     colour = factor(gear))) +
@@ -382,7 +382,7 @@ Shape and linetype are inherently categorical aesthetics, they create discrete v
 
 **Task:** Create a scatter plot of `Sepal.Length` (x) vs `Petal.Length` (y). Map `Species` to both colour *and* shape for maximum group separation.
 
-```r
+```r title="Exercise seven: colour and shape iris"
 # Exercise 7: dual mapping — colour + shape
 # Hint: put both colour and shape inside aes()
 
@@ -397,7 +397,7 @@ p7
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise seven solution: iris colour shape"
 p7 <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length,
                          colour = Species, shape = Species)) +
   geom_point(size = 2.5, alpha = 0.7) +
@@ -419,7 +419,7 @@ p7
 
 **Task:** Filter `economics_long` to keep only `psavert`, `uempmed`, and `unemploy`. Plot `date` (x) vs `value01` (y). Map `variable` to both colour *and* linetype.
 
-```r
+```r title="Exercise eight: linetype economics"
 # Exercise 8: linetype + colour for line charts
 # Hint: filter first, then map linetype inside aes()
 
@@ -435,7 +435,7 @@ p8
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise eight solution: linetype economics"
 econ_sub <- economics_long[economics_long$variable %in%
   c("psavert", "uempmed", "unemploy"), ]
 p8 <- ggplot(econ_sub, aes(x = date, y = value01,
@@ -459,7 +459,7 @@ p8
 
 **Try it:** Add `scale_shape_manual(values = c(1, 4, 17))` to Exercise 7 to override the default shapes. What symbols do you get?
 
-```r
+```r title="Exercise: manual shape scale"
 # Try it: custom shapes
 ex_manual <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length,
                                colour = Species, shape = Species)) +
@@ -473,7 +473,7 @@ ex_manual
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: manual shape scale"
 ex_manual <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length,
                                colour = Species, shape = Species)) +
   geom_point(size = 2.5, alpha = 0.7) +
@@ -499,7 +499,7 @@ ggplot2 picks colours, sizes, and shapes automatically, but defaults rarely matc
 
 **Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `drv` to colour. Use `scale_colour_manual()` to set custom colours: `"4" = "#E05A4F"` (red), `"f" = "#4B6FA5"` (blue), `"r" = "#6AAB9C"` (teal). Add a proper legend title.
 
-```r
+```r title="Exercise nine: custom colour palette"
 # Exercise 9: custom colour palette
 # Hint: scale_colour_manual(values = c(...)) with named vector
 
@@ -514,7 +514,7 @@ p9
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise nine solution: custom palette"
 p9 <- ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) +
   geom_point(size = 2.5, alpha = 0.7) +
   scale_colour_manual(
@@ -538,7 +538,7 @@ p9
 
 **Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `class` to colour and `drv` to shape. Set `size = 3` and `alpha = 0.7`. Add `scale_colour_brewer(palette = "Set2")` for a colourblind-friendly palette. Include complete labels and `theme_minimal()`.
 
-```r
+```r title="Exercise ten: publication ready plot"
 # Exercise 10: publication-ready multi-aesthetic plot
 # Hint: combine aes mappings + scale + theme + labs
 
@@ -556,7 +556,7 @@ p10
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise ten solution: publication ready"
 p10 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
   geom_point(size = 3, alpha = 0.7) +
   scale_colour_brewer(palette = "Set2") +
@@ -585,7 +585,7 @@ p10
 
 **Try it:** Replace `palette = "Set2"` with `palette = "Dark2"` in Exercise 10, which palette has better contrast on a white background?
 
-```r
+```r title="Exercise: Dark2 Brewer palette"
 # Try it: swap brewer palettes
 ex_brewer <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
   geom_point(size = 3, alpha = 0.7) +
@@ -598,7 +598,7 @@ ex_brewer
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Dark2 Brewer palette"
 ex_brewer <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
   geom_point(size = 3, alpha = 0.7) +
   scale_colour_brewer(palette = "Dark2") +
@@ -629,7 +629,7 @@ These capstone exercises combine multiple concepts from the exercises above. Eac
 
 Give each plot a descriptive title.
 
-```r
+```r title="Capstone one: three chart comparison"
 # Capstone Exercise 1: three-chart comparison
 # Hint: each plot uses a different aesthetic focus
 
@@ -657,7 +657,7 @@ cap_box
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone one solution: three chart"
 # Chart 1: colour scatter
 cap_scatter <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2, alpha = 0.6) +
@@ -705,7 +705,7 @@ cap_box
 
 Show each step building on the previous.
 
-```r
+```r title="Capstone two: progressive upgrade"
 # Capstone Exercise 2: progressive aesthetic upgrade
 # Hint: build on the same base, adding one layer per step
 
@@ -729,7 +729,7 @@ cap_after
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone two solution: progressive upgrade"
 set.seed(42)
 d_sample <- diamonds[sample(nrow(diamonds), 1500), ]
 
@@ -766,7 +766,7 @@ cap_after
 
 Let's build a single chart from scratch, adding one aesthetic at a time so you can see how each layer transforms the visualization. We will use the `mpg` dataset to answer: "How does engine size relate to fuel efficiency across vehicle classes and drive types?"
 
-```r
+```r title="Step one: bare scatter"
 # Step 1: bare scatter — just x and y
 step1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point()
@@ -776,7 +776,7 @@ step1
 
 Position alone tells us engine size and mileage are negatively correlated. But which cars are which? Let's add colour.
 
-```r
+```r title="Step two: add colour mapping"
 # Step 2: add colour = class
 step2 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 2.5)
@@ -787,7 +787,7 @@ step2
 
 Now the story deepens, the overall trend is actually multiple class-specific trends layered on top of each other.
 
-```r
+```r title="Step three: add shape mapping"
 # Step 3: add shape = drv for drive type
 step3 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
   geom_point(size = 2.5, alpha = 0.7)
@@ -798,7 +798,7 @@ step3
 
 Two categorical encodings give us five variables in one chart. But the default colours are not ideal for presentations.
 
-```r
+```r title="Step four: polished final plot"
 # Step 4: override scale + add polish
 final_plot <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
   geom_point(size = 2.5, alpha = 0.7) +

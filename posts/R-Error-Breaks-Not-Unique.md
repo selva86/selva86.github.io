@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 `hist()` picks bin edges from `range(x)` and the chosen breaks rule (Sturges by default). If every value in `x` is the same, `diff(range(x))` is zero, so every edge lands on the same point and R refuses to draw overlapping bars. The block below reproduces the exact message with `tryCatch()` so you can compare it to what your console printed.
 
-```r
+```r title="Reproduce the breaks-not-unique error"
 # Reproduce the error on purpose
 flat_data <- rep(5, 100)
 
@@ -47,7 +47,7 @@ The error text is literal, R is telling you that after it built the break vector
 
 **Try it:** Build a vector of 50 zeros named `ex_zero`, pass it to `hist(..., plot = FALSE)` inside `tryCatch()`, and capture the error message.
 
-```r
+```r title="Exercise: trigger with a zero vector"
 # Try it: reproduce the error with a vector of zeros
 ex_zero <- # your code here
 
@@ -62,7 +62,7 @@ ex_msg
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Zero-vector error solution"
 ex_zero <- rep(0, 50)
 ex_msg <- tryCatch(
   hist(ex_zero, plot = FALSE),
@@ -80,7 +80,7 @@ ex_msg
 
 If you loop over a data frame and call `hist()` on each numeric column, one sick column will kill the whole loop. Three cheap checks catch the problem before `hist()` ever runs: `var(x) > 0`, `length(unique(x)) > 1`, and `diff(range(x)) > 0`. Running them with `sapply()` gives you a per-column report in two lines.
 
-```r
+```r title="Scan columns for low variance"
 # Mixed data frame: one constant column, one normal
 set.seed(7)
 df <- data.frame(
@@ -111,7 +111,7 @@ The `constant` column shows up with `var = 0`, `n_unique = 1`, and `spread = 0`,
 
 **Try it:** Add a third column `ex_tiny` to `df` that contains 100 values from `rnorm(100, mean = 50, sd = 1e-9)`. Will the `length(unique) > 1` guard still clear it?
 
-```r
+```r title="Exercise: add a near-constant column"
 # Try it: add a near-constant column and check the guard
 df$ex_tiny <- # your code here
 
@@ -122,7 +122,7 @@ length(unique(df$ex_tiny)) > 1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Near-constant column solution"
 df$ex_tiny <- rnorm(100, mean = 50, sd = 1e-9)
 length(unique(df$ex_tiny)) > 1
 #> [1] TRUE
@@ -136,7 +136,7 @@ length(unique(df$ex_tiny)) > 1
 
 Once you know a column has no useful spread, there are three practical paths. Use `barplot(table(x))` when the data is truly constant, it's the honest chart. Use `jitter()` when you want to *visualize* tiny noise that's invisible at the default resolution. Use manual `seq()` breaks when you want `hist()` to draw a single bar around the constant value.
 
-```r
+```r title="Fix constant data three ways"
 # Fix 1: barplot is the honest chart for constant data
 barplot(table(flat_data),
         main = "flat_data (constant = 5)",
@@ -162,7 +162,7 @@ The barplot version is correct but boring, a single bar of height 100. The jitte
 
 **Try it:** Use `hist()` with manual `breaks = seq(4, 6, by = 0.5)` on `flat_data` and confirm it renders without error.
 
-```r
+```r title="Exercise: manual breaks around constant"
 # Try it: manual breaks straddling the constant value
 ex_breaks <- seq(4, 6, by = 0.5)
 hist(flat_data, breaks = ex_breaks,
@@ -173,7 +173,7 @@ hist(flat_data, breaks = ex_breaks,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Manual breaks solution"
 ex_breaks <- seq(4, 6, by = 0.5)
 hist(flat_data, breaks = ex_breaks,
      main = "ex: manual breaks", col = "plum")
@@ -187,7 +187,7 @@ hist(flat_data, breaks = ex_breaks,
 
 Even when your data has plenty of spread, you can still hand `hist()` a bad break vector. The two common failure modes are a hardcoded vector with a typo and a break vector generated from `quantile()` on tied data. Both trigger the same error, and both are fixed by `sort(unique(...))`, though the quantile version is usually a hint that `barplot()` is a better fit.
 
-```r
+```r title="Fix duplicate quantile breaks"
 # Tied data: only values 1 and 2, 50 of each
 tied <- c(rep(1, 50), rep(2, 50))
 
@@ -216,7 +216,7 @@ barplot(table(tied),
 
 **Try it:** Given `c(rep(1, 50), rep(2, 50))`, build a quantile break vector at deciles, fix the duplicates, and count how many unique edges remain.
 
-```r
+```r title="Exercise: rescue the quantile pipeline"
 # Try it: fix the quantile pipeline
 ex_tied <- c(rep(1, 50), rep(2, 50))
 ex_q    <- quantile(ex_tied, probs = seq(0, 1, 0.1))
@@ -229,7 +229,7 @@ length(ex_fix)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Quantile pipeline rescue solution"
 ex_tied <- c(rep(1, 50), rep(2, 50))
 ex_q    <- quantile(ex_tied, probs = seq(0, 1, 0.1))
 ex_fix  <- sort(unique(ex_q))
@@ -247,7 +247,7 @@ length(ex_fix)
 
 Write `my_safe_hist(x)` that does two things. If `length(unique(x)) < 2`, print a one-line diagnostic with `message()` and return `invisible(NULL)`. Otherwise, call `hist(x, main = "safe hist")` and return `invisible(NULL)`. Test it on `rep(7, 50)` (should skip) and `rnorm(200)` (should plot).
 
-```r
+```r title="Exercise: write a safe hist wrapper"
 # Exercise: safe hist wrapper
 # Hint: check length(unique(x)) before calling hist()
 
@@ -262,7 +262,7 @@ my_safe_hist(rnorm(200))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Safe hist wrapper solution"
 my_safe_hist <- function(x) {
   if (length(unique(x)) < 2) {
     message("skip: x has ", length(unique(x)), " unique value(s)")
@@ -286,7 +286,7 @@ my_safe_hist(rnorm(200))
 
 Given a data frame with four numeric columns, one constant, one near-constant, two normal, loop over columns and pick the right chart per column. Skip the constant one, jitter the near-constant one, plot the normal ones directly. Save each decision (`"skip"`, `"jitter"`, `"plot"`) to a named character vector `my_plot_log`.
 
-```r
+```r title="Exercise: column-wise chart dispatch"
 # Exercise: column-wise dispatch
 # Hint: branch on length(unique(x)) and diff(range(x))
 
@@ -307,7 +307,7 @@ names(my_plot_log) <- names(my_df)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Column-wise dispatch solution"
 set.seed(11)
 my_df <- data.frame(
   const = rep(3, 100),
@@ -344,7 +344,7 @@ my_plot_log
 
 Here is the full pattern you would ship in a reporting pipeline, inspect each numeric column, pick a chart, plot it, and return a decision log.
 
-```r
+```r title="End-to-end safe histogram pipeline"
 # End-to-end: safe histogram for every numeric column
 set.seed(99)
 demo_df <- data.frame(

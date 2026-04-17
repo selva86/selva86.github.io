@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Default ggplot2 output uses a grey background, small text, and gridlines that look fine on screen but violate most journal guidelines. Reviewers reject figures for illegible axis labels, missing high-resolution exports, and colour palettes that collapse in greyscale or for colourblind readers. Let's see exactly what needs to change.
 
-```r
+```r title="Default ggplot2 submission fails review"
 library(ggplot2)
 
 # Default ggplot2 scatter plot — what most people submit
@@ -44,7 +44,7 @@ The grey background adds visual noise that doesn't belong in a printed figure. T
 
 Now let's apply the fixes. The same data, with a clean theme, larger fonts, and a colourblind-safe palette:
 
-```r
+```r title="Same data publication ready"
 # Same data, publication-ready
 p_pub <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
   geom_point(size = 2.5) +
@@ -72,7 +72,7 @@ The difference is clear. White background, thicker axis lines, larger fonts that
 
 **Try it:** Take the default plot `p_default` and add `theme_bw(base_size = 14)` to it. How does the output change compared to `theme_classic()`?
 
-```r
+```r title="Exercise: compare theme bw to theme classic"
 # Try it: compare theme_bw() to theme_classic()
 ex_plot <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -85,7 +85,7 @@ ex_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="theme bw comparison solution"
 ex_plot <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
   theme_bw(base_size = 14)
@@ -106,7 +106,7 @@ Every visual element in a ggplot2 figure is controlled by four building blocks: 
 
 Start with `theme_classic()` as your base. It gives you a white background, no gridlines, and axis lines, exactly what most journals want. Then layer your customizations on top.
 
-```r
+```r title="Publication theme step by step"
 # Build a publication theme step by step
 p_themed <- ggplot(mtcars, aes(x = hp, y = mpg)) +
   geom_point(size = 2) +
@@ -139,7 +139,7 @@ Each `theme()` argument targets one visual element. The pattern is always `eleme
 
 Let's see the four element functions in action on a single plot, so you can see exactly what each one controls.
 
-```r
+```r title="Four building blocks of theme"
 # The four building blocks of theme()
 p_elements <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length)) +
   geom_point(size = 1.5) +
@@ -167,7 +167,7 @@ The `face` argument in `element_text()` accepts "plain", "bold", "italic", and "
 
 **Try it:** Create a scatter plot of `iris` (Sepal.Width vs Petal.Width) using `theme_classic()`. Then remove the top and right axis lines by setting `axis.line.y.right` and `axis.line.x.top` to `element_blank()`. Hint: `theme_classic()` already does this, so try adding a panel border first with `panel.border = element_rect(fill = NA)` and then selectively removing the top/right lines.
 
-```r
+```r title="Exercise: selective axis lines"
 # Try it: selective axis lines
 ex_axes <- ggplot(iris, aes(x = Sepal.Width, y = Petal.Width)) +
   geom_point() +
@@ -183,7 +183,7 @@ ex_axes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Selective axis lines solution"
 ex_axes <- ggplot(iris, aes(x = Sepal.Width, y = Petal.Width)) +
   geom_point() +
   theme_classic(base_size = 12) +
@@ -208,7 +208,7 @@ Journals typically require sans-serif fonts, Arial, Helvetica, or their system e
 
 The `base_size` argument in theme functions sets the body text size. All other text elements scale relative to it: the plot title gets `base_size * 1.2`, axis titles get `base_size * 0.9`, and so on.
 
-```r
+```r title="Font sizes cascade from base size"
 # Font sizes cascade from base_size
 p_fonts <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -234,7 +234,7 @@ Setting explicit sizes for each element overrides the `base_size` cascade. This 
 
 Here's a quick reference for choosing font sizes based on your figure's final printed width.
 
-```r
+```r title="Font size guide by figure width"
 # Font size guide by figure width
 font_guide <- data.frame(
   Figure_Width = c("3.5 in (single column)", "5.0 in (1.5 column)", "7.0 in (double column)"),
@@ -258,7 +258,7 @@ Smaller figures need larger relative font sizes because the text gets compressed
 
 **Try it:** Create a plot where the axis title is 11pt, axis text is 9pt, and the plot title is 13pt bold. Use `element_text()` for each element.
 
-```r
+```r title="Exercise: set explicit font sizes"
 # Try it: set explicit font sizes
 ex_fonts <- ggplot(mtcars, aes(x = disp, y = mpg)) +
   geom_point() +
@@ -276,7 +276,7 @@ ex_fonts
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Explicit font sizes solution"
 ex_fonts <- ggplot(mtcars, aes(x = disp, y = mpg)) +
   geom_point() +
   labs(title = "Engine Size vs Fuel Efficiency",
@@ -303,7 +303,7 @@ About 8% of males and 0.5% of females have some form of colour vision deficiency
 
 The viridis family of palettes was designed to be perceptually uniform, colourblind-safe, and readable in greyscale. It's available directly in ggplot2 with no extra packages.
 
-```r
+```r title="Viridis colourblind safe palette"
 # Viridis: colourblind-safe and greyscale-friendly
 p_viridis <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
   geom_point(size = 3) +
@@ -319,7 +319,7 @@ p_viridis
 
 Viridis works well for sequential and unordered categorical data. For more saturated, distinctive colours with fewer than 8 groups, the Okabe-Ito palette is the gold standard in scientific publishing.
 
-```r
+```r title="Okabe Ito gold standard palette"
 # Okabe-Ito: the gold standard for categorical data
 okabe_ito <- c("#E69F00", "#56B4E9", "#009E73",
                "#F0E442", "#0072B2", "#D55E00",
@@ -344,7 +344,7 @@ The Okabe-Ito palette uses orange, sky blue, green, yellow, deep blue, vermillio
 
 **Try it:** Replace the default colour scale in a ggplot of `iris` (Sepal.Length vs Petal.Length, coloured by Species) with `scale_colour_viridis_d()`. Check that the legend updates automatically.
 
-```r
+```r title="Exercise: swap to viridis"
 # Try it: swap to viridis
 ex_viridis <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, colour = Species)) +
   geom_point() +
@@ -358,7 +358,7 @@ ex_viridis
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Swap to viridis solution"
 ex_viridis <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, colour = Species)) +
   geom_point() +
   scale_colour_viridis_d() +
@@ -380,7 +380,7 @@ Journal figures are often printed at 3.5 inches wide, roughly the width of a pla
 
 In ggplot2, `linewidth` controls line thickness in geoms like `geom_line()` and `geom_smooth()`. For points, `size` sets the diameter and `stroke` controls the outline thickness. In `theme()` elements, `linewidth` similarly controls axis lines, tick marks, and borders.
 
-```r
+```r title="Line widths and point sizes for print"
 # Line widths and point sizes for print
 p_lines <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point(size = 2.5, shape = 21, fill = "#56B4E9",
@@ -408,7 +408,7 @@ The filled circle with a black outline (`shape = 21`) is a popular choice for jo
 
 **Try it:** Adjust a scatter plot so points are `size = 3` with `shape = 16` (solid circle), the regression line is `linewidth = 1`, and axis lines are `linewidth = 0.5`.
 
-```r
+```r title="Exercise: adjust weights for print"
 # Try it: adjust weights for print
 ex_weights <- ggplot(mtcars, aes(x = hp, y = qsec)) +
   geom_point() +
@@ -424,7 +424,7 @@ ex_weights
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Weights for print solution"
 ex_weights <- ggplot(mtcars, aes(x = hp, y = qsec)) +
   geom_point(size = 3, shape = 16) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 1) +
@@ -450,7 +450,7 @@ This is where most submissions fail. You can build a perfect figure in R, but if
 
 The `ggsave()` function controls everything: file format, physical dimensions, resolution, and background colour. Always specify `width`, `height`, `units`, and `dpi` explicitly, never rely on defaults.
 
-```r
+```r title="Export tiff at three hundred dpi"
 # Export a TIFF at 300 DPI for journal submission
 # (this code runs but can't save files in the browser)
 p_export <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
@@ -482,7 +482,7 @@ TIFF with LZW compression is the safest format for journal submission, it's loss
 
 For vector graphics, figures that need to scale without quality loss, like line charts or diagrams, PDF is the better choice.
 
-```r
+```r title="pdf export for vector graphics"
 # PDF export for vector graphics
 # In your local R session, run:
 # ggsave("figure1.pdf", plot = p_export,
@@ -509,7 +509,7 @@ Use `cairo_pdf` as the device for PDF exports. It embeds fonts properly, which p
 
 **Try it:** Write a `ggsave()` call (as a comment) that exports a 7×5 inch TIFF at 600 DPI for a line-art figure. Include LZW compression.
 
-```r
+```r title="Exercise: ggsave for line art"
 # Try it: write a ggsave() call for line art
 # Hint: line art needs 600 DPI, not 300
 
@@ -527,7 +527,7 @@ cat("  compression = 'lzw', format = 'tiff'\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ggsave line art solution"
 # ggsave("figure_lineart.tiff", plot = p_export,
 #        width = 7, height = 5, units = "in",
 #        dpi = 600, compression = "lzw")
@@ -550,7 +550,7 @@ cat("  Expected file size: ~5-15 MB\n")
 
 Journals often require multi-panel figures, two or more plots arranged in a grid with (a), (b), (c) labels. The `patchwork` package makes this straightforward. It uses `+` to place plots side by side and `/` to stack them vertically.
 
-```r
+```r title="Multi panel figure with patchwork"
 library(patchwork)
 
 p1 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
@@ -579,7 +579,7 @@ The `tag_levels = "a"` argument auto-labels panels with lowercase letters. The `
 
 For more complex layouts, use `plot_layout()` to control rows, columns, and relative sizes.
 
-```r
+```r title="Layout control with patchwork"
 # Layout control: stack plots with size ratios
 p_layout <- (p1 + p2) / p1 +
   plot_layout(heights = c(2, 1)) +
@@ -599,7 +599,7 @@ The `/` operator stacks vertically. The `heights` argument takes a ratio, `c(2, 
 
 **Try it:** Create a 3-panel figure arranged in a 1×3 row (three plots side by side) with uppercase panel tags: (A), (B), (C).
 
-```r
+```r title="Exercise: one by three grid uppercase tags"
 # Try it: 1x3 grid with uppercase tags
 ex_p1 <- ggplot(mtcars, aes(x = wt, y = mpg)) + geom_point() + theme_classic()
 ex_p2 <- ggplot(mtcars, aes(x = hp, y = mpg)) + geom_point() + theme_classic()
@@ -612,7 +612,7 @@ ex_p3 <- ggplot(mtcars, aes(x = disp, y = mpg)) + geom_point() + theme_classic()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Uppercase tags solution"
 ex_p1 <- ggplot(mtcars, aes(x = wt, y = mpg)) + geom_point() + theme_classic()
 ex_p2 <- ggplot(mtcars, aes(x = hp, y = mpg)) + geom_point() + theme_classic()
 ex_p3 <- ggplot(mtcars, aes(x = disp, y = mpg)) + geom_point() + theme_classic()
@@ -637,7 +637,7 @@ ex_multi
 
 Take a default scatter plot of `diamonds` (price vs carat, coloured by cut) and make it publication-ready for a single-column journal figure (3.5 inches wide). Apply `theme_classic()`, set appropriate font sizes (see the font guide table), use a colourblind-safe palette, and write the `ggsave()` call (as a comment) at 300 DPI.
 
-```r
+```r title="Exercise: publication ready diamonds plot"
 # Exercise 1: publication-ready diamonds plot
 # Hint: single-column = 3.5 inches, use base_size 11-12,
 #       colourblind palette, and ggsave at 300 DPI
@@ -653,7 +653,7 @@ my_diamonds <- diamonds[sample(nrow(diamonds), 2000), ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Publication diamonds solution"
 set.seed(101)
 my_diamonds <- diamonds[sample(nrow(diamonds), 2000), ]
 
@@ -688,7 +688,7 @@ my_plot
 
 Create a reusable `theme_pub()` function that wraps all the publication settings from this tutorial: `theme_classic()` base, specified font sizes, line widths, and legend positioning. Apply it to three different plot types (scatter, bar, line) and arrange them in a 2×2 grid using patchwork with panel labels. Leave the fourth panel empty.
 
-```r
+```r title="Exercise: reusable theme function"
 # Exercise 2: build a reusable theme function
 # Hint: function(base_size = 12) that returns theme_classic(...) + theme(...)
 
@@ -707,7 +707,7 @@ Create a reusable `theme_pub()` function that wraps all the publication settings
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Reusable theme function solution"
 theme_pub <- function(base_size = 12) {
   theme_classic(base_size = base_size) +
     theme(
@@ -752,7 +752,7 @@ my_line <- ggplot(pressure, aes(x = temperature, y = pressure)) +
 
 Build a 2-panel figure where panel (a) is a boxplot of `mpg` by `cyl` and panel (b) is a bar chart of mean `mpg` by `cyl`. Both must use the Okabe-Ito palette, consistent font sizes, and be combined with patchwork. Write the `ggsave()` call to export as a 7×4 inch PDF.
 
-```r
+```r title="Exercise: two panel shared palette figure"
 # Exercise 3: two-panel figure with shared palette
 # Hint: use the okabe_ito vector from earlier,
 #       scale_fill_manual(values = okabe_ito)
@@ -764,7 +764,7 @@ Build a 2-panel figure where panel (a) is a boxplot of `mpg` by `cyl` and panel 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two panel shared palette solution"
 my_box <- ggplot(mtcars, aes(x = factor(cyl), y = mpg, fill = factor(cyl))) +
   geom_boxplot(width = 0.5, show.legend = FALSE) +
   scale_fill_manual(values = okabe_ito) +
@@ -801,7 +801,7 @@ my_fig
 
 Let's build a complete publication-ready figure from scratch, combining every technique from this tutorial. We'll use the `airquality` dataset to show monthly temperature patterns with a confidence ribbon, apply a custom publication theme, use colourblind-safe colours, and export it with proper dimensions.
 
-```r
+```r title="End-to-end airquality figure pipeline"
 # Complete publication-ready figure
 # Step 1: Define reusable theme
 theme_pub <- function(base_size = 12) {

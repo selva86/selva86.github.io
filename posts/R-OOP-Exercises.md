@@ -25,7 +25,7 @@ Work through them in order. Each one uses a real pattern you'd ship in productio
 
 Every code block on this page shares one R session, so variables and class definitions you create in one exercise are still available in the next. The warm-up below confirms that `R6` and the `methods` package (which powers S4) are both loaded, and creates one tiny demo object in each system so you can see them side by side.
 
-```r
+```r title="Warm-up: one object per OOP system"
 library(R6)
 library(methods)
 
@@ -52,7 +52,7 @@ All three systems work. Each exercise below gives you a **starter block** with a
 
 S3 is the lightest OOP system in R. A class is just a character vector attached to an object via `class()`, and a method is a function named `<generic>.<class>`. Build an S3 class `Temperature` that stores a numeric value plus a unit ("C" or "F"), prints itself nicely, and exposes a `to_celsius()` generic that converts Fahrenheit to Celsius.
 
-```r
+```r title="Exercise: build S3 Temperature class"
 # Write a constructor and a print method for an S3 Temperature class.
 # Then define a to_celsius() generic + Temperature method.
 
@@ -71,7 +71,7 @@ to_celsius(temp_f)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="S3 Temperature class solution"
 temperature <- function(value, unit) {
   stopifnot(unit %in% c("C", "F"))
   structure(list(value = value, unit = unit), class = "Temperature")
@@ -106,7 +106,7 @@ to_celsius(temp_f)
 
 S3 dispatch is pure string matching. When you call a generic, R looks up the class of the first argument and searches for `<generic>.<class>`. If it doesn't find a match it falls back to `<generic>.default`. Write a `describe_ex2()` generic with methods for `numeric`, `character`, and `factor`, plus a default that says "unknown type".
 
-```r
+```r title="Exercise: generic with three methods"
 # Write a describe_ex2() generic and three methods.
 # numeric → "numeric of length N, mean = M"
 # character → "character of length N"
@@ -130,7 +130,7 @@ describe_ex2(TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-method generic solution"
 describe_ex2 <- function(x) UseMethod("describe_ex2")
 
 describe_ex2.numeric <- function(x) {
@@ -165,7 +165,7 @@ describe_ex2(TRUE)
 
 S4 is the stricter, more formal sibling of S3. You declare slots with types up front using `setClass()`, optionally attach a validity function, and dispatch with `setGeneric()` + `setMethod()`. Build an `Account` class with a numeric `balance` slot and a character `owner` slot. Add a validity rule that the balance cannot be negative, and a `deposit()` generic that adds to the balance.
 
-```r
+```r title="Exercise: S4 Account with validation"
 # Define an S4 Account class with validation, and a deposit() generic.
 # Slots: balance (numeric), owner (character)
 # Validity: balance must be >= 0
@@ -187,7 +187,7 @@ deposit(acct1, 50)@balance
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="S4 Account class solution"
 setClass("Account",
   representation(balance = "numeric", owner = "character"))
 
@@ -225,7 +225,7 @@ deposit(acct1, 50)@balance
 
 S4's most unique feature is **multiple dispatch**: a method can dispatch on the classes of *several* arguments, not just the first. Define S4 classes `Circle` (with `radius`) and `Rectangle` (with `width`, `height`), then write an `intersects()` generic that takes two shapes and returns a string describing which pair it was called with. You need three methods: `(Circle, Circle)`, `(Circle, Rectangle)`, and `(Rectangle, Rectangle)`.
 
-```r
+```r title="Exercise: S4 multiple dispatch"
 # Define Circle and Rectangle S4 classes.
 # Then define intersects(a, b) with three methods:
 #   (Circle, Circle)       → "circle meets circle"
@@ -249,7 +249,7 @@ intersects(cc1, rr1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="S4 multiple dispatch solution"
 setClass("Circle", representation(radius = "numeric"))
 setClass("Rectangle", representation(width = "numeric", height = "numeric"))
 
@@ -287,7 +287,7 @@ intersects(rr1, rr1)
 
 R6 is R's mutable, reference-based OOP system. Unlike S3 and S4 (which return new objects on modification), an R6 object changes *in place*. Build a `Counter` class with a private `count` field starting at zero, and three public methods: `increment()`, `decrement()`, and `get_count()`.
 
-```r
+```r title="Exercise: R6 Counter class"
 # Build a Counter R6 class with a private count.
 # public methods: increment(), decrement(), get_count()
 # private field: count = 0
@@ -313,7 +313,7 @@ my_counter$get_count()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="R6 Counter solution"
 Counter <- R6Class("Counter",
   public = list(
     increment = function() {
@@ -351,7 +351,7 @@ my_counter$get_count()
 
 R6 supports single inheritance via the `inherit =` argument. A subclass can add new fields, add new methods, or override existing ones, and when it overrides, it can still call the parent via `super$`. Extend `Counter` into `BoundedCounter` that accepts a `max` value in `initialize()` and refuses to go above `max` or below `0`. Reuse the parent's `increment()` and `decrement()` logic wherever possible.
 
-```r
+```r title="Exercise: extend into BoundedCounter"
 # Build BoundedCounter inheriting from Counter.
 # initialize(max) stores the upper bound.
 # increment() should NOT exceed max.
@@ -380,7 +380,7 @@ bc1$get_count()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="BoundedCounter inheritance solution"
 BoundedCounter <- R6Class("BoundedCounter",
   inherit = Counter,
   public = list(
@@ -422,7 +422,7 @@ bc1$get_count()
 
 R lets you define methods for operators (`+`, `-`, `*`, `==`, `<`, etc.) by writing `Ops.<class>`, a single function that dispatches on the special variable `.Generic`, which tells you which operator was called. Build an S3 `Money` class that holds an amount and a currency, supports `+` and `-` between two `Money` values of the same currency, and prints as `"$100.00 USD"`.
 
-```r
+```r title="Exercise: overload operators for Money"
 # Build an S3 Money class with:
 # - Constructor money(amount, currency)
 # - print.Money method → "$X.XX <currency>"
@@ -446,7 +446,7 @@ paycheck - wallet
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Money operator overloading solution"
 money <- function(amount, currency = "USD") {
   structure(list(amount = amount, currency = currency), class = "Money")
 }
@@ -491,7 +491,7 @@ There's no universally "best" OOP system in R, each solves a different problem. 
 2. You're building a pharma data pipeline where every patient record must pass strict type and range validation before processing.
 3. You're writing a turn-based game where a `Player` object's HP, mana, and position change every tick.
 
-```r
+```r title="Exercise: pick system per scenario"
 # Pick an OOP system for each scenario and sketch a minimal class definition.
 # Don't worry about completeness — just show the pattern that fits.
 
@@ -508,7 +508,7 @@ There's no universally "best" OOP system in R, each solves a different problem. 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="OOP scenario picks solution"
 # Scenario 1 — S3. Lightweight, no validation, no mutation, just print nicely.
 summary_out <- structure(
   list(n = 100, mean = 5.2, sd = 1.3),

@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Run `object.size()` on a list with repeated data and it happily reports the list uses ten times more memory than it really does. R silently shares values behind the scenes, and the built-in counter never notices. `lobstr::obj_size()` notices, and the gap is bigger than you would guess. Let's put them head to head on a list you would actually build.
 
-```r
+```r title="object.size over-reports shared list"
 library(lobstr)
 
 big_vec <- runif(1e4)
@@ -44,7 +44,7 @@ obj_size(shared_list)
 
 **Try it:** Build `ex_list <- rep(list(runif(500)), 50)` and measure it with both `object.size()` and `obj_size()`. Predict the ratio before you run the code.
 
-```r
+```r title="Exercise: Confirm sharing gap on list"
 # Try it: confirm the sharing gap on a smaller list
 ex_list <- rep(list(runif(500)), 50)
 
@@ -57,7 +57,7 @@ ex_list <- rep(list(runif(500)), 50)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Confirm sharing gap solution"
 ex_list <- rep(list(runif(500)), 50)
 object.size(ex_list)
 #> 200712 bytes
@@ -73,7 +73,7 @@ obj_size(ex_list)
 
 `obj_size()` walks the object like a graph, credits each piece of memory once, and includes things `object.size()` misses: environment contents, attribute overhead, and ALTREP compressed representations. You can also pass several objects at once and get their *combined* footprint, which deducts anything they share.
 
-```r
+```r title="objsize on mtcars and iris"
 obj_size(mtcars)
 #> 7.21 kB
 
@@ -91,7 +91,7 @@ The combined size equals the sum because these two data frames do not share memo
 
 ALTREP is the other place `obj_size()` earns its keep. R can represent sequences like `1:1e6` as a compact descriptor instead of a million-integer vector, and `obj_size()` reports what is actually stored:
 
-```r
+```r title="ALTREP compresses integer sequences"
 rng <- 1:1e6
 obj_size(rng)
 #> 680 B
@@ -107,7 +107,7 @@ The integer sequence takes 680 bytes because R stores only the endpoints. The mo
 
 **Try it:** Pass `mtcars` twice to `obj_size()`. Predict whether the total is `2 × obj_size(mtcars)` or `obj_size(mtcars)`.
 
-```r
+```r title="Exercise: Passing same object twice"
 # Try it: does passing the same object twice double-count?
 ex_df <- mtcars
 
@@ -120,7 +120,7 @@ ex_df <- mtcars
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Passing same object twice solution"
 ex_df <- mtcars
 obj_size(ex_df)
 #> 7.21 kB
@@ -136,7 +136,7 @@ obj_size(ex_df, ex_df)
 
 `obj_size()` tells you the total footprint; `ref()` shows you *why* it is that total. It prints a tree where each object gets a short tag like `[1:0x...]`. If two branches carry the same tag, they are literally the same object in RAM. Watching those tags change as you modify data is the fastest way to build accurate intuition for R's copy-on-modify rule.
 
-```r
+```r title="ref tree shows shared references"
 y <- shared_list
 ref(shared_list, y)
 #> o [1:0x1abc] <list>
@@ -150,7 +150,7 @@ ref(shared_list, y)
 
 Both `shared_list` and `y` start with the same top-level tag `[1:0x1abc]`, which means R has not copied anything yet. Assignment in R is cheap precisely because it just hands out another pointer. Now let's modify `y` and watch the tree change.
 
-```r
+```r title="Modify y splits shared element"
 y[[1]] <- rnorm(10)
 ref(shared_list, y)
 #> o [1:0x1abc] <list>  # shared_list — unchanged
@@ -171,7 +171,7 @@ Only the outer list and the touched slot got new tags. Every other slot in `y` s
 
 **Try it:** Create `ex_a <- 1:3`, then `ex_b <- ex_a`, then `ex_b[1] <- 99L`. Use `ref()` to confirm where the split happened.
 
-```r
+```r title="Exercise: Copy-on-modify on integer vector"
 # Try it: watch copy-on-modify split two integer vectors
 ex_a <- 1:3
 ex_b <- ex_a
@@ -186,7 +186,7 @@ ex_b[1] <- 99L
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Copy-on-modify on integer vector solution"
 ex_a <- 1:3
 ex_b <- ex_a
 ex_b[1] <- 99L
@@ -204,7 +204,7 @@ ref(ex_a, ex_b)
 
 `mem_used()` is a friendly wrapper around `gc()` that returns the total bytes your R session is currently holding. It is the "how bad is it, right now?" number, the one you check before and after a suspicious block of code to see whether it actually cost you anything.
 
-```r
+```r title="memused before and after allocation"
 mem_used()
 #> 64.1 MB
 
@@ -225,7 +225,7 @@ The 40 MB jump matches expectation: 5 million doubles at 8 bytes each is 40 MB, 
 
 **Try it:** Capture `mem_used()` before and after allocating `ex_vec <- rnorm(1e6)`, then compute the delta.
 
-```r
+```r title="Exercise: Measure exact allocation cost"
 # Try it: measure the exact cost of a vector allocation
 before <- mem_used()
 
@@ -238,7 +238,7 @@ before <- mem_used()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Measure exact allocation cost solution"
 before <- mem_used()
 ex_vec <- rnorm(1e6)
 after <- mem_used()
@@ -255,7 +255,7 @@ rm(ex_vec)
 
 `obj_addr()` returns the hexadecimal memory address of whatever a name points to. Two names with the same address are literally the same object; two names with different addresses are two distinct objects, even if every element matches. This is the ground truth for "did R copy it?", no guessing, no heuristics.
 
-```r
+```r title="Two names share one address"
 a <- c(10, 20, 30)
 b <- a
 
@@ -267,7 +267,7 @@ obj_addr(b)
 
 Same address. Assignment did not copy the vector, `b` is just another name for the same block of memory. R tracks how many names point at each object, and as long as you do not mutate, the cost of `b <- a` stays at zero. Now let's trigger a copy.
 
-```r
+```r title="Mutation triggers a new address"
 b[1] <- 99
 obj_addr(a)
 #> [1] "0x55e8c2f1a8d0"
@@ -282,7 +282,7 @@ The moment you assign into `b`, R sees that two names were pointing at the origi
 
 **Try it:** Create `ex_v1 <- 1:5`, `ex_v2 <- ex_v1`, modify `ex_v2[5]`, and confirm with `obj_addr()` that `ex_v1`'s address never moved.
 
-```r
+```r title="Exercise: Confirm copy-on-modify via objaddr"
 # Try it: confirm copy-on-modify via obj_addr()
 ex_v1 <- 1:5
 ex_v2 <- ex_v1
@@ -296,7 +296,7 @@ ex_v2 <- ex_v1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Confirm copy-on-modify via objaddr solution"
 ex_v1 <- 1:5
 ex_v2 <- ex_v1
 addr_before <- obj_addr(ex_v1)
@@ -318,7 +318,7 @@ A good memory debugging workflow has three moves: take a `mem_used()` snapshot, 
 ![The lobstr toolkit at a glance](screenshots/R-Memory-lobstr-function-map.webp)
 *Figure 2: The lobstr toolkit at a glance, size, references, and session memory.*
 
-```r
+```r title="Bloated versus clean return values"
 library(dplyr)
 
 bloated_stats <- function(df) {
@@ -350,7 +350,7 @@ obj_size(clean_out)
 
 **Try it:** Replace `mtcars` with `iris[, 1:4]` in the call to `bloated_stats()` and measure the size ratio against `clean_stats(iris[, 1:4])`.
 
-```r
+```r title="Exercise: Profile bloat on iris"
 # Try it: profile the bloat on a second dataset
 # Your code here:
 
@@ -361,7 +361,7 @@ obj_size(clean_out)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Profile bloat on iris solution"
 bloat_iris <- bloated_stats(iris[, 1:4])
 clean_iris <- clean_stats(iris[, 1:4])
 c(bloat = obj_size(bloat_iris), clean = obj_size(clean_iris))
@@ -381,7 +381,7 @@ These exercises combine several concepts from the tutorial. Each one is self-con
 
 Build three lists that look identical on paper but differ in how much they share. Predict the ranking (smallest to largest) without running `obj_size()`, then confirm.
 
-```r
+```r title="Exercise: Three lists with hidden sharing"
 # Exercise: predict, then measure
 v <- rnorm(5000)
 
@@ -396,7 +396,7 @@ my_list_c <- lapply(1:100, function(i) rnorm(5000))  # 100 independent vectors
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three lists with hidden sharing solution"
 v <- rnorm(5000)
 my_list_a <- rep(list(v), 100)
 my_list_b <- lapply(1:100, function(i) v)
@@ -417,7 +417,7 @@ c(a = obj_size(my_list_a),
 
 Write `my_bloat_report(fn, x)` that calls `fn(x)` and returns a named list with three fields: the memory delta during the call, the `obj_size()` of the result, and a logical `shares_with_input` indicating whether the result shares any memory with `x`. Test it against `bloated_stats` from earlier.
 
-```r
+```r title="Exercise: Build a bloat report utility"
 # Exercise: build a bloat report utility
 # Hint: use mem_used() for the delta, and compare obj_size(x, result)
 #       against obj_size(x) + obj_size(result) to detect sharing
@@ -433,7 +433,7 @@ my_bloat_report <- function(fn, x) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bloat report utility solution"
 my_bloat_report <- function(fn, x) {
   before <- mem_used()
   result <- fn(x)
@@ -468,7 +468,7 @@ my_bloat_report(bloated_stats, mtcars)
 
 Let's put everything together. We will profile a small data pipeline end to end: baseline, work, final snapshot, summary table. The task is a summarise-by-group on the `starwars` dataset from dplyr, done two ways, once correctly with `summarise()`, once wastefully by joining the summary back onto the full table.
 
-```r
+```r title="End-to-end starwars pipeline profile"
 sw_raw <- dplyr::starwars
 obj_size(sw_raw)
 #> 51.66 kB

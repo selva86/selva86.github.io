@@ -24,7 +24,7 @@ The split comes down to philosophy. ggplot2 descends from Leland Wilkinson's *Gr
 
 Let's see the difference immediately. Here's a scatter plot of fuel efficiency vs horsepower, coloured by number of cylinders:
 
-```r
+```r title="ggplot2 scatter in three lines"
 library(ggplot2)
 
 ggplot(mtcars, aes(x = hp, y = mpg, color = factor(cyl))) +
@@ -38,7 +38,7 @@ ggplot(mtcars, aes(x = hp, y = mpg, color = factor(cyl))) +
 
 Three lines of plotting code, and ggplot2 handled the axes, legend, colours, and spacing automatically. The equivalent in matplotlib would look something like this (shown as comments since we're running R):
 
-```r
+```r title="matplotlib equivalent for comparison"
 # matplotlib equivalent (Python) — for comparison only:
 # fig, ax = plt.subplots()
 # for cyl, group in df.groupby('cyl'):
@@ -61,7 +61,7 @@ The core difference is this: in ggplot2, you say "map `cyl` to colour" and the l
 
 **Try it:** Modify the scatter plot to also map `wt` (weight) to point size. Add `size = wt` inside the `aes()` call and see how ggplot2 automatically creates a size legend.
 
-```r
+```r title="Exercise: add size aesthetic for weight"
 # Try it: add size aesthetic
 ggplot(mtcars, aes(x = hp, y = mpg, color = factor(cyl), size = wt)) +
   geom_point() +
@@ -74,7 +74,7 @@ ggplot(mtcars, aes(x = hp, y = mpg, color = factor(cyl), size = wt)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Size-aesthetic solution"
 ggplot(mtcars, aes(x = hp, y = mpg, color = factor(cyl), size = wt)) +
   geom_point() +
   labs(title = "MPG vs HP (size = weight)",
@@ -96,7 +96,7 @@ Let's walk through three common chart types, bar, histogram, and line, all using
 
 A bar chart counting how many cars have 4, 6, or 8 cylinders:
 
-```r
+```r title="geombar counts automatically"
 p_bar <- ggplot(mtcars, aes(x = factor(cyl), fill = factor(cyl))) +
   geom_bar() +
   labs(title = "Cars by Cylinder Count",
@@ -111,7 +111,7 @@ Notice that `geom_bar()` counts the observations for you, you don't need to pre-
 
 Now a histogram of fuel efficiency:
 
-```r
+```r title="Histogram of mpg distribution"
 p_hist <- ggplot(mtcars, aes(x = mpg)) +
   geom_histogram(bins = 10, fill = "steelblue", color = "white") +
   labs(title = "Distribution of MPG", x = "Miles per Gallon", y = "Count")
@@ -122,7 +122,7 @@ p_hist
 
 And a line chart showing daily temperature over time using the airquality dataset:
 
-```r
+```r title="Line chart with loess smooth"
 aq <- airquality[complete.cases(airquality), ]
 aq$Date <- as.Date(paste("1973", aq$Month, aq$Day, sep = "-"))
 
@@ -143,7 +143,7 @@ All three charts used the exact same ggplot2 structure. The only thing that chan
 
 **Try it:** Create a boxplot showing mpg grouped by cyl. Use `geom_boxplot()` with `x = factor(cyl)` and `y = mpg`.
 
-```r
+```r title="Exercise: boxplot of mpg by cylinder"
 # Try it: create a boxplot
 ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
   # your code here
@@ -154,7 +154,7 @@ ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Boxplot solution"
 ggplot(mtcars, aes(x = factor(cyl), y = mpg, fill = factor(cyl))) +
   geom_boxplot() +
   labs(title = "MPG by Cylinder Count", x = "Cylinders", y = "MPG") +
@@ -173,7 +173,7 @@ matplotlib's default plots are functional but plain, gray backgrounds, small fon
 
 Here's the same scatter plot with three different built-in themes:
 
-```r
+```r title="Swap themes in one line"
 base_plot <- ggplot(mtcars, aes(x = hp, y = mpg, color = factor(cyl))) +
   geom_point(size = 3) +
   labs(x = "Horsepower", y = "MPG", color = "Cylinders")
@@ -189,7 +189,7 @@ p2
 
 The theme system is composable, you start with a complete theme and layer adjustments on top. Want `theme_minimal()` but with a larger title and the legend at the bottom? One line:
 
-```r
+```r title="Compose theme overrides"
 p_custom <- base_plot +
   theme_minimal() +
   theme(
@@ -210,7 +210,7 @@ In matplotlib, the equivalent requires setting `plt.rcParams` globally or callin
 
 **Try it:** Apply `theme_classic()` to the base plot and move the legend to `"top"` using the `theme()` function.
 
-```r
+```r title="Exercise: classic theme with top legend"
 # Try it: classic theme + top legend
 ex_themed <- base_plot +
   theme_classic() +
@@ -224,7 +224,7 @@ ex_themed <- base_plot +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top-legend solution"
 ex_themed <- base_plot +
   theme_classic() +
   theme(legend.position = "top") +
@@ -244,7 +244,7 @@ Faceting, splitting a single chart into multiple panels by a categorical variabl
 
 Here's faceting in action. Let's split our scatter plot by cylinder count:
 
-```r
+```r title="facetwrap splits by cylinder"
 ggplot(mtcars, aes(x = hp, y = mpg)) +
   geom_point(size = 2, color = "steelblue") +
   facet_wrap(~cyl, labeller = label_both) +
@@ -258,7 +258,7 @@ ggplot(mtcars, aes(x = hp, y = mpg)) +
 
 One line, `facet_wrap(~cyl)`, created three coordinated panels with shared axes, automatic labels, and consistent styling. For a two-dimensional grid, use `facet_grid()`:
 
-```r
+```r title="facetgrid for two-way panels"
 ggplot(mtcars, aes(x = hp, y = mpg)) +
   geom_point(size = 2) +
   facet_grid(gear ~ cyl, labeller = label_both) +
@@ -277,7 +277,7 @@ This grid layout would require creating a `fig, axes = plt.subplots(3, 3)` in ma
 
 **Try it:** Create a faceted histogram showing the distribution of mpg, split by `gear`. Use `facet_wrap(~gear)` with `geom_histogram()`.
 
-```r
+```r title="Exercise: faceted histogram by gear"
 # Try it: faceted histogram
 ggplot(mtcars, aes(x = mpg)) +
   geom_histogram(bins = 8, fill = "steelblue", color = "white") +
@@ -290,7 +290,7 @@ ggplot(mtcars, aes(x = mpg)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Facet-by-gear solution"
 ggplot(mtcars, aes(x = mpg)) +
   geom_histogram(bins = 8, fill = "steelblue", color = "white") +
   facet_wrap(~gear, labeller = label_both) +
@@ -310,7 +310,7 @@ Both libraries have rich extension ecosystems, but they work very differently. g
 
 The `patchwork` package lets you combine multiple ggplot2 plots with simple arithmetic operators:
 
-```r
+```r title="patchwork composes two plots"
 library(patchwork)
 
 combined <- p_bar + p_hist +
@@ -324,7 +324,7 @@ That's it, `+` places plots side by side, `/` stacks them vertically. In matplot
 
 The `ggrepel` package solves another common pain point, overlapping text labels:
 
-```r
+```r title="ggrepel labels notable cars"
 library(ggrepel)
 
 top_cars <- mtcars[mtcars$mpg > 25 | mtcars$hp > 250, ]
@@ -349,7 +349,7 @@ ggplot(mtcars, aes(x = hp, y = mpg)) +
 
 **Try it:** Use patchwork to stack `p_bar` and `p_hist` vertically instead of side by side. Replace `+` with `/`.
 
-```r
+```r title="Exercise: stack plots vertically"
 # Try it: stack plots vertically
 ex_stacked <- p_bar / p_hist
 #> Expected: bar chart on top, histogram on bottom
@@ -358,7 +358,7 @@ ex_stacked <- p_bar / p_hist
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stacked-layout solution"
 ex_stacked <- p_bar / p_hist +
   plot_annotation(title = "Stacked Layout with Patchwork")
 ex_stacked
@@ -376,7 +376,7 @@ ex_stacked
 
 Create a scatter plot of the `diamonds` dataset (built into ggplot2) with `carat` on the x-axis, `price` on the y-axis, coloured by `cut`. Facet by `clarity` using `facet_wrap()`. Apply `theme_minimal()` and add proper axis labels and a title.
 
-```r
+```r title="Exercise: diamonds faceted by clarity"
 # Exercise 1: diamonds scatter + facets + theme
 # Hint: use diamonds dataset, aes(carat, price, color = cut), facet_wrap(~clarity)
 
@@ -387,7 +387,7 @@ Create a scatter plot of the `diamonds` dataset (built into ggplot2) with `carat
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Diamonds-clarity solution"
 my_diamond_plot <- ggplot(diamonds, aes(x = carat, y = price, color = cut)) +
   geom_point(alpha = 0.3, size = 0.8) +
   facet_wrap(~clarity, nrow = 2) +
@@ -409,7 +409,7 @@ my_diamond_plot
 
 Build a two-panel dashboard of mtcars: (a) a bar chart showing mean mpg by cylinder count, and (b) a scatter plot of wt vs mpg with a linear trend line (`geom_smooth(method = "lm")`). Combine them side by side with patchwork and add a shared title using `plot_annotation()`.
 
-```r
+```r title="Exercise: two-panel mtcars dashboard"
 # Exercise 2: two-panel dashboard
 # Hint: for the bar chart, use stat_summary(fun = mean, geom = "bar")
 # For the trend line, use geom_smooth(method = "lm")
@@ -421,7 +421,7 @@ Build a two-panel dashboard of mtcars: (a) a bar chart showing mean mpg by cylin
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dashboard solution"
 my_bar <- ggplot(mtcars, aes(x = factor(cyl), y = mpg, fill = factor(cyl))) +
   stat_summary(fun = mean, geom = "bar") +
   labs(x = "Cylinders", y = "Mean MPG") +
@@ -449,7 +449,7 @@ my_dashboard
 
 Let's build a complete 4-panel dashboard from the `airquality` dataset, demonstrating everything we've covered: multiple geoms, themes, faceting concepts, and patchwork composition.
 
-```r
+```r title="Four-panel airquality dashboard"
 aq_scatter <- ggplot(aq, aes(x = Temp, y = Ozone)) +
   geom_point(alpha = 0.6, color = "coral") +
   geom_smooth(method = "loess", se = FALSE, color = "darkred") +

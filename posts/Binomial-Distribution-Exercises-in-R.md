@@ -23,7 +23,7 @@ difficulty: Intermediate
 
 The binomial distribution answers one question: *given n trials with success probability p, how likely is each count of successes?* R gives you four functions, `dbinom()`, `pbinom()`, `qbinom()`, `rbinom()`, that cover exact probability, cumulative probability, quantiles, and random samples. Before the 10 problems, a single runnable block shows the two most common cases side by side so you can spot which function fits a new question at a glance.
 
-```r
+```r title="Demo dbinom and pbinom on coin flips"
 # Fair coin, 10 flips — two classic questions
 dbinom(5, size = 10, prob = 0.5)   # P(exactly 5 heads)
 #> [1] 0.2460938
@@ -43,7 +43,7 @@ The first call asks "what is the probability of landing on exactly 5 heads?" and
 
 **Try it:** Compute the probability of exactly 3 successes in 8 trials with success probability 0.4.
 
-```r
+```r title="Your turn: dbinom for exactly three"
 # Try it: exact probability with dbinom
 ex_p <- dbinom(___, size = ___, prob = ___)
 ex_p
@@ -53,7 +53,7 @@ ex_p
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="dbinom for three successes solution"
 ex_p <- dbinom(3, size = 8, prob = 0.4)
 ex_p
 #> [1] 0.2786918
@@ -77,7 +77,7 @@ Where:
 
 For a single k, a single `dbinom()` call is enough. For a range of counts, say "between 3 and 5 successes", pass a vector of k values and sum the result.
 
-```r
+```r title="Sum dbinom over a range"
 # Fair coin, 10 flips
 p_seven <- dbinom(7, size = 10, prob = 0.5)   # exactly 7 heads
 p_seven
@@ -96,7 +96,7 @@ p_range
 
 **Try it:** Find the probability of exactly 4 successes in 12 trials with success probability 0.3.
 
-```r
+```r title="Your turn: dbinom with twelve trials"
 # Try it: dbinom with n=12, p=0.3
 ex_p4 <- dbinom(___, size = ___, prob = ___)
 ex_p4
@@ -106,7 +106,7 @@ ex_p4
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="dbinom twelve trials solution"
 ex_p4 <- dbinom(4, size = 12, prob = 0.3)
 ex_p4
 #> [1] 0.2311397
@@ -120,7 +120,7 @@ ex_p4
 
 `pbinom(q, size = n, prob = p)` returns $P(X \le q)$, the cumulative probability up to and including q. "At least" questions flip the direction, and there are two equivalent ways to compute them: the explicit complement `1 - pbinom(...)` or the `lower.tail = FALSE` argument.
 
-```r
+```r title="Compute cumulative probability with pbinom"
 # n = 10, p = 0.3
 p_leq3 <- pbinom(3, size = 10, prob = 0.3)   # P(X <= 3)
 p_leq3
@@ -143,7 +143,7 @@ p_geq7b
 
 **Try it:** For n = 5 and p = 0.2, find the probability of at least 2 successes.
 
-```r
+```r title="Your turn: at least two successes"
 # Try it: P(X >= 2) with n=5, p=0.2
 ex_ge <- 1 - pbinom(___, size = ___, prob = ___)
 ex_ge
@@ -153,7 +153,7 @@ ex_ge
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="At least two successes solution"
 ex_ge <- 1 - pbinom(1, size = 5, prob = 0.2)
 ex_ge
 #> [1] 0.26272
@@ -171,7 +171,7 @@ pbinom(1, size = 5, prob = 0.2, lower.tail = FALSE)
 
 `qbinom()` inverts `pbinom()`: given a cumulative probability, it returns the smallest count whose cumulative probability reaches that threshold. `rbinom()` draws random binomial counts, useful for simulation, Monte Carlo checks, and bootstrapping. The first argument of `rbinom()` is the number of random draws to make, not the trial count; the trial count is `size`.
 
-```r
+```r title="Use qbinom and rbinom"
 # n = 100 trials, p = 0.4 — 95th percentile of the success count
 q95 <- qbinom(0.95, size = 100, prob = 0.4)
 q95
@@ -191,7 +191,7 @@ sim5
 
 **Try it:** Simulate 10 draws from Binomial(20, 0.6) with `set.seed(7)` and compute the mean of the draws.
 
-```r
+```r title="Your turn: simulate ten counts"
 # Try it: 10 simulated counts, their mean
 set.seed(7)
 ex_sim <- rbinom(___, size = ___, prob = ___)
@@ -202,7 +202,7 @@ mean(ex_sim)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Simulated mean near np solution"
 set.seed(7)
 ex_sim <- rbinom(10, size = 20, prob = 0.6)
 ex_sim
@@ -223,7 +223,7 @@ Ten problems, progressively harder. Each one gives the setup, a starter block wi
 
 A fair coin is tossed 6 times. What is the probability of exactly 4 heads? Save the answer to `ans1`.
 
-```r
+```r title="Exercise 1: dbinom for four heads"
 # Exercise 1: exact probability with dbinom
 # Hint: size = 6, prob = 0.5
 
@@ -234,7 +234,7 @@ A fair coin is tossed 6 times. What is the probability of exactly 4 heads? Save 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 1 solution"
 ans1 <- dbinom(4, size = 6, prob = 0.5)
 ans1
 #> [1] 0.234375
@@ -248,7 +248,7 @@ ans1
 
 A factory produces parts with a 15% defect rate. In a batch of 20 parts, what is the probability of at most 2 defects? Save to `ans2`.
 
-```r
+```r title="Exercise 2: at most two defects"
 # Exercise 2: cumulative probability with pbinom
 # Hint: "at most 2" means X <= 2
 
@@ -259,7 +259,7 @@ A factory produces parts with a 15% defect rate. In a batch of 20 parts, what is
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 2 solution"
 ans2 <- pbinom(2, size = 20, prob = 0.15)
 ans2
 #> [1] 0.4048607
@@ -273,7 +273,7 @@ ans2
 
 A quiz has 10 multiple-choice questions, each with 4 options. What is the probability of getting at least 3 correct by guessing randomly? Save to `ans3`.
 
-```r
+```r title="Exercise 3: at least three correct"
 # Exercise 3: complement with pbinom
 # Hint: p = 1/4, "at least 3" is the complement of "at most 2"
 
@@ -284,7 +284,7 @@ A quiz has 10 multiple-choice questions, each with 4 options. What is the probab
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 3 solution"
 ans3 <- 1 - pbinom(2, size = 10, prob = 0.25)
 ans3
 #> [1] 0.4744072
@@ -302,7 +302,7 @@ pbinom(2, size = 10, prob = 0.25, lower.tail = FALSE)
 
 In a survey of 12 people, each person says "yes" with probability 0.6. What is the probability of between 6 and 9 "yes" responses, inclusive? Save to `ans4`.
 
-```r
+```r title="Exercise 4: sum over a range"
 # Exercise 4: sum over a range of k values
 # Hint: sum(dbinom(6:9, ...))
 
@@ -313,7 +313,7 @@ In a survey of 12 people, each person says "yes" with probability 0.6. What is t
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 4 solution"
 ans4 <- sum(dbinom(6:9, size = 12, prob = 0.6))
 ans4
 #> [1] 0.6988104
@@ -327,7 +327,7 @@ ans4
 
 A store sees 200 customers per day, and each buys a niche product with probability 0.05. What is the smallest stock level that covers at least 99% of demand? Save to `ans5`.
 
-```r
+```r title="Exercise 5: qbinom for stocking level"
 # Exercise 5: qbinom — smallest k with P(X <= k) >= 0.99
 # Hint: qbinom(0.99, size = 200, prob = 0.05)
 
@@ -338,7 +338,7 @@ A store sees 200 customers per day, and each buys a niche product with probabili
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 5 solution"
 ans5 <- qbinom(0.99, size = 200, prob = 0.05)
 ans5
 #> [1] 18
@@ -358,7 +358,7 @@ pbinom(17, size = 200, prob = 0.05)
 
 Simulate 10,000 experiments of rolling a fair die 50 times, counting rolls that show a 6 (so p = 1/6). Use `set.seed(42)`. Report the simulated mean and standard deviation, and compare with theoretical values $np$ and $\sqrt{np(1-p)}$. Save the vector to `sim6`.
 
-```r
+```r title="Exercise 6: simulate ten thousand draws"
 # Exercise 6: rbinom simulation at scale
 # Hint: rbinom(10000, size = 50, prob = 1/6)
 
@@ -369,7 +369,7 @@ Simulate 10,000 experiments of rolling a fair die 50 times, counting rolls that 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 6 solution"
 set.seed(42)
 sim6 <- rbinom(10000, size = 50, prob = 1/6)
 
@@ -393,7 +393,7 @@ c(np = n * p, sqrt_npq = sqrt(n * p * (1 - p)))
 
 In a clinical trial, n = 30 patients each respond to treatment with probability 0.7. Compute the theoretical mean $E[X] = np$ and variance $Var[X] = np(1-p)$. Then draw 10,000 samples with `set.seed(11)` and compare.
 
-```r
+```r title="Exercise 7: theory versus simulation"
 # Exercise 7: theory vs simulation for mean and variance
 # Hint: mean(rbinom(10000, 30, 0.7)) should be near np
 
@@ -404,7 +404,7 @@ In a clinical trial, n = 30 patients each respond to treatment with probability 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 7 solution"
 n <- 30; p <- 0.7
 
 # Theory
@@ -428,7 +428,7 @@ c(sim_mean = mean(sim7), sim_var = var(sim7))
 
 Plot the probability mass function of Binomial(n = 25, p = 0.4) over the counts 0 through 25. Use `barplot()`. Save the PMF vector to `pmf8`.
 
-```r
+```r title="Exercise 8: plot the PMF"
 # Exercise 8: barplot of dbinom over 0:25
 # Hint: pmf8 <- dbinom(0:25, 25, 0.4)
 
@@ -439,7 +439,7 @@ Plot the probability mass function of Binomial(n = 25, p = 0.4) over the counts 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 8 solution"
 pmf8 <- dbinom(0:25, size = 25, prob = 0.4)
 barplot(pmf8,
         names.arg = 0:25,
@@ -461,7 +461,7 @@ which.max(pmf8) - 1
 
 An A/B test logs 58 conversions in 100 visits. Test the null hypothesis that the true conversion rate is 0.5 against the two-sided alternative, and report the p-value and 95% confidence interval. Save the test object to `test9`.
 
-```r
+```r title="Exercise 9: exact binomial test"
 # Exercise 9: exact binomial test
 # Hint: binom.test(58, 100, p = 0.5)
 
@@ -472,7 +472,7 @@ An A/B test logs 58 conversions in 100 visits. Test the null hypothesis that the
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 9 solution"
 test9 <- binom.test(58, 100, p = 0.5)
 test9
 #>
@@ -496,7 +496,7 @@ test9
 
 An airline sells 110 tickets for a plane with 100 seats. Each passenger shows up independently with probability 0.9. What is the probability more than 100 passengers show up (forcing someone off)? Then compute the same probability if the airline sells 115 tickets instead. Save both to `ans10a` and `ans10b`.
 
-```r
+```r title="Exercise 10: overbooking probability"
 # Exercise 10: applied overbooking
 # Hint: P(X > 100) = 1 - pbinom(100, size, 0.9)
 
@@ -507,7 +507,7 @@ An airline sells 110 tickets for a plane with 100 seats. Each passenger shows up
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 10 solution"
 ans10a <- 1 - pbinom(100, size = 110, prob = 0.9)
 ans10a
 #> [1] 0.3469894
@@ -525,7 +525,7 @@ ans10b
 
 A factory inspects batches of 500 widgets. Historically, 2% of widgets are defective. Walk through the four binomial functions on one coherent dataset: expected defects, tail probability, 95th percentile, simulation, and hypothesis test.
 
-```r
+```r title="Factory quality control workflow"
 # Setup
 batch_n <- 500
 p_def <- 0.02

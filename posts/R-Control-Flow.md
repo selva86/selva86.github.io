@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 An `if` statement runs a block of code only when a condition is `TRUE`. Attach an `else` and you get a two-way branch. Attach `else if` and you chain as many branches as you need. The syntax is C-like, with one important R twist: the condition must be a single `TRUE` or `FALSE`, not a vector.
 
-```r
+```r title="if, else if, else branching"
 temperature <- 28
 
 if (temperature > 30) {
@@ -47,7 +47,7 @@ The braces `{ }` aren't strictly required for one-line bodies, but they prevent 
 
 **Try it:** Write an `if/else if/else` that classifies a grade (0-100) as "A", "B", "C", or "F".
 
-```r
+```r title="Exercise: Letter grade ladder"
 grade <- 83
 if (grade >= 90) {
   "A"
@@ -64,7 +64,7 @@ if (grade >= 90) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Letter grade ladder solution"
 grade <- 83
 if (grade >= 90) {
   "A"
@@ -85,7 +85,7 @@ The chain evaluates top to bottom and runs the first branch whose condition is T
 
 For vectors, `if` is the wrong tool. Use `ifelse()`, the vectorized, element-wise version. It takes a logical vector, a value for the `TRUE` positions, and a value for the `FALSE` positions.
 
-```r
+```r title="Vectorized ifelse for warm or cool"
 temps <- c(12, 25, 31, 18, 28)
 ifelse(temps > 20, "warm", "cool")
 #> [1] "cool" "warm" "warm" "cool" "warm"
@@ -97,7 +97,7 @@ ifelse(temps > 30, "hot",
 
 The nested `ifelse()` works but gets ugly fast. For multi-way branching across vectors, `dplyr::case_when()` is far cleaner:
 
-```r
+```r title="casewhen for multi-way branching"
 library(dplyr)
 case_when(
   temps > 30 ~ "hot",
@@ -114,7 +114,7 @@ The `TRUE` at the end is the catch-all, think of it as the `else`. Every row mus
 
 **Try it:** Use `ifelse()` on `c(-3, 5, -1, 8, 0)` to return "neg", "pos", or "zero", note that basic `ifelse()` handles two branches; you'll need a nested call.
 
-```r
+```r title="Exercise: Sign with nested ifelse"
 v <- c(-3, 5, -1, 8, 0)
 ifelse(v > 0, "pos", ifelse(v < 0, "neg", "___"))
 
@@ -123,7 +123,7 @@ ifelse(v > 0, "pos", ifelse(v < 0, "neg", "___"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Nested ifelse sign solution"
 v <- c(-3, 5, -1, 8, 0)
 ifelse(v > 0, "pos", ifelse(v < 0, "neg", "zero"))
 #> [1] "neg"  "pos"  "neg"  "pos"  "zero"
@@ -136,7 +136,7 @@ ifelse(v > 0, "pos", ifelse(v < 0, "neg", "zero"))
 
 A `for` loop in R iterates over any object with a length, most commonly a vector. The loop variable takes each value in turn.
 
-```r
+```r title="Basic for loop over integers"
 for (i in 1:5) {
   cat("Step", i, "squared is", i^2, "\n")
 }
@@ -149,7 +149,7 @@ for (i in 1:5) {
 
 You can iterate over any vector, not just integers:
 
-```r
+```r title="for loop over character vector"
 fruits <- c("apple", "banana", "cherry")
 for (f in fruits) {
   cat("I love", f, "\n")
@@ -161,7 +161,7 @@ for (f in fruits) {
 
 When you need the index *and* the value, iterate over `seq_along()`:
 
-```r
+```r title="Loop by index with seqalong"
 for (i in seq_along(fruits)) {
   cat(i, ":", fruits[i], "\n")
 }
@@ -174,7 +174,7 @@ Prefer `seq_along(x)` over `1:length(x)`, if `x` is empty, `1:length(x)` gives `
 
 **Try it:** Loop over `c(10, 20, 30)` and print the running sum at each step.
 
-```r
+```r title="Exercise: Running sum inside loop"
 running <- 0
 for (x in c(10, 20, 30)) {
   running <- running + x
@@ -186,7 +186,7 @@ for (x in c(10, 20, 30)) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Running sum loop solution"
 running <- 0
 for (x in c(10, 20, 30)) {
   running <- running + x
@@ -204,7 +204,7 @@ for (x in c(10, 20, 30)) {
 
 R's reputation for slow loops comes from one specific anti-pattern: **growing a result inside a loop**. Watch this:
 
-```r
+```r title="Grow-inside-loop anti-pattern"
 n <- 10000
 result <- c()
 for (i in 1:n) {
@@ -214,7 +214,7 @@ for (i in 1:n) {
 
 Every `c(result, i^2)` *copies the entire vector* and allocates a new one. It's O(n²), slow enough to notice past a few thousand elements. The fix is either pre-allocation:
 
-```r
+```r title="Pre-allocate result vector"
 result <- numeric(n)
 for (i in 1:n) {
   result[i] <- i^2
@@ -223,7 +223,7 @@ for (i in 1:n) {
 
 …or skipping the loop entirely with vectorization:
 
-```r
+```r title="Vectorized squared sequence"
 result <- (1:n)^2
 ```
 
@@ -234,7 +234,7 @@ All three give the same answer. The vectorized version is by far the fastest (an
 
 **Try it:** Rewrite this slow loop as a one-line vectorized expression: `out <- c(); for (x in 1:5) out <- c(out, x * 10)`.
 
-```r
+```r title="Exercise: One-line times ten"
 # one line
 out <- ___
 
@@ -243,7 +243,7 @@ out <- ___
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Vectorized times ten solution"
 out <- (1:5) * 10
 out
 #> [1] 10 20 30 40 50
@@ -256,7 +256,7 @@ Multiplying a vector by a scalar applies the operation to every element at once,
 
 A `while` loop runs as long as its condition is `TRUE`. Use it when you don't know in advance how many iterations you need, typically convergence loops, polling, or random-stopping situations.
 
-```r
+```r title="while loop doubling until limit"
 x <- 1
 while (x < 100) {
   x <- x * 2
@@ -267,7 +267,7 @@ x
 
 `break` exits a loop immediately. `next` skips the rest of the current iteration and starts the next one. Both work in `for` and `while`.
 
-```r
+```r title="break and next inside for"
 for (i in 1:10) {
   if (i == 5) break
   if (i %% 2 == 0) next
@@ -284,7 +284,7 @@ The loop printed 1 and 3 (odd numbers), skipped 2 and 4 via `next`, and broke at
 
 **Try it:** Write a `while` loop that keeps dividing `n` by 2 until it's below 10, starting from `n = 1000`. Print the final value.
 
-```r
+```r title="Exercise: Halve until threshold"
 n <- 1000
 while (n >= 10) {
   n <- n / ___
@@ -296,7 +296,7 @@ n
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Halve until threshold solution"
 n <- 1000
 while (n >= 10) {
   n <- n / 2
@@ -312,7 +312,7 @@ The loop halves `n` each pass (1000 → 500 → 250 → 125 → 62.5 → 31.25 �
 
 R has a family of functions, `lapply()`, `sapply()`, `vapply()`, `mapply()`, `apply()`, that replace many loops with a single function call. They're not magically faster than a well-written `for` loop (they use loops under the hood), but they express intent more clearly.
 
-```r
+```r title="lapply, sapply, and apply basics"
 values <- list(a = 1:5, b = 10:15, c = 100:105)
 
 lapply(values, sum)
@@ -340,7 +340,7 @@ apply(mat, 2, sum)
 
 **Try it:** Use `sapply()` to get the length of each vector in `values`.
 
-```r
+```r title="Exercise: sapply column lengths"
 sapply(values, ___)
 
 ```
@@ -348,7 +348,7 @@ sapply(values, ___)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="sapply column lengths solution"
 values <- list(a = 1:5, b = 10:15, c = 100:105)
 sapply(values, length)
 #>  a  b  c
@@ -367,7 +367,7 @@ Print numbers 1 to 15. For multiples of 3 print "Fizz", multiples of 5 print "Bu
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="FizzBuzz with for loop"
 for (i in 1:15) {
   out <- ""
   if (i %% 3 == 0) out <- paste0(out, "Fizz")
@@ -379,7 +379,7 @@ for (i in 1:15) {
 
 Or vectorized:
 
-```r
+```r title="Vectorized FizzBuzz with ifelse"
 n <- 1:15
 ifelse(n %% 15 == 0, "FizzBuzz",
   ifelse(n %% 3 == 0, "Fizz",
@@ -397,7 +397,7 @@ Write a `while` loop that finds the smallest power of 2 strictly greater than 1,
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Smallest power of two over million"
 x <- 1
 while (x <= 1e6) x <- x * 2
 x
@@ -409,7 +409,7 @@ x
 
 This loop computes squared distance from the mean for each element. Rewrite it in one vectorized line.
 
-```r
+```r title="Squared-distance loop to rewrite"
 x <- c(4, 7, 2, 9, 5)
 out <- numeric(length(x))
 for (i in seq_along(x)) {
@@ -420,7 +420,7 @@ for (i in seq_along(x)) {
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Vectorized squared-distance solution"
 out <- (x - mean(x))^2
 out
 #> [1]  1.44  4.84  9.24 11.56  0.04
@@ -431,7 +431,7 @@ out
 
 A realistic workflow: simulate 1,000 coin flips, track how many flips you need until you hit 5 heads in a row, and repeat the experiment 500 times to estimate the average.
 
-```r
+```r title="End-to-end 5-heads streak simulation"
 set.seed(42)
 
 flips_until_5_heads <- function() {

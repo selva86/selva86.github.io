@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 The clearest way to see lexical scoping is to watch it at work. Below, `f()` uses a variable `x` it never defined, where does R find it? And what happens when we change `x` *after* defining `f`? This tiny example already contains two of the four rules we'll unpack below.
 
-```r
+```r title="Function finds x in outer scope"
 x <- 10
 
 f <- function() {
@@ -50,7 +50,7 @@ The word "lexical" comes from the Greek *lexis*, meaning "word." A lexically sco
 
 **Try it:** Write a function `ex_times_k` that multiplies its input by an outer variable `k`. Prove lexical scoping by changing `k` between calls and observing the return value.
 
-```r
+```r title="Try it: Multiply n by captured k"
 # Try it: define k and ex_times_k
 k <- 3
 
@@ -69,7 +69,7 @@ ex_times_k(5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Captured k multiplier solution"
 k <- 3
 
 ex_times_k <- function(n) {
@@ -100,7 +100,7 @@ The chain starts in the function's own environment (its local variables), jumps 
 
 Nested functions make the walk visible. Below, `inner()` has no local `z`, and its enclosing environment (inside `outer()`) has no `z` either. R keeps walking until it reaches the global env.
 
-```r
+```r title="Inner function reaches global z"
 outer <- function() {
   y <- 2
   inner <- function() {
@@ -119,7 +119,7 @@ outer()
 
 After the global env, R continues through whatever packages are attached. The built-in `search()` function shows that path in order.
 
-```r
+```r title="Inspect the search path"
 search()
 #>  [1] ".GlobalEnv"        "tools:rstudio"     "package:stats"
 #>  [4] "package:graphics"  "package:grDevices" "package:utils"
@@ -134,7 +134,7 @@ That's why `mean()` just works without a `library()` call. Base R sits at the en
 
 **Try it:** Predict what `ex_inner()` returns below, `"outer"` or `"global"`? Then run the code to check your answer.
 
-```r
+```r title="Try it: Predict nested shadowing"
 # Try it: predict before running
 ex_val <- "global"
 
@@ -151,7 +151,7 @@ ex_outer()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Nested shadowing solution"
 ex_outer()
 #> [1] "outer"
 ```
@@ -170,7 +170,7 @@ Hadley Wickham's *Advanced R* distills lexical scoping into four rules. Each one
 
 **Rule 1, Name masking.** A local binding always wins over an outer one with the same name. R checks the innermost environment first.
 
-```r
+```r title="Local x shadows global x"
 x <- "global x"
 
 g <- function() {
@@ -188,7 +188,7 @@ x
 
 **Rule 2, Functions vs variables.** R can tell whether you're calling a value or using it. When you write `foo(5)`, R walks the scope chain looking specifically for a *function* called `foo`, skipping any non-function bindings on the way.
 
-```r
+```r title="R finds the function despite shadowing"
 n <- function(x) x * 2
 
 test <- function() {
@@ -207,7 +207,7 @@ The local `n` is the number `10`, but `n(5)` is unambiguous syntax for "call a f
 
 **Rule 3, A fresh start.** Every call to a function creates a brand-new environment. Local state from one call never carries over to the next.
 
-```r
+```r title="Plain function cannot persist state"
 counter_naive <- function() {
   if (!exists("count", inherits = FALSE)) count <- 0
   count <- count + 1
@@ -226,7 +226,7 @@ Every call resets `count` to `0` and increments once. That's why you need closur
 
 **Rule 4, Dynamic lookup.** R resolves names when the function *runs*, not when it's defined. We saw this in the opening example: changing `x` after defining `f` changed what `f()` returned.
 
-```r
+```r title="Redefined y changes function output"
 y <- 10
 h <- function() y * 2
 h()
@@ -245,7 +245,7 @@ This is convenient for REPL work but dangerous in long-lived code: if something 
 
 **Try it:** Rewrite `counter_naive` (Rule 3) so it actually counts across calls. Use the super-assignment operator `<<-` to update a variable in the enclosing environment.
 
-```r
+```r title="Try it: Persist counter with super-assign"
 # Try it: make a persistent counter
 count <- 0
 
@@ -262,7 +262,7 @@ count
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Persistent counter solution"
 count <- 0
 
 ex_counter <- function() {
@@ -288,7 +288,7 @@ count
 
 Masking becomes a real problem when a package overrides a name you were already using. The classic example: loading `dplyr` attaches `filter()`, which shadows `stats::filter()`, a base R function for linear filtering of time series. The name is identical, the behavior is wildly different.
 
-```r
+```r title="dplyr::filter masks stats::filter"
 library(dplyr)
 # The attach prints something like:
 #  The following objects are masked from 'package:stats':
@@ -318,7 +318,7 @@ The `::` operator tells R: "don't search. Use the function from *this* namespace
 
 **Try it:** A script broke after a colleague added `library(stats)` above it. The original call was `filter(mtcars, mpg > 25)`. Fix it so the call always resolves to the dplyr version.
 
-```r
+```r title="Try it: Qualify filter with namespace"
 # Try it: make the call masking-proof
 ex_res <- filter(mtcars, mpg > 25)
 #> Expected: a 6-row tibble
@@ -327,7 +327,7 @@ ex_res <- filter(mtcars, mpg > 25)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Namespace-qualified filter solution"
 ex_res <- dplyr::filter(mtcars, mpg > 25)
 nrow(ex_res)
 #> [1] 6
@@ -341,7 +341,7 @@ nrow(ex_res)
 
 Closures are the big payoff of lexical scoping. A **closure** is a function *plus* the environment it was defined in, captured and carried around as a single bundle. Because R resolves free variables lexically, that enclosing environment stays alive as long as the function does. The function can "remember" data even when the code that created it has long since returned.
 
-```r
+```r title="Closure captures its own count"
 make_counter <- function() {
   count <- 0
   function() {
@@ -373,7 +373,7 @@ There's no magic here, just the four rules from above: name masking (inner funct
 
 **Try it:** Build `ex_make_adder(n)` that returns a function which adds `n` to its input. Then use it to create `ex_add5` and call it on `10`.
 
-```r
+```r title="Try it: Adder factory"
 # Try it: closure factory
 ex_make_adder <- function(n) {
   # your code here
@@ -387,7 +387,7 @@ ex_add5(10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Adder factory solution"
 ex_make_adder <- function(n) {
   function(x) x + n
 }
@@ -407,7 +407,7 @@ ex_add5(10)
 
 In practice, that means a function doesn't care who called it. It only cares where it was born.
 
-```r
+```r title="Lexical scoping picks outer a"
 a <- "outer a"
 
 caller <- function() {
@@ -430,7 +430,7 @@ This is why refactoring R code is relatively safe: renaming a local variable in 
 
 **Try it:** Predict what the block below prints. Does `ex_inner_fn()` see `"outer z"` or `"caller z"`?
 
-```r
+```r title="Try it: Predict the inner value"
 # Try it: lexical vs dynamic
 ex_z <- "outer z"
 
@@ -448,7 +448,7 @@ ex_caller_fn()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Lexical resolution solution"
 ex_caller_fn()
 #> [1] "outer z"
 ```
@@ -465,7 +465,7 @@ Two capstone exercises that combine multiple concepts from this tutorial. Use di
 
 Write `my_countdown(start)` that returns a function. Each call to the returned function decrements the count by one and returns the new value. Once it reaches `0`, further calls keep returning `0` (don't go negative). Use a closure and `<<-`.
 
-```r
+```r title="Exercise: Countdown closure"
 # Exercise 1: countdown closure
 my_countdown <- function(start) {
   # your code here
@@ -481,7 +481,7 @@ my_c()  # 0 (stays at 0)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Countdown closure solution"
 my_countdown <- function(start) {
   count <- start
   function() {
@@ -509,7 +509,7 @@ my_c()
 
 Write `my_scoped_eval(expr, vars)` that evaluates an R expression `expr` in a fresh environment where the named list `vars` is bound. The function should not leak any of these names into the global environment. Use `new.env()`, `list2env()`, and `eval()`.
 
-```r
+```r title="Exercise: Scoped expression evaluator"
 # Exercise 2: scoped evaluator
 my_scoped_eval <- function(expr, vars) {
   # your code here
@@ -524,7 +524,7 @@ exists("a")  # Expected: FALSE (nothing leaked to global)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Scoped evaluator solution"
 my_scoped_eval <- function(expr, vars) {
   e <- new.env(parent = baseenv())
   list2env(vars, envir = e)
@@ -546,7 +546,7 @@ exists("a", envir = globalenv(), inherits = FALSE)
 
 Let's put all four rules to work. The goal: write `rate_limit(f, max_calls)` that wraps any function so it errors once it's been called more than `max_calls` times. The wrapper needs to remember how many times it's been called, a closure with private state.
 
-```r
+```r title="End-to-end rate-limited wrapper"
 rate_limit <- function(f, max_calls) {
   call_count <- 0
   function(...) {

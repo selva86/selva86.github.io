@@ -26,7 +26,7 @@ Themes and scales are the two customization layers in ggplot2. A theme changes t
 
 Here's how a single plot transforms when you add one theme and one scale function. Run the code to see the before-and-after.
 
-```r
+```r title="Default versus customised scatter"
 library(ggplot2)
 library(scales)
 
@@ -71,7 +71,7 @@ Here's a quick reference for the functions you'll practice in these exercises.
 
 **Try it:** Take `p_base` and apply `theme_classic()` with `scale_colour_brewer(palette = "Set2")`. How does the look change from the styled version above?
 
-```r
+```r title="Exercise: swap theme and palette"
 # Try it: swap theme and palette
 ex_swap <- p_base +
   # your code here
@@ -84,7 +84,7 @@ ex_swap
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Theme-and-palette solution"
 ex_swap <- p_base +
   theme_classic(base_size = 13) +
   scale_colour_brewer(palette = "Set2")
@@ -106,7 +106,7 @@ These first three exercises focus on `theme()` and its element functions. You'll
 
 **Task:** Create a boxplot of `hwy` (y-axis) grouped by `class` (x-axis). Apply `theme_light()`. Add the title "Highway MPG by Vehicle Class" and label the axes "Vehicle Class" and "Highway MPG".
 
-```r
+```r title="Exercise: boxplot with themelight"
 # Exercise 1: boxplot with theme_light
 p1 <- ggplot(mpg, aes(x = class, y = hwy)) +
   # your code here
@@ -119,7 +119,7 @@ p1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="themelight solution"
 p1 <- ggplot(mpg, aes(x = class, y = hwy)) +
   geom_boxplot(fill = "#7FB3D8") +
   theme_light() +
@@ -146,7 +146,7 @@ p1
 2. Change major grid lines to dashed, light grey (`"grey85"`)
 3. Make the panel border thicker (linewidth 1.5)
 
-```r
+```r title="Exercise: customise grid lines"
 # Exercise 2: customize grid lines
 p2 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point(size = 3, colour = "#4B6FA5") +
@@ -163,7 +163,7 @@ p2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Grid-lines solution"
 p2 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point(size = 3, colour = "#4B6FA5") +
   theme_bw() +
@@ -192,7 +192,7 @@ p2
 3. Make axis titles 12pt and bold
 4. Apply `theme_minimal()` as the base
 
-```r
+```r title="Exercise: text customisation"
 # Exercise 3: text customization
 set.seed(42)
 d_small <- diamonds[sample(nrow(diamonds), 500), ]
@@ -212,7 +212,7 @@ p3
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Text-customisation solution"
 set.seed(42)
 d_small <- diamonds[sample(nrow(diamonds), 500), ]
 
@@ -247,7 +247,7 @@ Scales control the mapping between data values and visual properties. These exer
 
 **Task:** Create a scatter plot of `Sepal.Length` (x) vs `Petal.Length` (y), coloured by `Species`. Apply `scale_colour_brewer(palette = "Dark2")`. Set the legend title to "Iris Species" and apply `theme_minimal()`.
 
-```r
+```r title="Exercise: ColorBrewer palette"
 # Exercise 4: ColorBrewer palette
 p4 <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, colour = Species)) +
   geom_point(size = 2.5) +
@@ -261,7 +261,7 @@ p4
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ColorBrewer solution"
 p4 <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, colour = Species)) +
   geom_point(size = 2.5) +
   scale_colour_brewer(palette = "Dark2") +
@@ -291,7 +291,7 @@ p4
 
 Apply `theme_minimal()` and remove the legend (it's redundant with the x-axis).
 
-```r
+```r title="Exercise: custom fill colours"
 # Exercise 5: custom fill colours
 cyl_means <- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
 
@@ -308,7 +308,7 @@ p5
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Custom-fill solution"
 cyl_means <- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
 
 p5 <- ggplot(cyl_means, aes(x = factor(cyl), y = mpg, fill = factor(cyl))) +
@@ -339,7 +339,7 @@ p5
 2. Set the x-axis range from 0 to 3 using `scale_x_continuous(limits = ...)`
 3. Apply `theme_light()`
 
-```r
+```r title="Exercise: axis formatting"
 # Exercise 6: axis formatting
 set.seed(99)
 d_sample <- diamonds[sample(nrow(diamonds), 1000), ]
@@ -356,7 +356,7 @@ p6
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Axis-formatting solution"
 set.seed(99)
 d_sample <- diamonds[sample(nrow(diamonds), 1000), ]
 
@@ -392,7 +392,7 @@ Legends, panel backgrounds, and facet strips are all theme elements controlled b
 3. Set legend text to 11pt
 4. Apply `theme_minimal()`
 
-```r
+```r title="Exercise: legend customisation"
 # Exercise 7: legend customization
 p7 <- ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) +
   geom_point(size = 2.5) +
@@ -410,7 +410,7 @@ p7
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Legend solution"
 p7 <- ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) +
   geom_point(size = 2.5) +
   theme_minimal() +
@@ -444,7 +444,7 @@ p7
 3. Set panel background to white
 4. Keep `theme_minimal()` as the base
 
-```r
+```r title="Exercise: facet strip styling"
 # Exercise 8: facet strip styling
 p8 <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(colour = "#4B6FA5", alpha = 0.6) +
@@ -462,7 +462,7 @@ p8
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Facet-strip solution"
 p8 <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(colour = "#4B6FA5", alpha = 0.6) +
   facet_wrap(~drv) +
@@ -503,7 +503,7 @@ Real-world reporting means applying the same visual style to dozens of charts. W
 
 Test it by applying `theme_report()` to a scatter of `mtcars` `wt` vs `mpg`.
 
-```r
+```r title="Exercise: reusable themereport"
 # Exercise 9: build a reusable theme
 theme_report <- function() {
   # your code here
@@ -526,7 +526,7 @@ p9
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="themereport solution"
 theme_report <- function() {
   theme_minimal(base_size = 13) +
     theme(
@@ -574,7 +574,7 @@ p9
 6. Add title "Average Temperature by Month", subtitle "New York, May–September 1973", and caption "Source: airquality dataset"
 7. Remove the legend, colour is redundant with the x-axis labels
 
-```r
+```r title="Exercise: publication-ready line chart"
 # Exercise 10: publication-ready plot
 aq_summary <- aggregate(Temp ~ Month, data = airquality, FUN = mean)
 
@@ -589,7 +589,7 @@ p10
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Publication-ready solution"
 aq_summary <- aggregate(Temp ~ Month, data = airquality, FUN = mean)
 
 p10 <- ggplot(aq_summary, aes(x = Month, y = Temp, colour = factor(Month))) +
@@ -619,7 +619,7 @@ p10
 
 Here's a full pipeline combining themes, scales, and facets into one polished chart. This uses concepts from every exercise above.
 
-```r
+```r title="Faceted bar chart with full customisation"
 # Complete example: faceted bar chart with full customization
 dia_summary <- aggregate(price ~ cut + color, data = diamonds, FUN = mean)
 

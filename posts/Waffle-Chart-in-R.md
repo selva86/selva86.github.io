@@ -34,7 +34,7 @@ The `waffle` package by Bob Rudis extends ggplot2 with `geom_waffle()`, fitting 
 
 `geom_waffle()` takes counts in the `values` aesthetic and fills by a categorical variable. It arranges squares in rows across a grid.
 
-```r
+```r title="Basic vote-share waffle chart"
 library(ggplot2)
 library(waffle)
 
@@ -71,7 +71,7 @@ With `n_rows = 10` and total votes summing to 100, each square represents exactl
 
 The classic waffle chart convention: a 10×10 grid where each of the 100 squares = 1%. This requires your values to sum to exactly 100. Use `make_proportional = TRUE` to let geom_waffle rescale automatically.
 
-```r
+```r title="Use makeproportional for raw counts"
 # 10x10 grid with make_proportional: values don't need to sum to 100
 survey_df <- data.frame(
   response = c("Strongly Agree", "Agree", "Neutral", "Disagree"),
@@ -118,7 +118,7 @@ p_prop
 
 A single waffle chart shows one snapshot. Facets create multiple grids side by side, one per group, making comparison across time periods or categories intuitive.
 
-```r
+```r title="Faceted waffle by year"
 # Waffle facets: smartphone OS market share across 3 years
 os_df <- data.frame(
   year = rep(c("2021", "2022", "2023"), each = 3),
@@ -159,7 +159,7 @@ Each year gets its own 10×10 grid. The reader can compare Android's green area 
 
 The `waffle` package also provides a standalone `waffle()` function (no ggplot2 required) for rapid creation.
 
-```r
+```r title="Quick chart with waffle function"
 # Quick waffle with the base waffle() function
 # Values are raw counts; waffle() converts them to squares proportionally
 quick_waffle <- c(
@@ -185,7 +185,7 @@ The base `waffle()` function takes a named vector of values (not a data frame). 
 
 ## Complete Example: Polished Waffle with Annotations
 
-```r
+```r title="Polished waffle with annotations"
 # Polished waffle: internet access by income group
 access_df <- data.frame(
   group  = c("Has Access", "No Access"),
@@ -236,7 +236,7 @@ p_final
 
 Without `coord_equal()`, squares get stretched into rectangles based on the plot aspect ratio. Always add it.
 
-```r
+```r title="Common mistake: missing coordequal"
 # Wrong: squares become rectangles
 ggplot(...) + geom_waffle(...)
 
@@ -248,7 +248,7 @@ ggplot(...) + geom_waffle(...) + coord_equal()
 
 If you're not using `make_proportional = TRUE`, your values must sum to a multiple of `n_rows` (e.g., 100 for a 10×10 grid). Partial squares create visual artifacts.
 
-```r
+```r title="Common mistake: values sum mismatch"
 # Wrong: 47 + 35 + 20 = 102 ≠ 100
 data.frame(cat = c("A","B","C"), pct = c(47, 35, 20))
 
@@ -259,7 +259,7 @@ data.frame(cat = c("A","B","C"), pct = c(47, 34, 19))
 
 ### Mistake 3: Too many categories
 
-```r
+```r title="Common mistake: too many categories"
 # Wrong: 8 categories on a 10x10 grid = confusing patchwork
 data.frame(cat = LETTERS[1:8], pct = c(15,12,14,11,13,12,14,9))
 ```
@@ -290,7 +290,7 @@ Using the data below, create a 10×10 waffle chart. Use custom colors and add a 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Party vote waffle solution"
 library(ggplot2)
 library(waffle)
 
@@ -328,7 +328,7 @@ Extend Exercise 1 to show the same data for three election years with different 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Faceted election waffle solution"
 library(ggplot2)
 library(waffle)
 

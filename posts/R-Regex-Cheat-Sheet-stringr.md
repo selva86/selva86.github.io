@@ -33,7 +33,7 @@ Regex starts with matching what you can see, letters, digits, and punctuation. L
 
 The first code block loads stringr, creates the shared `texts` vector used throughout this cheat sheet, and runs three of the five literal-match patterns so you can see the output immediately.
 
-```r
+```r title="Literal, dot, and escape demonstrations"
 library(stringr)
 
 # Sample texts used throughout the cheat sheet
@@ -60,7 +60,7 @@ str_extract(texts, "\\.\\d+")
 
 **Try it:** Write a `str_detect()` call that returns TRUE only for strings containing a literal `$` sign. Test it on `ex_prices`.
 
-```r
+```r title="Exercise: detect the literal dollar sign"
 # Try it: detect the literal $ character
 ex_prices <- c("Price: $19.99", "Free", "Cost $0", "No charge")
 
@@ -72,7 +72,7 @@ ex_prices <- c("Price: $19.99", "Free", "Cost $0", "No charge")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dollar-sign solution"
 ex_prices <- c("Price: $19.99", "Free", "Cost $0", "No charge")
 str_detect(ex_prices, "\\$")
 #> [1]  TRUE FALSE  TRUE FALSE
@@ -98,7 +98,7 @@ Character classes match one character from a defined set. Square brackets create
 
 Each shorthand class has an uppercase negation: `\\D` matches non-digits, `\\W` matches non-word characters, and `\\S` matches non-whitespace. The next code block demonstrates the four most common patterns on our sample data plus a messy phone string.
 
-```r
+```r title="Character classes and shorthand extraction"
 # Sample data: messy whitespace and casing for later examples
 messy_data <- c("  extra spaces  ", "MiXeD CaSe", "line1\nline2",
                 "file.R", "data.csv", "report.pdf")
@@ -128,7 +128,7 @@ The `\\d+` pattern finds the first digit run in each string, "1234" in the order
 
 **Try it:** Use a character class to extract every letter (upper or lower case) from `ex_noise`, returning them in a single vector.
 
-```r
+```r title="Exercise: extract every letter"
 # Try it: extract all letters
 ex_noise <- "a1b 2c!3D?4E"
 
@@ -140,7 +140,7 @@ ex_noise <- "a1b 2c!3D?4E"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Letter-extract solution"
 ex_noise <- "a1b 2c!3D?4E"
 str_extract_all(ex_noise, "[a-zA-Z]")
 #> [[1]]
@@ -167,7 +167,7 @@ Quantifiers tell the regex engine how many times to repeat the preceding element
 
 Let's see how quantifiers affect extraction on phone numbers and HTML, the two classic examples where greediness catches people off guard.
 
-```r
+```r title="Greedy versus lazy quantifiers"
 phones <- c("555-867-5309", "555-12-3456", "1-800-555-0199")
 
 # Pattern 16: Exact count — match runs of exactly 3 digits
@@ -195,7 +195,7 @@ The greedy `<.+>` swallows everything from the first `<` to the last `>`, one hu
 
 **Try it:** Extract every 4-digit year from `ex_years` as a character vector.
 
-```r
+```r title="Exercise: extract four-digit years"
 # Try it: extract 4-digit years
 ex_years <- "Founded in 1776, revised in 1865, amended in 1920 and 2008."
 
@@ -207,7 +207,7 @@ ex_years <- "Founded in 1776, revised in 1865, amended in 1920 and 2008."
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four-digit-years solution"
 ex_years <- "Founded in 1776, revised in 1865, amended in 1920 and 2008."
 str_extract_all(ex_years, "\\d{4}")
 #> [[1]]
@@ -231,7 +231,7 @@ Anchors match a position, not a character. They answer "where in the string?" wi
 
 Anchors are essential for validation. Want to check if a string starts with a digit? Use `^\\d`. Want to confirm a filename ends in `.csv`? Use `\\.csv$`.
 
-```r
+```r title="Anchors and word boundaries"
 words <- c("apple", "pineapple", "app", "application", "grapple")
 
 # Pattern 20: ^ matches at the start only
@@ -258,7 +258,7 @@ Without anchors, `"app"` would match anywhere inside a string. The word-boundary
 
 **Try it:** Return a logical vector indicating which filenames in `ex_files` end with the `.csv` extension (escape the dot properly).
 
-```r
+```r title="Exercise: detect .csv file names"
 # Try it: detect .csv files
 ex_files <- c("data.csv", "report.pdf", "summaryXcsv", "notes.csv")
 
@@ -270,7 +270,7 @@ ex_files <- c("data.csv", "report.pdf", "summaryXcsv", "notes.csv")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="CSV-endings solution"
 ex_files <- c("data.csv", "report.pdf", "summaryXcsv", "notes.csv")
 str_detect(ex_files, "\\.csv$")
 #> [1]  TRUE FALSE FALSE  TRUE
@@ -293,7 +293,7 @@ Groups wrap part of a pattern in parentheses. Capturing groups `()` let you extr
 
 Use `str_match()` instead of `str_extract()` when you need captured group contents. `str_match()` returns a matrix with the full match in column 1 and each captured group in the following columns.
 
-```r
+```r title="Capture groups and alternation"
 dates <- c("2026-04-06", "2025-12-25", "2024-01-15")
 
 # Pattern 24: Capturing groups — pull year, month, day separately
@@ -321,7 +321,7 @@ The backreference `\\1` refers to whatever the first group captured. In the typo
 
 **Try it:** Extract just the 3-digit area code from `ex_phone` using a capturing group and `str_match()`.
 
-```r
+```r title="Exercise: extract the area code"
 # Try it: extract area code
 ex_phone <- "(415) 555-0199"
 
@@ -333,7 +333,7 @@ ex_phone <- "(415) 555-0199"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Area-code solution"
 ex_phone <- "(415) 555-0199"
 str_match(ex_phone, "\\((\\d{3})\\)")[, 2]
 #> [1] "415"
@@ -355,7 +355,7 @@ Lookarounds are zero-width assertions. They check what is next to a position wit
 
 These are most useful when you want to grab text adjacent to a delimiter, like the digits after a `$` sign or the word before a colon, without pulling the delimiter into the result.
 
-```r
+```r title="Lookahead and lookbehind on prices"
 prices <- c("Price: $19.99", "Cost: $5.50", "Tax: $2.00", "Free: $0.00")
 
 # Pattern 30: Lookbehind — extract the number that follows $
@@ -379,7 +379,7 @@ The lookbehind `(?<=\\$)` positions the match right after a dollar sign, the `$`
 
 **Try it:** Extract the label (the word before `=`) from each string in `ex_labels`.
 
-```r
+```r title="Exercise: extract key side of pairs"
 # Try it: extract the left side of key=value pairs
 ex_labels <- c("name=alice", "age=30", "country=france")
 
@@ -391,7 +391,7 @@ ex_labels <- c("name=alice", "age=30", "country=france")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Key-side solution"
 ex_labels <- c("name=alice", "age=30", "country=france")
 str_extract(ex_labels, "\\w+(?==)")
 #> [1] "name"    "age"     "country"
@@ -407,7 +407,7 @@ str_extract(ex_labels, "\\w+(?==)")
 
 Given a vector of strings, return a logical vector marking which ones look like valid email addresses. A valid email has word characters, an `@`, more word characters, an escaped dot, and a 2-4 letter extension, all anchored from start to end.
 
-```r
+```r title="Exercise: validate email addresses"
 # Capstone 1: email validation
 my_emails <- c("alice@company.com", "not-an-email", "bob@test.io",
                "bad@", "carol@sub.domain.org", "@nope.com")
@@ -420,7 +420,7 @@ my_emails <- c("alice@company.com", "not-an-email", "bob@test.io",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Email-validator solution"
 my_emails <- c("alice@company.com", "not-an-email", "bob@test.io",
                "bad@", "carol@sub.domain.org", "@nope.com")
 my_email_pattern <- "^[\\w.]+@[\\w.]+\\.[a-zA-Z]{2,4}$"
@@ -436,7 +436,7 @@ str_detect(my_emails, my_email_pattern)
 
 Given a vector of URLs, use capturing groups and `str_match()` to pull the scheme (`http` or `https`), the host, and the path into a matrix. Store the result in `my_parts`.
 
-```r
+```r title="Exercise: parse URLs into parts"
 # Capstone 2: parse URLs
 my_urls <- c("https://r-statistics.co/posts/index.html",
              "http://example.com/about",
@@ -450,7 +450,7 @@ my_urls <- c("https://r-statistics.co/posts/index.html",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="URL-parse solution"
 my_urls <- c("https://r-statistics.co/posts/index.html",
              "http://example.com/about",
              "https://cran.r-project.org/web/packages/")
@@ -470,7 +470,7 @@ print(my_parts)
 
 Given a vector of messy phone-number strings, extract only the digits, then reformat to the standard `XXX-XXX-XXXX` pattern. Assume every input has exactly 10 digits.
 
-```r
+```r title="Exercise: normalise phone numbers"
 # Capstone 3: extract digits and reformat
 my_raw_phones <- c("(555) 867-5309", "555.867.5309",
                    "555 867 5309", "5558675309")
@@ -484,7 +484,7 @@ my_raw_phones <- c("(555) 867-5309", "555.867.5309",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Phone-normalise solution"
 my_raw_phones <- c("(555) 867-5309", "555.867.5309",
                    "555 867 5309", "5558675309")
 my_digits <- str_replace_all(my_raw_phones, "[^0-9]", "")
@@ -503,7 +503,7 @@ print(my_formatted)
 
 Let's combine multiple patterns in a realistic task: extracting structured data from messy server log entries into a clean data frame.
 
-```r
+```r title="Parse server logs into a data frame"
 # Complete example: parse server log entries into a data frame
 log_entries <- c(
   "2026-04-06 08:15:32 [INFO] GET /api/users 200 45ms",

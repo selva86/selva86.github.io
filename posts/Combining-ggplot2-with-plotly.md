@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 You have a polished ggplot2 scatter plot and your stakeholder asks "can I hover over the points to see which car that is?" With base ggplot2, the answer is a flat PNG. With plotly, the answer is one function call. `ggplotly()` reads every aesthetic, axis, and layer from your ggplot object and rebuilds it as a JavaScript widget the reader can explore.
 
-```r
+```r title="Build a static mpg scatter"
 library(ggplot2)
 library(plotly)
 
@@ -39,7 +39,7 @@ p
 
 That static chart already tells a story. Now make it interactive with a single line.
 
-```r
+```r title="Convert ggplot to interactive"
 ggplotly(p)
 #> An interactive plotly widget:
 #>   - Hover over any point to see class, displ, and hwy
@@ -55,7 +55,7 @@ Every aesthetic you mapped in ggplot2, colour, size, shape, carries over. The to
 
 **Try it:** Build a bar chart counting the number of cars per `class` in `mpg` using `geom_bar()`, then convert it with `ggplotly()`.
 
-```r
+```r title="Exercise: interactive bar chart"
 # Try it: bar chart → interactive
 ex_bar <- ggplot(mpg, aes(x = class)) +
   geom_bar(fill = "steelblue") +
@@ -68,7 +68,7 @@ ex_bar <- ggplot(mpg, aes(x = class)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_bar <- ggplot(mpg, aes(x = class)) +
   geom_bar(fill = "steelblue") +
   labs(title = "Cars by Class")
@@ -86,7 +86,7 @@ By default, `ggplotly()` shows every mapped aesthetic in the tooltip, x, y, colo
 
 Let's start by limiting the tooltip to just the x and y values.
 
-```r
+```r title="Limit tooltip to x and y"
 p2 <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2) +
   labs(x = "Displacement (L)", y = "Highway MPG")
@@ -99,7 +99,7 @@ ggplotly(p2, tooltip = c("x", "y"))
 
 That cleans up the hover, but sometimes you want a completely custom label, the car's manufacturer and model, plus formatted numbers. The `text` aesthetic is your tool for that.
 
-```r
+```r title="Build custom tooltip with paste"
 p3 <- ggplot(mpg, aes(x = displ, y = hwy, color = class,
                        text = paste("Model:", manufacturer, model,
                                     "\nYear:", year,
@@ -121,7 +121,7 @@ When you set `tooltip = "text"`, plotly ignores all the default aesthetics and o
 
 Let's try HTML-formatted tooltips for a cleaner look.
 
-```r
+```r title="Format tooltip with HTML tags"
 p4 <- ggplot(mpg, aes(x = displ, y = hwy, color = class,
                        text = paste0("<b>", manufacturer, " ", model, "</b>",
                                      "<br>Engine: ", displ, "L",
@@ -138,7 +138,7 @@ The HTML approach makes tooltips readable even when you pack four or five fields
 
 **Try it:** Using the `iris` dataset, create a scatter plot of `Sepal.Length` vs `Petal.Length` coloured by `Species`. Build a custom tooltip showing the species name and petal length. Show only that tooltip.
 
-```r
+```r title="Exercise: formatted iris tooltip"
 # Try it: custom tooltip with iris
 ex_iris <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species,
                             text = "your tooltip here")) +
@@ -151,7 +151,7 @@ ex_iris <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_iris <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species,
                             text = paste0("<b>", Species, "</b>",
                                           "<br>Petal Length: ", Petal.Length))) +
@@ -169,7 +169,7 @@ ggplotly(ex_iris, tooltip = "text")
 
 Controlling *what* appears in the tooltip is half the story. The other half is *how* it looks. The `layout()` function controls the tooltip's background colour, font, and border. You chain it after `ggplotly()` using the pipe or the plotly-style `%>%`.
 
-```r
+```r title="Style the hover label box"
 p5 <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2)
 
@@ -189,7 +189,7 @@ The `hoverlabel` argument accepts `bgcolor`, `font` (with `family`, `size`, `col
 
 For charts with multiple traces, like a line chart with several groups, the default "closest" hover mode shows the tooltip for whichever point is nearest to the cursor. That works for scatter plots, but for time series you often want to compare all y-values at the same x.
 
-```r
+```r title="Unified x axis hover mode"
 economics_long <- tidyr::pivot_longer(economics, cols = c(unemploy, pop),
                                        names_to = "metric", values_to = "value")
 
@@ -208,7 +208,7 @@ ggplotly(p6) |>
 
 **Try it:** Take the scatter plot from the first section (engine size vs highway MPG) and style the tooltip with a light yellow background (`"#FFFFF0"`) and a font size of 14.
 
-```r
+```r title="Exercise: style hover label"
 # Try it: style the tooltip box
 ex_style <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2)
@@ -220,7 +220,7 @@ ex_style <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_style <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2)
 
@@ -242,7 +242,7 @@ Not every geom survives the conversion equally. Most common geoms, points, lines
 
 Here's a quick demo. All three geoms below convert cleanly.
 
-```r
+```r title="Scatter line and bar basics"
 p_point <- ggplot(mtcars, aes(x = wt, y = mpg)) + geom_point()
 p_line <- ggplot(economics, aes(x = date, y = unemploy)) + geom_line()
 p_bar <- ggplot(mpg, aes(x = class)) + geom_bar()
@@ -257,7 +257,7 @@ ggplotly(p_bar)
 
 All three behave exactly as you'd expect. Now let's look at a geom that needs a small fix: `geom_smooth()`.
 
-```r
+```r title="Skip hover on smoothing layer"
 p_smooth <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
   geom_smooth(method = "lm", se = TRUE)
@@ -294,7 +294,7 @@ Here's the full compatibility table:
 
 Let's also look at `geom_text()`. The labels convert, but plotly sometimes positions them differently than ggplot2.
 
-```r
+```r title="Label points with geom text"
 top_cars <- head(mtcars[order(-mtcars$mpg), ], 5)
 top_cars$name <- rownames(top_cars)
 
@@ -311,7 +311,7 @@ For precise label positioning after conversion, plotly's `layout(annotations = .
 
 **Try it:** Create a scatter plot of `mtcars` (wt vs mpg) with a `geom_smooth(method = "lm")` layer. Convert it with `ggplotly()` and suppress hover on the smooth trace using `style()`.
 
-```r
+```r title="Exercise: add smooth with hover skipped"
 # Try it: suppress smooth line hover
 ex_smooth <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -324,7 +324,7 @@ ex_smooth <- ggplot(mtcars, aes(x = wt, y = mpg)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_smooth <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
   geom_smooth(method = "lm")
@@ -344,7 +344,7 @@ By default, click-drag zooms into a rectangular region. Double-click resets. The
 
 Let's switch the default drag mode from zoom to pan.
 
-```r
+```r title="Enable pan drag mode"
 p_pan <- ggplot(economics, aes(x = date, y = unemploy)) +
   geom_line(color = "steelblue") +
   labs(x = "Date", y = "Unemployed (thousands)")
@@ -359,7 +359,7 @@ Panning is more intuitive than zooming for time series, where readers want to sc
 
 The `config()` function controls the toolbar buttons. You can remove buttons you don't need, add a custom download format, or hide the toolbar entirely.
 
-```r
+```r title="Remove buttons and set PNG export"
 ggplotly(p_pan) |>
   layout(dragmode = "zoom") |>
   config(
@@ -373,7 +373,7 @@ ggplotly(p_pan) |>
 
 For time series data, the range slider gives readers a mini-map at the bottom of the chart. They can drag handles to zoom the x-axis while keeping the global view visible.
 
-```r
+```r title="Add a range slider"
 p_slider <- ggplot(economics, aes(x = date, y = unemploy)) +
   geom_line(color = "steelblue") +
   labs(x = "Date", y = "Unemployed (thousands)")
@@ -390,7 +390,7 @@ ggplotly(p_slider) |>
 
 **Try it:** Take any line chart and set the default drag mode to `"select"` and remove the `"lasso2d"` button from the toolbar.
 
-```r
+```r title="Exercise: customise toolbar buttons"
 # Try it: customise toolbar
 ex_toolbar <- ggplot(economics, aes(x = date, y = pop)) +
   geom_line()
@@ -402,7 +402,7 @@ ex_toolbar <- ggplot(economics, aes(x = date, y = pop)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_toolbar <- ggplot(economics, aes(x = date, y = pop)) +
   geom_line()
 
@@ -422,7 +422,7 @@ plotly can animate your ggplot2 charts, scatter points that move across frames, 
 
 Let's create some sample data with three time periods and animate a scatter plot.
 
-```r
+```r title="Animate frames by year"
 set.seed(2026)
 anim_data <- data.frame(
   x = rep(1:10, 3),
@@ -445,7 +445,7 @@ The `frame` aesthetic tells plotly which variable defines the animation steps. p
 
 You can fine-tune the animation speed and transition style with `animation_opts()`.
 
-```r
+```r title="Tune animation timing and easing"
 ggplotly(p_anim) |>
   animation_opts(frame = 800, transition = 400, easing = "elastic")
 #> Frames last 800ms each, transitions take 400ms with elastic easing
@@ -459,7 +459,7 @@ The `frame` parameter controls how long each frame stays visible (milliseconds).
 
 **Try it:** Create an animated bar chart that shows the mean `mpg` for each `cyl` group in `mtcars`, using `cyl` as the frame variable. Use `stat_summary()` with `fun = mean`.
 
-```r
+```r title="Exercise: animated bar race"
 # Try it: animated bar chart
 ex_anim <- ggplot(mtcars, aes(x = factor(gear), y = mpg, frame = factor(cyl))) +
   # your code here — use stat_summary or geom_col
@@ -472,7 +472,7 @@ ex_anim <- ggplot(mtcars, aes(x = factor(gear), y = mpg, frame = factor(cyl))) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_anim <- ggplot(mtcars, aes(x = factor(gear), y = mpg, frame = factor(cyl))) +
   stat_summary(fun = mean, geom = "col", fill = "steelblue") +
   labs(x = "Gears", y = "Mean MPG")
@@ -492,7 +492,7 @@ Interactive charts aren't PNGs, they're HTML with embedded JavaScript. Saving an
 
 The `htmlwidgets::saveWidget()` function saves any plotly chart as a self-contained HTML file that anyone can open in a browser.
 
-```r
+```r title="Save widget as standalone HTML"
 final_save <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2)
 
@@ -512,7 +512,7 @@ For R Markdown and Quarto documents, you don't need `saveWidget()` at all. Just 
 
 **Try it:** Save one of the previous scatter plots as an HTML file named `"scatter_interactive.html"`.
 
-```r
+```r title="Exercise: save interactive plot"
 # Try it: save as HTML
 ex_save <- ggplot(mtcars, aes(x = wt, y = mpg)) + geom_point()
 ex_widget <- ggplotly(ex_save)
@@ -524,7 +524,7 @@ ex_widget <- ggplotly(ex_save)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_save <- ggplot(mtcars, aes(x = wt, y = mpg)) + geom_point()
 ex_widget <- ggplotly(ex_save)
 htmlwidgets::saveWidget(ex_widget, "scatter_interactive.html", selfcontained = TRUE)
@@ -541,7 +541,7 @@ htmlwidgets::saveWidget(ex_widget, "scatter_interactive.html", selfcontained = T
 
 Build a scatter plot of `mtcars` with `wt` on x, `mpg` on y, coloured by `factor(cyl)`. Create a custom tooltip showing the car name (use `rownames(mtcars)`), horsepower, and quarter-mile time. Style the tooltip with a white background and 12px font.
 
-```r
+```r title="Practice one: custom tooltip and hover style"
 # Exercise 1: Custom tooltip + styled hover
 # Hint: add a name column with rownames(), map text in aes(), use layout(hoverlabel)
 
@@ -552,7 +552,7 @@ Build a scatter plot of `mtcars` with `wt` on x, `mpg` on y, coloured by `factor
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice one solution"
 my_cars <- mtcars
 my_cars$name <- rownames(mtcars)
 
@@ -580,7 +580,7 @@ ggplotly(my_p1, tooltip = "text") |>
 
 Create a faceted ggplot2 line chart: for each `cyl` value in `mtcars`, plot `mpg` against `wt` (sorted by wt) using `geom_line()` + `geom_point()`. Use `facet_wrap(~cyl)`. Convert to plotly, set hover mode to `"x unified"`, and remove the lasso button from the toolbar.
 
-```r
+```r title="Practice two: faceted unified hover"
 # Exercise 2: faceted chart + unified hover + toolbar config
 # Hint: facet_wrap(~cyl), then chain layout() and config() after ggplotly()
 
@@ -591,7 +591,7 @@ Create a faceted ggplot2 line chart: for each `cyl` value in `mtcars`, plot `mpg
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice two solution"
 my_sorted <- mtcars[order(mtcars$wt), ]
 my_sorted$cyl_f <- factor(my_sorted$cyl)
 
@@ -617,7 +617,7 @@ ggplotly(my_p2) |>
 
 Create a dataset with 3 groups (`"Low"`, `"Mid"`, `"High"`), 3 years (2020, 2022, 2024), and 8 observations per group-year. Animate a scatter plot by year with custom tooltips showing the group, x value, and y value. Set the transition to 500ms with `"cubic-in-out"` easing.
 
-```r
+```r title="Practice three: animated scatter"
 # Exercise 3: animated scatter with tooltips
 # Hint: set.seed(), expand.grid() or manual data.frame, map frame in aes()
 
@@ -628,7 +628,7 @@ Create a dataset with 3 groups (`"Low"`, `"Mid"`, `"High"`), 3 years (2020, 2022
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice three solution"
 set.seed(99)
 my_anim_data <- data.frame(
   x = rep(1:8, 9),
@@ -660,7 +660,7 @@ ggplotly(my_p3, tooltip = "text") |>
 
 Let's build a complete interactive chart from scratch, styled, labelled, and ready to share.
 
-```r
+```r title="End-to-end styled mpg plot"
 mpg_styled <- mpg
 mpg_styled$tooltip_text <- paste0(
   "<b>", mpg_styled$manufacturer, " ", mpg_styled$model, "</b>",

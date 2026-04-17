@@ -24,7 +24,7 @@ The gamma distribution is what you get when you add up `k` independent exponenti
 
 The code below loads `ggplot2` and `tibble`, builds a grid of x-values, computes the gamma density at three shape values (1, 3, and 6) with rate fixed at 1, and plots the three curves on one chart. Watch how the shape parameter pulls the peak to the right and makes the tail heavier.
 
-```r
+```r title="Plot gamma densities for three shapes"
 # Plot gamma densities for shapes 1, 3, 6 at rate = 1
 library(ggplot2)
 library(tibble)
@@ -54,7 +54,7 @@ Shape 1 is the familiar exponential decay, a purely monotonic curve starting at 
 
 **Try it:** Evaluate `dgamma()` at x = 3 and `pgamma()` at q = 3 for Gamma(shape = 2, rate = 1). The first gives the height of the density, the second gives the probability of being at or below 3.
 
-```r
+```r title="Exercise: density and probability at three"
 # Try it: density and cumulative probability at x = 3
 # your code here
 
@@ -64,7 +64,7 @@ Shape 1 is the familiar exponential decay, a purely monotonic curve starting at 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Density-at-three solution"
 dgamma(3, shape = 2, rate = 1)
 #> [1] 0.1493612
 pgamma(3, shape = 2, rate = 1)
@@ -97,7 +97,7 @@ Where:
 
 In R, the two parameterisations are fully equivalent. The next block computes the density at x = 1 using `rate = 2` and then using `scale = 0.5`, identical numbers fall out because they describe the same distribution.
 
-```r
+```r title="Rate and scale give the same density"
 # Equivalent calls using rate and scale
 dgamma(1, shape = 3, rate  = 2)
 #> [1] 0.2706706
@@ -107,7 +107,7 @@ dgamma(1, shape = 3, scale = 0.5)
 
 Both calls describe the same Gamma(3, rate = 2) distribution, just with a different vocabulary. Pick whichever convention matches the formula in your source material and stick with it for an entire analysis. Now let's see how the shape parameter alone reshapes the density while rate is held at 1.
 
-```r
+```r title="Compare gamma shapes 1, 2, 5, 10"
 # Compare shapes 1, 2, 5, 10 at rate = 1 using the same x_grid
 gamma_shape_curves <- tibble(
   x       = rep(x_grid, 4),
@@ -132,7 +132,7 @@ As shape grows, the peak moves right and the curve grows progressively more symm
 
 **Try it:** Compute the probability that a Gamma(shape = 3, rate = 0.5) draw exceeds 10. Use `pgamma()` with `lower.tail = FALSE`.
 
-```r
+```r title="Exercise: tail probability past ten"
 # Try it: P(X > 10) for Gamma(3, rate = 0.5)
 # your code here
 
@@ -142,7 +142,7 @@ As shape grows, the peak moves right and the curve grows progressively more symm
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tail-past-ten solution"
 pgamma(10, shape = 3, rate = 0.5, lower.tail = FALSE)
 #> [1] 0.1246520
 ```
@@ -164,7 +164,7 @@ $$\text{mean} = \frac{\alpha}{\alpha + \beta}, \qquad \text{concentration} = \al
 
 The next block plots five beta densities covering the full range of shapes you're likely to meet in practice: uniform, U-shape, left-skew, right-skew, and tight symmetric.
 
-```r
+```r title="Plot beta densities for five shapes"
 # Plot beta densities for five parameter combinations
 p_grid <- seq(0.001, 0.999, length.out = 400)
 
@@ -196,7 +196,7 @@ Beta(1, 1) is the flat uniform, a reasonable prior when you want to say "I know 
 
 **Try it:** Find the 2.5% and 97.5% quantiles of a Beta(10, 20) distribution. Together they form a 95% central interval.
 
-```r
+```r title="Exercise: 95% interval of Beta(10,20)"
 # Try it: 95% central interval of Beta(10, 20)
 # your code here
 
@@ -206,7 +206,7 @@ Beta(1, 1) is the flat uniform, a reasonable prior when you want to say "I know 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Beta-interval solution"
 qbeta(c(0.025, 0.975), shape1 = 10, shape2 = 20)
 #> [1] 0.1820 0.5072
 ```
@@ -228,7 +228,7 @@ R follows the same four-letter convention for every distribution: `d` = density,
 
 The next block exercises all four for a Gamma(3, 1) and a Beta(5, 2), one line each, to anchor the pattern.
 
-```r
+```r title="Four d/p/q/r calls for each family"
 # d/p/q/r tour for Gamma(3, 1) and Beta(5, 2)
 set.seed(17)
 
@@ -255,7 +255,7 @@ The pattern is fully regular, pick your distribution, pick your question (densit
 
 **Try it:** Draw 1000 samples from Beta(2, 5). Check that the sample mean is close to the theoretical mean `α / (α + β) = 2/7 ≈ 0.286`.
 
-```r
+```r title="Exercise: Monte Carlo check of beta mean"
 # Try it: Monte Carlo check for Beta mean
 # your code here
 
@@ -265,7 +265,7 @@ The pattern is fully regular, pick your distribution, pick your question (densit
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Monte-Carlo-mean solution"
 set.seed(99)
 ex_sample_mean <- mean(rbeta(1000, shape1 = 2, shape2 = 5))
 ex_sample_mean
@@ -291,7 +291,7 @@ $$p(\theta \mid x) \propto \theta^{\alpha + x - 1} (1 - \theta)^{\beta + n - x -
 
 That is the kernel of Beta(α + x, β + n − x), which is why the update is algebra rather than calculus. Let's run a concrete example: a weakly informative Beta(2, 2) prior, a coin that lands heads 7 times in 10 flips, and the resulting Beta(9, 5) posterior.
 
-```r
+```r title="Beta-binomial conjugate update"
 # Beta-binomial conjugate update
 prior_ab <- c(alpha = 2, beta = 2)
 n_trials <- 10
@@ -328,7 +328,7 @@ The prior Beta(2, 2) is a gentle bump around 0.5, a mild belief in a fair coin. 
 
 **Try it:** Repeat the update but with a much more opinionated Beta(20, 20) prior. Compare the posterior mean to the simple frequentist estimate 7/10.
 
-```r
+```r title="Exercise: strong prior with 7 of 10"
 # Try it: strong prior + 7/10 heads
 # your code here
 
@@ -338,7 +338,7 @@ The prior Beta(2, 2) is a gentle bump around 0.5, a mild belief in a fair coin. 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Strong-prior solution"
 ex_strong_prior <- c(alpha = 20, beta = 20)
 ex_strong_post  <- c(alpha = ex_strong_prior["alpha"] + 7,
                      beta  = ex_strong_prior["beta"]  + 10 - 7)
@@ -364,7 +364,7 @@ The gamma distribution is the conjugate prior for the rate parameter of a Poisso
 
 Concretely: suppose you run a blog and want to estimate its daily visitor rate. You start with a weak prior Gamma(2, 1) expressing "I think the rate is around 2 visits/day but I'm not sure." Then you collect 5 days of data and see a total of 37 visits. The posterior is Gamma(2 + 37, 1 + 5) = Gamma(39, 6).
 
-```r
+```r title="Gamma-Poisson visitor rate update"
 # Gamma-Poisson conjugate update for visitor rate
 visit_prior <- c(alpha = 2, beta = 1)
 total_visits <- 37
@@ -389,7 +389,7 @@ The posterior mean is 6.5 visits/day, and the 95% credible interval runs from ab
 
 **Try it:** A second week brings in 45 visits over 7 days. Update the Gamma(39, 6) posterior to a new posterior and report its mean.
 
-```r
+```r title="Exercise: sequential gamma update"
 # Try it: sequential update
 # your code here
 
@@ -399,7 +399,7 @@ The posterior mean is 6.5 visits/day, and the 95% credible interval runs from ab
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sequential-update solution"
 ex_new_post <- c(alpha = visit_post["alpha"] + 45,
                  beta  = visit_post["beta"]  + 7)
 ex_new_post
@@ -429,7 +429,7 @@ An insurance company models its daily total claim amount (in thousands) as Gamma
 
 Save the two answers to `claim_tail` and `claim_q99`.
 
-```r
+```r title="Exercise: claim tail and quantile"
 # Exercise 1: claim tail and quantile
 # Hint: use lower.tail = FALSE for the first, qgamma for the second
 
@@ -440,7 +440,7 @@ Save the two answers to `claim_tail` and `claim_q99`.
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Claim-tail solution"
 claim_tail <- pgamma(15, shape = 4, rate = 0.5, lower.tail = FALSE)
 claim_q99  <- qgamma(0.99, shape = 4, rate = 0.5)
 claim_tail
@@ -457,7 +457,7 @@ claim_q99
 
 You run an A/B test. Control: 48 conversions in 200 visitors. Variant: 62 conversions in 200 visitors. Using a weakly informative Beta(1, 1) prior for both, compute each posterior, then simulate 20,000 draws from each posterior to estimate `P(variant rate > control rate)`. Save to `prob_variant_better`.
 
-```r
+```r title="Exercise: posterior probability of lift"
 # Exercise 2: posterior probability of lift
 # Hint: posterior for each group is Beta(1 + successes, 1 + failures)
 #       sample from rbeta() and compare
@@ -469,7 +469,7 @@ You run an A/B test. Control: 48 conversions in 200 visitors. Variant: 62 conver
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Lift-probability solution"
 set.seed(2026)
 n_sim <- 20000
 
@@ -489,7 +489,7 @@ prob_variant_better
 
 A full A/B test workflow that ties gamma, beta, and conjugate updating together in one worked analysis. Two groups with Beta(1, 1) priors, their posteriors plotted, and a posterior probability of lift.
 
-```r
+```r title="End-to-end A/B test analysis"
 # Full A/B test posterior analysis
 set.seed(42)
 

@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Base R has `as.Date()` and `as.POSIXct()`, but both force you to specify the input format with an obscure `%Y-%m-%d` string. Get one character wrong and you silently parse nothing. Worse, base R is inconsistent about what "month" returns, how to add a month, and how time zones interact. lubridate replaces all of that with a family of parsers named after the order of their components. Let's start with the payoff, parsing five messy date strings with zero format strings.
 
-```r
+```r title="Parse five date formats"
 library(lubridate)
 
 dates <- c("2026-04-11", "11/04/2026", "April 11, 2026", "20260411", "11-Apr-2026")
@@ -49,7 +49,7 @@ Five formats, zero `%Y-%m-%d` strings. The function name tells lubridate the ord
 
 **Try it:** Parse the vector below with the correct lubridate function.
 
-```r
+```r title="Exercise: Parse day-first dates"
 library(lubridate)
 raw <- c("15/03/2024", "01/01/2025", "31/12/2023")
 # Hint: these are day-first
@@ -58,7 +58,7 @@ raw <- c("15/03/2024", "01/01/2025", "31/12/2023")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Day-first parse solution"
 dmy(raw)
 #> [1] "2024-03-15" "2025-01-01" "2023-12-31"
 ```
@@ -71,7 +71,7 @@ The components run day-month-year, so `dmy()` is the right parser. The function 
 
 Parser functions fall into three tiers: pure dates (`ymd`, `mdy`, `dmy`, `ydm`, `myd`, `dym`), date-times (`ymd_h`, `ymd_hm`, `ymd_hms`, and all permutations), and specialized parsers (`parse_date_time` for unusual formats, `fast_strptime` when performance matters).
 
-```r
+```r title="Date and POSIXct parsing tiers"
 library(lubridate)
 
 # Pure dates → Date class
@@ -94,7 +94,7 @@ dt2
 
 When the format is irregular, `parse_date_time` accepts an orders vector and tries each in order:
 
-```r
+```r title="parsedatetime with order fallbacks"
 messy <- c("2026-04-11", "April 11 2026", "11/04/2026")
 parse_date_time(messy, orders = c("ymd", "mdy", "dmy"))
 #> [1] "2026-04-11 UTC" "2026-04-11 UTC" "2026-04-11 UTC"
@@ -106,7 +106,7 @@ This is the rescue function for real-world data where the source export mixes fo
 
 **Try it:** Parse this mixed vector with `parse_date_time` using an orders vector.
 
-```r
+```r title="Exercise: Parse mixed datetime strings"
 library(lubridate)
 mixed <- c("2026-01-15 10:30", "Jan 15 2026 10:30", "15/01/2026 10:30")
 # Hint: orders = c("ymd HM", "mdy HM", "dmy HM")
@@ -115,7 +115,7 @@ mixed <- c("2026-01-15 10:30", "Jan 15 2026 10:30", "15/01/2026 10:30")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mixed datetime solution"
 parse_date_time(mixed, orders = c("ymd HM", "mdy HM", "dmy HM"))
 #> [1] "2026-01-15 10:30:00 UTC" "2026-01-15 10:30:00 UTC" "2026-01-15 10:30:00 UTC"
 ```
@@ -128,7 +128,7 @@ parse_date_time(mixed, orders = c("ymd HM", "mdy HM", "dmy HM"))
 
 Once a value is a Date or POSIXct, lubridate gives you an accessor for every meaningful piece. Each accessor has a consistent name and returns the natural type, an integer for numeric parts and an ordered factor for labeled parts.
 
-```r
+```r title="Component accessors for year and weekday"
 library(lubridate)
 
 x <- ymd_hms("2026-04-11 14:30:45")
@@ -166,7 +166,7 @@ week(x)
 
 The real power comes when you combine these inside a dplyr pipeline. Want average sales by weekday? One mutate and one group_by.
 
-```r
+```r title="Weekday totals from transactions"
 library(dplyr); library(lubridate)
 
 transactions <- tibble(
@@ -194,7 +194,7 @@ transactions |>
 
 **Try it:** From the vector below, compute the month and the weekday name for each date.
 
-```r
+```r title="Exercise: Month and weekday labels"
 library(lubridate)
 dts <- ymd(c("2026-01-01", "2026-06-15", "2026-12-31"))
 # Use month(..., label=TRUE) and wday(..., label=TRUE)
@@ -203,7 +203,7 @@ dts <- ymd(c("2026-01-01", "2026-06-15", "2026-12-31"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Month and weekday labels solution"
 month(dts, label = TRUE)
 #> [1] Jan Jun Dec
 #> Levels: Jan < Feb < ... < Dec
@@ -221,7 +221,7 @@ wday(dts, label = TRUE, week_start = 1)
 
 The obvious question, "how many days between these two dates?", has a simple answer:
 
-```r
+```r title="Days between two dates"
 library(lubridate)
 
 start <- ymd("2026-01-01")
@@ -237,7 +237,7 @@ Subtracting two Dates returns a `difftime` object. Wrap it in `as.numeric` for a
 
 Adding time to a date is where lubridate's design really shines. You do not write `"2026-04-11" + 30`; you say what kind of unit you are adding.
 
-```r
+```r title="Add periods to a start date"
 start + days(10)
 #> [1] "2026-01-11"
 
@@ -253,7 +253,7 @@ start + years(1)
 
 `days`, `weeks`, `months`, `years`, `hours`, `minutes`, `seconds`, each returns a period that lubridate adds according to calendar rules. "Three months after January 1st" means April 1st, not "90 days later". That distinction matters for billing cycles, subscriptions, and anything month-aware.
 
-```r
+```r title="Chain period additions"
 # Chained: two months and three days after
 start + months(2) + days(3)
 #> [1] "2026-03-04"
@@ -263,7 +263,7 @@ start + months(2) + days(3)
 
 **Try it:** Compute the date exactly 6 months and 10 days after January 15, 2026.
 
-```r
+```r title="Exercise: Six months and ten days"
 library(lubridate)
 # ymd("2026-01-15") + months(6) + days(10)
 ```
@@ -271,7 +271,7 @@ library(lubridate)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Six months and ten days solution"
 ymd("2026-01-15") + months(6) + days(10)
 #> [1] "2026-07-25"
 ```
@@ -289,7 +289,7 @@ lubridate distinguishes three things that all feel like "some amount of time" bu
 
 **Duration**, an exact number of seconds, regardless of the calendar:
 
-```r
+```r title="Duration of thirty exact days"
 library(lubridate)
 
 d <- ddays(30)
@@ -303,7 +303,7 @@ ymd("2026-01-01") + d
 
 **Period**, calendar-aware, variable length:
 
-```r
+```r title="Period arithmetic at month ends"
 p <- months(1)
 p
 #> [1] "1m 0d 0H 0M 0S"
@@ -317,7 +317,7 @@ A period of one month can be 28, 29, 30, or 31 days. Periods are what you want f
 
 **Interval**, a specific pair `(start, end)`:
 
-```r
+```r title="Intervals and membership tests"
 i <- interval(ymd("2026-01-01"), ymd("2026-04-11"))
 i
 #> [1] 2026-01-01 UTC--2026-04-11 UTC
@@ -337,7 +337,7 @@ Intervals are perfect for "was this transaction in Q1?" or "how long did the exp
 
 **Try it:** Build an interval from Jan 1 to Dec 31 2026. Check whether `ymd("2026-07-04")` falls inside. Compute the interval's length in weeks.
 
-```r
+```r title="Exercise: Year interval and weeks"
 library(lubridate)
 # interval(...), %within%, / dweeks(1)
 ```
@@ -345,7 +345,7 @@ library(lubridate)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Year interval solution"
 i <- interval(ymd("2026-01-01"), ymd("2026-12-31"))
 
 ymd("2026-07-04") %within% i
@@ -366,7 +366,7 @@ Time zones cause more bugs than any other part of date handling. lubridate's rul
 - `with_tz(x, tz)`, **same moment**, displayed in a new zone. The underlying instant does not change; only how you render it does.
 - `force_tz(x, tz)`, **same wall clock**, reinterpreted as a different zone. The underlying instant shifts.
 
-```r
+```r title="withtz versus forcetz conversion"
 library(lubridate)
 
 utc <- ymd_hms("2026-04-11 14:30:00", tz = "UTC")
@@ -380,7 +380,7 @@ force_tz(utc, "Asia/Kolkata")
 
 `with_tz` is for display, "what time is it in Tokyo right now?". `force_tz` is for correcting a parse mistake, "this timestamp is actually India time but got labeled UTC on import".
 
-```r
+```r title="Flight times across zones"
 # Arithmetic across zones is correct automatically
 flight_depart <- ymd_hms("2026-05-01 22:00:00", tz = "America/New_York")
 flight_arrive <- ymd_hms("2026-05-02 11:00:00", tz = "Europe/London")
@@ -394,7 +394,7 @@ Both times are converted to UTC internally for the subtraction, so the answer is
 
 **Try it:** Convert a UTC datetime to Tokyo time for display, then to Paris time.
 
-```r
+```r title="Exercise: Convert UTC to Tokyo and Paris"
 library(lubridate)
 ts <- ymd_hms("2026-06-01 12:00:00", tz = "UTC")
 # with_tz(ts, "Asia/Tokyo"), with_tz(ts, "Europe/Paris")
@@ -403,7 +403,7 @@ ts <- ymd_hms("2026-06-01 12:00:00", tz = "UTC")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tokyo and Paris solution"
 with_tz(ts, "Asia/Tokyo")
 #> [1] "2026-06-01 21:00:00 JST"
 
@@ -419,7 +419,7 @@ with_tz(ts, "Europe/Paris")
 
 Rounding is the operation hidden inside almost every time-series aggregation. "Sales per week", "users per month", "errors per hour", all three are a round-then-group. lubridate gives you `floor_date`, `ceiling_date`, and `round_date`.
 
-```r
+```r title="floordate and ceilingdate snapping"
 library(lubridate)
 
 x <- ymd_hms("2026-04-11 14:37:15")
@@ -439,7 +439,7 @@ ceiling_date(x, unit = "month")
 
 `floor_date` snaps down to the unit boundary; `ceiling_date` snaps up. `round_date` goes to the nearest. Paired with dplyr, this is the cleanest way to build a weekly sales summary:
 
-```r
+```r title="Weekly revenue with floordate"
 library(dplyr); library(lubridate)
 
 sales <- tibble(
@@ -468,7 +468,7 @@ sales |>
 
 **Try it:** Round each datetime in the vector down to the nearest hour.
 
-```r
+```r title="Exercise: Floor times to the hour"
 library(lubridate)
 times <- ymd_hms(c("2026-04-11 14:37:00", "2026-04-11 15:02:00"))
 # floor_date(times, "hour")
@@ -477,7 +477,7 @@ times <- ymd_hms(c("2026-04-11 14:37:00", "2026-04-11 15:02:00"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Floor to hour solution"
 floor_date(times, "hour")
 #> [1] "2026-04-11 14:00:00 UTC" "2026-04-11 15:00:00 UTC"
 ```
@@ -492,7 +492,7 @@ floor_date(times, "hour")
 
 You get a vector of dates in three different formats. Produce a clean Date vector, with NA for unparseable values.
 
-```r
+```r title="Exercise: Parse mixed formats with NA"
 library(lubridate)
 raw <- c("2026-04-11", "11/04/2026", "April 11 2026", "not a date", "20260411")
 # Hint: use parse_date_time with an orders vector of length 4
@@ -500,7 +500,7 @@ raw <- c("2026-04-11", "11/04/2026", "April 11 2026", "not a date", "20260411")
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Mixed formats parse solution"
 parse_date_time(raw, orders = c("ymd", "dmy", "mdy", "Ymd"))
 ```
 
@@ -510,7 +510,7 @@ parse_date_time(raw, orders = c("ymd", "dmy", "mdy", "Ymd"))
 
 Given the sales tibble below, compute total revenue per month, with the month name (not number) as the label. Sort chronologically.
 
-```r
+```r title="Exercise: Monthly revenue by name"
 library(lubridate); library(dplyr)
 sales <- tibble(
   ts = ymd(c("2026-01-15","2026-01-28","2026-02-05","2026-03-12","2026-03-25","2026-04-01")),
@@ -520,7 +520,7 @@ sales <- tibble(
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Monthly revenue solution"
 sales |>
   mutate(
     month_num = month(ts),
@@ -540,7 +540,7 @@ A user signed up on `ymd("2026-01-31")` for a 1-month subscription that renews o
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Safe monthly renewal dates"
 library(lubridate)
 start <- ymd("2026-01-31")
 start %m+% months(1:6)
@@ -555,7 +555,7 @@ The `%m+%` operator rolls invalid end-of-month dates down to the last valid day 
 
 Here is an end-to-end pipeline: parse a messy CSV-like input, extract components, aggregate, and convert time zones for a final report.
 
-```r
+```r title="End-to-end events pipeline"
 library(lubridate); library(dplyr); library(tibble)
 
 events <- tibble(

@@ -30,7 +30,7 @@ Work through the exercises in order. The code blocks share state across the whol
 
 Create the same numeric vector `1, 2, 3, 4, 5, 6, 7, 8, 9, 10` in four different ways: with `c()`, with `:`, with `seq()`, and with `seq_len()`. Confirm they are equal with `identical()`.
 
-```r
+```r title="Exercise: Build 1:10 four ways"
 # Your attempt here
 
 ```
@@ -38,7 +38,7 @@ Create the same numeric vector `1, 2, 3, 4, 5, 6, 7, 8, 9, 10` in four different
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Four ways to build 1:10 solution"
 v1 <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 v2 <- 1:10
 v3 <- seq(1, 10, by = 1)
@@ -57,7 +57,7 @@ identical(v1, v2)   # FALSE — one is double, one is integer
 
 Predict the type of each of these vectors, then check with `typeof()`:
 
-```r
+```r title="Predict the type of each vector"
 c(1, 2, 3)
 c(1L, 2L, 3L)
 c(1, 2L, 3)
@@ -65,7 +65,7 @@ c(1, "2", 3)
 c(1, TRUE, 3)
 ```
 
-```r
+```r title="Exercise: Predict coercion types"
 # Your attempt here
 
 ```
@@ -73,7 +73,7 @@ c(1, TRUE, 3)
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Coercion types solution"
 typeof(c(1, 2, 3))        # "double"
 typeof(c(1L, 2L, 3L))     # "integer"
 typeof(c(1, 2L, 3))       # "double"   — integer promoted to double
@@ -89,7 +89,7 @@ The coercion hierarchy is `logical → integer → double → character`. `c()` 
 
 Create `x <- seq(5, 100, by = 5)`. Report its length, the first three values, and the last three values.
 
-```r
+```r title="Exercise: Inspect seq(5, 100, 5)"
 # Your attempt here
 
 ```
@@ -97,7 +97,7 @@ Create `x <- seq(5, 100, by = 5)`. Report its length, the first three values, an
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Sequence inspection solution"
 x <- seq(5, 100, by = 5)
 
 length(x)  # 20
@@ -113,7 +113,7 @@ tail(x, 3) # 90 95 100
 
 From `x` (Exercise 3), extract the 1st, 5th and 10th elements in one call, and then the 11th through 15th elements as a contiguous slice.
 
-```r
+```r title="Exercise: Positional and contiguous indexing"
 # Your attempt here
 
 ```
@@ -121,7 +121,7 @@ From `x` (Exercise 3), extract the 1st, 5th and 10th elements in one call, and t
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Positional indexing solution"
 x[c(1, 5, 10)]   # 5 25 50
 x[11:15]         # 55 60 65 70 75
 ```
@@ -134,7 +134,7 @@ A vector of indices inside `[ ]` picks those positions in the order given. Range
 
 From `x`, return everything *except* the last two elements. Do it two ways: with a negative index, and with `head()`.
 
-```r
+```r title="Exercise: Drop last two elements"
 # Your attempt here
 
 ```
@@ -142,7 +142,7 @@ From `x`, return everything *except* the last two elements. Do it two ways: with
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Drop last elements solution"
 x[-c(length(x) - 1, length(x))]  # everything but last two
 head(x, -2)                      # same result, cleaner
 
@@ -158,7 +158,7 @@ head(x, -2)                      # same result, cleaner
 
 Return the elements of `x` that are strictly greater than 30 *and* strictly less than 75.
 
-```r
+```r title="Exercise: Filter by numeric range"
 # Your attempt here
 
 ```
@@ -166,7 +166,7 @@ Return the elements of `x` that are strictly greater than 30 *and* strictly less
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Range filter solution"
 x[x > 30 & x < 75]
 # 35 40 45 50 55 60 65 70
 
@@ -185,13 +185,13 @@ Use `&` for element-wise AND and `|` for element-wise OR. The double forms `&&` 
 
 Create a named vector of the populations (in millions) of five countries:
 
-```r
+```r title="Build named population vector"
 pop <- c(USA = 331, China = 1412, India = 1417, Brazil = 215, Nigeria = 223)
 ```
 
 Return India's population by name, the values for USA and Nigeria in one call, and the *names* of all countries with population greater than 300 million.
 
-```r
+```r title="Exercise: Named vector indexing"
 # Your attempt here
 
 ```
@@ -199,7 +199,7 @@ Return India's population by name, the values for USA and Nigeria in one call, a
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Named indexing solution"
 pop <- c(USA = 331, China = 1412, India = 1417, Brazil = 215, Nigeria = 223)
 
 pop["India"]                      # India: 1417
@@ -217,7 +217,7 @@ Note the last one: you apply the logical index to `names(pop)`, not to `pop` its
 
 Create `a <- 1:5` and `b <- 6:10`. Compute `a + b`, `a * b`, `a^b`, and the dot product.
 
-```r
+```r title="Exercise: Arithmetic and dot product"
 # Your attempt here
 
 ```
@@ -225,7 +225,7 @@ Create `a <- 1:5` and `b <- 6:10`. Compute `a + b`, `a * b`, `a^b`, and the dot 
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Arithmetic and dot product solution"
 a <- 1:5
 b <- 6:10
 
@@ -243,12 +243,12 @@ R has no special dot-product operator (unlike NumPy). `sum(a * b)` is idiomatic 
 
 Predict the output of each of these. Run them and read the warning on the second one.
 
-```r
+```r title="Predict recycling outputs"
 c(1, 2, 3, 4) * c(10, 100)
 c(1, 2, 3, 4, 5) * c(10, 100)
 ```
 
-```r
+```r title="Exercise: Predict recycling results"
 # Your attempt here
 
 ```
@@ -256,7 +256,7 @@ c(1, 2, 3, 4, 5) * c(10, 100)
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Recycling solution"
 c(1, 2, 3, 4) * c(10, 100)
 # 10 200 30 400  — clean recycling, length 2 divides length 4
 
@@ -274,7 +274,7 @@ R recycles the shorter vector to match the longer. When lengths divide cleanly, 
 
 Using `pop` from Exercise 7, compute the total population, the mean, the median, the country with the largest population (by name), and the country with the smallest (by name).
 
-```r
+```r title="Exercise: Summaries on pop"
 # Your attempt here
 
 ```
@@ -282,7 +282,7 @@ Using `pop` from Exercise 7, compute the total population, the mean, the median,
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Summaries on pop solution"
 sum(pop)              # 3598 (million)
 mean(pop)             # 719.6
 median(pop)           # 331
@@ -301,7 +301,7 @@ names(pop)[which.min(pop)]  # "Brazil"
 
 Create `v <- c(5, NA, 3, 8, NA, 1, 6, NA, 9)`. Count the NAs, compute the mean ignoring NAs, and return the vector with NAs replaced by 0.
 
-```r
+```r title="Exercise: Count, mean, and fill NAs"
 # Your attempt here
 
 ```
@@ -309,7 +309,7 @@ Create `v <- c(5, NA, 3, 8, NA, 1, 6, NA, 9)`. Count the NAs, compute the mean i
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="NA handling solution"
 v <- c(5, NA, 3, 8, NA, 1, 6, NA, 9)
 
 sum(is.na(v))                # 3
@@ -329,7 +329,7 @@ v_clean
 
 From `pop` (Exercise 7), return (a) the populations sorted descending, and (b) the countries listed from smallest population to largest.
 
-```r
+```r title="Exercise: Sort and order pop"
 # Your attempt here
 
 ```
@@ -337,7 +337,7 @@ From `pop` (Exercise 7), return (a) the populations sorted descending, and (b) t
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Sort and order solution"
 sort(pop, decreasing = TRUE)
 # India 1417, China 1412, USA 331, Nigeria 223, Brazil 215
 

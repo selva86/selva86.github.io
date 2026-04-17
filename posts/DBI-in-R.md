@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 CSVs work until they don't. Once your data is too big to load into RAM, changes frequently, or lives on a server shared with other users, a database is the right tool. DBI lets you query only what you need, when you need it, without ever materialising the full table in memory. The payoff: you can run arbitrary SQL and get a data frame back in one function call.
 
-```r
+```r title="SQLite in-memory query demo"
 library(DBI)
 library(RSQLite)
 
@@ -56,7 +56,7 @@ Four functions and you have a working database workflow. The same code pattern w
 
 **Try it:** Run this snippet in your console to create an in-memory SQLite database, write the `mtcars` dataset to it, and query for cars with `mpg > 25`.
 
-```r
+```r title="Exercise: Filter mtcars by mpg"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "mtcars", mtcars)
@@ -66,7 +66,7 @@ dbWriteTable(con, "mtcars", mtcars)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter mtcars by mpg solution"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "mtcars", mtcars)
@@ -91,7 +91,7 @@ dbDisconnect(con)
 
 The only thing that changes between databases is the driver package and the `dbConnect()` arguments. Everything after connection is identical.
 
-```r
+```r title="Connect to SQLite, Postgres, MySQL"
 # SQLite: file on disk
 library(DBI); library(RSQLite)
 con_sqlite <- dbConnect(SQLite(), "my_database.sqlite")
@@ -127,7 +127,7 @@ Three databases, three connection calls, one pattern. SQLite needs only a file p
 
 Once connected, you can inspect what is in the database:
 
-```r
+```r title="List tables and fields"
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "sales", data.frame(id = 1:3, amount = c(10, 20, 30)))
 dbWriteTable(con, "users", data.frame(id = 1:3, name = c("Asha","Bilal","Cleo")))
@@ -143,7 +143,7 @@ These two functions are your "ls" and "head" for a database connection. They wor
 
 **Try it:** After connecting to a SQLite database, list all tables and the fields of the first table.
 
-```r
+```r title="Exercise: List tables and fields"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "t1", data.frame(a = 1:3, b = 4:6))
@@ -153,7 +153,7 @@ dbWriteTable(con, "t1", data.frame(a = 1:3, b = 4:6))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="List tables and fields solution"
 dbListTables(con)
 #> [1] "t1"
 
@@ -169,7 +169,7 @@ dbListFields(con, "t1")
 
 Three functions cover 95% of reading: `dbGetQuery()` for results into a data frame, `dbReadTable()` for a full table dump, and `dbSendQuery()` + `dbFetch()` for streaming large results in chunks.
 
-```r
+```r title="dbReadTable and dbGetQuery basics"
 library(DBI); library(RSQLite)
 
 con <- dbConnect(SQLite(), ":memory:")
@@ -197,7 +197,7 @@ dbGetQuery(con, "SELECT customer, SUM(amount) AS total FROM orders GROUP BY cust
 
 For huge result sets, stream them with `dbSendQuery` + `dbFetch` in a loop so you never load the full result into memory:
 
-```r
+```r title="Stream results with dbFetch"
 rs <- dbSendQuery(con, "SELECT * FROM orders")
 while (!dbHasCompleted(rs)) {
   chunk <- dbFetch(rs, n = 1000)
@@ -212,7 +212,7 @@ This pattern is essential for multi-gigabyte tables. You get 1,000 rows at a tim
 
 **Try it:** Run an aggregate query that counts orders per customer.
 
-```r
+```r title="Exercise: Group-by count query"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "orders", data.frame(customer = c("A","B","A","C","B","A"), amount = c(10,20,30,40,50,60)))
@@ -222,7 +222,7 @@ dbWriteTable(con, "orders", data.frame(customer = c("A","B","A","C","B","A"), am
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Group-by count query solution"
 dbGetQuery(con, "SELECT customer, COUNT(*) AS n FROM orders GROUP BY customer")
 #>   customer n
 #> 1        A 3
@@ -238,7 +238,7 @@ dbGetQuery(con, "SELECT customer, COUNT(*) AS n FROM orders GROUP BY customer")
 
 `dbWriteTable()` writes a data frame to a new table. `dbAppendTable()` adds rows to an existing one. `dbExecute()` runs arbitrary DDL like `CREATE TABLE` or `ALTER TABLE`.
 
-```r
+```r title="dbWriteTable and dbAppendTable"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 
@@ -269,7 +269,7 @@ dbReadTable(con, "customers")
 
 For schema changes, drop down to raw SQL with `dbExecute()`:
 
-```r
+```r title="dbExecute for DDL statements"
 dbExecute(con, "CREATE INDEX idx_city ON customers(city)")
 #> [1] 0
 dbExecute(con, "ALTER TABLE customers ADD COLUMN signup_date TEXT")
@@ -282,7 +282,7 @@ The `[1] 0` is the affected-row count; DDL statements return 0 because no data r
 
 **Try it:** Write a small data frame to SQLite, then append two more rows.
 
-```r
+```r title="Exercise: Write then append rows"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 df <- data.frame(x = 1:3, y = letters[1:3])
@@ -292,7 +292,7 @@ df <- data.frame(x = 1:3, y = letters[1:3])
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Write then append rows solution"
 dbWriteTable(con, "t", df)
 dbAppendTable(con, "t", data.frame(x = 4:5, y = c("d","e")))
 
@@ -316,7 +316,7 @@ Never, ever, build SQL with `paste0()` or `sprintf()` from user input. If the in
 ![Parameterised query vs paste: the safety difference](screenshots/DBI-in-R-parameterised-vs-paste.webp)
 *Figure 3: Paste-based queries let user input become part of the SQL statement. Parameterised queries treat input as data. Always use the right side.*
 
-```r
+```r title="Parameterised query with placeholders"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "users", data.frame(name = c("Asha","Bilal","Cleo"), age = c(30, 25, 35)))
@@ -344,7 +344,7 @@ dbGetQuery(
 
 The classic injection example:
 
-```r
+```r title="Safe query with single quote"
 # Imagine a user submits: O'Neil
 bad_name <- "O'Neil"
 
@@ -363,7 +363,7 @@ No match, no error, no injection. The quote inside the name is treated as part o
 
 **Try it:** Use a parameterised query to find users older than a given age.
 
-```r
+```r title="Exercise: Parameterised age filter"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "users", data.frame(name = c("A","B","C"), age = c(20, 30, 40)))
@@ -373,7 +373,7 @@ dbWriteTable(con, "users", data.frame(name = c("A","B","C"), age = c(20, 30, 40)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Parameterised age filter solution"
 dbGetQuery(con, "SELECT * FROM users WHERE age > ?", params = list(25))
 #>   name age
 #> 1    B  30
@@ -388,7 +388,7 @@ The `?` placeholder is filled in by the value in `params`. Because the value tra
 
 `dbplyr` translates dplyr verbs into SQL and sends them to the database. You write familiar R code; the database runs the actual computation. This is the best of both worlds, dplyr's ergonomics plus the database's query planner.
 
-```r
+```r title="dbplyr lazy dplyr over SQL"
 library(DBI); library(RSQLite); library(dplyr); library(dbplyr)
 
 con <- dbConnect(SQLite(), ":memory:")
@@ -429,7 +429,7 @@ Lazy evaluation means you can chain a dozen dplyr steps and the database optimiz
 
 **Try it:** Use dbplyr to compute the average `delay` per origin airport, then collect the result.
 
-```r
+```r title="Exercise: dbplyr group and summarise"
 library(DBI); library(RSQLite); library(dplyr); library(dbplyr)
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "f", data.frame(origin = c("A","B","A","B"), delay = c(5, 10, 15, 20)))
@@ -439,7 +439,7 @@ dbWriteTable(con, "f", data.frame(origin = c("A","B","A","B"), delay = c(5, 10, 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="dbplyr group and summarise solution"
 tbl(con, "f") |>
   group_by(origin) |>
   summarise(avg = mean(delay, na.rm = TRUE)) |>
@@ -459,7 +459,7 @@ tbl(con, "f") |>
 
 Connections are a finite resource. Forgetting to close one slowly leaks memory and eventually breaks the database server. The defensive pattern is `on.exit(dbDisconnect(con))` immediately after opening.
 
-```r
+```r title="Safe query with on.exit disconnect"
 safe_query <- function(sql) {
   con <- dbConnect(SQLite(), ":memory:")
   on.exit(dbDisconnect(con))
@@ -477,7 +477,7 @@ Even if `dbGetQuery()` throws an error, `on.exit()` ensures the connection is cl
 
 For multi-statement operations, use a transaction so partial failures do not leave the database in a half-updated state:
 
-```r
+```r title="dbWithTransaction for atomic updates"
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "accounts", data.frame(id = 1:2, balance = c(100, 50)))
 
@@ -500,7 +500,7 @@ dbDisconnect(con)
 
 **Try it:** Wrap two inserts in a transaction so that either both succeed or neither does.
 
-```r
+```r title="Exercise: Transaction insert pair"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 dbExecute(con, "CREATE TABLE log (msg TEXT)")
@@ -510,7 +510,7 @@ dbExecute(con, "CREATE TABLE log (msg TEXT)")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Transaction insert pair solution"
 dbWithTransaction(con, {
   dbExecute(con, "INSERT INTO log VALUES ('a')")
   dbExecute(con, "INSERT INTO log VALUES ('b')")
@@ -534,7 +534,7 @@ Using an in-memory SQLite database with the `mtcars` dataset, return the average
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Average mpg per cylinder solution"
 library(DBI); library(RSQLite)
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "mt", mtcars)
@@ -550,7 +550,7 @@ Write a function that takes a minimum mpg and returns matching cars safely.
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Parameterised findcars helper solution"
 library(DBI); library(RSQLite)
 find_cars <- function(min_mpg) {
   con <- dbConnect(SQLite(), ":memory:")
@@ -569,7 +569,7 @@ Translate this SQL to dbplyr: `SELECT cyl, MAX(hp) FROM mtcars WHERE am = 1 GROU
 
 <details><summary>Solution</summary>
 
-```r
+```r title="SQL-to-dbplyr translation solution"
 library(DBI); library(RSQLite); library(dplyr); library(dbplyr)
 con <- dbConnect(SQLite(), ":memory:")
 dbWriteTable(con, "mt", mtcars)
@@ -587,7 +587,7 @@ tbl(con, "mt") |>
 
 An end-to-end workflow: create a database, load data, query with dbplyr, write the summary back.
 
-```r
+```r title="End-to-end dbplyr sales pipeline"
 library(DBI); library(RSQLite); library(dplyr); library(dbplyr); library(tibble)
 
 # Step 1: connect to SQLite

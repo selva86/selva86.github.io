@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Before you model anything, you need to know which variables are actually related. Bivariate EDA answers that question with the right plot paired with the right summary statistic, and the choice depends on whether each variable is numeric or categorical. Let's start with the most common scenario: two numeric variables and a scatter plot that reveals their relationship instantly.
 
-```r
+```r title="Scatter with linear smoother"
 # Scatter plot: engine size vs. highway fuel economy
 library(ggplot2)
 library(dplyr)
@@ -47,7 +47,7 @@ The downward-sloping line tells you immediately: bigger engines burn more fuel o
 
 Now let's put a number on that relationship. A correlation coefficient ranges from -1 (perfect negative) to +1 (perfect positive), with 0 meaning no linear relationship.
 
-```r
+```r title="Pearson and Spearman correlation"
 # Pearson correlation (linear) and Spearman (monotonic)
 cor_pearson <- cor.test(mpg$displ, mpg$hwy, method = "pearson")
 cor_spearman <- cor.test(mpg$displ, mpg$hwy, method = "spearman")
@@ -68,7 +68,7 @@ Both Pearson and Spearman confirm a strong negative correlation. Spearman's rho 
 
 Sometimes a third variable hides inside a bivariate relationship. Colouring by `drv` (drive type) reveals subgroup trends that the overall scatter plot blurs together.
 
-```r
+```r title="Colour by drivetrain subgroup"
 # Colour by drive type to reveal subgroup patterns
 ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point(alpha = 0.7) +
@@ -93,7 +93,7 @@ Now you can see that front-wheel drive cars dominate the small-engine, high-mpg 
 
 **Try it:** Compute both Pearson and Spearman correlation between `disp` and `mpg` in the `mtcars` dataset. Is Spearman stronger than Pearson here too?
 
-```r
+```r title="Exercise: Pearson versus Spearman on mtcars"
 # Try it: Pearson vs Spearman on mtcars
 ex_pearson <- cor(mtcars$disp, mtcars$mpg, method = "pearson")
 ex_spearman <- cor(mtcars$disp, mtcars$mpg, method = "spearman")
@@ -106,7 +106,7 @@ cat("Spearman:", round(ex_spearman, 3), "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_pearson <- cor(mtcars$disp, mtcars$mpg, method = "pearson")
 ex_spearman <- cor(mtcars$disp, mtcars$mpg, method = "spearman")
 
@@ -125,7 +125,7 @@ cat("Spearman:", round(ex_spearman, 3), "\n")
 
 When one variable is a group label, like vehicle class, species, or treatment arm, and the other is a measurement, you want to see how distributions shift across groups. The grouped boxplot is the workhorse here: it shows median, spread, and outliers in one compact visual.
 
-```r
+```r title="Reorder boxplot by median"
 # Grouped boxplot: vehicle class vs highway mpg
 library(forcats)
 
@@ -150,7 +150,7 @@ Ordering the categories by median (using `fct_reorder()`) makes the comparison i
 
 Violin plots reveal the density shape that boxplots hide. Overlaying jitter points shows each individual observation, especially valuable for small samples where the density estimate gets noisy.
 
-```r
+```r title="Violin and jitter overlay"
 # Violin + jitter: iris sepal length by species
 ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
   geom_violin(alpha = 0.5) +
@@ -172,7 +172,7 @@ The violin shape confirms that all three species have roughly unimodal distribut
 
 Sometimes you want a cleaner summary: just the group means with error bars. The `stat_summary()` function handles this without any manual data wrangling.
 
-```r
+```r title="Mean and standard error bars"
 # Mean ± standard error by vehicle class
 ggplot(mpg, aes(x = fct_reorder(class, hwy, .fun = mean), y = hwy)) +
   stat_summary(fun = mean, geom = "point", size = 3, color = "steelblue") +
@@ -197,7 +197,7 @@ Error bars that don't overlap suggest the group means are meaningfully different
 
 **Try it:** Create a grouped boxplot of `iris` Sepal.Length by Species. Which species has the highest median?
 
-```r
+```r title="Exercise: iris boxplot by species"
 # Try it: boxplot of Sepal.Length by Species
 ggplot(iris, aes(x = Species, y = Sepal.Length)) +
   # your code here
@@ -208,7 +208,7 @@ ggplot(iris, aes(x = Species, y = Sepal.Length)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
   geom_boxplot() +
   labs(title = "Sepal Length by Species", y = "Sepal Length (cm)") +
@@ -225,7 +225,7 @@ ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
 
 When both variables are categories, like vehicle class and drive type, or treatment and outcome, you need to see how frequencies cluster across combinations. A grouped bar chart shows raw counts; a proportional stacked bar reveals compositional differences.
 
-```r
+```r title="Dodged bars of class by drive"
 # Grouped bar chart: vehicle class vs drive type
 ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "dodge") +
@@ -247,7 +247,7 @@ The pattern is striking: SUVs are overwhelmingly 4-wheel drive, compacts are alm
 
 Let's test that association formally with a contingency table and chi-squared test. The chi-squared test asks: "Could this frequency pattern have appeared by chance if class and drive type were truly independent?"
 
-```r
+```r title="Contingency table and chi square test"
 # Contingency table and chi-squared test
 tbl_class_drv <- table(mpg$class, mpg$drv)
 print(tbl_class_drv)
@@ -274,7 +274,7 @@ A chi-squared statistic of 291.6 with 12 degrees of freedom and a p-value near z
 
 A proportional stacked bar chart normalizes each class to 100%, making it easy to compare compositions even when group sizes differ.
 
-```r
+```r title="Proportional filled bars"
 # Proportional stacked bar: composition of drive type within each class
 ggplot(mpg, aes(x = class, fill = drv)) +
   geom_bar(position = "fill") +
@@ -300,7 +300,7 @@ Now the compositional story is crystal clear: pickups are exclusively 4-wheel, m
 
 **Try it:** Build a contingency table of `mpg` for the top 5 manufacturers (by count) vs `drv`. Which manufacturer has the highest proportion of 4-wheel drive vehicles?
 
-```r
+```r title="Exercise: top five manufacturers by drive"
 # Try it: top 5 manufacturers vs drive type
 ex_top5 <- mpg |>
   count(manufacturer, sort = TRUE) |>
@@ -315,7 +315,7 @@ ex_sub <- mpg |> filter(manufacturer %in% ex_top5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_top5 <- mpg |>
   count(manufacturer, sort = TRUE) |>
   slice_head(n = 5) |>
@@ -356,7 +356,7 @@ The single most important decision in bivariate EDA is matching the plot to the 
 
 Let's see all three plot types side by side on the same dataset. The `patchwork` package makes this effortless.
 
-```r
+```r title="Three panel patchwork picker"
 # Three plot types side by side
 library(patchwork)
 
@@ -393,7 +393,7 @@ Seeing all three together reinforces the core lesson: the variable types dictate
 
 **Try it:** Given a dataset with columns `region` (categorical) and `sales` (numeric), which plot would you choose and which summary statistic? Write the ggplot2 call.
 
-```r
+```r title="Exercise: region by sales categorical"
 # Try it: region (categorical) vs sales (numeric)
 # What plot type? What summary stat?
 # Write your ggplot2 code below:
@@ -405,7 +405,7 @@ Seeing all three together reinforces the core lesson: the variable types dictate
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 # Categorical × Numeric = grouped boxplot
 # Summary stat = group medians or means
 # Example using mpg as a stand-in:
@@ -426,7 +426,7 @@ ggplot(mpg, aes(x = fct_reorder(manufacturer, hwy, median), y = hwy)) +
 
 When you have four or more variables, checking every pair one-by-one gets tedious fast. GGally's `ggpairs()` builds a scatterplot matrix that automatically picks the right chart for each variable combination: scatter plots for numeric × numeric, boxplots for categorical × numeric, and bar charts for categorical × categorical.
 
-```r
+```r title="Pair plot of mpg subset"
 # ggpairs: automatic pair-wise EDA
 library(GGally)
 
@@ -449,7 +449,7 @@ Reading this matrix is straightforward: the diagonal shows each variable's distr
 
 You can customize every panel. The upper triangle can show correlation coefficients, the lower can show scatter plots with smooth lines, and the diagonal can show densities or histograms.
 
-```r
+```r title="Pair plot of iris by species"
 # Customized ggpairs with iris: all 4 numeric columns
 ggpairs(
   iris,
@@ -473,7 +473,7 @@ The iris matrix instantly reveals that petal dimensions (length and width) are a
 
 **Try it:** Run `ggpairs()` on `iris` with all 4 numeric columns, colored by Species. Which pair shows the strongest separation between species?
 
-```r
+```r title="Exercise: iris pair plot insight"
 # Try it: ggpairs on iris
 # Run it and identify the pair with the best species separation
 ggpairs(iris, columns = 1:4, aes(color = Species))
@@ -483,7 +483,7 @@ ggpairs(iris, columns = 1:4, aes(color = Species))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ggpairs(iris, columns = 1:4, aes(color = Species, alpha = 0.5)) +
   theme_minimal(base_size = 8)
 #> Petal.Length × Petal.Width: three tight, non-overlapping clusters
@@ -501,7 +501,7 @@ Bivariate EDA can mislead if you don't watch for common pitfalls. The three bigg
 
 **Simpson's paradox** is when an aggregate trend reverses once you split by a third variable. Let's simulate this to see it happen.
 
-```r
+```r title="Simpson paradox by group"
 # Simpson's paradox: overall trend reverses within groups
 set.seed(2024)
 group_a <- data.frame(
@@ -544,7 +544,7 @@ The dashed black line slopes downward, suggesting a negative relationship. But b
 
 **Nonlinear relationships** are the second trap. A correlation coefficient measures linear strength, so a perfect curve can produce r ≈ 0.
 
-```r
+```r title="Nonlinear relationship near zero correlation"
 # Nonlinear relationship: cor() misses the pattern entirely
 set.seed(42)
 nl_data <- data.frame(x = seq(-3, 3, length.out = 200))
@@ -571,7 +571,7 @@ The scatter plot shows an obvious quadratic pattern, but Pearson's r is essentia
 
 **Overplotting** is the third trap. When thousands of points stack on top of each other, you can't see where the data actually concentrates. Here's how to fix it with transparency and 2D binning.
 
-```r
+```r title="Overplotting alpha and bin two d"
 # Overplotting fix: alpha + bin2d for diamonds (53K rows)
 p_over <- ggplot(diamonds, aes(carat, price)) +
   geom_point(alpha = 0.05, size = 0.5) +
@@ -593,7 +593,7 @@ The alpha-transparency version shows faint structure, bands at 0.5, 1.0, and 1.5
 
 **Try it:** Generate 200 points from y = x^2 + noise, compute `cor(x, y)`, and explain why it's near zero despite a clear pattern.
 
-```r
+```r title="Exercise: quadratic zero correlation"
 # Try it: demonstrate that cor() misses nonlinear patterns
 set.seed(99)
 ex_x <- runif(200, -5, 5)
@@ -606,7 +606,7 @@ ex_y <- ex_x^2 + rnorm(200, sd = 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 set.seed(99)
 ex_x <- runif(200, -5, 5)
 ex_y <- ex_x^2 + rnorm(200, sd = 2)
@@ -625,7 +625,7 @@ plot(ex_x, ex_y, main = "Quadratic: r ≈ 0 but clear pattern")
 
 With thousands of rows or dozens of columns, individual scatter plots become unreadable and pair matrices become impractical. A correlation heatmap gives you a bird's-eye view of which numeric pairs are worth investigating, and hexbin plots handle the overplotting problem for large scatter plots.
 
-```r
+```r title="Correlation heatmap of mtcars"
 # Correlation heatmap for mtcars
 library(tidyr)
 
@@ -651,7 +651,7 @@ The heatmap instantly highlights the strongest relationships. The darkest red ce
 
 For large datasets like diamonds (53,000+ rows), hexbin plots are the best alternative to point scatter plots. Each hexagon represents a bin and is colored by the count of observations it contains.
 
-```r
+```r title="Hex bins on log scale"
 # Hexbin scatter for diamonds
 ggplot(diamonds, aes(carat, price)) +
   geom_hex(bins = 50) +
@@ -675,7 +675,7 @@ The hexbin plot reveals that the relationship between carat and price is nonline
 
 **Try it:** Compute the correlation matrix for the numeric columns of `mtcars` and identify the pair with the strongest negative correlation.
 
-```r
+```r title="Exercise: strongest negative correlation"
 # Try it: find the strongest negative correlation in mtcars
 ex_cor <- cor(mtcars)
 # Find the minimum off-diagonal value
@@ -686,7 +686,7 @@ ex_cor <- cor(mtcars)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_cor <- cor(mtcars)
 diag(ex_cor) <- NA  # exclude self-correlations
 min_idx <- which.min(ex_cor)
@@ -708,7 +708,7 @@ cat("Strongest negative:", row_name, "vs", col_name,
 
 Using the `diamonds` dataset, create a grouped boxplot of `price` by `cut`, then compute the mean price per cut level. Does the "best" cut (Ideal) have the highest price? Explain why or why not.
 
-```r
+```r title="Practice one: diamonds price by cut"
 # Exercise 1: diamonds price by cut
 # Step 1: Grouped boxplot
 # Step 2: Compute mean price per cut
@@ -721,7 +721,7 @@ Using the `diamonds` dataset, create a grouped boxplot of `price` by `cut`, then
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice one solution"
 # Boxplot
 ggplot(diamonds, aes(x = cut, y = price, fill = cut)) +
   geom_boxplot() +
@@ -751,7 +751,7 @@ diamonds |>
 
 Build a complete bivariate EDA of the `mpg` dataset. Create three plots: (1) a scatter plot for `displ` vs `cty`, (2) a grouped boxplot for `class` vs `cty`, and (3) a proportional stacked bar for `class` vs `fl` (fuel type). Combine all three using `patchwork`.
 
-```r
+```r title="Practice two: patchwork three panels"
 # Exercise 2: three-panel bivariate EDA
 # Hint: use p1 + p2 + p3 with patchwork
 
@@ -762,7 +762,7 @@ Build a complete bivariate EDA of the `mpg` dataset. Create three plots: (1) a s
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice two solution"
 my_p1 <- ggplot(mpg, aes(displ, cty)) +
   geom_point(alpha = 0.5) +
   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +
@@ -794,7 +794,7 @@ my_p1 + my_p2 + my_p3
 
 The `UCBAdmissions` dataset contains admission decisions at UC Berkeley by gender and department. Show that overall admission rates appear to favour males, but within individual departments the pattern changes. Use appropriate plots.
 
-```r
+```r title="Practice three: UCB admissions paradox"
 # Exercise 3: Simpson's paradox in UCBAdmissions
 # Hint: convert to a data frame with as.data.frame(UCBAdmissions)
 # Then compute admission rates overall vs. by department
@@ -806,7 +806,7 @@ The `UCBAdmissions` dataset contains admission decisions at UC Berkeley by gende
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice three solution"
 ucb <- as.data.frame(UCBAdmissions)
 
 # Overall admission rate by gender
@@ -850,7 +850,7 @@ ggplot(by_dept |> filter(Admit == "Admitted"),
 
 Let's run a complete bivariate EDA on the `mpg` dataset, covering all four variable-pair types in one end-to-end workflow.
 
-```r
+```r title="End-to-end mpg bivariate review"
 # Complete bivariate EDA on mpg
 
 # 1. Identify variable types

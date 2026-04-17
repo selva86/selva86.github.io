@@ -36,7 +36,7 @@ There are three common failure modes. First, reporting p-values without effect s
 
 Let's see how cryptic raw R output looks to a non-statistician. We will run a simple t-test on R's built-in `sleep` dataset, which measures the effect of two drugs on hours of extra sleep.
 
-```r
+```r title="Raw t.test output dump"
 # Load broom for tidying model output
 library(broom)
 
@@ -58,7 +58,7 @@ print(sleep_test)
 
 That output has everything a statistician needs. But for a non-statistician, it is a wall of noise. Now let's translate the same result into a single sentence a manager could act on.
 
-```r
+```r title="One-sentence sprintf summary"
 # Translate the t-test into a one-sentence summary
 diff_means <- round(sleep_test$estimate[2] - sleep_test$estimate[1], 2)
 ci_lower <- round(sleep_test$conf.int[1], 2)
@@ -85,7 +85,7 @@ Notice the difference. The raw output requires the reader to hunt for the key nu
 
 **Try it:** Run a correlation test between `mpg` and `wt` in `mtcars` using `cor.test()`. Then write a `cat()` statement that prints a one-sentence summary including the correlation value, confidence interval, and p-value.
 
-```r
+```r title="broom tidy of regression model"
 # Try it: summarise a correlation test in one sentence
 ex_cor <- cor.test(mtcars$mpg, mtcars$wt)
 
@@ -98,7 +98,7 @@ ex_cor <- cor.test(mtcars$mpg, mtcars$wt)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="glance model-level summary"
 ex_cor <- cor.test(mtcars$mpg, mtcars$wt)
 cat(sprintf(
   "MPG and weight are strongly negatively correlated (r = %.2f, 95%% CI: %.2f to %.2f, p < 0.001).",
@@ -119,7 +119,7 @@ The problem with raw R output is that it is a printed representation, not a data
 
 Let's fit a linear model predicting miles per gallon from weight and horsepower, then compare the raw output with the broom output.
 
-```r
+```r title="Exercise: Tidy a correlation test"
 # Fit a linear model: what predicts fuel efficiency?
 car_model <- lm(mpg ~ wt + hp, data = mtcars)
 
@@ -147,7 +147,7 @@ summary(car_model)
 
 That is a lot of text. Now let's see what broom gives us.
 
-```r
+```r title="Exercise solution: Tidy cor.test output"
 # The clean way: tidy() gives a data frame of coefficients
 tidy_coefs <- tidy(car_model, conf.int = TRUE)
 print(tidy_coefs)
@@ -163,7 +163,7 @@ Each row is one coefficient. Each column is a meaningful quantity. This is a dat
 
 Now let's pull model-level statistics with `glance()`.
 
-```r
+```r title="Cohen's d from pooled sd"
 # glance() gives model-level fit statistics in one row
 model_fit <- glance(car_model)
 print(model_fit)
@@ -186,7 +186,7 @@ One row, twelve columns. R-squared, AIC, BIC, residual standard error -- all in 
 
 **Try it:** Fit a one-way ANOVA testing whether `mpg` differs by `cyl` (cylinder count) in `mtcars`. Apply `tidy()` to the result and identify which term has the smallest p-value.
 
-```r
+```r title="Regression effect with confidence interval"
 # Try it: tidy an ANOVA result
 ex_aov <- aov(mpg ~ factor(cyl), data = mtcars)
 ex_tidy <- tidy(ex_aov)
@@ -200,7 +200,7 @@ ex_tidy <- tidy(ex_aov)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise: Report standardised coefficient"
 ex_aov <- aov(mpg ~ factor(cyl), data = mtcars)
 ex_tidy <- tidy(ex_aov)
 print(ex_tidy)
@@ -225,7 +225,7 @@ Here is the rule of thumb: always report the effect size, a measure of uncertain
 
 Let's start with the t-test. For a two-sample comparison, you need the mean difference, its confidence interval, and Cohen's d (the standardized effect size).
 
-```r
+```r title="Exercise solution: Standardised effect sentence"
 # t-test reporting: mean difference + CI + Cohen's d
 set.seed(101)
 auto_4cyl <- mtcars$wt[mtcars$cyl == 4]
@@ -258,7 +258,7 @@ Cohen's d of 2.79 is a massive effect. The confidence interval is entirely negat
 
 Now let's report regression coefficients with confidence intervals.
 
-```r
+```r title="For-loop reporting several estimates"
 # Regression reporting: coefficients + CI + R-squared
 coef_table <- tidy_coefs[tidy_coefs$term != "(Intercept)", ]
 
@@ -284,7 +284,7 @@ For regression, report each coefficient with its confidence interval. The interc
 
 Let's also handle correlation reporting.
 
-```r
+```r title="tidycor helper for correlation"
 # Correlation reporting: r + CI + n
 cor_result <- cor.test(mtcars$mpg, mtcars$disp)
 tidy_cor <- tidy(cor_result)
@@ -313,7 +313,7 @@ For correlations, the r value is already an effect size. A confidence interval o
 
 **Try it:** Calculate Cohen's d for the difference in `mpg` between 4-cylinder and 6-cylinder cars in `mtcars`. Print whether the effect is small (d < 0.5), medium (0.5-0.8), or large (d > 0.8).
 
-```r
+```r title="Report-ready coefficient table"
 # Try it: compute and interpret Cohen's d
 ex_mpg4 <- mtcars$mpg[mtcars$cyl == 4]
 ex_mpg6 <- mtcars$mpg[mtcars$cyl == 6]
@@ -327,7 +327,7 @@ ex_mpg6 <- mtcars$mpg[mtcars$cyl == 6]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise: Build effect size table"
 ex_mpg4 <- mtcars$mpg[mtcars$cyl == 4]
 ex_mpg6 <- mtcars$mpg[mtcars$cyl == 6]
 
@@ -350,7 +350,7 @@ Numbers in prose are essential, but tables and plots make patterns visible at a 
 
 Let's build a formatted coefficient table that a non-statistician could read.
 
-```r
+```r title="Exercise solution: Effect size summary table"
 # Build a report-ready coefficient table
 report_table <- data.frame(
   Predictor = tidy_coefs$term,
@@ -374,7 +374,7 @@ The column headers say "Effect" instead of "Estimate" and "Lower 95%" instead of
 
 Now let's create a coefficient plot -- the visual equivalent of a regression table. Coefficient plots (also called dot-and-whisker plots) show each predictor's effect size with its confidence interval.
 
-```r
+```r title="Coefficient plot with base R"
 # Coefficient plot: visualize estimates with confidence intervals
 # Exclude the intercept (different scale)
 plot_data <- tidy_coefs[tidy_coefs$term != "(Intercept)", ]
@@ -407,7 +407,7 @@ The vertical dashed line at zero is the "no effect" line. Any coefficient whose 
 
 Let's also build a forest plot for comparing group means with their uncertainty.
 
-```r
+```r title="Forest plot of group means"
 # Forest plot: compare group means with confidence intervals
 groups <- split(mtcars$mpg, mtcars$cyl)
 group_results <- data.frame(
@@ -452,7 +452,7 @@ Notice how the 4-cylinder group has a wider confidence interval than the 8-cylin
 
 **Try it:** Calculate the mean `hp` for each `cyl` group in `mtcars`, along with 95% confidence intervals. Store the results in a data frame called `ex_hp_summary`.
 
-```r
+```r title="Exercise: Forest plot of cylinder means"
 # Try it: build a summary table with CIs for horsepower by cylinder group
 ex_groups <- split(mtcars$hp, mtcars$cyl)
 
@@ -465,7 +465,7 @@ ex_groups <- split(mtcars$hp, mtcars$cyl)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Cylinder mean forest plot"
 ex_groups <- split(mtcars$hp, mtcars$cyl)
 ex_hp_summary <- data.frame(
   cyl      = names(ex_groups),
@@ -490,7 +490,7 @@ A methods section answers three questions: what did you do, why did you do it th
 
 Let's start by checking our model's assumptions and capturing the results programmatically. This way, the methods section writes itself from the data rather than from memory.
 
-```r
+```r title="Shapiro-Wilk on residuals"
 # Check regression assumptions programmatically
 resids <- augment(car_model)
 
@@ -537,7 +537,7 @@ The Shapiro-Wilk p-value of 0.23 means we cannot reject normality -- the residua
 
 Now let's generate a complete methods paragraph from the data. This is the key to reproducible reporting: the paragraph assembles itself from your analysis objects, so if the data changes, the methods section updates automatically.
 
-```r
+```r title="Methods paragraph with sprintf"
 # Generate a methods paragraph programmatically
 methods_text <- sprintf(
   paste0(
@@ -573,7 +573,7 @@ That paragraph contains every detail a reviewer or replicator would need: the mo
 
 **Try it:** Write a `sprintf()` call that generates a methods sentence for a chi-squared test. Use `chisq.test()` on a 2x2 table of `mtcars$am` (transmission) vs `mtcars$vs` (engine type), and include the test statistic, degrees of freedom, and p-value in the sentence.
 
-```r
+```r title="Exercise: Methods paragraph template"
 # Try it: generate a methods sentence for a chi-squared test
 ex_table <- table(mtcars$am, mtcars$vs)
 ex_chi <- chisq.test(ex_table, correct = FALSE)
@@ -587,7 +587,7 @@ ex_chi <- chisq.test(ex_table, correct = FALSE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Model methods sentence"
 ex_table <- table(mtcars$am, mtcars$vs)
 ex_chi <- chisq.test(ex_table, correct = FALSE)
 
@@ -612,7 +612,7 @@ cat(strwrap(ex_sentence, width = 80), sep = "\n")
 This is the single most common reporting failure. A p-value tells you whether an effect is likely real. It does not tell you whether the effect is large enough to matter.
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Reporting p-value only"
 # Only reporting significance
 test_result <- t.test(mpg ~ am, data = mtcars)
 cat(sprintf("The difference was significant (p = %.4f).\n", test_result$p.value))
@@ -622,7 +622,7 @@ cat(sprintf("The difference was significant (p = %.4f).\n", test_result$p.value)
 **Why it is wrong:** A large sample can make a tiny, meaningless difference "significant." Without the effect size, the reader has no idea whether to care.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Report effect size and interval"
 # Report effect size + CI + p
 test_result <- t.test(mpg ~ am, data = mtcars)
 diff_val <- abs(diff(test_result$estimate))
@@ -640,7 +640,7 @@ cat(sprintf("Manual transmission cars averaged %.1f more MPG (95%% CI: %.1f to %
 ### Mistake 2: Copy-pasting raw R console output into reports
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Dumping raw summary output"
 # Dumping raw output
 summary(lm(mpg ~ wt, data = mtcars))
 # Then copy-pasting the entire Coefficients table into a Word document
@@ -649,7 +649,7 @@ summary(lm(mpg ~ wt, data = mtcars))
 **Why it is wrong:** Console output has inconsistent spacing, eight decimal places, significance stars, and column headers like `Pr(>|t|)` that mean nothing to non-statisticians.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Extract values with tidy"
 # Extract, format, and present cleanly
 m <- lm(mpg ~ wt, data = mtcars)
 t <- tidy(m, conf.int = TRUE)
@@ -668,14 +668,14 @@ print(t[, c("term", "estimate", "conf.low", "conf.high", "p.value")])
 ### Mistake 3: Using "significant" without specifying the significance level
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Vague significance language"
 cat("The result was statistically significant.\n")
 ```
 
 **Why it is wrong:** "Significant" at what level? Alpha 0.05? 0.01? 0.10? The reader cannot evaluate the claim without the threshold.
 
 ✅ **Correct:**
-```r
+```r title="Correct: State direction and magnitude"
 cat("The result was statistically significant at the 0.05 level (p = 0.003).\n")
 cat("Using a Bonferroni-corrected threshold of 0.017, the result remains significant.\n")
 ```
@@ -683,7 +683,7 @@ cat("Using a Bonferroni-corrected threshold of 0.017, the result remains signifi
 ### Mistake 4: Reporting too many decimal places
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Eight-decimal precision"
 cat("The mean weight was 3.21725000 tons (SD = 0.97845744).\n")
 #> The mean weight was 3.21725000 tons (SD = 0.97845744).
 ```
@@ -691,7 +691,7 @@ cat("The mean weight was 3.21725000 tons (SD = 0.97845744).\n")
 **Why it is wrong:** Eight decimal places implies a measurement precision that does not exist. It also makes numbers harder to read and compare.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Round to two decimal places"
 cat(sprintf("The mean weight was %.2f tons (SD = %.2f).\n",
     mean(mtcars$wt), sd(mtcars$wt)))
 #> The mean weight was 3.22 tons (SD = 0.98).
@@ -700,14 +700,14 @@ cat(sprintf("The mean weight was %.2f tons (SD = %.2f).\n",
 ### Mistake 5: Forgetting sample sizes and degrees of freedom
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Omitting sample size"
 cat("The correlation between MPG and weight was r = -0.87 (p < 0.001).\n")
 ```
 
 **Why it is wrong:** Without the sample size, the reader cannot assess whether the confidence interval would be wide or narrow. A correlation of -0.87 from 5 data points is very different from -0.87 from 500.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Include n in the sentence"
 cat(sprintf("The correlation between MPG and weight was r = -0.87 (95%% CI: -0.93 to -0.74, n = %d, p < 0.001).\n",
     nrow(mtcars)))
 #> The correlation between MPG and weight was r = -0.87 (95% CI: -0.93 to -0.74, n = 32, p < 0.001).
@@ -719,7 +719,7 @@ cat(sprintf("The correlation between MPG and weight was r = -0.87 (95%% CI: -0.9
 
 You are asked to report whether cars with automatic transmissions (`am = 0`) differ from manual transmissions (`am = 1`) in horsepower. Fit an appropriate test, tidy the output, create a formatted summary table, and write a one-paragraph report including the effect size, confidence interval, and a plain-language interpretation.
 
-```r
+```r title="Exercise one: Report horsepower on transmission"
 # Exercise 1: Complete reporting pipeline for hp ~ am
 # Hint: use t.test(), tidy(), and sprintf() to build the report
 
@@ -730,7 +730,7 @@ You are asked to report whether cars with automatic transmissions (`am = 0`) dif
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: Full reporting pipeline"
 # Fit the test
 my_test <- t.test(hp ~ am, data = mtcars)
 my_tidy <- tidy(my_test)
@@ -768,7 +768,7 @@ cat(sprintf(
 
 Fit two models predicting `mpg`: Model A uses only `wt`, Model B uses `wt + hp + qsec`. Use `glance()` to compare them on R-squared, AIC, and BIC. Write a paragraph explaining which model is better and why, using specific numbers from both models.
 
-```r
+```r title="Exercise two: Compare two models with glance"
 # Exercise 2: Compare two models and write a report
 # Hint: fit both models, glance() each, compare R-squared, AIC, BIC
 
@@ -779,7 +779,7 @@ Fit two models predicting `mpg`: Model A uses only `wt`, Model B uses `wt + hp +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: Two-model glance table"
 my_model_a <- lm(mpg ~ wt, data = mtcars)
 my_model_b <- lm(mpg ~ wt + hp + qsec, data = mtcars)
 
@@ -812,7 +812,7 @@ cat(sprintf(
 
 Run a one-way ANOVA testing whether `mpg` differs by `gear` (number of forward gears) in `mtcars`. Calculate eta-squared as the effect size (SS_between / SS_total). Produce a formatted table of group means with CIs, and write a prose summary.
 
-```r
+```r title="Exercise three: ANOVA with eta-squared"
 # Exercise 3: ANOVA report with eta-squared
 # Hint: use aov(), tidy(), and calculate eta-squared from the sum of squares
 
@@ -823,7 +823,7 @@ Run a one-way ANOVA testing whether `mpg` differs by `gear` (number of forward g
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: ANOVA effect size"
 my_aov <- aov(mpg ~ factor(gear), data = mtcars)
 my_aov_tidy <- tidy(my_aov)
 
@@ -859,7 +859,7 @@ cat(sprintf(
 
 Let's walk through a complete reporting workflow from start to finish. The scenario: you want to report what predicts fuel efficiency in passenger cars. You will fit a model, check assumptions, create a formatted table, build a plot, and write a prose summary -- all from one script.
 
-```r
+```r title="Capstone step one: Fit model and check assumptions"
 # === Complete Statistical Reporting Workflow ===
 
 # Step 1: Fit the model
@@ -898,7 +898,7 @@ print(full_table)
 
 The table shows that weight and horsepower are reliable predictors (confidence intervals exclude zero), but manual transmission is not (its interval crosses zero). Now let's visualize this.
 
-```r
+```r title="Capstone step two: Coefficient plot with margins"
 # Step 4: Coefficient plot
 pred_data <- full_tidy[-1, ]  # exclude intercept
 pred_labels <- c("Weight (tons)", "Horsepower", "Manual trans.")
@@ -923,7 +923,7 @@ legend("topright", legend = c("Significant", "Not significant"),
 cat("\nStep 4: Plot created. Blue = significant, gray = not significant.\n")
 ```
 
-```r
+```r title="Capstone step three: Prose summary with sprintf"
 # Step 5: Write the prose summary
 prose <- sprintf(paste0(
   "We modelled fuel efficiency (MPG) as a function of vehicle weight, ",

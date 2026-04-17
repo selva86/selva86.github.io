@@ -24,7 +24,7 @@ Every question below is grouped by the seniority level at which it typically lan
 
 Junior interviews test whether you can read basic R code without flinching. Interviewers probe data types, vectorisation, and `NA` handling because these trip up people who memorised syntax but never ran a script. Start with a small payoff example so you can feel the "R way" before the questions begin.
 
-```r
+```r title="Logical subsetting of a vector"
 # Interviewer favourite: "What does this return?"
 x <- c(10, 20, 30, 40, 50)
 x[x > 25]              # logical subsetting
@@ -40,7 +40,7 @@ That 4-line snippet combines two things interviewers love: logical subsetting (s
 
 R has six atomic types: **numeric (double)**, **integer**, **character**, **logical**, **complex**, and **raw**. Everything else -- vectors, lists, data frames -- is built on top of them.
 
-```r
+```r title="typeof for double and integer"
 my_num  <- 3.14            # numeric (double)
 my_int  <- 42L             # integer -- note the L suffix
 my_chr  <- "hello"         # character
@@ -57,7 +57,7 @@ typeof(my_int)
 
 A **vector** holds elements of one type. A **list** holds elements of any type, including other lists. A **data frame** is a list of equal-length vectors -- every column is a vector and the columns must all have the same number of rows.
 
-```r
+```r title="Data frame versus matrix structure"
 my_vec  <- c(1, 2, 3)                          # all numeric
 my_list <- list(1, "two", TRUE, c(4, 5))       # mixed types
 my_df   <- data.frame(x = 1:3, y = c("a","b","c"))
@@ -73,7 +73,7 @@ str(my_df)
 
 Use `<-` for top-level assignment and `=` only for named function arguments. Both technically work for assignment, but mixing them inside function calls causes subtle bugs.
 
-```r
+```r title="Arrow versus equals in function calls"
 x <- 5                   # assignment (preferred)
 mean(x = c(1, 2, 3))     # named argument -- use =
 #> [1] 2
@@ -85,7 +85,7 @@ mean(x = c(1, 2, 3))     # named argument -- use =
 
 Three tools cover 95% of cases: `is.na()` to detect them, `na.rm = TRUE` to skip them in summaries, and `complete.cases()` to drop rows that contain them.
 
-```r
+```r title="Mean with NA handling"
 vals <- c(1, NA, 3, NA, 5)
 is.na(vals)
 #> [1] FALSE  TRUE FALSE  TRUE FALSE
@@ -103,7 +103,7 @@ mean(vals, na.rm = TRUE)   # 3
 
 A factor stores categorical data as an integer vector plus a character "levels" attribute. Use factors when a variable has a known, fixed set of values -- day of week, treatment arm, product category -- especially before fitting a model that will need dummy variables.
 
-```r
+```r title="Ordered factor with integer codes"
 sizes <- factor(c("S","M","L","M"),
                 levels = c("S","M","L"),
                 ordered = TRUE)
@@ -122,7 +122,7 @@ as.integer(sizes)
 
 `[` returns an object of the same type (a sub-list from a list, a sub-vector from a vector). `[[` extracts a single element and drops one level of structure. `$` is shorthand for `[[` with a name.
 
-```r
+```r title="List single and double bracket access"
 lst <- list(a = 1:3, b = "hello")
 lst[1]       # list of length 1 containing a vector
 #> $a
@@ -137,7 +137,7 @@ lst$a        # same as lst[[ "a" ]]
 
 **Try it:** Write a function `ex_safe_mean(x)` that returns the mean of a numeric vector while ignoring any `NA` values. Test it on a vector that contains one `NA`.
 
-```r
+```r title="Exercise: Safe mean wrapper"
 # Try it: write ex_safe_mean()
 ex_safe_mean <- function(x) {
   # your code here
@@ -151,7 +151,7 @@ ex_safe_mean(c(10, NA, 30, 50))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Safe mean with NA handling"
 ex_safe_mean <- function(x) {
   mean(x, na.rm = TRUE)
 }
@@ -167,7 +167,7 @@ ex_safe_mean(c(10, NA, 30, 50))
 
 R vectorised functions like `mean()`, `sum()`, and arithmetic operators call compiled C routines that iterate in native code. A hand-written R-level `for` loop dispatches every iteration through the R interpreter, which is roughly 10-100x slower.
 
-```r
+```r title="Vectorised sum beats for loop"
 x <- 1:1e6
 
 # Vectorised
@@ -188,7 +188,7 @@ identical(sum_vec, sum_loop)
 
 Three common options: `read.csv()` (base R, slow, quirky), `readr::read_csv()` (tidyverse, fast, sane defaults, returns a tibble), and `data.table::fread()` (fastest, auto-detects separators and types).
 
-```r
+```r title="Three CSV readers compared"
 # Base R
 df1 <- read.csv("file.csv", stringsAsFactors = FALSE)
 
@@ -209,7 +209,7 @@ Mid-level interviews move beyond syntax into daily wrangling work. Interviewers 
 
 dplyr code reads like a sentence and composes naturally through the pipe. Base R works, but the same pipeline takes more characters and mixes bracket indexing, `apply` variants, and `aggregate` in ways that are hard to scan.
 
-```r
+```r title="Group summary of mpg by cylinder"
 library(dplyr)
 
 car_summary <- mtcars |>
@@ -250,7 +250,7 @@ Both add or modify columns. `mutate()` is dplyr, evaluates expressions sequentia
 
 `inner_join(x, y)` keeps only rows with matches in both tables. `left_join(x, y)` keeps every row in `x` and fills `NA` where `y` has no match. `right_join()` mirrors that. `full_join()` keeps everything from both. `anti_join(x, y)` returns rows of `x` with no match in `y`, and `semi_join(x, y)` returns rows of `x` that do match (without pulling columns from `y`).
 
-```r
+```r title="Left join with missing customer"
 orders <- data.frame(
   order_id    = 1:4,
   customer_id = c(10, 20, 20, 30),
@@ -276,7 +276,7 @@ The `left_join` kept all four orders and pulled the name where it could. Custome
 
 `pivot_longer()` turns wide data (one column per measurement) into long data (one column named `name`, one named `value`). `pivot_wider()` does the reverse. Long format is the shape ggplot2 and tidymodels expect.
 
-```r
+```r title="Pivot wide to long format"
 library(tidyr)
 
 wide_df <- data.frame(
@@ -311,7 +311,7 @@ long_df
 
 Use `across()` inside `mutate()` or `summarise()`. You pass a column selector (like `where(is.numeric)`) and a function, and it applies the function to every matching column.
 
-```r
+```r title="Exercise: Median across numeric columns"
 across_summary <- mtcars |>
   group_by(cyl) |>
   summarise(across(c(mpg, hp, wt), mean))
@@ -330,7 +330,7 @@ Interviewers love open-ended questions. A strong answer: "forgetting to `ungroup
 
 **Try it:** Using `across()`, compute the median of `mpg`, `hp`, and `wt` in mtcars grouped by `cyl`. Store the result in `ex_mt_across`.
 
-```r
+```r title="Exercise solution: Across numeric medians"
 # Try it: grouped medians with across()
 ex_mt_across <- mtcars |>
   group_by(cyl) |>
@@ -343,7 +343,7 @@ ex_mt_across
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Scatter with factor cyl colour"
 ex_mt_across <- mtcars |>
   group_by(cyl) |>
   summarise(across(c(mpg, hp, wt), median))
@@ -372,7 +372,7 @@ A ggplot is a **data** source plus a **mapping** from data columns to visual **a
 
 Anything inside `aes()` is a mapping -- it varies with a data column. Anything outside `aes()` is a fixed aesthetic -- it applies uniformly. `aes(colour = cyl)` colours points by the `cyl` column; `colour = "red"` outside `aes()` paints every point red.
 
-```r
+```r title="Facet by cylinder count"
 library(ggplot2)
 
 p1 <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
@@ -394,7 +394,7 @@ Layers paint on top of each other in the order you add them. A `geom_smooth()` a
 
 `facet_wrap()` takes one grouping variable and wraps the resulting panels into a rectangular grid. `facet_grid()` takes two variables (rows and columns) and produces a full matrix of panels with shared axes.
 
-```r
+```r title="Diamonds scatter with low alpha"
 p2 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
   facet_wrap(~ cyl)
@@ -414,7 +414,7 @@ One panel per cylinder count -- ideal when you have a single grouping variable.
 
 Four common moves: (a) add `alpha = 0.3` so overlapping points darken, (b) `geom_jitter()` to break exact ties, (c) switch to `geom_hex()` or `geom_density_2d()` for density, (d) sample down if the data is huge.
 
-```r
+```r title="Exercise: Facet scatter by drivetrain"
 p3 <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.05) +
   labs(title = "53,000 diamonds -- overplotting fixed with alpha")
@@ -429,7 +429,7 @@ At `alpha = 0.05` each point contributes just 5% opacity, so genuine density sho
 
 **Try it:** Plot `mpg` against `wt` from mtcars and facet the panels by `cyl`. Assign the plot to `ex_facet`.
 
-```r
+```r title="Exercise solution: Faceted highway scatter"
 # Try it: faceted mpg vs wt
 ex_facet <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point()
@@ -442,7 +442,7 @@ ex_facet
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Linear model with interaction term"
 ex_facet <- ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
   facet_wrap(~ cyl)
@@ -461,7 +461,7 @@ Statistical questions are where R roles genuinely diverge from Python roles. Int
 
 `y ~ x1 + x2` is additive. `y ~ x1 * x2` expands to `x1 + x2 + x1:x2` -- main effects plus the interaction. `y ~ x1:x2` alone fits only the interaction with no main effects, which is usually a bug.
 
-```r
+```r title="Extract R-squared and p-values"
 m1 <- lm(mpg ~ wt * hp, data = mtcars)
 coef(m1)
 #> (Intercept)          wt          hp       wt:hp
@@ -474,7 +474,7 @@ The model fit four terms: intercept, main effect of `wt`, main effect of `hp`, a
 
 Four blocks of output: the call, residuals (min/median/max -- a rough sanity check), the coefficients table (estimate, standard error, t-value, p-value, and stars), and model-level statistics (residual standard error, multiple and adjusted R^2, F-statistic).
 
-```r
+```r title="Binary logistic regression on mtcars"
 summary(m1)$r.squared
 #> [1] 0.8848
 summary(m1)$coefficients[, "Pr(>|t|)"]
@@ -492,7 +492,7 @@ Remember "LINE": **L**inearity (the mean of Y is linear in X), **I**ndependence 
 
 `glm()` with `family = binomial`. The response must be a 0/1 vector or a two-level factor.
 
-```r
+```r title="Train test split with set.seed"
 m_log <- glm(am ~ mpg + wt, data = mtcars, family = binomial)
 coef(m_log)
 #> (Intercept)         mpg          wt
@@ -505,7 +505,7 @@ The `am` column is 0 for automatic and 1 for manual. Each coefficient is a log-o
 
 Create the index before you touch the response variable, always split the raw data (not a scaled version), and fit any preprocessing (scaling, imputation, target encoding) on the training set only.
 
-```r
+```r title="Compute RMSE and MAE"
 set.seed(20260413)
 train_idx <- sample(seq_len(nrow(mtcars)), size = 0.7 * nrow(mtcars))
 train_df  <- mtcars[train_idx, ]
@@ -526,7 +526,7 @@ Three common options: hand-rolled `for` loop over `caret::createFolds()`, the fu
 
 **RMSE** is the square root of the mean squared error -- in the same units as the response, penalises large errors heavily. **MAE** is the mean absolute error -- more robust to outliers. **R^2** is the proportion of variance in the response explained by the model -- unitless, can be misleading on small samples or with many predictors (use adjusted R^2).
 
-```r
+```r title="Exercise: Fit and evaluate mpg model"
 preds    <- predict(m1, newdata = test_df)
 rmse_val <- sqrt(mean((test_df$mpg - preds)^2))
 mae_val  <- mean(abs(test_df$mpg - preds))
@@ -550,7 +550,7 @@ A p-value answers "assuming no real effect, how unusual is my data?" An effect s
 
 **Try it:** Fit `lm(mpg ~ wt + hp, data = mtcars)` and extract the R^2 into `ex_r2`.
 
-```r
+```r title="Exercise solution: Weight and horsepower fit"
 # Try it: extract R-squared
 # your code here
 
@@ -561,7 +561,7 @@ ex_r2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Create a new environment"
 ex_r2 <- summary(lm(mpg ~ wt + hp, data = mtcars))$r.squared
 ex_r2
 #> [1] 0.8267855
@@ -579,7 +579,7 @@ At senior level the questions shift from "can you use R" to "do you understand h
 
 An environment is a named collection of bindings -- roughly, a hash map from names to values. Every function call creates a fresh environment, and every package lives in its own environment. The global environment (`globalenv()`) is where your top-level variables live.
 
-```r
+```r title="Copy-on-modify demonstration"
 e1 <- new.env()
 e1$x <- 42
 ls(e1)
@@ -599,7 +599,7 @@ When R evaluates a variable inside a function, it walks a chain of environments:
 
 R appears to pass arguments by value. Under the hood, it passes a reference and only makes a copy when you modify the object. That is why you can safely call `f(big_df)` without paying the cost of a copy unless `f` actually mutates `big_df`.
 
-```r
+```r title="Benchmark vectorised versus loop"
 y <- 1:5
 z <- y              # no copy yet
 z[1] <- 99          # now a copy is made
@@ -619,7 +619,7 @@ z
 
 `system.time()` for a one-off wall-clock measurement. `microbenchmark::microbenchmark()` for accurate sub-millisecond timings with multiple replicates. `profvis::profvis()` for line-by-line flame graphs so you can see which call is actually expensive.
 
-```r
+```r title="Non-standard evaluation with data pronoun"
 library(microbenchmark)
 x <- runif(1e5)
 
@@ -661,7 +661,7 @@ Function arguments are evaluated the first time they are used, not when the func
 
 **Try it:** Use `microbenchmark` to compare `mean(x)` against a hand-written `for` loop that adds `x[i]` to a running total. Store the result in `ex_bench`.
 
-```r
+```r title="Exercise: Tidy evaluation helper"
 # Try it: benchmark mean() vs a loop
 x_small <- runif(1e4)
 
@@ -678,7 +678,7 @@ ex_bench
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Column-quoted helper"
 x_small <- runif(1e4)
 
 ex_bench <- microbenchmark(
@@ -709,7 +709,7 @@ Senior candidates at R-heavy teams (finance, bio, clinical trials, analytics con
 
 Create `tests/testthat/test-<feature>.R` and use `expect_equal`, `expect_true`, `expect_error`, or `expect_snapshot`. Tests run on every `devtools::check()` and in CI.
 
-```r
+```r title="testthat unit test for reverser"
 library(testthat)
 
 reverse_str <- function(s) {
@@ -731,7 +731,7 @@ test_that("reverse_str reverses a string", {
 
 Three pieces: a **UI** function that describes what the user sees, a **server** function that reads inputs, computes outputs, and pushes them back, and a `shinyApp()` call that wires them together. The server uses **reactive expressions** -- values that re-compute whenever their inputs change -- to avoid rerunning expensive code on every keystroke.
 
-```r
+```r title="Initialise renv lockfile"
 # Not run -- app skeleton for reference
 # library(shiny)
 #
@@ -761,7 +761,7 @@ Three common targets. **shinyapps.io** is posit's managed service -- one click f
 
 `traceback()` after an error shows the call stack. `browser()` inside a function opens an interactive prompt at that line. `debug(f)` arms the function so the next call drops into `browser()` on entry. `options(error = recover)` drops you into a frame-picker on any error. In practice, `browser()` at the suspicious line plus `print()` statements cover 90% of real bugs.
 
-```r
+```r title="Shiny application skeleton"
 # Debug pattern example -- do not run
 # buggy_fn <- function(x) {
 #   browser()          # drops to interactive prompt when called
@@ -787,7 +787,7 @@ This is the classic senior scenario. A strong answer has four layers:
 
 **Try it:** Write a `testthat` test for a function `ex_rev(s)` that reverses a string. Verify it works on `"abc"` and on the empty string.
 
-```r
+```r title="Debug with browser breakpoint"
 # Try it: testthat test
 ex_rev <- function(s) paste(rev(strsplit(s, "")[[1]]), collapse = "")
 
@@ -799,7 +799,7 @@ test_that("ex_rev reverses a string", {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise: Test reverse helper"
 ex_rev <- function(s) paste(rev(strsplit(s, "")[[1]]), collapse = "")
 
 test_that("ex_rev reverses a string", {
@@ -821,7 +821,7 @@ Three capstone exercises that combine multiple concepts from the 50 questions. S
 
 Given the small data frame below, write a dplyr pipeline that (a) keeps rows where `x > 0`, (b) groups by `grp`, (c) returns `n` (row count) and `mean_y` per group, and (d) sorts the result by `mean_y` descending. Save it to `out1`.
 
-```r
+```r title="Exercise solution: reversestr test suite"
 my_df <- data.frame(
   grp = c("a","a","a","b","b","c","c","c","c"),
   x   = c( 1, -2,  3, 4, -1, 2, 3, -5, 6),
@@ -835,7 +835,7 @@ my_df <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one: Filter group summarise pipeline"
 out1 <- my_df |>
   filter(x > 0) |>
   group_by(grp) |>
@@ -858,7 +858,7 @@ out1
 
 Fit `lm(mpg ~ wt + hp + factor(cyl))` on mtcars. Then write a function `my_predict_tidy(model, new_data)` that returns a tibble with columns `fit`, `lwr`, `upr` (95% confidence interval on the mean response).
 
-```r
+```r title="Exercise one solution: Positive group ranking"
 # Starter:
 m_cars <- lm(mpg ~ wt + hp + factor(cyl), data = mtcars)
 
@@ -874,7 +874,7 @@ my_predict_tidy(m_cars, new_cars)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two: Tidy prediction helper"
 m_cars <- lm(mpg ~ wt + hp + factor(cyl), data = mtcars)
 
 my_predict_tidy <- function(model, new_data) {
@@ -899,7 +899,7 @@ my_predict_tidy(m_cars, new_cars)
 
 You are given the event log `my_big_data` below. Write code that (a) counts distinct `event_type` per `user_id`, (b) keeps only users with more than 1 event, (c) returns their most recent event as a single row per user, with columns `user_id`, `n_events`, `latest_time`, `latest_type`. Save the final result to `out3`.
 
-```r
+```r title="Exercise two solution: Prediction intervals as tibble"
 set.seed(202604)
 my_big_data <- data.frame(
   user_id    = sample(1:20, 50, replace = TRUE),
@@ -914,7 +914,7 @@ my_big_data <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three: Event log wrangling"
 out3 <- my_big_data |>
   group_by(user_id) |>
   mutate(n_events = n_distinct(event_type)) |>
@@ -943,7 +943,7 @@ Here is what a real mid-level R interview sequence looks like. Three questions i
 
 **Interviewer:** "Load mtcars and show me the mean mpg per cylinder count."
 
-```r
+```r title="Capstone step one: Mean mpg by cylinder"
 mpg_by_cyl <- mtcars |>
   group_by(cyl) |>
   summarise(mean_mpg = mean(mpg), .groups = "drop")
@@ -960,7 +960,7 @@ mpg_by_cyl
 
 **Interviewer:** "How would you test whether four-cylinder cars have higher mpg than eight-cylinder cars?"
 
-```r
+```r title="Capstone step two: One-sided t-test"
 t_out <- t.test(
   mpg ~ cyl,
   data        = subset(mtcars, cyl %in% c(4, 8)),
@@ -974,7 +974,7 @@ t_out$p.value
 
 **Interviewer:** "Plot the relationship between weight and mpg, coloured by cylinder count."
 
-```r
+```r title="Capstone: Final weight versus mpg plot"
 final_plot <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
   geom_point(size = 3) +
   geom_smooth(method = "lm", se = FALSE) +

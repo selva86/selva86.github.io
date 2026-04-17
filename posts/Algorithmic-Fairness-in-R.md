@@ -37,7 +37,7 @@ There are multiple definitions of fairness, and they can conflict with each othe
 
 A critical result: except in trivial cases, you **cannot** simultaneously satisfy demographic parity, equalized odds, and calibration. You must choose which fairness criterion matters most for your application.
 
-```r
+```r title="Demonstrate the fairness trade-off"
 # Demonstrating the fairness trade-off
 set.seed(42)
 n <- 1000
@@ -75,7 +75,7 @@ cat("You must choose which fairness criterion to prioritize.\n")
 
 The four-fifths rule: the selection rate for any protected group should be at least 80% of the rate for the most-selected group.
 
-```r
+```r title="Measure disparate impact in hiring"
 # Comprehensive disparate impact analysis
 set.seed(42)
 n <- 800
@@ -111,7 +111,7 @@ cat(sprintf("Chi-squared = %.2f, p = %.4f\n", chi$statistic, chi$p.value))
 
 ## Building a Fairness Audit Function
 
-```r
+```r title="Build a reusable fairness audit"
 # Reusable fairness audit function
 fairness_audit <- function(actual, predicted, group, positive_label = 1) {
   groups <- unique(group)
@@ -185,7 +185,7 @@ fairness_audit(test_data$actual, test_data$predicted, test_data$group)
 
 The `fairml` package implements fair regression and classification models that explicitly include fairness constraints.
 
-```r
+```r title="Explore the fairml package"
 # fairml concepts (demonstration without package dependency)
 cat("=== fairml Package Overview ===\n\n")
 cat("Key functions:\n")
@@ -208,7 +208,7 @@ cat("  1.00 = No fairness constraint (standard model)\n")
 
 ### aif360 (AI Fairness 360)
 
-```r
+```r title="Survey the AIF360 toolkit"
 cat("=== AIF360 for R ===\n\n")
 cat("IBM's AI Fairness 360 toolkit (Python-based, R interface available):\n\n")
 
@@ -242,7 +242,7 @@ cat('  metrics <- import("aif360.metrics")\n')
 | 6. Re-measure | Verify improvement | Same audit function |
 | 7. Document | Record decisions and trade-offs | Analysis report |
 
-```r
+```r title="Tune thresholds for fairness"
 # Step 5 example: threshold tuning for fairness
 set.seed(42)
 n <- 500

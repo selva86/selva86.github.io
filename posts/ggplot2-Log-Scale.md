@@ -28,7 +28,7 @@ A log scale fixes this by converting multiplicative relationships into additive 
 
 In this tutorial, you will learn three ggplot2 approaches to log scales, when to pick each one, how to format labels so readers understand your axis, and how to handle the tricky case of zeros and negative values. All code runs directly in your browser.
 
-```r
+```r title="Load ggplot2 and scales libraries"
 # Load libraries (used throughout this tutorial)
 library(ggplot2)
 library(scales)
@@ -40,7 +40,7 @@ Not every skewed dataset needs a log scale. Log scales are the right choice when
 
 A histogram tells you immediately if your data spans orders of magnitude. Let's check diamond prices from the built-in `diamonds` dataset.
 
-```r
+```r title="Histogram of diamond prices linear"
 # Histogram of diamond prices on a linear scale
 ggplot(diamonds, aes(x = price)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") +
@@ -52,7 +52,7 @@ The histogram shows a strong right skew. Most diamonds cost under $5,000, but so
 
 Now apply a log scale to the x-axis. The distribution's shape becomes much clearer.
 
-```r
+```r title="Same histogram on log10 scale"
 # Same histogram with log10 x-axis
 ggplot(diamonds, aes(x = price)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") +
@@ -75,7 +75,7 @@ Use a log scale when your data shows any of these signs:
 
 **Try it:** Check whether `airquality$Ozone` (with NAs removed) is a good candidate for a log scale. Create a histogram and look for right skew and multi-order-of-magnitude spread.
 
-```r
+```r title="Exercise: Check ozone range for log"
 # Try it: is Ozone data suited for a log scale?
 ex_ozone <- na.omit(airquality$Ozone)
 
@@ -90,7 +90,7 @@ cat("Range:", range(ex_ozone), "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ozone log suitability solution"
 ex_ozone <- na.omit(airquality$Ozone)
 hist(ex_ozone, breaks = 20, main = "Ozone Distribution", col = "steelblue")
 #> Shows right-skewed distribution
@@ -112,7 +112,7 @@ When you add `scale_y_log10()` to a plot, ggplot2 applies log10 to every y-value
 
 Let's see this with a scatter plot of diamond price versus carat weight.
 
-```r
+```r title="scaleylog10 on scatter with smooth"
 # Scatter plot with scale_y_log10 + smooth line
 ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -131,7 +131,7 @@ Notice that the y-axis labels still show the original dollar values (1000, 5000,
 
 **Try it:** Apply `scale_x_log10()` to plot `carat` on a log scale too. This double-log plot should make the relationship nearly linear.
 
-```r
+```r title="Exercise: Log both axes"
 # Try it: log-scale both axes
 ex_plot <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5)
@@ -143,7 +143,7 @@ ex_plot <- ggplot(diamonds, aes(x = carat, y = price)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Log both axes solution"
 ex_plot <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
   scale_x_log10() +
@@ -164,7 +164,7 @@ The `coord_trans()` function transforms the axes **after** statistical calculati
 
 This distinction matters a lot when you use `geom_smooth()` or any stat layer. Let's compare the two approaches side by side.
 
-```r
+```r title="scaleylog10 fits in log space"
 # Scale transformation: smooth fits in log-space
 p_scale <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -178,7 +178,7 @@ p_scale
 
 The red line fits a linear model to log10(price) ~ carat. In log-space, this line is straight.
 
-```r
+```r title="coordtrans fits in linear space"
 # Coordinate transformation: smooth fits in linear space, then bends
 p_coord <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -208,7 +208,7 @@ Here is a quick decision rule:
 
 **Try it:** Create a scatter of `carat` vs `price` with `coord_trans()` applied to both x and y axes. Compare how it looks to the scale version.
 
-```r
+```r title="Exercise: coordtrans on both axes"
 # Try it: coord_trans on both axes
 ex_coord <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5)
@@ -220,7 +220,7 @@ ex_coord <- ggplot(diamonds, aes(x = carat, y = price)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="coordtrans both axes solution"
 ex_coord <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
   coord_trans(x = "log10", y = "log10") +
@@ -239,7 +239,7 @@ Default log-scale labels in ggplot2 show the original values (100, 1000, 10000),
 
 The `scales` package provides labeling functions that pair perfectly with log scales. Let's start with exponent notation using `label_log()`.
 
-```r
+```r title="Exponent labels with labellog"
 # Exponent labels: 10^2, 10^3, 10^4
 ggplot(diamonds, aes(x = price)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") +
@@ -255,7 +255,7 @@ The axis now shows 10^2, 10^3, and 10^4. This is standard for scientific publica
 
 For a general audience, comma-formatted labels are more readable. Use `label_comma()` or `label_dollar()` to keep the original units.
 
-```r
+```r title="Dollar labels on log y-axis"
 # Dollar-formatted labels on a log scale
 ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -271,7 +271,7 @@ The y-axis shows $500, $1,000, $2,000, $5,000, $10,000. The spacing between labe
 
 For log scales, adding minor tick marks between the major gridlines helps readers estimate intermediate values. Use `guide_axis_logticks()` to add these.
 
-```r
+```r title="Log tick marks with guideaxislogticks"
 # Log tick marks on the y-axis
 ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -290,7 +290,7 @@ The minor ticks show the characteristic log-scale pattern: tightly spaced near t
 
 **Try it:** Create a scatter plot of `diamonds` price vs carat with a log10 y-axis. Format the y-axis labels as dollars and set breaks at 300, 1000, 3000, and 10000.
 
-```r
+```r title="Exercise: Custom dollar breaks"
 # Try it: custom dollar labels on log scale
 ex_labeled <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5)
@@ -302,7 +302,7 @@ ex_labeled <- ggplot(diamonds, aes(x = carat, y = price)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Custom dollar breaks solution"
 ex_labeled <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
   scale_y_log10(
@@ -324,7 +324,7 @@ Log transformations have a mathematical limitation: log(0) is negative infinity 
 
 This is a common problem with count data, where zero counts are meaningful. Let's see what happens.
 
-```r
+```r title="Zeros disappear on log scale"
 # Data with zeros
 df_zeros <- data.frame(
   category = LETTERS[1:8],
@@ -343,7 +343,7 @@ Categories A and E have zero counts, so they disappear entirely. The warning mes
 
 The `pseudo_log_trans()` function from the `scales` package solves this. It behaves like a log scale for large values but transitions smoothly to a linear scale near zero.
 
-```r
+```r title="pseudologtrans preserves zeros"
 # pseudo_log_trans handles zeros gracefully
 ggplot(df_zeros, aes(x = category, y = count)) +
   geom_col(fill = "steelblue") +
@@ -359,7 +359,7 @@ Now all eight categories are visible, including the zeros. The axis transitions 
 
 Another approach is to add a small constant before taking the log. This is called the "log plus one" or log1p transformation.
 
-```r
+```r title="Add one before log"
 # log1p approach: add 1 before log
 ggplot(df_zeros, aes(x = category, y = count + 1)) +
   geom_col(fill = "coral") +
@@ -379,7 +379,7 @@ Adding 1 shifts all values up so that zeros become 1, and log10(1) = 0. This is 
 
 **Try it:** Create a bar chart of `df_zeros` using `pseudo_log_trans(base = 10)` and add `label_comma()` to the y-axis so the labels show original counts.
 
-```r
+```r title="Exercise: Pseudo-log with comma labels"
 # Try it: pseudo-log with readable labels
 ex_pseudo <- ggplot(df_zeros, aes(x = category, y = count)) +
   geom_col(fill = "steelblue")
@@ -391,7 +391,7 @@ ex_pseudo <- ggplot(df_zeros, aes(x = category, y = count)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pseudo-log solution"
 ex_pseudo <- ggplot(df_zeros, aes(x = category, y = count)) +
   geom_col(fill = "steelblue") +
   scale_y_continuous(
@@ -414,7 +414,7 @@ ex_pseudo
 When you add a smooth line with `coord_trans()`, the model fits linear data, not log-transformed data. The curve you see is misleading.
 
 Wrong:
-```r
+```r title="Mistake: Smooth fit after coordtrans"
 # coord_trans: smooth is fit on RAW data then visually bent
 p_wrong <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -426,7 +426,7 @@ p_wrong
 **Why it is wrong:** The linear model was fit to raw prices (not log-prices). The line curves only because of the coordinate warp, not because the model learned a log relationship.
 
 Correct:
-```r
+```r title="Correct: Scale transform before fit"
 # scale_y_log10: smooth fits log(price) ~ carat
 p_right <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -440,7 +440,7 @@ p_right
 When data contains zeros and you use `scale_y_log10()`, ggplot2 silently removes those points.
 
 Wrong:
-```r
+```r title="Mistake: Zero points silently dropped"
 # Zeros are silently dropped
 df_test <- data.frame(x = 1:5, y = c(10, 0, 100, 0, 1000))
 ggplot(df_test, aes(x, y)) +
@@ -454,7 +454,7 @@ ggplot(df_test, aes(x, y)) +
 **Why it is wrong:** Two data points vanish without an obvious visual cue. Readers see three points instead of five.
 
 Correct:
-```r
+```r title="Correct: pseudolog keeps zeros"
 # Use pseudo_log_trans to keep zeros visible
 ggplot(df_test, aes(x, y)) +
   geom_point(size = 3) +
@@ -468,7 +468,7 @@ ggplot(df_test, aes(x, y)) +
 The `xlim()` and `ylim()` functions replace the scale, which removes `scale_y_log10()`. Use `coord_cartesian()` or set `limits` inside the scale function.
 
 Wrong:
-```r
+```r title="Mistake: ylim replaces log scale"
 # ylim() replaces scale_y_log10 — log scale is lost!
 p_broken <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -481,7 +481,7 @@ cat("ylim() removed your log scale!\n")
 **Why it is wrong:** `ylim()` creates a new linear scale that replaces your `scale_y_log10()`. You lose the log transformation entirely.
 
 Correct:
-```r
+```r title="Correct: Limits inside scaleylog10"
 # Set limits inside scale_y_log10
 ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -494,7 +494,7 @@ ggplot(diamonds, aes(x = carat, y = price)) +
 `scale_y_log10()` uses base 10, but `log_trans()` defaults to natural log (base e). Mixing them leads to confusing axis labels.
 
 Wrong:
-```r
+```r title="Mistake: trans log uses natural log"
 # This uses natural log, not log10
 ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -507,7 +507,7 @@ cat("trans = 'log' uses base e (2.718...), not base 10\n")
 **Why it is wrong:** The labels show values like 403, 1097, 2981 which are not round numbers in base 10. Readers expect 100, 1000, 10000 on a "log scale" axis.
 
 Correct:
-```r
+```r title="Correct: Use scaleylog10 for base ten"
 # Explicitly use log10
 ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -522,7 +522,7 @@ ggplot(diamonds, aes(x = carat, y = price)) +
 
 Create a scatter plot of `diamonds` using `carat` on the x-axis and `price` on the y-axis. Apply log10 scales to both axes. Add a linear smooth line. Format the y-axis with dollar labels and the x-axis with `label_number()`. Add log tick marks to the y-axis using `guide_axis_logticks()`.
 
-```r
+```r title="Exercise: Professional log-log scatter"
 # Exercise 1: professional log-log scatter
 # Hint: combine scale_x_log10, scale_y_log10, label_dollar, guide_axis_logticks
 
@@ -533,7 +533,7 @@ Create a scatter plot of `diamonds` using `carat` on the x-axis and `price` on t
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Professional log-log solution"
 my_scatter <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.05, size = 0.5, color = "steelblue") +
   geom_smooth(method = "lm", color = "red", linewidth = 1) +
@@ -557,7 +557,7 @@ my_scatter
 
 Create a data frame with 10 categories and counts that include at least two zeros and values ranging from 0 to 50,000. Make two bar charts side by side: one with `scale_y_log10()` (showing the zero problem) and one with `pseudo_log_trans()` (showing the fix). Give each plot an informative title.
 
-```r
+```r title="Exercise: Compare log10 and pseudo-log"
 # Exercise 2: compare log10 vs pseudo-log on data with zeros
 # Hint: create df with zeros, use pseudo_log_trans(base = 10)
 
@@ -568,7 +568,7 @@ Create a data frame with 10 categories and counts that include at least two zero
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="log10 versus pseudo-log solution"
 my_data <- data.frame(
   item = LETTERS[1:10],
   sales = c(0, 50, 200, 0, 3000, 15000, 500, 50000, 80, 0)
@@ -600,7 +600,7 @@ my_pseudo
 
 Here is a complete, polished example that starts with raw data, diagnoses whether a log scale is needed, applies it, and formats the output for publication.
 
-```r
+```r title="Step one: diagnose price range"
 # Step 1: Load data and check the range
 data(diamonds)
 cat("Price range:", range(diamonds$price), "\n")
@@ -612,7 +612,7 @@ cat("Spans ~2 orders of magnitude — log scale is appropriate.\n")
 
 The price range spans a factor of 58, nearly two orders of magnitude. A log scale will help.
 
-```r
+```r title="Step two: publication-ready plot"
 # Step 2: Build the plot with log scale, labels, and ticks
 final_plot <- ggplot(diamonds, aes(x = carat, y = price, color = cut)) +
   geom_point(alpha = 0.15, size = 0.8) +

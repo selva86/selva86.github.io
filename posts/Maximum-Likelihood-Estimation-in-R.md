@@ -26,7 +26,7 @@ Suppose you have 200 exam scores and you believe they come from a normal distrib
 
 The function below computes the negative log-likelihood of the normal distribution given a candidate parameter vector. `optim()` then searches for the vector that minimizes it. Because minimizing the negative is the same as maximizing the positive, the result is the MLE.
 
-```r
+```r title="Normal MLE with optim"
 library(stats4)
 library(ggplot2)
 
@@ -49,7 +49,7 @@ The optimizer started at (50, 5), far from the truth, and climbed the likelihood
 
 Now let's sanity-check. For a normal distribution, the MLE has a closed-form solution: the sample mean for μ and the sample standard deviation (with division by n, not n−1) for σ. The optimizer should match that closed form.
 
-```r
+```r title="Compare closed-form estimates"
 c(mean_est = mean(norm_data),
   sd_mle   = sqrt(mean((norm_data - mean(norm_data))^2)))
 #> mean_est   sd_mle
@@ -63,7 +63,7 @@ The numbers match `fit_norm$par` to four decimals. That's not a coincidence, it'
 
 **Try it:** Fit a normal distribution to R's built-in `precip` dataset (annual rainfall for 70 US cities) using `optim()`. Report the estimated mean and sd.
 
-```r
+```r title="Exercise: Fit normal to precip"
 # Try it: fit a normal to precip
 ex_neg_ll <- function(params) {
   # your code here
@@ -77,7 +77,7 @@ ex_fit$par
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Precip normal solution"
 ex_neg_ll <- function(params) {
   -sum(dnorm(precip, mean = params[1], sd = params[2], log = TRUE))
 }
@@ -102,7 +102,7 @@ $$\ell(\theta \mid x) = \sum_{i=1}^{n} \log f(x_i \mid \theta)$$
 
 Let's see the underflow in action on our existing `norm_data`. We'll compute the raw product of densities and then the sum of log densities, at the true parameters.
 
-```r
+```r title="Raw versus log likelihood"
 raw_likelihood  <- prod(dnorm(norm_data, mean = 65, sd = 12))
 log_likelihood  <- sum(dnorm(norm_data, mean = 65, sd = 12, log = TRUE))
 c(raw = raw_likelihood, log_lik = log_likelihood)
@@ -114,7 +114,7 @@ The raw product underflowed to exactly zero. Every numeric optimizer you try wil
 
 Because optimizers like `optim()` minimize by default, we always write the *negative* log-likelihood and minimize it. To visualize what the optimizer is climbing, let's compute the log-likelihood on a grid of μ values (holding σ fixed at its estimate) and plot the curve.
 
-```r
+```r title="Plot log-likelihood surface"
 mu_grid <- seq(60, 70, length.out = 200)
 ll_vals <- sapply(mu_grid, function(m)
   sum(dnorm(norm_data, mean = m, sd = 11.80, log = TRUE)))
@@ -134,7 +134,7 @@ The curve is smoothly concave, peaking at the MLE. The dashed vertical line mark
 
 **Try it:** Evaluate the log-likelihood of the normal at μ=65, σ=12 for `norm_data`. Confirm it equals roughly `-785.8`.
 
-```r
+```r title="Exercise: Evaluate log-likelihood at truth"
 # Try it: evaluate log-likelihood
 ex_ll <- # your code here
 
@@ -145,7 +145,7 @@ ex_ll
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Log-likelihood solution"
 ex_ll <- sum(dnorm(norm_data, mean = 65, sd = 12, log = TRUE))
 ex_ll
 #> [1] -785.8133
@@ -159,7 +159,7 @@ ex_ll
 
 The power of the MLE recipe is that it generalizes. Only the density function changes. Let's simulate Poisson count data (the number of emails per hour, say, with true rate λ = 4.3) and fit λ with `optim()`.
 
-```r
+```r title="Poisson MLE with L-BFGS-B"
 set.seed(11)
 pois_data <- rpois(500, lambda = 4.3)
 
@@ -175,7 +175,7 @@ fit_pois$par
 
 We switched to `L-BFGS-B` because λ must stay positive, that method lets you declare `lower = 1e-6` so the optimizer never wanders into negative territory. Starting from λ = 1, `optim()` climbed to λ = 4.316. The true value was 4.3, and the Poisson's analytical MLE is the sample mean, so let's confirm.
 
-```r
+```r title="Check against sample mean"
 mean(pois_data)
 #> [1] 4.316
 ```
@@ -187,7 +187,7 @@ Identical to three decimals. Every distribution with a `dxxx()` in R can be fit 
 
 **Try it:** Simulate `rexp(500, rate = 2)` and recover the rate with `optim()`. The analytical MLE is `1 / mean(x)`.
 
-```r
+```r title="Exercise: Exponential rate MLE"
 # Try it: exponential MLE
 set.seed(3)
 ex_exp_data <- rexp(500, rate = 2)
@@ -205,7 +205,7 @@ ex_fit_exp$par
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exponential rate solution"
 ex_neg_ll_exp <- function(rate) {
   -sum(dexp(ex_exp_data, rate = rate, log = TRUE))
 }
@@ -229,7 +229,7 @@ ex_fit_exp$par
 
 Here's the same Poisson fit from the previous section, now routed through `mle()`. Note the named-argument convention: the first function argument is the parameter being estimated, and `start` is a named list.
 
-```r
+```r title="stats4 mle with standard errors"
 neg_ll_pois_named <- function(lambda = 1) {
   -sum(dpois(pois_data, lambda = lambda, log = TRUE))
 }
@@ -253,7 +253,7 @@ summary(fit_pois_mle)
 
 `summary()` shows the estimate plus its standard error, the typical spread of the estimator under resampling. For a 95% profile-likelihood confidence interval (usually more accurate than the Wald SE interval), call `confint()`:
 
-```r
+```r title="Profile-likelihood confidence interval"
 confint(fit_pois_mle)
 #>    2.5 %   97.5 %
 #> 4.135868 4.500024
@@ -263,7 +263,7 @@ The true λ = 4.3 lies comfortably inside [4.14, 4.50]. You did not have to comp
 
 If you prefer to stay with `optim()`, you can recover the same SE manually by asking for the Hessian and inverting it. The Hessian of the *negative* log-likelihood is the observed Fisher information, and its inverse is the estimator's covariance matrix.
 
-```r
+```r title="Recover SE from Hessian"
 fit_pois_h <- optim(par = 1, fn = neg_ll_pois,
                     method = "L-BFGS-B", lower = 1e-6,
                     hessian = TRUE)
@@ -280,7 +280,7 @@ Same SE as `mle()` returned. Use whichever interface you prefer, `mle()` is clea
 
 **Try it:** Using `fit_pois_mle`, call `confint(fit_pois_mle, level = 0.90)` for a 90% interval. Explain in one sentence why it is narrower than the 95% interval.
 
-```r
+```r title="Exercise: 90 percent confidence interval"
 # Try it: 90% CI
 ex_ci <- # your code here
 
@@ -291,7 +291,7 @@ ex_ci
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="90 percent CI solution"
 ex_ci <- confint(fit_pois_mle, level = 0.90)
 ex_ci
 #>       5 %      95 %
@@ -308,7 +308,7 @@ When no built-in density quite matches your model, Weibull for failure times, a 
 
 Let's fit a Weibull to simulated failure times. The Weibull has two parameters, `shape` and `scale`, both positive. We will overlay the fitted density on a histogram to visually confirm the fit.
 
-```r
+```r title="Custom Weibull log-likelihood"
 set.seed(7)
 wb_data <- rweibull(500, shape = 1.8, scale = 100)
 
@@ -326,7 +326,7 @@ fit_wb$par
 
 The estimates are right on top of the true (1.8, 100). Now let's plot the fitted density (black curve) against the histogram of the data (gray bars) to confirm the visual fit.
 
-```r
+```r title="Overlay fitted Weibull density"
 x_grid <- seq(0, max(wb_data), length.out = 200)
 fit_df <- data.frame(x = x_grid,
                      d = dweibull(x_grid,
@@ -349,7 +349,7 @@ The fitted curve hugs the histogram's shape, unimodal, right-skewed, tapering to
 
 **Try it:** Re-fit `wb_data` as if it were Gamma-distributed (using `dgamma` with `shape` and `rate`). Inspect the resulting fit.
 
-```r
+```r title="Exercise: Fit Gamma to Weibull data"
 # Try it: try a Gamma instead
 ex_neg_ll_gamma <- function(params) {
   # your code here
@@ -364,7 +364,7 @@ ex_fit_gamma$par
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Gamma misfit solution"
 ex_neg_ll_gamma <- function(params) {
   -sum(dgamma(wb_data, shape = params[1], rate = params[2], log = TRUE))
 }
@@ -384,7 +384,7 @@ ex_fit_gamma$par
 
 Simulate 500 negative-binomial counts with `rnbinom(500, size = 3, mu = 8)`, write the negative log-likelihood using `dnbinom(..., log = TRUE)`, and recover both `size` and `mu` with `optim()`. Use `L-BFGS-B` and keep both parameters strictly positive. Save the result to `my_nb_fit`.
 
-```r
+```r title="Exercise: Negative binomial MLE"
 # Exercise: negative binomial MLE
 # Hint: dnbinom(x, size = s, mu = m, log = TRUE)
 
@@ -398,7 +398,7 @@ my_counts <- rnbinom(500, size = 3, mu = 8)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Negative binomial solution"
 my_neg_ll <- function(params) {
   size <- params[1]
   mu   <- params[2]
@@ -419,7 +419,7 @@ my_nb_fit$par
 
 Simulate bimodal data and fit a mixture of two normals by hand. The mixture density is `w * dnorm(x, mu1, s1) + (1 - w) * dnorm(x, mu2, s2)` with mixing weight `w` in (0, 1). Write the negative log-likelihood for this density and estimate (w, mu1, s1, mu2, s2) with `optim()`. Save to `my_mix_fit`.
 
-```r
+```r title="Exercise: Two-component mixture MLE"
 # Exercise: 2-component normal mixture MLE
 # Hint: log(w * dnorm(...) + (1 - w) * dnorm(...)) — use log() outside,
 # since there's no shortcut for log-density of a mixture.
@@ -435,7 +435,7 @@ my_mix <- c(rnorm(300, mean = -2, sd = 1),
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mixture MLE solution"
 my_neg_ll_mix <- function(params) {
   w   <- params[1]
   mu1 <- params[2]; s1 <- params[3]
@@ -460,7 +460,7 @@ my_mix_fit$par
 
 A common actuarial task is modeling claim sizes as a Gamma distribution. We will simulate claim data, fit a Gamma via `stats4::mle()`, inspect standard errors and profile-likelihood confidence intervals, and finally overlay the fitted density on the data to check the fit visually.
 
-```r
+```r title="Simulate insurance claim data"
 set.seed(2024)
 claims <- rgamma(1000, shape = 2.5, scale = 1500)
 summary(claims)
@@ -470,7 +470,7 @@ summary(claims)
 
 The data spans roughly 0 to 18,000 with a median around 3,300, right-skewed, as claims typically are. Now the Gamma MLE. Gamma has two positive parameters, and `dgamma()` takes `shape` and `rate` (rate = 1 / scale), so we fit on the rate parameterization.
 
-```r
+```r title="Fit Gamma to claims"
 neg_ll_gamma <- function(shape = 1, rate = 0.001) {
   -sum(dgamma(claims, shape = shape, rate = rate, log = TRUE))
 }
@@ -491,7 +491,7 @@ summary(fit_claims)
 
 The true parameters were shape = 2.5 and rate = 1/1500 ≈ 0.000667, both are recovered within one standard error. Profile-likelihood CIs for both:
 
-```r
+```r title="Claim confidence intervals"
 confint(fit_claims)
 #>            2.5 %       97.5 %
 #> shape 2.2934416 2.7008070
@@ -500,7 +500,7 @@ confint(fit_claims)
 
 Both intervals comfortably contain the truth. Finally, overlay the fitted Gamma density on the histogram as a model-check.
 
-```r
+```r title="End-to-end claim density overlay"
 est   <- coef(fit_claims)
 grid  <- seq(0, max(claims), length.out = 200)
 curve <- data.frame(x = grid,

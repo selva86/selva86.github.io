@@ -26,7 +26,7 @@ Most bias bugs hide in plain sight. A model that looks accurate overall while qu
 
 The block below builds a tiny synthetic loan dataset where two groups, call them A and B, have the same true creditworthiness on average. Watch what happens to the observed approval rates anyway.
 
-```r
+```r title="Simulate biased approval rates"
 library(dplyr)
 library(ggplot2)
 
@@ -66,7 +66,7 @@ Three different culprits can produce a gap like this. We'll meet each in turn:
 
 **Try it:** Re-run the loan generator with `set.seed(99)` and confirm the approval gap stays roughly the same size. The point is to show that the gap is a property of the *process*, not a quirk of one random draw.
 
-```r
+```r title="Exercise: compute approval-rate gap"
 # Try it: change the seed and re-measure the gap
 set.seed(99)
 g <- sample(c("A","B"), 1000, replace = TRUE)
@@ -84,7 +84,7 @@ ex_loans <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Approval-rate gap solution"
 gap <- ex_loans |>
   group_by(group) |>
   summarise(rate = mean(approved)) |>
@@ -107,7 +107,7 @@ Sampling bias means some members of the target population were more likely to en
 
 The simplest detection trick is to compare your sample's group proportions to a known reference, the true population, a census, or a prior wave of the same survey. If the gap is bigger than chance, the chi-squared test will flag it.
 
-```r
+```r title="Chi-squared test for sampling bias"
 # Known true population: 50% group A, 50% group B
 set.seed(7)
 population_share <- c(A = 0.50, B = 0.50)
@@ -138,7 +138,7 @@ A p-value below 0.05 means the gap between your sample and the population is too
 
 Statistical significance is one lens. The next is the *80% rule* (also called the four-fifths rule), borrowed from US employment law: any group whose representation ratio falls below 0.8 is considered substantially under-represented.
 
-```r
+```r title="Representation ratio with 80 percent flag"
 rep_table <- tibble(
   group           = names(observed),
   sample_share    = as.numeric(observed) / sum(observed),
@@ -163,7 +163,7 @@ Group B's representation ratio is 0.58, well below the 0.8 threshold, it is subs
 
 **Try it:** Write a small function that takes a vector of group labels and a named vector of expected population shares, then returns the chi-squared p-value. This is the audit primitive you'll reach for whenever a fresh dataset arrives.
 
-```r
+```r title="Exercise: wrap chi-squared into a function"
 # Try it: write ex_chi_test()
 ex_chi_test <- function(group_vec, expected_share) {
   # your code here
@@ -177,7 +177,7 @@ ex_chi_test(sample_draw, c(A = 0.5, B = 0.5))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Chi-squared function solution"
 ex_chi_test <- function(group_vec, expected_share) {
   obs <- table(group_vec)[names(expected_share)]
   chisq.test(x = obs, p = expected_share)$p.value
@@ -197,7 +197,7 @@ Measurement bias is sneakier than sampling bias because the right people *are* i
 
 The block below simulates a realistic case: group A is measured by a calibrated tape (no error), group B by self-report (a 3 cm upward bias plus more noise). The true heights are identical between the two groups by construction.
 
-```r
+```r title="Inject measurement bias into heights"
 set.seed(11)
 n <- 600
 heights <- tibble(
@@ -230,7 +230,7 @@ Group B's measured mean is about 3 cm higher than its true mean, exactly the bia
 
 The fix needs a *gold-standard subsample*: a small set of cases where both the cheap and the expensive measurements exist. From that subsample you estimate the bias, then subtract it from the rest of group B.
 
-```r
+```r title="Calibrate with gold-standard subsample"
 # Gold-standard subsample: 30 group-B cases with both measurements
 gold <- heights |>
   filter(group == "B") |>
@@ -261,7 +261,7 @@ After applying the correction, both groups land near the true mean of 170 cm. Th
 
 **Try it:** Given the `heights` dataframe with `true_height` and `measured` columns, compute the per-group mean error and identify which group is biased.
 
-```r
+```r title="Exercise: per-group mean error"
 # Try it: compute per-group mean error
 ex_err <- heights |>
   # your code here
@@ -272,7 +272,7 @@ ex_err <- heights |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Per-group mean error solution"
 ex_err <- heights |>
   group_by(group) |>
   summarise(mean_error = round(mean(measured - true_height), 2))
@@ -297,7 +297,7 @@ Algorithmic bias is the third layer. Even if your sample is representative and y
 
 To put numbers on it, fit a logistic regression to the biased loan data from earlier and look at the predictions group by group.
 
-```r
+```r title="Score-only logistic model"
 model <- glm(approved ~ score, data = loans, family = binomial)
 loans2 <- loans |>
   mutate(
@@ -317,7 +317,7 @@ loans2 |>
 
 The model is *score-only*, so its raw positive rate is the same in both groups, a useful sanity check. The bias only shows up when you compare predictions against the actual approval outcomes, which is what a confusion matrix does.
 
-```r
+```r title="Group-wise confusion matrices"
 cm <- loans2 |>
   group_by(group) |>
   summarise(
@@ -350,7 +350,7 @@ $$\text{PE}_g = \frac{FP_g}{FP_g + TN_g}$$
 
 Where, in each formula, $g$ indexes the protected group and the four counts come from that group's confusion matrix. *If formulas aren't your preferred way to learn, skip to the code, the table at the end of this section says the same thing.*
 
-```r
+```r title="Three fairness metrics side by side"
 fair <- cm |>
   mutate(
     dem_parity      = round((TP + FP) / (TP + FP + FN + TN), 3),
@@ -369,7 +369,7 @@ Demographic parity is roughly equal at 0.58, and equal opportunity is roughly eq
 
 A picture makes the comparison faster:
 
-```r
+```r title="Plot fairness metrics by group"
 fair_long <- fair |>
   select(group, dem_parity, equal_opp_TPR, pred_eq_FPR) |>
   tidyr::pivot_longer(-group, names_to = "metric", values_to = "value")
@@ -391,7 +391,7 @@ ggplot(fair_long, aes(x = metric, y = value, fill = group)) +
 
 **Try it:** Change the classification threshold from 0.5 to 0.6 and re-compute the demographic parity. Predict the direction of the change *before* you run the code.
 
-```r
+```r title="Exercise: re-threshold and re-measure parity"
 # Try it: re-threshold predictions and recompute demographic parity
 ex_thresh <- loans2 |>
   mutate(predicted = as.integer(prob > 0.6))
@@ -403,7 +403,7 @@ ex_thresh <- loans2 |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Re-threshold parity solution"
 ex_thresh |>
   group_by(group) |>
   summarise(dem_parity = round(mean(predicted), 3))
@@ -426,7 +426,7 @@ The first lever is **reweighting**: assign higher importance to under-represente
 
 The block below applies threshold adjustment to the loans model. The goal is to bring the false positive rate gap under five percentage points.
 
-```r
+```r title="Per-group threshold adjustment"
 # Find a group-B threshold that lowers its FPR to match group A's
 loans3 <- loans2 |>
   mutate(
@@ -456,7 +456,7 @@ Group B's false positive rate is now 0.493, slightly below group A's 0.510. The 
 
 **Try it:** Fit the loan model with reweighting, give group B observations twice the weight of group A, and compute the new demographic parity ratio.
 
-```r
+```r title="Exercise: weighted model refit"
 # Try it: refit with weights
 ex_weighted <- loans |>
   mutate(w = ifelse(group == "B", 2, 1))
@@ -468,7 +468,7 @@ ex_weighted <- loans |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Weighted refit solution"
 ex_model <- glm(approved ~ score, data = ex_weighted,
                 family = binomial, weights = w)
 ex_weighted |>
@@ -494,7 +494,7 @@ These three problems combine the techniques above. Each uses fresh variable name
 
 Simulate a hiring dataset of 800 applicants with two groups and a `hired` outcome where group A is hired 65% of the time and group B 40%. Run all three checks: sampling representation, measurement (compare a noisy and a clean version of `interview_score`), and algorithmic (fit a logistic regression and report demographic parity).
 
-```r
+```r title="Exercise: full hiring audit"
 # Exercise 1: full audit
 # Hint: build the data with sample() and rbinom(), then reuse the patterns from the tutorial.
 
@@ -505,7 +505,7 @@ Simulate a hiring dataset of 800 applicants with two groups and a `hired` outcom
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Hiring audit solution"
 set.seed(101)
 n <- 800
 hire_data <- tibble(
@@ -555,7 +555,7 @@ hire_data |>
 
 You are auditing a loan-default model where a false positive (wrongly approving someone who defaults) ruins an applicant's credit history for years, while a false negative (wrongly rejecting someone who would have repaid) means they have to apply elsewhere. Write a short R chunk that prints which fairness metric, demographic parity, equal opportunity, or predictive equality, best matches this harm pattern, with a one-line comment justifying the choice.
 
-```r
+```r title="Exercise: pick the fairness metric"
 # Exercise 2: choose the right metric
 
 # Write your answer as code + comment:
@@ -565,7 +565,7 @@ You are auditing a loan-default model where a false positive (wrongly approving 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fairness metric solution"
 # Predictive equality (false positive rate parity).
 # A false positive — wrongly approving an applicant who defaults —
 # is the most damaging outcome here, so we want false positive rates
@@ -583,7 +583,7 @@ print(chosen_metric)
 
 Take the loans model from the tutorial. Apply (a) reweighting with group B at weight 2 and (b) a per-group threshold of 0.55 for group B. Report which mitigation produces a smaller demographic parity gap. Use distinct variable names so the tutorial state is preserved.
 
-```r
+```r title="Exercise: reweight versus threshold"
 # Exercise 3: compare reweighting vs threshold adjustment
 # Hint: compute demographic parity (proportion predicted positive) for each strategy.
 
@@ -594,7 +594,7 @@ Take the loans model from the tutorial. Apply (a) reweighting with group B at we
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Reweight versus threshold solution"
 # Strategy A: reweighting
 mod_w <- glm(approved ~ score, data = loans, family = binomial,
              weights = ifelse(loans$group == "B", 2, 1))
@@ -622,7 +622,7 @@ c(reweighting = round(gap_w, 3), threshold = round(gap_t, 3))
 
 This pipeline ties everything together, sampling, measurement, model, mitigation, on a fresh synthetic dataset.
 
-```r
+```r title="End-to-end salary audit"
 set.seed(2027)
 n <- 1500
 sg <- sample(c("A","B"), n, replace = TRUE, prob = c(0.55, 0.45))

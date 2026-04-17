@@ -24,7 +24,7 @@ sidebar_order: 41
 
 Every analysis starts with the same question: *what does this data actually look like?* Before you fit models or run tests, you need to know where the centre is, how spread out the values are, and whether anything looks unusual. Let's start with R's built-in `summary()`, it gives you six key numbers in one line.
 
-```r
+```r title="Summary of ozone and data frame"
 # Quick snapshot of a single column
 summary(airquality$Ozone)
 #>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's
@@ -51,7 +51,7 @@ When `summary()` reports NA's, that means those values were excluded from the mi
 
 **Try it:** Run `summary(mtcars$mpg)`. The output shows six numbers. A car that gets 21 mpg, does it fall above or below the median? Above or below the third quartile?
 
-```r
+```r title="Exercise: summary of mpg"
 # Try it: interpret summary() output
 summary(mtcars$mpg)
 #> Expected: check whether 21 falls between Median and 3rd Qu.
@@ -60,7 +60,7 @@ summary(mtcars$mpg)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 summary(mtcars$mpg)
 #>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
 #>   10.40   15.43   19.20   20.09   22.80   33.90
@@ -78,7 +78,7 @@ The **mean** is the balance point, add up every value and divide by the count. T
 
 Here's why the distinction matters. Imagine 10 people each earning \$50,000, plus one billionaire. The mean income is about \$91 million. The median is still \$50,000. The mean is technically correct but completely misleading, the median tells the real story.
 
-```r
+```r title="Mean and median of ozone"
 # Mean and median of ozone levels (skip NAs)
 ozone_mean <- mean(airquality$Ozone, na.rm = TRUE)
 ozone_med  <- median(airquality$Ozone, na.rm = TRUE)
@@ -96,7 +96,7 @@ The mean (42.1) is about 34% higher than the median (31.5). That's a strong hint
 
 R has no built-in function for the statistical mode, so here's a simple one:
 
-```r
+```r title="Define statistical mode helper"
 # Custom function for the statistical mode
 stat_mode <- function(x) {
   ux <- unique(x)
@@ -111,7 +111,7 @@ stat_mode(c(1, 2, 2, 3, 3, 3, 4))
 
 When should you report which measure? If mean and median are close, the data is roughly symmetric and either works. If the mean is much larger than the median, the data is right-skewed and the median is more representative.
 
-```r
+```r title="Ratio of mean to median"
 # Compare mean vs median: which is more representative?
 cat("Mean - Median =", ozone_mean - ozone_med, "\n")
 #> Mean - Median = 10.62931
@@ -123,7 +123,7 @@ A mean/median ratio of 1.34 confirms right skew. For ozone levels, the median (3
 
 **Try it:** Calculate the mean and median of `mtcars$hp`. Is the mean higher than the median? What does that tell you about the distribution of horsepower?
 
-```r
+```r title="Exercise: mean versus median of hp"
 # Try it: mean vs median of horsepower
 ex_hp_mean <- mean(mtcars$hp)
 ex_hp_med  <- median(mtcars$hp)
@@ -133,7 +133,7 @@ ex_hp_med  <- median(mtcars$hp)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_hp_mean <- mean(mtcars$hp)
 ex_hp_med  <- median(mtcars$hp)
 cat("Mean:", ex_hp_mean, "  Median:", ex_hp_med, "\n")
@@ -164,7 +164,7 @@ Where:
 
 *If you're not interested in the math, skip ahead, the practical code below is all you need.*
 
-```r
+```r title="Spread with sd var IQR and range"
 # Four measures of spread
 ozone <- airquality$Ozone[!is.na(airquality$Ozone)]
 
@@ -187,7 +187,7 @@ The SD of 32.99 tells you that a typical ozone reading is about 33 ppb away from
 
 Here's why the pairing matters. Let's inject an extreme outlier and see which statistic moves more:
 
-```r
+```r title="Effect of outliers on SD and IQR"
 # How sensitive are SD and IQR to outliers?
 clean <- c(10, 12, 14, 15, 16, 18, 20)
 with_outlier <- c(clean, 500)
@@ -205,7 +205,7 @@ Adding one value of 500 exploded the SD from 3.4 to 170.6, a 50x increase. The I
 
 **Try it:** Calculate the SD and IQR of `mtcars$wt` (car weight in thousands of pounds). Which measure gives a clearer picture of how much typical car weights vary?
 
-```r
+```r title="Exercise: sd versus IQR for wt"
 # Try it: SD vs IQR for car weight
 ex_wt_sd  <- sd(mtcars$wt)
 ex_wt_iqr <- IQR(mtcars$wt)
@@ -215,7 +215,7 @@ ex_wt_iqr <- IQR(mtcars$wt)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_wt_sd  <- sd(mtcars$wt)
 ex_wt_iqr <- IQR(mtcars$wt)
 cat("SD:", round(ex_wt_sd, 3), "  IQR:", round(ex_wt_iqr, 3), "\n")
@@ -234,7 +234,7 @@ Quantiles split your data into equal-sized chunks. **Quartiles** split into 4 pa
 
 Quantiles answer questions that mean and SD cannot: "What value marks the top 10%?" or "What range covers the middle 80% of observations?"
 
-```r
+```r title="Quartiles via quantile"
 # Default quartiles (0%, 25%, 50%, 75%, 100%)
 quantile(ozone)
 #>     0%    25%    50%    75%   100%
@@ -243,7 +243,7 @@ quantile(ozone)
 
 The default output matches what `summary()` gave you, the five-number summary. But `quantile()` lets you ask for any percentile you want:
 
-```r
+```r title="Custom percentiles at five ten ninety and ninety"
 # Custom percentiles: where do 90% of the values fall?
 quantile(ozone, probs = c(0.05, 0.10, 0.90, 0.95))
 #>    5%   10%   90%   95%
@@ -254,7 +254,7 @@ The 5th percentile is 4.75 ppb and the 95th is 108.5 ppb, 90% of ozone readings 
 
 R also has `fivenum()`, which gives a slightly different result than `quantile()`:
 
-```r
+```r title="Compare fivenum to quantile"
 # fivenum() vs quantile()
 fivenum(ozone)
 #> [1]   1.0  18.0  31.5  63.5 168.0
@@ -270,7 +270,7 @@ Notice Q3 is 63.5 from `fivenum()` but 63.25 from `quantile()`. The difference i
 
 **Try it:** Find the 5th and 95th percentiles of `airquality$Temp`. What temperature range covers 90% of the summer days?
 
-```r
+```r title="Exercise: five and ninety five percentiles of temp"
 # Try it: temperature range for the middle 90%
 ex_temp_pctiles <- quantile(airquality$Temp, probs = c(0.05, 0.95))
 # What's the range?
@@ -279,7 +279,7 @@ ex_temp_pctiles <- quantile(airquality$Temp, probs = c(0.05, 0.95))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_temp_pctiles <- quantile(airquality$Temp, probs = c(0.05, 0.95))
 ex_temp_pctiles
 #>   5%  95%
@@ -302,7 +302,7 @@ So far you've measured where the centre is (mean, median) and how spread out the
 
 The `psych` package's `describe()` gives you both in one call:
 
-```r
+```r title="Describe with skew and kurtosis"
 library(psych)
 
 # Skewness and kurtosis for ozone
@@ -321,7 +321,7 @@ Here's a quick rule of thumb for interpreting skewness:
 
 Let's compare a skewed variable (Ozone) with a near-symmetric one (Temp):
 
-```r
+```r title="Compare ozone and temp shape"
 # Compare shape: Ozone vs Temp
 describe(airquality[, c("Ozone", "Temp")])
 #>       vars   n   mean    sd median trimmed   mad min max range  skew kurtosis
@@ -344,7 +344,7 @@ Temp: skew = -0.37 (approximately symmetric). Report mean + SD.
 
 **Try it:** Use `describe()` from psych on `mtcars$disp` (engine displacement). Is it skewed? Would you report mean or median?
 
-```r
+```r title="Exercise: describe displacement"
 # Try it: check shape of engine displacement
 ex_disp_desc <- describe(mtcars$disp)
 # Check the skew value and decide
@@ -353,7 +353,7 @@ ex_disp_desc <- describe(mtcars$disp)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_disp_desc <- describe(mtcars$disp)
 cat("Skewness:", round(ex_disp_desc$skew, 2), "\n")
 #> [1] Skewness: 0.38
@@ -367,7 +367,7 @@ cat("Skewness:", round(ex_disp_desc$skew, 2), "\n")
 
 Real analysis almost always involves groups. You don't just want the average ozone level, you want it by month. You don't want overall horsepower, you want it by number of cylinders. The `dplyr` package's `group_by() |> summarise()` pipeline handles this cleanly.
 
-```r
+```r title="Group by month and summarise"
 library(dplyr)
 
 # Monthly ozone and temperature summaries
@@ -396,7 +396,7 @@ July and August have the highest average ozone (59–60 ppb) and temperature (84
 
 If you need summaries for every numeric column at once, `across()` saves you from repeating the same code:
 
-```r
+```r title="Apply mean across numeric columns"
 # Summarise all numeric columns by month
 airquality |>
   group_by(Month) |>
@@ -416,7 +416,7 @@ airquality |>
 
 If you prefer base R, `aggregate()` does the same thing without loading any packages:
 
-```r
+```r title="Aggregate temperature by month"
 # Base R alternative
 aggregate(Temp ~ Month, data = airquality, FUN = mean)
 #>   Month     Temp
@@ -432,7 +432,7 @@ aggregate(Temp ~ Month, data = airquality, FUN = mean)
 
 **Try it:** Group `mtcars` by `cyl` (number of cylinders) and compute the mean `mpg` and median `hp` per group. Which cylinder count has the best fuel economy?
 
-```r
+```r title="Exercise: mtcars grouped by cyl"
 # Try it: grouped summary of mtcars
 ex_cyl_stats <- mtcars |>
   group_by(cyl) |>
@@ -444,7 +444,7 @@ ex_cyl_stats <- mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_cyl_stats <- mtcars |>
   group_by(cyl) |>
   summarise(
@@ -484,7 +484,7 @@ You now have a toolbox full of individual statistics. But when you're writing a 
 
 Let's build a complete summary table that computes all 8 numbers:
 
-```r
+```r title="Eight number summary via across"
 # The 8-number summary for every numeric column
 full_summary <- airquality |>
   summarise(across(
@@ -520,7 +520,7 @@ From this table, you can immediately see: Ozone (skew = 1.21) should be reported
 
 For a quick all-in-one report without building the table yourself, `psych::describe()` covers most of the 8 numbers:
 
-```r
+```r title="All in one describe"
 # Quick all-in-one report
 describe(airquality[, c("Ozone", "Solar.R", "Wind", "Temp")])
 #>         vars   n   mean    sd median trimmed   mad min max range  skew kurtosis
@@ -540,7 +540,7 @@ describe(airquality[, c("Ozone", "Solar.R", "Wind", "Temp")])
 
 **Try it:** Build a summary of `airquality$Wind` with all 8 numbers. Based on the skewness, should you report mean + SD or median + IQR?
 
-```r
+```r title="Exercise: eight number summary of wind"
 # Try it: 8-number summary for Wind
 ex_wind_n    <- sum(!is.na(airquality$Wind))
 ex_wind_mean <- round(mean(airquality$Wind), 1)
@@ -550,7 +550,7 @@ ex_wind_mean <- round(mean(airquality$Wind), 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution"
 ex_wind <- airquality$Wind
 cat("n:", sum(!is.na(ex_wind)), "\n")
 #> [1] n: 153
@@ -574,7 +574,7 @@ cat("Skewness:", round(psych::describe(ex_wind)$skew, 2), "\n")
 
 Using the `iris` dataset, compute per-species descriptive statistics for `Sepal.Length`: mean, sd, median, IQR, and skewness. Which species has the most symmetric distribution?
 
-```r
+```r title="Practice one: iris per species summary"
 # Exercise 1: iris per-species summary
 # Hint: group_by(Species) |> summarise(...) plus psych::describe()$skew
 
@@ -583,7 +583,7 @@ Using the `iris` dataset, compute per-species descriptive statistics for `Sepal.
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice one solution"
 my_iris_stats <- iris |>
   group_by(Species) |>
   summarise(
@@ -611,7 +611,7 @@ my_iris_stats
 
 Create a function `my_summary()` that takes a numeric vector and returns a named vector with all 8 key numbers: n, mean, sd, median, iqr, min, max, and skewness. Test it on `airquality$Ozone` (handling NAs).
 
-```r
+```r title="Practice two: reusable my summary function"
 # Exercise 2: custom summary function
 # Hint: use na.rm = TRUE inside each function
 # Return a named numeric vector with c(n = ..., mean = ..., ...)
@@ -628,7 +628,7 @@ my_summary(airquality$Ozone)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice two solution"
 my_summary <- function(x) {
   x_clean <- x[!is.na(x)]
   c(
@@ -656,7 +656,7 @@ my_summary(airquality$Ozone)
 
 Use dplyr to produce a grouped summary of `mtcars` by `gear`, including mean, sd, and n for `mpg`, `hp`, and `wt`. Add a column that flags whether each group's mpg distribution is right-skewed (skewness > 0.5).
 
-```r
+```r title="Practice three: gear group with skew flag"
 # Exercise 3: grouped summary with skew flag
 # Hint: use across() for the three columns, add a skew column for mpg
 
@@ -665,7 +665,7 @@ Use dplyr to produce a grouped summary of `mtcars` by `gear`, including mean, sd
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice three solution"
 my_gear_stats <- mtcars |>
   group_by(gear) |>
   summarise(
@@ -696,7 +696,7 @@ my_gear_stats
 
 Let's walk through a complete descriptive statistics analysis of the `airquality` dataset, the kind of summary you'd include at the start of a report or paper.
 
-```r
+```r title="End-to-end airquality workflow"
 # Step 1: Structure check
 str(airquality)
 #> 'data.frame':	153 obs. of  6 variables:

@@ -23,7 +23,7 @@ difficulty: "Advanced"
 
 `<-` is R's standard assignment operator. It takes whatever is on the right, evaluates it, and binds the result to the name on the left, in the current environment. That's the whole contract. But "current environment" hides most of the interesting behavior, so let's start by running `<-` in three places, the console, a function body, and a `for` loop, and confirming where each binding lives.
 
-```r
+```r title="Arrow binds in the current environment"
 # Top-level: binds x in the global environment
 x <- 42
 msg <- "hello"
@@ -54,7 +54,7 @@ Three different contexts, one consistent rule: `<-` writes to whatever environme
 
 **Try it:** Write code that assigns the area of a 5 x 7 rectangle to `ex_area` and prints it.
 
-```r
+```r title="Exercise: assign area with arrow"
 # Try it: compute area
 ex_area <- # your code here
 
@@ -65,7 +65,7 @@ ex_area
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Area assignment solution"
 ex_area <- 5 * 7
 ex_area
 #> [1] 35
@@ -79,7 +79,7 @@ ex_area
 
 `=` also assigns, but only at the top level or inside a `{ }` block. The twist is that `=` does double duty: inside a function call, it names an argument instead of creating a variable. That single context switch is where most of the confusion (and most of the bugs) live.
 
-```r
+```r title="Equals and arrow agree at top level"
 # At the top level: these are equivalent
 a = 1
 b <- 2
@@ -89,7 +89,7 @@ a + b
 
 At the top level, `a = 1` and `b <- 2` do exactly the same thing. Both bind a name in the global environment. No hidden difference. So why prefer `<-`? Because of what happens when you use `=` vs `<-` **inside a function call**.
 
-```r
+```r title="Arrow in a call leaks to global"
 # Good: = names the argument
 good_fit <- lm(mpg ~ wt, data = mtcars)
 exists("data")
@@ -110,7 +110,7 @@ Notice what happened. Using `=` inside `lm()` told R "pass `mtcars` as the `data
 
 **Try it:** The line below accidentally creates a global variable. Rewrite it so only `my_fit` is created.
 
-```r
+```r title="Exercise: fix stray argument assignment"
 # Buggy — creates a stray `formula` in the workspace
 my_fit <- lm(formula <- mpg ~ wt, data = mtcars)
 
@@ -121,7 +121,7 @@ my_fit <- # your code here
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Named argument solution"
 my_fit <- lm(formula = mpg ~ wt, data = mtcars)
 exists("formula")
 #> [1] FALSE
@@ -137,7 +137,7 @@ exists("formula")
 
 That sounds abstract until you see it power a stateful function.
 
-```r
+```r title="Super-assign updates the parent count"
 # Shared state: `count` lives in the global env
 count <- 0
 
@@ -159,7 +159,7 @@ Look closely at `tick()`. Inside the function, `count <<- count + 1` does not cr
 
 The same mechanism powers the classic R closure pattern, a function factory that bakes in its own private counter.
 
-```r
+```r title="Closure keeps count private"
 make_counter <- function() {
   count <- 0                     # lives in the factory's environment
   function() {
@@ -184,7 +184,7 @@ This time `<<-` does not reach the global environment. It walks one step out of 
 
 **Try it:** Modify `make_counter()` so it starts at 10 and increments by 5 each call. Save the factory as `ex_make_counter`.
 
-```r
+```r title="Exercise: custom increment counter"
 # Try it: custom counter
 ex_make_counter <- function() {
   count <- # your starting value
@@ -202,7 +202,7 @@ c5(); c5()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Custom counter solution"
 ex_make_counter <- function() {
   count <- 10
   function() {
@@ -224,7 +224,7 @@ c5(); c5()
 
 `->` is just `<-` backwards. It evaluates the left side and binds it to a name on the right, same semantics, reversed direction. `->>` is the super-assignment twin of `->`, behaving exactly like `<<-`. Rarely used, but perfectly valid, and handy at the end of a pipe where "the name comes last" reads naturally.
 
-```r
+```r title="Rightward arrow with a pipe"
 # A pipe that ends with ->
 mtcars |>
   subset(mpg > 25) |>
@@ -239,7 +239,7 @@ top_cars[, c("mpg", "cyl", "wt")]
 
 Read the pipe left-to-right: take `mtcars`, keep rows where mpg > 25, take the first three, and bind the result to `top_cars`. Many R users find this reads more like English than `top_cars <- mtcars |> subset(...) |> head(3)`. Both are correct. Pick whichever matches the direction your eye wants to travel.
 
-```r
+```r title="Rightward super-assign mirrors double arrow"
 # ->> mirrors <<- (parent-environment super-assignment)
 tally <- 0
 add_one <- function() 1 ->> tally
@@ -255,7 +255,7 @@ tally
 
 **Try it:** Rewrite the line below using `->` instead of `<-`.
 
-```r
+```r title="Exercise: rewrite with rightward arrow"
 # Original
 result <- sqrt(mean(c(4, 9, 16)))
 
@@ -266,7 +266,7 @@ result <- sqrt(mean(c(4, 9, 16)))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rightward arrow solution"
 sqrt(mean(c(4, 9, 16))) -> ex_result
 ex_result
 #> [1] 3.055050
@@ -280,7 +280,7 @@ ex_result
 
 `assign(name, value, envir)` is the function-form cousin of `<-`. It takes the variable name as a **string** instead of as a literal symbol. That matters exactly when the name is computed at runtime, for example, when you want to create variables whose names come from a vector.
 
-```r
+```r title="Assign from computed variable names"
 # Create var_1, var_2, var_3 from a loop
 for (i in 1:3) {
   assign(paste0("var_", i), i * 10)
@@ -298,7 +298,7 @@ You couldn't do this with `<-` alone, because `<-` needs a literal name on its l
 
 That said, most of the time you reach for `assign()` because you're about to generate a bunch of similarly-named variables in a loop, and that's almost always a sign you should use a list instead.
 
-```r
+```r title="Named list replaces dynamic variables"
 # Cleaner: use a named list, not dynamic variables
 vars <- setNames(as.list(1:3 * 10), paste0("var_", 1:3))
 vars$var_2
@@ -312,7 +312,7 @@ Same information, one object, fully subsettable. You can `lapply()` over it, pas
 
 **Try it:** Use `assign()` to create a variable `ex_x` with value 7 in the current environment.
 
-```r
+```r title="Exercise: assign with a string name"
 # Try it: assign() instead of <-
 # your code here
 ex_x
@@ -322,7 +322,7 @@ ex_x
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Assign solution"
 assign("ex_x", 7)
 ex_x
 #> [1] 7
@@ -350,7 +350,7 @@ Here's the short version. Use `<-` for every regular assignment. Use `=` to name
 
 One more detail worth knowing: the leftward operators (`<-`, `=`, `<<-`) group right-to-left. That's what makes chained assignment work.
 
-```r
+```r title="Chained assignment right to left"
 # Chained: right-to-left grouping
 chain_a <- chain_b <- chain_c <- 1
 
@@ -367,7 +367,7 @@ R reads the chain from the right: first `chain_c <- 1`, then `chain_b <- chain_c
 
 **Try it:** Chain-assign the value 100 to three variables named `ex_p`, `ex_q`, `ex_r` in a single line.
 
-```r
+```r title="Exercise: chain three bindings"
 # Try it: chained assignment
 # your code here
 
@@ -378,7 +378,7 @@ c(ex_p, ex_q, ex_r)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Chained binding solution"
 ex_p <- ex_q <- ex_r <- 100
 c(ex_p, ex_q, ex_r)
 #> [1] 100 100 100
@@ -394,7 +394,7 @@ c(ex_p, ex_q, ex_r)
 
 Write a factory function `make_scorer()` that returns a list with two functions: `add_points(n)` to add points and `get_total()` to return the running total. Use `<<-` so the running total persists across calls. Save the factory as `my_scorer_factory` and use it to tally 5 + 3 + 7 points.
 
-```r
+```r title="Exercise: stateful scorekeeper factory"
 # Exercise: stateful scorekeeper
 my_scorer_factory <- function() {
   # your code here
@@ -412,7 +412,7 @@ s$get_total()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Scorekeeper factory solution"
 my_scorer_factory <- function() {
   total <- 0
   list(
@@ -438,7 +438,7 @@ s$get_total()
 
 The script below runs, but it has two stylistic problems: one line creates a stray global variable through a `<-` inside a function call, and one line uses `=` where `<-` is clearer. Rewrite the two lines using the right operators. Save the final model to `my_final_fit`.
 
-```r
+```r title="Exercise: fix buggy argument arrow"
 # Buggy original
 bad_df = mtcars
 my_final_fit <- lm(mpg ~ wt, data <- bad_df)
@@ -451,7 +451,7 @@ my_final_fit <- lm(mpg ~ wt, data <- bad_df)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Named argument fix solution"
 my_clean_df <- mtcars
 my_final_fit <- lm(mpg ~ wt, data = my_clean_df)
 
@@ -467,7 +467,7 @@ exists("data")  # should be FALSE if started fresh
 
 Let's tie every operator together with a short, realistic script: a transaction log that records deposits and withdrawals. We'll use `<-` for regular bindings, `=` for named arguments, `<<-` inside a closure to keep the running balance, and `->` at the end of a summary pipe.
 
-```r
+```r title="End-to-end transaction logger"
 # Transaction logger built from a closure
 make_account <- function(opening_balance = 0) {
   balance <- opening_balance

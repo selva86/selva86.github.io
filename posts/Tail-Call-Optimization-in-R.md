@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Every recursive call in R adds a frame to the call stack. Call yourself enough times and R crashes with "C stack usage is too close to the limit." Let's see this happen with a simple countdown function.
 
-```r
+```r title="Countdown stack overflow demo"
 # A recursive countdown — works fine for small n
 countdown <- function(n) {
   if (n <= 0) return("done!")
@@ -42,7 +42,7 @@ R printed `"done!"` for `countdown(10)`, just 10 stack frames, no problem. But a
 
 To see the stack growing, let's peek inside a smaller recursion with `sys.nframe()`, which returns the current depth of the call stack.
 
-```r
+```r title="Watch stack depth grow"
 # Watch the stack grow with each call
 show_depth <- function(n) {
   cat("n =", n, "| stack depth =", sys.nframe(), "\n")
@@ -65,7 +65,7 @@ Each call pushes one more frame onto the stack. Five calls, five frames. Ten tho
 
 **Try it:** Write a recursive function `ex_sum_to(n)` that returns the sum of integers from 1 to n (e.g., `ex_sum_to(5)` returns 15). Test it with n = 5.
 
-```r
+```r title="Exercise: Recursive sum to n"
 # Try it: write ex_sum_to()
 ex_sum_to <- function(n) {
   # your code here
@@ -79,7 +79,7 @@ ex_sum_to(5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Recursive sum solution"
 ex_sum_to <- function(n) {
   if (n <= 1) return(n)
   n + ex_sum_to(n - 1)
@@ -98,7 +98,7 @@ A function is tail-recursive when the recursive call is the very last thing it d
 
 Let's compare two versions of factorial. First, the standard (non-tail-recursive) version.
 
-```r
+```r title="Non-tail-recursive factorial"
 # NOT tail-recursive: multiplication happens AFTER the recursive call
 factorial_bad <- function(n) {
   if (n <= 1) return(1)
@@ -113,7 +113,7 @@ The line `n * factorial_bad(n - 1)` means R can't discard the current frame, it 
 
 Now here's the tail-recursive version. The trick is to move the multiplication *into* a parameter called an accumulator.
 
-```r
+```r title="Tail-recursive factorial with accumulator"
 # Tail-recursive: the recursive call IS the last operation
 factorial_acc <- function(n, acc = 1) {
   if (n <= 1) return(acc)
@@ -131,7 +131,7 @@ Both produce 3628800, but the second version carries the running product forward
 
 **Try it:** The function `ex_power(base, exp)` below is NOT tail-recursive. Rewrite it with an accumulator parameter so the recursive call is the last operation.
 
-```r
+```r title="Exercise: Power with accumulator"
 # Original (not tail-recursive):
 # ex_power <- function(base, exp) {
 #   if (exp == 0) return(1)
@@ -151,7 +151,7 @@ ex_power(2, 10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Power accumulator solution"
 ex_power <- function(base, exp, acc = 1) {
   if (exp <= 0) return(acc)
   ex_power(base, exp - 1, acc * base)
@@ -168,7 +168,7 @@ ex_power(2, 10)
 
 R 4.4.0 introduced `Tailcall()`, a base R function that tells the interpreter: "replace my current stack frame with this new call." No packages needed, just wrap your recursive call in `Tailcall()` and R handles the rest.
 
-```r
+```r title="Factorial with base Tailcall"
 # Factorial with Tailcall() — handles huge n without stack overflow
 factorial_tc <- function(n, acc = 1) {
   if (n <= 1) return(acc)
@@ -186,7 +186,7 @@ factorial_tc(10)
 
 Let's also fix our crashing countdown from the first section.
 
-```r
+```r title="Countdown with Tailcall"
 # Countdown with Tailcall() — no stack overflow
 countdown_tc <- function(n) {
   if (n <= 0) return("done!")
@@ -209,7 +209,7 @@ The function is identical in structure to our original `countdown`, but wrapping
 
 **Try it:** Write a function `ex_count_digits(n, acc = 0)` that counts how many digits are in a positive integer using `Tailcall()`. Hint: repeatedly divide by 10 until n reaches 0.
 
-```r
+```r title="Exercise: Count digits with Tailcall"
 # Try it: count digits with Tailcall()
 ex_count_digits <- function(n, acc = 0) {
   # your code here
@@ -223,7 +223,7 @@ ex_count_digits(123456)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Digit count solution"
 ex_count_digits <- function(n, acc = 0) {
   if (n == 0) return(acc)
   Tailcall(ex_count_digits, n %/% 10, acc + 1)
@@ -242,7 +242,7 @@ A trampoline wraps recursion in a while loop. Instead of calling itself directly
 
 Here's a minimal trampoline implementation based on Jim Hester's elegant pattern.
 
-```r
+```r title="Build a trampoline helper"
 # The trampoline: a loop that evaluates deferred recursive calls
 trampoline <- function(f, ...) {
   function(...) {
@@ -264,7 +264,7 @@ recur <- function(...) {
 
 Now let's use it for factorial.
 
-```r
+```r title="Factorial via trampoline"
 # Factorial with the trampoline — works for any depth
 factorial_tramp <- trampoline(function(n, acc = 1) {
   if (n <= 1) acc
@@ -282,7 +282,7 @@ factorial_tramp(5000)
 
 The trampoline really shines with mutual recursion, where two functions call each other. Here's a classic: checking whether a number is even or odd using only subtraction by 1.
 
-```r
+```r title="Mutual recursion trampoline"
 # Mutual recursion with trampolines
 trampoline2 <- function(f, ...) {
   function(...) {
@@ -316,7 +316,7 @@ Each function returns a zero-argument function (a thunk) instead of calling the 
 
 **Try it:** Use the `trampoline` and `recur` functions defined above to write a `ex_collatz(n, steps = 0)` function that counts how many steps it takes to reach 1 in the Collatz sequence (if even, divide by 2; if odd, multiply by 3 and add 1).
 
-```r
+```r title="Exercise: Collatz step counter"
 # Try it: Collatz step counter with trampoline
 ex_collatz <- trampoline(function(n, steps = 0) {
   # your code here
@@ -330,7 +330,7 @@ ex_collatz(27)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Collatz solution"
 ex_collatz <- trampoline(function(n, steps = 0) {
   if (n == 1) steps
   else if (n %% 2 == 0) recur(n / 2, steps + 1)
@@ -348,7 +348,7 @@ ex_collatz(27)
 
 Each approach has trade-offs. Let's compare them on the same problem: summing integers from 1 to n.
 
-```r
+```r title="Compare three tail-call approaches"
 # Approach 1: Tailcall() (R 4.4+ only)
 sum_tc <- function(n, acc = 0) {
   if (n <= 0) return(acc)
@@ -394,7 +394,7 @@ All three return 5050. The difference is in performance and portability. Here's 
 
 **Try it:** You're writing a tree-traversal function on R 4.2 where two functions call each other (process a node, then process its children). Which approach would you use: `Tailcall()`, a trampoline, or a plain loop? Write your answer as a comment.
 
-```r
+```r title="Exercise: Choose approach on R 4.2"
 # Try it: which approach for mutual recursion on R 4.2?
 # Write your reasoning as a comment:
 # Answer:
@@ -403,7 +403,7 @@ All three return 5050. The difference is in performance and portability. Here's 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Approach choice solution"
 # Answer: Trampoline
 # Reasoning:
 # - Tailcall() requires R 4.4+ — not available on R 4.2
@@ -422,7 +422,7 @@ All three return 5050. The difference is in performance and portability. Here's 
 
 Euclid's algorithm finds the greatest common divisor (GCD) of two numbers: if `b` is 0, the GCD is `a`; otherwise, the GCD of `a` and `b` is the GCD of `b` and `a %% b`. Implement this using `Tailcall()`.
 
-```r
+```r title="Exercise: GCD with Tailcall"
 # Exercise: implement gcd() with Tailcall()
 # Hint: the recursive case is gcd(b, a %% b)
 my_gcd <- function(a, b) {
@@ -437,7 +437,7 @@ my_gcd <- function(a, b) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="GCD solution"
 my_gcd <- function(a, b) {
   if (b == 0) return(a)
   Tailcall(my_gcd, b, a %% b)
@@ -456,7 +456,7 @@ my_gcd(48, 18)
 
 Write a function that flattens an arbitrarily nested list into a single vector. Since list flattening branches into sublists, a manual stack-based approach (inspired by the trampoline idea of converting recursion to iteration) works best.
 
-```r
+```r title="Exercise: Flatten nested list"
 # Exercise: flatten a nested list
 # Hint: use a stack (list) to track elements to process
 my_flatten <- function(lst) {
@@ -471,7 +471,7 @@ my_flatten <- function(lst) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Flatten solution"
 my_flatten <- function(lst) {
   result <- c()
   stack <- list(lst)
@@ -502,7 +502,7 @@ my_flatten(list(list(list(1)), 2, list(3, list(4, list(5)))))
 
 Implement a binary search on a sorted vector using `Tailcall()`. The function should return the index of the target value, or `NA` if not found.
 
-```r
+```r title="Exercise: Binary search with Tailcall"
 # Exercise: binary search with Tailcall()
 # Hint: track low and high indices as parameters
 my_bsearch <- function(vec, target, low = 1, high = length(vec)) {
@@ -518,7 +518,7 @@ my_bsearch <- function(vec, target, low = 1, high = length(vec)) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Binary search solution"
 my_bsearch <- function(vec, target, low = 1, high = length(vec)) {
   if (low > high) return(NA)
   mid <- (low + high) %/% 2
@@ -548,7 +548,7 @@ my_bsearch(1:100, 101)
 
 Let's build something practical: a recursive string repeater that concatenates a string `n` times. We'll start with naive recursion, see it fail, convert to tail-recursive form, and then protect it with `Tailcall()`.
 
-```r
+```r title="Naive recursive string repeater"
 # Step 1: Naive recursion — crashes for large n
 repeat_str <- function(s, n) {
   if (n <= 0) return("")
@@ -563,7 +563,7 @@ repeat_str("ab", 5)
 
 The `paste0()` call wraps the recursion, so each frame must wait. Let's add an accumulator.
 
-```r
+```r title="Accumulator string repeater"
 # Step 2: Accumulator makes it tail-recursive
 repeat_str_acc <- function(s, n, acc = "") {
   if (n <= 0) return(acc)
@@ -579,7 +579,7 @@ repeat_str_acc("ab", 5)
 
 The structure is right, but plain R doesn't optimize it. Let's add `Tailcall()`.
 
-```r
+```r title="Tailcall stack-safe repeater"
 # Step 3: Tailcall() makes it stack-safe
 repeat_str_tc <- function(s, n, acc = "") {
   if (n <= 0) return(acc)

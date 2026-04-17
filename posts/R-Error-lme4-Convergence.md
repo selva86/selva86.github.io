@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The warning is a gradient-tolerance check, not a crash. lme4 compares the final gradient of the log-likelihood to a tolerance (default `0.002`) and complains when the gradient is larger. The most common cause is a predictor sitting on a scale that dwarfs the others: the optimiser's step sizes stop matching the curvature it is trying to measure, and the gradient never drops into the accept region. Reproduce that below and watch the warning vanish after one `scale()` call.
 
-```r
+```r title="Reproduce the convergence warning"
 library(lme4)
 
 # Simulate 200 rows in 20 groups, with one badly scaled predictor
@@ -59,7 +59,7 @@ The gradient dropped from roughly `0.003` to effectively zero. Same data, same r
 
 **Try it:** Refit `m1` but pass `scale(x_raw)` directly inside the formula and store the final gradient in `ex_grad`.
 
-```r
+```r title="Exercise: refit with scale()"
 # Try it: refit with scale() inside the formula
 ex_m <- lmer(y ~ scale(x_raw) + (1 | group), data = df1)
 ex_grad <- # your code here
@@ -70,7 +70,7 @@ ex_grad
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Scale-refit solution"
 ex_m <- lmer(y ~ scale(x_raw) + (1 | group), data = df1)
 ex_grad <- max(abs(ex_m@optinfo$derivs$gradient))
 ex_grad
@@ -87,7 +87,7 @@ ex_grad
 
 Below, three numeric predictors on wildly different scales are normalised in one `mutate(across())` call, and the scaled fit converges cleanly.
 
-```r
+```r title="Simulate predictors on different scales"
 library(dplyr)
 
 set.seed(11)
@@ -124,7 +124,7 @@ Three scaled predictors, one random intercept, gradient at `2e-7`, well inside t
 
 **Try it:** Scale only the numeric columns of `df2` (not `group`) and confirm the result has the same column names as `df2` by assigning it to `ex_df_scaled`.
 
-```r
+```r title="Exercise: scale all numeric columns"
 # Try it: scale numeric columns of df2
 ex_df_scaled <- # your code here
 names(ex_df_scaled)
@@ -134,7 +134,7 @@ names(ex_df_scaled)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Scale-all-columns solution"
 ex_df_scaled <- df2 |>
   mutate(across(where(is.numeric), ~ as.numeric(scale(.))))
 names(ex_df_scaled)
@@ -151,7 +151,7 @@ Barr et al. (2013) famously recommended "keep it maximal", a random slope for ev
 
 Here we simulate a crossed design (subjects × items) and watch a maximal model fail, then a simpler model converge.
 
-```r
+```r title="Maximal model fails to converge"
 set.seed(7)
 n_subj <- 30; n_item <- 20
 df3 <- expand.grid(subject = factor(1:n_subj),
@@ -184,7 +184,7 @@ The maximal model fails and the simpler model lands at a gradient of `1e-9`. The
 
 **Try it:** Refit `m_max` but with uncorrelated random effects on `subject` only (keep `item` maximal). Save to `ex_m_uncor`.
 
-```r
+```r title="Exercise: uncorrelated random slopes"
 # Try it: uncorrelated random slopes on subject
 ex_m_uncor <- # your code here
 max(abs(ex_m_uncor@optinfo$derivs$gradient))
@@ -194,7 +194,7 @@ max(abs(ex_m_uncor@optinfo$derivs$gradient))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Uncorrelated-slopes solution"
 ex_m_uncor <- lmer(y ~ cond + (1 + cond || subject) + (1 + cond | item), data = df3)
 max(abs(ex_m_uncor@optinfo$derivs$gradient))
 #> [1] 0.00018
@@ -208,7 +208,7 @@ max(abs(ex_m_uncor@optinfo$derivs$gradient))
 
 lme4 ships several optimisers (`bobyqa`, `Nelder_Mead`, `nlminbwrap`, and two `nloptwrap` variants). Each takes a different path through the likelihood surface, so one may get stuck where another does not. `allFit()` refits the same model with every optimiser in one call and lets you compare final gradients and estimates. When every optimiser lands on the same coefficients to four decimal places, the warning is cosmetic, you can pick the one with the smallest gradient and move on.
 
-```r
+```r title="Refit with every available optimiser"
 # Refit the maximal model with every available optimiser
 m_all <- allFit(m_max, verbose = FALSE)
 summary(m_all)$fixef
@@ -234,7 +234,7 @@ Every optimiser returned effectively the same fixed effects, which is the strong
 
 **Try it:** From the gradient vector `grads`, return the name of the optimiser with the smallest gradient. Save it to `ex_best_opt`.
 
-```r
+```r title="Exercise: pick the best optimiser"
 # Try it: extract best optimiser
 ex_best_opt <- # your code here
 ex_best_opt
@@ -244,7 +244,7 @@ ex_best_opt
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Best-optimiser solution"
 ex_best_opt <- names(which.min(grads))
 ex_best_opt
 #> [1] "nlminbwrap"
@@ -258,7 +258,7 @@ ex_best_opt
 
 A singular fit means at least one variance component has been estimated exactly at its boundary, a variance of zero, or a correlation of `±1`. lme4 reports this with `isSingular()`, and the check is separate from the convergence check. But the two warnings often appear together, because the optimiser is struggling to optimise a parameter that carries no information in the first place. Dropping the redundant random term fixes both at once.
 
-```r
+```r title="Detect a singular fit"
 # Simulate data with no real group-level effect
 set.seed(99)
 n <- 250
@@ -287,7 +287,7 @@ coef(m_fixed)
 
 **Try it:** Call `isSingular()` on `m_sing` and save the result to `ex_is_sing`.
 
-```r
+```r title="Exercise: check singularity"
 # Try it: check singularity
 ex_is_sing <- # your code here
 ex_is_sing
@@ -297,7 +297,7 @@ ex_is_sing
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Singularity-check solution"
 ex_is_sing <- isSingular(m_sing)
 ex_is_sing
 #> [1] TRUE
@@ -311,7 +311,7 @@ ex_is_sing
 
 This is the last resort, and it only helps when Fixes 1 through 4 have already brought you close. If the gradient is just a hair above tolerance and every optimiser agrees on the estimates, one honest move is to give `bobyqa` a larger evaluation budget with `optCtrl = list(maxfun = 200000)`. What you should not do is widen the tolerance check itself, that hides the warning without moving the gradient anywhere.
 
-```r
+```r title="Raise maxfun on the optimiser"
 # Take the near-convergence maximal model and give bobyqa more budget
 m_more <- lmer(
   y ~ cond + (1 + cond | subject) + (1 + cond | item),
@@ -332,7 +332,7 @@ With `maxfun` raised from the default `10000` to `200000`, bobyqa had enough ite
 
 **Try it:** Refit `m_max` with `maxfun = 100000` using the default `bobyqa` optimiser. Save it to `ex_m_more`.
 
-```r
+```r title="Exercise: raise maxfun budget"
 # Try it: raise maxfun on m_max
 ex_m_more <- # your code here
 max(abs(ex_m_more@optinfo$derivs$gradient))
@@ -342,7 +342,7 @@ max(abs(ex_m_more@optinfo$derivs$gradient))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Maxfun solution"
 ex_m_more <- lmer(
   y ~ cond + (1 + cond | subject) + (1 + cond | item),
   data = df3,
@@ -362,7 +362,7 @@ max(abs(ex_m_more@optinfo$derivs$gradient))
 
 You are given `my_df1`, a dataset with two numeric predictors on different scales and an overparameterised random-effects structure. Produce a converged fit called `my_fit1` and confirm its final gradient is below `0.002`.
 
-```r
+```r title="Exercise: scale and refit mixed model"
 # Setup: simulate a dataset you need to fix
 set.seed(22)
 n <- 240
@@ -385,7 +385,7 @@ max(abs(my_fit1@optinfo$derivs$gradient))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Scale-and-refit solution"
 my_df1_scaled <- my_df1 |>
   mutate(across(where(is.numeric), ~ as.numeric(scale(.))))
 
@@ -410,7 +410,7 @@ Write a function `fit_robust(data, formula)` that:
 
 Test it on the `df3` dataset from Fix 2 with formula `y ~ cond + (1 + cond | subject) + (1 + cond | item)`.
 
-```r
+```r title="Exercise: write fitrobust wrapper"
 # Your task: write fit_robust
 fit_robust <- function(data, formula) {
   # your code here
@@ -424,7 +424,7 @@ max(abs(my_fit2@optinfo$derivs$gradient))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="fitrobust solution"
 fit_robust <- function(data, formula) {
   num_cols <- sapply(data, is.numeric)
   data[num_cols] <- lapply(data[num_cols], function(v) as.numeric(scale(v)))
@@ -455,7 +455,7 @@ max(abs(my_fit2@optinfo$derivs$gradient))
 
 Here is an end-to-end run on a two-level dataset, 500 students nested in 25 schools, three numeric covariates on wildly different scales, and a treatment indicator. The raw fit fails; after applying Fixes 1 and 2 it converges cleanly.
 
-```r
+```r title="End-to-end schools convergence fix"
 set.seed(2026)
 n_school <- 25; n_per <- 20
 schools_df <- data.frame(

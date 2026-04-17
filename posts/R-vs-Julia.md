@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The speed gap everyone quotes comes from one specific scenario: hand-written loops over millions of elements. Before you take that number at face value, let's measure what R actually does on a realistic workload, from inside R itself. The block below times a vectorized cumulative sum over a million random numbers, the kind of operation that shows up constantly in real data work.
 
-```r
+```r title="cumsum on a million numbers"
 set.seed(42)
 x <- rnorm(1e6)
 t_vec <- system.time(result <- cumsum(x))
@@ -37,7 +37,7 @@ That is roughly 9 milliseconds to run a cumulative sum over a million numbers. R
 
 The slowdown appears when you write an explicit R loop to do the same thing. Let's compare both on a smaller size so the in-browser runtime stays reasonable.
 
-```r
+```r title="Loop vs vectorized cumulative sum"
 n <- 1e5
 y <- rnorm(n)
 
@@ -61,7 +61,7 @@ The loop is roughly 35-50 times slower than the vectorized call. This is the sce
 
 Speaking of `data.table`: on realistic grouped-aggregation workloads, the bread and butter of analytics, R's gap to Julia shrinks dramatically. Here is a 100,000-row group-by timed in R.
 
-```r
+```r title="data.table group-by benchmark"
 library(data.table)
 
 set.seed(7)
@@ -88,7 +88,7 @@ agg
 
 **Try it:** Write a small benchmark comparing a hand-written `for` loop `sum` against the built-in `sum()` on a vector of 10,000 numbers. Save the elapsed time of the vectorized version to `ex_vec_time`.
 
-```r
+```r title="Exercise: time sum vs loop"
 # Try it: time sum() vs a for-loop sum on 10,000 numbers
 ex_small <- rnorm(1e4)
 
@@ -107,7 +107,7 @@ c(loop = ex_loop_time, vec = ex_vec_time)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sum-vs-loop timing solution"
 ex_small <- rnorm(1e4)
 
 ex_loop_time <- system.time({
@@ -147,7 +147,7 @@ The practical implication: for most niche statistical methods, R already has a m
 
 In practice, R lets you fit a textbook linear model without loading anything at all, it is part of base R.
 
-```r
+```r title="Fit a linear model in base R"
 model <- lm(mpg ~ wt + hp, data = mtcars)
 summary(model)$coefficients
 #>              Estimate  Std. Error   t value     Pr(>|t|)
@@ -163,7 +163,7 @@ Three lines. No imports. Full coefficient table with standard errors, t-statisti
 
 **Try it:** Fit a linear model predicting `mpg` from `wt` on the `mtcars` dataset and extract just the coefficients vector. Save them to `ex_coefs`.
 
-```r
+```r title="Exercise: fit lm and extract coefs"
 # Try it: fit a model and pull out the coefficients
 ex_model <- NULL  # your code here
 ex_coefs <- NULL  # your code here
@@ -174,7 +174,7 @@ ex_coefs
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fit-and-extract solution"
 ex_model <- lm(mpg ~ wt, data = mtcars)
 ex_coefs <- coef(ex_model)
 ex_coefs
@@ -190,7 +190,7 @@ ex_coefs
 
 Both languages are 1-based indexed and feel mathematical. The everyday difference is how they express data-manipulation pipelines. R has `dplyr` (and increasingly the native pipe `|>`); Julia has `DataFramesMeta.jl` with the `@chain` macro. Here is a typical grouped summary in both, first R, then Julia.
 
-```r
+```r title="dplyr pipeline on mtcars"
 library(dplyr)
 
 pipeline_out <- mtcars |>
@@ -235,7 +235,7 @@ The bones are the same, filter, group, summarise, but Julia requires explicit `@
 
 **Try it:** Rewrite the pipeline above without `group_by()`, instead, filter `mtcars` to rows where `cyl == 4` and return the mean `mpg` as a single number. Save it to `ex_syntax_out`.
 
-```r
+```r title="Exercise: filter and summarise"
 # Try it: filter + summarise without group_by
 ex_syntax_out <- NULL  # your code here
 ex_syntax_out
@@ -245,7 +245,7 @@ ex_syntax_out
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter-summarise solution"
 ex_syntax_out <- mtcars |>
   filter(cyl == 4) |>
   summarise(avg_mpg = mean(mpg)) |>
@@ -279,7 +279,7 @@ Julia roles pay more per listing because they are rare and specialised. But ther
 
 **Try it:** Given a tiny data frame of job postings, compute the ratio of R postings to Julia postings and save it to `ex_ratio`.
 
-```r
+```r title="Exercise: R to Julia jobs ratio"
 # Try it: compute the R:Julia ratio
 jobs_df <- data.frame(
   language = c("R", "Julia"),
@@ -294,7 +294,7 @@ ex_ratio
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Jobs-ratio solution"
 jobs_df <- data.frame(
   language = c("R", "Julia"),
   postings = c(15000, 500)
@@ -340,7 +340,7 @@ You can also use both, `JuliaCall` from R lets you drop into Julia for the one h
 
 **Try it:** Write a small helper function `which_language(needs_loops, needs_ecosystem)` that returns `"Julia"` if loops matter most, `"R"` if the ecosystem matters most, and `"Both"` if both are true. Call it with `TRUE, TRUE` and save the result to `ex_pick`.
 
-```r
+```r title="Exercise: language picker function"
 # Try it: implement a tiny language picker
 which_language <- function(needs_loops, needs_ecosystem) {
   # your code here
@@ -354,7 +354,7 @@ ex_pick
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Language-picker solution"
 which_language <- function(needs_loops, needs_ecosystem) {
   if (needs_loops && needs_ecosystem) return("Both")
   if (needs_loops) return("Julia")
@@ -379,7 +379,7 @@ These two capstones ask you to stitch several concepts from this tutorial into a
 
 You have a 1000×50 numeric matrix. Compute the column means three ways and rank them by speed: (a) a for-loop over columns calling `mean()`, (b) `apply(my_mat, 2, mean)`, and (c) `colMeans(my_mat)`. Save the elapsed times to a named numeric vector `my_results` and print it sorted.
 
-```r
+```r title="Exercise: rank column-mean implementations"
 # Exercise 1: rank three column-mean implementations
 # Hint: wrap each approach in system.time({ ... })["elapsed"]
 
@@ -394,7 +394,7 @@ my_mat <- matrix(rnorm(1000 * 50), nrow = 1000, ncol = 50)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Column-mean ranking solution"
 set.seed(1)
 my_mat <- matrix(rnorm(1000 * 50), nrow = 1000, ncol = 50)
 
@@ -420,7 +420,7 @@ sort(my_results)
 
 Fit a linear model predicting `mpg` from `wt` and `hp` on `mtcars`. Save the model to `my_model` and its coefficients to `my_coefs`. Then assign a string `decision` that answers "If you needed this exact analysis in production tomorrow without installing half of CRAN, would you reach for R or Julia?" and justify it in a short comment.
 
-```r
+```r title="Exercise: model plus verdict"
 # Exercise 2: model + one-line verdict
 # Hint: lm() fits, coef() extracts
 
@@ -435,7 +435,7 @@ list(coefs = my_coefs, decision = decision)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Model-and-verdict solution"
 my_model <- lm(mpg ~ wt + hp, data = mtcars)
 my_coefs <- coef(my_model)
 
@@ -459,7 +459,7 @@ list(coefs = my_coefs, decision = decision)
 
 Let's tie the speed story together with an end-to-end example. We'll generate some data, write a non-parametric bootstrap of the mean, time it, and then describe honestly how the same code would behave in Julia.
 
-```r
+```r title="Bootstrap mean benchmark in R"
 set.seed(2026)
 boot_data <- rnorm(5000, mean = 10, sd = 3)
 

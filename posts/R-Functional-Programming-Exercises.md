@@ -25,7 +25,7 @@ These exercises follow the same progression as the [Functional Programming in R]
 
 Every code block on this page shares a single R session, so variables you create in one exercise carry forward to the next. Let's confirm that with a quick warm-up.
 
-```r
+```r title="Session warm-up check"
 fp_ready <- "Session is live — let's go!"
 fp_ready
 #> [1] "Session is live — let's go!"
@@ -40,7 +40,7 @@ That variable now exists for the rest of this page. Each exercise gives you a **
 
 A pure function takes its inputs and returns a result, no globals, no side effects, same input always gives the same output. Your job: write `scale_between(x, low, high)` that rescales a numeric vector `x` to fall within `[low, high]`.
 
-```r
+```r title="Exercise: pure scalebetween function"
 # Write scale_between() — a pure function
 scale_between <- function(x, low, high) {
   # your code here
@@ -54,7 +54,7 @@ scale_between(c(10, 20, 30, 40, 50), 0, 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="scalebetween solution"
 scale_between <- function(x, low, high) {
   scaled <- (x - min(x)) / (max(x) - min(x))
   scaled * (high - low) + low
@@ -75,7 +75,7 @@ scale_between(c(10, 20, 30, 40, 50), 0, 100)
 
 The function below tracks a running total using `<<-`, which writes to the global environment. That makes it impure, calling it twice with the same input gives different results. Rewrite it so the same inputs always produce the same output.
 
-```r
+```r title="Exercise: rewrite impure function"
 # Impure version — DO NOT use this pattern
 total <- 0
 add_and_track <- function(value) {
@@ -103,7 +103,7 @@ add_pure(0, 5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pure-add solution"
 add_pure <- function(current_total, value) {
   current_total + value
 }
@@ -129,7 +129,7 @@ add_pure(0, 5)
 
 In R, functions are first-class values, you can store them in variables, lists, or pass them as arguments. Create a named list of four summary statistics and write a dispatcher function.
 
-```r
+```r title="Exercise: dispatch stats by name"
 # Create a named list of summary functions:
 # "mean", "median", "sd", "iqr"
 # Then write summarise_with(x, stat_name) that looks up the
@@ -153,7 +153,7 @@ summarise_with(1:100, "iqr")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stats-dispatch solution"
 stat_funs <- list(
   mean   = mean,
   median = median,
@@ -183,7 +183,7 @@ summarise_with(1:100, "iqr")
 
 A function factory is a function that *returns* a new function. The returned function "closes over" (remembers) the variables from its creation environment. Write `make_power(n)` that returns a function raising its argument to the `n`th power.
 
-```r
+```r title="Exercise: makepower factory"
 # Write the factory:
 make_power <- function(n) {
   # return a function that raises x to the nth power
@@ -205,7 +205,7 @@ make_power(0.5)(16)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="makepower solution"
 make_power <- function(n) {
   function(x) x^n
 }
@@ -232,7 +232,7 @@ make_power(0.5)(16)
 
 Higher-order functions like `sapply` replace explicit loops with a single, declarative call. Below is a for loop that z-score normalises each column of a data frame. Rewrite it as a one-liner using `sapply`.
 
-```r
+```r title="Exercise: replace for-loop with sapply"
 df <- data.frame(
   height = c(170, 180, 160, 175, 165),
   weight = c(65, 80, 55, 72, 60),
@@ -254,7 +254,7 @@ round(df_z, 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="sapply z-score solution"
 df_z <- as.data.frame(sapply(df, \(col) (col - mean(col)) / sd(col)))
 round(df_z, 2)
 #>   height weight   age
@@ -273,7 +273,7 @@ round(df_z, 2)
 
 `Filter` keeps elements that satisfy a predicate. `Reduce` collapses a sequence into a single value using a binary function. Combine them: given a mixed list, keep only the positive numbers and compute their running product.
 
-```r
+```r title="Exercise: Filter and Reduce product"
 mixed <- list("a", -3, 7, "hello", 2, -1, 5, TRUE, 4)
 
 # Keep only positive numbers, then compute their product.
@@ -286,7 +286,7 @@ mixed <- list("a", -3, 7, "hello", 2, -1, 5, TRUE, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filter-Reduce product solution"
 positives <- Filter(\(x) is.numeric(x) && x > 0, mixed)
 product <- Reduce(`*`, positives)
 product
@@ -310,7 +310,7 @@ mixed |>
 
 The best way to understand a higher-order function is to build one. Implement `my_map(x, f)` that applies `f` to every element of `x` and returns a list, without using `lapply`, `sapply`, `Map`, `purrr::map`, or any apply variant.
 
-```r
+```r title="Exercise: write mymap from scratch"
 my_map <- function(x, f) {
   # your code here — no apply/map functions allowed!
 }
@@ -326,7 +326,7 @@ my_map(c("hello", "world"), toupper)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mymap solution"
 my_map <- function(x, f) {
   result <- vector("list", length(x))
   for (i in seq_along(x)) {
@@ -370,7 +370,7 @@ my_map(c("hello", "world"), toupper)
 
 R's copy-on-modify rule means a function cannot corrupt the data you pass in. Write a function `mangle(df)` that sorts the rows, renames a column, and adds a new column, then prove the original data frame is identical before and after the call.
 
-```r
+```r title="Exercise: copy-on-modify proof"
 original_df <- data.frame(
   name  = c("Zara", "Ali", "Mia"),
   score = c(88, 95, 72)
@@ -393,7 +393,7 @@ identical(original_df, before)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Copy-on-modify solution"
 mangle <- function(df) {
   df <- df[order(df$name), ]          # sort rows
   names(df)[2] <- "points"            # rename column
@@ -428,7 +428,7 @@ original_df
 
 Function composition means chaining small, focused functions together. Below are three helpers that each do one text-cleaning step. Combine them into a single pipeline using `|>` that takes a messy character vector and returns a clean one.
 
-```r
+```r title="Exercise: compose three cleaners"
 messy <- c("  Hello, World!  ", "R is GREAT!!!", "   functional Programming.  ")
 
 # The three steps (already defined):
@@ -445,7 +445,7 @@ messy <- c("  Hello, World!  ", "R is GREAT!!!", "   functional Programming.  ")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three-cleaners solution"
 cleaned <- messy |>
   trimws() |>
   tolower() |>
@@ -467,7 +467,7 @@ cleaned
 
 Memoisation caches the results of expensive function calls so repeated calls with the same input return instantly. The naive recursive Fibonacci is painfully slow for large `n` because it recomputes the same values over and over. Build a memoised version using a closure.
 
-```r
+```r title="Exercise: memoised Fibonacci"
 # Naive version (slow for n > 30):
 fib_naive <- function(n) {
   if (n <= 1) return(n)
@@ -496,7 +496,7 @@ fib(50)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Memoised-Fibonacci solution"
 make_fib_memo <- function() {
   cache <- new.env(parent = emptyenv())
 

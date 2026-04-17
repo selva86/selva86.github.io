@@ -47,7 +47,7 @@ For example, if you have movies that can be Drama, Comedy, or Action:
 
 `UpSetR` uses `upset()` which takes a data frame in binary format, one column per set, values 0/1.
 
-```r
+```r title="Basic UpSet plot of movie genres"
 library(UpSetR)
 
 # Built-in movies dataset from UpSetR
@@ -70,7 +70,7 @@ upset(
 
 By default, intersections are sorted by degree (number of sets in the intersection). Sorting by frequency (size) puts the most common intersections first, usually more useful.
 
-```r
+```r title="Sort intersections by frequency"
 # Sort by frequency (most common intersections first)
 upset(
   movies,
@@ -91,7 +91,7 @@ upset(
 
 `UpSetR` has limited ggplot2-style styling, but it does support bar color customization with `main.bar.color`, `sets.bar.color`, and `matrix.color`.
 
-```r
+```r title="Customize UpSet bar colors"
 # Custom bar colors
 upset(
   movies,
@@ -115,7 +115,7 @@ upset(
 
 `query` lets you highlight specific intersections, useful for calling out the most important pattern in a presentation.
 
-```r
+```r title="Highlight the Drama-only intersection"
 # Highlight the Drama-only intersection
 upset(
   movies,
@@ -143,7 +143,7 @@ upset(
 
 If your data isn't already in the UpSetR built-in format, convert it from a list of sets or a binary membership matrix.
 
-```r
+```r title="Build UpSet from a binary matrix"
 # Create binary data from scratch: survey responses
 # Each row = one respondent, each column = a feature they use
 set.seed(42)
@@ -178,7 +178,7 @@ The data frame just needs columns with 0/1 values, one row per element, one colu
 
 `upset()` requires 0/1 binary columns. Lists of members need conversion first.
 
-```r
+```r title="Convert a set list to binary"
 # Convert list of sets to binary matrix
 set_list <- list(
   SetA = c("gene1", "gene2", "gene3"),
@@ -197,7 +197,7 @@ bin_mat <- data.frame(
 
 With 6+ sets, there are 2^6 = 64 possible intersections. Use `nintersects` to show only the most common ones.
 
-```r
+```r title="Limit intersections with nintersects"
 upset(df, nintersects = 20, order.by = "freq")
 ```
 
@@ -213,7 +213,7 @@ With 4+ sets, Venn diagrams become overlapping circles that are nearly impossibl
 
 UpSetR's defaults have minimal labeling. Add `ylab = "Intersection Size"` and use `text.scale` to increase font sizes for readability.
 
-```r
+```r title="Tune UpSet text scales"
 upset(df, ylab = "Intersection Size", text.scale = c(1.5, 1.3, 1.2, 1, 1.5, 1))
 ```
 
@@ -226,7 +226,7 @@ Create a data frame of 100 customers who purchased different product categories 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Customer categories UpSet solution"
 library(UpSetR)
 
 set.seed(99)
@@ -258,7 +258,7 @@ Using `data(movies)` from UpSetR, create an UpSet plot for these 6 genres: Actio
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Six-genre movies UpSet solution"
 library(UpSetR)
 data(movies)
 

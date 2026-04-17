@@ -48,7 +48,7 @@ RStudio has its own strengths that Positron has not matched yet:
 - **Code completion is more context-aware for `$` and `[[ ]]`** on data frames in some edge cases, particularly with piped chains.
 - **The source editor integrates more tightly with Sweave, Rnw and classic R Markdown** documents. Positron supports Quarto well but lags on older formats.
 
-```r
+```r title="Compare IDEs with a dplyr pipeline"
 # Same code in both IDEs. Try it here:
 library(dplyr)
 
@@ -73,7 +73,7 @@ This comparison is the closest to a tie, and the winner depends on what "data an
 
 **Plots.** RStudio's plots pane has a dedicated history, zoom, and export flow that many users have muscle memory for. Positron's plots pane is functional but plainer, no history navigation yet, and export requires right-clicking.
 
-```r
+```r title="Explore starwars with dplyr"
 # Interactive data exploration — works identically in both IDEs.
 data("starwars", package = "dplyr")
 
@@ -111,7 +111,7 @@ RStudio wins this round clearly.
 
 **Debugging.** Both IDEs support `browser()` and breakpoint-style debugging, and both are usable. RStudio's visual breakpoints in the source editor feel a shade more responsive.
 
-```r
+```r title="Package development with devtools"
 # Package development workflow — works in both, but RStudio has dedicated buttons.
 # devtools::load_all()
 # devtools::test()
@@ -157,7 +157,7 @@ Here is the simple rule.
 <details>
 <summary>Solution</summary>
 
-```r
+```r title="Positron data explorer solution"
 library(dplyr)
 head(starwars)
 # Variables pane should list starwars as tibble [87 x 14].
@@ -188,7 +188,7 @@ This is a subjective exercise, there is no single right answer. Typical results:
 
 Run this in whichever IDE you want to evaluate. The same script should work identically in both.
 
-```r
+```r title="Side-by-side IDE smoke test"
 library(dplyr)
 library(ggplot2)
 

@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The warning is R's way of telling you *some, but not all, of your values parsed*. R keeps the clean ones and swaps the rest with `NA`. Because it's a warning and not an error, your script keeps running, which is exactly why it's dangerous. The fastest diagnostic is to catch the coerced vector, then ask `which(is.na(...))` to print the positions that failed so you can look at the originals.
 
-```r
+```r title="Find positions that failed to parse"
 raw <- c("23.5", "18", "N/A", "31.2", "error", "27.8")
 
 # suppressWarnings() lets us grab the coerced vector quietly, then inspect it
@@ -46,7 +46,7 @@ Two values failed: `"N/A"` and `"error"`. That two-line diagnostic, `which(is.na
 
 **Try it:** A colleague sends you `temps <- c("21.1", "missing", "19.8", "n/a", "22.4")`. Print only the strings that would become NA, not their positions.
 
-```r
+```r title="Exercise: list bad temperature strings"
 temps <- c("21.1", "missing", "19.8", "n/a", "22.4")
 
 # Your task: print just "missing" and "n/a" (the values that fail to parse)
@@ -59,7 +59,7 @@ ex_bad
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bad-strings solution"
 temps <- c("21.1", "missing", "19.8", "n/a", "22.4")
 ex_bad <- temps[is.na(suppressWarnings(as.numeric(temps)))]
 ex_bad
@@ -74,7 +74,7 @@ ex_bad
 
 The most common cause is data where someone typed `"N/A"`, `"missing"`, `"TBD"`, or a blank cell instead of leaving the field empty. Once you know what placeholders exist, replace them with `NA` *before* calling `as.numeric()`. This turns an accidental silent failure into a deliberate, warning-free conversion.
 
-```r
+```r title="Replace placeholders before converting"
 readings <- c("23.5", "18", "N/A", "31.2", "missing", "27.8", "")
 
 # Define your placeholder vocabulary up front, then blank them out
@@ -96,7 +96,7 @@ Notice the difference: the `NA` values in `cleaned` are *intentional* now. You d
 
 **Try it:** Clean `ex_readings <- c("5.0", "unknown", "7.2", "n/a", "3.8")` so `"unknown"` and `"n/a"` (lowercase) both become `NA` before conversion.
 
-```r
+```r title="Exercise: clean unknown and n/a"
 ex_readings <- c("5.0", "unknown", "7.2", "n/a", "3.8")
 
 # your code here — handle both "unknown" and "n/a"
@@ -109,7 +109,7 @@ ex_cleaned
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Placeholder cleanup solution"
 ex_readings <- c("5.0", "unknown", "7.2", "n/a", "3.8")
 ex_readings[ex_readings %in% c("unknown", "n/a")] <- NA_character_
 ex_cleaned <- as.numeric(ex_readings)
@@ -125,7 +125,7 @@ ex_cleaned
 
 Numbers formatted for human eyes, `"$1,200"`, `"98%"`, `" 42 "`, all look numeric but fail to parse because `as.numeric()` wants nothing but digits, a sign, a decimal point, and an optional exponent. The fix is `trimws()` for whitespace and `gsub()` with a small character class for symbols.
 
-```r
+```r title="Strip currency commas and percents"
 prices <- c(" $1,200 ", "$850.00", "2,100.50", "98%", "$3,400.75")
 
 # Strip outer whitespace first, then remove $ , and % in one gsub call
@@ -148,7 +148,7 @@ The regex `[$,%]` is a character class, it matches any *single* occurrence of `$
 
 **Try it:** Parse `ex_prices <- c("£50k", "£120k", "£75k")` into the numbers `50000`, `120000`, `75000`. You'll need to strip the prefix and multiply.
 
-```r
+```r title="Exercise: strip pound and k suffix"
 ex_prices <- c("£50k", "£120k", "£75k")
 
 # your code here
@@ -161,7 +161,7 @@ ex_numbers
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pound-and-k solution"
 ex_prices <- c("£50k", "£120k", "£75k")
 ex_numbers <- as.numeric(gsub("[£k]", "", ex_prices)) * 1000
 ex_numbers
@@ -176,7 +176,7 @@ ex_numbers
 
 Two sneaky cases remain. First, calling `as.numeric()` on a factor returns the factor's *level indices*, not the values you see printed, a classic silent bug that gives wrong answers with no warning. Second, European locales use a comma as the decimal separator (`"3,14"` means 3.14), so values imported from European CSVs fail to parse until you swap the separator.
 
-```r
+```r title="Factor level-index trap"
 # Trap 1: as.numeric() on a factor gives level indices, NOT the printed values
 scores <- factor(c("90", "85", "72"))
 as.numeric(scores)
@@ -199,7 +199,7 @@ The first block (`3 2 1`) is the scary one: no warning, no error, just wrong num
 
 Now the European-decimal case, which *does* fire the warning:
 
-```r
+```r title="European decimal comma fix"
 # European CSVs often use comma as decimal separator
 eu <- c("3,14", "2,72", "1,41")
 suppressWarnings(as.numeric(eu))
@@ -215,7 +215,7 @@ If the whole CSV is European-formatted, it's cleaner to use `read.csv2()` (or `r
 
 **Try it:** Convert `ex_f <- factor(c("100", "200", "300"))` to the numeric vector `c(100, 200, 300)`.
 
-```r
+```r title="Exercise: factor to numeric safely"
 ex_f <- factor(c("100", "200", "300"))
 
 # your code here — don't let the level-index trap bite you
@@ -228,7 +228,7 @@ ex_nums
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Factor-to-numeric solution"
 ex_f <- factor(c("100", "200", "300"))
 ex_nums <- as.numeric(as.character(ex_f))
 ex_nums
@@ -245,7 +245,7 @@ ex_nums
 
 The vector below mixes dollar signs, commas, two placeholder strings, whitespace, and one European-formatted value. Clean it and compute the mean, excluding missing values.
 
-```r
+```r title="Exercise: mixed-format revenue cleanup"
 # Exercise: clean and compute the mean, excluding NAs
 # Hint: trim, replace placeholders, gsub symbols, swap , for . on the EU value
 my_revenue <- c("$1,200", "950.5", "N/A", " 2100 ", "3,400.75",
@@ -259,7 +259,7 @@ my_revenue <- c("$1,200", "950.5", "N/A", " 2100 ", "3,400.75",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mixed-format revenue solution"
 my_revenue <- c("$1,200", "950.5", "N/A", " 2100 ", "3,400.75",
                 "missing", "$800", "1.299,50")
 
@@ -293,7 +293,7 @@ my_mean
 
 Write a function that takes a character vector and a placeholder vector, coerces the input to numeric, and prints a helpful message listing the positions that failed, so you're told *which rows* to investigate instead of guessing from a plain warning.
 
-```r
+```r title="Exercise: write safenumeric wrapper"
 # Exercise: write safe_numeric(x, placeholders)
 # Inputs : x (character), placeholders (character to treat as NA)
 # Returns: numeric vector. Prints a message listing failed positions + original values.
@@ -311,7 +311,7 @@ my_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="safenumeric wrapper solution"
 safe_numeric <- function(x, placeholders = c("N/A", "missing", "", "NA")) {
   # Known placeholders → NA before coercion so they don't show as "unexpected"
   cleaned <- x
@@ -345,7 +345,7 @@ my_result
 
 Here's how the diagnosis-then-clean pattern looks on a realistic survey data frame. One column, `price`, contains every problem type from the sections above: placeholders, currency, whitespace, a percentage, and a European-formatted value.
 
-```r
+```r title="End-to-end survey price cleanup"
 library(dplyr)
 
 survey <- tibble::tibble(

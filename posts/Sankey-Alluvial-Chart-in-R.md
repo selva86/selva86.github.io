@@ -34,7 +34,7 @@ The `ggalluvial` package handles both inside ggplot2's grammar, giving you full 
 
 `ggalluvial` uses two main geoms: `geom_stratum()` draws the stacked rectangles at each axis (the "strata"), and `geom_alluvium()` draws the flowing ribbons between them.
 
-```r
+```r title="Basic alluvial chart of subscriptions"
 library(ggplot2)
 library(ggalluvial)
 
@@ -73,7 +73,7 @@ The `axis1`, `axis2`, `axis3` aesthetics define the stages. `y = freq` sets the 
 
 Coloring each ribbon by its origin stage (where the flow came from) makes it easy to trace cohorts through the chart.
 
-```r
+```r title="Color flows by Month 1 origin"
 # Color flows by their Month 1 origin
 p_color <- ggplot(sub_df,
   aes(axis1 = month1, axis2 = month2, axis3 = month3,
@@ -109,7 +109,7 @@ Now you can follow the blue ribbon (Free tier customers) and see how many stayed
 
 Coloring by the final stage (`month3`) gives you a retention/conversion view, all customers ending in "Pro" are green, all churned customers are red.
 
-```r
+```r title="Color flows by final destination"
 # Color by final destination (Month 3 outcome)
 p_dest <- ggplot(sub_df,
   aes(axis1 = month1, axis2 = month2, axis3 = month3,
@@ -150,7 +150,7 @@ The red ribbons (Churned) immediately stand out, you can see which starting tier
 
 If your data is already in wide format (one row per unique combination of variables, with a frequency column), pass it directly using `to_lodes_form()` to convert, or use the `axes` argument directly.
 
-```r
+```r title="Use wide-format data with ggalluvial"
 # Wide format: summarized frequency table
 wide_df <- data.frame(
   Gender     = c("M", "M", "M", "F", "F", "F"),
@@ -186,7 +186,7 @@ p_wide
 
 ## Complete Example: Polished Alluvial Chart
 
-```r
+```r title="Polished alluvial with annotations"
 # Polished version with custom theme and annotations
 p_final <- ggplot(sub_df,
   aes(axis1 = month1, axis2 = month2, axis3 = month3,
@@ -236,7 +236,7 @@ p_final
 
 `geom_alluvium()` requires `y` for the flow widths. Without it, ggplot2 will error.
 
-```r
+```r title="Common mistake: missing y aesthetic"
 # Wrong: no y aesthetic
 ggplot(df, aes(axis1 = A, axis2 = B)) + geom_alluvium()
 
@@ -248,7 +248,7 @@ ggplot(df, aes(axis1 = A, axis2 = B, y = freq)) + geom_alluvium()
 
 Without `expand`, stratum labels get clipped at the plot edges.
 
-```r
+```r title="Expand x axis for label room"
 # Add expand to x axis
 scale_x_discrete(limits = c("Stage1", "Stage2"), expand = c(0.15, 0.1))
 ```
@@ -265,7 +265,7 @@ Sankey diagrams show static flows between nodes, not trends over time. For chang
 
 Each row in your data must represent a unique combination of all axis variables, with `y` as the count for that combination. If rows represent individual observations, aggregate them first with `dplyr::count()`.
 
-```r
+```r title="Aggregate data before plotting"
 # Aggregate first if needed
 df_agg <- df |> count(var1, var2, var3, name = "freq")
 ```
@@ -279,7 +279,7 @@ Using R's built-in `HairEyeColor` dataset, create an alluvial chart showing the 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="HairEyeColor alluvial solution"
 library(ggplot2)
 library(ggalluvial)
 
@@ -309,7 +309,7 @@ Extend Exercise 1 to add `Sex` as a third axis (`axis3`). Color by `Sex`. Do hai
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Three-axis HairEyeColor solution"
 library(ggplot2)
 library(ggalluvial)
 

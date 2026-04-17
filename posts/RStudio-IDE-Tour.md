@@ -75,7 +75,7 @@ The code runs in the Console panel below, and results appear there. This is the 
 
 Try this now, the code below shows what you'd type in the Source panel. Click Run to see the output:
 
-```r
+```r title="Run a script from the Source panel"
 # This is an R script — you'd save this as my_analysis.R
 # Each line runs when you press Ctrl+Enter
 
@@ -120,7 +120,7 @@ Key features:
 
 ### Useful Console tricks
 
-```r
+```r title="Console shortcuts and history"
 # Press Up Arrow to recall last command
 # Type the start of a previous command + Ctrl+Up to search history
 
@@ -150,7 +150,7 @@ This is the most important tab. It shows:
 - **Object types** (numeric, character, list, etc.)
 - A **clickable arrow** next to complex objects (data frames, lists) to expand and inspect them
 
-```r
+```r title="Populate the Environment panel"
 # Run this and watch the Environment panel populate
 x <- 42
 name <- "RStudio"
@@ -197,7 +197,7 @@ Every plot you create in R appears here. Key features:
 - **Zoom** button to see the plot larger in a new window
 - **Export** button to save as PNG, PDF, or copy to clipboard
 
-```r
+```r title="Make a plot in the Plots tab"
 # Create a plot — it will appear in the Plots tab
 library(ggplot2)
 
@@ -229,7 +229,7 @@ R's built-in help system. When you type `?function_name` in the Console, the hel
 - **Value**, what the function returns
 - **Examples**, runnable code examples (the most useful part!)
 
-```r
+```r title="Explore help with ? and ??"
 # Try these — each opens help in the Help tab
 ?mean       # Help for the mean() function
 ?lm         # Help for linear regression
@@ -284,7 +284,7 @@ Press **Alt+Shift+K** (Windows/Linux) or **Option+Shift+K** (Mac) to see the com
 
 Let's walk through a typical R workflow to see how the panels work together. This is what a real analysis session looks like:
 
-```r
+```r title="Load data and explore mtcars"
 # STEP 1: Load packages (type in Source, run with Ctrl+Enter)
 library(dplyr)
 library(ggplot2)
@@ -299,7 +299,7 @@ head(data)
 
 After running the above, your Environment panel shows `data` (32 obs. of 11 variables). The Console shows the first 6 rows. Now continue the analysis:
 
-```r
+```r title="Summarise mtcars by cylinder"
 # STEP 4: Analyze — group and summarize
 summary_table <- data |>
   mutate(car_name = rownames(data)) |>
@@ -317,7 +317,7 @@ summary_table
 
 The Environment panel now also shows `summary_table` (3 obs. of 5 variables). Click on it to see it in a spreadsheet view.
 
-```r
+```r title="Visualise horsepower versus MPG"
 # STEP 5: Visualize — plot appears in the Plots tab
 ggplot(data, aes(x = hp, y = mpg, color = factor(cyl), size = wt)) +
   geom_point(alpha = 0.7) +
@@ -351,7 +351,7 @@ RStudio lets you rearrange everything. Go to **Tools → Global Options → Pane
 
 Open RStudio and try these keyboard shortcuts. After each one, note which panel your cursor is in:
 
-```r
+```r title="Exercise: practice RStudio shortcuts"
 # Exercise: Practice these shortcuts in RStudio
 # 1. Press Ctrl+1 — where is your cursor now?
 # 2. Press Ctrl+2 — where is your cursor now?
@@ -379,7 +379,7 @@ Open RStudio and try these keyboard shortcuts. After each one, note which panel 
 
 Write a complete mini-analysis using the RStudio workflow. Create data, analyze it, and plot it:
 
-```r
+```r title="Exercise: mini student barplot"
 # Exercise: Complete this analysis in RStudio
 # 1. Create a data frame with 5 students and their scores
 # 2. Calculate the mean and max score
@@ -393,7 +393,7 @@ Write a complete mini-analysis using the RStudio workflow. Create data, analyze 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Student barplot solution"
 # Solution: Mini student analysis
 students <- data.frame(
   name = c("Alice", "Bob", "Carol", "David", "Eve"),
@@ -415,7 +415,7 @@ barplot(students$score, names.arg = students$name,
 
 ### Exercise 3: Use the Help System
 
-```r
+```r title="Exercise: use the help system"
 # Exercise: Use RStudio's help system
 # 1. Find help for the sort() function — what does decreasing do?
 # 2. Search for functions related to "correlation"
@@ -428,7 +428,7 @@ barplot(students$score, names.arg = students$name,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Help system solution"
 # Solution
 ?sort          # Opens help — the 'decreasing' argument sorts high to low
 ??correlation  # Searches for "correlation" across all help files

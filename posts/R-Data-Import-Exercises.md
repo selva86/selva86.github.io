@@ -32,7 +32,7 @@ If `read_csv()` and `col_types` are new to you, skim the parent [Importing Data 
 
 Instead of scattering raw CSV strings across every exercise, we define them once here. These are tiny on purpose, a few rows each, so you can eyeball the expected output and catch mistakes without scrolling. Run the block below once; every exercise after it reuses these objects.
 
-```r
+```r title="Setup: load libraries and CSV snippets"
 # Setup: load libraries and define CSV snippets for every exercise
 library(readr)
 library(dplyr)
@@ -115,7 +115,7 @@ The first three problems build muscle memory for `read_csv()` and `read_delim()`
 
 Use `read_csv()` to parse `csv_basic` into a data frame, then print the parsed tibble. Save it as `ans1`. Expected: 3 rows, 4 columns, with `price` numeric, `qty` integer, and `in_stock` logical.
 
-```r
+```r title="Exercise 1: readcsv basic parse"
 # Exercise 1: parse csv_basic with read_csv()
 # Hint: use show_col_types = FALSE to silence the spec message
 
@@ -126,7 +126,7 @@ Use `read_csv()` to parse `csv_basic` into a data frame, then print the parsed t
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 1 solution"
 ans1 <- read_csv(csv_basic, show_col_types = FALSE)
 ans1
 #> # A tibble: 3 x 4
@@ -145,7 +145,7 @@ ans1
 
 `read_csv()` expects commas. For other delimiters, use `read_delim()`. Parse `csv_pipe` and save the result as `ans2`. Expected: 3 rows, 3 columns.
 
-```r
+```r title="Exercise 2: read pipe-delimited file"
 # Exercise 2: parse csv_pipe (delimiter is |)
 # Hint: read_delim(..., delim = "|")
 
@@ -156,7 +156,7 @@ ans1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 2 solution"
 ans2 <- read_delim(csv_pipe, delim = "|", show_col_types = FALSE)
 ans2
 #> # A tibble: 3 x 3
@@ -175,7 +175,7 @@ ans2
 
 `read_csv()` sees `01234` as the number 1234 and drops the leading zero. For zip codes, product SKUs, and phone numbers that is a silent data-loss bug. Parse `csv_zip` so that `zipcode` and `phone` are read as strings. Save as `ans3`.
 
-```r
+```r title="Exercise 3: keep ZIP and phone as character"
 # Exercise 3: keep zipcode and phone as character
 # Hint: col_types = cols(zipcode = col_character(), phone = col_character())
 
@@ -186,7 +186,7 @@ ans2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 3 solution"
 ans3 <- read_csv(csv_zip,
                  col_types = cols(zipcode = col_character(),
                                   phone   = col_character()))
@@ -214,7 +214,7 @@ Real CSV files rarely come clean. These three exercises fix the three most commo
 
 `csv_na` uses four different conventions for missing values, blank, `N/A`, `-`, and `-999`. Read it so that all four become `NA` in R. Save to `ans4` and confirm the total NA count equals 4.
 
-```r
+```r title="Exercise 4: normalise missing-value markers"
 # Exercise 4: normalise all missing value conventions
 # Hint: read_csv(csv_na, na = c("", "N/A", "-", "-999"))
 
@@ -225,7 +225,7 @@ Real CSV files rarely come clean. These three exercises fix the three most commo
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 4 solution"
 ans4 <- read_csv(csv_na,
                  na = c("", "N/A", "-", "-999"),
                  show_col_types = FALSE)
@@ -251,7 +251,7 @@ sum(is.na(ans4))
 
 US-style dates (`03/30/2026`) are read as character strings by default. Parse `csv_dates` so the `date` column comes back as a real `Date`. Save to `ans5` and confirm `class(ans5$date)` is `"Date"`.
 
-```r
+```r title="Exercise 5: parse MM/DD/YYYY dates"
 # Exercise 5: parse the date column in MM/DD/YYYY format
 # Hint: col_types = cols(date = col_date(format = "%m/%d/%Y"))
 
@@ -262,7 +262,7 @@ US-style dates (`03/30/2026`) are read as character strings by default. Parse `c
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 5 solution"
 ans5 <- read_csv(csv_dates,
                  col_types = cols(date = col_date(format = "%m/%d/%Y")))
 ans5
@@ -285,7 +285,7 @@ class(ans5$date)
 
 `csv_meta` has three lines of human-readable metadata (`Report:`, `Generated:`, `---`) before the real header. Read it so the tibble has two rows and three columns. Save to `ans6`.
 
-```r
+```r title="Exercise 6: skip metadata lines"
 # Exercise 6: skip the first 3 metadata lines
 # Hint: read_csv(..., skip = 3)
 
@@ -296,7 +296,7 @@ class(ans5$date)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 6 solution"
 ans6 <- read_csv(csv_meta, skip = 3, show_col_types = FALSE)
 ans6
 #> # A tibble: 2 x 3
@@ -321,7 +321,7 @@ The final four exercises cover the situations where an import job becomes a data
 
 Reading every column when you only need three is a waste on wide files. Use `col_select` to parse `csv_big` and keep only the `x` column. Save to `ans7` and confirm it has one column and 1,000 rows.
 
-```r
+```r title="Exercise 7: read one column only"
 # Exercise 7: read csv_big but keep only column x
 # Hint: read_csv(..., col_select = x)
 
@@ -332,7 +332,7 @@ Reading every column when you only need three is a waste on wide files. Use `col
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 7 solution"
 ans7 <- read_csv(csv_big, col_select = x, show_col_types = FALSE)
 
 dim(ans7)
@@ -355,7 +355,7 @@ head(ans7, 3)
 
 When you want a fast preview of a file, schema, first few values, rough shape, you do not need to read the whole thing. Use `n_max` to read the first 5 rows of `csv_big` and save to `ans8`.
 
-```r
+```r title="Exercise 8: read first five rows"
 # Exercise 8: read the first 5 rows of csv_big
 # Hint: n_max = 5
 
@@ -366,7 +366,7 @@ When you want a fast preview of a file, schema, first few values, rough shape, y
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 8 solution"
 ans8 <- read_csv(csv_big, n_max = 5, show_col_types = FALSE)
 ans8
 #> # A tibble: 5 x 2
@@ -387,7 +387,7 @@ ans8
 
 You have two monthly sales files in `csv_jan` and `csv_feb`. Read both, add a `month` column to each showing which file it came from, and stack them into one tibble. Save to `ans9`. Expected: 4 rows, 3 columns.
 
-```r
+```r title="Exercise 9: combine monthly files"
 # Exercise 9: combine csv_jan and csv_feb, add month tag
 # Hint: read each, mutate(month = ...), bind_rows()
 
@@ -398,7 +398,7 @@ You have two monthly sales files in `csv_jan` and `csv_feb`. Read both, add a `m
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 9 solution"
 df_jan <- read_csv(csv_jan, show_col_types = FALSE) |>
   mutate(month = "Jan")
 
@@ -430,7 +430,7 @@ Excel files need a different package: `readxl::read_excel()`. You pass a file pa
 [NOTE]
 **readxl does not run in this browser sandbox.** The interactive R engine on this page does not include `readxl`. Run the code below in local RStudio or any desktop R session. The expected output is shown so you can still verify your code against it.
 
-```r
+```r title="Exercise 10: read Excel sheet"
 # Exercise 10: read the first sheet of sales_2026.xlsx
 # Hint: library(readxl); read_excel("path", sheet = 1)
 
@@ -441,7 +441,7 @@ Excel files need a different package: `readxl::read_excel()`. You pass a file pa
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise 10 solution"
 library(readxl)
 ans10 <- read_excel("sales_2026.xlsx", sheet = 1)
 ans10
@@ -467,7 +467,7 @@ Three import habits that quietly break downstream analysis, with fixes you can c
 ### Mistake 1: Using base `read.csv()` instead of `read_csv()`
 
 Bad:
-```r
+```r title="Mistake: stringsAsFactors with base read.csv"
 df <- read.csv(text = csv_basic, stringsAsFactors = TRUE)
 str(df)
 #> 'data.frame':    3 obs. of  4 variables:
@@ -478,7 +478,7 @@ str(df)
 ```
 
 Good:
-```r
+```r title="Correct: readcsv preserves types"
 df <- read_csv(csv_basic, show_col_types = FALSE)
 str(df)
 #> tibble [3 x 4] (S3: tbl_df/tbl/data.frame)
@@ -493,13 +493,13 @@ str(df)
 ### Mistake 2: Losing leading zeros on identifier columns
 
 Bad:
-```r
+```r title="Mistake: ZIP codes read as numeric"
 read_csv(csv_zip, show_col_types = FALSE)$zipcode
 #> [1] 1234  501 7008
 ```
 
 Good:
-```r
+```r title="Correct: ZIP codes as character"
 read_csv(csv_zip,
          col_types = cols(zipcode = col_character()))$zipcode
 #> [1] "01234" "00501" "07008"
@@ -510,14 +510,14 @@ read_csv(csv_zip,
 ### Mistake 3: Forgetting to declare custom NA strings
 
 Bad:
-```r
+```r title="Mistake: -999 treated as numeric"
 # csv_na uses "-999" as a missing sentinel — default reader treats it as numeric
 read_csv(csv_na, show_col_types = FALSE)$score
 #> [1]   88   NA   NA -999   76
 ```
 
 Good:
-```r
+```r title="Correct: declare all NA spellings"
 read_csv(csv_na,
          na = c("", "N/A", "-", "-999"),
          show_col_types = FALSE)$score

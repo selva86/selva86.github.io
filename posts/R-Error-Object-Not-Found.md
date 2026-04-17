@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Every time you type a bare name like `my_df`, R walks a short lookup chain, the current environment first, then any parents it can see, then every attached package. If no match turns up anywhere on that chain, R stops and reports the exact name in quotes. That name in quotes is your single most useful clue: it is *exactly* what R tried to look up, down to the last character.
 
-```r
+```r title="Reproduce the missing object error"
 # Reproduce the error against a variable you never created
 my_df
 #> Error: object 'my_df' not found
@@ -43,7 +43,7 @@ The first line gives you the error message. The next two lines, `exists()` and `
 
 **Try it:** Reproduce the error for a variable called `ex_missing` and confirm with `exists()`.
 
-```r
+```r title="Exercise: Reproduce and exists check"
 # Try it: reproduce + diagnose
 # Reference a name you never created, then call exists() on it.
 # your code here
@@ -53,7 +53,7 @@ The first line gives you the error message. The next two lines, `exists()` and `
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Reproduce and exists solution"
 ex_missing
 #> Error: object 'ex_missing' not found
 
@@ -69,7 +69,7 @@ exists("ex_missing")
 
 R is case-sensitive and treats `sales_data`, `sales_Data`, and `Sales_Data` as three completely different identifiers. A single wrong character is enough to break the lookup. This is the most common source of the error, often hiding as a capitalised first letter, an underscore swapped for a dot, or a plural tacked on.
 
-```r
+```r title="Cause 1: case mismatch"
 # Object defined correctly
 sales_data <- data.frame(region = c("N", "S"), revenue = c(120, 95))
 
@@ -91,7 +91,7 @@ The fix costs nothing once you spot the mismatch, the real win is catching typos
 
 **Try it:** The snippet below triggers the error. Find the typo and fix it so the last line prints 42.
 
-```r
+```r title="Exercise: Fix the case typo"
 # Try it: fix the typo
 ex_price <- 42
 Ex_price
@@ -102,7 +102,7 @@ Ex_price
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Case typo solution"
 ex_price <- 42
 ex_price
 #> [1] 42
@@ -116,7 +116,7 @@ ex_price
 
 Any R expression with no assignment prints its result and throws it away. This catches readers of every experience level because the output *looks* like the data was stored, but nothing was captured in the environment. The tell is always the same: you "see" the data, then try to use it by name on the next line, and R reports it missing.
 
-```r
+```r title="Cause 2: forgot the assignment"
 # Wrong: the expression runs, prints, and discards
 data.frame(id = 1:3, score = c(88, 92, 77))
 #>   id score
@@ -144,7 +144,7 @@ The output in the first block looks identical to the fixed version, which is exa
 
 **Try it:** Fix the missing assignment so the second line prints the mean of the scores.
 
-```r
+```r title="Exercise: Add the assignment"
 # Try it: add the assignment
 c(71, 88, 93, 65)
 mean(ex_scores)
@@ -155,7 +155,7 @@ mean(ex_scores)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Add the assignment solution"
 ex_scores <- c(71, 88, 93, 65)
 mean(ex_scores)
 #> [1] 79.25
@@ -169,7 +169,7 @@ mean(ex_scores)
 
 Datasets and functions shipped inside a package are invisible until you either attach the package with `library()` or reach in with the qualified `pkg::name` syntax. This cause often looks identical to Cause 1 because you have never seen the name in your script, you just remember that "someone used `starwars` in a tutorial" and typed it.
 
-```r
+```r title="Cause 3: package not attached"
 # starwars lives in dplyr, which isn't attached by default.
 # A bare reference would fail: Error: object 'starwars' not found
 
@@ -197,7 +197,7 @@ Fix A is safer for one-off references and makes the origin explicit in your code
 
 **Try it:** Access R's built-in `mtcars` dataset through the `datasets` package with qualified syntax (no `library()` call).
 
-```r
+```r title="Exercise: Qualified package access"
 # Try it: qualified access
 # Hint: datasets is a base package that ships with R.
 # your code here
@@ -207,7 +207,7 @@ Fix A is safer for one-off references and makes the origin explicit in your code
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Qualified package access solution"
 head(datasets::mtcars, 2)
 #>               mpg cyl disp  hp drat    wt  qsec vs am gear carb
 #> Mazda RX4      21   6  160 110 3.90 2.620 16.46  0  1    4    4
@@ -222,7 +222,7 @@ head(datasets::mtcars, 2)
 
 RStudio's Run button, Ctrl+Enter, and "Run Selection" all encourage piecemeal execution. The result is a notebook that works when run top-to-bottom but breaks the moment you jump around. You run line 18, which depends on line 3, without first running line 3. R has no memory of what you *meant* to run; it only knows what you actually executed.
 
-```r
+```r title="Cause 4: lines run out of order"
 # These two lines must run top-to-bottom in this order:
 raw_input <- c(3, 5, 7, 11, 13)
 my_result <- summary(raw_input)
@@ -241,7 +241,7 @@ The fix is structural: run scripts from the top whenever you come back to them. 
 
 **Try it:** The three lines below are in the wrong order. Reorder them so the last line prints the summary.
 
-```r
+```r title="Exercise: Reorder the lines"
 # Try it: reorder so this runs without error
 ex_summary <- summary(ex_values)
 ex_summary
@@ -253,7 +253,7 @@ ex_values <- c(2, 4, 6, 8)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Reorder the lines solution"
 ex_values <- c(2, 4, 6, 8)
 ex_summary <- summary(ex_values)
 ex_summary
@@ -269,7 +269,7 @@ ex_summary
 
 Variables created inside a function body live in that function's local environment and vanish as soon as the function returns. From the caller's perspective, they never existed. This trips up readers who assume R behaves like a notebook where every name is global.
 
-```r
+```r title="Cause 5: variable is local"
 # Define locals inside a function
 compute_stats <- function(x) {
   local_mean <- mean(x)
@@ -301,7 +301,7 @@ The fix is always to *return* what the caller needs. R functions return the valu
 
 **Try it:** Rewrite `ex_rescale` so it returns the scaled vector instead of just assigning it internally.
 
-```r
+```r title="Exercise: Return from exrescale"
 # Try it: make ex_rescale return its result
 ex_rescale <- function(v) {
   scaled <- (v - min(v)) / (max(v) - min(v))
@@ -317,7 +317,7 @@ ex_rescale(c(10, 20, 30))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="exrescale return solution"
 ex_rescale <- function(v) {
   scaled <- (v - min(v)) / (max(v) - min(v))
   scaled
@@ -334,7 +334,7 @@ ex_rescale(c(10, 20, 30))
 
 Inside `dplyr::filter()`, `mutate()`, `arrange()`, and friends, bare column names are resolved by a mechanism called non-standard evaluation (NSE). dplyr first looks for the name in the data frame, and if it can't find it there, it falls back to looking in the calling environment. When neither lookup succeeds, you see the familiar "object not found" error, even though the real problem is a missing column.
 
-```r
+```r title="Cause 6: unknown dplyr column"
 library(dplyr)
 
 # Wrong: "MPG" with uppercase doesn't exist in mtcars
@@ -359,7 +359,7 @@ Always check your column names with `names(df)` or `colnames(df)` before using t
 
 **Try it:** Fix the `mutate()` call below so it adds a new column `hp_per_cyl` equal to `hp / cyl`.
 
-```r
+```r title="Exercise: Fix dplyr columns"
 # Try it: fix the column reference
 mtcars |>
   mutate(hp_per_cyl = HP / CYL) |>
@@ -371,7 +371,7 @@ mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fix dplyr columns solution"
 mtcars |>
   mutate(hp_per_cyl = hp / cyl) |>
   head(2)
@@ -388,7 +388,7 @@ mtcars |>
 
 Running `rm(list = ls())` wipes everything in the global environment. So does clicking the broom icon in RStudio's Environment pane, or choosing Session → Restart R. After any of these, every name you previously created is gone and referencing it gives "object not found". The only cure is to re-run the script that created those names.
 
-```r
+```r title="Cause 7: environment cleared"
 # Build a data frame
 df_work <- data.frame(id = 1:3, value = c(10, 20, 30))
 
@@ -418,7 +418,7 @@ This is why reproducible scripts matter. If your analysis lives as a set of hand
 
 **Try it:** After `rm("ex_counter")`, restore `ex_counter` to the value 5 and print it.
 
-```r
+```r title="Exercise: Restore after rm"
 # Try it: restore after rm()
 ex_counter <- 99
 rm("ex_counter")
@@ -431,7 +431,7 @@ rm("ex_counter")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Restore after rm solution"
 ex_counter <- 5
 ex_counter
 #> [1] 5
@@ -447,7 +447,7 @@ ex_counter
 
 The 5-line script below throws `Error: object 'revenue_df' not found` on the last line. Identify which of the 7 causes is responsible and fix the script in one edit.
 
-```r
+```r title="Practice: Identify the cause"
 # Exercise: identify and fix the cause
 my_path <- "sales.csv"
 data.frame(q1 = c(100, 200), q2 = c(150, 180))
@@ -460,7 +460,7 @@ revenue_df |> colSums()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Identify the cause solution"
 # Cause 2: the data.frame() call was missing an assignment
 revenue_df <- data.frame(q1 = c(100, 200), q2 = c(150, 180))
 revenue_df |> colSums()
@@ -476,7 +476,7 @@ revenue_df |> colSums()
 
 Write a function `diagnose_missing(name)` that takes an object name as a string and prints the most likely cause by checking three conditions: whether the name exists, whether a similarly-cased name is in `ls()`, and whether the name lives in a loaded package.
 
-```r
+```r title="Practice: Build diagnosemissing"
 # Exercise: build diagnose_missing()
 # Hint: use exists(name), ls(), and loadedNamespaces()
 
@@ -487,7 +487,7 @@ Write a function `diagnose_missing(name)` that takes an object name as a string 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="diagnosemissing solution"
 diagnose_missing <- function(name) {
   if (exists(name)) {
     cat(name, "exists — no error expected.\n")
@@ -522,7 +522,7 @@ diagnose_missing("Example_var")
 
 Write `run_safely(expr)` that evaluates an expression and, if it fails with "object not found", returns the missing object's name as a string. If the expression succeeds, return its value. Use `tryCatch()`.
 
-```r
+```r title="Practice: Build runsafely"
 # Exercise: build run_safely()
 # Hint: capture the error with tryCatch() and regex the name from conditionMessage()
 
@@ -533,7 +533,7 @@ Write `run_safely(expr)` that evaluates an expression and, if it fails with "obj
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="runsafely solution"
 run_safely <- function(expr) {
   tryCatch(
     expr,
@@ -566,7 +566,7 @@ run_safely(mean(1:10))
 
 Here's the full diagnosis loop you'd run the next time this error hits a real pipeline. The goal is to rule out each cause in order, from cheapest to most expensive, until you find the culprit.
 
-```r
+```r title="End-to-end diagnosis loop"
 # Step 1: the broken pipeline (commented so the block runs cleanly)
 # mtcars |> filter(MPG > 20) |> summarise(avg_hp = mean(hp))
 # Error in `filter()`: object 'MPG' not found

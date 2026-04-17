@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 How strong is the link between a car's weight and its fuel economy? That's the question correlation answers, it gives you a single number that captures both the direction and strength of a relationship. Let's compute one right now with `cor()` and see the result.
 
-```r
+```r title="Weight versus fuel economy correlation"
 # Correlation between weight and fuel economy
 r_value <- cor(mtcars$wt, mtcars$mpg)
 r_value
@@ -35,7 +35,7 @@ The result is −0.87, which tells you two things. The negative sign means heavi
 
 By default, `cor()` computes Pearson correlation. You can switch to the other two methods by passing the `method` argument. Let's see all three on the same data.
 
-```r
+```r title="Compare pearson spearman and kendall"
 # Compare all three methods
 pearson_r  <- cor(mtcars$wt, mtcars$mpg, method = "pearson")
 spearman_r <- cor(mtcars$wt, mtcars$mpg, method = "spearman")
@@ -64,7 +64,7 @@ These thresholds come from Cohen's (1988) conventions for behavioural sciences. 
 
 **Try it:** Compute the correlation between `mtcars$hp` (horsepower) and `mtcars$qsec` (quarter-mile time). Before running the code, predict: will it be positive or negative?
 
-```r
+```r title="Exercise: correlate horsepower and quarter mile"
 # Try it: correlate hp and qsec
 ex_r <- cor(mtcars$hp, mtcars$qsec)
 ex_r
@@ -74,7 +74,7 @@ ex_r
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Horsepower and quarter mile solution"
 ex_r <- cor(mtcars$hp, mtcars$qsec)
 ex_r
 #> [1] -0.7082234
@@ -103,7 +103,7 @@ Where:
 
 Pearson works well when three assumptions hold: (1) both variables are continuous, (2) the relationship is linear, and (3) both variables are approximately normally distributed. Let's check these visually and statistically.
 
-```r
+```r title="Scatter plot with linear fit"
 # Scatter plot: is the relationship linear?
 plot(mtcars$wt, mtcars$mpg,
      xlab = "Weight (1000 lbs)", ylab = "Miles per Gallon",
@@ -116,7 +116,7 @@ The scatter plot shows points clustering around a straight line, good evidence t
 
 Now let's check normality with the Shapiro-Wilk test. A p-value above 0.05 means we can't reject normality.
 
-```r
+```r title="Shapiro wilk normality check"
 # Normality check
 shapiro.test(mtcars$wt)
 #> 	Shapiro-Wilk normality test
@@ -136,7 +136,7 @@ Both p-values are above 0.05, so we can't reject normality for either variable. 
 
 **Try it:** Check whether `airquality$Ozone` and `airquality$Temp` pass the normality assumption. Use `shapiro.test()` on each. Remember to handle missing values with `na.rm = TRUE` when subsetting.
 
-```r
+```r title="Exercise: normality check for airquality"
 # Try it: normality check for airquality
 # Hint: airquality has NAs — filter them out first
 ex_ozone <- na.omit(airquality$Ozone)
@@ -147,7 +147,7 @@ shapiro.test(ex_ozone)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Airquality normality solution"
 ex_ozone <- na.omit(airquality$Ozone)
 ex_temp <- na.omit(airquality$Temp)
 
@@ -174,7 +174,7 @@ A monotonic relationship means "as one variable goes up, the other consistently 
 
 Let's see the difference with a concrete example. We'll create data that follows an exponential curve, clearly monotonic, but not linear.
 
-```r
+```r title="Exponential growth pearson versus spearman"
 # Monotonic but non-linear: exponential growth
 set.seed(21)
 x_exp <- 1:30
@@ -190,7 +190,7 @@ Spearman (0.993) is much closer to 1 than Pearson (0.889) because the relationsh
 
 Spearman also works naturally with ordinal data (ranks, survey ratings, Likert scales) where the raw numbers are just labels for order.
 
-```r
+```r title="Ordinal ratings and satisfaction"
 # Ordinal data: customer satisfaction vs product rating
 set.seed(33)
 ratings <- sample(1:5, 20, replace = TRUE)
@@ -208,7 +208,7 @@ A Spearman correlation of 0.70 on ordinal data tells us that higher product rati
 
 **Try it:** The `iris` dataset has numeric measurements. Compute both Pearson and Spearman correlation between `Sepal.Length` and `Petal.Length`. Which one is stronger?
 
-```r
+```r title="Exercise: pearson versus spearman on iris"
 # Try it: Pearson vs Spearman on iris
 ex_pearson <- cor(iris$Sepal.Length, iris$Petal.Length, method = "pearson")
 ex_spearman <- cor(iris$Sepal.Length, iris$Petal.Length, method = "spearman")
@@ -219,7 +219,7 @@ cat("Pearson:", ex_pearson, "\nSpearman:", ex_spearman)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Iris pearson spearman solution"
 ex_pearson <- cor(iris$Sepal.Length, iris$Petal.Length, method = "pearson")
 ex_spearman <- cor(iris$Sepal.Length, iris$Petal.Length, method = "spearman")
 cat("Pearson: ", round(ex_pearson, 4),
@@ -248,7 +248,7 @@ Where:
 
 This pair-counting approach gives Kendall two practical advantages. First, it's more reliable than Spearman with **small samples** (n < 30), because each pair provides an independent piece of evidence. Second, it handles **tied values** more gracefully, important with ordinal or discrete data.
 
-```r
+```r title="Small sample all three methods"
 # Small sample: compare all three
 set.seed(55)
 small_x <- c(2, 5, 3, 8, 7, 1, 9, 4, 6, 10)
@@ -273,7 +273,7 @@ Notice that Kendall's tau (0.822) is noticeably lower than Spearman's rho (0.927
 
 **Try it:** Create a small dataset of 8 paired observations where some values are tied. Compute both Kendall's tau and Spearman's rho. Do the ties change the relative gap between them?
 
-```r
+```r title="Exercise: kendall and spearman with ties"
 # Try it: ties in small data
 ex_x <- c(1, 2, 2, 3, 4, 4, 5, 6)
 ex_y <- c(2, 3, 4, 3, 5, 5, 6, 7)
@@ -284,7 +284,7 @@ ex_y <- c(2, 3, 4, 3, 5, 5, 6, 7)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Kendall spearman with ties solution"
 ex_x <- c(1, 2, 2, 3, 4, 4, 5, 6)
 ex_y <- c(2, 3, 4, 3, 5, 5, 6, 7)
 
@@ -302,7 +302,7 @@ cat("Spearman:", round(cor(ex_x, ex_y, method = "spearman"), 4),
 
 A correlation coefficient by itself doesn't tell you whether the relationship is real or just sampling noise. Is r = −0.87 genuinely strong, or could random data produce a number that large? That's where `cor.test()` comes in, it gives you a p-value and confidence interval alongside the correlation.
 
-```r
+```r title="Significance test with cor dot test"
 # Full significance test
 test_result <- cor.test(mtcars$wt, mtcars$mpg, method = "pearson")
 test_result
@@ -328,7 +328,7 @@ Let's unpack each piece of this output:
 
 You can extract individual components for use in reports or further analysis.
 
-```r
+```r title="Extract components programmatically"
 # Extract components programmatically
 cat("Correlation:", test_result$estimate,
     "\np-value:    ", test_result$p.value,
@@ -345,7 +345,7 @@ The confidence interval is especially useful, it tells you how *precise* your es
 
 **Try it:** Test whether the correlation between `mtcars$drat` (rear axle ratio) and `mtcars$qsec` (quarter-mile time) is significant at the 0.05 level. What's the p-value?
 
-```r
+```r title="Exercise: significance for drat and qsec"
 # Try it: significance test
 ex_test <- cor.test(mtcars$drat, mtcars$qsec)
 ex_test$p.value
@@ -355,7 +355,7 @@ ex_test$p.value
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="drat qsec significance solution"
 ex_test <- cor.test(mtcars$drat, mtcars$qsec)
 cat("Correlation:", round(ex_test$estimate, 4),
     "\np-value:    ", round(ex_test$p.value, 4))
@@ -373,7 +373,7 @@ When you have many variables, computing pairwise correlations one by one gets te
 
 Let's start by computing the matrix. We'll pick five variables from `mtcars` that span different aspects of a car's performance.
 
-```r
+```r title="Correlation matrix of mtcars variables"
 # Correlation matrix
 vars <- mtcars[, c("mpg", "disp", "hp", "wt", "qsec")]
 cor_matrix <- round(cor(vars), 2)
@@ -388,7 +388,7 @@ cor_matrix
 
 The diagonal is always 1.0 (every variable correlates perfectly with itself). The matrix is symmetric, the upper triangle mirrors the lower. Now let's visualise it with `corrplot()`.
 
-```r
+```r title="Visualise matrix with corrplot"
 # Visualise with corrplot
 library(corrplot)
 corrplot(cor_matrix,
@@ -408,7 +408,7 @@ From the matrix, you can immediately see that `mpg` is strongly negatively corre
 
 **Try it:** Build a correlation matrix for the four numeric columns of the `iris` dataset (`iris[, 1:4]`) using Spearman. Visualise it with `corrplot()`.
 
-```r
+```r title="Exercise: iris correlation matrix"
 # Try it: iris correlation matrix
 ex_cor <- cor(iris[, 1:4], method = "spearman")
 # your code here: visualise with corrplot()
@@ -417,7 +417,7 @@ ex_cor <- cor(iris[, 1:4], method = "spearman")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Iris correlation matrix solution"
 ex_cor <- round(cor(iris[, 1:4], method = "spearman"), 2)
 corrplot(ex_cor,
          method = "circle",
@@ -437,7 +437,7 @@ Correlation is one of the most misused statistics in practice. Here are four pit
 
 **Pitfall 2: Outliers can dominate the result.** A single extreme point can dramatically shift the Pearson correlation. Let's see this in action.
 
-```r
+```r title="Outlier sensitivity of pearson"
 # Outlier sensitivity demo
 x_clean <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 y_clean <- c(2, 4, 5, 4, 5, 7, 8, 9, 10, 11)
@@ -458,7 +458,7 @@ One outlier dragged the Pearson correlation from 0.95 (strong positive) to −0.
 
 **Pitfall 3: Non-linear relationships hide from Pearson.** A perfect quadratic curve has near-zero Pearson correlation, because the positive and negative halves cancel out.
 
-```r
+```r title="Quadratic with zero pearson"
 # Non-linear: quadratic with r near zero
 x_quad <- -20:20
 y_quad <- x_quad^2
@@ -480,7 +480,7 @@ The plot shows a perfect, deterministic relationship, if you know $x$, you know 
 
 **Try it:** Generate `x <- 1:50` and `y <- (x - 25)^2`. Compute the Pearson correlation and plot the data. Why is the correlation near zero despite the obvious pattern?
 
-```r
+```r title="Exercise: non linear correlation surprise"
 # Try it: non-linear surprise
 ex_x <- 1:50
 ex_y <- (ex_x - 25)^2
@@ -492,7 +492,7 @@ cor(ex_x, ex_y)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Non linear correlation solution"
 ex_x <- 1:50
 ex_y <- (ex_x - 25)^2
 
@@ -513,7 +513,7 @@ plot(ex_x, ex_y, pch = 19, col = "steelblue",
 
 Load the `airquality` dataset. Remove rows with missing values using `na.omit()`. Compute both Pearson and Spearman correlation between `Ozone` and `Wind`. Test significance with `cor.test()`. Based on the normality results we explored earlier (Ozone is right-skewed), which method is more appropriate and why?
 
-```r
+```r title="Exercise: airquality ozone and wind"
 # Exercise 1: airquality correlation
 # Hint: na.omit() removes all rows with any NA
 # Then compute both correlations and test significance
@@ -525,7 +525,7 @@ Load the `airquality` dataset. Remove rows with missing values using `na.omit()`
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ozone and wind correlation solution"
 aq <- na.omit(airquality)
 
 # Pearson
@@ -549,7 +549,7 @@ cat("Pearson:  r =", round(pearson_test$estimate, 4),
 
 Build a correlation matrix for `mtcars[, c("mpg", "disp", "hp", "wt", "qsec")]`. Identify the two strongest positive and two strongest negative correlations. Then visualise the matrix with `corrplot()` using the `"number"` method to display correlation values directly.
 
-```r
+```r title="Exercise: mtcars correlation matrix"
 # Exercise 2: matrix analysis
 # Hint: use which() with arr.ind = TRUE on the matrix,
 # or scan the printed matrix visually
@@ -561,7 +561,7 @@ Build a correlation matrix for `mtcars[, c("mpg", "disp", "hp", "wt", "qsec")]`.
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mtcars correlation matrix solution"
 my_vars <- mtcars[, c("mpg", "disp", "hp", "wt", "qsec")]
 my_cor <- round(cor(my_vars), 2)
 print(my_cor)
@@ -586,7 +586,7 @@ cat("\nStrongest positive: disp & wt (0.89), disp & hp (0.79)",
 
 Create a dataset of 30 points where the Pearson correlation is below 0.3 but the Spearman correlation is above 0.8. Plot the data to show why they disagree. Hint: use a monotonic non-linear function like `log()` or `exp()` with added noise.
 
-```r
+```r title="Exercise: pearson and spearman disagree"
 # Exercise 3: make Pearson and Spearman disagree
 # Hint: try y = exp(x/5) + noise with x = 1:30
 
@@ -597,7 +597,7 @@ Create a dataset of 30 points where the Pearson correlation is below 0.3 but the
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pearson spearman disagree solution"
 set.seed(99)
 my_x <- 1:30
 my_y <- exp(my_x / 5) + rnorm(30, sd = 10)
@@ -620,7 +620,7 @@ plot(my_x, my_y, pch = 19, col = "steelblue",
 
 Let's walk through a complete correlation analysis from start to finish using the `swiss` dataset, 47 French-speaking Swiss provinces measured on fertility and socio-economic indicators in 1888.
 
-```r
+```r title="End-to-end swiss fertility analysis"
 # Complete workflow: Swiss fertility data
 # Step 1: Explore the data
 head(swiss, 3)

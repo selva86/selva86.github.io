@@ -23,7 +23,7 @@ difficulty: Intermediate
 
 Estimating a probability with R takes two steps: simulate the random event many times, then count how often the outcome you care about happens. The function `sample()` generates the random draws, and `mean()` (applied to a logical vector) gives you the proportion of TRUEs, your estimated probability. Below, we toss a fair coin 1,000 times. The empirical proportion lands close to the true 0.5; this same simulate-and-count pattern powers every problem in this set.
 
-```r
+```r title="Coin toss simulation with sample"
 set.seed(2026)
 tosses <- sample(c("H", "T"), size = 1000, replace = TRUE)
 mean(tosses == "H")
@@ -39,7 +39,7 @@ We sampled 1,000 outcomes from `{H, T}` with replacement, then asked for the pro
 
 **Try it:** Toss a fair coin 5,000 times and estimate the probability of heads. Use `set.seed(101)` for reproducibility.
 
-```r
+```r title="Exercise: Estimate P(heads) from five thousand tosses"
 # Try it: estimate P(heads) from 5000 fair tosses
 set.seed(101)
 p1_tosses <- # your code here
@@ -51,7 +51,7 @@ p1_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Estimate P(heads) solution"
 set.seed(101)
 p1_tosses <- sample(c("H", "T"), size = 5000, replace = TRUE)
 p1_prob   <- mean(p1_tosses == "H")
@@ -67,7 +67,7 @@ p1_prob
 
 **Try it:** Roll a fair six-sided die 10,000 times and estimate the probability of rolling a 6. Use `set.seed(102)`.
 
-```r
+```r title="Exercise: Estimate P(rolling a six)"
 # Try it: estimate P(rolling a 6)
 set.seed(102)
 p2_rolls <- # your code here
@@ -79,7 +79,7 @@ p2_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="P(rolling a six) solution"
 set.seed(102)
 p2_rolls <- sample(1:6, size = 10000, replace = TRUE)
 p2_prob  <- mean(p2_rolls == 6)
@@ -95,7 +95,7 @@ p2_prob
 
 **Try it:** Build a 52-card deck (4 aces and 48 non-aces is enough for this), then simulate drawing one card 10,000 times. Estimate P(Ace). Use `set.seed(103)`.
 
-```r
+```r title="Exercise: P(Ace) from single-card draw"
 # Try it: estimate P(Ace) from a single-card draw
 set.seed(103)
 p3_deck   <- # your code here (try c(rep("Ace", 4), rep("Other", 48)))
@@ -108,7 +108,7 @@ p3_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="P(Ace) single-card solution"
 set.seed(103)
 p3_deck  <- c(rep("Ace", 4), rep("Other", 48))
 p3_draws <- sample(p3_deck, size = 10000, replace = TRUE)
@@ -125,7 +125,7 @@ p3_prob
 
 **Try it:** Simulate 5,000 sequences of 100 fair coin tosses. For each, check whether at least one run of 5 or more heads occurred. Estimate the probability. Use `set.seed(104)` and the helper `rle()`.
 
-```r
+```r title="Exercise: Heads streak of five"
 # Try it: probability of a 5+ heads streak in 100 tosses
 set.seed(104)
 p4_streak <- function(n) {
@@ -141,7 +141,7 @@ mean(p4_results)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Heads streak solution"
 set.seed(104)
 p4_streak <- function(n) {
   flips <- sample(c("H", "T"), size = n, replace = TRUE)
@@ -164,7 +164,7 @@ mean(p4_results)
 
 **Try it:** Simulate 20,000 rolls of two fair dice, sum each pair, and estimate P(sum ≥ 10). Use `set.seed(105)`.
 
-```r
+```r title="Exercise: Sum of two dice at least ten"
 # Try it: P(sum of two dice >= 10)
 set.seed(105)
 p5_d1 <- # your code here
@@ -176,7 +176,7 @@ mean((p5_d1 + p5_d2) >= 10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two dice sum solution"
 set.seed(105)
 p5_d1 <- sample(1:6, size = 20000, replace = TRUE)
 p5_d2 <- sample(1:6, size = 20000, replace = TRUE)
@@ -205,7 +205,7 @@ The same four prefixes apply to every distribution: `*binom`, `*norm`, `*pois`, 
 
 **Try it:** Use `dbinom()` to compute the exact probability of getting exactly 6 heads in 10 tosses of a fair coin.
 
-```r
+```r title="Exercise: Exact binomial with dbinom"
 # Try it: exact P(X = 6) for Binomial(10, 0.5)
 p6_prob <- # your code here
 p6_prob
@@ -215,7 +215,7 @@ p6_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exact binomial solution"
 p6_prob <- dbinom(x = 6, size = 10, prob = 0.5)
 p6_prob
 #> [1] 0.2050781
@@ -229,7 +229,7 @@ p6_prob
 
 **Try it:** Use `pbinom()` to compute the cumulative probability of at most 4 successes in 20 Bernoulli trials with success probability 0.3.
 
-```r
+```r title="Exercise: Cumulative binomial with pbinom"
 # Try it: cumulative P(X <= 4) for Binomial(20, 0.3)
 p7_prob <- # your code here
 p7_prob
@@ -239,7 +239,7 @@ p7_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cumulative binomial solution"
 p7_prob <- pbinom(q = 4, size = 20, prob = 0.3)
 p7_prob
 #> [1] 0.2375077
@@ -256,7 +256,7 @@ p7_prob
 
 **Try it:** Use `pnorm()` with `lower.tail = FALSE` to compute the probability of an adult weighing more than 75 kg, assuming weights follow Normal(70, 5).
 
-```r
+```r title="Exercise: Upper-tail normal with pnorm"
 # Try it: P(X > 75) for Normal(70, 5)
 p8_prob <- # your code here
 p8_prob
@@ -266,7 +266,7 @@ p8_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Upper-tail normal solution"
 p8_prob <- pnorm(q = 75, mean = 70, sd = 5, lower.tail = FALSE)
 p8_prob
 #> [1] 0.1586553
@@ -283,7 +283,7 @@ p8_prob
 
 **Try it:** Use `qnorm()` to find the test score that exactly 95% of students score at or below, assuming scores are Normal(70, 10).
 
-```r
+```r title="Exercise: Ninety-fifth percentile with qnorm"
 # Try it: 95th percentile of Normal(70, 10)
 p9_score <- # your code here
 p9_score
@@ -293,7 +293,7 @@ p9_score
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ninety-fifth percentile solution"
 p9_score <- qnorm(p = 0.95, mean = 70, sd = 10)
 p9_score
 #> [1] 86.44854
@@ -307,7 +307,7 @@ p9_score
 
 **Try it:** Customer support receives an average of 2 emails per hour, modelled as Poisson(λ = 2). Use `ppois()` with `lower.tail = FALSE` to find the probability of receiving 3 or more in any given hour.
 
-```r
+```r title="Exercise: Poisson tail probability"
 # Try it: P(X >= 3) for Poisson(2)
 p10_prob <- # your code here (hint: P(X >= 3) = P(X > 2))
 p10_prob
@@ -317,7 +317,7 @@ p10_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Poisson tail solution"
 p10_prob <- ppois(q = 2, lambda = 2, lower.tail = FALSE)
 p10_prob
 #> [1] 0.3233236
@@ -350,7 +350,7 @@ Plain-language gloss: probability of A given B equals how often B follows A, wei
 
 **Try it:** Build a 52-card data frame with `colour` (red/black) and `is_ace` columns. Filter to red cards, then compute P(Ace) within that subset. Use `set.seed(111)` if you simulate; otherwise compute directly.
 
-```r
+```r title="Exercise: P(Ace given red) by counting"
 # Try it: P(Ace | red) by direct counting
 p11_deck <- data.frame(
   colour = rep(c("red", "black"), each = 26),
@@ -365,7 +365,7 @@ p11_prob
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="P(Ace given red) solution"
 p11_deck <- data.frame(
   colour = rep(c("red", "black"), each = 26),
   is_ace = c(TRUE, rep(FALSE, 12), TRUE, rep(FALSE, 12),
@@ -387,7 +387,7 @@ A disease has a prevalence of 1% in the population. A test is 99% sensitive (cor
 
 **Try it:** Apply Bayes' theorem directly. P(B) needs the law of total probability: P(positive) = P(pos | disease)·P(disease) + P(pos | healthy)·P(healthy).
 
-```r
+```r title="Exercise: Disease given positive test Bayes"
 # Try it: P(disease | positive test)
 p12_prior <- # your code here (prevalence)
 p12_sens  <- # your code here (P(pos | disease))
@@ -400,7 +400,7 @@ p12_post
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Disease given positive solution"
 p12_prior <- 0.01
 p12_sens  <- 0.99
 p12_spec  <- 0.95
@@ -426,7 +426,7 @@ The next three problems are capstones, each combines simulation, distributions, 
 
 In a room of 23 people, what's the probability that at least two share a birthday? Solve it two ways: (a) by simulation with `replicate()` and `duplicated()`, and (b) analytically using `prod()` over the sequence 365, 364, …, 343.
 
-```r
+```r title="Exercise: Birthday paradox simulation and math"
 # Exercise 13: birthday paradox — simulate AND verify analytically
 set.seed(2301)
 mp13_birthday <- function(n) {
@@ -445,7 +445,7 @@ c(simulation = mp13_sim, analytical = mp13_analytical)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Birthday paradox solution"
 set.seed(2301)
 mp13_birthday <- function(n) {
   bdays <- sample(1:365, size = n, replace = TRUE)
@@ -468,7 +468,7 @@ c(simulation = mp13_sim, analytical = mp13_analytical)
 
 Three doors hide one car and two goats. You pick a door. The host (who knows where the car is) opens a different door revealing a goat, then offers you the chance to switch. Simulate 10,000 games for both "stay" and "switch" strategies. Report the empirical win rates.
 
-```r
+```r title="Exercise: Monty Hall stay versus switch"
 # Exercise 14: Monty Hall — empirical win rates
 set.seed(2402)
 mp14_play <- function(strategy = c("stay", "switch")) {
@@ -493,7 +493,7 @@ c(stay = mp14_stay, switch = mp14_switch)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Monty Hall solution"
 set.seed(2402)
 mp14_play <- function(strategy = c("stay", "switch")) {
   strategy <- match.arg(strategy)
@@ -524,7 +524,7 @@ c(stay = mp14_stay, switch = mp14_switch)
 
 You're handed a coin and want to estimate its bias (probability of heads). Start with a uniform prior, Beta(1, 1), reflecting "I have no idea, any bias from 0 to 1 is equally plausible." After observing 7 heads in 10 tosses, compute the posterior, plot it, and report the posterior mean and 95% credible interval. Use the conjugate update: Beta(α + heads, β + tails).
 
-```r
+```r title="Exercise: Beta-binomial Bayesian update"
 # Exercise 15: Bayesian beta-binomial update
 prior_alpha <- 1
 prior_beta  <- 1
@@ -546,7 +546,7 @@ list(posterior = c(alpha = mp15_alpha, beta = mp15_beta),
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Beta-binomial update solution"
 prior_alpha <- 1
 prior_beta  <- 1
 heads       <- 7
@@ -585,7 +585,7 @@ curve(dbeta(x, mp15_alpha, mp15_beta), from = 0, to = 1,
 
 The birthday problem is the perfect prototype for the workflow you'll reuse on every probability question: frame it, simulate it, derive the analytical answer, and compare. Below we put all five steps in one place.
 
-```r
+```r title="Pipeline step 1: simulate and verify"
 # 1. Frame: P(at least two people share a birthday in a room of n)?
 # 2. Simulate
 set.seed(99)
@@ -607,7 +607,7 @@ data.frame(
 
 The simulation and the closed-form answer agree to within 0.001, a sanity check that both your code and your math are correct. Now we extend the question: how does the probability scale with room size?
 
-```r
+```r title="Pipeline step 2: sweep room size"
 # 5. Sweep n from 5 to 50 and plot the curve
 bd_n     <- 5:50
 bd_probs <- sapply(bd_n, function(k) 1 - prod((365 - 0:(k - 1)) / 365))

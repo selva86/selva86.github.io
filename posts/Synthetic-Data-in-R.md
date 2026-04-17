@@ -35,7 +35,7 @@ You need to share a dataset with a collaborator, but it contains patient records
 
 Generate data from known distributions that match the real data's properties.
 
-```r
+```r title="Parametric simulation from mtcars"
 # Step 1: Analyze real data properties
 cat("=== Real Data Properties (mtcars) ===\n")
 cat(sprintf("MPG:  mean=%.1f, sd=%.1f\n", mean(mtcars$mpg), sd(mtcars$mpg)))
@@ -74,7 +74,7 @@ cat(sprintf("Correlation (mpg, wt): %.3f\n", cor(synth_df$mpg, synth_df$wt)))
 
 The `synthpop` package uses classification and regression trees to model the conditional distributions in your data. Here's the concept implemented manually.
 
-```r
+```r title="CART-based synthesis concept"
 # Simplified CART-based synthesis concept
 set.seed(42)
 
@@ -129,7 +129,7 @@ print(round(tapply(synthetic$income, synthetic$education, mean)))
 
 Simple and effective for many use cases: sample with replacement and add noise.
 
-```r
+```r title="Bootstrap synthesis with added noise"
 # Bootstrap + noise synthesis
 set.seed(42)
 
@@ -159,7 +159,7 @@ print(round(sapply(synth, function(x) c(mean=mean(x), sd=sd(x))), 2))
 
 Synthetic data is useful only if it preserves the statistical properties you need. Here's how to measure that.
 
-```r
+```r title="Compare utility across real and synthetic"
 # Utility comparison
 set.seed(42)
 
@@ -185,7 +185,7 @@ for (var in c("mpg", "hp", "wt")) {
 
 ## Privacy Check: Is the Synthetic Data Safe?
 
-```r
+```r title="Check identity disclosure risk"
 # Check for identity disclosure risk
 # If a synthetic record exactly matches a real record, that's a risk
 
@@ -222,7 +222,7 @@ cat("  > 20% close matches: High risk, regenerate with more perturbation\n")
 
 ## Using synthpop
 
-```r
+```r title="Using the synthpop package"
 # synthpop package usage (conceptual)
 cat("=== synthpop Package ===\n\n")
 cat('library(synthpop)\n\n')

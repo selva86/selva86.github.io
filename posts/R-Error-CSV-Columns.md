@@ -24,7 +24,7 @@ The fastest way to understand this error is to trigger it, read the message R pr
 
 Let's reproduce the error on a tiny in-memory CSV where the header names two columns but one data row sneaks in a third value. We build the text with `read.csv(text = ...)` so every example in this post runs without touching a file on disk.
 
-```r
+```r title="Trigger the column-mismatch error"
 # Header has 2 names, but row 2 has 3 fields
 bad_csv <- "id,name
 1,Alice
@@ -37,7 +37,7 @@ read.csv(text = bad_csv)
 
 R compared `length(header_fields) = 2` against `length(row2_fields) = 3` and gave up. The fix is to tell R upfront that the file really has three columns by passing `col.names`, which overrides header detection:
 
-```r
+```r title="Fix with col.names and skip"
 good_df <- read.csv(text = bad_csv, header = FALSE, skip = 1,
                     col.names = c("id", "name", "note"))
 good_df
@@ -53,7 +53,7 @@ We skipped the original header (`skip = 1`) and supplied three names ourselves. 
 
 **Try it:** The CSV below has a header of 2 columns and one row with 3 fields. Fix the call so both rows parse without error, using `col.names` to supply a third name.
 
-```r
+```r title="Exercise: parse mismatched CSV"
 # Try it: parse this CSV without the error
 ex1_csv <- "x,y
 10,20
@@ -69,7 +69,7 @@ ex1_df
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Col.names and skip solution"
 ex1_df <- read.csv(text = ex1_csv, header = FALSE, skip = 1,
                    col.names = c("x", "y", "z"))
 ex1_df
@@ -86,7 +86,7 @@ ex1_df
 
 Trailing commas are the most common culprit because spreadsheet exports often add them silently. If every data row ends with a stray `,` but the header does not, R counts one phantom column on each data row and aborts. The header has two names; the row has three fields, the last being empty.
 
-```r
+```r title="Trailing commas trigger the error"
 trail_csv <- "id,name
 1,Alice,
 2,Bob,
@@ -99,7 +99,7 @@ read.csv(text = trail_csv)
 
 R saw two header names and three fields per data row (the empty one after the last comma counts). The fix is to name the phantom column yourself, then drop it after reading:
 
-```r
+```r title="Name and drop the phantom column"
 trail_df <- read.csv(text = trail_csv, header = FALSE, skip = 1,
                      col.names = c("id", "name", "trailing"))
 clean_df <- trail_df[, c("id", "name")]
@@ -117,7 +117,7 @@ We told R there are three columns, let it happily park the empty strings in `tra
 
 **Try it:** The CSV below has trailing commas on every data row. Parse it into a clean 2-column data frame named `ex2_df` with columns `product` and `price`.
 
-```r
+```r title="Exercise: strip trailing-comma column"
 # Try it: strip the trailing-comma phantom column
 ex2_csv <- "product,price
 apple,1.20,
@@ -134,7 +134,7 @@ ex2_df
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drop phantom column solution"
 ex2_df <- read.csv(text = ex2_csv, header = FALSE, skip = 1,
                    col.names = c("product", "price", "drop"))
 ex2_df <- ex2_df[, c("product", "price")]
@@ -153,7 +153,7 @@ ex2_df
 
 The second common cause is a file named `something.csv` that is not actually comma-delimited. European Excel exports use `;` by default because commas are the decimal separator over there. Tab-separated exports are also common. When R tries to split on commas, a row like `1;Alice;NYC` becomes one giant field, until another row sneaks in a stray comma inside a value, and suddenly that row has more fields than the header's one.
 
-```r
+```r title="Semicolon file parsed as CSV"
 semi_csv <- "id;name;city
 1;Alice;NYC
 2;Bob,Jr;LA
@@ -170,7 +170,7 @@ semi_wrong
 
 Row 2's embedded comma in `Bob,Jr` tripped R into thinking that row had two fields while the header had one, the classic mismatch in disguise. Switching the separator fixes everything in one argument:
 
-```r
+```r title="Switch separator to semicolon"
 semi_df <- read.csv(text = semi_csv, sep = ";")
 semi_df
 #>   id    name city
@@ -186,7 +186,7 @@ R now splits on `;`, sees three fields on every line, and the comma inside `Bob,
 
 **Try it:** The CSV below is semicolon-delimited. Parse it into `ex3_df` with the correct `sep` argument.
 
-```r
+```r title="Exercise: switch separator to semicolon"
 # Try it: switch the separator
 ex3_csv <- "code;label;qty
 A;widget;10
@@ -203,7 +203,7 @@ ex3_df
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Semicolon separator solution"
 ex3_df <- read.csv(text = ex3_csv, sep = ";")
 ex3_df
 #>   code    label qty
@@ -220,7 +220,7 @@ ex3_df
 
 The third cause is subtle and happens when a CSV contains stray quote characters. By default `read.csv()` treats `"` as a quoting character, so if one row opens a quote and never closes it, R keeps reading across newlines until it finds the next `"`. Two or three rows get glued into one logical row, the combined field count explodes, and you get the same error.
 
-```r
+```r title="Unclosed quote merges rows"
 quote_csv <- 'id,comment
 1,"ok"
 2,broken"half
@@ -233,7 +233,7 @@ read.csv(text = quote_csv)
 
 Row 2 has a bare `"` in the middle of `broken"half`, and R starts reading a quoted field there, gobbling up the rest of the string and the next line. The fastest fix when you don't control the file is to disable quoting entirely:
 
-```r
+```r title="Disable quote parsing entirely"
 quote_df <- read.csv(text = quote_csv, quote = "")
 quote_df
 #>   id       comment
@@ -249,7 +249,7 @@ With `quote = ""`, R treats every `"` as literal data, so the stray quote in row
 
 **Try it:** The CSV below has a stray quote in row 2. Parse it into `ex4_df` using `quote = ""`.
 
-```r
+```r title="Exercise: disable quote parsing"
 # Try it: disable quote parsing
 ex4_csv <- 'word,meaning
 cat,"feline"
@@ -266,7 +266,7 @@ ex4_df
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Disable quote parsing solution"
 ex4_df <- read.csv(text = ex4_csv, quote = "")
 ex4_df
 #>   word         meaning
@@ -289,7 +289,7 @@ Sometimes the file is fine and the header is wrong. An analyst exports a table w
 
 Here is a file with two junk metadata lines at the top, followed by a header that forgot to name the row-id column:
 
-```r
+```r title="Metadata breaks header detection"
 meta_csv <- "# exported 2026-04-13
 # source: warehouse_A
 name,score
@@ -304,7 +304,7 @@ read.csv(text = meta_csv)
 
 R read the first line as the header (`# exported 2026-04-13`, one field) and then hit data rows with three fields. Two fixes stack: skip the metadata rows, then provide explicit column names that include the missing `id`:
 
-```r
+```r title="Skip metadata and supply names"
 meta_df <- read.csv(text = meta_csv, skip = 3, header = FALSE,
                     col.names = c("id", "name", "score"))
 meta_df
@@ -318,7 +318,7 @@ meta_df
 
 **Try it:** The CSV below has one metadata line and a header missing the row-id. Parse it into `ex5_df` with columns `id`, `fruit`, and `weight`.
 
-```r
+```r title="Exercise: recover unnamed id column"
 # Try it: recover an unnamed id column
 ex5_csv <- "# produce report
 fruit,weight
@@ -336,7 +336,7 @@ ex5_df
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Skip and rename solution"
 ex5_df <- read.csv(text = ex5_csv, skip = 2, header = FALSE,
                    col.names = c("id", "fruit", "weight"))
 ex5_df
@@ -358,7 +358,7 @@ These capstone exercises combine techniques from multiple causes. Use distinct v
 
 The string below is semicolon-delimited AND has a trailing `;` on every data row. Load it into `pe1_df` with two clean columns: `city` and `population`.
 
-```r
+```r title="Exercise: stack sep and col.names fixes"
 # Exercise 1: stack sep and col.names fixes
 pe1_csv <- "city;population
 Tokyo;37400068;
@@ -375,7 +375,7 @@ pe1_df
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Combined separator and names solution"
 pe1_df <- read.csv(text = pe1_csv, sep = ";", header = FALSE, skip = 1,
                    col.names = c("city", "population", "drop"))
 pe1_df <- pe1_df[, c("city", "population")]
@@ -396,7 +396,7 @@ Write a function `diagnose_csv(text)` that takes a CSV string, uses `count.field
 
 Test it on a file where every data row has exactly one extra field (trailing-comma pattern).
 
-```r
+```r title="Exercise: build a CSV diagnoser"
 # Exercise 2: build a CSV diagnoser
 diagnose_csv <- function(text) {
   # your code here
@@ -415,7 +415,7 @@ diagnose_csv(test_csv)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="CSV diagnoser solution"
 diagnose_csv <- function(text) {
   counts <- count.fields(textConnection(text), sep = ",")
   header_n <- counts[1]
@@ -443,7 +443,7 @@ diagnose_csv(test_csv)
 
 Here is a messy export that combines three of the four causes, metadata lines at the top, semicolon separator, AND a trailing `;` on every data row. We will diagnose it step by step with `readLines()` and `count.fields()`, then stack the fixes into one clean `read.csv()` call.
 
-```r
+```r title="Inspect messy export as raw lines"
 messy_export <- "# report generated 2026-04-13
 # warehouse: A
 sku;qty;price
@@ -460,7 +460,7 @@ raw_lines[1:4]
 
 Two comment lines, then a semicolon header, then data rows ending in `;`. Now count fields on each line, first assuming commas (wrong), then semicolons:
 
-```r
+```r title="Count fields per line with semicolon"
 field_counts <- count.fields(textConnection(messy_export), sep = ";")
 field_counts
 #> [1] 1 1 3 4 4 4
@@ -468,7 +468,7 @@ field_counts
 
 Lines 1-2 have 1 field (comment lines with no `;`). Line 3 has 3 fields (the true header). Lines 4-6 have 4 fields (three real values plus the trailing empty). The diagnosis is clear: skip 2 comment lines, use `sep = ";"`, and name a fourth column to absorb the trailing field.
 
-```r
+```r title="End-to-end messy export fix"
 final_df <- read.csv(text = messy_export, sep = ";", skip = 3,
                      header = FALSE,
                      col.names = c("sku", "qty", "price", "drop"))

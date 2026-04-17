@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Console output is fine for exploration, but reports and papers demand clean formatting. The gt package lets you pipe a data frame straight into a presentation-quality table. Let's see it in action.
 
-```r
+```r title="First gt table with tabheader"
 # Create your first gt table
 library(gt)
 library(dplyr)
@@ -46,7 +46,7 @@ The `gt()` function is the entry point, it takes any data frame and wraps it in 
 
 Now let's add a source note to credit where the data came from. Source notes appear at the bottom of the table and are standard in academic publications.
 
-```r
+```r title="Add source note with tabsourcenote"
 # Add source note and subtitle
 mtcars |>
   slice(1:5) |>
@@ -67,7 +67,7 @@ The `tab_source_note()` adds a citation at the table footer. You can chain multi
 
 **Try it:** Create a gt table from the first 6 rows of `airquality` with the title "New York Air Quality" and subtitle "Daily measurements, May-September 1973".
 
-```r
+```r title="Exercise: gt table from airquality"
 # Try it: build a gt table from airquality
 ex_air <- airquality |>
   head(6) |>
@@ -81,7 +81,7 @@ ex_air
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="airquality gt table solution"
 ex_air <- airquality |>
   head(6) |>
   gt() |>
@@ -104,7 +104,7 @@ Raw numbers with many decimal places clutter your tables. The `fmt_*()` family r
 
 Let's create a summary table and format the numbers for readability.
 
-```r
+```r title="Format numbers with fmtnumber"
 # Format numbers with fmt_number()
 summary_data <- mtcars |>
   group_by(cyl) |>
@@ -130,7 +130,7 @@ The `fmt_number()` function takes a `columns` argument (supports tidy selection)
 
 Now let's see currency and percentage formatting. These are common in business reports where you need dollar signs and percent symbols.
 
-```r
+```r title="Format currency and percent columns"
 # Format currency and percentages
 sales_data <- tibble(
   product = c("Widget A", "Widget B", "Widget C"),
@@ -157,7 +157,7 @@ The `fmt_currency()` function adds the currency symbol, thousands separators, an
 
 Sometimes your data has missing values or dates that need special handling. The `sub_missing()` function replaces `NA` with a custom string, and `fmt_date()` converts date columns to readable formats.
 
-```r
+```r title="Format dates and handle missing"
 # Handle missing values and format dates
 dates_data <- tibble(
   event = c("Launch", "Review", "Update", "Maintenance"),
@@ -181,7 +181,7 @@ The `sub_missing()` function with `columns = everything()` catches NAs in any co
 
 **Try it:** Create a tibble with three products, a `price` column, and a `discount` column (as decimals like 0.15). Format prices as EUR currency and discounts as percentages with 0 decimals.
 
-```r
+```r title="Exercise: Euro price and discount"
 # Try it: format currency and percentages
 ex_products <- tibble(
   product = c("Laptop", "Phone", "Tablet"),
@@ -199,7 +199,7 @@ ex_products |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Euro price and discount solution"
 ex_products <- tibble(
   product = c("Laptop", "Phone", "Tablet"),
   price = c(999.99, 699.50, 449.00),
@@ -226,7 +226,7 @@ Real-world tables often have hierarchical structure, columns that belong togethe
 
 Let's group related columns under a spanner label. Spanners add a second header row that visually ties columns together.
 
-```r
+```r title="Group columns with tabspanner"
 # Group columns with spanners
 mtcars |>
   slice(1:6) |>
@@ -260,7 +260,7 @@ Each `tab_spanner()` call creates a header that spans the specified columns. The
 
 Now let's organize rows into groups. This is useful when your table has a categorical variable that defines natural clusters.
 
-```r
+```r title="Group rows by cylinder count"
 # Organize rows by group
 mtcars |>
   slice(1:10) |>
@@ -289,7 +289,7 @@ The `tab_row_group()` function filters rows using the `rows` argument (same synt
 
 **Try it:** Take the first 8 rows of `mtcars`, create a gt table, and add a spanner labeled "Engine" over the `cyl` and `disp` columns.
 
-```r
+```r title="Exercise: Engine column spanner"
 # Try it: add a column spanner
 ex_spanner <- mtcars |>
   slice(1:8) |>
@@ -305,7 +305,7 @@ ex_spanner
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Engine spanner solution"
 ex_spanner <- mtcars |>
   slice(1:8) |>
   mutate(name = rownames(mtcars)[1:8]) |>
@@ -327,7 +327,7 @@ Plain tables communicate data, but styled tables guide the reader's eye to what 
 
 Let's start by styling the column headers with a bold font and background color.
 
-```r
+```r title="Style header cells with tabstyle"
 # Style headers with colors and bold text
 mtcars |>
   slice(1:5) |>
@@ -354,7 +354,7 @@ The `tab_style()` function takes two main arguments: `style` (a list of cell for
 
 Now let's apply conditional formatting, highlighting rows where a value exceeds a threshold. This is one of the most practical uses of `tab_style()`.
 
-```r
+```r title="Highlight cells above a threshold"
 # Conditional formatting: highlight high-MPG cars
 mtcars |>
   slice(1:10) |>
@@ -385,7 +385,7 @@ Each `tab_style()` call is independent, you can stack multiple conditional rules
 
 For continuous color scales across an entire column, use `data_color()`. This maps numeric values to a gradient, creating a heatmap effect.
 
-```r
+```r title="Colour scale with datacolor"
 # Color scale across a numeric column
 mtcars |>
   slice(1:8) |>
@@ -410,7 +410,7 @@ The `data_color()` function maps the minimum value to the first palette color an
 
 **Try it:** Take the first 6 rows of `mtcars` and highlight all cells in the `mpg` column where the value exceeds 21 with a light yellow background (`"#fff3cd"`).
 
-```r
+```r title="Exercise: Highlight mpg above twenty-one"
 # Try it: conditional cell highlighting
 ex_cond <- mtcars |>
   slice(1:6) |>
@@ -426,7 +426,7 @@ ex_cond
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Highlight mpg solution"
 ex_cond <- mtcars |>
   slice(1:6) |>
   mutate(name = rownames(mtcars)[1:6]) |>
@@ -449,7 +449,7 @@ ex_cond
 
 Professional tables cite their sources and clarify specific values with footnotes. gt handles both automatically, footnotes get numbered markers, and source notes appear at the table footer.
 
-```r
+```r title="Add footnotes to header cells"
 # Add footnotes to specific cells and column headers
 mtcars |>
   slice(1:5) |>
@@ -487,7 +487,7 @@ Each `tab_footnote()` auto-numbers its marker. You can target column headers wit
 
 **Try it:** Create a gt table from the first 4 rows of `iris`, add a footnote saying "Length in centimeters" to the `Sepal.Length` column header, and add a source note crediting "Anderson, 1935".
 
-```r
+```r title="Exercise: Footnote plus source note"
 # Try it: add a footnote and source note
 ex_fn <- iris |>
   head(4) |>
@@ -502,7 +502,7 @@ ex_fn
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Footnote and source solution"
 ex_fn <- iris |>
   head(4) |>
   gt() |>
@@ -525,7 +525,7 @@ ex_fn
 
 The default gt table looks clean, but you'll often want a consistent look across all your tables. The `opt_stylize()` function applies pre-built themes with a single call, while `tab_options()` gives you fine-grained control over every visual detail.
 
-```r
+```r title="Quick theming with optstylize"
 # Quick theming with opt_stylize()
 mtcars |>
   slice(1:5) |>
@@ -543,7 +543,7 @@ The `opt_stylize()` function offers 6 built-in styles (1 through 6) and several 
 
 For full control, `tab_options()` lets you set individual properties, font family, font size, row padding, border styles, header colors, and more.
 
-```r
+```r title="Fine-grained control with taboptions"
 # Fine-grained control with tab_options()
 mtcars |>
   slice(1:6) |>
@@ -578,7 +578,7 @@ That's a lot of options, and `tab_options()` supports over 100 properties. The o
 
 Let's create that reusable theme and apply it.
 
-```r
+```r title="Build a reusable theme function"
 # Create a reusable custom theme
 my_report_theme <- function(gt_tbl) {
   gt_tbl |>
@@ -610,7 +610,7 @@ Now every table in your report gets the same professional look with a single fun
 
 **Try it:** Apply `opt_stylize(style = 3, color = "green")` to a gt table from the first 4 rows of `iris`, then override the title font size to `px(20)` using `tab_options()`.
 
-```r
+```r title="Exercise: Combine optstylize and taboptions"
 # Try it: combine opt_stylize with tab_options
 ex_theme <- iris |>
   head(4) |>
@@ -625,7 +625,7 @@ ex_theme
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Themed iris table solution"
 ex_theme <- iris |>
   head(4) |>
   gt() |>
@@ -647,7 +647,7 @@ ex_theme
 
 Build a summary statistics table from `airquality`. Group by `Month`, compute the mean and standard deviation of `Ozone` (ignore NAs), format all numbers to 1 decimal place, add the title "NYC Air Quality by Month", and include a source note crediting "NY State Dept of Conservation".
 
-```r
+```r title="Exercise: Monthly ozone summary table"
 # Exercise 1: Build a formatted summary table
 # Hint: group_by() + summarise() first, then pipe to gt()
 # Use na.rm = TRUE in mean() and sd()
@@ -659,7 +659,7 @@ Build a summary statistics table from `airquality`. Group by `Month`, compute th
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Monthly ozone summary solution"
 airquality |>
   group_by(Month) |>
   summarise(
@@ -691,7 +691,7 @@ airquality |>
 
 Create a table from `mtcars` (first 10 rows) with columns `name`, `mpg`, `hp`, and `cyl`. Add a spanner "Performance" over `mpg` and `hp`. Highlight `mpg` cells above 20 in green (`"#d4edda"`) and below 16 in red (`"#f8d7da"`). Apply `opt_stylize(style = 1, color = "blue")` and add a title.
 
-```r
+```r title="Exercise: Styled comparison table"
 # Exercise 2: Build a styled comparison table
 # Hint: use two tab_style() calls for conditional formatting
 
@@ -702,7 +702,7 @@ Create a table from `mtcars` (first 10 rows) with columns `name`, `mpg`, `hp`, a
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Styled comparison solution"
 mtcars |>
   slice(1:10) |>
   mutate(name = rownames(mtcars)[1:10]) |>
@@ -732,7 +732,7 @@ mtcars |>
 
 Build a "report card" table. Create sample data for 6 students with columns: `student`, `subject` (Math or Science), `score`, and `grade` (A/B/C). Add row groups by subject. Format scores to 0 decimals. Color grade cells, green for A, yellow for B, red for C. Add a footnote on the score column header saying "Out of 100 points". Apply a custom theme.
 
-```r
+```r title="Exercise: Student report card table"
 # Exercise 3: Build a report card table
 # Hint: create the tibble first, then build the gt table layer by layer
 
@@ -743,7 +743,7 @@ Build a "report card" table. Create sample data for 6 students with columns: `st
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Report card solution"
 report_data <- tibble(
   student = c("Alice", "Bob", "Carol", "Dave", "Eve", "Frank"),
   subject = c("Math", "Math", "Math", "Science", "Science", "Science"),
@@ -790,7 +790,7 @@ report_data |>
 
 Let's build a polished table from scratch, taking raw `mtcars` data through the complete gt pipeline: summarise, structure, format, style, annotate, and theme.
 
-```r
+```r title="End-to-end mtcars gt workflow"
 # Complete example: from raw data to publication-ready table
 final_tbl <- mtcars |>
   mutate(name = rownames(mtcars)) |>

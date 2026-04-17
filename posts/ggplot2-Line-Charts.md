@@ -43,7 +43,7 @@ All code blocks share a single WebR session, variables from earlier blocks are a
 
 Let's start with R's built-in `economics` dataset, which tracks US economic indicators monthly from 1967 to 2015. We'll use a recent subset to keep the chart readable.
 
-```r
+```r title="Subset economics to 20-year slice"
 library(ggplot2)
 
 # Use a 20-year slice: 1995-2015
@@ -55,7 +55,7 @@ head(econ_sm[, c("date", "unemploy", "uempmed")])
 
 Now draw the simplest possible line chart, unemployment count over time:
 
-```r
+```r title="Basic unemployment line chart"
 p_basic <- ggplot(econ_sm, aes(x = date, y = unemploy)) +
   geom_line(color = "steelblue", linewidth = 0.8) +
   labs(
@@ -71,14 +71,14 @@ p_basic
 
 **Try it:** Change `unemploy` to `uempmed` (median weeks unemployed). Does that variable show a different pattern from the raw count?
 
-```r
+```r title="Exercise: Swap y mapping and colour"
 # Your code here — swap the y mapping and pick a new line colour
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Median weeks line solution"
 ex_median <- ggplot(econ_sm, aes(x = date, y = uempmed)) +
   geom_line(color = "tomato", linewidth = 0.8) +
   labs(x = "Date", y = "Median Weeks Unemployed")
@@ -93,7 +93,7 @@ ex_median
 
 Adding `geom_point()` on top of `geom_line()` marks each individual observation clearly, useful when your data is sparse or you want to emphasize every data point:
 
-```r
+```r title="Line with open-circle point markers"
 # Subset to just 2010-2015 to make points visible
 econ_2010 <- subset(economics, date >= as.Date("2010-01-01"))
 
@@ -116,14 +116,14 @@ p_points
 
 **Try it:** Replace `shape = 21, fill = "white"` with `shape = 16` (solid filled circle). Which looks cleaner at this data density?
 
-```r
+```r title="Exercise: Solid point markers"
 # Your code here — use shape = 16 and drop fill/stroke
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Solid point markers solution"
 ex_solid_pts <- ggplot(econ_2010, aes(x = date, y = uempmed)) +
   geom_line(color = "steelblue", linewidth = 0.8) +
   geom_point(color = "steelblue", size = 2.5, shape = 16)
@@ -144,7 +144,7 @@ This is the most common stumbling block with `geom_line()`. Suppose your data ha
 
 The `Orange` dataset tracks circumference of 5 orange trees over time. Each tree has multiple measurements. Let's use it:
 
-```r
+```r title="Mistake: Missing group aesthetic"
 # Without group: ggplot tries to draw ONE line across all trees
 p_no_group <- ggplot(Orange, aes(x = age, y = circumference)) +
   geom_line() +
@@ -155,7 +155,7 @@ p_no_group
 
 Now fix it by mapping `Tree` to both `group` and `color`:
 
-```r
+```r title="Correct: Multi-line grouped by tree"
 p_multi <- ggplot(Orange, aes(
     x     = age,
     y     = circumference,
@@ -181,14 +181,14 @@ Now each tree gets its own line and color, with a legend generated automatically
 
 **Try it:** Remove `color = Tree` from `aes()` and instead set `color = "grey50"` directly in `geom_line()`. How does the chart look without per-tree colors?
 
-```r
+```r title="Exercise: Single grey colour"
 # Your code here — keep group = Tree but set a single fixed colour
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Grey multi-line solution"
 ex_grey <- ggplot(Orange, aes(x = age, y = circumference, group = Tree)) +
   geom_line(color = "grey50", linewidth = 0.9)
 
@@ -202,7 +202,7 @@ ex_grey
 
 Line styling gives a chart personality, and it's essential for accessibility when color alone can't distinguish groups (e.g., in print or for colorblind readers).
 
-```r
+```r title="Color and linetype dual encoding"
 p_style <- ggplot(Orange, aes(
     x        = age,
     y        = circumference,
@@ -244,14 +244,14 @@ p_style
 
 **Try it:** Remove `scale_linetype_manual()` and instead use ggplot2's default linetype scale. Does it still pick a sensible linetype for each tree?
 
-```r
+```r title="Exercise: Auto scales for groups"
 # Your code here — map color and linetype to Tree without a manual scale
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Auto color and linetype solution"
 ex_auto_lt <- ggplot(Orange, aes(
     x = age, y = circumference,
     color = Tree, linetype = Tree
@@ -268,7 +268,7 @@ When you map `linetype = Tree` without a manual scale, ggplot2 picks from its de
 
 When your x variable is a `Date` or `POSIXct` object, ggplot2 treats it as continuous time and positions points correctly. The `scale_x_date()` function gives you precise control over the axis breaks and labels.
 
-```r
+```r title="Date x-axis with area fill"
 p_dates <- ggplot(econ_sm, aes(x = date, y = unemploy)) +
   geom_line(color = "steelblue", linewidth = 0.8) +
   geom_area(alpha = 0.15, fill = "steelblue") +
@@ -304,14 +304,14 @@ p_dates
 
 **Try it:** Change `date_breaks` to `"2 years"` and `date_labels` to `"%b %Y"`. How does the axis labeling change?
 
-```r
+```r title="Exercise: Tweak scalexdate breaks"
 # Your code here — tweak scale_x_date() arguments only
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="scalexdate breaks solution"
 ex_dates <- ggplot(econ_sm, aes(x = date, y = unemploy)) +
   geom_line(color = "steelblue") +
   scale_x_date(date_breaks = "2 years", date_labels = "%b %Y")
@@ -332,7 +332,7 @@ Most line charts use `geom_line()`, but ggplot2 offers two close relatives for s
 
 **`geom_step()`** creates a staircase line, horizontal then vertical segments, instead of diagonal connections. Use it when the value is truly constant between observations (step functions): pricing tiers, stock bid/ask updates, inventory levels.
 
-```r
+```r title="geomstep versus geomline overlay"
 # geom_step vs geom_line on the same data
 p_step <- ggplot(
     subset(economics, date >= as.Date("2014-01-01")),
@@ -362,14 +362,14 @@ p_step
 
 **Try it:** Replace `geom_step()` with `geom_path()` in the code above. Do you get the same staircase appearance, or something different?
 
-```r
+```r title="Exercise: Swap in geompath"
 # Your code here — swap geom_step() for geom_path()
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="geompath trajectory solution"
 ex_path <- ggplot(
     subset(economics, date >= as.Date("2014-01-01")),
     aes(x = date, y = uempmed)
@@ -388,7 +388,7 @@ ex_path
 
 ❌ This draws one zigzag line across all trees:
 
-```r
+```r title="Mistake: No group on Orange"
 # Wrong: no group, all 5 trees merged into one chaotic line
 ggplot(Orange, aes(x = age, y = circumference)) +
   geom_line()
@@ -396,7 +396,7 @@ ggplot(Orange, aes(x = age, y = circumference)) +
 
 ✅ Map a grouping variable to `group`, `color`, or `linetype`:
 
-```r
+```r title="Correct: Map Tree to color"
 ggplot(Orange, aes(x = age, y = circumference, color = Tree)) +
   geom_line()
 ```
@@ -405,13 +405,13 @@ ggplot(Orange, aes(x = age, y = circumference, color = Tree)) +
 
 ❌ This works but produces a deprecation warning in ggplot2 3.4+:
 
-```r
+```r title="Mistake: Deprecated size argument"
 geom_line(size = 1.5)   # deprecated
 ```
 
 ✅ Use `linewidth` for lines and `size` for points:
 
-```r
+```r title="Correct: linewidth for lines"
 geom_line(linewidth = 1.5)   # correct
 geom_point(size = 2)          # size still correct for points
 ```
@@ -420,14 +420,14 @@ geom_point(size = 2)          # size still correct for points
 
 ❌ If `date` is stored as a character, the x-axis shows categories instead of a continuous timeline:
 
-```r
+```r title="Mistake: Character date x-axis"
 # Wrong: date stored as "2020-01", treated as categorical
 ggplot(df, aes(x = date_char, y = value)) + geom_line()
 ```
 
 ✅ Convert to `Date` first:
 
-```r
+```r title="Correct: Convert to Date first"
 df$date <- as.Date(df$date_char, format = "%Y-%m")
 ggplot(df, aes(x = date, y = value)) + geom_line()
 ```
@@ -438,7 +438,7 @@ ggplot(df, aes(x = date, y = value)) + geom_line()
 
 ✅ Insert an explicit `NA` row for the missing period. When ggplot2 encounters `NA` in y, it breaks the line at that point, creating a visible gap:
 
-```r
+```r title="Insert NA for missing months"
 df[nrow(df) + 1, ] <- list(as.Date("2020-06-01"), NA)
 ```
 
@@ -454,7 +454,7 @@ df[nrow(df) + 1, ] <- list(as.Date("2020-06-01"), NA)
 
 The built-in `co2` dataset contains monthly CO2 readings from 1959 to 1997. Convert it to a data frame, add a `year` and `month` column, then plot CO2 concentration over time as a line chart. Color by decade (create a `decade` column with `floor(year / 10) * 10`). Add appropriate axis labels and a title.
 
-```r
+```r title="Exercise: CO2 by decade starter"
 # Starter code
 co2_df <- data.frame(
   date  = seq(as.Date("1959-01-01"), by = "month", length.out = length(co2)),
@@ -472,7 +472,7 @@ co2_df$decade <- as.factor(floor(co2_df$year / 10) * 10)
 
 Use the `economics` dataset. Plot `psavert` (personal savings rate) from 2005 to 2015 using both `geom_line()` and `geom_step()` on the same chart (use different colors and a legend). Which representation better reflects that savings rate is reported monthly and stays constant within each month?
 
-```r
+```r title="Exercise: psavert step versus line"
 # Starter code
 econ_05 <- subset(economics, date >= as.Date("2005-01-01"))
 
@@ -487,7 +487,7 @@ econ_05 <- subset(economics, date >= as.Date("2005-01-01"))
 
 This final chart uses faceting to show four economic indicators side-by-side, with individual trend lines per facet, a clean way to compare multiple time series without overloading a single panel.
 
-```r
+```r title="End-to-end faceted time series"
 library(tidyr)
 
 # Reshape economics to long format for faceting

@@ -36,7 +36,7 @@ Messy column names are the single most common data quality issue. Spreadsheet au
 
 Let's create a data frame with intentionally ugly column names and clean them.
 
-```r
+```r title="cleannames fixes messy headers"
 library(janitor)
 library(dplyr)
 
@@ -63,7 +63,7 @@ Every space became an underscore. The dollar sign and percent symbol were conver
 
 The `case` argument controls the naming convention. Here are the most useful options.
 
-```r
+```r title="Case style options for cleannames"
 # Different case styles
 names(clean_names(messy_df, case = "lower_camel"))
 #> [1] "firstName"      "lastName"       "annualIncome"   "percentRaise"
@@ -82,7 +82,7 @@ Most R users stick with the default `snake_case`, which matches tidyverse conven
 
 **Try it:** Create a data frame with three columns named `"Employee ID"`, `"Start Date!"`, and `"Salary (USD)"`. Clean the names and print them.
 
-```r
+```r title="Exercise: Clean three column names"
 # Try it: clean these column names
 ex_messy <- data.frame(
   `Employee ID` = 1:3,
@@ -99,7 +99,7 @@ ex_messy <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Clean column names solution"
 ex_messy <- data.frame(
   `Employee ID` = 1:3,
   `Start Date!` = c("2024-01-15", "2024-03-01", "2024-06-10"),
@@ -122,7 +122,7 @@ Spreadsheet users love blank rows for visual spacing and blank columns for align
 
 `remove_empty()` strips rows and columns that are entirely `NA`. You control which dimension to clean with the `which` argument.
 
-```r
+```r title="removeempty drops blank rows and columns"
 # Data with empty rows and columns
 sparse_df <- data.frame(
   name   = c("Alice", NA, "Carol", NA),
@@ -151,7 +151,7 @@ Two all-NA rows and two all-NA columns disappeared. The data that matters stayed
 
 A related function, `remove_constant()`, drops columns where every value is the same. These columns carry zero information.
 
-```r
+```r title="removeconstant drops constant columns"
 # Add a constant column
 sparse_df$region <- "North"
 
@@ -170,7 +170,7 @@ The `region` column had "North" in every row, so `remove_constant()` dropped it.
 
 **Try it:** Create a 4-row data frame where rows 2 and 4 are all `NA` and one column is entirely `NA`. Remove the empty rows and columns.
 
-```r
+```r title="Exercise: Remove empty rows and columns"
 # Try it: remove empty rows and columns
 ex_sparse <- data.frame(
   id    = c(1, NA, 3, NA),
@@ -186,7 +186,7 @@ ex_sparse <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Remove empty solution"
 ex_sparse <- data.frame(
   id    = c(1, NA, 3, NA),
   value = c(10, NA, 30, NA),
@@ -212,7 +212,7 @@ Duplicate records corrupt aggregations, inflate counts, and break joins. Base R'
 
 `get_dupes()` returns a data frame of the duplicate rows along with a `dupe_count` column showing how many times each combination appears. You specify which columns to check.
 
-```r
+```r title="getdupes surfaces duplicate rows"
 # Customer data with duplicates
 customers <- data.frame(
   name  = c("Alice", "Bob", "Alice", "Carol", "Bob", "Bob"),
@@ -233,7 +233,7 @@ dupes
 
 Alice appears twice and Bob appears three times. The `dupe_count` column tells you the frequency instantly. Notice that Bob's third record has a different email, so checking by `name` and `email` together would separate it.
 
-```r
+```r title="Duplicate check across name and email"
 # Narrow the duplicate check to name + email
 get_dupes(customers, name, email)
 #>    name    email dupe_count city
@@ -250,7 +250,7 @@ Now Bob's `b2@co.com` record is excluded because the name-email combination is u
 
 **Try it:** Create a data frame of 5 orders where order_id 101 appears twice and order_id 103 appears twice. Use `get_dupes()` to find them.
 
-```r
+```r title="Exercise: Find duplicate orders"
 # Try it: find duplicate orders
 ex_orders <- data.frame(
   order_id = c(101, 102, 101, 103, 103),
@@ -266,7 +266,7 @@ ex_orders <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Duplicate orders solution"
 ex_orders <- data.frame(
   order_id = c(101, 102, 101, 103, 103),
   product  = c("Widget", "Gadget", "Widget", "Gizmo", "Gizmo"),
@@ -293,7 +293,7 @@ Base R's `table()` returns an array object that is awkward to manipulate. You ca
 
 Let's compare the two approaches on the `mtcars` dataset.
 
-```r
+```r title="tabyl versus base table output"
 # Base R table() -- returns an array
 table(mtcars$cyl)
 #>  4  6  8
@@ -311,7 +311,7 @@ The `tabyl()` output is already a data frame. You get counts and percentages wit
 
 For two-way cross-tabulations, `tabyl()` accepts two variables. The `adorn_*` functions then layer on totals, percentage formatting, and combined count-percent displays.
 
-```r
+```r title="Two-way tabyl with adorn chain"
 # Two-way cross-tabulation with full adornment
 cross_tab <- mtcars |>
   tabyl(cyl, am) |>
@@ -336,7 +336,7 @@ In five lines, you built a publication-ready cross-tabulation with row percentag
 
 **Try it:** Create a one-way frequency table of `mtcars$gear`, then add a total row and format percentages to one decimal place.
 
-```r
+```r title="Exercise: Gear frequency table"
 # Try it: frequency table of gear with totals and formatted %
 # Hint: tabyl() |> adorn_totals() |> adorn_pct_formatting()
 
@@ -348,7 +348,7 @@ In five lines, you built a publication-ready cross-tabulation with row percentag
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Gear frequency solution"
 ex_tab <- mtcars |>
   tabyl(gear) |>
   adorn_totals("row") |>
@@ -372,7 +372,7 @@ Some Excel exports bury the real column headers in row 2, 3, or even deeper. The
 
 `row_to_names()` promotes any row to become the column names, then optionally removes the rows above it.
 
-```r
+```r title="rowtonames promotes a header row"
 # Simulating a messy Excel import where row 2 has real headers
 raw_excel <- data.frame(
   X1 = c("Report: Q4 Sales", "Region", "North", "South", "East"),
@@ -406,7 +406,7 @@ Row 1 (the report metadata) and row 2 (now the header) were both removed. The da
 
 Another common spreadsheet headache is Excel date serial numbers. When a date column reads as `45292` instead of `2024-01-15`, `excel_numeric_to_date()` converts it back.
 
-```r
+```r title="Convert Excel date serial numbers"
 # Excel stores dates as days since 1899-12-30
 serial_dates <- c(45292, 45323, 45354)
 
@@ -421,7 +421,7 @@ The serial number 45292 corresponds to January 15, 2024. This function handles t
 
 **Try it:** Create a data frame where row 3 contains the real headers (`"City"`, `"Population"`, `"Area"`). Use `row_to_names()` to fix it.
 
-```r
+```r title="Exercise: Promote row three to names"
 # Try it: promote row 3 to column names
 ex_raw <- data.frame(
   X1 = c("Country Report", "Date: 2024", "City", "London", "Paris"),
@@ -438,7 +438,7 @@ ex_raw <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Promote row three solution"
 ex_raw <- data.frame(
   X1 = c("Country Report", "Date: 2024", "City", "London", "Paris"),
   X2 = c(NA, NA, "Population", "8900000", "2100000"),
@@ -462,7 +462,7 @@ ex_fixed
 ### Mistake 1: Forgetting to reassign after clean_names()
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: cleannames result not captured"
 bad_df <- data.frame(`First Name` = "Alice", check.names = FALSE)
 clean_names(bad_df)
 names(bad_df)
@@ -472,7 +472,7 @@ names(bad_df)
 **Why it is wrong:** `clean_names()` returns a new data frame. It does not modify the original in place. If you forget to capture the result, `bad_df` still has the messy names.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Capture cleannames output"
 bad_df <- data.frame(`First Name` = "Alice", check.names = FALSE)
 bad_df <- clean_names(bad_df)
 names(bad_df)
@@ -482,7 +482,7 @@ names(bad_df)
 ### Mistake 2: Using remove_empty() on columns with empty strings
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Empty strings not dropped"
 char_df <- data.frame(
   a = c("x", "y"),
   b = c("", "")
@@ -495,7 +495,7 @@ ncol(result)
 **Why it is wrong:** Column `b` contains empty strings `""`, not `NA`. `remove_empty()` only removes columns that are entirely `NA`. The column stays.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Convert empty strings to NA"
 char_df <- data.frame(
   a = c("x", "y"),
   b = c("", "")
@@ -510,7 +510,7 @@ ncol(result)
 ### Mistake 3: Expecting get_dupes() to deduplicate
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: getdupes does not remove"
 df <- data.frame(id = c(1, 1, 2, 3), value = c("a", "a", "b", "c"))
 clean <- get_dupes(df, id)
 # Expecting clean to contain deduplicated data
@@ -519,7 +519,7 @@ clean <- get_dupes(df, id)
 **Why it is wrong:** `get_dupes()` reports duplicates -- it does not remove them. Use `dplyr::distinct()` to actually deduplicate.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Use distinct to deduplicate"
 df <- data.frame(id = c(1, 1, 2, 3), value = c("a", "a", "b", "c"))
 
 # Step 1: inspect duplicates
@@ -537,7 +537,7 @@ nrow(clean)
 ### Mistake 4: Wrong row_number in row_to_names()
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Off-by-one header row"
 df <- data.frame(X1 = c("Meta", "Name", "Alice"), X2 = c(NA, "Age", "30"))
 # Wanting "Name" and "Age" as headers but using row 1
 fixed <- row_to_names(df, row_number = 1)
@@ -548,7 +548,7 @@ names(fixed)
 **Why it is wrong:** Row 1 contains metadata, not the real headers. The off-by-one error gives you wrong column names and an `NA` column.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Promote the right header"
 df <- data.frame(X1 = c("Meta", "Name", "Alice"), X2 = c(NA, "Age", "30"))
 fixed <- row_to_names(df, row_number = 2)
 names(fixed)
@@ -561,7 +561,7 @@ names(fixed)
 
 You receive a data frame with ugly column names, two empty rows, one empty column, and duplicate records. Clean it up using a janitor pipeline: fix the names, remove empty rows/columns, and identify duplicates.
 
-```r
+```r title="Exercise: Full cleaning pipeline"
 # Exercise: full cleaning pipeline
 my_messy <- data.frame(
   `Customer ID` = c(101, 102, NA, 103, 101, NA),
@@ -581,7 +581,7 @@ my_messy <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Full cleaning pipeline solution"
 my_messy <- data.frame(
   `Customer ID` = c(101, 102, NA, 103, 101, NA),
   `Full Name` = c("Alice", "Bob", NA, "Carol", "Alice", NA),
@@ -617,7 +617,7 @@ get_dupes(my_clean, customer_id)
 
 Create a two-way cross-tabulation of `mtcars` by `cyl` (rows) and `gear` (columns). Add column totals, display column percentages formatted to one decimal place, append raw counts, and add a combined title.
 
-```r
+```r title="Exercise: Publication-ready cross tab"
 # Exercise: publication-ready cross-tab
 # Hint: tabyl(cyl, gear) |> adorn_totals() |> adorn_percentages("col") |> ...
 # Write your code below:
@@ -627,7 +627,7 @@ Create a two-way cross-tabulation of `mtcars` by `cyl` (rows) and `gear` (column
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Publication cross tab solution"
 my_report <- mtcars |>
   tabyl(cyl, gear) |>
   adorn_totals("row") |>
@@ -652,7 +652,7 @@ my_report
 
 You have a spreadsheet export where row 3 contains the real headers, the first two rows are metadata, there are empty columns, and a date column contains Excel serial numbers. Fix everything.
 
-```r
+```r title="Exercise: Complete spreadsheet repair"
 # Exercise: complete spreadsheet repair
 my_excel <- data.frame(
   X1 = c("Report Title", "Date: 2024-Q1", "Employee", "Jane Doe", "John Smith", NA),
@@ -673,7 +673,7 @@ my_excel <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Spreadsheet repair solution"
 my_excel <- data.frame(
   X1 = c("Report Title", "Date: 2024-Q1", "Employee", "Jane Doe", "John Smith", NA),
   X2 = c(NA, NA, "Hire Date", "44927", "45108", NA),
@@ -702,7 +702,7 @@ my_fixed
 
 Here is the complete "5 lines of code" promise. You start with a realistic messy dataset and clean it end to end.
 
-```r
+```r title="End-to-end messy spreadsheet cleanup"
 # Simulating a messy spreadsheet export
 raw_data <- data.frame(
   X1 = c("Sales Report 2024", "Rep Name", "Alice", "Bob", "Alice", NA, "Carol"),

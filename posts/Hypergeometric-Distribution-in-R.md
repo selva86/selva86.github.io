@@ -24,7 +24,7 @@ Picture a box of 50 microchips on a QA bench. Exactly 8 are defective and 42 are
 
 Here is the payoff question for that scenario: what is the probability that exactly 2 of the 10 chips you pulled are defective?
 
-```r
+```r title="P(exactly 2 defective) in sample of 10"
 # QA scenario: 50 chips, 8 defective, 42 good. Sample of 10.
 # P(exactly 2 defective in the sample) = dhyper(x, m, n, k)
 p_two <- dhyper(x = 2, m = 8, n = 42, k = 10)
@@ -42,7 +42,7 @@ There's about a 28.1% chance of finding exactly 2 defective chips. That single c
 
 **Try it:** From the same box (8 defective, 42 good), you draw a smaller sample of 5 chips. Compute the probability of finding exactly 1 defective chip in that sample.
 
-```r
+```r title="Try it: One defective in five"
 # Try it: P(exactly 1 defective) in a sample of 5
 ex_one_def <- dhyper(x = ___, m = ___, n = ___, k = ___)
 round(ex_one_def, 4)
@@ -52,7 +52,7 @@ round(ex_one_def, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="One-defective probability solution"
 ex_one_def <- dhyper(x = 1, m = 8, n = 42, k = 5)
 round(ex_one_def, 4)
 #> [1] 0.4015
@@ -66,7 +66,7 @@ round(ex_one_def, 4)
 
 The single call you just ran is the whole density function. To see the distribution's shape, you evaluate `dhyper()` across every possible count of defectives and plot the result. The smallest possible count is 0 and the largest is `min(m, k)`, you can't pull more defectives than exist, and you can't pull more than the sample size.
 
-```r
+```r title="Full hypergeometric PMF and bar plot"
 # Full PMF for 0..8 defectives in a sample of 10 (min(m, k) = 8)
 defects <- 0:8
 pmf <- dhyper(defects, m = 8, n = 42, k = 10)
@@ -91,7 +91,7 @@ The most likely outcome is 1 defective (33.6%), followed by 2 defectives (28.1%)
 
 Now swap out the QA context for a classic card example. A standard deck has 52 cards with 4 aces. You deal a 5-card poker hand. What is the probability of drawing exactly 3 aces?
 
-```r
+```r title="Three aces in five-card hand"
 # 5-card hand from a 52-card deck: 4 aces (m), 48 non-aces (n), sample of 5
 p_three_aces <- dhyper(x = 3, m = 4, n = 48, k = 5)
 round(p_three_aces, 6)
@@ -102,7 +102,7 @@ About 0.17%, roughly 1 hand in 577. Same function, same four arguments, complete
 
 **Try it:** Using the same 52-card deck setup, compute the probability of drawing exactly 2 kings in a 5-card hand.
 
-```r
+```r title="Try it: Two kings in a hand"
 # Try it: P(exactly 2 kings in a 5-card hand)
 ex_two_kings <- dhyper(x = ___, m = ___, n = ___, k = ___)
 round(ex_two_kings, 4)
@@ -112,7 +112,7 @@ round(ex_two_kings, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-kings probability solution"
 ex_two_kings <- dhyper(x = 2, m = 4, n = 48, k = 5)
 round(ex_two_kings, 4)
 #> [1] 0.0399
@@ -126,7 +126,7 @@ round(ex_two_kings, 4)
 
 Quality control rarely asks "exactly 2 defectives?" The real question is "3 or fewer" or "more than 3." That's what `phyper()` computes, it sums the PMF up to a cutoff. By default it returns the lower-tail cumulative probability P(X ≤ q); set `lower.tail = FALSE` to get P(X > q) directly.
 
-```r
+```r title="Lower and upper tails with phyper"
 # Cumulative: P(X <= 3) and P(X > 3) for the QA scenario
 p_le3 <- phyper(q = 3, m = 8, n = 42, k = 10)
 p_gt3 <- phyper(q = 3, m = 8, n = 42, k = 10, lower.tail = FALSE)
@@ -141,7 +141,7 @@ In 91.6% of samples you'll see 3 or fewer defectives, leaving an 8.5% chance of 
 
 Now shift to an auditing scenario. You receive a batch of 200 invoices from a vendor. Your historical data says about 5 invoices (2.5%) contain billing irregularities. You sample 20 invoices for audit. What is the probability of finding at most 1 irregular invoice?
 
-```r
+```r title="Auditor samples 20 of 200 invoices"
 # Auditor: 200 invoices, 5 irregular, 195 clean, sample of 20
 # P(at most 1 irregular invoice found) = phyper(1, 5, 195, 20)
 p_audit_le1 <- phyper(q = 1, m = 5, n = 195, k = 20)
@@ -153,7 +153,7 @@ There's a 94.2% chance the audit turns up 0 or 1 irregularity, which means a 5.8
 
 **Try it:** Using the QA box (m=8 defective, n=42 good, sample k=10), compute the probability of finding **at least 1** defective chip. Hint: "at least 1" is the complement of "exactly 0."
 
-```r
+```r title="Try it: At least one defective"
 # Try it: P(at least 1 defective) = 1 - P(X = 0)
 ex_at_least_1 <- 1 - dhyper(___, m = 8, n = 42, k = 10)
 round(ex_at_least_1, 4)
@@ -163,7 +163,7 @@ round(ex_at_least_1, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="At-least-one solution"
 ex_at_least_1 <- 1 - dhyper(0, m = 8, n = 42, k = 10)
 round(ex_at_least_1, 4)
 #> [1] 0.8544
@@ -183,7 +183,7 @@ Two more functions finish the family. `qhyper()` is the inverse of `phyper()`, g
 
 First, quantiles. In the QA scenario, what defective counts correspond to the 5th, 50th, and 95th percentiles?
 
-```r
+```r title="Quantiles of the hypergeometric"
 # Quantiles of the hypergeometric distribution
 q_levels <- qhyper(p = c(0.05, 0.50, 0.95), m = 8, n = 42, k = 10)
 q_levels
@@ -194,7 +194,7 @@ The median sample has 1 defective, only 5% of samples will have 0 defectives or 
 
 Next, simulation. `rhyper(nn, m, n, k)` generates `nn` random hypergeometric samples. Always call `set.seed()` first for reproducibility, different seeds produce different draws.
 
-```r
+```r title="Simulate 10,000 QA samples"
 # Simulate 10,000 QA samples; compare empirical mean to theoretical mean
 set.seed(2026)
 sim_defects <- rhyper(nn = 10000, m = 8, n = 42, k = 10)
@@ -219,7 +219,7 @@ The empirical mean is 1.6029, within rounding of the theoretical mean 1.6000. Th
 
 **Try it:** Simulate dealing 5 poker hands and report how many aces each hand contained. Use `rhyper(5, m = 4, n = 48, k = 5)` and `set.seed(99)`.
 
-```r
+```r title="Try it: Simulate five-card hands"
 # Try it: 5 simulated 5-card hands, count aces
 set.seed(99)
 ex_ace_counts <- rhyper(nn = ___, m = ___, n = ___, k = ___)
@@ -230,7 +230,7 @@ ex_ace_counts
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ace simulation solution"
 set.seed(99)
 ex_ace_counts <- rhyper(nn = 5, m = 4, n = 48, k = 5)
 ex_ace_counts
@@ -261,7 +261,7 @@ Where:
 
 Let's see the effect in numbers. Same QA scenario, same "success rate" (8 defective out of 50 = 16%), and same sample size (10). Binomial would treat each draw as independent with p = 0.16.
 
-```r
+```r title="Binomial versus hypergeometric at same p"
 # Same success rate 0.16, same sample size 10
 # Binomial treats draws as independent; hypergeometric accounts for no replacement
 p_binom_2 <- dbinom(x = 2, size = 10, prob = 0.16)
@@ -275,7 +275,7 @@ The binomial gives 27.6%, the hypergeometric gives 28.1%. Close, but not identic
 
 Now make the population large relative to the sample and watch the two distributions converge.
 
-```r
+```r title="Hypergeometric approaches binomial for small samples"
 # Large population (N=10000), small sample (k=10), same 16% success rate
 # Hypergeometric approaches binomial when sample is a tiny fraction of population
 p_binom_small <- dbinom(x = 2, size = 10, prob = 0.16)
@@ -292,7 +292,7 @@ The two probabilities now match to four decimal places. Sampling 10 items from a
 
 **Try it:** You have a population of 1,000 people with 100 known responders (p = 10%). You sample 50 people. Compute both the binomial and hypergeometric probabilities of finding exactly 5 responders. They should be very close because the sample is 5% of the population.
 
-```r
+```r title="Try it: Compare at 5% sample fraction"
 # Try it: binomial vs hypergeometric for a 5% sample fraction
 ex_binom <- dbinom(x = 5, size = 50, prob = 0.10)
 ex_hyper <- dhyper(x = 5, m = ___, n = ___, k = 50)
@@ -303,7 +303,7 @@ round(c(binomial = ex_binom, hypergeometric = ex_hyper), 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sample-fraction comparison solution"
 ex_binom <- dbinom(x = 5, size = 50, prob = 0.10)
 ex_hyper <- dhyper(x = 5, m = 100, n = 900, k = 50)
 round(c(binomial = ex_binom, hypergeometric = ex_hyper), 4)
@@ -321,7 +321,7 @@ round(c(binomial = ex_binom, hypergeometric = ex_hyper), 4)
 
 You're QA engineer for a shipment of 200 electronics. Quality history says m = 12 items are defective. Your acceptance rule is: sample 20 items, accept the lot if at most 1 defective is found. What is the probability the lot is accepted?
 
-```r
+```r title="Exercise: Lot acceptance probability"
 # Exercise 1: P(accept lot) = P(defectives <= 1)
 # Hint: one call to phyper() with the right q, m, n, k
 
@@ -332,7 +332,7 @@ You're QA engineer for a shipment of 200 electronics. Quality history says m = 1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Acceptance probability solution"
 my_accept_prob <- phyper(q = 1, m = 12, n = 188, k = 20)
 round(my_accept_prob, 4)
 #> [1] 0.6930
@@ -346,7 +346,7 @@ round(my_accept_prob, 4)
 
 Using `m = 15`, `n = 85`, `k = 20`, simulate 100,000 hypergeometric samples with `set.seed(1)`, compute the empirical PMF, then compare to the theoretical PMF from `dhyper()`. Report the maximum absolute difference across all possible outcomes.
 
-```r
+```r title="Exercise: Empirical versus theoretical PMF"
 # Exercise 2: empirical vs theoretical PMF
 # Hint: use table(my_sim) / length(my_sim) for the empirical PMF
 # Hint: support is 0:min(m, k)
@@ -358,7 +358,7 @@ Using `m = 15`, `n = 85`, `k = 20`, simulate 100,000 hypergeometric samples with
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Empirical PMF solution"
 set.seed(1)
 my_sim <- rhyper(nn = 100000, m = 15, n = 85, k = 20)
 
@@ -386,7 +386,7 @@ Put all four functions to work on a realistic auditing problem.
 
 **Step 1, PMF of irregularities found.** How many irregular invoices might the sample turn up?
 
-```r
+```r title="Invoice audit PMF setup"
 # Invoice audit setup
 invoice_total <- 250
 invoice_irregular <- 15
@@ -406,7 +406,7 @@ The most likely outcome is 1 irregular invoice (28.4%), followed by 2 (27.3%).
 
 **Step 2, Risk of missing everything.** What is the probability of seeing zero irregularities, the "audit missed them all" event?
 
-```r
+```r title="Probability the audit finds none"
 # P(0 irregularities in the sample)
 invoice_miss_all <- dhyper(0, m = invoice_irregular,
                           n = invoice_clean, k = invoice_sample)
@@ -418,7 +418,7 @@ There's a 13.6% chance the audit finds nothing, even though 15 of 250 invoices a
 
 **Step 3, 95% upper prediction bound.** What's the largest count of irregularities you'd expect 95% of the time?
 
-```r
+```r title="95th-percentile irregularity count"
 # 95th-percentile count
 invoice_upper95 <- qhyper(0.95, m = invoice_irregular,
                          n = invoice_clean, k = invoice_sample)
@@ -430,7 +430,7 @@ Ninety-five percent of audits turn up 4 or fewer irregularities; seeing 5 or mor
 
 **Step 4, Simulate to cross-check.**
 
-```r
+```r title="End-to-end audit simulation"
 # Simulate 10,000 audits, compare empirical to analytic summaries
 set.seed(42)
 invoice_sim <- rhyper(nn = 10000, m = invoice_irregular,

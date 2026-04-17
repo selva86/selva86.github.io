@@ -39,7 +39,7 @@ Think of it as stacking layers. The first layer is your data. The second layer s
 
 Let's see the pattern in action. The `mpg` dataset is built into ggplot2 and contains fuel economy data for 234 cars. We will plot engine displacement against highway mileage.
 
-```r
+```r title="First grammar-of-graphics scatter"
 # Load ggplot2 — this one library() call covers the entire tutorial
 library(ggplot2)
 
@@ -60,7 +60,7 @@ The `ggplot()` call sets up the data and axes. The `+` operator adds a layer. `g
 
 **Try it:** Create a scatter plot of `mpg` with `cty` (city mileage) on the y-axis and `displ` on the x-axis using `geom_point()`.
 
-```r
+```r title="Colour alpha and axis labels"
 # Try it: scatter plot of displ vs cty
 ex_plot <- ggplot(mpg, aes(x = displ, y = cty)) +
   # your code here
@@ -73,7 +73,7 @@ ex_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise: Map size to engine displacement"
 ex_plot <- ggplot(mpg, aes(x = displ, y = cty)) +
   geom_point()
 
@@ -91,7 +91,7 @@ Scatter plots show the relationship between two numeric variables. Each row in y
 
 Let's color each point by the car's `class` column. This reveals which vehicle types get better mileage.
 
-```r
+```r title="Exercise solution: Size by displacement"
 # Scatter plot colored by vehicle class
 ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point()
@@ -103,7 +103,7 @@ The `color = class` mapping inside `aes()` tells ggplot2 to assign a unique colo
 
 Now let's add size mapping and proper labels. Mapping `size` to a numeric column scales each point proportionally.
 
-```r
+```r title="Stacked bar chart by drive"
 # Scatter with size mapped to cylinder count and custom labels
 ggplot(mpg, aes(x = displ, y = hwy, color = class, size = cyl)) +
   geom_point(alpha = 0.7) +
@@ -125,7 +125,7 @@ The `alpha = 0.7` argument makes dots slightly transparent, so you can see where
 
 **Try it:** Create a scatter plot of `displ` vs `hwy`, color the points by `drv` (drive type), and add a title "Drive Type Comparison".
 
-```r
+```r title="Dodged bars with position dodge"
 # Try it: color by drv and add a title
 ex_scatter <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   # your code here
@@ -138,7 +138,7 @@ ex_scatter
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pre-aggregated bars with geomcol"
 ex_scatter <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
   geom_point() +
   labs(title = "Drive Type Comparison")
@@ -157,7 +157,7 @@ Bar charts count how many rows fall into each category. They are the go-to chart
 
 Let's count how many cars belong to each `class`.
 
-```r
+```r title="Exercise: Colour bars by fruit name"
 # Bar chart: count of cars by class
 ggplot(mpg, aes(x = class)) +
   geom_bar()
@@ -172,7 +172,7 @@ Each bar's height equals the number of rows where `class` matches that label. Yo
 
 To break each bar into subgroups, map a second variable to `fill`. The `position` argument controls whether bars stack or stand side by side.
 
-```r
+```r title="Exercise solution: Fruit-coloured column chart"
 # Stacked vs dodged bars
 # Stacked (default):
 ggplot(mpg, aes(x = class, fill = drv)) +
@@ -194,7 +194,7 @@ Stacked bars show the total per class while revealing subgroup proportions. Dodg
 
 **Try it:** Create a bar chart that counts how many cars have each number of cylinders (`cyl`), with bars filled by `drv`.
 
-```r
+```r title="Default histogram with bin warning"
 # Try it: bar chart of cyl counts filled by drv
 ex_bar <- ggplot(mpg, aes(x = factor(cyl), fill = drv)) +
   # your code here
@@ -207,7 +207,7 @@ ex_bar
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Histogram with explicit binwidth"
 ex_bar <- ggplot(mpg, aes(x = factor(cyl), fill = drv)) +
   geom_bar() +
   labs(x = "Cylinders", fill = "Drive Type")
@@ -226,7 +226,7 @@ A histogram shows how a single numeric variable is distributed. It splits the ra
 
 Let's look at the distribution of highway mileage.
 
-```r
+```r title="Economics unemployment line chart"
 # Histogram of highway MPG with default bins
 ggplot(mpg, aes(x = hwy)) +
   geom_histogram()
@@ -238,7 +238,7 @@ ggplot2 picks 30 bins by default and prints a message telling you to choose a be
 
 Here is the same histogram with a custom bin width and fill color.
 
-```r
+```r title="Line chart with point overlay"
 # Histogram with explicit binwidth and styling
 ggplot(mpg, aes(x = hwy)) +
   geom_histogram(binwidth = 2, fill = "steelblue", color = "white") +
@@ -258,7 +258,7 @@ Setting `binwidth = 2` means each bar covers a 2-MPG range. The `fill` argument 
 
 **Try it:** Create a histogram of `cty` (city mileage) with `binwidth = 3` and a fill color of your choice.
 
-```r
+```r title="Exercise: Highway mileage histogram"
 # Try it: histogram of cty with binwidth = 3
 ex_hist <- ggplot(mpg, aes(x = cty)) +
   # your code here
@@ -271,7 +271,7 @@ ex_hist
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Highway histogram with binwidth"
 ex_hist <- ggplot(mpg, aes(x = cty)) +
   geom_histogram(binwidth = 3, fill = "coral", color = "white") +
   labs(x = "City MPG", y = "Count")
@@ -288,7 +288,7 @@ ex_hist
 
 Line charts show trends over an ordered variable, usually time. The `economics` dataset built into ggplot2 contains monthly US economic data from 1967 to 2015. Let's plot the unemployment count over time.
 
-```r
+```r title="Boxplot of highway mileage by class"
 # Line chart: US unemployment over time
 ggplot(economics, aes(x = date, y = unemploy)) +
   geom_line()
@@ -300,7 +300,7 @@ ggplot(economics, aes(x = date, y = unemploy)) +
 
 Adding `geom_point()` on top highlights individual data points. This is useful when data is sparse.
 
-```r
+```r title="Boxplot flipped with coordflip"
 # Line + points with custom color and labels
 ggplot(economics, aes(x = date, y = unemploy / 1000)) +
   geom_line(color = "steelblue", linewidth = 0.8) +
@@ -321,7 +321,7 @@ Notice that you can stack multiple geom layers with `+`. Each layer draws on top
 
 **Try it:** Plot the personal savings rate (`psavert`) from the `economics` dataset over `date` as a line chart. Add a title.
 
-```r
+```r title="Scatter with Brewer Set2 palette"
 # Try it: line chart of psavert over time
 ex_line <- ggplot(economics, aes(x = date, y = psavert)) +
   # your code here
@@ -334,7 +334,7 @@ ex_line
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Facet scatter by drivetrain"
 ex_line <- ggplot(economics, aes(x = date, y = psavert)) +
   geom_line() +
   labs(title = "US Personal Savings Rate Over Time")
@@ -355,7 +355,7 @@ The thick line in the middle is the median. The box edges are the 25th and 75th 
 
 Let's compare highway mileage across vehicle classes.
 
-```r
+```r title="Exercise: Facet scatter by cylinders"
 # Boxplot: highway MPG by vehicle class
 ggplot(mpg, aes(x = class, y = hwy)) +
   geom_boxplot()
@@ -367,7 +367,7 @@ Each box represents one vehicle class. You can instantly see which classes get b
 
 Adding `fill` and `coord_flip()` makes the chart easier to read when category names are long.
 
-```r
+```r title="Exercise solution: Cylinder facet scatter"
 # Boxplot with fill color and horizontal layout
 ggplot(mpg, aes(x = class, y = hwy, fill = class)) +
   geom_boxplot(show.legend = FALSE) +
@@ -391,7 +391,7 @@ ggplot(mpg, aes(x = class, y = hwy, fill = class)) +
 
 **Try it:** Create a boxplot of `cty` (city mileage) grouped by `drv` (drive type).
 
-```r
+```r title="Mistake: Forgetting the plus sign"
 # Try it: boxplot of cty by drv
 ex_box <- ggplot(mpg, aes(x = drv, y = cty)) +
   # your code here
@@ -404,7 +404,7 @@ ex_box
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Correct: Chain layers with plus"
 ex_box <- ggplot(mpg, aes(x = drv, y = cty)) +
   geom_boxplot() +
   labs(x = "Drive Type", y = "City MPG")
@@ -423,7 +423,7 @@ You know how to build five chart types. Now let's make them look professional. g
 
 Let's build a polished scatter plot step by step.
 
-```r
+```r title="Mistake: geombar on pre-aggregated data"
 # Polished scatter plot with labels, color scale, and theme
 ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(alpha = 0.7, size = 2.5) +
@@ -444,7 +444,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
 
 Faceting splits one chart into multiple panels, one per group. Use `facet_wrap()` to create a grid of small multiples.
 
-```r
+```r title="Correct: Use geomcol for totals"
 # Faceted scatter plot — one panel per drive type
 ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(alpha = 0.7) +
@@ -466,7 +466,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
 
 **Try it:** Take any scatter plot from this tutorial, apply `theme_bw()`, and add a subtitle using `labs(subtitle = ...)`.
 
-```r
+```r title="Mistake: Fixed colour inside aes"
 # Try it: customize with theme_bw() and a subtitle
 ex_custom <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point() +
@@ -480,7 +480,7 @@ ex_custom
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Correct: Move constant colour outside aes"
 ex_custom <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point() +
   labs(
@@ -502,7 +502,7 @@ ex_custom
 ### Mistake 1: Forgetting the + between layers
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Accepting default histogram bins"
 ggplot(mpg, aes(x = displ, y = hwy))
   geom_point()
 #> Error: Cannot use `geom_point()` with last_plot()
@@ -511,7 +511,7 @@ ggplot(mpg, aes(x = displ, y = hwy))
 **Why it is wrong:** Without `+`, R treats the second line as a separate command. It tries to call `geom_point()` on its own, which fails.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Set binwidth explicitly"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point()
 #> Works — the + connects the layers
@@ -520,7 +520,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 ### Mistake 2: Using geom_bar() on pre-aggregated data
 
 ❌ **Wrong:**
-```r
+```r title="Exercise one: Faceted highway scatter"
 # Data already has a count column
 my_counts <- data.frame(
   fruit = c("Apple", "Banana", "Cherry"),
@@ -534,7 +534,7 @@ ggplot(my_counts, aes(x = fruit)) +
 **Why it is wrong:** `geom_bar()` counts the number of rows per category. Your data has one row per fruit, so every bar is height 1.
 
 ✅ **Correct:**
-```r
+```r title="Exercise one solution: Scatter facet by drivetrain"
 my_counts <- data.frame(
   fruit = c("Apple", "Banana", "Cherry"),
   count = c(30, 20, 10)
@@ -547,7 +547,7 @@ ggplot(my_counts, aes(x = fruit, y = count)) +
 ### Mistake 3: Putting aes() in the wrong place
 
 ❌ **Wrong:**
-```r
+```r title="Exercise two: Dodged diamonds bar chart"
 ggplot(mpg) +
   geom_point(x = displ, y = hwy)
 #> Error: object 'displ' not found
@@ -556,7 +556,7 @@ ggplot(mpg) +
 **Why it is wrong:** Column mappings must go inside `aes()`. Without `aes()`, R looks for objects named `displ` and `hwy` in your workspace instead of columns in the data frame.
 
 ✅ **Correct:**
-```r
+```r title="Exercise two solution: Cut and colour dodged bars"
 ggplot(mpg) +
   geom_point(aes(x = displ, y = hwy))
 #> Works — aes() tells ggplot2 to look inside the data frame
@@ -565,7 +565,7 @@ ggplot(mpg) +
 ### Mistake 4: Not setting binwidth in geom_histogram()
 
 ❌ **Wrong:**
-```r
+```r title="Exercise three: Histogram plus boxplot pair"
 ggplot(mpg, aes(x = hwy)) +
   geom_histogram()
 #> `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
@@ -575,7 +575,7 @@ ggplot(mpg, aes(x = hwy)) +
 **Why it is wrong:** The default bin count splits the data into 30 equally spaced bins regardless of range. This can create misleading peaks or hide real patterns.
 
 ✅ **Correct:**
-```r
+```r title="Exercise three solution: Highway histogram and boxplot"
 ggplot(mpg, aes(x = hwy)) +
   geom_histogram(binwidth = 2, fill = "steelblue", color = "white")
 #> Each bin covers exactly 2 MPG — a deliberate, interpretable choice
@@ -587,7 +587,7 @@ ggplot(mpg, aes(x = hwy)) +
 
 Build a scatter plot of `mpg` with `displ` on the x-axis and `hwy` on the y-axis. Color the points by `class`, add a title and axis labels, apply `theme_minimal()`, and facet the chart by `drv`.
 
-```r
+```r title="Capstone step one: Inspect the mpg dataset"
 # Exercise 1: scatter plot with color, labels, theme, and facets
 # Hint: chain geom_point() + labs() + scale_color_brewer() + theme_minimal() + facet_wrap()
 
@@ -598,7 +598,7 @@ Build a scatter plot of `mpg` with `displ` on the x-axis and `hwy` on the y-axis
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step two: Basic displ vs hwy scatter"
 my_scatter <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(alpha = 0.7) +
   labs(
@@ -623,7 +623,7 @@ my_scatter
 
 Using the `diamonds` dataset (built into ggplot2), create a bar chart that counts how many diamonds exist in each `cut` category. Fill the bars by `color` (diamond color grade). Use `position = "dodge"` to place bars side by side. Add labels and apply `theme_bw()`.
 
-```r
+```r title="Capstone step three: Map colour to class"
 # Exercise 2: dodged bar chart from diamonds
 # Hint: aes(x = cut, fill = color) + geom_bar(position = "dodge")
 
@@ -634,7 +634,7 @@ Using the `diamonds` dataset (built into ggplot2), create a bar chart that count
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step four: Facet by drivetrain"
 my_bars <- ggplot(diamonds, aes(x = cut, fill = color)) +
   geom_bar(position = "dodge") +
   labs(
@@ -657,7 +657,7 @@ my_bars
 
 Create two separate charts for the `hwy` column from `mpg`. First, build a histogram with `binwidth = 2` and steelblue fill. Second, build a horizontal boxplot of `hwy` (no grouping, use `y = hwy` with an empty string for x). Use consistent colors in both charts.
 
-```r
+```r title="Capstone step five: Add labels and theme"
 # Exercise 3: histogram + boxplot pair
 # Hint: For the boxplot, try aes(x = "", y = hwy) + coord_flip()
 
@@ -668,7 +668,7 @@ Create two separate charts for the `hwy` column from `mpg`. First, build a histo
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Capstone step six: Apply Brewer palette"
 # Histogram
 my_hist <- ggplot(mpg, aes(x = hwy)) +
   geom_histogram(binwidth = 2, fill = "steelblue", color = "white") +
@@ -696,7 +696,7 @@ my_box
 
 Let's build one polished chart from scratch that uses everything you learned. We will load the data, explore it, and create a publication-ready scatter plot.
 
-```r
+```r title="Capstone: Polished mpg scatter plot"
 # Complete example: from raw data to polished chart
 
 # Step 1: Explore the data

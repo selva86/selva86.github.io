@@ -24,7 +24,7 @@ Every probability starts with a count. This post walks you through the three cou
 
 Probability starts with counting, and counting starts with the multiplication rule. The rule says: if one step has *a* outcomes and a second independent step has *b* outcomes, the combined process has `a * b` outcomes. Every other counting formula in this post is a disguised version of this one idea. Let's count every possible result of rolling two dice.
 
-```r
+```r title="Dice outcomes with expand.grid"
 # Every outcome of rolling two dice
 dice_outcomes <- expand.grid(die1 = 1:6, die2 = 1:6)
 nrow(dice_outcomes)
@@ -50,7 +50,7 @@ $$N = a_1 \times a_2 \times \cdots \times a_k$$
 
 Consider a 4-character password drawn from 26 letters plus 10 digits, 36 options per slot, four independent slots.
 
-```r
+```r title="Four-character password count"
 # How many 4-char alphanumeric passwords?
 n_passwords <- 36^4
 n_passwords
@@ -64,7 +64,7 @@ Over 1.6 million combinations for a weak four-character password. The count grow
 
 **Try it:** How many outcomes are there when you roll one die and flip one coin? Save the result to `ex_outcomes`.
 
-```r
+```r title="Exercise: Multiplication rule"
 # Try it: use the multiplication rule
 ex_outcomes <- # your code here
 
@@ -75,7 +75,7 @@ ex_outcomes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multiplication rule solution"
 ex_outcomes <- 6 * 2
 ex_outcomes
 #> [1] 12
@@ -89,7 +89,7 @@ ex_outcomes
 
 A **permutation** is an ordered arrangement. "ABC" and "CAB" are different permutations of the same three letters because the positions are different. The count of ways to arrange all *n* distinct items is *n!*, read "n factorial", and R computes it with `factorial()`.
 
-```r
+```r title="Factorial of five books"
 # Arrange five distinct books on a shelf
 factorial(5)
 #> [1] 120
@@ -113,7 +113,7 @@ Where:
 
 The intuition: you fill *k* slots, with *n*, *n−1*, *n−2*, … options at each step, stopping after *k* multiplications. The formula is a shortcut for that product.
 
-```r
+```r title="Permutation formula two ways"
 # 5 people, 3 chairs — how many seating orders?
 p_5_3_a <- factorial(5) / factorial(5 - 3)
 p_5_3_a
@@ -129,7 +129,7 @@ Both routes give 60. The first uses the permutation formula directly. The second
 
 To see every permutation explicitly, we can filter `expand.grid()` for rows with no duplicates. This is the base-R trick when you do not want to reach for a package.
 
-```r
+```r title="Enumerate every ordering of ABC"
 # List every ordering of A, B, C
 perm_abc <- expand.grid(pos1 = c("A", "B", "C"),
                         pos2 = c("A", "B", "C"),
@@ -153,7 +153,7 @@ Six rows, matching `factorial(3) = 6`. For small *n* this is fine, but it scales
 
 **Try it:** Use `factorial()` to compute P(10, 3), the number of ways to award gold, silver, and bronze medals to 10 athletes. Save as `ex_p`.
 
-```r
+```r title="Exercise: Permutation P(10, 3)"
 # Try it: permutation formula
 ex_p <- # your code here
 
@@ -164,7 +164,7 @@ ex_p
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Permutation P(10, 3) solution"
 ex_p <- factorial(10) / factorial(10 - 3)
 ex_p
 #> [1] 720
@@ -182,7 +182,7 @@ $$C(n, k) = \binom{n}{k} = \frac{n!}{k!\,(n - k)!}$$
 
 R computes it with `choose(n, k)`. No package needed.
 
-```r
+```r title="choose for team selection"
 # Pick a 3-person team from 5 candidates
 choose(5, 3)
 #> [1] 10
@@ -196,7 +196,7 @@ Ten teams. The formula adds a `k!` to the denominator of the permutation formula
 
 `choose()` tells you **how many**, but `combn()` gives you **the actual subsets**. `combn(x, m)` returns an m-by-C(n, m) matrix where each column is one combination.
 
-```r
+```r title="Enumerate teams with combn"
 # Enumerate every 3-person team from 5 candidates
 teams <- combn(c("Ava", "Bo", "Cy", "Di", "Ev"), 3)
 dim(teams)
@@ -224,7 +224,7 @@ Ten rows match `choose(5, 3)`. Order inside a row does not matter, `combn()` alw
 
 **Try it:** How many 5-card hands can be dealt from a standard 52-card deck? Save to `ex_hands`.
 
-```r
+```r title="Exercise: Five-card hands count"
 # Try it: combinations
 ex_hands <- # your code here
 
@@ -235,7 +235,7 @@ ex_hands
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Five-card hands solution"
 ex_hands <- choose(52, 5)
 ex_hands
 #> [1] 2598960
@@ -249,7 +249,7 @@ ex_hands
 
 The entire decision comes down to one question: **does order matter?** If yes, use permutations. If no, use combinations. Phrased differently, if swapping two items in the arrangement produces a different outcome for your problem, order matters.
 
-```r
+```r title="PIN versus committee contrast"
 # 3-digit PIN from 5 unique digits — order MATTERS (731 != 137)
 n_pins <- factorial(5) / factorial(5 - 3)
 n_pins
@@ -265,7 +265,7 @@ Same (n, k), wildly different counts. The PIN problem produces 60 arrangements b
 
 The relationship is exact: permutations over-count by the *k!* orderings within each combination.
 
-```r
+```r title="Identity linking P and C"
 # Identity: P(n,k) = k! * C(n,k)
 factorial(3) * choose(5, 3) == factorial(5) / factorial(5 - 3)
 #> [1] TRUE
@@ -278,7 +278,7 @@ This is why combinations are always smaller: they group all *k!* orderings of th
 
 **Try it:** Given 7 books on a shelf, how many ways can you arrange 3 of them left-to-right? Save as `ex_arrange`.
 
-```r
+```r title="Exercise: Arrange three from seven"
 # Try it: does order matter here?
 ex_arrange <- # your code here
 
@@ -289,7 +289,7 @@ ex_arrange
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Arrange three from seven solution"
 ex_arrange <- factorial(7) / factorial(7 - 3)
 ex_arrange
 #> [1] 210
@@ -316,7 +316,7 @@ Where:
 
 Factorials of 365 overflow `factorial()` in R. The fix is `lfactorial()`, the logarithm of the factorial, and exponentiating at the end.
 
-```r
+```r title="Birthday problem in log space"
 # Probability at least two out of n share a birthday
 bday_prob <- function(n) {
   log_p_no_match <- lfactorial(365) - lfactorial(365 - n) - n * log(365)
@@ -332,7 +332,7 @@ With 23 people, the probability is 0.5073, just over 50%. The function stays num
 
 Next, sweep *n* from 1 to 60 and find the first *n* where the probability crosses 0.5.
 
-```r
+```r title="Sweep n and find crossover"
 # Vectorise over group size
 probs_1_60 <- sapply(1:60, bday_prob)
 
@@ -349,7 +349,7 @@ Crossover happens at exactly 23 people. By 30 there is a 70% chance, and by 50 i
 
 The simulation route skips the formula entirely: sample birthdays, check for duplicates, and repeat thousands of times.
 
-```r
+```r title="Monte Carlo birthday 23 people"
 # Monte Carlo: 10,000 rooms of 23 people
 set.seed(2026)
 sim_p23 <- mean(replicate(10000, {
@@ -364,7 +364,7 @@ The simulation lands at 0.5063, within 0.001 of the analytic 0.5073, a strong va
 
 Finally, visualise the full curve with both methods overlaid. The base-R plot runs directly in the browser.
 
-```r
+```r title="Plot theory versus simulation"
 # Compare theory and simulation across group sizes
 set.seed(2026)
 ns <- 2:75
@@ -391,7 +391,7 @@ The simulated points sit almost exactly on the analytic curve. Dashed guides mar
 
 **Try it:** Modify `bday_prob()` so the year length is an argument `days` (default 365). Use it to find the crossover `n` for a leap year (`days = 366`). Save as `ex_crossover`.
 
-```r
+```r title="Exercise: Parametrise year length"
 # Try it: parametrise the year length
 bday_prob_gen <- function(n, days = 366) {
   # your code here
@@ -405,7 +405,7 @@ ex_crossover
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Parametrised year length solution"
 bday_prob_gen <- function(n, days = 366) {
   log_p_no_match <- lfactorial(days) - lfactorial(days - n) - n * log(days)
   1 - exp(log_p_no_match)
@@ -428,7 +428,7 @@ These capstones combine several ideas from the tutorial. Use variable names pref
 
 Compute the probability that a random 5-card hand from a standard 52-card deck is a flush, all five cards of the same suit. Combine `choose()` with the multiplication rule: pick a suit, then pick 5 cards from that suit. Save to `my_flush_prob`.
 
-```r
+```r title="Exercise: Flush probability setup"
 # Exercise 1: probability of a flush
 # Hint: 4 suits, each with 13 cards; divide by choose(52, 5)
 
@@ -439,7 +439,7 @@ Compute the probability that a random 5-card hand from a standard 52-card deck i
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Flush probability solution"
 my_flush_prob <- (4 * choose(13, 5)) / choose(52, 5)
 round(my_flush_prob, 5)
 #> [1] 0.00198
@@ -453,7 +453,7 @@ round(my_flush_prob, 5)
 
 Simulate the probability that in a room of 30 random people, at least **three** people share a birthday (not just two). The closed form is messy, so use simulation only: draw 30 birthdays, check whether any single birthday appears three or more times, repeat 10,000 times. Save to `my_triple_prob`.
 
-```r
+```r title="Exercise: Triple-birthday simulation"
 # Exercise 2: at least one triple
 # Hint: tabulate sampled birthdays and check max count >= 3
 
@@ -464,7 +464,7 @@ Simulate the probability that in a room of 30 random people, at least **three** 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Triple-birthday simulation solution"
 set.seed(1)
 my_triple_prob <- mean(replicate(10000, {
   b <- sample(365, 30, replace = TRUE)
@@ -482,7 +482,7 @@ round(my_triple_prob, 4)
 
 Count how many 4-digit PINs with distinct digits from 0-9 contain the digit 7 at least once. Generate all such PINs with `combn()` plus permutation, then filter. Save the count to `my_with7`.
 
-```r
+```r title="Exercise: PINs containing seven"
 # Exercise 3: PINs containing a 7
 # Hint: use combn() to pick the 4 digits, then expand.grid-style permute
 
@@ -493,7 +493,7 @@ Count how many 4-digit PINs with distinct digits from 0-9 contain the digit 7 at
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="PINs containing seven solution"
 # Total 4-digit PINs with distinct digits
 total_pins <- factorial(10) / factorial(10 - 4)
 
@@ -513,7 +513,7 @@ my_with7
 
 A data science bootcamp has 28 students per cohort. The instructor wants to open each class with the fact that two students probably share a birthday. Write one script that (a) estimates the probability analytically, (b) validates it by simulation, and (c) reports how many distinct pairs of students exist.
 
-```r
+```r title="End-to-end bootcamp birthday report"
 # 1. Analytic probability
 bday_prob_28 <- bday_prob(28)
 

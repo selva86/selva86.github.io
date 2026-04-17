@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Here it is in one breath: the **Law of Large Numbers (LLN)** tells you *where* the sample mean lands, and the **Central Limit Theorem (CLT)** tells you *how* sample means scatter around that landing spot. The cleanest way to feel the difference is to draw many samples from a skewed distribution and look at two pictures of the same simulation. The left watches a single running mean march toward the true value. The right stacks many independent sample means into a histogram.
 
-```r
+```r title="One path versus many sample means"
 set.seed(1)
 
 # LLN view: one long sequence, watch the running mean
@@ -63,7 +63,7 @@ The left plot's wiggly line settles on 1, that's LLN. The right plot's histogram
 
 **Try it:** Re-run the same simulation but draw sample means from samples of size 5 instead of 30. Look at the histogram width and explain in one sentence what changed.
 
-```r
+```r title="Exercise: wider distribution at n=5"
 # Try it: smaller n, wider sampling distribution
 set.seed(11)
 ex_means_5 <- replicate(5000, mean(rexp(5, rate = 1)))
@@ -77,7 +77,7 @@ sd(ex_means_5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="n=5 solution"
 set.seed(11)
 ex_means_5 <- replicate(5000, mean(rexp(5, rate = 1)))
 sd(ex_means_5)
@@ -106,7 +106,7 @@ A stronger version (the **Strong Law of Large Numbers**) replaces convergence in
 
 The simulation that makes the LLN feel real is the running proportion of heads in a biased coin flip. Set the true probability to 0.3 and watch the sample proportion home in on it.
 
-```r
+```r title="Running proportion of Bernoulli heads"
 set.seed(2)
 
 # Simulate 10,000 Bernoulli(0.3) trials
@@ -131,7 +131,7 @@ At n=10 the proportion is off by 0.10 from the truth. By n=10,000 the gap is dow
 
 **Try it:** Change the bias to `prob = 0.7` and predict before running where the line will settle.
 
-```r
+```r title="Exercise: verify convergence to 0.7"
 # Try it: predict the convergence target, then verify
 set.seed(22)
 ex_flips_7 <- rbinom(10000, size = 1, prob = 0.7)
@@ -144,7 +144,7 @@ ex_running_7[10000]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Convergence-to-0.7 solution"
 set.seed(22)
 ex_flips_7 <- rbinom(10000, size = 1, prob = 0.7)
 ex_running_7 <- cumsum(ex_flips_7) / seq_along(ex_flips_7)
@@ -176,7 +176,7 @@ Where:
 
 Visualise the convergence by drawing 5000 sample means at three different sample sizes from the same skewed parent (the exponential).
 
-```r
+```r title="Sample means at three sample sizes"
 set.seed(3)
 
 # 5000 sample means at three sample sizes
@@ -209,7 +209,7 @@ At n=2 the histogram is still visibly skewed, two exponentials averaged together
 
 **Try it:** Repeat the experiment with a uniform parent `runif(n, 0, 1)`. Predict whether the histograms become normal faster or slower than they did for the exponential.
 
-```r
+```r title="Exercise: uniform parent, n=5"
 # Try it: uniform parent, faster or slower convergence?
 set.seed(33)
 ex_unif_means <- replicate(5000, mean(runif(5, 0, 1)))
@@ -223,7 +223,7 @@ curve(dnorm(x, 0.5, sqrt(1/12) / sqrt(5)),
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Uniform-parent solution"
 set.seed(33)
 ex_unif_means <- replicate(5000, mean(runif(5, 0, 1)))
 mean(ex_unif_means); sd(ex_unif_means)
@@ -247,7 +247,7 @@ The two laws are not competing answers to the same question. They are two views 
 
 Make the link concrete by drawing the running mean from an exponential and overlaying the CLT-derived 95% band $\mu \pm 1.96 \cdot \sigma / \sqrt{n}$.
 
-```r
+```r title="Running mean inside CLT band"
 set.seed(4)
 run_clt <- rexp(10000, rate = 1)               # true mean = 1, sd = 1
 running_mean_4 <- cumsum(run_clt) / seq_along(run_clt)
@@ -285,7 +285,7 @@ The blue dashed band funnels in toward the red true-mean line, and the running m
 
 **Try it:** Compute the CLT half-band width at n=2500 by hand (using $\sigma=1$) and verify against the simulation's running standard error.
 
-```r
+```r title="Exercise: half-band at n=2500"
 # Try it: half-band = 1.96 * sigma / sqrt(n) at n=2500
 ex_se_2500 <- 1.96 * 1 / sqrt(2500)
 ex_se_2500
@@ -295,7 +295,7 @@ ex_se_2500
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Half-band solution"
 ex_se_2500 <- 1.96 * 1 / sqrt(2500)
 ex_se_2500
 #> [1] 0.0392
@@ -315,7 +315,7 @@ Both laws come with fine print. LLN needs the population mean to exist. CLT need
 
 Draw 10,000 Cauchy values, compute the running mean, and watch it refuse to settle.
 
-```r
+```r title="Cauchy breaks LLN; exponential does not"
 set.seed(5)
 
 # Heavy-tailed Cauchy vs well-behaved Exponential
@@ -350,7 +350,7 @@ The exponential running mean clamps onto 1 and never lets go. The Cauchy running
 
 **Try it:** Use a Student's t with `df=2` (heavy tail, finite mean but infinite variance). Predict whether LLN holds and whether CLT holds, then check.
 
-```r
+```r title="Exercise: Student-t with df=2"
 # Try it: t with df=2 — finite mean, infinite variance
 set.seed(55)
 ex_t2 <- rt(10000, df = 2)
@@ -363,7 +363,7 @@ ex_t2_run[c(100, 1000, 10000)]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="t(df=2) solution"
 set.seed(55)
 ex_t2 <- rt(10000, df = 2)
 ex_t2_run <- cumsum(ex_t2) / seq_along(ex_t2)
@@ -388,7 +388,7 @@ These capstone exercises combine the concepts from each section. They use distin
 
 Estimate the LLN convergence rate. Take a running mean of 50,000 draws from `rexp(rate = 2)` (true mean 0.5). Compute the absolute error from 0.5 at n = 100, 1000, and 10,000 and confirm the error shrinks by roughly a factor of $\sqrt{10}$ each time (the $1/\sqrt{n}$ rate).
 
-```r
+```r title="Exercise: LLN convergence rate"
 # Exercise: LLN convergence rate
 # Hint: cumsum(x) / seq_along(x), then index at the three sample sizes.
 
@@ -399,7 +399,7 @@ Estimate the LLN convergence rate. Take a running mean of 50,000 draws from `rex
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Convergence-rate solution"
 set.seed(101)
 my_x <- rexp(50000, rate = 2)
 my_running <- cumsum(my_x) / seq_along(my_x)
@@ -422,7 +422,7 @@ my_errors[2] / my_errors[3]
 
 Demonstrate CLT for a sample proportion. Simulate 5000 experiments where each experiment is 100 fair coin flips. The sample proportion is the count of heads divided by 100. Plot a histogram of the 5000 sample proportions and overlay the CLT-predicted normal $N(0.5, 0.05)$.
 
-```r
+```r title="Exercise: CLT for sample proportion"
 # Exercise: CLT for a sample proportion
 # Hint: rbinom(1, 100, 0.5) inside replicate(5000, ...) gives the count.
 
@@ -433,7 +433,7 @@ Demonstrate CLT for a sample proportion. Simulate 5000 experiments where each ex
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sample-proportion solution"
 set.seed(202)
 my_props <- replicate(5000, rbinom(1, 100, 0.5) / 100)
 
@@ -456,7 +456,7 @@ mean(my_props); sd(my_props)
 
 Investigate whether CLT applies to a Pareto distribution with shape $\alpha = 3$. Simulate it via $X = U^{-1/\alpha}$ where $U \sim$ Uniform(0,1). The distribution has finite mean $\alpha/(\alpha-1) = 1.5$ and finite variance only when $\alpha > 2$. Draw 5000 sample means of size 30, plot the histogram, and overlay the theoretical normal.
 
-```r
+```r title="Exercise: CLT for Pareto(alpha=3)"
 # Exercise: CLT for Pareto(alpha=3)
 # Hint: Pareto sample = U^(-1/alpha) for U ~ Uniform(0,1).
 # True mean = alpha/(alpha-1) = 1.5
@@ -469,7 +469,7 @@ Investigate whether CLT applies to a Pareto distribution with shape $\alpha = 3$
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pareto solution"
 set.seed(303)
 alpha <- 3
 true_mean <- alpha / (alpha - 1)        # 1.5
@@ -509,7 +509,7 @@ $$n = \left(\frac{1.96 \cdot \sigma}{E}\right)^2$$
 
 For a Bernoulli with `p ≈ 0.05` (a realistic conversion baseline), $\sigma \approx \sqrt{p(1-p)} \approx 0.218$. Pick a target margin of error of 0.2 percentage points (so we can distinguish a 0.5pp lift from zero with confidence).
 
-```r
+```r title="A/B test sample size from CLT"
 set.seed(42)
 
 # Inputs from the business problem

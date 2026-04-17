@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 R resolves every function name by walking an ordered chain of environments called the **search path**. If nothing along that chain defines the name, you get this error. The fastest way to make the error stop feeling mysterious is to reproduce it on purpose, catch it with `tryCatch()`, and then print the chain R actually searched.
 
-```r
+```r title="Reproduce the error and inspect search path"
 # Step 1 — reproduce the error deliberately and capture the message
 msg <- tryCatch(
   some_made_up_fn(1:5),
@@ -44,7 +44,7 @@ R started at `.GlobalEnv` (your workspace), then tried each attached package in 
 
 **Try it:** Use `search()` and `length()` to count how many environments are currently on the search path. Save the number to `ex_n_pkgs`.
 
-```r
+```r title="Exercise: count the search path"
 # Try it: count the search path
 ex_n_pkgs <- NA  # your code here
 ex_n_pkgs
@@ -54,7 +54,7 @@ ex_n_pkgs
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Search-path count solution"
 ex_n_pkgs <- length(search())
 ex_n_pkgs
 #> [1] 9
@@ -68,7 +68,7 @@ ex_n_pkgs
 
 Once you know the search path, the next question is: where does this function *actually* live? R has two small built-in helpers, `find()` and `getAnywhere()`, that tell you, and `apropos()` handles the case where you only remember part of the name.
 
-```r
+```r title="Locate a function with find"
 # Which attached package exports this function?
 find("mean")
 #> [1] "package:base"
@@ -92,7 +92,7 @@ apropos("^read\\.")
 
 **Try it:** Call `find()` on `"sd"` and save the result to `ex_sd_pkg`.
 
-```r
+```r title="Exercise: locate sd with find"
 # Try it: locate sd()
 ex_sd_pkg <- NULL  # your code here
 ex_sd_pkg
@@ -102,7 +102,7 @@ ex_sd_pkg
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="find-sd solution"
 ex_sd_pkg <- find("sd")
 ex_sd_pkg
 #> [1] "package:stats"
@@ -116,7 +116,7 @@ ex_sd_pkg
 
 When two packages export a function with the same name, the later-loaded one **masks** the earlier one. Your old code that called the first version now silently runs the second version, or crashes if the signatures differ. You can reproduce the exact same mechanic in a single session without loading anything, by defining a shadow function in the global environment.
 
-```r
+```r title="Masking base::mean in global env"
 # Shadow base::mean with a broken local version
 mean <- function(x) "oops, wrong function"
 mean(1:5)
@@ -141,7 +141,7 @@ The first call to `mean(1:5)` returns the string because `.GlobalEnv` sits at th
 
 **Try it:** Define a broken shadow of `sum` that always returns `0`, call it on `1:10`, then compute the real total with `base::sum()` and save it to `ex_total`.
 
-```r
+```r title="Exercise: shadow and recover sum"
 # Try it: shadow and recover
 sum <- function(x) 0  # your shadow here
 # call the shadow, then recover
@@ -153,7 +153,7 @@ ex_total
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Shadow-and-recover solution"
 sum <- function(x) 0
 sum(1:10)
 #> [1] 0
@@ -171,7 +171,7 @@ rm(sum)
 
 The `::` operator reaches straight into a package's namespace without attaching it to the search path. That makes it the right tool for one-off calls, for disambiguating masked functions, and for scripts you want to be self-documenting. Use `library()` when you need dozens of functions from the same package; use `::` when you only need one or when the reader should see exactly where a function came from.
 
-```r
+```r title="Use :: without loading the package"
 # Call a function without loading its package
 stats::median(c(3, 1, 4, 1, 5, 9, 2, 6))
 #> [1] 3.5
@@ -199,7 +199,7 @@ Each `::` call is resolved at the moment it runs, so it never pollutes your sear
 
 **Try it:** Use `base::nrow()` to get the row count of `mtcars` without loading anything, and save it to `ex_mt_rows`.
 
-```r
+```r title="Exercise: namespace-qualified nrow"
 # Try it: namespace-qualified call
 ex_mt_rows <- NA  # your code here
 ex_mt_rows
@@ -209,7 +209,7 @@ ex_mt_rows
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Namespace-qualified solution"
 ex_mt_rows <- base::nrow(mtcars)
 ex_mt_rows
 #> [1] 32
@@ -223,7 +223,7 @@ ex_mt_rows
 
 When the error appears in a script you cannot easily read line-by-line, run through these five questions in order. The first one whose answer is "no" is almost always the cause. R gives you the primitives to check each one in a single line.
 
-```r
+```r title="Five-question debug checklist"
 fn <- "mean"   # the function name from the error message
 pkg <- "stats" # your best guess at its package
 
@@ -255,7 +255,7 @@ Run the block above with `fn` and `pkg` set to whatever the error message said, 
 
 **Try it:** Check whether the `tibble` package is currently loaded in your session and save the logical result to `ex_has_tibble`.
 
-```r
+```r title="Exercise: check if tibble is loaded"
 # Try it: is tibble loaded right now?
 ex_has_tibble <- NA  # your code here
 ex_has_tibble
@@ -265,7 +265,7 @@ ex_has_tibble
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Loaded-namespace solution"
 ex_has_tibble <- "tibble" %in% loadedNamespaces()
 ex_has_tibble
 #> [1] FALSE
@@ -281,7 +281,7 @@ ex_has_tibble
 
 Build a function `dx_missing(name)` that takes a function name as a string and returns a character vector. The first element is a verdict, one of `"ok"`, `"installed-but-not-loaded"`, or `"not-found"`, and any remaining elements are up to five near-miss candidates from `apropos()`. Test it on `"mean"`, `"Read.csv"`, and `"zzz_nope"` and save the last result to `my_dx`.
 
-```r
+```r title="Exercise: write dxmissing helper"
 # Exercise: write dx_missing()
 # Hint: exists() handles the verdict; apropos() handles the near-misses.
 
@@ -296,7 +296,7 @@ my_dx
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="dxmissing solution"
 dx_missing <- function(name) {
   verdict <- if (exists(name, mode = "function")) {
     "ok"
@@ -327,7 +327,7 @@ my_dx
 
 Write `mask_check(fn_name)` that returns a character vector of every location currently offering a function with the given name, in search-path order. Use `getAnywhere()` and look at its `$where` component. Test it on `"filter"` after first defining a local `filter <- function(x) head(x, 3)`, save to `my_mask`, then clean up with `rm(filter)`.
 
-```r
+```r title="Exercise: write maskcheck helper"
 # Exercise: mask_check()
 # Hint: getAnywhere(fn_name)$where is exactly the vector you need.
 
@@ -343,7 +343,7 @@ my_mask
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="maskcheck solution"
 mask_check <- function(fn_name) {
   getAnywhere(fn_name)$where
 }
@@ -366,7 +366,7 @@ mask_check("filter")
 
 A reader's script fails with `could not find function "filter"`. The fix is a three-step walk: diagnose, try the wrong fix, then pick the right one. Below is the same reasoning chain in code.
 
-```r
+```r title="Debug a broken filter call"
 # The failing line is effectively this:
 #   filter(mtcars, mpg > 25)
 # But we captured the error first
@@ -384,7 +384,7 @@ getAnywhere("filter")$where
 
 Two namespaces on this machine export `filter`: `stats` (the attached one) and `dplyr` (installed but not loaded). The reader wanted dplyr's data-frame filter, not the stats time-series filter, so the right fix is `dplyr::filter`, not `stats::filter`.
 
-```r
+```r title="Fix with dplyr:: qualified call"
 # Step 2 — call the right one explicitly, no library() needed
 my_fixed <- dplyr::filter(mtcars, mpg > 25)
 nrow(my_fixed)

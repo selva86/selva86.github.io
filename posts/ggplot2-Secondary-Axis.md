@@ -36,7 +36,7 @@ The transformation must be strictly monotonic, every input maps to exactly one o
 
 Let's start with the simplest case: a single variable plotted with a unit-conversion secondary axis.
 
-```r
+```r title="Celsius primary, Fahrenheit on the right"
 library(ggplot2)
 
 # Sample temperature data in Celsius
@@ -66,7 +66,7 @@ The left axis shows Celsius. The right axis shows the same data converted to Fah
 
 **Try it:** Create a plot of distances in kilometres (use `data.frame(trip = 1:5, km = c(10, 25, 42, 8, 55))`) with a secondary axis that shows miles. The conversion is `miles = km * 0.621`.
 
-```r
+```r title="Exercise: km-to-miles secondary axis"
 # Try it: add a km-to-miles secondary axis
 trip_data <- data.frame(trip = 1:5, km = c(10, 25, 42, 8, 55))
 
@@ -85,7 +85,7 @@ print(ex_p1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="km-to-miles solution"
 trip_data <- data.frame(trip = 1:5, km = c(10, 25, 42, 8, 55))
 
 ex_p1 <- ggplot(trip_data, aes(x = trip, y = km)) +
@@ -112,7 +112,7 @@ The trick is a two-step process. First, rescale the second variable so it fits w
 
 Here is how to compute the linear transformation coefficients from the data.
 
-```r
+```r title="Compute scaling coefficient and offset"
 # Use the economics dataset (comes with ggplot2)
 econ <- economics[economics$date >= as.Date("2005-01-01"), ]
 
@@ -132,7 +132,7 @@ cat("Offset:", round(offset, 1), "\n")
 
 The coefficient tells you how many units of the primary variable correspond to one unit of the secondary variable. The offset aligns the minimums. Now plot both variables, scaling `psavert` into the `unemploy` range.
 
-```r
+```r title="Dual-variable line chart with secaxis"
 p_dual <- ggplot(econ, aes(x = date)) +
   geom_line(aes(y = unemploy), color = "steelblue", linewidth = 0.8) +
   geom_line(aes(y = psavert * coeff + offset), color = "tomato", linewidth = 0.8) +
@@ -154,7 +154,7 @@ The blue line reads off the left axis (unemployment). The red line reads off the
 
 **Try it:** Compute the coefficient and offset to plot `mtcars$mpg` (primary, left axis) against `mtcars$hp` (secondary, right axis). Print both values.
 
-```r
+```r title="Exercise: coefficient for mpg vs hp"
 # Try it: compute coeff and offset for mpg vs hp
 ex_coeff <- (max(mtcars$mpg) - min(mtcars$mpg)) /
             (max(mtcars$hp) - min(mtcars$hp))
@@ -169,7 +169,7 @@ cat("Offset:", round(ex_offset, 2), "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mpg-vs-hp solution"
 ex_coeff <- (max(mtcars$mpg) - min(mtcars$mpg)) /
             (max(mtcars$hp) - min(mtcars$hp))
 ex_offset <- min(mtcars$mpg) - ex_coeff * min(mtcars$hp)
@@ -190,7 +190,7 @@ A dual-axis plot without colour-coding is a puzzle. Readers stare at two lines a
 
 Use `theme()` to target the left and right axis elements separately.
 
-```r
+```r title="Color-code axis titles and ticks"
 p_styled <- ggplot(econ, aes(x = date)) +
   geom_line(aes(y = unemploy), color = "steelblue", linewidth = 0.8) +
   geom_line(aes(y = psavert * coeff + offset), color = "tomato", linewidth = 0.8) +
@@ -218,7 +218,7 @@ Now each axis visually matches its line. The blue title "Unemployed (thousands)"
 
 **Try it:** Modify the styled plot above so the right axis uses "darkgreen" instead of "tomato". Change the corresponding `geom_line()` colour to match.
 
-```r
+```r title="Exercise: change right axis to darkgreen"
 # Try it: change right axis to darkgreen
 ex_styled <- ggplot(econ, aes(x = date)) +
   geom_line(aes(y = unemploy), color = "steelblue", linewidth = 0.8) +
@@ -243,7 +243,7 @@ print(ex_styled)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="darkgreen-axis solution"
 ex_styled <- ggplot(econ, aes(x = date)) +
   geom_line(aes(y = unemploy), color = "steelblue", linewidth = 0.8) +
   geom_line(aes(y = psavert * coeff + offset), color = "darkgreen", linewidth = 0.8) +
@@ -273,7 +273,7 @@ Dual-axis plots have a bad reputation in the data visualization community, and m
 
 Watch what happens when we change the coefficient. The exact same data tells a completely different story.
 
-```r
+```r title="Tight scaling that misleads readers"
 # Misleading example: change the coefficient
 # Tight scaling — lines appear to move together
 coeff_tight <- 500
@@ -314,7 +314,7 @@ By shrinking the coefficient, the savings-rate line looks nearly flat and appear
 
 **Try it:** Create a faceted version of the unemployment/savings plot using `tidyr::pivot_longer()` and `facet_wrap()`. This avoids the dual-axis problem entirely.
 
-```r
+```r title="Exercise: faceted alternative to dual axis"
 # Try it: faceted alternative
 econ_long <- data.frame(
   date = rep(econ$date, 2),
@@ -336,7 +336,7 @@ print(ex_facet)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Faceted-alternative solution"
 econ_long <- data.frame(
   date = rep(econ$date, 2),
   variable = rep(c("Unemployed (thousands)", "Savings Rate (%)"),
@@ -362,7 +362,7 @@ print(ex_facet)
 
 Beyond `sec_axis()`, ggplot2 provides `dup_axis()`, a shorthand that mirrors the primary axis on the opposite side without any transformation.
 
-```r
+```r title="dupaxis mirrors the y-axis"
 # dup_axis: mirror the y-axis on the right
 p_dup <- ggplot(temp_data, aes(x = day, y = temp_c)) +
   geom_line(linewidth = 1, color = "steelblue") +
@@ -380,7 +380,7 @@ This is useful for wide plots or presentations where the audience sits far from 
 
 You can also add a secondary x-axis. The syntax is identical, but inside `scale_x_continuous()`.
 
-```r
+```r title="Secondary x-axis with offset labels"
 # Secondary x-axis: show row index on bottom, scaled value on top
 p_secx <- ggplot(temp_data, aes(x = day, y = temp_c)) +
   geom_line(linewidth = 1, color = "steelblue") +
@@ -401,7 +401,7 @@ The top x-axis shows each day number plus 10. In practice, secondary x-axes are 
 
 **Try it:** Add a top x-axis that mirrors the bottom x-axis using `dup_axis()` inside `scale_x_continuous()`.
 
-```r
+```r title="Exercise: mirrored top x-axis"
 # Try it: mirrored top x-axis
 ex_dup_x <- ggplot(temp_data, aes(x = day, y = temp_c)) +
   geom_line(linewidth = 1, color = "steelblue") +
@@ -418,7 +418,7 @@ print(ex_dup_x)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top-x-axis solution"
 ex_dup_x <- ggplot(temp_data, aes(x = day, y = temp_c)) +
   geom_line(linewidth = 1, color = "steelblue") +
   scale_x_continuous(
@@ -442,7 +442,7 @@ print(ex_dup_x)
 This is the most common error. You add a second `geom_line()` with the raw secondary variable, but both lines share the primary axis scale. One variable dominates the plot or is invisible.
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: raw variable ignores secaxis"
 # psavert ranges 2-8, unemploy ranges 6000-15000
 # psavert line is invisible at the bottom of the plot
 p_wrong1 <- ggplot(econ, aes(x = date)) +
@@ -460,7 +460,7 @@ print(p_wrong1)
 **Why it is wrong:** `psavert` values (2-8) are plotted on the same scale as `unemploy` (6000-15000). The red line hugs zero.
 
 ✅ **Correct:**
-```r
+```r title="Correct: rescale with coeff and offset"
 # Rescale psavert into the unemploy range
 p_fix1 <- ggplot(econ, aes(x = date)) +
   geom_line(aes(y = unemploy), color = "steelblue") +
@@ -480,7 +480,7 @@ print(p_fix1)
 `sec_axis()` requires a strictly monotonic function. A parabola (`~ .^2`) or sine wave is not monotonic across its full range and will produce incorrect or erroring output.
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: non-monotonic transformation"
 # This may produce warnings or incorrect axis labels
 # sec_axis(~ sin(.), name = "Sine") — non-monotonic!
 ```
@@ -494,7 +494,7 @@ print(p_fix1)
 The formula inside `sec_axis()` must be the exact inverse of the transformation applied to the data. If you scale the data by `* 1000` but set the axis to `~ . / 500`, the right-axis labels will be wrong.
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: mismatched axis formulas"
 # Data scaled by coeff + offset, but axis uses different values
 p_mismatch <- ggplot(econ, aes(x = date)) +
   geom_line(aes(y = psavert * 1000 + 5000), color = "tomato") +
@@ -517,7 +517,7 @@ print(p_mismatch)
 
 Plot the daily temperature from R's `airquality` dataset (May through September) with Fahrenheit on the left axis and Celsius on the right axis. Colour-code both axes. Add a title.
 
-```r
+```r title="Exercise: airquality temp in F and C"
 # Exercise 1: airquality temperature with F and C axes
 # Hint: Celsius = (Fahrenheit - 32) / 1.8
 # Use sec_axis() and theme() for axis colours
@@ -529,7 +529,7 @@ Plot the daily temperature from R's `airquality` dataset (May through September)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Airquality-dual-axis solution"
 aq <- airquality
 aq$day_index <- seq_len(nrow(aq))
 
@@ -560,7 +560,7 @@ print(ex1_p)
 
 Create a Pareto chart showing the count of cars by cylinder number (bar chart, left axis) and cumulative percentage (line, right axis). Sort bars from most to least frequent.
 
-```r
+```r title="Exercise: Pareto chart with cumulative line"
 # Exercise 2: Pareto chart
 # Hint: compute cumulative percentage, scale it into the count range
 # Use geom_col() for bars and geom_line() + geom_point() for cumulative %
@@ -572,7 +572,7 @@ Create a Pareto chart showing the count of cars by cylinder number (bar chart, l
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pareto-chart solution"
 library(dplyr)
 
 cyl_data <- mtcars |>
@@ -615,7 +615,7 @@ print(ex2_p)
 
 Here is a complete, polished dual-axis plot that combines everything from this tutorial: computed coefficients, colour-coded axes, clear labels, and a professional theme.
 
-```r
+```r title="Polished unemployment vs savings plot"
 # Complete example: US unemployment (left) vs savings rate (right)
 # Using economics dataset, post-2000
 

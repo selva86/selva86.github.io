@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Let's build that matrix and hit the error on purpose. We'll measure how singular it is with `det()` and `rcond()`, then call `solve()` inside `tryCatch()` so the error text prints instead of stopping the page.
 
-```r
+```r title="Reproduce the singular-matrix error"
 # Build a 3x3 matrix where column 2 is exactly twice column 1.
 X <- matrix(c(1, 2, 3,
               2, 4, 6,
@@ -56,7 +56,7 @@ The determinant is zero because column 2 is a scalar multiple of column 1, so th
 
 **Try it:** Compute the numerical rank of `X` using `qr(X)$rank` and store it in `ex_rank`. The rank should be less than `ncol(X)`, that's what "singular" means numerically.
 
-```r
+```r title="Exercise: numerical rank of X"
 # Try it: numerical rank of a singular matrix
 ex_rank <- NA  # your code here
 
@@ -68,7 +68,7 @@ c(rank = ex_rank, ncol = ncol(X))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Numerical-rank solution"
 ex_rank <- qr(X)$rank
 c(rank = ex_rank, ncol = ncol(X))
 #> rank ncol
@@ -85,7 +85,7 @@ The 3×3 toy above is easy to spot. Real bugs hide inside regression design matr
 
 Below, we simulate body-height data in both centimetres and metres. Both columns carry the same information (one is the other divided by 100), so the design matrix is guaranteed to be singular.
 
-```r
+```r title="Perfect collinearity in lm()"
 set.seed(2026)
 n <- 80
 height_cm <- rnorm(n, mean = 170, sd = 10)
@@ -109,7 +109,7 @@ tryCatch(solve(t(Xd) %*% Xd),
 
 **Try it:** Use `alias(fit)` to print the exact linear dependency between `height_cm` and `height_m`. The output shows which column was dropped and the coefficients of the dependency equation.
 
-```r
+```r title="Exercise: show the alias equation"
 # Try it: show the alias equation
 ex_alias <- NA  # your code here
 ex_alias
@@ -119,7 +119,7 @@ ex_alias
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Alias-equation solution"
 ex_alias <- alias(fit)$Complete
 ex_alias
 #>          (Intercept) height_cm
@@ -136,7 +136,7 @@ Knowing that a design matrix is singular is only half the job, you still want th
 
 We'll build a 5-column matrix where the fifth column is the sum of the first two, then ask `qr()` to locate it for us.
 
-```r
+```r title="Find the guilty column with QR"
 set.seed(7)
 n <- 50
 X5 <- cbind(
@@ -170,7 +170,7 @@ The rank is 4 on a 5-column matrix, which tells us exactly one column can be rem
 
 **Try it:** Drop the `redundant` column from `X5` and verify that `solve(t(X_fixed) %*% X_fixed)` succeeds. Store the fixed matrix in `ex_X_fixed`.
 
-```r
+```r title="Exercise: drop the redundant column"
 # Try it: drop the redundant column and invert X'X
 ex_X_fixed <- NA  # your code here
 
@@ -182,7 +182,7 @@ dim(solve(t(ex_X_fixed) %*% ex_X_fixed))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drop-redundant solution"
 ex_X_fixed <- X5[, qr_X$pivot[seq_len(qr_X$rank)]]
 dim(solve(t(ex_X_fixed) %*% ex_X_fixed))
 #> [1] 4 4
@@ -209,7 +209,7 @@ Where:
 
 Adding $\lambda I$ lifts the diagonal just enough to push every eigenvalue away from zero, which is exactly what `solve()` needs. Below, we build a 60×6 matrix where columns `a` and `b` are almost identical, close enough that `rcond()` reports a value near $10^{-8}$, then compute both fixes and compare the coefficients.
 
-```r
+```r title="Ridge penalty on near-singular data"
 library(MASS)
 
 set.seed(42)
@@ -248,7 +248,7 @@ The reciprocal condition number is so small that the naive `solve()` would refus
 
 **Try it:** Recompute the ridge coefficients with `lambda <- 1.0` and store the result in `ex_beta_ridge_big`. Larger lambda means more shrinkage toward zero.
 
-```r
+```r title="Exercise: stronger ridge penalty"
 # Try it: stronger ridge penalty
 ex_beta_ridge_big <- NA  # your code here
 
@@ -260,7 +260,7 @@ round(drop(ex_beta_ridge_big)[1:2], 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stronger-ridge solution"
 lambda_big <- 1.0
 ex_beta_ridge_big <- solve(
   t(X_near) %*% X_near + lambda_big * diag(ncol(X_near))
@@ -280,7 +280,7 @@ Categorical variables open a second route to singularity. If you expand a factor
 
 Let's build both versions on a 3-level factor and compare their ranks.
 
-```r
+```r title="Dummy-variable trap with factors"
 group <- factor(c("A", "A", "B", "B", "C", "C"))
 y_fac <- c(10, 12, 20, 22, 30, 32)
 
@@ -313,7 +313,7 @@ Both matrices have rank 3, but `X_bad` has 4 columns and `X_good` has 3. The fou
 
 **Try it:** Build the design matrix for a two-factor interaction `group * rep(c("pre","post"), 3)` and check its rank with `qr()$rank`. Store the matrix in `ex_X_inter`.
 
-```r
+```r title="Exercise: two-factor interaction matrix"
 # Try it: two-factor interaction design matrix
 time_fac <- factor(rep(c("pre", "post"), 3))
 ex_X_inter <- NA  # your code here
@@ -324,7 +324,7 @@ qr(ex_X_inter)$rank
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-factor interaction solution"
 ex_X_inter <- model.matrix(~ group * time_fac)
 dim(ex_X_inter)
 #> [1] 6 6
@@ -342,7 +342,7 @@ qr(ex_X_inter)$rank
 
 Write a function `my_diagnose(X)` that takes a numeric matrix, checks whether it's singular, finds the redundant columns if any, and returns a list with three fields: `rank`, `redundant_cols` (names of columns to drop), and `X_fixed` (the matrix with redundant columns removed). Test it on a matrix where `col3 = col1 + col2`.
 
-```r
+```r title="Exercise: build mydiagnose wrapper"
 # Exercise 1: diagnose-and-fix wrapper
 # Hint: use qr() and the pivot vector
 
@@ -362,7 +362,7 @@ my_diagnose(my_X)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mydiagnose solution"
 my_diagnose <- function(X) {
   qr_X <- qr(X)
   r <- qr_X$rank
@@ -395,7 +395,7 @@ dim(result$X_fixed)
 
 Write a function `my_ridge(X, y, lambda)` that implements ridge regression via the closed-form formula $\hat{\beta} = (X^TX + \lambda I)^{-1} X^T y$ and returns the coefficient vector. Compare your output against `MASS::lm.ridge(y ~ X - 1, lambda = lambda)` on the `X_near` dataset from the ridge section.
 
-```r
+```r title="Exercise: ridge regression from scratch"
 # Exercise 2: ridge regression from scratch
 my_ridge <- function(X, y, lambda) {
   # your code here
@@ -410,7 +410,7 @@ round(my_beta, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="myridge solution"
 my_ridge <- function(X, y, lambda) {
   p <- ncol(X)
   drop(solve(t(X) %*% X + lambda * diag(p)) %*% t(X) %*% y)
@@ -430,7 +430,7 @@ round(my_beta, 4)
 
 Write `safe_solve(A)` that tries `solve(A)` normally, but falls back to `MASS::ginv(A)` with a warning if the reciprocal condition number is below `1e-12`. The function should always return an inverse (or pseudoinverse), never throw an error.
 
-```r
+```r title="Exercise: safesolve fallback wrapper"
 # Exercise 3: safe solve wrapper
 safe_solve <- function(A) {
   # your code here
@@ -449,7 +449,7 @@ safe_solve(singular_A)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="safesolve solution"
 safe_solve <- function(A) {
   rc <- rcond(A)
   if (rc < 1e-12) {
@@ -481,7 +481,7 @@ safe_solve(singular_A)
 
 Let's walk through an end-to-end case that mirrors what you'd do on real data. We'll simulate 100 observations with 6 predictors where two predictors are near-copies of a third, detect the problem with `rcond()`, name the offender with `qr()`, and fix it two ways: drop-and-solve for the exact redundancy, and ridge for the remaining near-collinearity.
 
-```r
+```r title="End-to-end diagnose-and-fix workflow"
 # Step 1: simulate multicollinear data
 set.seed(2026)
 n_full <- 100

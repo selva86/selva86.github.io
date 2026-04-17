@@ -24,7 +24,7 @@ Every tibble below is a live R object -- edit the code in place, press Run, and 
 
 Salary articles love vague promises. Let's skip them. Here is the 2026 pay distribution for R-focused data science roles in the US, built from the same public sources hiring managers use -- Glassdoor, Levels.fyi, LinkedIn Salary Insights, and the Bureau of Labor Statistics. Load the bands into a tibble and you can see the floors, ceilings, and jumps between levels in one glance.
 
-```r
+```r title="Salary distribution by career level"
 # Load tidyverse pieces we'll use throughout the post
 library(dplyr)
 library(tibble)
@@ -56,7 +56,7 @@ The numbers are US base pay, pre-bonus, pre-equity. A Junior R analyst starts ar
 
 Pay jumps aren't uniform. Let's measure each step so you know where the money actually hides.
 
-```r
+```r title="Percent raise at each promotion"
 # How much does each promotion pay?
 pay_jumps <- salaries |>
   arrange(years) |>
@@ -85,7 +85,7 @@ The Junior-to-Mid jump is the single biggest percentage raise in a typical R dat
 
 **Try it:** Compute the percent raise from Mid to Senior using the `salaries` tibble. Save the result to `ex_raise`.
 
-```r
+```r title="Exercise: Mid-to-Senior raise"
 # Try it: percent raise from Mid median to Senior median
 ex_salaries <- salaries
 # your code here -- set ex_raise to the rounded percentage
@@ -98,7 +98,7 @@ ex_raise
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mid-to-Senior solution"
 mid    <- ex_salaries |> filter(level == "Mid")    |> pull(mid_k)
 senior <- ex_salaries |> filter(level == "Senior") |> pull(mid_k)
 ex_raise <- round((senior / mid - 1) * 100, 1)
@@ -119,7 +119,7 @@ R is not evenly loved. In tech-first companies, Python runs 80% of data science 
 
 Let's put numbers to the picture. The tibble below rates each industry on two things: the median Senior-level pay and an `R_share` score that estimates the fraction of data-science roles where R is the primary tool.
 
-```r
+```r title="R-share and salary by industry"
 industries <- tribble(
   ~industry,                  ~median_senior_k, ~R_share,
   "Pharma & Biotech",                     165,     0.62,
@@ -154,7 +154,7 @@ Clinical Research Orgs (CROs) and Pharma are where R is genuinely dominant -- cl
 
 Now let's isolate the roles where R gives you the biggest leg up -- industries with at least 55% R share.
 
-```r
+```r title="Filter R-dominant industries"
 r_heavy <- industries |>
   filter(R_share >= 0.55) |>
   arrange(desc(median_senior_k))
@@ -177,7 +177,7 @@ Five industries clear the 55% bar, and they span a $47k spread at the Senior lev
 
 **Try it:** From `industries`, keep only rows where `R_share > 0.5`, then arrange by `median_senior_k` descending. Save the result to `ex_r_dominant`.
 
-```r
+```r title="Exercise: filter R-dominant sectors"
 # Try it: filter + arrange
 ex_industries <- industries
 ex_r_dominant <- NA  # your code here
@@ -189,7 +189,7 @@ ex_r_dominant
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="R-dominant solution"
 ex_r_dominant <- ex_industries |>
   filter(R_share > 0.5) |>
   arrange(desc(median_senior_k))
@@ -212,7 +212,7 @@ ex_r_dominant
 
 "Proficient in R" on a resume fails the first ATS filter. Employers don't search for the language; they search for the *packages*, the *statistical methods*, and the *deployment pattern* they need on the team. The concrete skill names differ at every level, so let's map them out as a matrix instead of a list.
 
-```r
+```r title="Skills importance by career level"
 library(tidyr)
 
 skills_long <- tribble(
@@ -248,7 +248,7 @@ The matrix uses a 0-5 importance score per skill per level, where 5 means "this 
 
 Let's pull out exactly what a Senior candidate is being measured on.
 
-```r
+```r title="Senior must-have skills"
 senior_skills <- skills_long |>
   filter(level == "Senior", importance >= 4) |>
   arrange(desc(importance)) |>
@@ -275,7 +275,7 @@ Eight skills score 4 or 5 for a Senior R data scientist. Notice that "R package 
 
 **Try it:** Find the skills that are already important at the Junior level -- importance ≥ 4. Save to `ex_junior_skills`.
 
-```r
+```r title="Exercise: junior must-have skills"
 # Try it: Junior-level must-have skills
 ex_skills <- skills_long
 ex_junior_skills <- NA  # your code here
@@ -287,7 +287,7 @@ ex_junior_skills
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Junior-skills solution"
 ex_junior_skills <- ex_skills |>
   filter(level == "Junior", importance >= 4) |>
   select(skill, importance)
@@ -315,7 +315,7 @@ Each arrow is a promotion gate. Junior-to-Mid is gated on portfolio quality: can
 
 Now let's convert the ladder to real money over a realistic 10-year span -- assuming a typical 2-3-3-2 year cadence through the levels.
 
-```r
+```r title="Cumulative earnings at each level"
 career_earn <- salaries |>
   mutate(
     years_at_level = c(2, 3, 3, 2, 0),
@@ -345,7 +345,7 @@ $1.328 million in gross earnings over 10 years -- and that is *before* bonuses, 
 
 **Try it:** Recompute cumulative earnings assuming the reader stays 4 years at Mid instead of 3. Save the total to `ex_slower_total`.
 
-```r
+```r title="Exercise: slower career climb"
 # Try it: slower climb, more time at Mid
 ex_earn <- salaries |>
   mutate(years_at_level = c(2, 4, 3, 2, 0),
@@ -359,7 +359,7 @@ ex_slower_total
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Slower-climb solution"
 ex_slower_total <- sum(ex_earn$level_total_k)
 ex_slower_total
 #> [1] 1440
@@ -373,7 +373,7 @@ ex_slower_total
 
 Hiring managers don't read your resume first -- they read your GitHub. A portfolio that gets interviews has five ingredients, and you can grade any project against them. Let's build the scorecard as an R function so you can run it on your own work before submitting your next application.
 
-```r
+```r title="Portfolio scoring function"
 portfolio_score <- function(has_shiny_app     = FALSE,
                             has_package       = FALSE,
                             has_readme        = FALSE,
@@ -422,7 +422,7 @@ The function weights a deployed Shiny app highest because it proves three things
 
 **Try it:** Score a sample portfolio that has a Shiny app and a README but no tests, no package, and no real dataset. Save the result to `ex_my_score`.
 
-```r
+```r title="Exercise: score a portfolio"
 # Try it: score a starter portfolio
 ex_my_score <- NA  # call portfolio_score() with the right flags
 
@@ -435,7 +435,7 @@ ex_my_score$verdict
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Portfolio-score solution"
 ex_my_score <- portfolio_score(
   has_shiny_app    = TRUE,
   has_package      = FALSE,
@@ -461,7 +461,7 @@ These capstone exercises combine what you learned above. Both reuse the `salarie
 
 Join the idea of "R-dominant" (`R_share >= 0.5`) with the Senior-level pay column from `industries`. Find the single industry with the highest `median_senior_k` among R-dominant sectors and save its name to `my_top_industry`.
 
-```r
+```r title="Exercise: top R-dominant industry"
 # Exercise 1: highest-paying R-dominant industry at Senior
 # Hint: filter, then slice_max() on median_senior_k
 
@@ -474,7 +474,7 @@ my_top_industry
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top-industry solution"
 my_top_industry <- industries |>
   filter(R_share >= 0.5) |>
   slice_max(median_senior_k, n = 1) |>
@@ -492,7 +492,7 @@ my_top_industry
 
 Write `negotiation_floor(level, location_mult)` that returns the 40th percentile of the band for that level, multiplied by `location_mult`. Assume the 40th percentile sits 40% of the way from `low_k` to `high_k`. Test it on Senior in NYC (multiplier 1.25) -- you should see roughly $185,000.
 
-```r
+```r title="Exercise: negotiationfloor function"
 # Exercise 2: negotiation_floor()
 # Hint: look up the level's low_k and high_k in salaries,
 #       compute low_k + 0.4 * (high_k - low_k), then multiply.
@@ -508,7 +508,7 @@ negotiation_floor("Senior", 1.25)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="negotiationfloor solution"
 negotiation_floor <- function(level, location_mult) {
   row <- salaries |> filter(level == !!level)
   floor_k <- row$low_k + 0.4 * (row$high_k - row$low_k)
@@ -529,7 +529,7 @@ negotiation_floor("Mid", 0.9)
 
 A complete salary analysis in about 20 lines of R. This ties every previous block into one pipeline: take the raw bands, add cumulative earnings, join industry context, and plot the result with ggplot2.
 
-```r
+```r title="Plot the full salary ladder"
 library(ggplot2)
 
 career_plot <- salaries |>

@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Primitive functions are implemented directly in C with no R-level wrapper. They're the fastest operations in R:
 
-```r
+```r title="Inspect primitive functions with typeof"
 # These are all primitive functions
 cat("typeof(sum):", typeof(sum), "\n")
 cat("typeof(`+`):", typeof(`+`), "\n")
@@ -34,7 +34,7 @@ print(sum)
 print(`+`)
 ```
 
-```r
+```r title="Count primitive functions in base"
 # You can identify primitives by their type
 base_fns <- ls("package:base")
 primitives <- Filter(function(fn) is.primitive(get(fn, "package:base")), base_fns)
@@ -47,7 +47,7 @@ cat("\nSample primitives:", paste(head(primitives, 10), collapse = ", "), "\n")
 
 `.Internal()` calls C code that's compiled into R itself, but through a regular R function wrapper:
 
-```r
+```r title="Inspect grep body for .Internal"
 # Many base functions use .Internal internally
 # For example, paste() is an R function that calls .Internal(paste(...))
 
@@ -56,7 +56,7 @@ cat("body of grep:\n")
 print(body(grep))
 ```
 
-```r
+```r title="Classify primitive versus Internal functions"
 # The difference: .Primitive skips R overhead, .Internal goes through R dispatch
 cat("\nsum is primitive (no R wrapper):\n")
 print(sum)
@@ -82,7 +82,7 @@ for (fn in samples) {
 
 `.Call()` is the modern interface for R packages to call their own compiled C/C++ code:
 
-```r
+```r title="Explain .Call package interface"
 # Many CRAN packages use .Call for performance-critical code
 # For example, stringr/stringi use C++ for string operations
 
@@ -112,7 +112,7 @@ cat("Result sample:", result[1], "characters\n")
 | `.External()` | Package shared library | Older packages | Fast |
 | `.C()` | Package shared library | Legacy interface | Fast (limited types) |
 
-```r
+```r title="Classify how functions hit C code"
 # Quick way to see if a function hits C code
 check_function <- function(fn_name, pkg = "base") {
   fn <- get(fn_name, paste0("package:", pkg))

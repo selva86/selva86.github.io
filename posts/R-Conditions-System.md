@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Imagine a loop that processes a thousand rows and hits a bad one at row 43. Without a handler, the whole loop crashes and you lose the other 957 results. With one, you keep going and record the bad row. R's condition system is how you make that choice. Let's see it on a tiny example: a function that divides two numbers and a loop that should survive bad inputs.
 
-```r
+```r title="tryCatch around a strict divider"
 # A "strict" divider that refuses zero denominators
 safe_divide <- function(x, y) {
   if (y == 0) stop("denominator is zero")
@@ -52,7 +52,7 @@ The loop completes. Row 3 and row 5 would have crashed a naive version, but `try
 
 **Try it:** Write `ex_safe_log(x)` that returns `log(x)` when `x` is positive, and use `tryCatch()` so a non-positive input produces `NA_real_` instead of a crash.
 
-```r
+```r title="Exercise: wrap safelog with tryCatch"
 ex_safe_log <- function(x) {
   if (x <= 0) stop("x must be positive")
   log(x)
@@ -70,7 +70,7 @@ sapply(c(10, -1, 0, 2.5), ex_safe_call)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="safelog solution"
 ex_safe_call <- function(v) {
   tryCatch(ex_safe_log(v), error = function(e) NA_real_)
 }
@@ -91,7 +91,7 @@ R gives you three built-in ways to signal something unusual. They sit on a ladde
 
 Start with `message()`, the softest signal. It prints to the message stream (not `stdout`) and the function keeps running:
 
-```r
+```r title="message during normal execution"
 greet <- function(name) {
   message("greeting ", name)
   paste0("Hello, ", name, "!")
@@ -106,7 +106,7 @@ The message appears, then the returned string appears, execution never paused. M
 
 Next, `warning()`. A warning says "I did the thing you asked, but you should probably know about this":
 
-```r
+```r title="warning on silent coercion failures"
 coerce_numeric <- function(x) {
   out <- as.numeric(x)
   if (any(is.na(out) & !is.na(x))) warning("some values could not be converted")
@@ -124,7 +124,7 @@ The function still returns a vector. The caller gets the result *and* a heads-up
 
 Finally, `stop()` refuses to proceed:
 
-```r
+```r title="stop aborts with a custom message"
 require_positive <- function(x) {
   if (x < 0) stop("x must be non-negative, got ", x)
   sqrt(x)
@@ -143,7 +143,7 @@ require_positive(16)
 
 **Try it:** Write `ex_check_age(age)` that sends a `message()` if `age < 18`, a `warning()` if `age > 120`, and `stop()` if `age < 0`. Otherwise return the age unchanged.
 
-```r
+```r title="Exercise: signal by age range"
 ex_check_age <- function(age) {
   # your code here
 }
@@ -157,7 +157,7 @@ ex_check_age(30)   # expect no signal, return 30
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Age-range solution"
 ex_check_age <- function(age) {
   if (age < 0) stop("age cannot be negative")
   if (age < 18) message("minor: ", age)
@@ -186,7 +186,7 @@ ex_check_age(30)
 
 Let's start with the error branch. A common pattern is "try to parse this, and give me a default if it fails":
 
-```r
+```r title="Catch error with tryCatch handler"
 parse_positive <- function(txt) {
   n <- as.numeric(txt)
   if (is.na(n) || n <= 0) stop("not a positive number: ", txt)
@@ -203,7 +203,7 @@ The first call succeeds, so `tryCatch()` returns the parsed number. The second c
 
 You can catch warnings the same way. The handler replaces the result, which is useful when you want to treat "warn" as "fail":
 
-```r
+```r title="Escalate warning to failure"
 strict_parse <- function(txt) {
   tryCatch(
     coerce_numeric(txt),
@@ -226,7 +226,7 @@ The function `coerce_numeric()` (from earlier) raises a warning; `strict_parse()
 
 The `finally` argument runs no matter what, success, error, or warning. That makes it the right place for cleanup code:
 
-```r
+```r title="Guaranteed cleanup with finally"
 with_temp_file <- function() {
   path <- tempfile()
   writeLines("some data", path)
@@ -256,7 +256,7 @@ The temp file gets deleted whether the body succeeds or fails. `finally` is how 
 
 **Try it:** Wrap `parse_positive("bad")` in a `tryCatch()` that returns `0` on error. The handler should also log a short note via `message()` so you can see it fired.
 
-```r
+```r title="Exercise: return zero on parse error"
 # Reuse parse_positive from earlier
 ex_result <- tryCatch(
   parse_positive("bad"),
@@ -269,7 +269,7 @@ ex_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Zero-on-error solution"
 ex_result <- tryCatch(
   parse_positive("bad"),
   error = function(e) { message("handled: ", conditionMessage(e)); 0 }
@@ -292,7 +292,7 @@ ex_result
 
 Think of a car alarm. `tryCatch()` is the kind that kills the ignition when something's wrong, the car stops moving. `withCallingHandlers()` is the kind that beeps: you hear the warning, but the car keeps driving. For *logging*, auditing, or counting, you almost always want the beeping version.
 
-```r
+```r title="Log warnings without stopping execution"
 noisy_sum <- function(x) {
   if (any(is.na(x))) warning("NAs present, they will be dropped")
   sum(x, na.rm = TRUE)
@@ -316,7 +316,7 @@ warn_log
 
 There's a subtle catch, though. By default, a warning signaled via `withCallingHandlers()` still prints to the console after the handler runs, R considers the handler and the default print as independent steps. To silence the original warning after handling it, use `invokeRestart("muffleWarning")`:
 
-```r
+```r title="Muffle warnings with invokeRestart"
 warn_log <- character()
 total <- withCallingHandlers(
   noisy_sum(c(1, NA, 3, NA, 5)),
@@ -339,7 +339,7 @@ Same result, but the warning is now captured in `warn_log` only, nothing extra p
 
 **Try it:** Use `withCallingHandlers()` to count how many warnings `noisy_sum()` raises while still getting the sum.
 
-```r
+```r title="Exercise: count and muffle warnings"
 ex_warn_count <- 0
 ex_total <- withCallingHandlers(
   noisy_sum(c(NA, NA, 1)),
@@ -352,7 +352,7 @@ list(total = ex_total, count = ex_warn_count)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Warning-count solution"
 ex_warn_count <- 0
 ex_total <- withCallingHandlers(
   noisy_sum(c(NA, NA, 1)),
@@ -379,7 +379,7 @@ So far every condition has been a generic `simpleError`, `simpleWarning`, or `si
 
 R's conditions are just lists with a `class` attribute. The helpers `errorCondition()` and `warningCondition()` let you attach both a human message and structured fields that handlers can read programmatically.
 
-```r
+```r title="Custom errorCondition with class"
 bad_input_error <- function(field, value) {
   errorCondition(
     message = paste0("invalid value for ", field, ": ", value),
@@ -407,7 +407,7 @@ tryCatch(
 
 The real win comes when you dispatch on the class. `tryCatch()` walks its named handlers and matches *by S3 class*, so you can handle `bad_input_error` differently from a plain `error`:
 
-```r
+```r title="Class-based handler dispatch"
 handle_one <- function(expr) {
   tryCatch(
     expr,
@@ -437,7 +437,7 @@ Both errors end up at `NA_real_`, but the *handling* is different. The custom cl
 
 **Try it:** Build a `ex_timeout_error(elapsed)` constructor that creates a condition of class `timeout_error` carrying an `elapsed` field. Signal it and catch it by class.
 
-```r
+```r title="Exercise: build a timeouterror class"
 ex_timeout_error <- function(elapsed) {
   # your code here — return an errorCondition with class "timeout_error"
 }
@@ -453,7 +453,7 @@ ex_result
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Timeout-error solution"
 ex_timeout_error <- function(elapsed) {
   errorCondition(
     message = paste0("operation timed out after ", elapsed, " seconds"),
@@ -485,7 +485,7 @@ Write `robust_mean(x)` that returns the mean of a numeric vector. It must:
 - log any warning it encounters into a caller-provided `my_warn_log` vector (use `withCallingHandlers()` *inside* the `tryCatch()`)
 - still return the computed mean when the input is valid
 
-```r
+```r title="Exercise: robustmean combining handlers"
 # Exercise: combine tryCatch + withCallingHandlers
 # Hint: the outer layer is tryCatch (for recovery),
 # the inner layer is withCallingHandlers (for logging).
@@ -504,7 +504,7 @@ my_warn_log
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Robust-mean solution"
 my_warn_log <- character()
 
 robust_mean <- function(x) {
@@ -541,7 +541,7 @@ robust_mean("not numeric")
 
 Write `validate_user(name, age)` that signals a custom `validation_error` (classed) when an input is invalid. The condition must carry `field` (which input was bad) and `reason` (why). Write a caller that uses `tryCatch()` with class-based dispatch to pretty-print the error as `"invalid <field>: <reason>"`.
 
-```r
+```r title="Exercise: validationerror class dispatch"
 # Exercise: custom condition class + class dispatch
 
 validation_error <- function(field, reason) {
@@ -567,7 +567,7 @@ pretty_validate("Selva", -5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Validation-error solution"
 validation_error <- function(field, reason) {
   errorCondition(
     message = paste0("invalid ", field, ": ", reason),
@@ -611,7 +611,7 @@ pretty_validate("Selva", 30)
 
 Let's put it all together. We'll build `safe_loader(records)` that walks a list of hand-built records (simulating parsed CSV rows), skips the bad ones, logs every warning, and returns both the good data and a list of per-row errors, the kind of function you'd actually ship in a data pipeline.
 
-```r
+```r title="End-to-end safe record loader"
 # A custom class so we can tell parse errors apart from programmer bugs
 row_parse_error <- function(row, reason) {
   errorCondition(

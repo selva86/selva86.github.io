@@ -26,7 +26,7 @@ S3 classes are simple, you slap a class label onto a list and trust everyone to 
 
 Let's define a `Person` class with S4 and see what happens when we pass the wrong types.
 
-```r
+```r title="Define Person with typed slots"
 # Define an S4 class with typed slots
 setClass("Person",
   slots = c(
@@ -55,7 +55,7 @@ tryCatch(
 
 S4 caught the type mismatch *immediately*, before the object even existed. Now compare that to S3, which accepts anything without complaint.
 
-```r
+```r title="Show S3 without type safety"
 # S3 version — no type checking at all
 person_s3 <- list(name = "Bob", age = "thirty")
 class(person_s3) <- "Person_S3"
@@ -78,7 +78,7 @@ Here's when S4 makes sense over S3:
 
 **Try it:** Define an S4 class `ex_Book` with slots `title` (character) and `pages` (numeric). Create a valid book, then try creating one with pages as a string to see the error.
 
-```r
+```r title="Exercise: define Book class"
 # Try it: define ex_Book class
 setClass("ex_Book",
   slots = c(
@@ -97,7 +97,7 @@ setClass("ex_Book",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Book class"
 # Valid book
 my_book <- new("ex_Book", title = "R Programming", pages = 350)
 my_book
@@ -131,7 +131,7 @@ The `setClass()` function takes four key arguments. Think of it as filling out a
 
 Let's define an `Employee` class that builds on these concepts.
 
-```r
+```r title="Add prototype default values"
 # Define Employee with all setClass() arguments
 setClass("Employee",
   slots = c(
@@ -165,7 +165,7 @@ The prototype gives every slot a sensible default. This is particularly useful d
 
 Slot types can be any R class, including other S4 classes or the special type `"ANY"` that accepts anything.
 
-```r
+```r title="Use ANY slot for flexibility"
 # ANY slot accepts any type
 setClass("FlexObj",
   slots = c(
@@ -186,7 +186,7 @@ new("FlexObj", label = "text", data = "hello")@data
 
 **Try it:** Define an S4 class `ex_Car` with slots `make` (character), `year` (numeric), and `electric` (logical). Give it a prototype where `electric` defaults to `FALSE`. Create a Tesla Model 3 from 2024.
 
-```r
+```r title="Exercise: define Car class"
 # Try it: define ex_Car class
 setClass("ex_Car",
   slots = c(
@@ -206,7 +206,7 @@ setClass("ex_Car",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Car class"
 setClass("ex_Car",
   slots = c(
     make     = "character",
@@ -243,7 +243,7 @@ You already know `new()` creates objects. But in practice, you should wrap it in
 
 Let's first look at the inspection tools available.
 
-```r
+```r title="Create and inspect Employee object"
 # Create an Employee
 emp1 <- new("Employee", name = "Selva", salary = 85000, department = "Data Science")
 
@@ -269,7 +269,7 @@ These functions help you explore S4 objects interactively, especially useful whe
 
 Now here's the helper constructor pattern. Instead of exposing `new()` directly, write a function with a clear name and argument validation.
 
-```r
+```r title="Write an Employee constructor helper"
 # Helper constructor — the recommended pattern
 make_employee <- function(name, salary, department = "General") {
   if (!is.character(name) || nchar(name) == 0) {
@@ -301,7 +301,7 @@ The helper function gives you two layers of protection: your own argument checks
 
 **Try it:** Write a helper function `ex_make_employee(name, salary)` that creates an Employee but rejects negative salaries with a clear error message before calling new().
 
-```r
+```r title="Exercise: write constructor helper"
 # Try it: write the helper constructor
 ex_make_employee <- function(name, salary) {
   # your validation here
@@ -317,7 +317,7 @@ ex_make_employee("Test", 50000)@name
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: constructor helper"
 ex_make_employee <- function(name, salary) {
   if (salary < 0) stop("Salary cannot be negative")
   new("Employee", name = name, salary = salary)
@@ -341,7 +341,7 @@ tryCatch(
 
 S4 slots are accessed with the `@` operator (not `$`). You can also use the `slot()` function for programmatic access when the slot name is stored in a variable.
 
-```r
+```r title="Access slots with at and slot"
 # Direct access with @
 emp1@name
 #> [1] "Selva"
@@ -368,7 +368,7 @@ tryCatch(
 
 Direct `@` access works, but there's a serious catch: it bypasses your validity function (which we'll add in the next section). The professional approach is to define **accessor functions**, getter/setter pairs that control how users interact with your slots.
 
-```r
+```r title="Add get and set salary generics"
 # Define getter generic and method
 setGeneric("get_salary", function(x) standardGeneric("get_salary"))
 setMethod("get_salary", "Employee", function(x) x@salary)
@@ -397,7 +397,7 @@ The setter calls `validObject(x)` after the modification, this triggers any vali
 
 **Try it:** Write a getter generic `ex_get_salary` and a method for Employee that returns the salary slot.
 
-```r
+```r title="Exercise: write age getter"
 # Try it: define a getter
 setGeneric("ex_get_salary", function(x) standardGeneric("ex_get_salary"))
 
@@ -412,7 +412,7 @@ ex_get_salary(emp1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: age getter"
 setGeneric("ex_get_salary", function(x) standardGeneric("ex_get_salary"))
 setMethod("ex_get_salary", "Employee", function(x) x@salary)
 ex_get_salary(emp1)
@@ -429,7 +429,7 @@ Slot types catch wrong types (character instead of numeric), but they can't catc
 
 A validity function receives the object and returns `TRUE` if everything is fine, or a character vector of error messages if something is wrong.
 
-```r
+```r title="Add validity check to Employee"
 # Add validity checking to Employee
 setValidity("Employee", function(object) {
   errors <- character()
@@ -463,7 +463,7 @@ tryCatch(
 
 The validity function runs automatically when `new()` creates the object. But here's the critical gotcha, it does **not** run when you modify a slot with `@`:
 
-```r
+```r title="At access bypasses validity"
 # @ bypasses validity — this silently succeeds!
 emp3 <- new("Employee", name = "Test", salary = 50000, department = "General")
 emp3@salary <- -9999
@@ -489,7 +489,7 @@ This is why accessor functions matter. The `set_salary<-` method we defined earl
 
 **Try it:** Add a validity check to `ex_Book` that ensures `pages > 0` and `title` is non-empty. Then try creating a book with 0 pages.
 
-```r
+```r title="Exercise: Book validity rule"
 # Try it: add validity to ex_Book
 setValidity("ex_Book", function(object) {
   errors <- character()
@@ -508,7 +508,7 @@ tryCatch(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Book validity rule"
 setValidity("ex_Book", function(object) {
   errors <- character()
   if (object@pages <= 0) {
@@ -537,7 +537,7 @@ A **generic function** is a dispatcher, it looks at the class of its arguments a
 
 Think of it like a restaurant hostess. When a party walks in, the hostess (generic) looks at the reservation type (class) and seats them at the right table (method). The hostess doesn't cook, she just routes.
 
-```r
+```r title="Define describe generic and methods"
 # Step 1: Create the generic
 setGeneric("describe", function(object) {
   standardGeneric("describe")
@@ -566,7 +566,7 @@ The `standardGeneric("describe")` inside `setGeneric()` is a placeholder, it tel
 
 To customize how objects print, override the existing `show()` generic. Since `show` already exists in R, you only need `setMethod()`, no `setGeneric()` required.
 
-```r
+```r title="Override show for pretty printing"
 # Override show() for prettier printing
 setMethod("show", "Employee", function(object) {
   status <- if (object@active) "Active" else "Inactive"
@@ -605,7 +605,7 @@ existsMethod("describe", "data.frame")
 
 **Try it:** Define a generic `ex_summary_info` and a method for `ex_Book` that returns a string like "R Programming (350 pages)".
 
-```r
+```r title="Exercise: custom summary method"
 # Try it: define generic and method
 setGeneric("ex_summary_info", function(object) standardGeneric("ex_summary_info"))
 
@@ -621,7 +621,7 @@ ex_summary_info(ex_test_book)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: summary method"
 setGeneric("ex_summary_info", function(object) standardGeneric("ex_summary_info"))
 setMethod("ex_summary_info", "ex_Book", function(object) {
   paste0(object@title, " (", object@pages, " pages)")
@@ -642,7 +642,7 @@ Method dispatch is where S4 really earns its complexity budget. When you call a 
 
 Let's build a shape hierarchy to see this in action.
 
-```r
+```r title="Build a Shape class hierarchy"
 # Parent class
 setClass("Shape",
   slots = c(color = "character"),
@@ -703,7 +703,7 @@ R matched each object to its most specific method. The Ellipse got its own `area
 
 Now for S4's killer feature, **multiple dispatch**. A generic can choose its method based on the classes of *multiple* arguments, not just one.
 
-```r
+```r title="Dispatch on multiple arguments"
 # Multiple dispatch — combine() behaves differently based on BOTH arguments
 setGeneric("combine", function(a, b) standardGeneric("combine"))
 
@@ -734,7 +734,7 @@ S3 can only dispatch on the first argument. S4 examines the types of *all* liste
 
 Finally, `callNextMethod()` lets a child method invoke its parent's implementation, similar to `super()` in Python or Java.
 
-```r
+```r title="Call parent with callNextMethod"
 # describe() for shapes with callNextMethod()
 setGeneric("describe_shape", function(shape) standardGeneric("describe_shape"))
 
@@ -758,7 +758,7 @@ The Circle method calls `callNextMethod()` which runs Shape's `describe_shape()`
 
 **Try it:** Add a `describe_shape()` method to Ellipse that calls `callNextMethod()` to get Circle's description, then appends the semi-minor axis.
 
-```r
+```r title="Exercise: Ellipse with callNextMethod"
 # Try it: describe_shape for Ellipse using callNextMethod()
 # your code here
 
@@ -770,7 +770,7 @@ describe_shape(elli)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Ellipse callNextMethod"
 setMethod("describe_shape", "Ellipse", function(shape) {
   parent_desc <- callNextMethod()
   paste(parent_desc, "- ellipse with semi-minor", shape@semi_minor)
@@ -790,7 +790,7 @@ You've already seen `contains` for single inheritance. S4 also supports **virtua
 
 Virtual classes define an interface without implementation, they force child classes to provide their own slots and methods.
 
-```r
+```r title="Define virtual Vehicle class"
 # Virtual class — can't be instantiated directly
 setClass("Vehicle", contains = "VIRTUAL",
   slots = c(
@@ -832,7 +832,7 @@ Virtual classes are useful when you want to guarantee that every Vehicle has `ma
 
 **Class unions** let you group unrelated types so a slot can accept any of them. This is how you'd say "this slot accepts either a numeric or a character."
 
-```r
+```r title="Union numeric or character types"
 # Class union — accept multiple types in one slot
 setClassUnion("NumericOrCharacter", members = c("numeric", "character"))
 
@@ -872,7 +872,7 @@ Here's a quick decision guide for S4's structural features:
 
 **Try it:** Define a virtual class `ex_Animal` with slots `name` (character) and `sound` (character). Then define a concrete `ex_Dog` class that extends it and adds a `breed` slot. Show that you can create a Dog but not an Animal.
 
-```r
+```r title="Exercise: virtual Animal class"
 # Try it: virtual class + concrete child
 setClass("ex_Animal", contains = "VIRTUAL",
   slots = c(
@@ -894,7 +894,7 @@ setClass("ex_Animal", contains = "VIRTUAL",
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: virtual Animal"
 setClass("ex_Animal", contains = "VIRTUAL",
   slots = c(
     name  = "character",
@@ -932,7 +932,7 @@ is(ex_rex, "ex_Animal")
 
 Build a `Temperature` class with slots `value` (numeric) and `scale` (character, either `"C"` or `"F"`). Add validity checking, a `convert()` generic that converts between Celsius and Fahrenheit, and a custom `show()` method that displays like `"72.0°F"`.
 
-```r
+```r title="Exercise one: Temperature with convert"
 # Exercise 1: Build the Temperature class
 # Hint: validity should check that scale is "C" or "F"
 # Formulas: F = C * 9/5 + 32, C = (F - 32) * 5/9
@@ -954,7 +954,7 @@ Build a `Temperature` class with slots `value` (numeric) and `scale` (character,
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: Temperature convert"
 setClass("Temperature",
   slots = c(value = "numeric", scale = "character"),
   prototype = list(value = 0, scale = "C")
@@ -998,7 +998,7 @@ convert(convert(temp_c))
 
 Build a `Matrix2D` class with slots `data` (matrix), `nrow` (numeric), `ncol` (numeric). Add validity ensuring `nrow` and `ncol` match the actual matrix dimensions. Define an `add()` generic with multiple dispatch: `add(Matrix2D, Matrix2D)` does element-wise addition (dimensions must match), and `add(Matrix2D, numeric)` adds a scalar to every element.
 
-```r
+```r title="Exercise two: Matrix with add"
 # Exercise 2: Matrix2D with multiple dispatch
 # Hint: use signature() in setMethod for multiple dispatch
 
@@ -1020,7 +1020,7 @@ Build a `Matrix2D` class with slots `data` (matrix), `nrow` (numeric), `ncol` (n
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: Matrix add"
 setClass("Matrix2D",
   slots = c(data = "matrix", nrow = "numeric", ncol = "numeric")
 )
@@ -1082,7 +1082,7 @@ add(m1, 10)
 
 Build a class hierarchy: `PetAnimal` (virtual) → `Dog` and `PetAnimal` → `Cat`. Define a `greet()` generic with multiple dispatch so that `greet(Dog, Cat)` returns `"Rex barks at Whiskers"`, `greet(Cat, Dog)` returns `"Whiskers hisses at Rex"`, and `greet(Dog, Dog)` returns `"Rex and Buddy wag tails at each other"`.
 
-```r
+```r title="Exercise three: Pet hierarchy greet"
 # Exercise 3: Animal greetings with multiple dispatch
 # Hint: you need 3 setMethod() calls with different signatures
 
@@ -1104,7 +1104,7 @@ Build a class hierarchy: `PetAnimal` (virtual) → `Dog` and `PetAnimal` → `Ca
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: Pet hierarchy"
 setClass("PetAnimal", contains = "VIRTUAL",
   slots = c(name = "character")
 )
@@ -1145,7 +1145,7 @@ greet(rex, buddy)
 
 Let's build a complete banking system that uses everything we've learned: class hierarchy, validity checking, generics, methods, inheritance, and accessors.
 
-```r
+```r title="Capstone: Bank account hierarchy"
 # === Class Definitions ===
 
 setClass("BankAccount", contains = "VIRTUAL",

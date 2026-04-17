@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 When two classes share logic, say a DataSource and a CsvSource, copying code between them breaks the moment you fix a bug in one but forget the other. Inheritance solves this: define shared behavior once in a parent, then let children specialize. Let's build a parent-child pair and see how `super$` delegates back to the parent.
 
-```r
+```r title="Parent Animal and child Dog"
 library(R6)
 
 # Parent class
@@ -79,7 +79,7 @@ Dog never defines `speak()`, it inherits the method from Animal. The `inherit = 
 
 Now let's create another child to confirm the parent stays independent from each child's additions.
 
-```r
+```r title="Cat specialises with purr"
 Cat <- R6Class("Cat",
   inherit = Animal,
   public = list(
@@ -104,7 +104,7 @@ Cat adds `purr()` without affecting Dog. Each child specializes the parent in it
 
 **Try it:** Create a Bird child class that inherits from Animal, sets its sound to "Tweet", and adds a `fly()` method that prints "[name] takes flight!". Create one and call both `speak()` and `fly()`.
 
-```r
+```r title="Exercise: Bird class with fly"
 # Try it: create a Bird class
 Bird <- R6Class("Bird",
   inherit = Animal,
@@ -130,7 +130,7 @@ ex_bird$fly()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Bird solution"
 Bird <- R6Class("Bird",
   inherit = Animal,
   public = list(
@@ -159,7 +159,7 @@ ex_bird$fly()
 
 Sometimes a child needs to change what a parent method does, not just add new methods, but replace or wrap existing ones. This is **method overriding**. The `super$` reference lets the child call the parent's version when it still wants the original behavior as part of its own logic.
 
-```r
+```r title="Rectangle overrides describe"
 Shape <- R6Class("Shape",
   public = list(
     color = NULL,
@@ -225,7 +225,7 @@ Each `describe()` calls `super$describe()` first, then adds its own line. The ca
 
 Let's see that the child can also add entirely new methods that use inherited state without any overriding.
 
-```r
+```r title="Square inherits area"
 # Square inherits area() from Rectangle — no override needed
 cat("Square area:", sq$area(), "\n")
 #> Square area: 25
@@ -237,7 +237,7 @@ Square never defines `area()` or `color`, both come from Rectangle and Shape res
 
 **Try it:** Add a `perimeter()` method to Rectangle (it should return `2 * (width + height)`), then call it on `sq` to confirm Square inherits it automatically.
 
-```r
+```r title="Exercise: Rectangle perimeter method"
 # Try it: add perimeter to Rectangle
 Rectangle$set("public", "perimeter", function() {
   # your code here
@@ -251,7 +251,7 @@ sq$perimeter()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Perimeter solution"
 Rectangle$set("public", "perimeter", function() {
   2 * (self$width + self$height)
 })
@@ -268,7 +268,7 @@ sq$perimeter()
 
 When you build a class for others to use, not every piece of internal state should be accessible. Private fields and methods are hidden from code outside the class, only methods inside the class (using `private$`) can touch them. This means you can refactor internals later without breaking anyone's code.
 
-```r
+```r title="BankAccount with private fields"
 BankAccount <- R6Class("BankAccount",
   public = list(
     owner = NULL,
@@ -327,7 +327,7 @@ The `balance` and `history` fields live in `private`, outside code cannot read o
 
 Let's confirm that direct access from outside fails.
 
-```r
+```r title="Private access denied outside"
 # Trying to access private fields from outside
 tryCatch(
 
@@ -351,7 +351,7 @@ R6 enforces the boundary, private members simply don't exist from the outside. T
 
 **Try it:** Add a private field `transaction_count` (starting at 0) to BankAccount that increments in `log_transaction`, then add a public `get_tx_count()` method that returns it.
 
-```r
+```r title="Exercise: Transaction counter field"
 # Try it: add transaction counter
 BankAccount2 <- R6Class("BankAccount2",
   public = list(
@@ -386,7 +386,7 @@ ex_acct$get_tx_count()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Transaction counter solution"
 BankAccount2 <- R6Class("BankAccount2",
   public = list(
     initialize = function(owner) {
@@ -426,7 +426,7 @@ ex_acct$get_tx_count()
 
 Active bindings are the R6 equivalent of Python's `@property` decorator. They look like regular fields from the outside (`obj$area`), but behind the scenes they run a function. This lets you compute values on the fly, validate assignments, or cache expensive calculations, all invisible to the user of the class.
 
-```r
+```r title="Active binding for radius and area"
 Circle <- R6Class("Circle",
   private = list(
     .radius = NULL
@@ -477,7 +477,7 @@ The secret is the `missing(value)` check. When R evaluates `c1$area`, it calls t
 
 Let's see the validation in action.
 
-```r
+```r title="Set diameter updates radius"
 # Setting diameter updates radius automatically
 c1$diameter <- 14
 cat("New radius:", c1$radius, "\n")
@@ -507,7 +507,7 @@ Setting `diameter` to 14 automatically updates `radius` to 7, and `area` recalcu
 
 **Try it:** Add a `circumference` active binding to the Circle class that returns `2 * pi * radius`. Make it read-only.
 
-```r
+```r title="Exercise: Circumference active binding"
 # Try it: add circumference binding
 Circle2 <- R6Class("Circle2",
   private = list(.radius = NULL),
@@ -534,7 +534,7 @@ ex_c$circumference
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Circumference solution"
 Circle2 <- R6Class("Circle2",
   private = list(.radius = NULL),
   active = list(
@@ -565,7 +565,7 @@ ex_c$circumference
 
 When an R6 object manages external resources, a database connection, a temporary file, a network socket, you need a way to release them when the object is no longer needed. The `finalize()` method runs automatically when R's garbage collector reclaims the object.
 
-```r
+```r title="TempFile with finalize cleanup"
 TempFile <- R6Class("TempFile",
   public = list(
     path = NULL,
@@ -611,7 +611,7 @@ When `rm(tf)` removes the last reference and `gc()` runs, R6 calls `finalize()` 
 
 **Try it:** Modify the TempFile class to add a public `close()` method that calls the cleanup logic and a private `.closed` flag that prevents double-cleanup in `finalize()`.
 
-```r
+```r title="Exercise: close with cleanup guard"
 # Try it: add close() method with double-cleanup guard
 TempFile2 <- R6Class("TempFile2",
   public = list(
@@ -647,7 +647,7 @@ ex_tf$close()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="close guard solution"
 TempFile2 <- R6Class("TempFile2",
   public = list(
     path = NULL,
@@ -692,7 +692,7 @@ ex_tf$close()
 
 R6 has two class modes: **portable** (the default) and **non-portable**. The difference is how methods reference themselves and their private members.
 
-```r
+```r title="Portable versus non-portable classes"
 # Portable (default) — uses self$ and private$
 Portable <- R6Class("Portable",
   portable = TRUE,
@@ -730,7 +730,7 @@ Both produce the same result. The difference is readability and cross-package co
 
 **Try it:** Convert this non-portable class to portable by adding `self$` and `private$` where needed.
 
-```r
+```r title="Exercise: Rewrite Timer as portable"
 # Try it: convert to portable
 Timer <- R6Class("Timer",
   portable = FALSE,
@@ -765,7 +765,7 @@ ex_timer$elapsed()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Portable timer solution"
 TimerPortable <- R6Class("TimerPortable",
   public = list(
     start = function() {
@@ -799,7 +799,7 @@ Build a logging system with three classes:
 - `TimestampLogger` (child): overrides `log()` to prepend the current time before delegating to `super$log()`.
 - Add a private `finalize()` to Logger that prints "Logger closed with N entries."
 
-```r
+```r title="Exercise: Logger with entry count"
 # Exercise 1: Build the Logger hierarchy
 # Hint: use super$log() in the child to avoid duplicating buffer logic
 
@@ -810,7 +810,7 @@ Build a logging system with three classes:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Logger hierarchy solution"
 Logger <- R6Class("Logger",
   public = list(
     log = function(message) {
@@ -874,7 +874,7 @@ Build a shape system:
 
 Create one Rectangle(3, 4) and one Circle(5), call `describe()` and read `area` on each.
 
-```r
+```r title="Exercise: Shape hierarchy with area"
 # Exercise 2: Shape hierarchy
 # Hint: each child's area binding computes differently but the interface is the same
 
@@ -885,7 +885,7 @@ Create one Rectangle(3, 4) and one Circle(5), call `describe()` and read `area` 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Shape hierarchy solution"
 Shape <- R6Class("Shape",
   private = list(.color = "red"),
   active = list(
@@ -970,7 +970,7 @@ Create a Config class:
 - A public `set(key, value)` method that updates a setting (only if key exists)
 - An `EnvironmentConfig` child that overrides `initialize` to read settings from environment variables (use `Sys.getenv()` with fallback to parent defaults)
 
-```r
+```r title="Exercise: Config with read-only bindings"
 # Exercise 3: Config with read-only active bindings
 # Hint: active bindings can read from the private list using the binding name
 
@@ -981,7 +981,7 @@ Create a Config class:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Config solution"
 Config <- R6Class("Config",
   private = list(
     .settings = list(debug = FALSE, timeout = 30, retries = 3)
@@ -1041,7 +1041,7 @@ tryCatch(cfg$timeout <- 99, error = function(e) cat("Blocked:", e$message, "\n")
 
 Let's combine inheritance, private fields, active bindings, and finalize into a realistic class hierarchy, a data pipeline system.
 
-```r
+```r title="End-to-end data pipeline hierarchy"
 # Parent: base data source with connection management
 DataSource <- R6Class("DataSource",
   public = list(

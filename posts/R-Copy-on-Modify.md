@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Nothing. R binds the name `y` to the same memory that `x` already points to, no data is copied. You can prove it with `lobstr::obj_addr()`, which returns the memory address an R object lives at.
 
-```r
+```r title="Compare addresses with objaddr"
 # install.packages("lobstr")
 library(lobstr)
 
@@ -45,7 +45,7 @@ Same address. `x` and `y` are two names pointing to one vector. Assigning `y <- 
 
 The moment you modify one of the shared bindings. At that instant, R says "these two names can't share memory anymore" and duplicates the data so each has its own. You can watch it happen with `tracemem()`.
 
-```r
+```r title="Watch a copy happen with tracemem"
 x <- c(10, 20, 30, 40, 50)
 y <- x
 
@@ -71,7 +71,7 @@ The copy is lazy. If you never modify either binding, no copy ever happens. You 
 
 Same reason, copy-on-modify. When you call `f(big_df)`, R doesn't duplicate `big_df`. The argument `big_df` inside the function is just another name bound to the same memory. Only if the function **modifies** its argument does R make a copy.
 
-```r
+```r title="Function arguments share memory"
 library(lobstr)
 
 big <- 1:1e6
@@ -88,7 +88,7 @@ inspect_no_modify(big)
 
 The function received `big` as its argument `x`, both names pointing at the same million-element vector. No copy, `obj_addr(x)` inside the function returns the same address as `obj_addr(big)` outside it.
 
-```r
+```r title="Copy when function modifies argument"
 modify_inside <- function(x) {
   x[1] <- 99
   obj_addr(x)
@@ -108,7 +108,7 @@ The moment `x[1] <- 99` runs, R makes `x` its own copy *inside the function*. Th
 
 R's copy detection isn't perfect. In older R versions, certain operations would trigger copies even when nothing was really shared. Modern R (4.0+) is much smarter, but a few patterns still cost more than they should.
 
-```r
+```r title="Classic growing-vector pitfall"
 # Growing a vector in a loop — classic pitfall
 result <- c()
 for (i in 1:1000) {
@@ -118,7 +118,7 @@ for (i in 1:1000) {
 
 Every `c(result, i^2)` creates a new longer vector. Even if R is clever about some of these, the pattern fights copy-on-modify's assumptions. Pre-allocating fixes it completely:
 
-```r
+```r title="Pre-allocate to avoid copies"
 # Pre-allocate — one allocation, in-place writes
 result <- numeric(1000)
 for (i in 1:1000) {
@@ -131,7 +131,7 @@ Same outcome, dramatically less memory churn. The rule: if you know the final si
 [TIP]
 Use `lobstr::obj_size()` and `lobstr::mem_used()` to measure actual memory consumption. They account for sharing, `obj_size(x, y)` on two shared vectors is the size of *one*, not two.
 
-```r
+```r title="Measure memory with objsize"
 library(lobstr)
 
 x <- 1:1e6
@@ -151,7 +151,7 @@ Three calls, three identical numbers. `x` and `y` share memory, so their combine
 
 Yes, and it gets more interesting. Lists and data frames are containers, they hold references to their elements. When you modify one element, R has to decide whether to copy *just that element* or the whole container.
 
-```r
+```r title="Inspect sharing with ref"
 library(lobstr)
 
 df1 <- data.frame(a = 1:3, b = 4:6)
@@ -163,7 +163,7 @@ ref(df1, df2)
 
 `lobstr::ref()` prints a tree showing which objects share memory. When you run the above on recent R versions, you'll see both data frames sharing the same underlying column vectors. Now modify a column in `df2`:
 
-```r
+```r title="Column-level copy-on-modify"
 df2$a[1] <- 99
 
 ref(df1, df2)
@@ -182,7 +182,7 @@ In R versions before 4.0, modifying a data frame column could copy the *entire* 
 
 Use `lobstr::obj_addr()` and `tracemem()` to observe when R actually copies a vector.
 
-```r
+```r title="Exercise: observe a copy"
 library(lobstr)
 
 a <- c(1, 2, 3, 4, 5)
@@ -196,7 +196,7 @@ b <- a
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Observe a copy solution"
 library(lobstr)
 
 a <- c(1, 2, 3, 4, 5)
@@ -221,7 +221,7 @@ Write a function `peek(x)` that prints the length of `x` and returns `x` unchang
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="peek function no-copy solution"
 library(lobstr)
 
 peek <- function(x) {

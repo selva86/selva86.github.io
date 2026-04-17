@@ -23,7 +23,7 @@ difficulty: "Intermediate"
 
 Facets split a single plot into multiple panels, one per group, so patterns that hide behind overlapping colours become obvious. `facet_wrap()` handles one grouping variable and wraps panels into a flexible grid. `facet_grid()` maps two variables into a strict row-by-column matrix. Let's see both in action before you start the exercises.
 
-```r
+```r title="facetwrap and facetgrid basics"
 library(ggplot2)
 library(dplyr)
 
@@ -56,7 +56,7 @@ Each class gets its own visual space. Without faceting, these seven groups would
 
 **Try it:** Create a boxplot of `hwy` grouped by `drv` (drive type), then facet it by `drv` as well. Which drive type has the highest median highway MPG?
 
-```r
+```r title="Exercise: Boxplot per drive type"
 # Try it: faceted boxplot by drive type
 ggplot(mpg, aes(x = drv, y = hwy)) +
   geom_boxplot() +
@@ -68,7 +68,7 @@ ggplot(mpg, aes(x = drv, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drive boxplot solution"
 ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_boxplot(show.legend = FALSE) +
   facet_wrap(~drv) +
@@ -92,7 +92,7 @@ These first two exercises build your muscle memory for the most common faceting 
 
 **Task:** Create a scatter plot of `displ` (x) vs `hwy` (y), faceted by `cyl` (number of cylinders). Add the title "Highway MPG vs Engine Size by Cylinders" and label axes "Engine Displacement (L)" and "Highway MPG". Colour all points `"coral"`.
 
-```r
+```r title="Exercise: Scatter by cylinder count"
 # Exercise 1: scatter faceted by cylinder count
 ggplot(mpg, aes(x = displ, y = hwy)) +
   # your code here
@@ -105,7 +105,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cylinder scatter solution"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(color = "coral", alpha = 0.7) +
   facet_wrap(~cyl) +
@@ -131,7 +131,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 **Task:** Count the number of vehicles per `class`, then create a faceted bar chart split by `drv` (drive type). Use `coord_flip()` for horizontal bars and `scales = "free_y"` so each panel shows only its manufacturers.
 
-```r
+```r title="Exercise: Class bars by drive"
 # Exercise 2: bar chart faceted by drive type
 # Hint: count(class, drv), then ggplot + geom_col + facet_wrap + coord_flip
 my_counts <- mpg |>
@@ -147,7 +147,7 @@ ggplot(my_counts, aes(x = reorder(class, n), y = n)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Class bar solution"
 my_counts <- mpg |>
   count(class, drv)
 
@@ -175,7 +175,7 @@ ggplot(my_counts, aes(x = reorder(class, n), y = n)) +
 
 **Try it:** Facet the `diamonds` dataset by `cut`, showing a scatter of `carat` (x) vs `price` (y) with `alpha = 0.1`. Which cut has the widest carat range?
 
-```r
+```r title="Exercise: Diamonds faceted by cut"
 # Try it: diamonds faceted by cut
 set.seed(42)
 ex_dia <- diamonds |> sample_n(3000)
@@ -189,7 +189,7 @@ ggplot(ex_dia, aes(x = carat, y = price)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Diamonds cut solution"
 set.seed(42)
 ex_dia <- diamonds |> sample_n(3000)
 ggplot(ex_dia, aes(x = carat, y = price)) +
@@ -215,7 +215,7 @@ Layout arguments, `ncol`, `nrow`, and `dir`, give you precise control over how p
 
 **Task:** Create a scatter plot of `displ` (x) vs `hwy` (y), faceted by `class` (7 levels). Force a 2-column layout with vertical wrapping (`dir = "v"`). Add the title "7 Classes in 2 Columns (vertical fill)".
 
-```r
+```r title="Exercise: Two columns vertical fill"
 # Exercise 3: custom layout
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(color = "darkgreen", alpha = 0.7) +
@@ -227,7 +227,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Vertical fill solution"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(color = "darkgreen", alpha = 0.7) +
   facet_wrap(~class, ncol = 2, dir = "v") +
@@ -252,7 +252,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 **Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Use `facet_grid(drv ~ cyl)` to create a drive-type-by-cylinder matrix. Add a linear trend line (`geom_smooth(method = "lm", se = FALSE)`) coloured `"tomato"` to each panel.
 
-```r
+```r title="Exercise: Drive by cylinder grid"
 # Exercise 4: facet_grid matrix with trend lines
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.5) +
@@ -266,7 +266,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drive cylinder grid solution"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.5) +
   geom_smooth(method = "lm", se = FALSE, color = "tomato", linewidth = 0.8) +
@@ -292,7 +292,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 **Try it:** Create a single-row horizontal strip with `facet_wrap(~drv, nrow = 1)` showing `displ` vs `hwy`. When does a filmstrip layout work well?
 
-```r
+```r title="Exercise: Single-row filmstrip layout"
 # Try it: single-row strip
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.7) +
@@ -304,7 +304,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Filmstrip solution"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(color = "purple", alpha = 0.7) +
   facet_wrap(~drv, nrow = 1) +
@@ -328,7 +328,7 @@ Fixed scales (the default) make cross-panel comparison easy, the same position m
 
 **Task:** Create a line chart of `date` (x) vs `value` (y), faceted by `variable`. Stack the panels vertically (`ncol = 1`) with `scales = "free_y"`. Add custom strip labels: "pce" → "Personal Consumption", "pop" → "Population", "psavert" → "Savings Rate (%)", "uempmed" → "Median Unemployment (wks)", "unemploy" → "Total Unemployed".
 
-```r
+```r title="Exercise: Free-scale economic panels"
 # Exercise 5: free scales + custom labels for economic data
 # Hint: as_labeller for strip labels, facet_wrap with ncol=1 and scales="free_y"
 
@@ -347,7 +347,7 @@ ggplot(economics_long, aes(x = date, y = value)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Economic panels solution"
 my_econ_labels <- as_labeller(c(
   "pce" = "Personal Consumption",
   "pop" = "Population",
@@ -380,7 +380,7 @@ ggplot(economics_long, aes(x = date, y = value)) +
 
 **Try it:** Plot histograms of `hwy` from `mpg`, faceted by `drv`, with `scales = "free"`. Then re-run with `scales = "fixed"`. Which makes it easier to compare distributions?
 
-```r
+```r title="Exercise: Free versus fixed histograms"
 # Try it: free vs fixed histogram comparison
 ggplot(mpg, aes(x = hwy)) +
   geom_histogram(bins = 15, fill = "tomato", alpha = 0.7) +
@@ -394,7 +394,7 @@ ggplot(mpg, aes(x = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Free scales solution"
 # Free scales
 ggplot(mpg, aes(x = hwy)) +
   geom_histogram(bins = 15, fill = "tomato", alpha = 0.7) +
@@ -426,7 +426,7 @@ Strip labels are the grey text bars above each panel. By default, they show raw 
 
 **Task:** Create a scatter plot of `displ` (x) vs `hwy` (y), faceted by `cyl`. Use `as_labeller()` to rename strips: "4" → "4 Cylinders", "5" → "5 Cylinders", "6" → "6 Cylinders", "8" → "8 Cylinders". Style strip text as bold white (`size = 11`) on a `"#2c3e50"` (dark blue) background. Add `panel.spacing = unit(1, "lines")` for breathing room.
 
-```r
+```r title="Exercise: Custom cylinder strip labels"
 # Exercise 6: custom labels + styled strips
 my_cyl_labels <- as_labeller(c(
   # your code here
@@ -446,7 +446,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Strip labels solution"
 my_cyl_labels <- as_labeller(c(
   "4" = "4 Cylinders",
   "5" = "5 Cylinders",
@@ -482,7 +482,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 **Try it:** Use `label_both` as the labeller on a `facet_grid(drv ~ cyl)` plot. How does the output differ from default labels?
 
-```r
+```r title="Exercise: labelboth on facetgrid"
 # Try it: label_both in facet_grid
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.6) +
@@ -495,7 +495,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="labelboth solution"
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.6) +
   facet_grid(drv ~ cyl, labeller = label_both) +
@@ -520,7 +520,7 @@ The most powerful faceting techniques combine panels with layered geoms. Backgro
 
 **Task:** Create a faceted scatter plot by `class`. Show all vehicles as a grey background layer (`color = "grey85"`, `alpha = 0.3`), the current class's vehicles in `"steelblue"`, and add a `geom_smooth(method = "lm")` trend line per panel. Remove the legend.
 
-```r
+```r title="Exercise: Background data per class"
 # Exercise 7: background data technique
 # Hint: create a background df without the faceting variable (select(-class))
 # Layer: grey background points → coloured foreground points → trend line
@@ -537,7 +537,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Background data solution"
 my_mpg_bg <- mpg |> select(-class)
 
 ggplot(mpg, aes(x = displ, y = hwy)) +
@@ -577,7 +577,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 - Styled strips: bold text, `"grey95"` background
 - Legend at bottom, title "Drive Type × Cylinders with Margins"
 
-```r
+```r title="Exercise: facetgrid with margins"
 # Exercise 8: facet_grid margins + polished output
 # Hint: custom labeller for both row and column variables
 #   Use labeller = labeller(drv = drv_map, cyl = cyl_map)
@@ -595,7 +595,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Margins labeller solution"
 my_drv_map <- c("4" = "4WD", "f" = "Front-Wheel", "r" = "Rear-Wheel", "(all)" = "All Drives")
 my_cyl_map <- c("4" = "4 Cyl", "5" = "5 Cyl", "6" = "6 Cyl", "8" = "8 Cyl", "(all)" = "All Cyl")
 
@@ -628,7 +628,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 **Try it:** Add a horizontal dashed reference line at `mean(mpg$hwy)` to a `facet_wrap(~class)` scatter plot. Does the line appear in every panel?
 
-```r
+```r title="Exercise: Reference line across panels"
 # Try it: reference line across panels
 my_mean_hwy <- mean(mpg$hwy)
 ggplot(mpg, aes(x = displ, y = hwy)) +
@@ -641,7 +641,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Reference line solution"
 my_mean_hwy <- mean(mpg$hwy)
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(color = "steelblue", alpha = 0.7) +

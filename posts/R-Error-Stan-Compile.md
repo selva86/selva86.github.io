@@ -24,7 +24,7 @@ Before chasing fixes, pin down *what* RStan is trying to do when it fails. RStan
 
 Here's a self-contained `diagnose_rstan_toolchain()` helper you can drop into any R session. It inspects the five things that fail most often and returns a PASS/FAIL report:
 
-```r
+```r title="Diagnose the RStan toolchain"
 diagnose_rstan_toolchain <- function() {
   checks <- list()
 
@@ -79,7 +79,7 @@ Read the report top-to-bottom. Any `FALSE` points at the exact link in the chain
 
 **Try it:** Extend `diagnose_rstan_toolchain()` so it also reports the installed `StanHeaders` version (or "not installed"). Use `packageVersion()` inside a `tryCatch()`.
 
-```r
+```r title="Try it: Add StanHeaders version check"
 # Try it: add a stanheaders_version field to the checks list
 ex_diag <- function() {
   checks <- diagnose_rstan_toolchain()
@@ -94,7 +94,7 @@ ex_diag()$stanheaders_version
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="StanHeaders check solution"
 ex_diag <- function() {
   checks <- diagnose_rstan_toolchain()
   checks$stanheaders_version <- tryCatch(
@@ -118,7 +118,7 @@ Windows is where most compile failures happen, and the cause is almost always th
 
 Start by checking whether Rtools is even reachable. `Sys.which("make")` returns an empty string when it isn't, and `pkgbuild::has_build_tools()` is the robust alternative if you have `pkgbuild` installed:
 
-```r
+```r title="Check whether make is on PATH"
 # Works on any R install — returns "" if make is missing
 make_path <- Sys.which("make")
 rtools_ok <- nzchar(make_path)
@@ -135,7 +135,7 @@ An empty `make_path` means "no Rtools". Install it from [cran.r-project.org/bin/
 
 With Rtools present, the next failure mode is `Makevars.win`. Modern RStan (2.26+) requires C++17; a `.R/Makevars.win` file left over from RStan 2.21 will still have `CXX14FLAGS` lines and break the build. Here's a known-good template, the block is a plain character vector you can write to disk with `writeLines()`:
 
-```r
+```r title="Windows Makevars.win template"
 makevars_win <- c(
   "CXX17FLAGS = -O3 -mtune=native -mmmx -msse -msse2 -mssse3 -mfpmath=sse",
   "CXX17 = $(BINPREF)g++ -m$(WIN) -std=c++17",
@@ -155,7 +155,7 @@ In your local R session, write that to disk with `writeLines(makevars_win, file.
 
 **Try it:** Modify `makevars_win` so the first line uses `-O2 -mtune=native` instead of the full optimization flag list. This is a safer default for older laptops that crash during heavy optimization.
 
-```r
+```r title="Try it: Tamer CXX17FLAGS line"
 # Try it: build ex_makevars with a tamer first line
 ex_makevars <- c(
   # your code here: replace the CXX17FLAGS line
@@ -170,7 +170,7 @@ ex_makevars[1]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tamer flags solution"
 ex_makevars <- c(
   "CXX17FLAGS = -O2 -mtune=native",
   "CXX17 = $(BINPREF)g++ -m$(WIN) -std=c++17",
@@ -191,7 +191,7 @@ Mac failures come in two flavours: missing Xcode Command Line Tools (easy), and 
 
 First, detect your architecture so you write the right paths. R exposes it via `R.version$arch`:
 
-```r
+```r title="Detect Mac architecture and Makevars path"
 mac_arch <- R.version$arch
 mac_makevars_path <- file.path(Sys.getenv("HOME"), ".R", "Makevars")
 
@@ -205,7 +205,7 @@ list(arch = mac_arch, makevars_path = mac_makevars_path)
 
 `aarch64` means Apple Silicon (M1/M2/M3/M4); `x86_64` means Intel. The official [R Project macOS tools page](https://mac.r-project.org/tools/) ships a custom clang + gfortran bundle that includes OpenMP support. Install it first, then point `Makevars` at the new compilers:
 
-```r
+```r title="Apple Silicon Makevars block"
 # A complete arm64 Makevars block that routes around Apple clang
 makevars_mac <- c(
   "CC = /opt/R/arm64/bin/clang",
@@ -230,7 +230,7 @@ For Intel Macs, swap `/opt/R/arm64/` for `/opt/R/x86_64/` and `arm64` for `x86_6
 
 **Try it:** Write a function `ex_mac_makevars(arch)` that returns the right Makevars block for either `"arm64"` or `"x86_64"`. Use `sub()` to swap the architecture in the paths.
 
-```r
+```r title="Try it: Parameterize Mac Makevars"
 # Try it: parameterize the Mac Makevars template by architecture
 ex_mac_makevars <- function(arch) {
   # your code here: return a character vector like makevars_mac
@@ -243,7 +243,7 @@ ex_mac_makevars("x86_64")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Parameterized Mac Makevars solution"
 ex_mac_makevars <- function(arch) {
   stopifnot(arch %in% c("arm64", "x86_64"))
   c(
@@ -273,7 +273,7 @@ Once Rtools and Makevars are in order, the next most common failure is a version
 
 Start with a version check. Major.minor should match, the patch digit can differ:
 
-```r
+```r title="Check rstan and StanHeaders versions match"
 rstan_ver <- tryCatch(packageVersion("rstan"), error = function(e) NULL)
 sh_ver    <- tryCatch(packageVersion("StanHeaders"), error = function(e) NULL)
 
@@ -295,7 +295,7 @@ list(rstan = as.character(rstan_ver),
 
 A `match_ok = FALSE` or an empty version string means you need a clean reinstall. The official recipe is four steps: remove both packages, **restart R completely**, reinstall from the stan-dev r-universe (which always ships the coordinated release), and verify by compiling a trivial model.
 
-```r
+```r title="Four-step clean reinstall"
 # Run these four steps in your LOCAL R session, not here
 remove.packages(c("rstan", "StanHeaders"))
 
@@ -317,7 +317,7 @@ If the trivial model compiles, every real model you already wrote will too. If i
 
 **Try it:** Extend the version check to also verify `BH` and `RcppEigen` are installed. These are upstream dependencies of StanHeaders and a missing one produces a compile error that looks identical to a version mismatch.
 
-```r
+```r title="Try it: List four dependency versions"
 # Try it: build ex_deps with four version fields
 ex_deps <- list(
   rstan = as.character(packageVersion("rstan")),
@@ -332,7 +332,7 @@ names(ex_deps)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dependency versions solution"
 safe_ver <- function(pkg) {
   tryCatch(as.character(packageVersion(pkg)), error = function(e) "not installed")
 }
@@ -358,7 +358,7 @@ After three toolchain fights in a row, most Stan users eventually ask whether th
 
 Installation is a one-time ritual: install the R package, then call `install_cmdstan()` to download and build CmdStan itself (takes a few minutes, no further config):
 
-```r
+```r title="Install and verify cmdstanr"
 # Run in your LOCAL R session
 install.packages(
   "cmdstanr",
@@ -382,7 +382,7 @@ fit$summary()
 
 A successful `fit$summary()` proves the entire toolchain is working and you can stop debugging RStan. Here's how the two interfaces compare day-to-day:
 
-```r
+```r title="rstan vs cmdstanr comparison"
 iface_compare <- data.frame(
   feature = c("Install complexity",
               "Recompile after Stan upgrade",
@@ -417,7 +417,7 @@ For new projects and when RStan keeps fighting you, `cmdstanr` is the better def
 
 **Try it:** Write a one-liner `ex_toolchain_ok` that runs `check_cmdstan_toolchain()` inside `tryCatch()` and returns `TRUE` on success, `FALSE` otherwise. This is the canonical gate for CI scripts that need Stan.
 
-```r
+```r title="Try it: Boolean toolchain wrapper"
 # Try it: boolean wrapper around check_cmdstan_toolchain()
 ex_toolchain_ok <- function() {
   # your code here
@@ -430,7 +430,7 @@ ex_toolchain_ok()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Toolchain wrapper solution"
 ex_toolchain_ok <- function() {
   if (!requireNamespace("cmdstanr", quietly = TRUE)) return(FALSE)
   tryCatch({
@@ -453,7 +453,7 @@ ex_toolchain_ok()
 
 Write a function that detects the OS, prints the correct Makevars path for that OS, and returns a named list of action items based on which diagnostics pass. Combine `diagnose_rstan_toolchain()` from the first section with the OS-specific Makevars path logic.
 
-```r
+```r title="Exercise: End-to-end toolchain orchestrator"
 # Exercise: end-to-end diagnostic that outputs concrete next steps
 # Hint: reuse diagnose_rstan_toolchain() and branch on diag$os
 
@@ -469,7 +469,7 @@ print(my_actions)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Toolchain orchestrator solution"
 fix_stan_toolchain <- function() {
   diag <- diagnose_rstan_toolchain()
 
@@ -515,7 +515,7 @@ print(my_actions)
 
 Write a function that compiles the same trivial Stan model with both interfaces, catches any errors, and returns a tibble-like comparison with success status and compile time in seconds. This mirrors a real-world decision: "which interface actually works on my machine right now?"
 
-```r
+```r title="Exercise: Benchmark rstan versus cmdstanr"
 # Exercise: benchmark both interfaces side by side
 # Hint: wrap each compile in system.time() + tryCatch()
 
@@ -531,7 +531,7 @@ print(my_comparison)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Interface benchmark solution"
 compare_stan_interfaces <- function(model_code) {
   time_rstan <- NA_real_
   ok_rstan <- FALSE
@@ -578,7 +578,7 @@ Here's the canonical end-to-end fix for the most common scenario: Windows, R 4.4
 
 Step 1, snapshot the current state with the diagnostic helper:
 
-```r
+```r title="Diagnose a missing Makevars on Windows"
 demo_model_code <- "parameters { real y; } model { y ~ normal(0, 1); }"
 
 diag <- diagnose_rstan_toolchain()
@@ -592,7 +592,7 @@ diag$makevars_exists
 
 A missing Makevars is the issue. Build the template in memory so you see exactly what will be written:
 
-```r
+```r title="Build Makevars template in memory"
 makevars_win <- c(
   "CXX17FLAGS = -O3 -mtune=native",
   "CXX17 = $(BINPREF)g++ -m$(WIN) -std=c++17",
@@ -606,7 +606,7 @@ cat(makevars_win, sep = "\n")
 
 Step 2, in your local R session, commit the template to disk, remove the old RStan stack, restart R, and reinstall from the coordinated release channel:
 
-```r
+```r title="Write Makevars and reinstall rstan"
 # --- Local R session only ---
 dir.create(file.path(Sys.getenv("HOME"), ".R"), showWarnings = FALSE)
 writeLines(makevars_win,
@@ -623,7 +623,7 @@ install.packages(
 
 Step 3, verify with the trivial model. If this compiles, you're done:
 
-```r
+```r title="Verify with a trivial model"
 # Local R session only
 demo_mod <- rstan::stan_model(model_code = demo_model_code)
 class(demo_mod)

@@ -31,7 +31,7 @@ In this tutorial, you will learn the scale naming convention, position scales fo
 ![ggplot2 scales overview](screenshots/ggplot2-Scales-overview-mindmap.webp)
 *Figure 1: The four families of ggplot2 scales and their shared components.*
 
-```r
+```r title="Load scales and base plot"
 # Load libraries (persists for all code blocks)
 library(ggplot2)
 library(scales)
@@ -54,7 +54,7 @@ For example, `scale_x_continuous()` controls a continuous x-axis. `scale_color_b
 ![Scale naming convention](screenshots/ggplot2-Scales-naming-convention.webp)
 *Figure 2: Every scale function follows the scale_ + aesthetic_ + type pattern.*
 
-```r
+```r title="Compare implicit and explicit scales"
 # The default plot adds scales implicitly
 # These two plots are identical:
 p_implicit <- ggplot(mtcars, aes(x = wt, y = mpg)) +
@@ -79,7 +79,7 @@ The most common aesthetics are `x`, `y`, `color` (or `colour`), `fill`, `size`, 
 
 **Try it:** What scale function would you use to apply a manual colour palette to the `color` aesthetic? Write it as a call with `values = c("red", "blue")`.
 
-```r
+```r title="Exercise: add explicit x scale"
 # Try it: write the correct scale function
 ex_plot <- ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
   geom_point(size = 3)
@@ -93,7 +93,7 @@ ex_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: explicit x scale"
 ex_plot <- ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
   geom_point(size = 3) +
   scale_color_manual(values = c("red", "blue", "darkgreen"))
@@ -111,7 +111,7 @@ Position scales control the x-axis and y-axis. For numeric data, you use `scale_
 
 Let's start with continuous axes. The `breaks` argument sets where tick marks appear. The `labels` argument controls what text is printed at each tick. The `limits` argument defines the axis range.
 
-```r
+```r title="Set breaks labels and limits"
 # Custom breaks, labels, and limits on the y-axis
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point(size = 3) +
@@ -129,7 +129,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 
 The `breaks` argument accepts a numeric vector or a function. The `labels` argument can be a character vector (same length as breaks) or a labelling function from the scales package.
 
-```r
+```r title="Format dollars with label helper"
 # Format labels as dollar amounts (hypothetical price data)
 price_data <- data.frame(
   item = c("A", "B", "C", "D", "E"),
@@ -147,7 +147,7 @@ ggplot(price_data, aes(x = item, y = price)) +
 
 For discrete axes, you can reorder and relabel categories directly in the scale.
 
-```r
+```r title="Reorder discrete x categories"
 # Reorder and relabel discrete axis
 ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
   geom_boxplot(fill = "lightblue") +
@@ -161,7 +161,7 @@ ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
 
 The `expand` argument controls the padding between your data and the axis edges. By default, ggplot2 adds 5% padding on each side for continuous axes. Use `expansion()` to change this.
 
-```r
+```r title="Remove axis padding with expansion"
 # Remove axis padding so bars touch the axis
 ggplot(price_data, aes(x = item, y = price)) +
   geom_col(fill = "steelblue") +
@@ -182,7 +182,7 @@ The `mult` argument adds proportional padding. Setting the lower bound to 0 remo
 
 **Try it:** Create a bar chart of `mtcars` cylinder counts using `geom_bar()`. Format the y-axis with `label_comma()` and remove the bottom padding with `expansion()`.
 
-```r
+```r title="Exercise: commas and no padding"
 # Try it: formatted y-axis with no bottom padding
 ex_bars <- ggplot(mtcars, aes(x = factor(cyl))) +
   geom_bar(fill = "coral")
@@ -195,7 +195,7 @@ ex_bars
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: commas no padding"
 ex_bars <- ggplot(mtcars, aes(x = factor(cyl))) +
   geom_bar(fill = "coral") +
   scale_y_continuous(
@@ -216,7 +216,7 @@ When your data spans several orders of magnitude, a linear axis compresses most 
 
 The simplest approach is `scale_x_log10()` or `scale_y_log10()`. These apply a base-10 logarithm to the axis.
 
-```r
+```r title="Compare linear and log ten axes"
 # Diamonds data: price spans $326 to $18,823
 # Linear axis compresses most points at the bottom
 p_linear <- ggplot(diamonds, aes(x = carat, y = price)) +
@@ -238,7 +238,7 @@ On the log-log scale, the relationship between carat and price looks nearly line
 
 You can also use `scale_x_sqrt()` for a milder transformation, or `scale_x_reverse()` to flip the axis direction.
 
-```r
+```r title="Reverse the x axis"
 # Reverse the x-axis (useful for time running right-to-left)
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point(size = 3) +
@@ -248,7 +248,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 
 For cleaner tick labels on log scales, use `breaks_log()` from the scales package. This places breaks at powers of 10.
 
-```r
+```r title="Use log breaks for clean ticks"
 # Clean log-scale labels with breaks_log()
 ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
@@ -270,7 +270,7 @@ The `breaks_log()` function places ticks at sensible powers, and `label_dollar()
 
 **Try it:** Create a scatter plot of `diamonds` with `carat` on the x-axis and `price` on the y-axis. Apply `scale_y_log10()` and format the labels with `label_dollar()`.
 
-```r
+```r title="Exercise: log y with dollars"
 # Try it: log-scaled y-axis with dollar labels
 ex_log <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5)
@@ -283,7 +283,7 @@ ex_log
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: log y dollars"
 ex_log <- ggplot(diamonds, aes(x = carat, y = price)) +
   geom_point(alpha = 0.1, size = 0.5) +
   scale_y_log10(labels = label_dollar())
@@ -301,7 +301,7 @@ Colour scales are where ggplot2 really shines. There are two aesthetics to know:
 
 For discrete data, the most popular choice is `scale_color_brewer()`, which uses the ColorBrewer palettes designed by cartographer Cynthia Brewer. These palettes are perceptually balanced and many are colourblind-safe.
 
-```r
+```r title="Apply Brewer Set2 palette"
 # ColorBrewer palette for discrete colour
 ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
   geom_point(size = 4) +
@@ -313,7 +313,7 @@ The `palette` argument selects a specific palette. Good choices include "Set1" (
 
 When you need exact colours, use `scale_fill_manual()` or `scale_color_manual()` with a named vector.
 
-```r
+```r title="Map groups to named hex colours"
 # Manual fill colours with a named vector
 cyl_colors <- c("4" = "#2196F3", "6" = "#FF9800", "8" = "#F44336")
 
@@ -327,7 +327,7 @@ The named vector maps each factor level to a specific hex colour. This is essent
 
 For continuous colour data, use gradient scales. `scale_color_gradient()` creates a two-colour gradient, and `scale_color_gradient2()` creates a diverging three-colour gradient with a midpoint.
 
-```r
+```r title="Diverging gradient around midpoint"
 # Diverging gradient: blue-white-red around the median mpg
 median_mpg <- median(mtcars$mpg)
 
@@ -345,7 +345,7 @@ The diverging palette highlights which cars are above or below the median fuel e
 
 For the best perceptual uniformity and colourblind safety, use the viridis scales: `scale_color_viridis_d()` for discrete data and `scale_color_viridis_c()` for continuous.
 
-```r
+```r title="Apply magma continuous fill"
 # Viridis for colourblind-safe continuous palette
 ggplot(faithfuld, aes(x = waiting, y = eruptions, fill = density)) +
   geom_tile() +
@@ -363,7 +363,7 @@ The `option` argument selects the viridis variant: "viridis" (default), "magma",
 
 **Try it:** Create a boxplot of `iris` with `Species` on the x-axis, `Sepal.Length` on the y-axis, and a manual fill scale using three colours of your choice.
 
-```r
+```r title="Exercise: iris manual fill"
 # Try it: manual fill scale on iris boxplot
 ex_fill <- ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
   geom_boxplot()
@@ -376,7 +376,7 @@ ex_fill
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: iris manual fill"
 ex_fill <- ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
   geom_boxplot() +
   scale_fill_manual(values = c("setosa" = "#66c2a5",
@@ -396,7 +396,7 @@ Size and alpha (transparency) scales map continuous values to point size or opac
 
 The key distinction is between `scale_size()` and `scale_size_area()`. The default `scale_size()` maps values to the point radius. This means a value twice as large gets a circle with twice the radius, but four times the area. That distorts perception. Use `scale_size_area()` instead, which maps values to circle area so that visual proportions are honest.
 
-```r
+```r title="Scale bubble size by area"
 # Bubble chart with area-proportional sizing
 ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
   geom_point(alpha = 0.6, color = "steelblue") +
@@ -409,7 +409,7 @@ With `scale_size_area()`, a car with 200 hp has a circle with twice the area of 
 
 For overplotted data, `scale_alpha_continuous()` lets you map a variable to transparency. Points in dense regions become semi-transparent, revealing the underlying distribution.
 
-```r
+```r title="Continuous alpha transparency"
 # Alpha scale to handle overplotting
 ggplot(diamonds, aes(x = carat, y = price, alpha = depth)) +
   geom_point(size = 1, color = "purple") +
@@ -425,7 +425,7 @@ The `range` argument in `scale_alpha_continuous()` sets the minimum and maximum 
 
 **Try it:** Create a bubble chart of `mtcars` with `disp` on x, `mpg` on y, and `hp` mapped to size using `scale_size_area()`. Set `max_size = 12`.
 
-```r
+```r title="Exercise: proportional bubble area"
 # Try it: bubble chart with area-proportional sizing
 ex_bubble <- ggplot(mtcars, aes(x = disp, y = mpg, size = hp)) +
   geom_point(alpha = 0.6)
@@ -438,7 +438,7 @@ ex_bubble
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: proportional bubbles"
 ex_bubble <- ggplot(mtcars, aes(x = disp, y = mpg, size = hp)) +
   geom_point(alpha = 0.6, color = "darkgreen") +
   scale_size_area(max_size = 12, name = "Horsepower")
@@ -457,7 +457,7 @@ ex_bubble
 This is the most common scale mistake. Setting `limits` inside a scale function removes data outside the range before stats are computed.
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: limits drops data"
 # This REMOVES points outside 15-30 mpg
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -470,7 +470,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 **Why it is wrong:** Six data points are converted to NA. The regression line is fitted to the remaining data, giving a different slope than the full dataset.
 
 ✅ **Correct:**
-```r
+```r title="Correct: zoom with coordcartesian"
 # This ZOOMS without removing any data
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -482,7 +482,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 ### Mistake 2: Using scale_size() instead of scale_size_area() for bubble charts
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: size scales by radius"
 # scale_size maps to RADIUS — visually dishonest
 ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
   geom_point(alpha = 0.5) +
@@ -493,7 +493,7 @@ ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
 **Why it is wrong:** A circle with 3x the radius has 9x the area. Readers perceive area, not radius, so the 300hp car looks far too large relative to a 100hp car.
 
 ✅ **Correct:**
-```r
+```r title="Correct: scale size by area"
 ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
   geom_point(alpha = 0.5) +
   scale_size_area(max_size = 15)
@@ -503,7 +503,7 @@ ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
 ### Mistake 3: Forgetting to load the scales package
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: forgetting scales package"
 # Without library(scales), label_dollar() is not found
 # Error: could not find function "label_dollar"
 ggplot(price_data, aes(x = item, y = price)) +
@@ -514,7 +514,7 @@ ggplot(price_data, aes(x = item, y = price)) +
 **Why it is wrong:** Functions like `label_dollar()`, `label_comma()`, `label_percent()`, and `breaks_log()` live in the scales package. ggplot2 imports some scales functions, but the label helpers need an explicit `library(scales)`.
 
 ✅ **Correct:**
-```r
+```r title="Correct: load the scales package"
 library(scales)  # Load at the top of your script
 ggplot(price_data, aes(x = item, y = price)) +
   geom_col(fill = "steelblue") +
@@ -525,7 +525,7 @@ ggplot(price_data, aes(x = item, y = price)) +
 ### Mistake 4: Passing character strings as breaks on a continuous axis
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: text breaks on numeric axis"
 # breaks must be numeric for a continuous scale
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
@@ -536,7 +536,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 **Why it is wrong:** Continuous scales expect numeric break positions. If you want text labels at specific positions, set numeric breaks and character labels separately.
 
 ✅ **Correct:**
-```r
+```r title="Correct: numeric breaks with labels"
 ggplot(mtcars, aes(x = wt, y = mpg)) +
   geom_point() +
   scale_x_continuous(
@@ -552,7 +552,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 
 Create a scatter plot of `mtcars` with `wt` on x, `mpg` on y, and `factor(cyl)` mapped to colour. Use `scale_color_brewer()` with the "Dark2" palette. Set y-axis breaks at every 5 units and label the x-axis as "Weight (1000 lbs)". Remove the bottom y-axis padding.
 
-```r
+```r title="Exercise one: polished Dark2 plot"
 # Exercise 1: polished scatter
 # Hint: combine scale_color_brewer, scale_y_continuous, scale_x_continuous
 
@@ -563,7 +563,7 @@ Create a scatter plot of `mtcars` with `wt` on x, `mpg` on y, and `factor(cyl)` 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: Dark2 plot"
 my_scatter <- ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
   geom_point(size = 3) +
   scale_color_brewer(palette = "Dark2", name = "Cylinders") +
@@ -584,7 +584,7 @@ my_scatter
 
 Using the `diamonds` dataset, create a scatter plot of `carat` (x) vs `price` (y). Map `cut` to colour using `scale_color_viridis_d()`. Apply log10 to both axes with dollar-formatted y labels and comma-formatted x labels. Add a `labs()` title of "Diamond Price by Carat and Cut".
 
-```r
+```r title="Exercise two: log bubble viridis"
 # Exercise 2: log bubble with viridis
 # Hint: scale_x_log10 + scale_y_log10 + scale_color_viridis_d
 
@@ -595,7 +595,7 @@ Using the `diamonds` dataset, create a scatter plot of `carat` (x) vs `price` (y
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: log bubble viridis"
 my_diamonds <- ggplot(diamonds, aes(x = carat, y = price, color = cut)) +
   geom_point(alpha = 0.3, size = 0.8) +
   scale_x_log10(labels = label_comma()) +
@@ -614,7 +614,7 @@ my_diamonds
 
 Create a correlation heatmap of `mtcars` using `geom_tile()`. Compute the correlation matrix, reshape it to long format, and map the correlation value to `fill`. Use `scale_fill_gradient2()` with blue for negative, white for zero, and red for positive correlations.
 
-```r
+```r title="Exercise three: correlation heatmap"
 # Exercise 3: correlation heatmap
 # Hint: cor(), reshape with expand.grid or data.frame, scale_fill_gradient2
 
@@ -625,7 +625,7 @@ Create a correlation heatmap of `mtcars` using `geom_tile()`. Compute the correl
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: correlation heatmap"
 my_cor <- cor(mtcars[, 1:7])
 my_cor_long <- data.frame(
   row = rep(colnames(my_cor), each = ncol(my_cor)),
@@ -654,7 +654,7 @@ my_heatmap
 
 Let's build a publication-quality scatter plot that combines multiple scale customisations in a single chart. We will use log axes, a Brewer colour palette, formatted labels, custom breaks, and a polished legend.
 
-```r
+```r title="Capstone: polished diamond chart"
 # Complete example: polished diamond scatter plot
 set.seed(99)
 diamond_sample <- diamonds[sample(nrow(diamonds), 2000), ]

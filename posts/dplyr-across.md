@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 The fastest way to feel why `across()` exists is to round every numeric column of a data frame in one line, instead of typing each column name. The block below loads `dplyr`, then rounds the four numeric `iris` columns to one decimal in a single `mutate(across(...))` call. The first three rows print so you can see the result.
 
-```r
+```r title="Round numeric columns with across"
 library(dplyr)
 
 iris |>
@@ -43,7 +43,7 @@ The two arguments you care about are `.cols` (which columns) and `.fns` (what fu
 
 **Try it:** Use `across()` to double every numeric column of `mtcars`, then show the first three rows. Save the result to `ex_doubled`.
 
-```r
+```r title="Exercise: double numeric columns"
 # Try it: double all numeric columns of mtcars
 ex_doubled <- mtcars |>
   mutate(across(where(is.numeric), # your code here
@@ -56,7 +56,7 @@ head(ex_doubled, 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Doubled-columns solution"
 ex_doubled <- mtcars |>
   mutate(across(where(is.numeric), \(x) x * 2))
 
@@ -75,7 +75,7 @@ head(ex_doubled, 3)
 
 Choosing columns is half the job. `across()` accepts every selector you already know from `select()`: bare names, prefix helpers, type predicates, and exclusions. Picking the right selector is what turns a brittle script into one that survives schema changes.
 
-```r
+```r title="Four ways to pick columns"
 # 1. By name
 mtcars |> summarise(across(c(mpg, hp, wt), mean))
 #>        mpg     hp      wt
@@ -104,7 +104,7 @@ Four selectors, four different column sets, same `summarise()` shell. `c(mpg, hp
 
 **Try it:** Compute the mean of every iris column whose name starts with `"Petal"`. Save the result to `ex_petal`.
 
-```r
+```r title="Exercise: mean of Petal columns"
 # Try it: mean of Petal* columns only
 ex_petal <- iris |> summarise(across(  # your code here
                                     ))
@@ -116,7 +116,7 @@ ex_petal
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Petal-columns mean solution"
 ex_petal <- iris |> summarise(across(starts_with("Petal"), mean))
 
 ex_petal
@@ -132,7 +132,7 @@ ex_petal
 
 Often you want more than one summary per column, a mean *and* a standard deviation, or min, max, and median together. Pass a **named list** of functions to `.fns` and `across()` produces one output column per (input column, function) pair. Use `.names` to control how those output columns are named.
 
-```r
+```r title="Multiple functions with named list"
 mtcars |>
   group_by(cyl) |>
   summarise(
@@ -156,7 +156,7 @@ Two input columns (`mpg`, `hp`) times two functions (`avg`, `sd`) yields four ou
 
 **Try it:** Summarise mtcars with the `min` and `max` of `mpg` and `wt` together. Use `.names = "{.fn}_{.col}"` so the output columns are `min_mpg`, `max_mpg`, `min_wt`, `max_wt`. Save to `ex_minmax`.
 
-```r
+```r title="Exercise: custom .names glue"
 # Try it: min/max with custom .names glue
 ex_minmax <- mtcars |>
   summarise(across(  # your code here
@@ -169,7 +169,7 @@ ex_minmax
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Custom-names solution"
 ex_minmax <- mtcars |>
   summarise(across(c(mpg, wt),
                    list(min = min, max = max),
@@ -188,7 +188,7 @@ ex_minmax
 
 Inside `mutate()`, `across()` *replaces* the matched columns by default, the originals are gone. To keep both the original and the transformed values, pass a `.names` template that produces new column names. This is the standard feature-engineering pattern.
 
-```r
+```r title="Mutate with .names keeps originals"
 mt_z <- mtcars |>
   mutate(across(c(mpg, hp, wt),
                 \(x) round((x - mean(x)) / sd(x), 2),
@@ -210,7 +210,7 @@ The originals (`mpg`, `hp`, `wt`) sit next to their z-scored siblings (`mpg_z`, 
 
 **Try it:** Add `mpg_log` and `hp_log` columns to mtcars using `log()`, keeping the originals. Save to `ex_log`.
 
-```r
+```r title="Exercise: append log columns"
 # Try it: append log() columns
 ex_log <- mtcars |>
   mutate(across(c(mpg, hp), # your code here
@@ -223,7 +223,7 @@ head(ex_log[, c("mpg", "mpg_log", "hp", "hp_log")], 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Log-columns solution"
 ex_log <- mtcars |>
   mutate(across(c(mpg, hp), log, .names = "{.col}_log"))
 
@@ -242,7 +242,7 @@ head(ex_log[, c("mpg", "mpg_log", "hp", "hp_log")], 3)
 
 `across()` itself does **not** work directly inside `filter()`, `filter()` expects a single logical vector per row, but `across()` returns one per column. The companions `if_any()` and `if_all()` collapse those per-column logicals into one row-wise verdict.
 
-```r
+```r title="Filter with ifany and ifall"
 # Keep rows where ANY Petal column is greater than 6
 iris |>
   filter(if_any(starts_with("Petal"), \(x) x > 6)) |>
@@ -269,7 +269,7 @@ iris |>
 
 **Try it:** Keep `mtcars` rows where **all three** of `disp`, `hp`, and `wt` are above their own column means. Save to `ex_strong` and show the first three rows.
 
-```r
+```r title="Exercise: ifall above column mean"
 # Try it: if_all on three columns with one shared predicate
 ex_strong <- mtcars |>
   filter(if_all(c(disp, hp, wt), # your code here
@@ -282,7 +282,7 @@ head(ex_strong[, c("disp", "hp", "wt")], 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ifall above-mean solution"
 ex_strong <- mtcars |>
   filter(if_all(c(disp, hp, wt), \(x) x > mean(x)))
 
@@ -303,7 +303,7 @@ head(ex_strong[, c("disp", "hp", "wt")], 3)
 
 Summarise `airquality` with the **mean** and **median** of every numeric column, ignoring missing values. Use `.names = "{.fn}_{.col}"` so the output columns are `mean_Ozone`, `med_Ozone`, etc. (use `med` not `median` as the function-name alias). Save the result to `my_aq_summary`.
 
-```r
+```r title="Exercise: mean and median per column"
 # Exercise 1: mean + median of every numeric airquality column
 # Hint: list(mean = ..., med = ...) with na.rm = TRUE in lambdas
 
@@ -317,7 +317,7 @@ my_aq_summary
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Airquality summary solution"
 my_aq_summary <- airquality |>
   summarise(across(where(is.numeric),
                    list(mean = \(x) mean(x, na.rm = TRUE),
@@ -337,7 +337,7 @@ my_aq_summary
 
 In `mtcars`, create new columns `mpg_pct`, `hp_pct`, and `wt_pct` that express each value as a percentage of that column's maximum. Round to one decimal. Use one `mutate(across(...))` call with `.names`. Save to `my_pct` and show the first three rows side-by-side with the originals.
 
-```r
+```r title="Exercise: percent of column max"
 # Exercise 2: each column as a percentage of its max
 # Hint: 100 * x / max(x), .names = "{.col}_pct"
 
@@ -351,7 +351,7 @@ head(my_pct[, c("mpg", "mpg_pct", "hp", "hp_pct", "wt", "wt_pct")], 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Percent-of-max solution"
 my_pct <- mtcars |>
   mutate(across(c(mpg, hp, wt),
                 \(x) round(100 * x / max(x), 1),
@@ -372,7 +372,7 @@ head(my_pct[, c("mpg", "mpg_pct", "hp", "hp_pct", "wt", "wt_pct")], 3)
 
 Here is a mini end-to-end pipeline that uses every idea from this tutorial: pick all numeric columns, group by a categorical, summarise the mean of each numeric column per group, and keep only groups where at least one summary is not missing.
 
-```r
+```r title="Starwars numeric summary by species"
 sw_summary <- starwars |>
   select(-films, -vehicles, -starships) |>
   group_by(species) |>

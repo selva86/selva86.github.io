@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 If your purrr pipeline already works correctly, you're one function swap away from running it in parallel. Let's load furrr and see the difference immediately.
 
-```r
+```r title="First parallel call with futuremap"
 # Load furrr (also loads purrr and future)
 library(furrr)
 
@@ -55,7 +55,7 @@ Each element of `1:5` was squared and had 10 added to it. On your local machine 
 
 The naming convention is simple: take any purrr function, add `future_` in front. Here's a type-specific variant that returns a numeric vector instead of a list.
 
-```r
+```r title="purrr versus furrr side by side"
 # purrr style: map_dbl returns a double vector
 seq_result <- map_dbl(1:5, sqrt)
 seq_result
@@ -71,7 +71,7 @@ The results match exactly. Every purrr variant has a furrr counterpart: `future_
 
 **Try it:** Use `future_map_chr()` to paste "Item-" before each element of `c("A", "B", "C")`.
 
-```r
+```r title="Exercise: build Item-A labels"
 # Try it: create labels with future_map_chr()
 ex_labels <- future_map_chr(c("A", "B", "C"), \(x) {
   # your code here
@@ -83,7 +83,7 @@ ex_labels
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Item-label solution"
 ex_labels <- future_map_chr(c("A", "B", "C"), \(x) {
   paste0("Item-", x)
 })
@@ -99,7 +99,7 @@ ex_labels
 
 The `plan()` function from the future package tells R how to execute futures, the units of work that furrr creates behind the scenes. Without a plan, everything runs sequentially. With one, your iterations spread across cores.
 
-```r
+```r title="Detect cores and set a plan"
 # Check available cores on your system
 n_cores <- availableCores()
 n_cores
@@ -113,7 +113,7 @@ plan(multisession, workers = n_cores - 1)
 
 When you're done with parallel work, reset to sequential to release worker processes and free memory.
 
-```r
+```r title="Release workers with plan(sequential)"
 # Release workers and go back to sequential
 plan(sequential)
 ```
@@ -133,7 +133,7 @@ Most users should stick with `multisession`. It works everywhere, handles packag
 
 **Try it:** Write code that checks how many cores you have, then sets a plan using exactly half of them (rounded down).
 
-```r
+```r title="Exercise: use half your cores"
 # Try it: use half your cores
 ex_half <- floor(availableCores() / 2)
 # Set the plan with ex_half workers
@@ -143,7 +143,7 @@ ex_half <- floor(availableCores() / 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Half-cores solution"
 ex_half <- floor(availableCores() / 2)
 plan(multisession, workers = ex_half)
 cat("Using", ex_half, "of", availableCores(), "cores\n")
@@ -158,7 +158,7 @@ cat("Using", ex_half, "of", availableCores(), "cores\n")
 
 When your function needs two inputs per iteration, use `future_map2()`. When it needs three or more, use `future_pmap()`. These mirror purrr's `map2()` and `pmap()` exactly.
 
-```r
+```r title="Parallel weighted sum with futuremap2"
 # Two parallel inputs: weights and values
 weights <- c(0.3, 0.5, 0.7, 0.9)
 values  <- c(100, 200, 300, 400)
@@ -172,7 +172,7 @@ weighted
 
 For three or more inputs, pass them as a data frame (or named list) to `future_pmap()`.
 
-```r
+```r title="Three inputs via futurepmapchr"
 # Three inputs per iteration via a data frame
 params <- data.frame(
   name  = c("Alice", "Bob", "Carol"),
@@ -194,7 +194,7 @@ Each row of the data frame becomes one function call. The column names must matc
 
 **Try it:** Use `future_map2_chr()` to paste first and last names together from two vectors.
 
-```r
+```r title="Exercise: combine first and last names"
 # Try it: combine names
 ex_first <- c("Marie", "Alan", "Grace")
 ex_last  <- c("Curie", "Turing", "Hopper")
@@ -209,7 +209,7 @@ ex_full
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Name-combine solution"
 ex_first <- c("Marie", "Alan", "Grace")
 ex_last  <- c("Curie", "Turing", "Hopper")
 
@@ -228,7 +228,7 @@ ex_full
 
 When your parallel code involves randomness, you need reproducible results. When it references large objects from your environment, you need to control what gets shipped to workers. `furrr_options()` handles both.
 
-```r
+```r title="Reproducible draws with furrroptions seed"
 # Reproducible random sampling across workers
 plan(multisession, workers = 2)
 
@@ -255,7 +255,7 @@ With `seed = 123`, furrr generates a parallel-safe RNG stream (L'Ecuyer-CMRG) th
 
 You can also control which variables get sent to workers with the `globals` argument.
 
-```r
+```r title="Ship a lookup as a global"
 # Explicit globals: only ship what workers need
 my_lookup <- c(a = "Alpha", b = "Beta", c = "Gamma")
 
@@ -283,7 +283,7 @@ Here's a quick reference for all `furrr_options()` parameters:
 
 **Try it:** Use `future_map_dbl()` with `furrr_options(seed = 42)` to draw one random uniform value (`runif(1)`) per iteration across 5 iterations. Verify you get the same result if you run it twice.
 
-```r
+```r title="Exercise: reproducible runif draws"
 # Try it: reproducible random draws
 ex_draws <- future_map_dbl(1:5, \(i) {
   # your code here
@@ -295,7 +295,7 @@ ex_draws
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Reproducible-runif solution"
 ex_draws <- future_map_dbl(1:5, \(i) {
   runif(1)
 }, .options = furrr_options(seed = 42))
@@ -318,7 +318,7 @@ identical(ex_draws, ex_draws2)
 
 Parallel processing isn't free. Every `plan(multisession)` call spawns separate R sessions, and every `future_map()` call serializes your data, ships it to workers, runs the function, and ships results back. For lightweight operations, this overhead dwarfs the computation.
 
-```r
+```r title="Overhead beats parallel on light tasks"
 # Lightweight task: squaring numbers (microseconds each)
 plan(multisession, workers = 2)
 
@@ -335,7 +335,7 @@ The parallel version is ~17x slower for this trivial task. Spawning workers and 
 
 Now compare with a heavier task where each iteration does real work.
 
-```r
+```r title="Parallel wins on heavy bootstrap work"
 # Heavy task: bootstrap resampling (milliseconds each)
 set.seed(99)
 big_data <- rnorm(10000)
@@ -374,7 +374,7 @@ Here are the rules of thumb for when parallelizing pays off:
 
 **Try it:** Predict which task benefits more from parallelization: (A) computing `sqrt()` on 500 numbers, or (B) running `lm()` on 50 subsets of 1000 rows. No code needed, just reason about iteration weight.
 
-```r
+```r title="Exercise: which task benefits from furrr"
 # Try it: which benefits from furrr?
 # A: future_map_dbl(1:500, sqrt)
 # B: future_map(splits, \(d) lm(y ~ x, data = d))
@@ -384,7 +384,7 @@ Here are the rules of thumb for when parallelizing pays off:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Which-task solution"
 # Answer: B benefits from parallelization.
 # sqrt() on a single number takes nanoseconds — overhead dominates.
 # lm() on 1000 rows takes milliseconds — real computation that scales with cores.
@@ -404,7 +404,7 @@ cat("B: lm() is ~milliseconds per call — good candidate for furrr\n")
 
 You have a list of 5 data frames, each containing numeric columns. Use `future_map()` to compute column means for each data frame, then combine the results into a single summary data frame.
 
-```r
+```r title="Exercise: parallel column means"
 # Exercise 1: parallel column means
 # Setup data
 set.seed(200)
@@ -422,7 +422,7 @@ my_dfs <- map(1:5, \(i) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Column-means solution"
 set.seed(200)
 my_dfs <- map(1:5, \(i) {
   data.frame(x = rnorm(100, mean = i), y = rnorm(100, mean = i * 10))
@@ -455,7 +455,7 @@ my_summary
 
 Build a parameter grid with 4 scenarios (varying `n`, `mean`, and `sd`). Use `future_pmap_dfr()` with `furrr_options(seed = 100)` to draw `n` random normal values per scenario, compute the sample mean and standard deviation, and return a results data frame. Run the pipeline twice and verify the results are identical.
 
-```r
+```r title="Exercise: pmap Monte Carlo with seed"
 # Exercise 2: Monte Carlo with pmap + seed control
 my_grid <- data.frame(
   n    = c(100, 500, 1000, 5000),
@@ -473,7 +473,7 @@ my_grid <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Monte-Carlo-pmap solution"
 my_grid <- data.frame(
   n    = c(100, 500, 1000, 5000),
   mean = c(0, 5, 10, 50),
@@ -524,7 +524,7 @@ identical(my_sim, my_sim2)
 
 Let's put everything together: a parameter-sweep simulation that runs across cores, uses seed control for reproducibility, and summarizes results with dplyr.
 
-```r
+```r title="Full parameter-sweep simulation"
 library(dplyr)
 
 # Configure parallel backend

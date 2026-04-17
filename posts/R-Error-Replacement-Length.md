@@ -24,7 +24,7 @@ The error fires when R tries to execute `x[i] <- value` and finds that `value` h
 
 Reproduce it with a short `for` loop that pulls ages from a lookup table, two of the three keys match, one does not:
 
-```r
+```r title="Reproduce the zero-length assignment error"
 people     <- c("Alice", "Bob", "Charlie")
 ages_table <- data.frame(
   name = c("Alice", "Charlie"),
@@ -46,7 +46,7 @@ The loop runs fine for Alice (`i = 1`) because `ages_table$age[ages_table$name =
 
 **Try it:** Rewrite the loop so it fills `ex_ages[i]` with `NA_real_` when a name is not in `ages_table`. Use a `length(...) > 0` guard so the loop never crashes.
 
-```r
+```r title="Exercise: guard the lookup loop"
 # Try it: guard the loop so missing names become NA
 ex_ages <- numeric(length(people))
 for (i in seq_along(people)) {
@@ -61,7 +61,7 @@ ex_ages
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Guarded lookup solution"
 ex_ages <- numeric(length(people))
 for (i in seq_along(people)) {
   hit <- ages_table$age[ages_table$name == people[i]]
@@ -79,7 +79,7 @@ ex_ages
 
 Four common R idioms return a zero-length vector whenever they fail to find anything, and all four are happy to feed that emptiness into your next assignment. Knowing them by name turns "mysterious crash" into "ah, it's pattern number three".
 
-```r
+```r title="Four idioms that return empty"
 # 1. grep() with no match — returns integer(0)
 sentences <- c("red apple", "green pear", "blue plum")
 grep_hits <- grep("orange", sentences)
@@ -111,7 +111,7 @@ Every call above returns a zero-length vector of the appropriate type: `integer(
 
 **Try it:** Fill `ex_hits[i]` with the number of `grep()` matches for each query. The second query (`"melon"`) matches nothing, make sure the loop does not crash on it.
 
-```r
+```r title="Exercise: safe grep match count"
 # Try it: guarded grep assignment
 queries <- c("apple", "melon", "plum")
 ex_hits <- integer(length(queries))
@@ -127,7 +127,7 @@ ex_hits
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Grep match count solution"
 queries <- c("apple", "melon", "plum")
 ex_hits <- integer(length(queries))
 for (i in seq_along(queries)) {
@@ -148,7 +148,7 @@ Reactive debugging, waiting for the crash and then reading the traceback, is pai
 
 The workhorse is a hand-rolled `stop()` that names the culprit. Wrap your lookup in a tiny function that asserts exactly one row came back, and you get an error message that points at the data, not the assignment.
 
-```r
+```r title="Fail loud with safelookup"
 safe_lookup <- function(table, key) {
   hit <- table$age[table$name == key]
   if (length(hit) == 0) stop("no row for key: ", key, call. = FALSE)
@@ -173,7 +173,7 @@ Compare that to the vague "replacement has length zero" message you started with
 
 **Try it:** Finish the function so it asserts its lookup returned exactly one value and produces a readable message on failure.
 
-```r
+```r title="Exercise: raise a readable error"
 # Try it: raise a readable error with stop()
 ex_lookup <- function(table, key) {
   hit <- table$age[table$name == key]
@@ -191,7 +191,7 @@ tryCatch(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Readable error solution"
 ex_lookup <- function(table, key) {
   hit <- table$age[table$name == key]
   if (length(hit) != 1) {
@@ -217,7 +217,7 @@ Diagnostics are for debugging. Defensive patterns are for code you want to stop 
 
 The first is `%||%`, a null-coalesce operator that returns its left operand unless it is `NULL` or zero-length, in which case it returns the right operand as a fallback. This is the same `||` you use in JavaScript, except R needs a custom helper.
 
-```r
+```r title="Define a null-coalesce operator"
 `%||%` <- function(a, b) {
   if (is.null(a) || length(a) == 0) b else a
 }
@@ -240,7 +240,7 @@ Every call to `%||%` collapses an uncertain RHS into a guaranteed length-1 resul
 
 The second pattern replaces the entire `for` loop with a vectorised `match()`. This is almost always the right answer, R's indexing is built for it.
 
-```r
+```r title="Vectorised lookup with match"
 # Vectorised lookup — never crashes, returns NA for missing keys
 idx <- match(people, ages_table$name)
 all_ages <- ages_table$age[idx]
@@ -255,7 +255,7 @@ all_ages
 
 **Try it:** Build a `safe_first()` helper that returns the first element of a vector, or `NA_real_` if the vector is empty or `NULL`.
 
-```r
+```r title="Exercise: write safefirst helper"
 # Try it: safe_first() never crashes
 ex_safe_first <- function(x) {
   # your code here
@@ -272,7 +272,7 @@ ex_safe_first(NULL)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="safefirst helper solution"
 ex_safe_first <- function(x) {
   if (is.null(x) || length(x) == 0) return(NA_real_)
   x[[1]]
@@ -296,7 +296,7 @@ ex_safe_first(NULL)
 
 You have a vector of user ids and a data frame of known users. Build an `ages` vector that contains the user's age for every matched id and `NA_real_` for every unmatched id. The solution must be vectorised, no `for` loop, and must never raise "replacement has length zero".
 
-```r
+```r title="Exercise: vectorised ages lookup"
 cap_users <- c("u1", "u2", "u3", "u99", "u4")
 cap_users_df <- data.frame(
   id  = c("u1", "u3", "u4"),
@@ -314,7 +314,7 @@ cap_users_df <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Vectorised ages lookup solution"
 cap_users <- c("u1", "u2", "u3", "u99", "u4")
 cap_users_df <- data.frame(
   id  = c("u1", "u3", "u4"),
@@ -334,7 +334,7 @@ cap_ages
 
 A log-processing function is supposed to enrich each event with a human-readable category pulled from a lookup table. When a category is missing, the function currently crashes. Refactor it so that it (a) never errors, (b) returns a character vector of categories with `NA` for misses, and (c) carries an attribute `"missing_keys"` listing every unresolved key for auditing.
 
-```r
+```r title="Exercise: rewrite capprocess safely"
 # Existing (broken) version for reference:
 # cap_process <- function(events, lookup) {
 #   out <- character(length(events))
@@ -367,7 +367,7 @@ cap_result <- cap_process(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="capprocess rewrite solution"
 cap_process <- function(events, lookup) {
   idx <- match(events, lookup$code)
   out <- lookup$category[idx]
@@ -400,7 +400,7 @@ attr(cap_result, "missing_keys")
 
 A realistic "order enrichment" pipeline: every order references a customer id, and you want to attach the customer's city to each order. Some orders reference customers that were deleted. The naive approach crashes; the vectorised approach never does and also tells you which customers are missing.
 
-```r
+```r title="Order enrichment with match"
 orders <- data.frame(
   order_id    = 1001:1005,
   customer_id = c("c1", "c7", "c3", "c9", "c1"),

@@ -24,7 +24,7 @@ The honest answer in 2026 is "both, depending on where you sit." Academic econom
 
 The code below simulates a small snapshot of the 2026 economist job market and summarises tool requirements by field. Run it and you will see the story in one glance: Stata leads academia, R leads everywhere else.
 
-```r
+```r title="Simulated 2026 economist job postings"
 # Simulated 2026 economist job postings by field and tool requirement
 library(dplyr)
 library(ggplot2)
@@ -63,7 +63,7 @@ Read the `r_lead` column like a scoreboard. A negative number means Stata domina
 
 **Try it:** Filter the `jobs` tibble to the single "Academic Econ" row and compute how many *more* percentage points Stata leads R by. Store it in `ex_academia`.
 
-```r
+```r title="Exercise: Stata's lead in academia"
 # Try it: compute Stata's lead over R in Academic Econ
 ex_academia <- jobs |>
   filter(field == "Academic Econ") |>
@@ -78,7 +78,7 @@ ex_academia
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stata-in-academia solution"
 ex_academia <- jobs |>
   filter(field == "Academic Econ") |>
   mutate(lead = pct_stata - pct_r) |>
@@ -109,7 +109,7 @@ Where:
 
 The interaction coefficient $\beta_3$ is the thing you actually care about. Here is a self-contained simulation and a plain `lm()` fit so you can see the whole pipeline end to end.
 
-```r
+```r title="Simulate a 2x2 DiD panel"
 # Simulate a simple 2x2 DiD panel and estimate the treatment effect
 library(broom)
 
@@ -158,7 +158,7 @@ reghdfe y c.treat##c.post, absorb(unit year) cluster(unit)
 
 **Try it:** Add a continuous control `x` to the panel (draw from rnorm) and re-fit the DiD with `y ~ treat * post + x`. Store the fitted model in `ex_did`.
 
-```r
+```r title="Exercise: add a covariate to DiD"
 # Try it: add a covariate x and re-fit
 ex_did_panel <- panel |>
   mutate(x = rnorm(n()))
@@ -171,7 +171,7 @@ summary(ex_did)$coefficients["treat:post", ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="DiD-covariate solution"
 ex_did_panel <- panel |>
   mutate(x = rnorm(n()))
 
@@ -191,7 +191,7 @@ Panel data and instrumental variables are the other two pillars of applied econo
 
 Let's demean by unit using base R only, so every line runs in the browser. The simulation has unit-specific intercepts, and the estimator should strip them out cleanly.
 
-```r
+```r title="Within estimator with factor dummies"
 # Within (fixed-effects) estimator using lm + factor(unit)
 fe_model <- lm(y ~ treat * post + factor(unit), data = panel)
 fe_tidy  <- tidy(fe_model)
@@ -225,7 +225,7 @@ feols(y ~ x1 | unit + year | x2 ~ z1 + z2, data = panel)
 
 **Try it:** Subset `panel` to the first 30 units and re-fit the fixed-effects model. Store the tidy interaction row in `ex_fe`.
 
-```r
+```r title="Exercise: fixed effects on subset"
 # Try it: estimate the same FE model on a 30-unit subset
 ex_fe_panel <- panel |>
   filter(unit <= 30)
@@ -241,7 +241,7 @@ ex_fe
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fixed-effects-subset solution"
 ex_fe_panel <- panel |>
   filter(unit <= 30)
 
@@ -264,7 +264,7 @@ ex_fe
 
 One of the most common worries from Stata users is "but my whole workflow is in .do files." The R equivalent is a single dplyr pipeline that reads, cleans, models, and reports, all in one readable block. The chain below takes the built-in `starwars` dataset, trims it to human characters, fits a height-vs-mass regression, and returns a tidy coefficient table.
 
-```r
+```r title="End-to-end dplyr analysis pipeline"
 # Full pipeline: clean → model → tidy — no intermediate scripts
 sw <- starwars |>
   filter(species == "Human", !is.na(mass), !is.na(height)) |>
@@ -290,7 +290,7 @@ Read it top to bottom: height adds about 1 kg of mass per cm (close to the textb
 
 **Try it:** Group the cleaned `sw` data by `gender` and compute the mean height per group. Save it as `ex_sw`.
 
-```r
+```r title="Exercise: mean height by gender"
 # Try it: mean height by gender
 ex_sw <- sw |>
   # your code here: group_by + summarise
@@ -303,7 +303,7 @@ ex_sw
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean-height solution"
 ex_sw <- sw |>
   group_by(gender) |>
   summarise(mean_height = mean(height), n = n())
@@ -324,7 +324,7 @@ ex_sw
 
 There is no universal winner. The right choice depends on four things: where your career points, who you collaborate with, whether you need publication-quality graphics, and whether you expect to blend in machine learning. The function below encodes a simple weighted rubric you can run on your own profile.
 
-```r
+```r title="Decision helper for tool choice"
 # A tiny decision helper — returns "Stata", "R", or "Both"
 recommend_tool <- function(career_track = c("academic_micro", "central_bank", "industry", "macro"),
                            collab_uses_stata = FALSE,
@@ -366,7 +366,7 @@ The rubric is intentionally simple, three binary inputs and a career bucket, but
 
 **Try it:** Call `recommend_tool()` for a macro PhD student who needs publication graphs but doesn't collaborate with Stata users. Store the answer in `ex_rec`.
 
-```r
+```r title="Exercise: recommend a tool"
 # Try it: your own profile
 ex_rec <- recommend_tool(
   career_track = "___",           # fill in
@@ -380,7 +380,7 @@ ex_rec
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Recommend-tool solution"
 ex_rec <- recommend_tool(
   career_track = "macro",
   needs_publication_graphs = TRUE
@@ -402,7 +402,7 @@ These capstone exercises combine multiple concepts from the tutorial. Use distin
 
 Simulate a balanced panel of 100 units × 5 years with a unit-specific intercept, a year trend, and a treatment effect of 0.75 on half the units starting in year 3. Estimate a two-way fixed-effects model with `lm(y ~ treat_post + factor(unit) + factor(year))` and recover the treatment coefficient in `my_fe`.
 
-```r
+```r title="Exercise: two-way fixed effects"
 # Exercise 1: two-way fixed effects manually
 # Hint: treat_post = treat * (year >= 3)
 
@@ -413,7 +413,7 @@ Simulate a balanced panel of 100 units × 5 years with a unit-specific intercept
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Two-way fixed effects solution"
 set.seed(11)
 my_panel <- expand.grid(unit = 1:100, year = 1:5) |>
   as_tibble() |>
@@ -442,7 +442,7 @@ my_fe
 
 Using the same simulation approach, produce a tibble of coefficient estimates for `y ~ factor(year) * treat` (so you get one interaction term per year). Filter to the interaction rows only and save the result as `my_event_tidy`.
 
-```r
+```r title="Exercise: event-study coefficients"
 # Exercise 2: event-study-style coefficients
 # Hint: filter rows whose `term` contains ":treat"
 
@@ -453,7 +453,7 @@ Using the same simulation approach, produce a tibble of coefficient estimates fo
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Event-study solution"
 set.seed(22)
 my_event <- expand.grid(unit = 1:100, year = 1:5) |>
   as_tibble() |>
@@ -484,7 +484,7 @@ my_event_tidy
 
 Write a function `stata_to_r(cmd)` that takes a Stata command string and returns the R equivalent as a string. Handle these three cases: `"regress y x"`, `"gen z = x + 1"`, and `"keep if x > 0"`. Anything else should return `"unknown"`.
 
-```r
+```r title="Exercise: translate Stata commands"
 # Exercise 3: translate Stata commands to R
 # Hint: use grepl() or startsWith() for dispatch
 
@@ -495,7 +495,7 @@ Write a function `stata_to_r(cmd)` that takes a Stata command string and returns
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Stata-translator solution"
 stata_to_r <- function(cmd) {
   if (grepl("^regress ", cmd)) {
     parts <- strsplit(sub("^regress ", "", cmd), " ")[[1]]
@@ -525,7 +525,7 @@ stata_to_r("keep if x > 0")
 
 Here is the end-to-end workflow an empirical economist would actually run: simulate a staggered-adoption-style panel, fit a DiD model with unit and year fixed effects, extract the tidy coefficients, and plot them. Every line runs in the browser.
 
-```r
+```r title="Full DiD pipeline with fixed effects"
 set.seed(42)
 
 final_panel <- expand.grid(unit = 1:150, year = 2018:2025) |>

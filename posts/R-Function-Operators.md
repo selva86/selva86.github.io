@@ -24,7 +24,7 @@ difficulty: "Beginner"
 
 Picture the classic "is positive" predicate. You already have `is_positive()`; now you need its opposite. The lazy route is to copy-paste a second function and change the comparison, and now you have two bodies to maintain. Base R's `Negate()` gives you the flip in one line, without touching the original.
 
-```r
+```r title="Negate flips a predicate"
 # Negate() takes a function, returns its logical opposite
 is_positive <- function(x) x > 0
 is_not_positive <- Negate(is_positive)
@@ -43,7 +43,7 @@ Notice what did *not* happen. We never defined a new function body. `Negate(is_p
 
 You are not restricted to the operators R ships with. Any function that accepts `f` and returns a new function that calls `f` inside is an operator. Here is the smallest possible example, it applies `f` to its own output, so `twice(sqrt)(16)` becomes `sqrt(sqrt(16))`.
 
-```r
+```r title="Twice composes a function"
 twice <- function(f) {
   function(x) f(f(x))
 }
@@ -61,7 +61,7 @@ The outer `twice` captures `f` in its environment, and the inner anonymous funct
 
 **Try it:** Write a function operator `ex_thrice(f)` that applies `f` three times in a row. Test it by wrapping `add1` and calling the result on `10`.
 
-```r
+```r title="Exercise: Write thrice operator"
 # Try it: write ex_thrice()
 ex_thrice <- function(f) {
   # your code here
@@ -76,7 +76,7 @@ ex_add3(10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Thrice solution"
 ex_thrice <- function(f) {
   function(x) f(f(f(x)))
 }
@@ -95,7 +95,7 @@ Composition is how you glue small functions into one bigger function. Mathematic
 
 Here is a classic use: you want the average magnitude of a vector of signed numbers. That is `mean` after `abs`. Without an operator, you would write a wrapper function; with `compose()`, you get the same result in a single line.
 
-```r
+```r title="Compose for function pipelines"
 library(purrr)
 
 abs_mean <- compose(mean, abs)
@@ -112,7 +112,7 @@ Reading `compose(mean, abs)` feels backwards at first, and that is intentional, 
 
 If that right-to-left order trips you up, tell `compose()` to flip the direction with `.dir = "forward"`. That way the functions execute left to right in the order you list them, more natural when you are already thinking in pipe terms. Here we build a label cleaner that trims whitespace, then lowercases, then removes spaces.
 
-```r
+```r title="Compose in forward direction"
 clean_label <- compose(trimws, tolower, \(s) gsub(" ", "_", s), .dir = "forward")
 clean_label("  Hello World  ")
 #> [1] "hello_world"
@@ -130,7 +130,7 @@ Both versions produce the same answer, but the `compose()` version is a single n
 
 **Try it:** Use `compose()` to build `ex_count_unique`, a function that takes a vector and returns the count of distinct values (i.e., `length` of `unique`). Test it on `c(1, 2, 2, 3, 3, 3)`.
 
-```r
+```r title="Exercise: Compose length and unique"
 # Try it: compose length and unique
 ex_count_unique <- # your code here
 
@@ -141,7 +141,7 @@ ex_count_unique(c(1, 2, 2, 3, 3, 3))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Length unique solution"
 ex_count_unique <- compose(length, unique)
 ex_count_unique(c(1, 2, 2, 3, 3, 3))
 #> [1] 3
@@ -157,7 +157,7 @@ If `compose()` chains functions, `partial()` specialises them. Partial applicati
 
 The most common case: you are tired of typing `mean(x, na.rm = TRUE)` everywhere. Freeze `na.rm = TRUE` once with `partial()`, and you get an `na.rm`-safe mean that behaves like `mean` minus the missing-value trap.
 
-```r
+```r title="Partial freezes arguments"
 mean_safe <- partial(mean, na.rm = TRUE)
 
 x_na <- c(1, NA, 3, 5, NA, 7)
@@ -171,7 +171,7 @@ The original `mean` is untouched, `mean(x_na)` still returns `NA` because we did
 
 Another favourite: base `log()` takes an optional `base` argument. Freeze that argument and you have a specialised `log2`-style function for any base you want, no new body required.
 
-```r
+```r title="Partial with log bases"
 log_base2 <- partial(log, base = 2)
 
 powers <- c(2, 4, 8, 16, 32)
@@ -190,7 +190,7 @@ Both `log_base2` and `log_base10` are one-argument functions now, you feed them 
 
 **Try it:** Use `partial()` to build `ex_round2`, a function that rounds a number to 2 decimal places. Test it on `pi` and on `c(1.2345, 6.789)`.
 
-```r
+```r title="Exercise: Round to two digits"
 # Try it: freeze the digits argument of round()
 ex_round2 <- # your code here
 
@@ -203,7 +203,7 @@ ex_round2(c(1.2345, 6.789))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Round2 solution"
 ex_round2 <- partial(round, digits = 2)
 ex_round2(pi)
 #> [1] 3.14
@@ -221,7 +221,7 @@ Some functions are expensive, a network call, a database query, a simulation tha
 
 The mechanism is a closure. The operator defines a local list, returns an inner function that (a) checks whether the input has been seen, (b) returns the cached answer if yes, (c) runs the real function and stores the result if no. Because the list lives in the operator's environment, it survives between calls.
 
-```r
+```r title="Build a caching operator"
 cache_fn <- function(f) {
   cache <- list()
   function(x) {
@@ -244,7 +244,7 @@ Two things to notice. The `cache` list is defined *inside* `cache_fn` and captur
 
 Now wrap a deliberately slow function and watch the second call become instantaneous. We use `Sys.sleep(0.5)` to fake a half-second computation; the first call pays that cost, the second call hits the cache and returns immediately.
 
-```r
+```r title="Cache slow double demo"
 slow_double <- function(x) {
   Sys.sleep(0.5)
   x * 2
@@ -270,7 +270,7 @@ Half a second on the first call, zero on the second. The slow computation ran on
 
 **Try it:** Wrap a function that returns `Sys.time()` in `cache_fn()` and call it twice with input `"now"`. Both calls should return the same timestamp, because the cache locks in the first one.
 
-```r
+```r title="Exercise: Cache returns same time"
 # Try it: cache a function that returns the current time
 ex_now_cached <- cache_fn(function(x) Sys.time())
 
@@ -282,7 +282,7 @@ ex_now_cached("now")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cache time solution"
 ex_now_cached <- cache_fn(function(x) Sys.time())
 
 first  <- ex_now_cached("now")
@@ -299,7 +299,7 @@ identical(first, second)
 
 You now have enough of the pattern to write any operator you want. The shape is always the same: a function that takes `f`, defines an inner function using `...` to forward arguments, does something extra (before, after, or around), and returns the inner function. Here is the template in plain language.
 
-```r
+```r title="Operator skeleton with dots"
 my_operator <- function(f) {
   function(...) {
     # before: do something with the args
@@ -312,7 +312,7 @@ my_operator <- function(f) {
 
 Let us make it concrete by building `log_calls()`, an operator that wraps any function so that each call prints its arguments and return value. It is the R equivalent of Python's `@log` decorator, and it is three lines of real code.
 
-```r
+```r title="Log calls before and after"
 log_calls <- function(f) {
   function(...) {
     cat("Called with:", paste(..., sep = ", "), "\n")
@@ -325,7 +325,7 @@ log_calls <- function(f) {
 
 The `...` lets the inner function accept whatever `f` accepts, one argument, three arguments, named arguments, without us hard-coding a signature. We print the inputs, run `f(...)`, print the result, and return it unchanged so callers see the same value they would have seen from `f` alone.
 
-```r
+```r title="Noisy square root demo"
 noisy_sqrt <- log_calls(sqrt)
 
 out <- noisy_sqrt(16)
@@ -347,7 +347,7 @@ Every call now logs itself to the console. The original `sqrt` is untouched; `no
 
 **Try it:** Build `ex_before(f)`, an operator that prints `"Calling..."` before calling `f(...)` and then returns the normal result. Wrap `sum` and call it on `c(1, 2, 3)`.
 
-```r
+```r title="Exercise: Before-hook operator"
 # Try it: print a message before calling f
 ex_before <- function(f) {
   # your code here
@@ -361,7 +361,7 @@ ex_loud_sum(c(1, 2, 3))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Before-hook solution"
 ex_before <- function(f) {
   function(...) {
     cat("Calling...\n")
@@ -386,7 +386,7 @@ These are harder than the inline exercises, they combine multiple operators or a
 
 Build `clean_mean`, a function that takes a numeric vector (possibly with NAs), computes the mean ignoring NAs, and rounds the answer to 2 decimal places. Use `partial()` for the two argument-freezing steps and `compose()` for the chaining. Test it on `c(1, NA, 2.3456, 5, NA, 9.8765)`.
 
-```r
+```r title="Exercise: Compose clean mean"
 # Your code here
 clean_mean <- NULL   # replace with your definition
 my_vals <- c(1, NA, 2.3456, 5, NA, 9.8765)
@@ -397,7 +397,7 @@ clean_mean(my_vals)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Clean mean solution"
 clean_mean <- compose(
   partial(round, digits = 2),
   partial(mean, na.rm = TRUE)
@@ -415,7 +415,7 @@ clean_mean(my_vals)
 
 Write `trace_calls(f)` that wraps `f` and also records every call's input arguments in a closure-backed list. The operator should return a *list* with two elements: `$wrapped` (the new function) and `$get_log` (a function with no arguments that returns the accumulated call log). Test by wrapping `sum`, calling the wrapped version three times, then inspecting the log.
 
-```r
+```r title="Exercise: Trace calls helper"
 # Your code here
 trace_calls <- function(f) {
   # hint: store a list in the closure, use <<- to append
@@ -432,7 +432,7 @@ traced_sum$get_log()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Trace calls solution"
 trace_calls <- function(f) {
   log <- list()
   wrapped <- function(...) {
@@ -466,7 +466,7 @@ traced_sum$get_log()
 
 Build `retry(f, n)` that wraps `f` and calls it up to `n` times. If `f` throws an error, retry. If all `n` attempts error, return `NA`. Test on a `flaky()` function that fails the first 2 of every 3 calls.
 
-```r
+```r title="Exercise: Retry with tryCatch"
 # Your code here
 retry <- function(f, n) {
   # hint: use tryCatch inside a loop
@@ -487,7 +487,7 @@ safe_flaky(7)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Retry solution"
 retry <- function(f, n) {
   function(...) {
     for (i in seq_len(n)) {
@@ -518,7 +518,7 @@ safe_flaky(7)
 
 Let us tie it all together. Imagine a costly group-summary routine, in real life it might query a database, fit a model, or read a large file. We simulate the cost with `Sys.sleep(1)`. We will cache it so repeat calls are free, then use `partial()` to specialise it to a specific grouping column so callers do not have to remember the arg name.
 
-```r
+```r title="End-to-end cached summariser"
 slow_group_mean <- function(df, group_col, value_col) {
   Sys.sleep(1)   # pretend this is expensive
   agg <- aggregate(df[[value_col]], by = list(df[[group_col]]), FUN = mean)

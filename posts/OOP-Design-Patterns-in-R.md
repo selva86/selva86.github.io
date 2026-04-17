@@ -24,7 +24,7 @@ A factory is a function whose only job is to decide *which* class to build and h
 
 Below we define three reader classes that share a `read()` method, then a tiny `create_reader()` factory that picks one based on the file extension. The caller never mentions `CSVReader` or `JSONReader` by name.
 
-```r
+```r title="Factory with CSV and JSON readers"
 library(R6)
 
 CSVReader <- R6Class("CSVReader",
@@ -93,7 +93,7 @@ Two different classes, one line of calling code. Adding an `ParquetReader` tomor
 
 **Try it:** Add an `RDSReader` to the factory that handles `.rds` files. It should return `list(kind = "rds")` from its `read()` method.
 
-```r
+```r title="Exercise: add exRDSReader"
 ex_RDSReader <- R6Class("ex_RDSReader",
   public = list(
     read = function(path) {
@@ -118,7 +118,7 @@ ex_create_reader("model.rds")$read("model.rds")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="exRDSReader solution"
 ex_RDSReader <- R6Class("ex_RDSReader",
   public = list(
     read = function(path) list(kind = "rds", path = path)
@@ -150,7 +150,7 @@ Strategy splits *what* from *how*. A **context** object knows what job needs doi
 
 We'll build three scoring strategies (mean, median, trimmed mean) and a `Scorer` context that delegates to whichever strategy it currently holds. The important move is that the caller can change strategies midway through a session.
 
-```r
+```r title="Strategy pattern with Scorer"
 MeanScore <- R6Class("MeanScore",
   public = list(score = function(x) mean(x))
 )
@@ -196,7 +196,7 @@ The single outlier (`100`) drags the plain mean to 22, but both the median and t
 
 **Try it:** Write `ex_MaxStrategy`, an R6 class whose `score()` method returns `max(x)`, and plug it into `Scorer` (already defined above).
 
-```r
+```r title="Exercise: MaxStrategy class"
 ex_MaxStrategy <- R6Class("ex_MaxStrategy",
   public = list(
     score = function(x) {
@@ -213,7 +213,7 @@ ex_sc$run(c(3, 1, 9, 4))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="MaxStrategy solution"
 ex_MaxStrategy <- R6Class("ex_MaxStrategy",
   public = list(score = function(x) max(x))
 )
@@ -232,7 +232,7 @@ Observer inverts the usual call direction. Instead of code polling an object (*"
 
 We'll model a temperature sensor as the **subject** and attach two **observers**: a logger that prints every reading, and an alerter that only fires when the value crosses a threshold.
 
-```r
+```r title="Observer pattern with TempSensor"
 TempSensor <- R6Class("TempSensor",
   public = list(
     observers = list(),
@@ -292,7 +292,7 @@ Neither `LoggerObs` nor `AlertObs` knows the other exists, the sensor just walks
 
 **Try it:** Write `ex_AverageObs`, an observer that keeps a running vector of readings in a public `values` field and prints the running mean on every update.
 
-```r
+```r title="Exercise: running-mean observer"
 ex_AverageObs <- R6Class("ex_AverageObs",
   public = list(
     values = c(),
@@ -312,7 +312,7 @@ ex_sensor$set_value(20)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Running-mean observer solution"
 ex_AverageObs <- R6Class("ex_AverageObs",
   public = list(
     values = c(),
@@ -340,7 +340,7 @@ Two smaller patterns fill obvious niches. **Singleton** guarantees exactly one i
 
 The cleanest R singleton hides the instance inside a closure-scoped variable rather than a true class, because R packages already behave like process-wide namespaces.
 
-```r
+```r title="Singleton config with local()"
 get_config <- local({
   instance <- NULL
   function() {
@@ -371,7 +371,7 @@ identical(cfg1, cfg2)
 
 Now Builder: a report object with many optional fields, built up with chained calls.
 
-```r
+```r title="ReportBuilder with chained setters"
 ReportBuilder <- R6Class("ReportBuilder",
   public = list(
     title   = NULL,
@@ -409,7 +409,7 @@ Each setter returns `invisible(self)`, which is the trick that makes the fluent 
 
 **Try it:** Extend the config singleton with a `set_port(p)` method that updates the port. Show that changing it via one reference is visible from the other.
 
-```r
+```r title="Exercise: add setport to Config"
 # Modify the Config R6Class inside get_config above to add set_port.
 # Then test:
 a <- get_config()
@@ -422,7 +422,7 @@ b$port
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="setport solution"
 get_config <- local({
   instance <- NULL
   function() {
@@ -470,7 +470,7 @@ Here is the decision shortcut I use when reviewing R code:
 
 Below is a concrete "before and after": a slope classifier that starts as a nested `if`/`else` and becomes a clean Strategy. Notice how the second version is open to new rules without editing `classifier`.
 
-```r
+```r title="Before and after: Strategy refactor"
 classify_v1 <- function(slope, kind) {
   if (kind == "strict") {
     if (slope > 0.5) "up" else if (slope < -0.5) "down" else "flat"
@@ -508,7 +508,7 @@ The `v1` function grows a new `else if` branch every time someone invents a new 
 
 **Try it:** Your teammate keeps adding new chart types to a monster `if`/`else` in `plot_dispatch()`. Which pattern fixes this, and in one sentence, why?
 
-```r
+```r title="Exercise: pick a pattern"
 # Write your answer as an R comment below:
 # Pattern:
 # Reason:
@@ -517,7 +517,7 @@ The `v1` function grows a new `else if` branch every time someone invents a new 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pattern-choice solution"
 # Pattern: Strategy (or Factory, depending on what's branching).
 # Reason: The branch is deciding *how to plot*, so each chart type
 # becomes a strategy object exposing a common draw() method; the
@@ -534,7 +534,7 @@ The `v1` function grows a new `else if` branch every time someone invents a new 
 
 Build a `Cart` context and three discount strategies: `NoDiscount`, `PercentDiscount` (takes a rate like 0.1 = 10% off), and `FlatDiscount` (takes a fixed amount off). `Cart` holds `items` (a numeric vector of prices) and a strategy, and exposes `total()` which returns the discounted total. Save the final totals into `my_totals` as a named list.
 
-```r
+```r title="Exercise: Strategy-based discount"
 # Exercise 1: Strategy-based discount system
 # Hint: each strategy has apply(subtotal) -> new total
 # Cart$total() calls self$strategy$apply(sum(self$items))
@@ -548,7 +548,7 @@ my_totals
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Discount-strategy solution"
 NoDiscount <- R6Class("NoDiscount",
   public = list(apply = function(sub) sub)
 )
@@ -603,7 +603,7 @@ my_totals
 
 Build a `make_notifier(kind)` factory that returns an `EmailNotifier`, `SmsNotifier` or `SlackNotifier`, each implements a `send(msg)` method that `cat()`s a tagged line. Then build an `AlertHub` subject that stores a list of notifiers and broadcasts every alert to all of them via `$raise(msg)`. Save the hub to `my_hub` and raise one alert that reaches three notifiers.
 
-```r
+```r title="Exercise: Factory plus Observer"
 # Exercise 2: Factory + Observer
 # Hint: the factory returns one of three R6 classes;
 # AlertHub$raise(msg) loops its notifiers and calls $send(msg).
@@ -616,7 +616,7 @@ my_hub <- NULL
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Factory-observer solution"
 EmailNotifier <- R6Class("EmailNotifier",
   public = list(send = function(msg) cat("[email]", msg, "\n"))
 )
@@ -666,7 +666,7 @@ my_hub$raise("disk full")
 
 Here's a tiny end-to-end pipeline that uses three of the patterns together. A factory picks a reader for `mtcars` (we just fake one); a strategy picks the scoring method; an observer logs every result. One function, five lines of calling code, all three patterns.
 
-```r
+```r title="End-to-end pattern pipeline"
 Reader <- R6Class("Reader",
   public = list(read = function() mtcars$mpg)
 )

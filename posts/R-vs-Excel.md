@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Excel's hard row ceiling is 1,048,576 rows, and in practice laptops start slogging well before that. If your workbook now takes a minute to open, or VLOOKUPs freeze the app, you've hit the size wall. R lives in memory and runs vectorised operations, so the same dataset loads in seconds and a groupwise summary runs in milliseconds. Here is what that looks like on a million-row sales table.
 
-```r
+```r title="Million-row group-by with dplyr"
 library(dplyr)
 
 # Generate a 1,000,000-row sales table
@@ -58,7 +58,7 @@ One million rows, one group-by, one summary, finished before you could even open
 
 **Try it:** Count how many orders sit in each `product` bucket in `sales_df`. You should see roughly 250,000 per product.
 
-```r
+```r title="Exercise: count orders by product"
 # Try it: count orders by product
 ex_by_product <- sales_df |>
   # your code here
@@ -70,7 +70,7 @@ print(ex_by_product)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Count-by-product solution"
 ex_by_product <- sales_df |>
   count(product)
 print(ex_by_product)
@@ -91,7 +91,7 @@ print(ex_by_product)
 
 Every Excel power user has felt the pain: you insert a row, and suddenly `=B7*C7` points at a different cell. Sort the sheet and half the formulas return `#REF!`. The root cause is that Excel formulas reference *positions*, not *columns*. R does the opposite, you refer to columns by name, so inserts, sorts, and filters can never break the reference.
 
-```r
+```r title="Mutate by column name, not cell ref"
 # Add a 10% discount column using column names, not cell refs
 sales_with_discount <- sales_df |>
   mutate(
@@ -113,7 +113,7 @@ Notice that `mutate()` refers to `quantity`, `price`, and `revenue` by name. You
 
 **Try it:** Add a `margin` column equal to `net - 0.6 * revenue` (a stand-in cost model) and show the first three rows.
 
-```r
+```r title="Exercise: add a margin column"
 # Try it: add margin column
 ex_margin_df <- sales_with_discount |>
   # your code here
@@ -124,7 +124,7 @@ head(ex_margin_df, 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Margin-column solution"
 ex_margin_df <- sales_with_discount |>
   mutate(margin = net - 0.6 * revenue)
 head(ex_margin_df, 3)
@@ -144,7 +144,7 @@ head(ex_margin_df, 3)
 
 In a spreadsheet, the analysis *is* the click history that no one wrote down. Which filters were applied? Was that pivot manually sorted? Were the outlier rows deleted by hand? Six months later, even you cannot be sure. In R, the script *is* the analysis. Hand the same code and the same data to a colleague and they will get the same result, byte for byte.
 
-```r
+```r title="Seeded random sample for reproducibility"
 # A random operation that is still 100% reproducible
 set.seed(2026)
 
@@ -170,7 +170,7 @@ Run the block again, exact same five rows. `set.seed()` pins the random number g
 
 **Try it:** Change the seed to `99` and rerun. The five rows will be different, but they will be the same five rows every time you rerun with seed 99.
 
-```r
+```r title="Exercise: sample with a new seed"
 # Try it: pick a new seed
 set.seed(99)
 ex_seed_sample <- sales_df |>
@@ -183,7 +183,7 @@ ex_seed_sample
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="New-seed solution"
 set.seed(99)
 ex_seed_sample <- sales_df |>
   slice_sample(n = 5) |>
@@ -207,7 +207,7 @@ ex_seed_sample
 
 If you find yourself dragging the same pivot, copying the same columns, and emailing the same report every Monday, you are manually running a program you never wrote down. R lets you say "do this for every group" in a single expression, and then you rerun the whole thing next week with one click.
 
-```r
+```r title="Sixteen pivot tables in one groupby"
 # 16 pivot tables in one line: every region x quarter combo
 quarter_summary <- sales_df |>
   mutate(revenue = quantity * price) |>
@@ -234,7 +234,7 @@ One `group_by(region, quarter)` call produces every region-quarter cell Excel wo
 
 **Try it:** Produce a summary of total revenue by `product` only (ignore region and quarter).
 
-```r
+```r title="Exercise: group by product"
 # Try it: group by product
 ex_product_summary <- sales_df |>
   # your code here
@@ -245,7 +245,7 @@ ex_product_summary
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Product-groupby solution"
 ex_product_summary <- sales_df |>
   mutate(revenue = quantity * price) |>
   group_by(product) |>
@@ -268,7 +268,7 @@ ex_product_summary
 
 Excel's chart wizard is great for one chart. It stops being great the moment you need four charts on the same scale, or a chart faceted by region, or any visual idiom that does not ship as a preset. R's ggplot2 is a grammar: you declare data, mapping, and layers, and the chart follows.
 
-```r
+```r title="Faceted revenue chart by region"
 library(ggplot2)
 
 # One chart per region, same y-axis, same styling
@@ -293,7 +293,7 @@ One pipeline goes from raw table to a four-panel dashboard, all sharing the same
 
 **Try it:** Change the faceting variable to `product` so you get one panel per product instead of per region.
 
-```r
+```r title="Exercise: facet by product"
 # Try it: facet by product
 sales_df |>
   mutate(revenue = quantity * price) |>
@@ -308,7 +308,7 @@ sales_df |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Facet-by-product solution"
 sales_df |>
   mutate(revenue = quantity * price) |>
   group_by(product, quarter) |>
@@ -327,7 +327,7 @@ sales_df |>
 
 VLOOKUP and INDEX-MATCH are how Excel pretends to do database joins. They work for one lookup on one sheet, but break the moment you have duplicate keys, missing matches, or more than a handful of columns to bring in. R has real relational joins: one function call, any number of columns, clear rules for what happens to unmatched rows.
 
-```r
+```r title="leftjoin replaces VLOOKUP"
 # A customers lookup table
 customers_df <- tibble(
   region = c("North", "South", "East", "West"),
@@ -355,7 +355,7 @@ Every row of `sales_df` now carries its `tier` and `mgr`, matched by `region`. `
 
 **Try it:** Use `inner_join()` instead so you keep only sales whose region appears in `customers_df`. Count the rows afterwards.
 
-```r
+```r title="Exercise: inner join on region"
 # Try it: inner join
 ex_inner <- sales_df |>
   # your code here
@@ -366,7 +366,7 @@ nrow(ex_inner)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Inner-join solution"
 ex_inner <- sales_df |>
   inner_join(customers_df, by = "region")
 nrow(ex_inner)
@@ -381,7 +381,7 @@ nrow(ex_inner)
 
 Excel can do a mean, a pivot, and a trendline. The moment you need a multi-predictor regression, a hypothesis test, or anything a statistician would recognise as a "model", you are either bolting on add-ins or exporting to another tool. R treats modelling as a first-class citizen: `lm()` gives you a full regression in one line, with diagnostics, confidence intervals, and tidy extraction built in.
 
-```r
+```r title="Regression on tier and quarter"
 # Does tier or quarter predict revenue per sale?
 sales_model <- joined_sales |>
   mutate(revenue = quantity * price) |>
@@ -404,7 +404,7 @@ The coefficient table tells you everything a spreadsheet trendline would hide: h
 
 **Try it:** Fit a new model that also includes `product` as a predictor. Check whether the `product` coefficients look meaningful.
 
-```r
+```r title="Exercise: add product to the model"
 # Try it: add product to the model
 ex_model <- joined_sales |>
   mutate(revenue = quantity * price) |>
@@ -416,7 +416,7 @@ summary(ex_model)$coefficients
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Product-model solution"
 ex_model <- joined_sales |>
   mutate(revenue = quantity * price) |>
   lm(revenue ~ tier + quarter + product, data = _)
@@ -435,7 +435,7 @@ These capstones combine several of the 7 signs. Use variable names starting with
 
 Filter `sales_df` to rows where `quantity >= 10`, compute average revenue per row grouped by region, and return the top 3 regions sorted descending.
 
-```r
+```r title="Exercise: top three regions by revenue"
 # Exercise: filter + group_by + summarise + arrange + slice
 # Hint: chain the verbs with |>
 
@@ -448,7 +448,7 @@ my_top3
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top-three-regions solution"
 my_top3 <- sales_df |>
   filter(quantity >= 10) |>
   mutate(revenue = quantity * price) |>
@@ -474,7 +474,7 @@ my_top3
 
 Starting from `sales_df`, join `customers_df`, compute per-row revenue, and fit a regression of revenue on `tier`. Extract the coefficient for `tierGold` into `my_gold_coef`.
 
-```r
+```r title="Exercise: extract tier-Gold coefficient"
 # Exercise: join, mutate, lm, and extract one coefficient
 # Hint: coef() returns a named numeric vector
 
@@ -487,7 +487,7 @@ my_gold_coef
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tier-Gold solution"
 my_gold_coef <- sales_df |>
   left_join(customers_df, by = "region") |>
   mutate(revenue = quantity * price) |>
@@ -508,7 +508,7 @@ my_gold_coef
 
 Here is a single pipeline that touches all seven signs: big data (sign 1), column references (sign 2), reproducible transforms (sign 3), grouped summaries (sign 4), a faceted chart (sign 5), a relational join (sign 6), and a regression (sign 7).
 
-```r
+```r title="End-to-end seven-signs pipeline"
 set.seed(77)
 
 # 1. Join customer tier, compute revenue

@@ -26,7 +26,7 @@ The fastest way to understand R is to type an expression and watch R answer back
 
 Try typing each of the four lines below. R prints the answer right under each expression that returns a value.
 
-```r
+```r title="Arithmetic, assignment, and reuse"
 2 + 2
 #> [1] 4
 
@@ -40,7 +40,7 @@ That tiny snippet already uses three of the five syntax elements we'll cover. Li
 
 **Try it:** Store your age in seconds in a variable called `ex_age_seconds`. A year has roughly 31,557,600 seconds.
 
-```r
+```r title="Try it: Age in seconds"
 # Try it: compute your age in seconds
 ex_age_seconds <- # your code here
 
@@ -52,7 +52,7 @@ ex_age_seconds
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Age in seconds solution"
 ex_age_seconds <- 30 * 31557600
 ex_age_seconds
 #> [1] 946728000
@@ -71,7 +71,7 @@ R supports seven arithmetic operators. Five of them are the usual suspects you'd
 
 Let's run every operator in a single block so you can see the results side by side.
 
-```r
+```r title="Seven arithmetic operators demo"
 5 + 2       # addition
 #> [1] 7
 
@@ -98,7 +98,7 @@ Two things are worth noting. First, `/` in R always returns a decimal, even when
 
 Operator precedence in R follows standard math rules: exponentiation first, then multiplication and division, then addition and subtraction. When in doubt, use parentheses to force the order you want.
 
-```r
+```r title="Operator precedence with parentheses"
 2 + 3 * 4          # multiplication happens first
 #> [1] 14
 
@@ -116,7 +116,7 @@ The first expression evaluates `3 * 4 = 12`, then adds `2` to get `14`. The seco
 
 **Try it:** Compute the area of a rectangle that is `12.5` units wide and `8` units tall, and store it in `ex_area`.
 
-```r
+```r title="Try it: Rectangle area"
 # Try it: compute rectangle area
 ex_area <- # your code here
 
@@ -128,7 +128,7 @@ ex_area
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rectangle area solution"
 ex_area <- 12.5 * 8
 ex_area
 #> [1] 100
@@ -147,7 +147,7 @@ A variable is a name attached to a value. Once you've stored a number, a string,
 
 Let's see all three operators in action. Every line below stores the number `10` in a variable, just using different syntax.
 
-```r
+```r title="Three ways to assign a value"
 a <- 10       # idiomatic left-arrow assignment
 b = 10        # equals-sign assignment (avoid outside function calls)
 10 -> c       # rare right-arrow assignment
@@ -167,7 +167,7 @@ All three variables now hold the same value. But even though they're functionall
 
 You can reassign variables as often as you like. R does not complain; it just replaces the old value with the new one. Variable names are also case-sensitive, `counter` and `Counter` are two completely different variables.
 
-```r
+```r title="Reassignment and case sensitivity"
 counter <- 0
 counter <- counter + 1     # reassign: new value is old value + 1
 counter <- counter + 1
@@ -189,7 +189,7 @@ Notice how `counter + 1` uses the current value of `counter` on the right side b
 
 **Try it:** You have two variables `ex_a <- 1` and `ex_b <- 2`. Swap their values using a temporary variable `ex_temp`, so that at the end `ex_a` is `2` and `ex_b` is `1`.
 
-```r
+```r title="Try it: Swap two values"
 # Try it: swap ex_a and ex_b
 ex_a <- 1
 ex_b <- 2
@@ -206,7 +206,7 @@ ex_b
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Swap variables solution"
 ex_a <- 1
 ex_b <- 2
 
@@ -230,7 +230,7 @@ A comment is a note to yourself (or the next reader) that R ignores while runnin
 
 Comments serve two purposes. First, they explain *why* a line exists, not what it does (the code itself already tells you *what*). Second, they let you temporarily disable a line of code without deleting it, which is handy when debugging.
 
-```r
+```r title="Inline comments explain intent"
 # Calculate the total price including tax
 price <- 100            # base price in dollars
 tax_rate <- 0.08        # 8% sales tax
@@ -248,7 +248,7 @@ Three kinds of comments appear here. The first line is a whole-line comment expl
 
 **Try it:** Add a trailing comment to each line below explaining what the line does in plain English.
 
-```r
+```r title="Try it: Add explanatory comments"
 # Try it: add comments to explain each line
 ex_miles <- 26.2            # your comment here
 ex_km <- ex_miles * 1.609   # your comment here
@@ -260,7 +260,7 @@ ex_km
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Commented conversion solution"
 ex_miles <- 26.2            # marathon distance in miles
 ex_km <- ex_miles * 1.609   # convert to kilometres (1 mile = 1.609 km)
 
@@ -276,7 +276,7 @@ ex_km
 
 R is flexible about variable names, but it's not a free-for-all. A valid R name must start with a letter or a dot (`.`), and after that can contain letters, digits, dots, and underscores. It cannot start with a digit, cannot contain spaces or most symbols, and cannot be one of R's reserved words like `TRUE`, `FALSE`, `NULL`, `if`, or `function`.
 
-```r
+```r title="Valid variable name examples"
 my_var <- 1          # valid: snake_case, letters and underscore
 userName <- 2        # valid: camelCase
 .hidden <- 3         # valid: leading dot (but hidden from ls())
@@ -294,7 +294,7 @@ All five names work, but a few would fail. `2x <- 1` is invalid because the name
 
 **Try it:** Three of the variable names below are invalid. Rewrite them so they work and store the value on the right.
 
-```r
+```r title="Try it: Fix three invalid names"
 # Try it: fix the three invalid names
 # 2user <- "Alex"       invalid: starts with digit
 # my name <- "Alex"     invalid: contains a space
@@ -317,7 +317,7 @@ ex_total
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Name fix solution"
 ex_user_name <- "Alex"     # replaced space with underscore
 ex_v2 <- "Alex"            # moved the digit after the letter
 ex_total <- 100            # dropped the $
@@ -345,7 +345,7 @@ There are three common ways to run code from a script file in RStudio. You can p
 
 Here is a complete working script you can paste into a file called `temperature.R` and run. It converts a Celsius temperature to Fahrenheit.
 
-```r
+```r title="Celsius to Fahrenheit script"
 # temperature.R — convert Celsius to Fahrenheit
 
 # Step 1: define the input
@@ -366,7 +366,7 @@ Read the script top to bottom. Comments mark each step so a future reader can fo
 
 **Try it:** Modify the script so it converts kilograms to pounds instead. The conversion is `pounds = kilograms * 2.20462`.
 
-```r
+```r title="Try it: Kilograms to pounds"
 # Try it: kilograms to pounds
 kilograms <- 70
 # your code here: compute and print pounds
@@ -378,7 +378,7 @@ pounds
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Kilograms to pounds solution"
 kilograms <- 70
 pounds <- kilograms * 2.20462
 pounds
@@ -397,7 +397,7 @@ These capstone problems combine several ideas from above. Work through them with
 
 Write a short script that computes Body Mass Index from a person's weight (kg) and height (metres). The formula is `BMI = weight / height^2`. Use variables called `my_weight`, `my_height`, and `my_bmi`, and add comments explaining each step.
 
-```r
+```r title="Exercise: BMI calculator"
 # Exercise 1: BMI calculator
 # Use my_weight <- 72 and my_height <- 1.75
 # Hint: remember to square the height with ^
@@ -409,7 +409,7 @@ Write a short script that computes Body Mass Index from a person's weight (kg) a
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="BMI calculator solution"
 # BMI calculator
 my_weight <- 72            # weight in kilograms
 my_height <- 1.75          # height in metres
@@ -426,7 +426,7 @@ my_bmi
 
 An investment of `my_principal` dollars grows at an annual interest rate `my_rate` (as a decimal, so 5% is `0.05`) for `my_years` years. Compound-interest growth is `final = principal * (1 + rate)^years`. Compute the final amount for `$1000` at 5% over 10 years.
 
-```r
+```r title="Exercise: Compound interest"
 # Exercise 2: compound interest
 # Hint: use ^ for the exponent
 
@@ -441,7 +441,7 @@ my_years <- 10
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Compound interest solution"
 my_principal <- 1000
 my_rate <- 0.05
 my_years <- 10
@@ -459,7 +459,7 @@ my_final
 
 Given `my_width <- 4` and `my_height <- 3`, compute and store three values: `my_area` (width × height), `my_perimeter` (twice the sum of width and height), and `my_diagonal` (the square root of width² + height², which you can compute with `^0.5`).
 
-```r
+```r title="Exercise: Rectangle area, perimeter, diagonal"
 # Exercise 3: rectangle analyzer
 my_width <- 4
 my_height <- 3
@@ -471,7 +471,7 @@ my_height <- 3
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Rectangle analyzer solution"
 my_width <- 4
 my_height <- 3
 
@@ -495,7 +495,7 @@ my_diagonal
 
 Let's close with a complete, realistic script that uses every idea from this post in one place: a tip calculator that splits a restaurant bill. Read it top to bottom and notice how comments, assignment, arithmetic, and clear names work together.
 
-```r
+```r title="End-to-end tip calculator"
 # tip_calculator.R — split a restaurant bill with tip
 
 # Inputs

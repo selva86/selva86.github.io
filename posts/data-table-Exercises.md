@@ -26,7 +26,7 @@ The first four exercises cover the essentials: filtering rows, picking columns, 
 
 Every exercise below builds on two tables: `dt_cars` (the built-in `mtcars` dataset with row names promoted to a `model` column) and `dt_iris` (the classic 150-flower measurements). Run the block once, all code on this page shares one R session, so later exercises can reference both tables without reloading.
 
-```r
+```r title="Load mtcars and iris as data tables"
 # Load data.table and build two working tables from built-in datasets
 library(data.table)
 
@@ -76,7 +76,7 @@ Convert the built-in `airquality` dataset to a data.table called `my_aq`. Then s
 
 **Expected output:** a data.table with 18 rows and 6 columns.
 
-```r
+```r title="Exercise one: filter ozone over eighty"
 # Exercise 1: convert airquality to a data.table, then filter rows
 # Hint: use as.data.table() then DT[i] with compound conditions using &
 
@@ -87,7 +87,7 @@ Convert the built-in `airquality` dataset to a data.table called `my_aq`. Then s
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution"
 my_aq <- as.data.table(airquality)
 my_result <- my_aq[Temp > 80 & Month == 8]
 nrow(my_result)
@@ -109,7 +109,7 @@ From `dt_cars`, create a new data.table `my_result` that contains only three col
 
 **Expected output:** 32 rows and 3 columns.
 
-```r
+```r title="Exercise two: compute kilometres per litre"
 # Exercise 2: select model and mpg, plus a computed kpl column
 # Hint: inside j, use .(name = expression) to build a new table
 
@@ -120,7 +120,7 @@ From `dt_cars`, create a new data.table `my_result` that contains only three col
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution"
 my_result <- dt_cars[, .(model, mpg, kpl = mpg * 0.425)]
 head(my_result, 3)
 #>                model  mpg    kpl
@@ -141,7 +141,7 @@ From `dt_cars`, find rows where the car is a six-cylinder (`cyl == 6`) OR has a 
 
 **Expected output:** 20 rows, 4 columns.
 
-```r
+```r title="Exercise three: compound filter on cyl and am"
 # Exercise 3: OR condition combined with AND, then column selection
 # Hint: parentheses matter — R evaluates & before |
 
@@ -152,7 +152,7 @@ From `dt_cars`, find rows where the car is a six-cylinder (`cyl == 6`) OR has a 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution"
 my_result <- dt_cars[(cyl == 6 | am == 1) & hp > 100, .(model, cyl, hp, am)]
 my_result
 #>                 model cyl  hp am
@@ -175,7 +175,7 @@ Using `dt_cars`, compute the mean `mpg` and the number of cars per cylinder coun
 
 **Expected output:** 3 rows (one per cylinder count: 4, 6, 8).
 
-```r
+```r title="Exercise four: group by cyl with dot N"
 # Exercise 4: group-by aggregation
 # Hint: use .(new1 = ..., new2 = ...) in j, and by=cyl. Use .N for row counts.
 
@@ -186,7 +186,7 @@ Using `dt_cars`, compute the mean `mpg` and the number of cars per cylinder coun
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise four solution"
 my_result <- dt_cars[, .(avg_mpg = mean(mpg), n_cars = .N), by = cyl]
 setorder(my_result, cyl)
 my_result
@@ -206,7 +206,7 @@ Compute the mean of all four numeric columns (`Sepal.Length`, `Sepal.Width`, `Pe
 
 **Expected output:** 3 rows (one per species), 5 columns.
 
-```r
+```r title="Exercise five: mean of multiple columns via SD"
 # Exercise 5: apply mean() to many columns at once
 # Hint: use lapply(.SD, mean) with .SDcols to target numeric columns
 
@@ -217,7 +217,7 @@ Compute the mean of all four numeric columns (`Sepal.Length`, `Sepal.Width`, `Pe
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise five solution"
 my_result <- dt_iris[, lapply(.SD, mean), by = Species,
                      .SDcols = c("Sepal.Length", "Sepal.Width",
                                  "Petal.Length", "Petal.Width")]
@@ -238,7 +238,7 @@ Using `dt_cars`, find the top 3 cars (by `hp`) among automatic transmissions (`a
 
 **Expected output:** 3 rows, 3 columns.
 
-```r
+```r title="Exercise six: chain multiple operations"
 # Exercise 6: filter, sort, head, select — all chained
 # Hint: DT[i][order()][1:3][, j] stacks four operations left-to-right
 
@@ -249,7 +249,7 @@ Using `dt_cars`, find the top 3 cars (by `hp`) among automatic transmissions (`a
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise six solution"
 my_result <- dt_cars[am == 0][order(-hp)][1:3, .(model, hp, mpg)]
 my_result
 #>                 model  hp  mpg
@@ -271,7 +271,7 @@ Add two new columns to `dt_cars` in place: `kpl` (kilometres per litre = `mpg * 
 
 **Expected output:** `dt_cars` now has 14 columns (was 12).
 
-```r
+```r title="Exercise seven: assign multiple columns"
 # Exercise 7: add two columns in place
 # Hint: DT[, c("a", "b") := .(expr1, expr2)]
 
@@ -282,7 +282,7 @@ Add two new columns to `dt_cars` in place: `kpl` (kilometres per litre = `mpg * 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise seven solution"
 dt_cars[, c("kpl", "power_weight") := .(mpg * 0.425, hp / wt)]
 ncol(dt_cars)
 #> [1] 14
@@ -306,7 +306,7 @@ Sort `dt_cars` in place by `cyl` ascending and `mpg` descending using `setorder(
 
 **Expected output:** `key(dt_cars)` returns `"cyl"`, and the first row is a 4-cylinder with the highest mpg.
 
-```r
+```r title="Exercise eight: setorder and setkey"
 # Exercise 8: in-place sort, then set a key
 # Hint: setorder(DT, col1, -col2) sorts; setkey(DT, col) indexes
 
@@ -317,7 +317,7 @@ Sort `dt_cars` in place by `cyl` ascending and `mpg` descending using `setorder(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise eight solution"
 setorder(dt_cars, cyl, -mpg)
 setkey(dt_cars, cyl)
 key(dt_cars)
@@ -337,7 +337,7 @@ head(dt_cars[, .(model, cyl, mpg)], 3)
 
 Build two small tables from `starwars`-style data. Join them on `planet_id` to see each person's planet name. Keep all rows from the people table (left join).
 
-```r
+```r title="Exercise nine starter: left join setup"
 # Starter data — run this first
 people <- data.table(id = c(1, 2, 3, 4),
                      name = c("Luke", "Leia", "Han", "Chewie"),
@@ -350,7 +350,7 @@ Join `people` with `planets` on `planet_id` so every person keeps their row even
 
 **Expected output:** 4 rows, Chewie's planet is `NA` because planet 30 is not in `planets`.
 
-```r
+```r title="Exercise nine: perform the left join"
 # Exercise 9: left join
 # Hint: X[Y, on=] returns rows from Y joined with matches from X.
 # For a left join keeping all of people, write planets[people, on="planet_id"]
@@ -362,7 +362,7 @@ Join `people` with `planets` on `planet_id` so every person keeps their row even
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise nine solution"
 my_result <- planets[people, on = "planet_id"]
 my_result
 #>    planet_id   planet id   name
@@ -380,7 +380,7 @@ my_result
 
 You have sensor readings and need to match each event to the most recent sensor reading BEFORE the event time. This is a rolling join.
 
-```r
+```r title="Exercise ten starter: rolling join setup"
 # Starter data
 readings <- data.table(t = c(1, 3, 7, 10), value = c(10, 30, 70, 100))
 events   <- data.table(t = c(2, 5, 9))
@@ -392,7 +392,7 @@ Roll the `value` from `readings` forward onto each event, so each event gets the
 
 **Expected output:** 3 rows, event times `2, 5, 9` get values `10, 30, 70`.
 
-```r
+```r title="Exercise ten: perform the rolling join"
 # Exercise 10: rolling join
 # Hint: readings[events, roll = TRUE] rolls the prior value forward
 
@@ -403,7 +403,7 @@ Roll the `value` from `readings` forward onto each event, so each event gets the
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise ten solution"
 my_result <- readings[events, roll = TRUE]
 my_result
 #>    t value
@@ -422,7 +422,7 @@ Reshape `dt_iris` so that the four numeric measurements collapse into two column
 
 **Expected output:** 600 rows (150 flowers x 4 measurements), 3 columns.
 
-```r
+```r title="Exercise eleven: melt wide to long"
 # Exercise 11: wide to long
 # Hint: melt(DT, id.vars=, variable.name=, value.name=)
 
@@ -433,7 +433,7 @@ Reshape `dt_iris` so that the four numeric measurements collapse into two column
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise eleven solution"
 my_long <- melt(dt_iris,
                 id.vars = "Species",
                 variable.name = "measurement",
@@ -468,7 +468,7 @@ Keep only species `setosa` and the first 5 rows for brevity.
 
 **Expected output:** 5 rows showing lag and cumulative sum.
 
-```r
+```r title="Exercise twelve: shift and cumulative sum by group"
 # Exercise 12: window-style calculations within groups
 # Hint: shift() gives lag; cumsum() gives running total. Both work inside j with by=.
 
@@ -479,7 +479,7 @@ Keep only species `setosa` and the first 5 rows for brevity.
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise twelve solution"
 my_result <- dt_iris[, .(row = seq_len(.N),
                          length = Sepal.Length,
                          prev_length = shift(Sepal.Length),
@@ -510,7 +510,7 @@ Four traps catch almost everyone the first week. Walk through each wrong/right p
 Functions that use `:=` will silently change the caller's table.
 
 Wrong:
-```r
+```r title="Mistake: assignment mutates the caller"
 add_kpl <- function(dt) {
   dt[, kpl := mpg * 0.425]
   dt
@@ -523,7 +523,7 @@ result <- add_kpl(safe)
 **Why it is wrong:** data.table passes tables by reference, and `:=` mutates. The caller did not ask for `safe` to change.
 
 Correct:
-```r
+```r title="Correct: copy before modifying"
 add_kpl <- function(dt) {
   out <- copy(dt)
   out[, kpl := mpg * 0.425]
@@ -538,14 +538,14 @@ Call `copy()` at the top of any function that uses `:=` on its argument.
 If you want to select columns only, you must keep the comma.
 
 Wrong:
-```r
+```r title="Mistake: missing comma in key lookup"
 dt_cars[.(mpg, cyl)]   # data.table thinks you are doing a key-based lookup
 ```
 
 **Why it is wrong:** `DT[.(...)]` with no comma is interpreted as a join/key-lookup. With a leading comma `DT[, .(mpg, cyl)]`, the expression is read as `j`.
 
 Correct:
-```r
+```r title="Correct: comma after key lookup"
 dt_cars[, .(mpg, cyl)]   # the comma says: no row filter, select these columns
 ```
 
@@ -554,7 +554,7 @@ dt_cars[, .(mpg, cyl)]   # the comma says: no row filter, select these columns
 `:=` returns the table invisibly, assigning it creates confusion.
 
 Wrong:
-```r
+```r title="Mistake: assigning result of walrus"
 result <- dt_cars[, kpl := mpg * 0.425]
 # result and dt_cars now point to the SAME object
 ```
@@ -562,7 +562,7 @@ result <- dt_cars[, kpl := mpg * 0.425]
 **Why it is wrong:** `:=` mutates and returns the original table. The new `result` is not a copy; any later edit to one affects the other.
 
 Correct:
-```r
+```r title="Correct: explicit copy for new object"
 dt_cars[, kpl := mpg * 0.425]     # just update in place
 result <- copy(dt_cars)           # then explicitly copy if needed
 ```
@@ -572,14 +572,14 @@ result <- copy(dt_cars)           # then explicitly copy if needed
 Using `tapply()` or manual subsetting inside `j` defeats the optimiser.
 
 Wrong:
-```r
+```r title="Mistake: tapply inside j"
 dt_cars[, tapply(mpg, cyl, mean)]   # works but slow and returns a named vector
 ```
 
 **Why it is wrong:** data.table has a fast `by=` optimiser that skips R-level overhead. Using `tapply()` inside `j` bypasses it.
 
 Correct:
-```r
+```r title="Correct: use by for optimizer"
 dt_cars[, .(avg = mean(mpg)), by = cyl]   # optimised group-by, returns a data.table
 ```
 
@@ -587,7 +587,7 @@ dt_cars[, .(avg = mean(mpg)), by = cyl]   # optimised group-by, returns a data.t
 
 Now let's stitch several exercises together into a realistic mini-analysis. Imagine you want to answer the question: *"Which transmission type is more fuel-efficient, and how does the answer change by cylinder count?"* The pipeline below filters, aggregates, joins a label table, sorts, and reshapes for plotting, all in one readable flow.
 
-```r
+```r title="End-to-end am and cyl summary"
 # 1. Drop the very worst gas guzzlers so the summary is meaningful
 eff_cars <- dt_cars[mpg > 15]
 

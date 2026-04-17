@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 The same facts can be stored in dozens of different table shapes. Most are awkward to work with. "Tidy data" is the specific shape Hadley Wickham proposed in his 2014 JSS paper that makes analysis predictable. The payoff is immediate, the same plot takes one line instead of a struggle. Let's see it on a small made-up dataset of sales by quarter and store.
 
-```r
+```r title="Messy versus tidy quarterly sales"
 library(tidyr); library(dplyr); library(ggplot2)
 
 # Messy version: quarters as columns
@@ -62,7 +62,7 @@ tidy
 
 Same nine numbers, different shape. Now watch the difference when you want a simple line plot of sales over time by store:
 
-```r
+```r title="Plot requires the tidy shape"
 # Try to plot the messy version directly — you cannot.
 # Quarter is not a column, so you cannot map it to x.
 
@@ -80,7 +80,7 @@ The messy version cannot be plotted without reshaping. That is the core problem 
 
 **Try it:** Which of the three tables below is tidy?
 
-```r
+```r title="Exercise: Pick the tidy table"
 library(tibble)
 a <- tibble(name = c("Asha","Bilal"), math = c(88,72), science = c(81,79))
 b <- tibble(name = c("Asha","Asha","Bilal","Bilal"),
@@ -93,7 +93,7 @@ c <- tibble(stat = c("math","science"), Asha = c(88,81), Bilal = c(72,79))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pick the tidy table solution"
 b
 #> # A tibble: 4 x 3
 #>   name  subject grade
@@ -117,7 +117,7 @@ Wickham's original paper states them in one sentence each:
 
 The first two do most of the work. The third one matters mainly when your dataset has several levels, customers who place orders, teachers who teach classes, countries that report population by year. Mixing levels in one table leads to duplicated data and update anomalies.
 
-```r
+```r title="Tidy grades one table"
 library(tibble)
 
 # Tidy — one row per student-subject pair, one table for grades only
@@ -139,7 +139,7 @@ Each row is one observation (a student's score in one subject). Each column is o
 
 When you need to add more variables, say, the teacher for each subject, the tidy answer is a **second** table:
 
-```r
+```r title="Join grades with teachers"
 teachers <- tibble(
   subject = c("math","science"),
   teacher = c("Mr. Singh","Dr. Gupta")
@@ -161,7 +161,7 @@ Two small tables with a join is the tidy alternative to one big redundant table.
 
 **Try it:** Name the variables and observation types in this dataset. What would the tidy version look like?
 
-```r
+```r title="Exercise: Tidy wide scores"
 library(tibble)
 raw <- tibble(
   teacher = "Mr. Singh",
@@ -175,7 +175,7 @@ raw <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Tidy wide scores solution"
 library(tidyr); library(tibble); library(dplyr)
 raw <- tibble(
   teacher = "Mr. Singh",
@@ -206,7 +206,7 @@ The hidden variables are `student` (buried in column names like `asha_score`) an
 
 This is the most common untidy pattern. Column names should be **variable names**, not **variable values**. If your columns are named `2020`, `2021`, `2022`, then "year" is a variable and those numbers are its values, they should be rows, not headers.
 
-```r
+```r title="Years hiding in column names"
 library(tidyr); library(tibble)
 
 population <- tibble(
@@ -246,7 +246,7 @@ Now "year" is a column, just like "country". You can filter, group, plot, and mo
 
 **Try it:** Pivot this expense table so each row is one (category, month) observation.
 
-```r
+```r title="Exercise: Pivot monthly expenses"
 library(tidyr); library(tibble)
 expenses <- tibble(
   category = c("rent","food","travel"),
@@ -259,7 +259,7 @@ expenses <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pivot monthly expenses solution"
 library(tidyr); library(tibble)
 expenses <- tibble(
   category = c("rent","food","travel"),
@@ -286,7 +286,7 @@ expenses |>
 
 Sometimes a single column carries two variables glued together. `male_2020`, `female_2020`, `male_2021`, `female_2021`, the column name encodes both sex and year. The fix is to pivot and split at the same time.
 
-```r
+```r title="Split sex and year on pivot"
 library(tidyr); library(tibble)
 
 cases <- tibble(
@@ -322,7 +322,7 @@ Giving `names_to` a vector of two names and providing `names_sep` splits the hea
 
 The other side of the same problem is a value column that mashes two things together. Think a `name` column with entries like `"Asha (Math)"` or a `range` column with `"18-24"`. The fix is `separate` (or `tidyr::extract` with a regex):
 
-```r
+```r title="separate label into two"
 library(tidyr); library(tibble)
 
 raw <- tibble(label = c("Asha (Math)","Bilal (Science)","Cleo (History)"))
@@ -343,7 +343,7 @@ Once split, each variable is in its own column and you can filter or group as us
 
 **Try it:** Split the `code` column into `year` and `category`.
 
-```r
+```r title="Exercise: Split year and category"
 library(tibble); library(tidyr)
 tbl <- tibble(code = c("2024-A","2024-B","2025-A"), value = c(10,20,15))
 # Hint: separate(code, into = c("year","category"), sep = "-")
@@ -352,7 +352,7 @@ tbl <- tibble(code = c("2024-A","2024-B","2025-A"), value = c(10,20,15))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Split year and category solution"
 library(tibble); library(tidyr); library(dplyr)
 tbl <- tibble(code = c("2024-A","2024-B","2025-A"), value = c(10,20,15))
 tbl |>
@@ -373,7 +373,7 @@ tbl |>
 
 The mirror-image problem: one variable spread across multiple columns. The classic case is a table where each row has a `min` column and a `max` column for the same quantity, or a `type` column and a `value` column where `type` is what should have been the column name.
 
-```r
+```r title="Pivot min and max wider"
 library(tidyr); library(tibble)
 
 temps <- tibble(
@@ -406,7 +406,7 @@ Wait, did we just go from long to wide? Is that not the opposite of tidy? Here i
 
 **Try it:** Is this table tidy? If not, fix it.
 
-```r
+```r title="Exercise: Pivot height and weight"
 library(tibble)
 obs <- tibble(
   patient = c("A","A","B","B"),
@@ -418,7 +418,7 @@ obs <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pivot height and weight solution"
 library(tibble); library(tidyr)
 obs <- tibble(
   patient = c("A","A","B","B"),
@@ -443,7 +443,7 @@ Rule 3, one observation type per table, is the one most people skip. Consider a 
 
 The tidy answer is **two tables**: one for customers, one for orders, linked by an ID.
 
-```r
+```r title="Mix of customer and order data"
 library(tibble); library(dplyr)
 
 # Untidy: customer info repeats on every order
@@ -496,7 +496,7 @@ Now changing a customer's email means editing one row in one table. When you nee
 
 **Try it:** Split this mixed table into two tidy tables, products and sales.
 
-```r
+```r title="Exercise: Split into two tables"
 library(tibble)
 mixed <- tibble(
   sale_id = 1:4,
@@ -510,7 +510,7 @@ mixed <- tibble(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Split into two tables solution"
 library(tibble); library(dplyr)
 mixed <- tibble(
   sale_id = 1:4,
@@ -544,7 +544,7 @@ sales
 
 Every tidyverse function is designed assuming tidy input. Once the data is tidy, each analysis question becomes a short pipeline. Here are three common questions answered the tidy way.
 
-```r
+```r title="Three tidy dplyr pipelines"
 library(dplyr); library(ggplot2); library(tidyr)
 
 # Setup: a tidy grades table
@@ -590,14 +590,14 @@ Three questions, three short pipelines. Each one reads almost like English becau
 
 **Try it:** Given the tidy grades table above, compute the average score per student and sort descending.
 
-```r
+```r title="Exercise: Average score per student"
 # Your code — group_by(student), summarise(avg = mean(score)), arrange(desc(avg))
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Average score per student solution"
 library(dplyr); library(tibble)
 grades <- tibble(
   student = rep(c("Asha","Bilal","Cleo","Daan"), each = 3),
@@ -624,7 +624,7 @@ grades |>
 
 ### Exercise 1: Tidy a messy time series
 
-```r
+```r title="Practice: Tidy visits starter"
 library(tibble); library(tidyr)
 
 raw <- tibble(
@@ -638,7 +638,7 @@ raw <- tibble(
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Practice: Tidy visits solution"
 raw |>
   pivot_longer(
     cols = -metric,
@@ -652,7 +652,7 @@ raw |>
 
 ### Exercise 2: Split a compound column
 
-```r
+```r title="Practice: Split period starter"
 library(tibble); library(tidyr)
 raw <- tibble(
   period = c("2024-Q1","2024-Q2","2025-Q1","2025-Q2"),
@@ -663,7 +663,7 @@ raw <- tibble(
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Practice: Split period solution"
 raw |>
   separate(period, into = c("year","quarter"), sep = "-") |>
   mutate(year = as.integer(year))
@@ -673,7 +673,7 @@ raw |>
 
 ### Exercise 3: Split into two tables
 
-```r
+```r title="Practice: Split classes starter"
 library(tibble)
 raw <- tibble(
   class_id = c(1,1,2,2),
@@ -686,7 +686,7 @@ raw <- tibble(
 
 <details><summary>Solution</summary>
 
-```r
+```r title="Practice: Split classes solution"
 classes <- raw |> distinct(class_id, teacher)
 enrollments <- raw |> select(class_id, student, grade)
 
@@ -700,7 +700,7 @@ enrollments
 
 Here is the full tidy workflow on a messy spreadsheet export of student grades.
 
-```r
+```r title="End-to-end messy grades workflow"
 library(tidyr); library(dplyr); library(ggplot2); library(tibble)
 
 # Step 1: a realistically messy table

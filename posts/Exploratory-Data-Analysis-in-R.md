@@ -26,7 +26,7 @@ Most tutorials treat EDA as a grab bag of random plots and summary tables. This 
 
 Every EDA starts with the same question: what am I working with? Before you plot a single chart or compute a single statistic, you need to know how many rows and columns you have, what type each variable is, and whether R read them in correctly.
 
-```r
+```r title="Step one: glimpse data structure"
 # Step 1: Load packages and examine the data
 library(dplyr)
 library(ggplot2)
@@ -47,7 +47,7 @@ Right away you can see three important things. First, the dataset has 153 rows a
 
 The `str()` function gives you a more compact view that emphasises storage types and shows the first few values of each column.
 
-```r
+```r title="Structure with str"
 # Alternative: str() for a compact summary
 str(aq)
 #> 'data.frame':	153 obs. of  6 variables:
@@ -69,7 +69,7 @@ Now Month is a factor with readable labels instead of bare integers. This small 
 
 **Try it:** Convert the Day column to a factor too, but this time, keep the numeric labels (1-31). Store the result back in `aq$Day` and verify with `class(aq$Day)`.
 
-```r
+```r title="Exercise: convert Day to factor"
 # Try it: convert Day to factor
 ex_day_result <- class(aq$Day)
 # your code here
@@ -82,7 +82,7 @@ class(aq$Day)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Day as factor"
 aq$Day <- factor(aq$Day)
 class(aq$Day)
 #> [1] "factor"
@@ -98,7 +98,7 @@ Missing data isn't just an inconvenience, it can silently bias every analysis yo
 
 Let's start by counting exactly how many values are missing in each column.
 
-```r
+```r title="Step two: count missing values"
 # Step 2: Count missing values per column
 colSums(is.na(aq))
 #>   Ozone Solar.R    Wind    Temp   Month     Day
@@ -109,7 +109,7 @@ Ozone has 37 missing values, that's 24% of the dataset. Solar.R has 7 (5%). Wind
 
 Next, let's see *where* those gaps fall. Are they random, or do they cluster in certain months?
 
-```r
+```r title="Visualise missing values heatmap"
 # Visualise which rows have missing values
 missing_df <- data.frame(
   row = rep(1:nrow(aq), ncol(aq)),
@@ -129,7 +129,7 @@ ggplot(missing_df |> filter(col %in% c("Ozone", "Solar.R")),
 
 The heatmap reveals that Ozone's missing values aren't perfectly random, there are clusters, especially around rows 25-30 and rows 95-100. This kind of pattern might indicate sensor failures on consecutive days.
 
-```r
+```r title="Count complete cases"
 # How many rows are fully complete?
 complete_count <- sum(complete.cases(aq))
 total_rows <- nrow(aq)
@@ -145,7 +145,7 @@ About 72.5% of rows are complete. If you naively dropped all incomplete rows, yo
 
 **Try it:** Calculate the percentage of missing Ozone values for each Month. Which month has the most missing data?
 
-```r
+```r title="Exercise: missingness by month"
 # Try it: missingness by month
 ex_missing_by_month <- aq |>
   group_by(Month) |>
@@ -158,7 +158,7 @@ ex_missing_by_month
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: missingness by month"
 ex_missing_by_month <- aq |>
   group_by(Month) |>
   summarise(pct_missing = round(100 * mean(is.na(Ozone)), 1))
@@ -183,7 +183,7 @@ Distributions tell you the shape of your data, is it symmetric, skewed, spread o
 
 Let's start with a histogram of Ozone, the variable with the most interesting behaviour.
 
-```r
+```r title="Step three: ozone histogram"
 # Step 3: Distribution of Ozone
 ggplot(aq, aes(x = Ozone)) +
   geom_histogram(binwidth = 10, fill = "steelblue", colour = "white",
@@ -202,7 +202,7 @@ The histogram shows a clear right skew, most days have low Ozone (under 50 ppb),
 
 Now let's compare how Temperature is distributed across months. A density plot works well here because it smooths out the histogram bumps and makes overlapping distributions easier to compare.
 
-```r
+```r title="Density by month for temperature"
 # Temperature distribution by month
 ggplot(aq, aes(x = Temp, fill = Month)) +
   geom_density(alpha = 0.4) +
@@ -216,7 +216,7 @@ The density plot reveals a clear seasonal shift, May's distribution sits around 
 
 The `summary()` function gives you the five-number summary (min, Q1, median, Q3, max) plus the mean in one call.
 
-```r
+```r title="Compute five number summary"
 # Five-number summary for all numeric columns
 summary(aq[, c("Ozone", "Solar.R", "Wind", "Temp")])
 #>      Ozone           Solar.R           Wind             Temp
@@ -236,7 +236,7 @@ Notice how Ozone's mean (42.1) is well above its median (31.5), that confirms th
 
 **Try it:** Create a histogram of Solar.R with `binwidth = 30`. Is the distribution skewed, symmetric, or bimodal?
 
-```r
+```r title="Exercise: Solar histogram"
 # Try it: histogram of Solar.R
 ggplot(aq, aes(x = Solar.R)) +
   # your code here
@@ -249,7 +249,7 @@ ggplot(aq, aes(x = Solar.R)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Solar histogram"
 ggplot(aq, aes(x = Solar.R)) +
   geom_histogram(binwidth = 30, fill = "goldenrod", colour = "white",
                  na.rm = TRUE) +
@@ -269,7 +269,7 @@ An outlier is a data point that sits far from the rest. It might be a sensor mal
 
 The boxplot is the classic outlier detection tool. Points beyond the whiskers (1.5 times the interquartile range) are flagged automatically.
 
-```r
+```r title="Step four: boxplot outliers"
 # Step 4: Boxplot to spot outliers
 ggplot(aq, aes(x = Month, y = Ozone, fill = Month)) +
   geom_boxplot(na.rm = TRUE, show.legend = FALSE) +
@@ -283,7 +283,7 @@ The boxplot shows outlier dots above the whiskers in several months. August has 
 
 Let's detect those outliers programmatically using the IQR method.
 
-```r
+```r title="Detect outliers with IQR rule"
 # Programmatic outlier detection using IQR
 ozone_vals <- aq$Ozone[!is.na(aq$Ozone)]
 Q1 <- quantile(ozone_vals, 0.25)
@@ -309,7 +309,7 @@ Only two values (135 and 168 ppb) exceed the upper bound of 131.1. These aren't 
 
 *Figure 2: Decision flow for handling outliers: fix errors, keep meaningful extremes, or test both ways.*
 
-```r
+```r title="Compare means with and without outliers"
 # Compare mean with and without outliers
 mean_with <- mean(ozone_vals)
 mean_without <- mean(ozone_vals[ozone_vals <= upper])
@@ -328,7 +328,7 @@ The two outliers shift the mean by only 1.7 ppb, a small effect. In this case, k
 
 **Try it:** Identify outliers in the Wind column using the same IQR method. How many are there?
 
-```r
+```r title="Exercise: Wind IQR outliers"
 # Try it: outlier detection for Wind
 ex_wind <- aq$Wind
 ex_Q1 <- quantile(ex_wind, 0.25)
@@ -341,7 +341,7 @@ ex_Q3 <- quantile(ex_wind, 0.75)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Wind IQR outliers"
 ex_wind <- aq$Wind
 ex_Q1 <- quantile(ex_wind, 0.25)
 ex_Q3 <- quantile(ex_wind, 0.75)
@@ -365,7 +365,7 @@ Correlation measures the strength and direction of a linear relationship between
 
 Let's compute the correlation matrix for all numeric columns.
 
-```r
+```r title="Step five: correlation matrix"
 # Step 5: Correlation matrix
 cor_matrix <- cor(aq[, c("Ozone", "Solar.R", "Wind", "Temp")],
                   use = "complete.obs")
@@ -381,7 +381,7 @@ Three relationships jump out. Ozone and Temp have a strong positive correlation 
 
 Let's visualize the strongest relationship with a scatter plot.
 
-```r
+```r title="Scatter ozone versus temperature"
 # Scatter plot: Ozone vs Temperature
 ggplot(aq, aes(x = Temp, y = Ozone)) +
   geom_point(alpha = 0.6, colour = "steelblue", na.rm = TRUE) +
@@ -396,7 +396,7 @@ The scatter plot confirms the positive relationship, but the loess smoother reve
 
 A pairs plot gives you every pairwise scatter plot at once, useful for quickly scanning all relationships.
 
-```r
+```r title="Draw pairs plot"
 # Quick overview of all pairwise relationships
 pairs(aq[, c("Ozone", "Solar.R", "Wind", "Temp")],
       pch = 19, col = adjustcolor("steelblue", alpha = 0.5),
@@ -411,7 +411,7 @@ The pairs plot confirms what we found: Ozone-Temp is the strongest visual patter
 
 **Try it:** Create a scatter plot of Ozone vs Wind. Does the relationship look linear? Add a loess smoother to check.
 
-```r
+```r title="Exercise: Wind and ozone scatter"
 # Try it: scatter plot of Ozone vs Wind
 ggplot(aq, aes(x = Wind, y = Ozone)) +
   # your code here
@@ -422,7 +422,7 @@ ggplot(aq, aes(x = Wind, y = Ozone)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Wind ozone scatter"
 ggplot(aq, aes(x = Wind, y = Ozone)) +
   geom_point(alpha = 0.6, colour = "steelblue", na.rm = TRUE) +
   geom_smooth(method = "loess", se = TRUE, colour = "tomato", na.rm = TRUE) +
@@ -442,7 +442,7 @@ Grouping reveals structure that global summaries hide. A variable that looks wel
 
 Let's start with a grouped summary of Ozone by Month.
 
-```r
+```r title="Step six: grouped monthly summary"
 # Step 6: Grouped summary statistics
 monthly_summary <- aq |>
   group_by(Month) |>
@@ -468,7 +468,7 @@ July and August have Ozone levels roughly double those of May and September. The
 
 Side-by-side boxplots make these group differences visually immediate.
 
-```r
+```r title="Temperature boxplots by month"
 # Boxplots of Temperature by Month
 ggplot(aq, aes(x = Month, y = Temp, fill = Month)) +
   geom_boxplot(show.legend = FALSE) +
@@ -482,7 +482,7 @@ The boxplot reveals a clear seasonal arc, temperatures climb steadily from May t
 
 Faceted histograms let you compare the *shape* of distributions across groups, not just their centres.
 
-```r
+```r title="Facet ozone histograms by month"
 # Faceted histograms: Ozone distribution by month
 ggplot(aq, aes(x = Ozone, fill = Month)) +
   geom_histogram(binwidth = 15, colour = "white", show.legend = FALSE,
@@ -501,7 +501,7 @@ The faceted view reveals something the grouped summary didn't make obvious: May 
 
 **Try it:** Compute the median Wind speed for each Month using group_by() and summarise(). Which month is windiest?
 
-```r
+```r title="Exercise: median Wind by month"
 # Try it: median wind by month
 ex_wind_summary <- aq |>
   group_by(Month) |>
@@ -514,7 +514,7 @@ ex_wind_summary
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: median Wind by month"
 ex_wind_summary <- aq |>
   group_by(Month) |>
   summarise(median_wind = median(Wind))
@@ -539,7 +539,7 @@ If your data has a time dimension, trends and seasonality can dominate everythin
 
 Let's construct a proper date column and plot Ozone over time.
 
-```r
+```r title="Step seven: ozone over time"
 # Step 7: Create date and plot Ozone over time
 aq$Date <- as.Date(paste("1973", as.numeric(aq$Month) + 4, aq$Day, sep = "-"))
 
@@ -556,7 +556,7 @@ The time series shows high day-to-day variability, but a clear seasonal envelope
 
 Adding a smoothed trend line makes the seasonal pattern easier to see.
 
-```r
+```r title="Temperature smoothed over time"
 # Temperature over time with trend
 ggplot(aq, aes(x = Date, y = Temp)) +
   geom_point(alpha = 0.5, colour = "grey50") +
@@ -571,7 +571,7 @@ Temperature follows a smooth seasonal arc, rising steadily from May through late
 
 To compare multiple variables on the same time scale, reshape the data and facet.
 
-```r
+```r title="Multi panel time series"
 # Multi-panel time series
 library(tidyr)
 
@@ -596,7 +596,7 @@ The multi-panel view delivers the final insight: Ozone and Temperature share a s
 
 **Try it:** Plot Wind speed over time as a line chart. Is there a seasonal pattern, or is Wind more random day-to-day?
 
-```r
+```r title="Exercise: Wind over time"
 # Try it: Wind over time
 ggplot(aq, aes(x = Date, y = Wind)) +
   # your code here
@@ -607,7 +607,7 @@ ggplot(aq, aes(x = Date, y = Wind)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Wind over time"
 ggplot(aq, aes(x = Date, y = Wind)) +
   geom_line(colour = "steelblue") +
   geom_smooth(method = "loess", span = 0.4, colour = "tomato", se = TRUE) +
@@ -627,7 +627,7 @@ ggplot(aq, aes(x = Date, y = Wind)) +
 
 Apply Steps 1-3 of the EDA framework to the `mtcars` dataset: examine its structure with `glimpse()`, check for missing values with `colSums(is.na())`, and create a histogram of `mpg`. Write one sentence summarising each finding.
 
-```r
+```r title="Exercise one: mtcars steps one to three"
 # Exercise 1: EDA on mtcars (Steps 1-3)
 # Step 1: structure
 # Step 2: missing values
@@ -639,7 +639,7 @@ Apply Steps 1-3 of the EDA framework to the `mtcars` dataset: examine its struct
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: mtcars steps"
 # Step 1: Structure
 glimpse(mtcars)
 #> Rows: 32
@@ -667,7 +667,7 @@ ggplot(mtcars, aes(x = mpg)) +
 
 Create a function `eda_summary()` that takes a numeric vector, handles NAs, and returns a named list with: mean, median, sd, n_missing, n_outliers (IQR method), and skewness direction ("left", "symmetric", or "right" based on whether mean < median, mean ≈ median, or mean > median). Test it on every numeric column in `airquality`.
 
-```r
+```r title="Exercise two: eda summary function"
 # Exercise 2: eda_summary() function
 eda_summary <- function(x) {
   # your code here
@@ -681,7 +681,7 @@ eda_summary <- function(x) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: eda summary"
 eda_summary <- function(x) {
   clean <- x[!is.na(x)]
   m <- mean(clean)
@@ -727,7 +727,7 @@ results$Ozone
 
 Build a mini EDA report for the `iris` dataset: (1) structure check with `glimpse()`, (2) faceted histogram of Sepal.Length by Species, (3) correlation matrix of all four numeric columns, and (4) a grouped summary table with mean and sd of all numeric columns by Species.
 
-```r
+```r title="Exercise three: iris mini report"
 # Exercise 3: Mini EDA report on iris
 # Part 1: glimpse()
 # Part 2: faceted histogram
@@ -740,7 +740,7 @@ Build a mini EDA report for the `iris` dataset: (1) structure check with `glimps
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: iris report"
 # Part 1: Structure
 glimpse(iris)
 #> Rows: 150
@@ -782,7 +782,7 @@ iris |>
 
 Let's run all 7 steps in a single cohesive analysis of `airquality`, producing a written summary at the end. This mirrors what a real EDA section of a report looks like.
 
-```r
+```r title="Capstone: seven step airquality EDA"
 # Complete 7-Step EDA on airquality
 # ── Step 1: Structure ──
 cat("═══ Step 1: Structure ═══\n")

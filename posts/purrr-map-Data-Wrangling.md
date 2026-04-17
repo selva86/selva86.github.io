@@ -24,7 +24,7 @@ Imagine twelve monthly sales exports, same columns, twelve files. The loop-and-a
 
 We will write three tiny CSVs, list them, and read them back into one tibble. Watch the `.id` argument, it tags every row with the file it came from, so you never lose track of source.
 
-```r
+```r title="Write three monthly CSVs"
 library(purrr)
 library(dplyr)
 library(tidyr)
@@ -61,7 +61,7 @@ Three files in, one tibble out, and no loop. The `.id` column shows which file e
 
 **Try it:** Make the `.id` column show file names like `jan.csv` instead of `1`, `2`, `3`. Hint: `set_names()` on the file path vector, then run the same `map_dfr()` call.
 
-```r
+```r title="Exercise: tag rows by source file"
 # Try it: name the files before mapping
 ex_sales_named <- sales_files |>
   set_names(basename(sales_files)) |>
@@ -74,7 +74,7 @@ head(ex_sales_named)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Source-tag solution"
 ex_sales_named <- sales_files |>
   set_names(basename(sales_files)) |>
   map_dfr(read.csv, .id = "source")
@@ -99,7 +99,7 @@ Sometimes you have two synchronized vectors that need to march in lockstep, pric
 
 We will compute final prices from a price list and a per-product discount rate. The lambda receives one price and one rate per call; `map2_dbl()` collects the answers into a numeric vector.
 
-```r
+```r title="Apply discounts with map2dbl"
 prices    <- c(10.00, 25.00, 4.50, 80.00)
 discounts <- c(0.10,  0.00,  0.25, 0.15)
 
@@ -118,7 +118,7 @@ Each price was multiplied by its own discount rate, not the average rate, not th
 
 **Try it:** Compute percent change between two vectors `ex_old` and `ex_new` using `map2_dbl()`. Formula: `(new - old) / old * 100`.
 
-```r
+```r title="Exercise: percent change with map2"
 ex_old <- c(100, 50, 200)
 ex_new <- c(120, 45, 260)
 
@@ -133,7 +133,7 @@ ex_pct_change
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Percent-change solution"
 ex_pct_change <- map2_dbl(ex_new, ex_old, \(n, o) (n - o) / o * 100)
 ex_pct_change
 #> [1]  20 -10  30
@@ -149,7 +149,7 @@ Two inputs become awkward fast when you have three, four, or five. That is where
 
 We will compute body mass index for a small tibble of people. The function declares one parameter per column it needs and a `...` to silently absorb anything else, so you can grow the tibble without breaking the function.
 
-```r
+```r title="Row-wise BMI with pmapdbl"
 people <- tibble(
   name      = c("Asha", "Ravi", "Mei"),
   height_m  = c(1.65, 1.78, 1.60),
@@ -171,7 +171,7 @@ bmi_results
 
 **Try it:** Write the same BMI calculation back into the `people` tibble as a new column called `bmi`. Hint: combine `mutate()` with `pmap_dbl()` and use `pick(everything())` so pmap sees the row.
 
-```r
+```r title="Exercise: BMI as a new column"
 ex_people_bmi <- people |>
   mutate(bmi = pmap_dbl(pick(everything()), \(name, height_m, weight_kg, ...) {
     # your code here
@@ -184,7 +184,7 @@ ex_people_bmi
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="BMI-column solution"
 ex_people_bmi <- people |>
   mutate(bmi = pmap_dbl(pick(everything()),
                         \(name, height_m, weight_kg, ...) weight_kg / height_m^2))
@@ -211,7 +211,7 @@ The flow has just enough moving parts that a picture helps. Below it, we will fi
 ![Diagram showing the nest, map, tidy, unnest pipeline that fits a model per group](screenshots/purrr-map-Data-Wrangling-list-column-flow.webp)
 *Figure 1: The nest → map → tidy → unnest pipeline that fits a model per group and returns one tidy table.*
 
-```r
+```r title="Fit one model per cylinder"
 mtcars_models <- mtcars |>
   group_by(cyl) |>
   nest() |>
@@ -243,7 +243,7 @@ Each cylinder group got its own regression of mileage on weight. The slope on `w
 
 **Try it:** Add an `r2` column to `mtcars_models` containing each group's R² from `summary(model)$r.squared`.
 
-```r
+```r title="Exercise: pull R-squared per group"
 ex_rsq <- mtcars_models |>
   mutate(r2 = map_dbl(model, \(m) {
     # your code here
@@ -257,7 +257,7 @@ ex_rsq
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="R-squared solution"
 ex_rsq <- mtcars_models |>
   mutate(r2 = map_dbl(model, \(m) summary(m)$r.squared)) |>
   select(cyl, r2)
@@ -281,7 +281,7 @@ Sometimes you need both the value AND its label. `imap(x, f)` is shorthand for `
 
 We will turn a small named list of regional sales vectors into one printable summary line per region.
 
-```r
+```r title="Label list elements with imap"
 regions <- list(
   north = c(110, 95, 130),
   south = c(88, 102, 91),
@@ -305,7 +305,7 @@ Every line carries its region label baked in, no parallel vector of names to man
 
 **Try it:** Use `imap_chr()` on an unnamed list of three numeric vectors to print lines like `"Batch 1: sum = 6"`.
 
-```r
+```r title="Exercise: label unnamed batches"
 ex_unnamed <- list(c(1, 2, 3), c(10, 20), c(5, 5, 5, 5))
 
 ex_indexed <- imap_chr(ex_unnamed, \(vals, idx) {
@@ -319,7 +319,7 @@ ex_indexed
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Batch-label solution"
 ex_indexed <- imap_chr(ex_unnamed, \(vals, idx) {
   paste0("Batch ", idx, ": sum = ", sum(vals))
 })
@@ -338,7 +338,7 @@ Real data is messy, one bad row, one missing file, one malformed string can cras
 
 We will mix valid numbers, a string, and a negative, `log()` will succeed, fail, or return `NaN` accordingly, and see both adapters in action.
 
-```r
+```r title="Wrap errors with safely and possibly"
 values <- list(4, 100, "oops", -2, 25)
 
 safe_log     <- safely(log)
@@ -370,7 +370,7 @@ log_clean
 
 **Try it:** Wrap `as.numeric` in `possibly()` so a mixed character vector converts cleanly with `NA` for unparseable entries.
 
-```r
+```r title="Exercise: parse mixed strings"
 ex_mixed <- c("12", "3.5", "hello", "0", "NA", "9e2")
 
 ex_numeric <- map_dbl(ex_mixed, possibly(_, NA_real_))    # fill in the wrap
@@ -382,7 +382,7 @@ ex_numeric
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Parse-strings solution"
 ex_numeric <- map_dbl(ex_mixed, possibly(as.numeric, NA_real_))
 
 ex_numeric
@@ -399,7 +399,7 @@ ex_numeric
 
 You have three small CSVs of (`item`, `price`, `qty`). Read and bind them into one tibble with a `source` column showing the file name, then add a per-row `total = price * qty` column using `pmap_dbl()`. Save the final tibble as `ex1_with_total`.
 
-```r
+```r title="Exercise: combine mapdfr and pmap"
 # Exercise 1: combine map_dfr + pmap_dbl
 ex1_dir <- tempfile("ex1_")
 dir.create(ex1_dir)
@@ -425,7 +425,7 @@ ex1_with_total
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mapdfr-pmap solution"
 ex1_data <- ex1_files |>
   set_names(basename(ex1_files)) |>
   map_dfr(read.csv, .id = "source")
@@ -451,7 +451,7 @@ ex1_with_total
 
 Group `mtcars` by `cyl`, fit `lm(mpg ~ hp)` per group, then build labeled report lines like `"4 cyl: slope = -0.113, R² = 0.65"` using `imap_chr()` over a named list of model summaries. Save the lines to `ex2_lines`.
 
-```r
+```r title="Exercise: per-group regression summary"
 # Exercise 2: nest + map + imap_chr
 ex2_models <- mtcars |>
   group_by(cyl) |>
@@ -470,7 +470,7 @@ ex2_lines
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Per-group-summary solution"
 ex2_models <- mtcars |>
   group_by(cyl) |>
   nest() |>
@@ -497,7 +497,7 @@ ex2_lines
 
 This end-to-end pipeline is the kind of task that lands in a data analyst's inbox on Monday morning: "Pull the regional monthly sales, add a margin column, fit a trend per region, and write me a one-line summary for each region." Every step uses one of the variants we just covered.
 
-```r
+```r title="Full monthly sales pipeline"
 # 1. Build three monthly regional CSVs in a temp folder
 ce_dir <- tempfile("monthly_")
 dir.create(ce_dir)

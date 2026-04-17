@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 Some R functions are slow for a reason. They hit an API, scrape a page, fit a model, or recurse on themselves. If you call them twice with the same input, the second call repeats all that work for no benefit. Memoization fixes that in one line. Watch what happens when we wrap a deliberately slow Fibonacci function and time two calls.
 
-```r
+```r title="Memoise slow recursive Fibonacci"
 library(memoise)
 
 slow_fib <- function(n) {
@@ -49,7 +49,7 @@ The first call walks the full recursion tree and sleeps on every node, taking ab
 
 **Try it:** Memoise a function `slow_square(x)` that sleeps a tenth of a second and returns `x^2`. Time two calls of `ex_slow_square_m(5)` and confirm the second is much faster.
 
-```r
+```r title="Exercise: memoise slowsquare"
 # Try it: memoise slow_square
 slow_square <- function(x) {
   Sys.sleep(0.1)
@@ -66,7 +66,7 @@ ex_slow_square_m <- NULL  # your code here
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="slowsquare solution"
 ex_slow_square_m <- memoise(slow_square)
 system.time(ex_slow_square_m(5))[["elapsed"]]
 #> [1] 0.101
@@ -87,7 +87,7 @@ Under the hood, `memoise()` takes your function, hashes the arguments plus the f
 
 A small demonstration makes this concrete. We wrap a function that returns a single draw from `rnorm()`. Memoising it is usually a bad idea (more on that in the next section), but it is perfect for seeing the cache behaviour because the uncached output would change every call.
 
-```r
+```r title="Cache hit on identical seed draws"
 slow_draw <- function(seed) {
   set.seed(seed)
   rnorm(1)
@@ -106,7 +106,7 @@ Both calls returned the same number, because the second one never touched `rnorm
 
 Keys are built from values, not variable names. That means passing the same value through a different variable still hits the same cache entry.
 
-```r
+```r title="is.memoised checks cache status"
 n_val <- 1
 identical(draw_m(n_val), draw_m(1))
 #> [1] TRUE
@@ -124,7 +124,7 @@ is.memoised(slow_draw)
 
 **Try it:** Write a one-line check that returns `TRUE` when a function has been memoised and `FALSE` when it has not. Test it on both `draw_m` and `slow_draw`.
 
-```r
+```r title="Exercise: write exismemo helper"
 # Try it: check memoisation status
 ex_is_memo <- function(f) {
   # your code here
@@ -138,7 +138,7 @@ ex_is_memo <- function(f) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="exismemo solution"
 ex_is_memo <- function(f) is.memoised(f)
 c(ex_is_memo(draw_m), ex_is_memo(slow_draw))
 #> [1]  TRUE FALSE
@@ -170,7 +170,7 @@ Bad candidates:
 
 Here is what goes wrong when you violate referential transparency. We memoise `Sys.time()`, which should return the current time.
 
-```r
+```r title="Pitfall: memoising a clock function"
 now <- function() Sys.time()
 now_m <- memoise(now)
 
@@ -188,7 +188,7 @@ The second call returned the same timestamp as the first. From the cache's point
 
 **Try it:** Predict what happens if you memoise `sample(1:10, 1)` and call it three times. Will you get three different integers or one integer repeated?
 
-```r
+```r title="Exercise: memoised sample draws"
 # Try it: memoised sample
 ex_sample_m <- memoise(function() sample(1:10, 1))
 
@@ -200,7 +200,7 @@ ex_sample_m <- memoise(function() sample(1:10, 1))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Memoised-sample solution"
 set.seed(99)
 ex_sample_m2 <- memoise(function() sample(1:10, 1))
 c(ex_sample_m2(), ex_sample_m2(), ex_sample_m2())
@@ -220,7 +220,7 @@ By default, `memoise()` stores results in a `cache_mem()` backend. That is a fas
 
 Here is a disk-backed cache in action. We point it at a temporary folder so the example is self-contained, and wrap a deliberately expensive function.
 
-```r
+```r title="Persist cache to disk with cachem"
 library(cachem)
 
 disk_dir <- tempfile("memo_")
@@ -244,7 +244,7 @@ The first call ran the half-second sleep and dropped one file into the cache fol
 
 You can also set a time-to-live on the cache so stale entries clear automatically. That is useful for API responses you trust for a few minutes but not forever.
 
-```r
+```r title="Time-to-live cache with maxage"
 short_m <- memoise(
   function() Sys.time(),
   cache = cache_mem(max_age = 5)
@@ -264,7 +264,7 @@ The first call cached a timestamp with a five-second shelf life. After sleeping 
 
 **Try it:** Change the `max_age` in the snippet above from `5` to `2` seconds. What value should `Sys.sleep()` be set to so the second call is still a cache hit?
 
-```r
+```r title="Exercise: tune TTL with cachemem"
 # Try it: tune TTL
 ex_ttl_m <- memoise(
   function() Sys.time(),
@@ -279,7 +279,7 @@ ex_ttl_m <- memoise(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="TTL-tuning solution"
 ex_ttl_m <- memoise(
   function() Sys.time(),
   cache = cache_mem(max_age = 2)
@@ -299,7 +299,7 @@ as.numeric(v_b - v_a)
 
 Sometimes you need to clear the cache deliberately. Maybe a remote API changed its data, or you want to force a recompute after tweaking a downstream formula. The memoise package gives you three tools: `forget()` to clear everything, `drop_cache()` to drop one key, and `has_cache()` to ask whether a key is already stored.
 
-```r
+```r title="Drop, has, and forget cache entries"
 life_m <- memoise(function(k) {
   Sys.sleep(0.1)
   k * 2
@@ -325,7 +325,7 @@ Notice the double-parenthesis pattern: `has_cache(life_m)(2)` returns a function
 
 **Try it:** Build a memoised `ex_double_m()` that returns `x * 2`, cache three values, then drop only the entry for `x = 5`. Confirm with `has_cache()` that keys `1` and `5` differ.
 
-```r
+```r title="Exercise: selective cache invalidation"
 # Try it: selective invalidation
 ex_double <- function(x) x * 2
 ex_double_m <- NULL  # your code here
@@ -340,7 +340,7 @@ ex_double_m <- NULL  # your code here
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Selective-invalidation solution"
 ex_double_m <- memoise(ex_double)
 ex_double_m(1); ex_double_m(5); ex_double_m(7)
 drop_cache(ex_double_m)(5)
@@ -358,7 +358,7 @@ c(has_cache(ex_double_m)(1), has_cache(ex_double_m)(5))
 
 Write a function `my_slow_mean(n)` that generates a random vector of length `n` with a fixed seed and sleeps for 0.3 seconds before returning its mean. Memoise it as `my_mean_m`, run a first call to warm the cache, then time a second call and save its elapsed time as `my_result`.
 
-```r
+```r title="Exercise: memoise a slow mean"
 # Exercise 1: memoise a slow mean
 # Hint: use set.seed() inside for determinism, then memoise(my_slow_mean).
 
@@ -369,7 +369,7 @@ Write a function `my_slow_mean(n)` that generates a random vector of length `n` 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Slow-mean solution"
 my_slow_mean <- function(n) {
   set.seed(2026)
   Sys.sleep(0.3)
@@ -391,7 +391,7 @@ my_result
 
 Build a fake API function `my_api(id)` that sleeps half a second and returns `id * 100`. Wrap it with `memoise()` using `cache_disk()` and a `max_age` of 2 seconds. Call `my_api_m(1)`, sleep for three seconds, call it again, and confirm the second call was a cache miss (run time near half a second).
 
-```r
+```r title="Exercise: disk cache with TTL"
 # Exercise 2: disk cache with TTL
 # Hint: cache_disk() takes max_age just like cache_mem().
 
@@ -402,7 +402,7 @@ Build a fake API function `my_api(id)` that sleeps half a second and returns `id
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Disk-TTL solution"
 my_api <- function(id) {
   Sys.sleep(0.5)
   id * 100
@@ -429,7 +429,7 @@ c(first = t_hit, after_ttl = t_miss)
 
 Let us put everything together with a small weather-lookup workflow. Imagine `fetch_weather(city)` hits a slow API (we fake it with `Sys.sleep()`). You call it for three cities, then repeat the same query to warm the cache.
 
-```r
+```r title="End-to-end weather-lookup workflow"
 fetch_weather <- function(city) {
   Sys.sleep(0.4)
   data.frame(city = city, temp_c = round(runif(1, 10, 30), 1))

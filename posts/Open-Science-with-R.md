@@ -26,7 +26,7 @@ Before we touch the OSF API, picture the artifact you'll end up sharing: a small
 
 We'll write a tiny analysis to a temporary directory, then summarise it as a manifest tibble. The manifest is the contract: filename, byte size, and an MD5 fingerprint anyone can recompute to confirm nothing was tampered with.
 
-```r
+```r title="Build a reproducible bundle directory"
 library(dplyr)
 
 # 1. Run a small analysis on mtcars
@@ -71,7 +71,7 @@ That's the whole point of open science in three columns, you've got the files, y
 
 **Try it:** Add a `description` column to the manifest tibble that labels each file as `"script"`, `"raw data"`, or `"derived data"`. Save the result to `ex_manifest`.
 
-```r
+```r title="Exercise: enrich the manifest"
 # Try it: enrich the manifest
 ex_manifest <- manifest
 # your code here
@@ -83,7 +83,7 @@ ex_manifest
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Enriched-manifest solution"
 ex_manifest <- manifest
 ex_manifest$description <- c("script", "raw data", "derived data")
 ex_manifest
@@ -103,7 +103,7 @@ OSF is the public web service we'll push that bundle to. The R interface is **os
 
 OSF uses a **personal access token** (PAT), a long string you generate in your account settings and store as an environment variable named `OSF_PAT`. The package looks for that variable on load, so you never have to paste the token into your scripts.
 
-```r
+```r title="Load osfr and check token"
 # install.packages("osfr")     # one-time install
 library(osfr)
 
@@ -123,7 +123,7 @@ The cleanest place to put `OSF_PAT` is your user-level `.Renviron` file, which R
 
 **Try it:** Write a function that returns the value of an environment variable, or the string `"<not set>"` if the variable is missing or empty. Test it on `OSF_PAT`.
 
-```r
+```r title="Exercise: env var with fallback"
 # Try it: env var with a fallback
 ex_token <- function(var) {
   # your code here
@@ -136,7 +136,7 @@ ex_token("OSF_PAT")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Env-var fallback solution"
 ex_token <- function(var) {
   val <- Sys.getenv(var)
   if (nzchar(val)) val else "<not set>"
@@ -156,7 +156,7 @@ A "project" is OSF's top-level container, it has a title, a description, an opti
 
 The pipeline below creates a project, adds a "Raw data" component, and puts a `scripts/` folder inside it, everything in five lines.
 
-```r
+```r title="Create an OSF project with osfr"
 # Run in your local R session (needs OSF_PAT)
 my_project <- osf_create_project(
   title       = "Motor Trend Reproducibility Demo",
@@ -183,7 +183,7 @@ Each call returns an `osf_tbl`, a tibble with one row per OSF entity, an `id` co
 
 **Try it:** Build a named list called `ex_meta` with three fields, `title`, `description`, and `license`, that you would pass to a project-creation call. Use any project of your own.
 
-```r
+```r title="Exercise: build metadata list"
 # Try it: build the metadata list
 ex_meta <- list(
   # your code here
@@ -196,7 +196,7 @@ ex_meta
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Metadata-list solution"
 ex_meta <- list(
   title       = "Iris classifier reproducibility check",
   description = "Code, data, and figures for the iris baseline experiment.",
@@ -224,7 +224,7 @@ With the project skeleton in place, sharing files turns into one verb each: `osf
 
 The block below uploads two files into the `Raw data` component, lists what's there, then pulls one back into a fresh local directory.
 
-```r
+```r title="Upload files with osfupload"
 # Run in your local R session
 osf_upload(raw_data,
            path      = c(file.path(bundle_dir, "mtcars.csv"),
@@ -246,7 +246,7 @@ osf_ls_files(raw_data)
 
 The first call hands `osf_upload()` a vector of two file paths plus `conflicts = "overwrite"` so re-runs of the same script don't error out on the second pass. The follow-up `osf_ls_files()` confirms what landed in the component. Both calls return `osf_tbl` rows you can pipe further into `osf_download()`, `osf_mv()`, or `osf_open()`.
 
-```r
+```r title="Download files with osfdownload"
 # Pull files back into a fresh local directory
 download_dir <- file.path(tempdir(), "mt_download")
 dir.create(download_dir, showWarnings = FALSE)
@@ -267,7 +267,7 @@ The pipeline lists the component's files and hands them straight to `osf_downloa
 
 **Try it:** Build a file manifest data.frame called `ex_files` from any directory, with three columns, `path`, `bytes`, and `modified`. Use `file.info()`.
 
-```r
+```r title="Exercise: local file manifest"
 # Try it: build a local file manifest
 local_dir <- bundle_dir
 # your code here
@@ -279,7 +279,7 @@ ex_files
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Local-manifest solution"
 local_dir <- bundle_dir
 paths     <- list.files(local_dir, full.names = TRUE)
 info      <- file.info(paths)
@@ -306,7 +306,7 @@ Once your data and code live on OSF, the project page already has a stable URL, 
 
 The block below builds a metadata list and a single citation string with `glue::glue()`. Re-run it whenever the project metadata changes and you'll never have a stale citation in your draft.
 
-```r
+```r title="Build a citation from metadata"
 library(glue)
 
 proj_meta <- list(
@@ -333,7 +333,7 @@ The `glue()` call interpolates each list field into a citation that matches the 
 
 **Try it:** Format a BibTeX entry called `ex_bib` from the same `proj_meta` list. Use `glue()` and a multiline string.
 
-```r
+```r title="Exercise: BibTeX entry from meta"
 # Try it: BibTeX entry from proj_meta
 ex_bib <- glue(
   # your code here
@@ -346,7 +346,7 @@ cat(ex_bib)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="BibTeX-entry solution"
 ex_bib <- glue(
   "@misc{{prabhakaran{proj_meta$year},\n",
   "  title  = {{{proj_meta$title}}},\n",
@@ -379,7 +379,7 @@ These capstones combine concepts from several sections. Variable names are prefi
 
 Write a function `make_bundle(objects, description)` that takes a named list of R objects and a one-sentence description, writes each object to a CSV in a fresh temp directory, builds a manifest with checksums, and returns a single named list with three fields: `dir`, `manifest`, and `description`. Test it on `list(cars = mtcars, summary = mt_summary)`.
 
-```r
+```r title="Exercise: makebundle helper"
 # Exercise 1: bundle helper
 # Hint: combine dir.create(), write.csv(), tools::md5sum(), and list()
 
@@ -395,7 +395,7 @@ my_bundle$manifest
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="makebundle solution"
 make_bundle <- function(objects, description) {
   dir <- file.path(tempdir(), paste0("bundle_", as.integer(Sys.time())))
   dir.create(dir, showWarnings = FALSE)
@@ -430,7 +430,7 @@ my_bundle$manifest
 
 Write a function `bundle_citation(meta)` that takes a project metadata list (same shape as `proj_meta`) and returns a list with two fields, `text` (a plain-text citation) and `bibtex` (a `@misc{}` BibTeX entry). Test it on `proj_meta`.
 
-```r
+```r title="Exercise: citation plus BibTeX helper"
 # Exercise 2: citation + BibTeX helper
 # Hint: re-use the glue() patterns from the previous section
 
@@ -445,7 +445,7 @@ cat(my_cite$text, "\n\n", my_cite$bibtex)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="bundlecitation solution"
 bundle_citation <- function(meta) {
   text <- glue::glue(
     "{meta$authors} ({meta$year}). {meta$title}. OSF. https://doi.org/{meta$doi}"
@@ -485,7 +485,7 @@ cat(my_cite$text, "\n\n", my_cite$bibtex)
 
 Putting the pieces together, here's the entire open science loop in a single block, bundle, list metadata, prepare the upload calls (commented because they need your PAT), and emit a citation. Run it as-is for the parts that don't need OSF; uncomment the osfr lines in your local R session to actually push to OSF.
 
-```r
+```r title="Complete open-science loop"
 # 1. Build the artifact
 final_bundle <- make_bundle(
   objects     = list(cars = mtcars, summary = mt_summary),

@@ -22,7 +22,7 @@ fr_parent: "Exploratory-Data-Analysis-in-R.html"
 
 Every time series tells a story through its shape. Before you forecast or model, you need to read that story. Let's load R's built-in `AirPassengers` dataset and plot it to see what patterns jump out immediately.
 
-```r
+```r title="Plot AirPassengers monthly series"
 # Plot the AirPassengers dataset (monthly airline passengers 1949-1960)
 ap <- AirPassengers
 ts.plot(ap, main = "Monthly Airline Passengers (1949-1960)",
@@ -52,7 +52,7 @@ Even from this single plot, three things are immediately visible: a **rising tre
 
 The `AirPassengers` object is a `ts` (time series) object, R's built-in class for regularly spaced temporal data. You can create one from any numeric vector by specifying the start date and frequency.
 
-```r
+```r title="Build ts object from vector"
 # Create a ts object from raw data
 monthly_sales <- c(200, 220, 250, 230, 210, 260, 280, 290, 270, 240, 215, 225)
 my_ts <- ts(monthly_sales, start = c(2025, 1), frequency = 12)
@@ -67,7 +67,7 @@ The `frequency` argument tells R how many observations make up one cycle: 12 for
 
 **Try it:** Create a `ts` object called `ex_quarterly` from the vector `c(50, 80, 120, 90, 55, 85, 130, 95)` representing 2 years of quarterly data starting in Q1 2024, then print it.
 
-```r
+```r title="Exercise: Quarterly ts object"
 # Try it: create a quarterly ts object
 ex_quarterly <- ts(c(50, 80, 120, 90, 55, 85, 130, 95),
                    start = c(2024, 1), frequency = 4)
@@ -77,7 +77,7 @@ ex_quarterly <- ts(c(50, 80, 120, 90, 55, 85, 130, 95),
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Quarterly ts object solution"
 ex_quarterly <- ts(c(50, 80, 120, 90, 55, 85, 130, 95),
                    start = c(2024, 1), frequency = 4)
 print(ex_quarterly)
@@ -94,7 +94,7 @@ print(ex_quarterly)
 
 Trend is the long-term direction of a series, is it going up, down, or staying flat? Raw data is often too noisy to see the trend clearly, so we smooth it with a moving average that averages out the seasonal bumps.
 
-```r
+```r title="Twelve-month moving average overlay"
 # Overlay a 12-month moving average to reveal the trend
 ap_ma <- stats::filter(ap, filter = rep(1/12, 12), sides = 2)
 ts.plot(ap, ap_ma, col = c("grey70", "red"),
@@ -113,7 +113,7 @@ The red line cuts through the seasonal noise and reveals a clear, accelerating u
 
 R's `decompose()` function also extracts the trend component automatically. Let's compare.
 
-```r
+```r title="Extract trend with decompose"
 # Extract trend using decompose()
 ap_decomp <- decompose(ap)
 plot(ap_decomp$trend, main = "Trend Component from decompose()",
@@ -125,7 +125,7 @@ The trend from `decompose()` looks nearly identical to our manual moving average
 
 **Try it:** Load the built-in `UKgas` dataset (quarterly UK gas consumption). Apply a 4-quarter moving average using `stats::filter()` and plot it overlaid on the raw data.
 
-```r
+```r title="Exercise: Smooth UKgas with MA"
 # Try it: smooth UKgas with a 4-quarter moving average
 ex_gas <- UKgas
 ex_gas_ma <- stats::filter(ex_gas, filter = rep(1/4, 4), sides = 2)
@@ -135,7 +135,7 @@ ex_gas_ma <- stats::filter(ex_gas, filter = rep(1/4, 4), sides = 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Smooth UKgas solution"
 ex_gas <- UKgas
 ex_gas_ma <- stats::filter(ex_gas, filter = rep(1/4, 4), sides = 2)
 ts.plot(ex_gas, ex_gas_ma, col = c("grey70", "blue"), lwd = c(1, 3),
@@ -154,7 +154,7 @@ legend("topleft", legend = c("Raw", "4-quarter MA"),
 
 Seasonality means repeating cycles of fixed length, summer peaks in airline travel, winter spikes in heating bills, Monday dips in retail sales. Three R functions make seasonal patterns impossible to miss: `monthplot()`, `boxplot()` by cycle, and grouped subseries analysis.
 
-```r
+```r title="monthplot seasonal subseries"
 # monthplot() — each month's values connected across years
 monthplot(ap, main = "Seasonal Subseries Plot: AirPassengers",
           ylab = "Passengers (thousands)", xlab = "Month",
@@ -166,7 +166,7 @@ The `monthplot()` function is one of R's most underused EDA tools. Each vertical
 
 Boxplots by month give a complementary view, they show the distribution, not just the trajectory.
 
-```r
+```r title="Boxplot distribution by month"
 # Boxplot by month — distribution of each month across years
 boxplot(ap ~ cycle(ap),
         main = "Passenger Distribution by Month",
@@ -182,7 +182,7 @@ The boxplots confirm the seasonal pattern and add a new insight: summer months (
 
 Let's quantify the monthly pattern by computing average passengers per month across all years.
 
-```r
+```r title="Average passengers per month"
 # Average passengers by month across all years
 monthly_means <- tapply(ap, cycle(ap), mean)
 barplot(monthly_means,
@@ -203,7 +203,7 @@ July averages 314 thousand passengers versus November's 165 thousand, a seasonal
 
 **Try it:** Load the built-in `nottem` dataset (average air temperatures in Nottingham, 1920-1939). Use `monthplot()` and identify which month is warmest and which is coldest.
 
-```r
+```r title="Exercise: Nottingham monthplot"
 # Try it: seasonal pattern of Nottingham temperatures
 ex_temp <- nottem
 # your code here — use monthplot(ex_temp, ...) and find the peak/trough months
@@ -212,7 +212,7 @@ ex_temp <- nottem
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Nottingham monthplot solution"
 ex_temp <- nottem
 monthplot(ex_temp, main = "Nottingham Monthly Temperatures",
           ylab = "Temperature (F)", col = "tomato", lwd = 2)
@@ -236,7 +236,7 @@ Decomposition is the power tool of time series EDA. It splits your series into t
 
 Let's see both side by side on AirPassengers.
 
-```r
+```r title="Additive versus multiplicative decomposition"
 # Additive decomposition
 ap_add <- decompose(ap, type = "additive")
 plot(ap_add, col = "steelblue")
@@ -255,7 +255,7 @@ Compare the "Random" (remainder) panels. In the additive decomposition, the rema
 
 `stl()` (Seasonal and Trend decomposition using Loess) is a more sophisticated alternative that adapts the seasonal component over time and handles outliers gracefully.
 
-```r
+```r title="STL decomposition with s.window"
 # STL decomposition — more robust than decompose()
 ap_stl <- stl(ap, s.window = "periodic")
 plot(ap_stl, main = "STL Decomposition of AirPassengers",
@@ -274,7 +274,7 @@ The grey bars on STL plots are a clever feature: they show the relative scale of
 
 **Try it:** Decompose the `co2` dataset (Mauna Loa CO2 concentrations) using `stl()` with `s.window = "periodic"`. Look at the seasonal component, is the amplitude constant or changing?
 
-```r
+```r title="Exercise: STL of co2"
 # Try it: STL decomposition of co2
 ex_co2 <- co2
 ex_co2_stl <- stl(ex_co2, s.window = "periodic")
@@ -284,7 +284,7 @@ ex_co2_stl <- stl(ex_co2, s.window = "periodic")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="STL of co2 solution"
 ex_co2 <- co2
 ex_co2_stl <- stl(ex_co2, s.window = "periodic")
 plot(ex_co2_stl, col = "steelblue")
@@ -301,7 +301,7 @@ cat("Seasonal range:", round(diff(range(ex_co2_stl$time.series[, "seasonal"])), 
 
 The autocorrelation function (ACF) measures how strongly a series correlates with lagged copies of itself. If today's value is similar to yesterday's, lag-1 autocorrelation is high. The partial autocorrelation function (PACF) measures the *direct* correlation at each lag after removing the effects of all shorter lags. Together, they're the fingerprint of a time series.
 
-```r
+```r title="ACF of AirPassengers"
 # ACF of AirPassengers
 acf(ap, lag.max = 48, main = "ACF: AirPassengers",
     col = "steelblue", lwd = 2)
@@ -312,7 +312,7 @@ The ACF plot shows two patterns at once. First, the slow decay of correlation fr
 
 The blue dashed lines are 95% confidence bands. Any spike outside these bands is statistically significant, it's unlikely to appear in purely random data. Nearly every lag in AirPassengers exceeds the bands, confirming strong temporal structure.
 
-```r
+```r title="PACF of AirPassengers"
 # PACF of AirPassengers
 pacf(ap, lag.max = 48, main = "PACF: AirPassengers",
      col = "darkred", lwd = 2)
@@ -326,7 +326,7 @@ The PACF tells a cleaner story. After removing indirect correlations, only a few
 
 What happens if we remove the trend by differencing? The ACF should lose its slow decay and reveal pure seasonality.
 
-```r
+```r title="ACF after first differencing"
 # ACF of first-differenced AirPassengers (trend removed)
 ap_diff <- diff(ap)
 acf(ap_diff, lag.max = 48,
@@ -339,7 +339,7 @@ Differencing removed the slow decay. What remains are sharp spikes at lags 12, 2
 
 **Try it:** Compute and plot the ACF of `diff(ap, lag = 12)` (seasonally differenced AirPassengers). What happens to the seasonal spikes at lags 12, 24, 36?
 
-```r
+```r title="Exercise: Seasonal differencing ACF"
 # Try it: ACF after seasonal differencing
 ex_ap_sdiff <- diff(ap, lag = 12)
 # your code here — plot the ACF of ex_ap_sdiff
@@ -348,7 +348,7 @@ ex_ap_sdiff <- diff(ap, lag = 12)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Seasonal differencing ACF solution"
 ex_ap_sdiff <- diff(ap, lag = 12)
 acf(ex_ap_sdiff, lag.max = 48,
     main = "ACF: Seasonally Differenced AirPassengers",
@@ -370,7 +370,7 @@ Visual inspection of ACF plots gives strong hints about stationarity (a slowly d
 [NOTE]
 **The tseries package provides adf.test() and kpss.test().** If you're running this in a local R session, install it with `install.packages("tseries")`. The package may not be available in all browser-based R environments.
 
-```r
+```r title="ADF test on raw series"
 # Stationarity tests on AirPassengers
 library(tseries)
 
@@ -399,7 +399,7 @@ In practice, always combine formal tests with visual evidence. If the ACF decays
 
 **Try it:** Run `adf.test()` on the `Nile` dataset (annual Nile river flow, 1871-1970). Is the Nile flow stationary? What does the ACF suggest?
 
-```r
+```r title="Exercise: Stationarity of Nile"
 # Try it: test Nile for stationarity
 library(tseries)
 ex_nile <- Nile
@@ -409,7 +409,7 @@ ex_nile <- Nile
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Nile stationarity solution"
 library(tseries)
 ex_nile <- Nile
 adf.test(ex_nile)
@@ -432,7 +432,7 @@ Run a complete time series EDA on the `co2` dataset (monthly atmospheric CO2 at 
 3. Plot the ACF of the remainder component
 4. Determine whether the residuals resemble white noise
 
-```r
+```r title="Practice: Full EDA on co2"
 # Exercise 1: Complete EDA on co2
 # Hint: access STL components with stl_result$time.series[, "remainder"]
 
@@ -443,7 +443,7 @@ Run a complete time series EDA on the `co2` dataset (monthly atmospheric CO2 at 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Full EDA on co2 solution"
 # 1. Plot raw series
 ts.plot(co2, main = "Mauna Loa CO2 (1959-1997)",
         ylab = "CO2 (ppm)", col = "steelblue", lwd = 2)
@@ -476,7 +476,7 @@ Compare additive and multiplicative decomposition on `AirPassengers`:
 2. Plot the ACF of the remainder from each decomposition
 3. Which decomposition produces more random (white-noise-like) residuals?
 
-```r
+```r title="Practice: Compare decompositions"
 # Exercise 2: Compare decomposition types
 # Hint: access remainder with decompose_result$random
 
@@ -487,7 +487,7 @@ Compare additive and multiplicative decomposition on `AirPassengers`:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Compare decompositions solution"
 # Additive
 my_add <- decompose(ap, type = "additive")
 # Multiplicative
@@ -520,7 +520,7 @@ Perform a complete EDA on `sunspot.year` (yearly sunspot numbers, 1700-1988):
 3. Run `adf.test()` from the tseries package
 4. Summarize: is there trend? Cyclicality? Is the series stationary?
 
-```r
+```r title="Practice: Sunspot EDA"
 # Exercise 3: Sunspot EDA
 # Hint: the sunspot cycle is approximately 11 years
 
@@ -531,7 +531,7 @@ Perform a complete EDA on `sunspot.year` (yearly sunspot numbers, 1700-1988):
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sunspot EDA solution"
 # 1. Plot with 11-year moving average
 my_sun <- sunspot.year
 my_sun_ma <- stats::filter(my_sun, rep(1/11, 11), sides = 2)
@@ -570,7 +570,7 @@ cat("with a strong periodic component.\n")
 
 Let's run a complete time series EDA on the `ldeaths` dataset, monthly deaths from bronchitis, emphysema, and asthma in the UK (1974-1979). This brings together every technique from this tutorial.
 
-```r
+```r title="End-to-end ldeaths EDA"
 # Complete EDA: UK lung disease deaths
 ld <- ldeaths
 cat("Dataset: Monthly UK lung disease deaths (1974-1979)\n")

@@ -40,7 +40,7 @@ Picking the right geom is the single most important decision in any ggplot2 char
 
 Let's see how three different geoms turn the same `mtcars` dataset into three completely different stories.
 
-```r
+```r title="Three geoms on same data"
 library(ggplot2)
 
 # Same data, three geoms — three stories
@@ -74,7 +74,7 @@ Same 32 cars, same mpg variable, but the scatter shows a continuous relationship
 
 **Try it:** Create a `geom_point()` scatter of `iris` with `Sepal.Length` on x and `Petal.Length` on y. Then swap `geom_point()` for `geom_smooth()`. What changes?
 
-```r
+```r title="Exercise: scatter then smooth"
 # Try it: scatter then smooth
 ex_scatter <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length)) +
   # your code here — first try geom_point(), then swap to geom_smooth()
@@ -86,7 +86,7 @@ ex_scatter
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: scatter and smooth"
 # Points show every observation
 ex_scatter_pts <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length)) +
   geom_point(color = "#4B6FA5")
@@ -114,7 +114,7 @@ Scatter plots and line charts are the workhorses of exploratory analysis. Each e
 
 **Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `class` to color and `cyl` to size. Set alpha to 0.6 to handle overplotting. Add informative axis labels.
 
-```r
+```r title="Exercise one: multi aesthetic scatter"
 # Exercise 1: multi-aesthetic scatter
 # Hint: put color and size inside aes()
 
@@ -128,7 +128,7 @@ p1
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one solution: multi aesthetic"
 p1 <- ggplot(mpg, aes(x = displ, y = hwy, color = class, size = cyl)) +
   geom_point(alpha = 0.6) +
   labs(
@@ -153,7 +153,7 @@ p1
 
 **Task:** Plot all economic indicators in `economics_long` as separate lines. Map `variable` to color. The y-axis is `value01` (pre-scaled 0–1). Add point markers at every 100th observation using indexing.
 
-```r
+```r title="Exercise two: multi series lines"
 # Exercise 2: multi-series line chart
 # Hint: economics_long has columns date, variable, value, value01
 
@@ -167,7 +167,7 @@ p2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two solution: multi series lines"
 p2 <- ggplot(economics_long, aes(x = date, y = value01, color = variable)) +
   geom_line(linewidth = 0.8) +
   labs(
@@ -192,7 +192,7 @@ p2
 
 **Task:** Create a scatter plot of `displ` vs `hwy`. Overlay two trend lines: one using `method = "lm"` (linear) and one using `method = "loess"` (flexible curve). Give each a different color. Which fits better?
 
-```r
+```r title="Exercise three: lm and loess overlay"
 # Exercise 3: two smoothing methods on one scatter
 # Hint: add two geom_smooth() layers with different method arguments
 
@@ -207,7 +207,7 @@ p3
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three solution: lm loess overlay"
 p3 <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.3, color = "grey50") +
   geom_smooth(method = "lm", color = "#E05A4F", se = FALSE, linewidth = 1.2) +
@@ -225,7 +225,7 @@ p3
 
 **Try it:** Add `geom_jitter(width = 0.3, height = 0)` instead of `geom_point()` to a scatter of `mtcars` with `cyl` on x and `mpg` on y. Why does jitter help here?
 
-```r
+```r title="Exercise: jitter versus point"
 # Try it: jitter vs point
 ex_jitter <- ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
   # your code here — try geom_point() first, then geom_jitter()
@@ -237,7 +237,7 @@ ex_jitter
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: jitter versus point"
 # Without jitter — points overlap and you can't tell how many cars per group
 ex_point <- ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
   geom_point(size = 2, color = "#4B6FA5")
@@ -268,7 +268,7 @@ Bar charts answer "how much?" for each category. The key distinction in ggplot2:
 
 **Task:** Compute the mean highway mpg for the top 8 manufacturers (by count). Plot as horizontal bars sorted from highest to lowest mpg. Use `reorder()` on the y-axis.
 
-```r
+```r title="Exercise four: sorted horizontal bar"
 # Exercise 4: sorted horizontal bar chart
 # Hint: aggregate first, then use geom_col + coord_flip or map manufacturer to y
 
@@ -283,7 +283,7 @@ Bar charts answer "how much?" for each category. The key distinction in ggplot2:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise four solution: sorted horizontal bar"
 # Compute mean hwy per manufacturer
 mpg_summary <- aggregate(hwy ~ manufacturer, data = mpg, FUN = mean)
 
@@ -316,7 +316,7 @@ p4
 
 **Task:** Create three bar charts of diamond `cut` (x-axis) filled by `clarity`. Use: (a) the default stacked position, (b) `position = "dodge"` side-by-side, and (c) `position = "fill"` showing proportions. Which reveals the most about the relationship?
 
-```r
+```r title="Exercise five: three bar positions"
 # Exercise 5: three position adjustments
 # Hint: only change the position argument in geom_bar()
 
@@ -336,7 +336,7 @@ p5a
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise five solution: three positions"
 # (a) Stacked — default, shows total count + composition
 p5a <- ggplot(diamonds, aes(x = cut, fill = clarity)) +
   geom_bar() +
@@ -366,7 +366,7 @@ p5c
 
 **Try it:** Create a single `geom_bar(stat = "count")` of `mtcars$cyl`. Then try `geom_col()` with the same raw data (no pre-aggregation). What error do you get?
 
-```r
+```r title="Exercise: geom bar versus col"
 # Try it: geom_bar counts vs geom_col needs pre-computed values
 ex_bar <- ggplot(mtcars, aes(x = factor(cyl))) +
   # your code here — try geom_bar() then geom_col()
@@ -378,7 +378,7 @@ ex_bar
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: geom bar versus col"
 # geom_bar() counts rows automatically — no y needed
 ex_bar_count <- ggplot(mtcars, aes(x = factor(cyl))) +
   geom_bar(fill = "#7FB3D8")
@@ -407,7 +407,7 @@ Distribution charts answer "how is my data spread?", where values cluster, how w
 
 **Task:** Create a histogram of `price` using three different binwidths: 100, 500, and 2000. Add a vertical dashed line at the median price. Which binwidth tells the clearest story?
 
-```r
+```r title="Exercise six: histogram binwidth"
 # Exercise 6: histogram binwidth comparison
 # Hint: use geom_vline(xintercept = ..., linetype = "dashed") for the median line
 
@@ -425,7 +425,7 @@ p6
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise six solution: histogram binwidth"
 set.seed(42)
 dia_sample <- diamonds[sample(nrow(diamonds), 3000), ]
 med_price <- median(dia_sample$price)
@@ -465,7 +465,7 @@ p6_wide
 
 **Task:** Plot density curves of `Petal.Length` for all three species on one chart. Use `fill` mapped to `Species` with `alpha = 0.4` for transparency. Which species has the narrowest spread?
 
-```r
+```r title="Exercise seven: iris density"
 # Exercise 7: overlapping density curves
 # Hint: map fill = Species inside aes(), set alpha outside aes()
 
@@ -479,7 +479,7 @@ p7
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise seven solution: iris density"
 p7 <- ggplot(iris, aes(x = Petal.Length, fill = Species)) +
   geom_density(alpha = 0.4) +
   labs(x = "Petal Length (cm)", y = "Density", fill = "Species")
@@ -499,7 +499,7 @@ p7
 
 **Task:** Create a boxplot of `hwy` by `class`, flipped horizontally with `coord_flip()`. Add `notch = TRUE` and color outliers red. Which class has the highest median highway mpg?
 
-```r
+```r title="Exercise eight: notched boxplot"
 # Exercise 8: horizontal notched boxplot
 # Hint: outlier.color controls the outlier point color
 
@@ -514,7 +514,7 @@ p8
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise eight solution: notched boxplot"
 p8 <- ggplot(mpg, aes(x = reorder(class, hwy, FUN = median), y = hwy)) +
   geom_boxplot(notch = TRUE, fill = "#7FB3D8", outlier.color = "red", outlier.size = 2) +
   coord_flip() +
@@ -535,7 +535,7 @@ p8
 
 **Try it:** Add `geom_rug()` below a density plot of `mtcars$mpg`. What extra information does the rug show?
 
-```r
+```r title="Exercise: density with rug"
 # Try it: density + rug
 ex_rug <- ggplot(mtcars, aes(x = mpg)) +
   geom_density(fill = "#7FB3D8", alpha = 0.5) +
@@ -548,7 +548,7 @@ ex_rug
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: density with rug"
 ex_rug <- ggplot(mtcars, aes(x = mpg)) +
   geom_density(fill = "#7FB3D8", alpha = 0.5) +
   geom_rug(sides = "b", color = "#4B6FA5", alpha = 0.7)
@@ -575,7 +575,7 @@ These geoms handle specific visualization tasks that the basic chart types can't
 
 **Task:** Create a violin plot of `hwy` by `drv` (drive type). Overlay a narrow boxplot inside each violin (`width = 0.15`). The violin shows distribution shape; the boxplot adds summary statistics.
 
-```r
+```r title="Exercise nine: violin and boxplot"
 # Exercise 9: violin with embedded boxplot
 # Hint: layer geom_violin first, then geom_boxplot on top
 
@@ -589,7 +589,7 @@ p9
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise nine solution: violin boxplot"
 p9 <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
   geom_violin(alpha = 0.5) +
   geom_boxplot(width = 0.15, fill = "white", outlier.size = 1) +
@@ -612,7 +612,7 @@ p9
 
 **Task:** Create an area chart showing `unemploy` (unemployment in thousands) over time. Fill the area under the curve. Add a horizontal reference line at the mean unemployment level.
 
-```r
+```r title="Exercise ten: area with hline"
 # Exercise 10: area chart with reference line
 # Hint: geom_area fills between y and the x-axis
 
@@ -626,7 +626,7 @@ p10
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise ten solution: area hline"
 mean_unemp <- mean(economics$unemploy)
 
 p10 <- ggplot(economics, aes(x = date, y = unemploy)) +
@@ -649,7 +649,7 @@ p10
 
 **Task:** Compute the correlation matrix of all numeric columns in `mtcars`. Reshape it to long format. Plot with `geom_tile()` using `scale_fill_gradient2()` (blue for negative, red for positive, white at zero).
 
-```r
+```r title="Exercise eleven: correlation heatmap"
 # Exercise 11: correlation heatmap
 # Hint: use reshape2::melt or manual expansion to get long format
 
@@ -667,7 +667,7 @@ cor_matrix <- round(cor(mtcars), 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise eleven solution: correlation heatmap"
 # Compute correlation matrix
 cor_matrix <- round(cor(mtcars), 2)
 
@@ -700,7 +700,7 @@ p11
 
 **Task:** Compute mean `hwy` per `class`. Plot as a bar chart with `geom_col()`. Add `geom_text()` labels showing the exact mean value above each bar. Round to 1 decimal place.
 
-```r
+```r title="Exercise twelve: bar with text"
 # Exercise 12: bar chart with text labels
 # Hint: use vjust = -0.5 to position text above bars
 
@@ -718,7 +718,7 @@ p12
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise twelve solution: bar text"
 class_summary <- aggregate(hwy ~ class, data = mpg, FUN = mean)
 class_summary$hwy <- round(class_summary$hwy, 1)
 
@@ -743,7 +743,7 @@ p12
 
 **Try it:** Replace `geom_text()` with `geom_label()` in Exercise 12's solution. What visual difference do you see?
 
-```r
+```r title="Exercise: geom label versus text"
 # Try it: geom_label vs geom_text
 ex_label <- ggplot(class_summary, aes(x = reorder(class, -hwy), y = hwy)) +
   geom_col(fill = "#A5C882") +
@@ -756,7 +756,7 @@ ex_label
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: geom label versus text"
 ex_label <- ggplot(class_summary, aes(x = reorder(class, -hwy), y = hwy)) +
   geom_col(fill = "#A5C882") +
   geom_label(aes(label = hwy), vjust = -0.3, size = 3.5) +
@@ -779,7 +779,7 @@ ex_label
 
 Write code to create a scatter plot of `mpg` data (`displ` vs `hwy`) with a `geom_smooth(method = "lm")` trend line. Identify the top 3 most fuel-efficient cars (highest `hwy`) and label them with `geom_label()` showing their `model` name. Use `geom_point()` for all cars, then layer the labels only on the top 3.
 
-```r
+```r title="Practice: annotated top three scatter"
 # Exercise 13: annotated scatter with selective labels
 # Hint: create a subset of top 3, use it as the data argument in geom_label()
 
@@ -791,7 +791,7 @@ Write code to create a scatter plot of `mpg` data (`displ` vs `hwy`) with a `geo
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice solution: annotated top three"
 # Identify top 3 most fuel-efficient
 top3 <- mpg[order(-mpg$hwy), ][1:3, ]
 
@@ -814,7 +814,7 @@ my_scatter
 
 Using the `diamonds` dataset (sample 3000 rows), create three separate plots that each show the distribution of `price` grouped by `cut`, using a different geom for each: (a) `geom_histogram()` with facets, (b) `geom_density()` with overlapping fills, and (c) `geom_boxplot()`. Which visualization reveals the most about how price varies by cut quality?
 
-```r
+```r title="Practice: three way diamond"
 # Exercise 14: three ways to show the same distribution
 # Hint: use facet_wrap(~cut) for the histogram, fill = cut for density
 
@@ -829,7 +829,7 @@ dia_ex <- diamonds[sample(nrow(diamonds), 3000), ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Practice solution: three way diamond"
 set.seed(99)
 dia_ex <- diamonds[sample(nrow(diamonds), 3000), ]
 
@@ -867,7 +867,7 @@ my_box
 
 Let's bring together multiple geoms to explore the built-in `airquality` dataset from four angles. Each chart uses a different geom to reveal a different aspect of New York's 1973 air quality measurements.
 
-```r
+```r title="Capstone: airquality four angles"
 # Clean the data (remove rows with missing values)
 aq <- na.omit(airquality)
 aq$Month <- factor(aq$Month, labels = c("May", "Jun", "Jul", "Aug", "Sep"))

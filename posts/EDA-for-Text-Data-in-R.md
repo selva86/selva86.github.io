@@ -22,7 +22,7 @@ fr_parent: "Univariate-EDA-in-R.html"
 
 When you get a dataset with text columns, product reviews, survey responses, clinical notes, you need to inspect them the same way you'd inspect numeric variables. Instead of mean and median, you ask: how long are the strings? Are any empty? What's the character count distribution? Let's build a sample dataset and run the first diagnostics.
 
-```r
+```r title="Inspect reviews and character counts"
 # Sample product reviews for text EDA
 reviews <- c(
   "Great product, works perfectly and arrived on time.",
@@ -77,7 +77,7 @@ Right away, you know the dataset has 15 entries: one NA, one empty string, and c
 
 Now let's look at which entries are empty or missing, because those need different treatment.
 
-```r
+```r title="Detect empty and NA entries"
 # Find problematic entries
 empty_idx <- which(reviews == "")
 na_idx <- which(is.na(reviews))
@@ -94,7 +94,7 @@ Two entries are missing or empty, that's a 13% data loss rate. In practice, you'
 
 **Try it:** Create a vector of 5 sentences and compute the median word count. Which sentence is closest to the median?
 
-```r
+```r title="Exercise: Median word count"
 # Try it: compute median word count
 ex_sentences <- c(
   "The quick brown fox jumps over the lazy dog.",
@@ -110,7 +110,7 @@ ex_sentences <- c(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Median word count solution"
 ex_wc <- sapply(ex_sentences, function(x) length(unlist(strsplit(x, "\\s+"))))
 cat("Word counts:", ex_wc, "\n")
 cat("Median:", median(ex_wc), "\n")
@@ -126,7 +126,7 @@ cat("Median:", median(ex_wc), "\n")
 
 Just like you'd histogram a numeric variable, you should histogram text lengths. The shape tells you whether most texts are similar in length (tight bell) or wildly different (heavy right tail). Let's plot the character counts from our reviews.
 
-```r
+```r title="Histogram of review lengths"
 # Histogram of character counts
 valid <- char_counts[!is.na(char_counts)]
 hist(valid, breaks = 10,
@@ -143,7 +143,7 @@ The histogram shows a right skew, most reviews cluster between 25-60 characters,
 
 A boxplot makes outlier detection even easier.
 
-```r
+```r title="Boxplot of word counts"
 # Boxplot of word counts to spot outliers
 valid_wc <- word_counts[!is.na(word_counts)]
 boxplot(valid_wc, horizontal = TRUE,
@@ -160,7 +160,7 @@ The boxplot highlights that 50% of reviews fall between roughly 5 and 10 words, 
 
 When your text lengths span a wide range (say, tweets mixed with blog posts), a log transformation helps.
 
-```r
+```r title="Log-transform heavy right tail"
 # Compare original vs log-transformed distributions
 par(mfrow = c(1, 2))
 
@@ -186,7 +186,7 @@ On the original scale, short reviews are crushed into the left edge. On the log 
 
 **Try it:** Create a boxplot of character counts (not word counts) for our original `reviews` vector. Does the boxplot flag any outliers?
 
-```r
+```r title="Exercise: Horizontal boxplot of chars"
 # Try it: boxplot of character counts
 ex_valid <- char_counts[!is.na(char_counts)]
 
@@ -196,7 +196,7 @@ ex_valid <- char_counts[!is.na(char_counts)]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Horizontal boxplot solution"
 ex_valid <- char_counts[!is.na(char_counts)]
 boxplot(ex_valid, horizontal = TRUE,
         main = "Character Count Distribution",
@@ -212,7 +212,7 @@ boxplot(ex_valid, horizontal = TRUE,
 
 Word frequency analysis reveals what your text data is actually about. The process is: split text into individual words (tokenise), convert to lowercase, remove common stop words, then count what's left. Let's do this step by step using only base R.
 
-```r
+```r title="Tokenise reviews into words"
 # Tokenise: split all reviews into individual words
 valid_reviews <- reviews[!is.na(reviews) & reviews != ""]
 all_words <- unlist(strsplit(tolower(valid_reviews), "[^a-z']+"))
@@ -237,7 +237,7 @@ We have 93 word tokens and 68 unique words. But many of those will be filler wor
 [WARNING]
 **Always remove stop words before interpreting frequency tables.** Without this step, words like "the", "and", "is" dominate every chart. They tell you nothing about the content, only that the text is written in English.
 
-```r
+```r title="Remove stop words and count"
 # Define stop words (common English function words)
 stop_words <- c("the", "a", "an", "and", "or", "but", "in", "on", "at",
                 "to", "for", "of", "with", "by", "is", "was", "are", "were",
@@ -268,7 +268,7 @@ After removing stop words, "product" appears 3 times, the most frequent meaningf
 
 Now let's visualise the top words.
 
-```r
+```r title="Bar chart of top words"
 # Bar chart of top 15 words
 top15 <- head(freq_table, 15)
 par(mar = c(5, 8, 4, 2))
@@ -285,7 +285,7 @@ The horizontal bar chart makes word labels readable. "Product" leads, which make
 
 One classic pattern in natural language is Zipf's law: the frequency of a word is inversely proportional to its rank. Let's check whether our small corpus follows this rule.
 
-```r
+```r title="Zipfs law log-log plot"
 # Zipf's law: log-log plot of rank vs frequency
 ranks <- seq_along(freq_table)
 plot(log10(ranks), log10(as.numeric(freq_table)),
@@ -304,7 +304,7 @@ Even with only 48 unique words, you can see the approximate linear relationship 
 
 **Try it:** Modify the stop words list to also include "product" and "buy", then recompute the top 5 words. What changes?
 
-```r
+```r title="Exercise: Extended stop words"
 # Try it: extend stop words and find new top 5
 ex_stop <- c(stop_words, "product", "buy")
 ex_clean <- all_words[!all_words %in% ex_stop]
@@ -316,7 +316,7 @@ ex_freq <- sort(table(ex_clean), decreasing = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extended stop words solution"
 ex_stop <- c(stop_words, "product", "buy")
 ex_clean <- all_words[!all_words %in% ex_stop]
 ex_freq <- sort(table(ex_clean), decreasing = TRUE)
@@ -345,7 +345,7 @@ Where:
 
 Let's build helper functions and compute readability for our reviews.
 
-```r
+```r title="Flesch reading ease helpers"
 # Helper: count sentences (split on . ! ?)
 count_sentences <- function(text) {
   sentences <- unlist(strsplit(text, "[.!?]+"))
@@ -407,7 +407,7 @@ The second review scores 90.5 (very easy, short common words), while the third s
 
 Let's apply readability scoring across all valid reviews and see the distribution.
 
-```r
+```r title="Score and classify readability"
 # Score all valid reviews
 valid_reviews <- reviews[!is.na(reviews) & nchar(reviews) > 5]
 scores_all <- sapply(valid_reviews, flesch_ease)
@@ -443,7 +443,7 @@ Most reviews score as "Easy" (FRE >= 70), which makes sense, product reviews use
 
 **Try it:** The Flesch-Kincaid Grade Level formula is: $FKGL = 0.39 \times \frac{\text{words}}{\text{sentences}} + 11.8 \times \frac{\text{syllables}}{\text{words}} - 15.59$. Write a function that computes the grade level for the sentence "The cat sat on the mat."
 
-```r
+```r title="Exercise: Flesch-Kincaid grade level"
 # Try it: compute Flesch-Kincaid Grade Level
 ex_text <- "The cat sat on the mat."
 
@@ -453,7 +453,7 @@ ex_text <- "The cat sat on the mat."
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Grade level solution"
 ex_fkgl <- function(text) {
   words <- unlist(strsplit(text, "\\s+"))
   words <- words[words != ""]
@@ -475,7 +475,7 @@ ex_fkgl(ex_text)
 
 Before you feed text into a sentiment model or classifier, scan for anomalies that can silently break your pipeline. Duplicates inflate frequency counts, all-caps entries skew tokenisation, and excess whitespace creates phantom tokens.
 
-```r
+```r title="Scan for text anomalies"
 # Detect common text anomalies
 cat("=== Anomaly Scan ===\n\n")
 
@@ -514,7 +514,7 @@ The scan caught one all-caps entry (angry review with triple exclamation marks),
 
 Whitespace problems are another silent data quality issue. Let's clean them.
 
-```r
+```r title="Clean messy whitespace"
 # Whitespace cleaning demo
 messy_texts <- c(
   "  Too many   spaces   in   here  ",
@@ -547,7 +547,7 @@ The `gsub("\\s+", " ", x)` collapses all whitespace runs (spaces, tabs, newlines
 
 **Try it:** Write a function `ex_flag_exclaim(texts)` that returns the indices of texts containing 3 or more consecutive exclamation marks.
 
-```r
+```r title="Exercise: Flag excessive exclamations"
 # Try it: flag excessive exclamation marks
 ex_flag_exclaim <- function(texts) {
   # your code here
@@ -562,7 +562,7 @@ ex_flag_exclaim(ex_test)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exclamation flag solution"
 ex_flag_exclaim <- function(texts) {
   which(grepl("!{3,}", texts))
 }
@@ -580,7 +580,7 @@ ex_flag_exclaim(c("Great!", "TERRIBLE!!!", "Ok.", "Help!!!!!"))
 
 Given this vector of movie reviews, compute: (a) character length statistics, (b) the top 10 most frequent words after stop word removal, and (c) the Flesch Reading Ease score for each review. Print a summary data frame with one row per review.
 
-```r
+```r title="Exercise: Movie review EDA"
 # Exercise 1: movie reviews
 my_reviews <- c(
   "A stunning visual masterpiece with incredible special effects throughout.",
@@ -600,7 +600,7 @@ my_reviews <- c(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Movie review solution"
 # (a) Character length stats
 my_char <- nchar(my_reviews)
 my_wc <- sapply(my_reviews, function(x) length(unlist(strsplit(x, "\\s+"))))
@@ -640,7 +640,7 @@ print(result)
 
 Create a function `my_text_eda(texts)` that accepts a character vector and returns a named list with four components: `length_stats` (min, median, max, mean character count), `top_words` (top 10 after stop words removal), `readability` (mean and median FRE across valid texts), and `anomalies` (count of NAs, empty strings, all-caps entries, and excessive punctuation entries).
 
-```r
+```r title="Exercise: Build text EDA pipeline"
 # Exercise 2: build my_text_eda()
 my_text_eda <- function(texts) {
   # Hint: combine the techniques from all sections above
@@ -657,7 +657,7 @@ my_text_eda <- function(texts) {
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Text EDA pipeline solution"
 my_text_eda <- function(texts) {
   # Length stats
   cc <- nchar(texts)
@@ -701,7 +701,7 @@ str(report)
 
 Let's run a complete text EDA pipeline on a fresh dataset. We'll use R's built-in `state.name` vector (all 50 US state names) combined with custom descriptions to simulate a realistic text column.
 
-```r
+```r title="End-to-end state descriptions"
 # Build a sample dataset: state names with made-up review snippets
 set.seed(123)
 descriptions <- paste(

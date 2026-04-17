@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Without a pipe, multi-step transformations nest inside each other, and you read them inside-out. With a pipe, they read top-to-bottom like a recipe. Let's see both versions of the same computation.
 
-```r
+```r title="Nested call vs piped chain"
 # Nested — reads inside-out
 round(mean(log(c(10, 100, 1000))), 2)
 #> [1] 5.3
@@ -41,7 +41,7 @@ Same result. But the piped version says plainly: "take this vector, take its log
 
 **Try it:** Rewrite `sum(sqrt(1:10))` as a pipeline with `|>`.
 
-```r
+```r title="Exercise: sum the square roots"
 # your turn
 1:10 |> sqrt() |> ___
 
@@ -50,7 +50,7 @@ Same result. But the piped version says plainly: "take this vector, take its log
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sum-sqrt solution"
 1:10 |> sqrt() |> sum()
 #> [1] 22.46828
 ```
@@ -62,7 +62,7 @@ The pipeline reads left to right: start with 1..10, take the square root of each
 
 The magrittr pipe `%>%` has been around since 2014 and is used by dplyr, ggplot2, and the whole tidyverse. The native pipe `|>` was added to base R in version 4.1 (May 2021). They're almost identical for day-to-day work, but there are three real differences.
 
-```r
+```r title="%% vs | on the same sort"
 # Both pass LHS as the first argument of the RHS function
 library(magrittr)
 c(3, 1, 4, 1, 5) %>% sort()
@@ -78,7 +78,7 @@ c(3, 1, 4, 1, 5) |> sort()
 
 **Difference 3, No dependency.** `|>` is in base R, no packages needed. `%>%` requires `magrittr` or any package that re-exports it (dplyr, tidyr, etc.).
 
-```r
+```r title="Placeholder differences on lm"
 # Placeholder: magrittr
 mtcars %>% lm(mpg ~ wt, data = .)
 # native pipe — must use _ with a named argument
@@ -90,7 +90,7 @@ mtcars |> lm(mpg ~ wt, data = _)
 
 **Try it:** Use the native pipe to fit `lm(mpg ~ hp, data = mtcars)` without writing `mtcars` inside `lm()`.
 
-```r
+```r title="Exercise: native pipe with data argument"
 mtcars |> lm(mpg ~ hp, data = ___)
 
 ```
@@ -98,7 +98,7 @@ mtcars |> lm(mpg ~ hp, data = ___)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Native-pipe-lm solution"
 mtcars |> lm(mpg ~ hp, data = _) |> coef()
 #> (Intercept)          hp
 #> 30.09886054 -0.06822828
@@ -111,7 +111,7 @@ The native pipe's `_` placeholder plugs the left-hand side into any *named* argu
 
 Both pipes insert the left-hand side as the **first argument** of the function on the right-hand side. If the function expects the data somewhere else, you need a placeholder or an anonymous function.
 
-```r
+```r title="Pipe placeholder and anonymous function"
 # First arg — straightforward
 c(5, 3, 8, 1) |> sort()
 #> [1] 1 3 5 8
@@ -128,7 +128,7 @@ That last one is the native pipe's universal escape hatch: `(\(x) ...)()` wraps 
 
 **Try it:** Pipe `1:5` into a custom operation that returns `x^2 + 1` using an anonymous function.
 
-```r
+```r title="Exercise: inline function on 1:5"
 1:5 |> (\(x) ___)()
 
 ```
@@ -136,7 +136,7 @@ That last one is the native pipe's universal escape hatch: `(\(x) ...)()` wraps 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Inline-function solution"
 1:5 |> (\(x) x^2 + 1)()
 #> [1]  2  5 10 17 26
 ```
@@ -148,7 +148,7 @@ The lambda `\(x) x^2 + 1` is created inline and then immediately called with the
 
 Pipes shine on chains of 3+ steps where each step transforms the previous result. Below that threshold, nested calls are fine. Above it, pipes become a quality-of-life upgrade.
 
-```r
+```r title="Nested dplyr vs piped dplyr"
 library(dplyr)
 # Without pipes — cluttered
 arrange(summarise(group_by(filter(mtcars, cyl == 4), gear), mean_mpg = mean(mpg)), desc(mean_mpg))
@@ -180,7 +180,7 @@ The piped version isn't shorter, it's *linear*. You can drop in a `print()` or `
 
 **Try it:** Write a pipeline on `mtcars` that filters `gear == 4`, then returns the mean `mpg`.
 
-```r
+```r title="Exercise: mean mpg for gear 4"
 mtcars |>
   filter(gear == 4) |>
   summarise(mean_mpg = ___)
@@ -190,7 +190,7 @@ mtcars |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Gear-4 solution"
 library(dplyr)
 mtcars |>
   filter(gear == 4) |>
@@ -208,7 +208,7 @@ Three traps catch new pipe users most often. Knowing them saves hours of debuggi
 
 **Pitfall 1, Forgetting `()` on the right side (native pipe only):**
 
-```r
+```r title="Common mistake: missing parentheses"
 # Wrong — native pipe requires ()
 # c(1, 2, 3) |> mean
 # Error: The pipe operator requires a function call as RHS
@@ -220,7 +220,7 @@ c(1, 2, 3) |> mean()
 
 **Pitfall 2, Piping into `.` without thinking.** With magrittr's dot, you can accidentally double-insert the value:
 
-```r
+```r title="Magrittr dot double-insert"
 library(magrittr)
 # Using the dot as an argument AND as the LHS insertion
 10 %>% seq(1, ., by = 2)
@@ -230,7 +230,7 @@ library(magrittr)
 
 **Pitfall 3, Mixing pipe and `+` in ggplot2.** ggplot2 uses `+`, not `|>`, to add layers. Beginners routinely try `ggplot(df) |> geom_point(...)` and get confused errors. Use `|>` before `ggplot()` and `+` between layers:
 
-```r
+```r title="Pipe vs plus in ggplot2"
 # Correct pattern
 # mtcars |>
 #   filter(cyl == 4) |>
@@ -243,7 +243,7 @@ library(magrittr)
 
 **Try it:** Spot the bug, why doesn't `c(1,2,3) %>% mean` work as expected in some environments?
 
-```r
+```r title="Exercise: native pipe with parentheses"
 # hint: magrittr accepts it, native pipe doesn't — always use () to be safe
 c(1, 2, 3) |> mean()
 
@@ -252,7 +252,7 @@ c(1, 2, 3) |> mean()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Parentheses solution"
 c(1, 2, 3) |> mean()
 #> [1] 2
 ```
@@ -270,7 +270,7 @@ Pipes are a tool, not a religion. Here are three cases where they hurt readabili
 
 **Don't pipe when you need the value twice.** The pipe discards the original after one use. If step 3 needs both the current result and the original input, use a variable:
 
-```r
+```r title="When not to pipe: single call"
 # Bad — can't access original x inside the chain
 # x |> transform() |> compare_to_original()  # no handle on x
 
@@ -282,7 +282,7 @@ scaled
 
 **Try it:** Decide which of these is clearer, single call or pipe: `sqrt(16)` vs `16 |> sqrt()`.
 
-```r
+```r title="Exercise: sqrt(16) is clearer"
 # answer: sqrt(16) — single-call pipes are noise
 sqrt(16)
 
@@ -291,7 +291,7 @@ sqrt(16)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Single-call solution"
 sqrt(16)
 #> [1] 4
 ```
@@ -305,14 +305,14 @@ For a single function call, the nested form is already left-to-right, there's no
 
 Rewrite this nested call using `|>`:
 
-```r
+```r title="Exercise: rewrite nested call with pipe"
 round(mean(abs(c(-3, -1, 4, -5, 2))), 1)
 ```
 
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Nested-rewrite solution"
 c(-3, -1, 4, -5, 2) |> abs() |> mean() |> round(1)
 #> [1] 3
 ```
@@ -325,7 +325,7 @@ Use the native pipe's `_` placeholder to fit a linear model of `mpg ~ wt + hp` o
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Exercise: lm with two predictors"
 mtcars |> lm(mpg ~ wt + hp, data = _) |> coef()
 #> (Intercept)          wt          hp 
 #> 37.22727012 -3.87783074 -0.03177295
@@ -339,7 +339,7 @@ Using `|>` and dplyr, from `iris`: filter to Species == "versicolor", compute th
 <details>
 <summary>Show solution</summary>
 
-```r
+```r title="Two-predictor solution"
 library(dplyr)
 iris |>
   filter(Species == "versicolor") |>
@@ -353,7 +353,7 @@ iris |>
 
 A complete one-pipeline analysis, load, clean, transform, summarize, and visualize, on `mtcars`.
 
-```r
+```r title="End-to-end piped mtcars analysis"
 library(dplyr)
 
 result <- mtcars |>

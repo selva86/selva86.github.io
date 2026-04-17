@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 Every time you call `print()` on a data frame and get a table, or call `summary()` on a linear model and get coefficients, S3 dispatch is running behind the scenes. Let's see that mechanism in action by building a custom class from scratch.
 
-```r
+```r title="Stamp a list with a class"
 # Create a plain list and turn it into an S3 object
 my_pet <- list(name = "Rex", species = "dog", age = 5)
 class(my_pet) <- "pet"
@@ -61,7 +61,7 @@ The `inherits()` function is the safest way to check whether an object belongs t
 
 **Try it:** Create a "book" S3 object with fields `title = "R in Action"`, `author = "Robert Kabacoff"`, and `pages = 608`. Assign the class `"book"` and verify it with `class()` and `inherits()`.
 
-```r
+```r title="Exercise: Create a book object"
 # Try it: create a "book" S3 object
 ex_book <- list(
   # your code here
@@ -77,7 +77,7 @@ inherits(ex_book, "book")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Book object solution"
 ex_book <- list(title = "R in Action", author = "Robert Kabacoff", pages = 608)
 class(ex_book) <- "book"
 class(ex_book)
@@ -96,7 +96,7 @@ Manually setting `class()` works, but it's fragile. What if someone forgets to i
 
 The convention is to name your constructor `new_classname()`. The `structure()` function is the cleanest way to build the object, it creates a list and sets the class attribute in one call.
 
-```r
+```r title="Write newpet constructor"
 # Constructor function for the "pet" class
 new_pet <- function(name, species, age) {
   structure(
@@ -127,7 +127,7 @@ The constructor guarantees that every pet object has exactly three fields in the
 
 Let's see what happens without a constructor, someone creates a "pet" with no species field, and everything looks fine until code downstream tries to use it.
 
-```r
+```r title="Object without constructor is fragile"
 # Without a constructor, anything goes
 bad_pet <- structure(list(name = "Ghost"), class = "pet")
 
@@ -145,7 +145,7 @@ The missing fields don't cause an immediate error, they silently return `NULL`. 
 
 **Try it:** Write a `new_book()` constructor that takes `title`, `author`, and `pages` arguments and returns a "book" S3 object. Test it by creating a book.
 
-```r
+```r title="Exercise: Write newbook constructor"
 # Try it: write a new_book() constructor
 new_book <- function(title, author, pages) {
   # your code here
@@ -162,7 +162,7 @@ ex_my_book$author
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="newbook constructor solution"
 new_book <- function(title, author, pages) {
   structure(
     list(title = title, author = author, pages = pages),
@@ -186,7 +186,7 @@ When you call `print(rex)`, R doesn't run a single universal `print()` function.
 
 This mechanism is called **method dispatch**, and `UseMethod()` is the engine that drives it. Let's define a custom `print()` and `summary()` for our pet class.
 
-```r
+```r title="Custom print and summary methods"
 # Custom print method — R will call this instead of print.default()
 print.pet <- function(x, ...) {
   cat(sprintf("== %s the %s ==\n", x$name, x$species))
@@ -220,7 +220,7 @@ Notice the naming pattern: `print.pet()`, `summary.pet()`. The dot between the g
 
 You can discover all methods registered for a generic with `methods()`.
 
-```r
+```r title="Inspect existing S3 methods"
 # What methods exist for print?
 head(methods(print), 10)
 #> [1] "print.acf"
@@ -249,7 +249,7 @@ R ships with hundreds of `print.*` methods, one for data frames, one for linear 
 
 **Try it:** Write a `format.book()` method that returns a formatted citation string like `"Advanced R by Hadley Wickham (604 pages)"`. Then call `format()` on the book you created earlier.
 
-```r
+```r title="Exercise: Write format.book method"
 # Try it: write format.book()
 format.book <- function(x, ...) {
   # your code here — return a string with paste0()
@@ -263,7 +263,7 @@ format(ex_my_book)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="format.book method solution"
 format.book <- function(x, ...) {
   paste0(x$title, " by ", x$author, " (", x$pages, " pages)")
 }
@@ -281,7 +281,7 @@ Most of the time, you'll add methods to existing generics like `print()`, `summa
 
 A generic function is a function that calls `UseMethod("name")`. That's the entire definition. Then you write `name.class()` methods for each class that should respond to it.
 
-```r
+```r title="Write generic with UseMethod"
 # Define a new generic function
 speak <- function(x, ...) {
   UseMethod("speak")
@@ -314,7 +314,7 @@ The `default` method is your safety net. Without it, calling `speak()` on a non-
 
 **Try it:** Write a `describe()` generic function and a `describe.book()` method that prints the book's title and page count in a sentence. Test it on `ex_my_book`.
 
-```r
+```r title="Exercise: Build describe generic"
 # Try it: create a describe() generic + describe.book()
 describe <- function(x, ...) {
   # your code here
@@ -332,7 +332,7 @@ describe(ex_my_book)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="describe generic solution"
 describe <- function(x, ...) {
   UseMethod("describe")
 }
@@ -354,7 +354,7 @@ S3 inheritance works through a simple mechanism: the class attribute can be a ch
 
 To create a subclass, you prepend the subclass name to the parent's class vector. Let's make "dog" and "cat" subclasses of "pet".
 
-```r
+```r title="Subclass constructors for dog and cat"
 # Subclass constructors — prepend subclass to parent
 new_dog <- function(name, age, breed) {
   obj <- new_pet(name, species = "dog", age = age)
@@ -386,7 +386,7 @@ inherits(buddy, "pet")
 
 Now comes the power of inheritance. If R can't find `speak.dog()`, it falls back to `speak.pet()`. Let's override `speak()` for dogs and cats while keeping the parent's `print()` available.
 
-```r
+```r title="Override speak in subclasses"
 # Override speak for dogs and cats
 speak.dog <- function(x, ...) {
   cat(sprintf("%s the %s says: Woof!\n", x$name, x$breed))
@@ -414,7 +414,7 @@ Notice the last line: `print(buddy)` calls `print.pet()` automatically. R tries 
 
 Sometimes you want to *extend* the parent's behavior rather than replace it entirely. That's what `NextMethod()` does, it calls the next method in the class chain.
 
-```r
+```r title="Extend print with NextMethod"
 # Extend print for dogs — add breed info, then delegate to print.pet()
 print.dog <- function(x, ...) {
   cat(sprintf("Breed: %s\n", x$breed))
@@ -437,7 +437,7 @@ print(buddy)
 
 **Try it:** Create a `new_textbook()` constructor that builds a "textbook" subclass of "book". It should add an `edition` field. The class vector should be `c("textbook", "book")`. Test that `format()` still works (falling back to `format.book()`).
 
-```r
+```r title="Exercise: Create textbook subclass"
 # Try it: create a "textbook" subclass of "book"
 new_textbook <- function(title, author, pages, edition) {
   # your code here
@@ -454,7 +454,7 @@ format(ex_stats_book)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="textbook subclass solution"
 new_textbook <- function(title, author, pages, edition) {
   obj <- new_book(title, author, pages)
   obj$edition <- edition
@@ -483,7 +483,7 @@ Here's how the three layers work:
 2. **Validator** (`validate_pet`), checks that the object's data makes sense. Called separately so you can skip it when performance matters.
 3. **Helper** (`pet`), the user-facing function. Coerces input types, calls the validator, then calls the constructor.
 
-```r
+```r title="Constructor, validator, and helper"
 # 1. Constructor — fast, no validation
 new_pet <- function(name, species, age) {
   structure(
@@ -522,7 +522,7 @@ print(my_dog)
 
 The validator catches mistakes early with clear error messages. Let's see it in action.
 
-```r
+```r title="Validator catches bad input"
 # Validator catches bad species
 try(pet("Ghost", "dragon", 100))
 #> Error: 'species' must be one of: dog, cat, bird, fish, rabbit
@@ -546,7 +546,7 @@ Each error message tells the user exactly what went wrong and what they should f
 
 **Try it:** Write a `validate_book()` function that checks `pages > 0` and `title` is a non-empty string. It should return the object if valid, or `stop()` with a clear message if not.
 
-```r
+```r title="Exercise: Write validatebook"
 # Try it: write validate_book()
 validate_book <- function(x) {
   # your code here — check pages > 0 and title is non-empty
@@ -563,7 +563,7 @@ try(validate_book(new_book("Title", "Author", -10)))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="validatebook solution"
 validate_book <- function(x) {
   if (!is.character(x$title) || nchar(x$title) == 0) {
     stop("'title' must be a non-empty string", call. = FALSE)
@@ -594,7 +594,7 @@ Create a `"bank_account"` S3 class with `owner` and `balance` fields. Write:
 - A `deposit()` generic and `deposit.bank_account()` method that adds to the balance and returns the updated account
 - A `print.bank_account()` method that shows owner and balance
 
-```r
+```r title="Exercise 1: bankaccount class"
 # Exercise 1: bank account class
 # Hint: deposit() is a new generic — use UseMethod()
 # The deposit method should modify the balance and return the object
@@ -605,7 +605,7 @@ Create a `"bank_account"` S3 class with `owner` and `balance` fields. Write:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="bankaccount class solution"
 new_bank_account <- function(owner, balance = 0) {
   structure(
     list(owner = owner, balance = balance),
@@ -645,7 +645,7 @@ Create a `"savings_account"` subclass of `"bank_account"` that:
 - Overrides a new `withdraw()` generic to refuse withdrawals that would drop below `min_balance`
 - Uses `NextMethod()` in `print.savings_account()` to extend the parent's print
 
-```r
+```r title="Exercise 2: savingsaccount subclass"
 # Exercise 2: savings account with minimum balance
 # Hint: class vector should be c("savings_account", "bank_account")
 # withdraw() needs a generic + method for bank_account + override for savings_account
@@ -656,7 +656,7 @@ Create a `"savings_account"` subclass of `"bank_account"` that:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="savingsaccount subclass solution"
 new_savings_account <- function(owner, balance = 0, min_balance = 100) {
   obj <- new_bank_account(owner, balance)
   obj$min_balance <- min_balance
@@ -705,7 +705,7 @@ withdraw(savings, 250)
 
 Write an `as.data.frame.pet()` method that converts a single pet object into a one-row data frame. Then write a helper function `pets_to_df()` that takes a list of pets and combines them into a multi-row data frame.
 
-```r
+```r title="Exercise 3: as.data.frame.pet method"
 # Exercise 3: as.data.frame method for pet
 # Hint: as.data.frame() is an existing generic — just write the .pet method
 # Use do.call(rbind, ...) to combine multiple one-row data frames
@@ -716,7 +716,7 @@ Write an `as.data.frame.pet()` method that converts a single pet object into a o
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="as.data.frame.pet solution"
 as.data.frame.pet <- function(x, ...) {
   data.frame(
     name = x$name,
@@ -749,7 +749,7 @@ print(pets_df)
 
 Let's build a complete mini project management system from scratch, constructor, validator, helper, methods, a custom generic, and inheritance. This pulls together every S3 concept from the tutorial into one cohesive system.
 
-```r
+```r title="Task system constructor and validator"
 # === Task Management System ===
 
 # Constructor
@@ -796,7 +796,7 @@ print.task <- function(x, ...) {
 
 Now let's add a custom generic and a subclass that uses everything we've learned.
 
-```r
+```r title="Add custom isoverdue generic"
 # Custom generic: is the task overdue?
 is_overdue <- function(x, ...) UseMethod("is_overdue")
 
@@ -834,7 +834,7 @@ print.urgent_task <- function(x, ...) {
 
 Let's see the whole system in action.
 
-```r
+```r title="End-to-end task management demo"
 # Create tasks
 t1 <- task("Write S3 tutorial", "in_progress", "high", "2026-04-15")
 t2 <- task("Review pull request", "todo", "medium")

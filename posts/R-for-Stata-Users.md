@@ -24,7 +24,7 @@ Most Stata users come to R looking for one thing first: "show me how to load my 
 
 R ships with dozens of teaching datasets that are always available, no `use` needed. We will use `mtcars` (32 cars, 11 variables) throughout this guide because it is everywhere in R's documentation.
 
-```r
+```r title="Load and describe mtcars"
 # Stata: use "mtcars.dta", clear ; describe ; list in 1/6
 cars <- mtcars                  # assign the built-in dataset to a name we own
 str(cars)                       # describe: types + first values
@@ -66,7 +66,7 @@ For real-world files, R has one function per format. The most common are below.
 
 **Try it:** Load R's built-in `iris` dataset into a variable named `ex_iris`, then print its first 3 rows AND the total row count. The pattern is the same as the example above.
 
-```r
+```r title="Exercise: inspect iris the Stata way"
 # Try it: inspect iris
 ex_iris <- # your code here
 
@@ -77,7 +77,7 @@ ex_iris <- # your code here
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Iris-inspect solution"
 ex_iris <- iris
 head(ex_iris, 3)
 #>   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
@@ -98,7 +98,7 @@ Now that you can load data, the second-biggest mental shift is how that data liv
 
 Here is the mental model in code: two data frames are alive at the same time, each with its own columns, and missing values are a real value called `NA` rather than Stata's dot.
 
-```r
+```r title="Two datasets and NA handling"
 # Two datasets in memory at once — impossible in Stata
 df_a <- data.frame(id = 1:3, score = c(90, NA, 78))
 df_b <- data.frame(id = 1:3, group = c("A", "B", "A"))
@@ -134,7 +134,7 @@ Two design choices to call out. The `$` operator names a single column on a spec
 
 **Try it:** Compute the mean of `cars$hp` while ignoring missing values (there are none in `mtcars`, but the habit is what matters). Save it to `ex_mean_hp`.
 
-```r
+```r title="Exercise: mean hp with na.rm"
 # Try it: mean hp with na.rm
 ex_mean_hp <- # your code here
 ex_mean_hp
@@ -144,7 +144,7 @@ ex_mean_hp
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean-hp solution"
 ex_mean_hp <- mean(cars$hp, na.rm = TRUE)
 ex_mean_hp
 #> [1] 146.6875
@@ -160,7 +160,7 @@ Stata's `gen`, `replace`, `egen`, `recode`, `encode`, and `destring` cover most 
 
 The example below builds an `efficiency` column, conditionally zeros it out, and computes a group-mean column, the R analogue of `gen`, `replace ... if`, and `egen ... by()`.
 
-```r
+```r title="gen, replace, egen in base R"
 # Stata: gen efficiency = mpg / wt
 cars$efficiency <- round(cars$mpg / cars$wt, 2)
 
@@ -204,7 +204,7 @@ Read the three statements as one Stata pipeline. Line one creates a numeric colu
 
 **Try it:** Add a column `hp_per_cyl` to a copy of `mtcars` named `ex_cars`, defined as `hp / cyl`. Print the first 4 rows of the new column.
 
-```r
+```r title="Exercise: create hppercyl column"
 # Try it: compute hp_per_cyl
 ex_cars <- mtcars
 # your code here
@@ -217,7 +217,7 @@ head(ex_cars$hp_per_cyl, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="hp-per-cyl solution"
 ex_cars <- mtcars
 ex_cars$hp_per_cyl <- ex_cars$hp / ex_cars$cyl
 head(ex_cars$hp_per_cyl, 4)
@@ -234,7 +234,7 @@ This is where most Stata workflows live: keep some rows, drop others, sort, and 
 
 The block below filters `mtcars` to fast 4-cylinder cars, sorts the result by horsepower, and then joins two tiny tables with `merge()`.
 
-```r
+```r title="keep if, gsort, and subset"
 # Stata: keep if mpg > 25 & cyl == 4
 fast_cars <- subset(cars, mpg > 25 & cyl == 4)
 nrow(fast_cars)
@@ -284,7 +284,7 @@ The first line filters, the second sorts, the third joins. Read `subset(cars, mp
 
 **Try it:** Subset `cars` to rows where `wt < 2.5`, then sort the result by `hp` descending. Save it to `ex_light_fast` and print the `mpg`, `wt`, `hp` columns.
 
-```r
+```r title="Exercise: filter wt and sort by hp"
 # Try it: filter + sort
 ex_light_fast <- # your code here
 
@@ -295,7 +295,7 @@ ex_light_fast[, c("mpg", "wt", "hp")]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Light-fast-cars solution"
 ex_light_fast <- subset(cars, wt < 2.5)
 ex_light_fast <- ex_light_fast[order(-ex_light_fast$hp), ]
 ex_light_fast[, c("mpg", "wt", "hp")]
@@ -316,7 +316,7 @@ ex_light_fast[, c("mpg", "wt", "hp")]
 
 This section covers the everyday analysis you would normally reach for `summarize`, `tabulate`, and `ttest` to do. R's equivalents are `summary()`, `table()`, and `t.test()`, and because they return objects (not just printed text), you can pull pieces out of them programmatically.
 
-```r
+```r title="summarize, tabulate, and ttest equivalents"
 # Stata: summarize mpg
 summary(cars$mpg)
 #>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
@@ -361,7 +361,7 @@ Three commands, three key ideas. `summary()` on a numeric vector returns Stata's
 
 **Try it:** Run a t-test of `mpg` between 4-cylinder and 8-cylinder cars only (filter first). Save the test object to `ex_tt` and print its `p.value`.
 
-```r
+```r title="Exercise: t-test 4cyl vs 8cyl"
 # Try it: t-test 4cyl vs 8cyl
 ex_tt <- # your code here
 ex_tt$p.value
@@ -371,7 +371,7 @@ ex_tt$p.value
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Four-vs-eight solution"
 ex_subset <- subset(cars, cyl %in% c(4, 8))
 ex_tt <- t.test(mpg ~ cyl, data = ex_subset)
 ex_tt$p.value
@@ -386,7 +386,7 @@ ex_tt$p.value
 
 This is the section most Stata users care about most. Good news: `lm()` and `glm()` cover everything you used `reg`, `logit`, `probit`, and `poisson` for, and the model object they return holds far more information than Stata's results window. Bad news: there is no single `, robust` flag, you opt in to a robust covariance matrix by passing it through `lmtest::coeftest()`. The pattern is shown below.
 
-```r
+```r title="Regression with factor(cyl)"
 # Stata: reg mpg wt hp i.cyl
 model <- lm(mpg ~ wt + hp + factor(cyl), data = cars)
 summary(model)
@@ -433,7 +433,7 @@ Read `mpg ~ wt + hp + factor(cyl)` as Stata's `reg mpg wt hp i.cyl`. The tilde `
 
 **Try it:** Fit `lm(mpg ~ wt + am, data = cars)` and save it to `ex_model`. Print only the coefficients (not the full summary).
 
-```r
+```r title="Exercise: fit mpg on wt and am"
 # Try it: fit and extract coefficients
 ex_model <- # your code here
 coef(ex_model)
@@ -443,7 +443,7 @@ coef(ex_model)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="wt-plus-am solution"
 ex_model <- lm(mpg ~ wt + am, data = cars)
 coef(ex_model)
 #> (Intercept)          wt          am
@@ -458,7 +458,7 @@ coef(ex_model)
 
 Stata's `xtreg, fe` is one of the language's signature commands. R has two main packages for the same job, `plm` (the older, comprehensive choice) and `fixest` (faster, with built-in cluster-robust SEs), but you do not need either for the basic case. For one-way fixed effects, plain `lm(y ~ x + factor(id))` produces identical point estimates. The example below simulates a tiny panel and fits both an OLS model and a fixed-effects model so you can see the difference.
 
-```r
+```r title="Pooled OLS vs fixed-effects with factor(id)"
 # Stata: xtset id year ; xtreg y x, fe
 set.seed(2026)
 n_id <- 5; n_t <- 10
@@ -496,7 +496,7 @@ Compare the two coefficients on `x`. The pooled OLS estimate is biased away from
 
 **Try it:** Fit a fixed-effects model on the same `panel` data above but extract only the coefficient on `x` (not the FE dummies). Save it to `ex_x_coef`.
 
-```r
+```r title="Exercise: extract x from FE model"
 # Try it: extract x coefficient from FE model
 ex_fe_model <- # your code here
 ex_x_coef   <- # your code here
@@ -507,7 +507,7 @@ ex_x_coef
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="FE-x-coef solution"
 ex_fe_model <- lm(y ~ x + factor(id), data = panel)
 ex_x_coef   <- coef(ex_fe_model)["x"]
 ex_x_coef
@@ -527,7 +527,7 @@ Two capstone exercises that combine several sections above. Each one should take
 
 Compute the **mean** and **standard deviation** of `mpg` for each cylinder group in `mtcars`. The output should be a small data frame with one row per cylinder level and three columns: `cyl`, `mean_mpg`, `sd_mpg`. Save it to `cap_summary`.
 
-```r
+```r title="Exercise: mean and sd of mpg by cyl"
 # Capstone 1: summarize mpg by cyl
 # Hint: use aggregate() — it is base R's group-and-apply tool
 
@@ -545,7 +545,7 @@ cap_summary
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Aggregate-summary solution"
 cap_summary <- aggregate(mpg ~ cyl, data = mtcars,
                          FUN = function(x) c(mean = mean(x), sd = sd(x)))
 cap_summary <- do.call(data.frame, cap_summary)
@@ -565,7 +565,7 @@ cap_summary
 
 Fit `lm(mpg ~ wt + hp + factor(cyl))` on `mtcars`. Save the model to `cap_model`, then build a one-row data frame `cap_ci` containing the `wt` coefficient and its 95% confidence interval (3 columns: `estimate`, `lower`, `upper`).
 
-```r
+```r title="Exercise: regression CI for wt"
 # Capstone 2: regression with CI extraction
 # Hint: confint(model, "wt") returns a 1x2 matrix
 
@@ -581,7 +581,7 @@ cap_ci
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="wt-CI solution"
 cap_model <- lm(mpg ~ wt + hp + factor(cyl), data = mtcars)
 ci        <- confint(cap_model, "wt", level = 0.95)
 cap_ci    <- data.frame(
@@ -603,7 +603,7 @@ cap_ci
 
 The mini-workflow below stitches together everything in this guide: load, inspect, create a derived variable, filter, summarize, and fit a regression. Each line is annotated with its Stata equivalent so you can read it side by side with a `.do` file.
 
-```r
+```r title="End-to-end mtcars Stata workflow"
 # 1. Stata: use "mtcars.dta", clear ; describe
 df <- mtcars
 str(df)

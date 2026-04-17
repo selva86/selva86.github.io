@@ -26,7 +26,7 @@ Imagine you roll a fair die and it lands on an even number. What's the probabili
 
 Let's confirm this with a simulation of 100,000 rolls.
 
-```r
+```r title="Simulate P greater than 4 given even"
 # Simulate conditional probability: P(>4 | even)
 set.seed(42)
 rolls <- sample(1:6, size = 100000, replace = TRUE)
@@ -58,7 +58,7 @@ Where:
 
 Let's verify the formula matches our simulation.
 
-```r
+```r title="Verify with joint formula"
 # Verify with the formula: P(A ∩ B) / P(B)
 # A = roll > 4, B = roll is even
 # A ∩ B = roll is 6 (only number that's both > 4 and even)
@@ -77,7 +77,7 @@ Both approaches, simulation and formula, give the same answer. That's the power 
 
 **Try it:** Given a die roll is odd, what's the probability it's less than or equal to 3? Simulate with 100,000 rolls and verify the answer is 2/3.
 
-```r
+```r title="Exercise: P at most 3 given odd"
 # Try it: P(≤ 3 | odd)
 set.seed(99)
 ex_rolls <- sample(1:6, size = 100000, replace = TRUE)
@@ -91,7 +91,7 @@ mean(ex_odd <= 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Odd roll solution"
 set.seed(99)
 ex_rolls <- sample(1:6, size = 100000, replace = TRUE)
 ex_odd <- ex_rolls[ex_rolls %% 2 == 1]
@@ -113,7 +113,7 @@ This says: the chance of A *and* B equals the chance of B times the chance of A 
 
 Let's test this with playing cards. What's the probability of drawing a card that is both red and a face card?
 
-```r
+```r title="Joint card probability simulation"
 # Joint probability: P(Red ∩ Face) via simulation
 set.seed(123)
 n_sims <- 50000
@@ -152,7 +152,7 @@ The simulation, the multiplication rule, and the theoretical calculation all con
 
 **Try it:** In a standard 52-card deck, what's P(Heart ∩ King)? There's exactly 1 King of Hearts. Compute it using the multiplication rule, P(King|Heart) × P(Heart), and verify with simulation.
 
-```r
+```r title="Exercise: Heart and King joint"
 # Try it: P(Heart ∩ King)
 set.seed(200)
 ex_draws <- sample(1:52, size = 50000, replace = TRUE)
@@ -169,7 +169,7 @@ ex_is_king <- ex_draws %in% c(13, 26, 39, 52)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Heart King solution"
 set.seed(200)
 ex_draws <- sample(1:52, size = 50000, replace = TRUE)
 ex_is_heart <- ex_draws <= 13
@@ -198,7 +198,7 @@ This is equivalent to saying $P(A \cap B) = P(A) \times P(B)$, the joint probabi
 
 The classic example: rolling two separate dice. The outcome of die 1 can't possibly influence die 2.
 
-```r
+```r title="Two-dice independence check"
 # Independence proof: two dice
 set.seed(77)
 n <- 100000
@@ -223,7 +223,7 @@ The two probabilities are nearly identical (both around 0.167 = 1/6). Knowing di
 
 Now here's the contrast, **dependent events**. When you draw cards *without* replacement, the first draw changes the deck for the second draw.
 
-```r
+```r title="Dependent card draws"
 # Dependent events: cards without replacement
 set.seed(55)
 n_sims <- 100000
@@ -265,7 +265,7 @@ When the first card is an Ace, only 3 Aces remain among 51 cards, so P(2nd Ace |
 
 **Try it:** Roll two dice. Are the events "sum equals 7" and "die 1 equals 3" independent? Simulate 100,000 rolls and compare P(sum = 7) with P(sum = 7 | die1 = 3).
 
-```r
+```r title="Exercise: Sum 7 and die 1"
 # Try it: are "sum = 7" and "die1 = 3" independent?
 set.seed(300)
 ex_d1 <- sample(1:6, 100000, replace = TRUE)
@@ -280,7 +280,7 @@ ex_sum <- ex_d1 + ex_d2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sum independence solution"
 set.seed(300)
 ex_d1 <- sample(1:6, 100000, replace = TRUE)
 ex_d2 <- sample(1:6, 100000, replace = TRUE)
@@ -302,7 +302,7 @@ The simulations above work when you know the exact probability model. But with r
 
 The **chi-squared test of independence** asks: "Could the pattern in this table have arisen by chance if the two variables were truly independent?" The null hypothesis is independence; a small p-value means you reject it.
 
-```r
+```r title="Chi-squared on smoking survey"
 # Chi-squared test: smoking status vs exercise frequency
 # Observed data from a hypothetical survey of 400 people
 survey_table <- matrix(
@@ -335,7 +335,7 @@ The p-value is extremely small (less than 0.001), so we reject the null hypothes
 
 Now let's see what happens when we test two variables that we *know* are independent: two separate coin flips.
 
-```r
+```r title="Chi-squared on fair coins"
 # Chi-squared test on independent data (two coin flips)
 set.seed(88)
 coin1 <- sample(c("Heads", "Tails"), 500, replace = TRUE)
@@ -360,7 +360,7 @@ The p-value is 0.43, far above any reasonable threshold (0.05). We fail to rejec
 
 **Try it:** Create a 2×3 contingency table for gender (Male/Female) vs favourite language (R/Python/Julia) using made-up data. Run the chi-squared test and interpret whether gender and language preference are independent.
 
-```r
+```r title="Exercise: Gender language association"
 # Try it: gender vs programming language
 ex_lang_table <- matrix(
   c(40, 35, 25,   # Male: R/Python/Julia
@@ -379,7 +379,7 @@ ex_lang_table <- matrix(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Gender language solution"
 ex_lang_table <- matrix(
   c(40, 35, 25,
     45, 30, 25),
@@ -427,7 +427,7 @@ Here's where Bayes gets counter-intuitive. Suppose a disease affects 1% of the p
 
 Most people guess 90%, after all, the test is 90% accurate. The real answer is shockingly low.
 
-```r
+```r title="Bayes theorem on medical test"
 # Bayes' theorem: medical testing
 prev <- 0.01      # P(Disease) — base rate / prior
 sens <- 0.90      # P(Positive | Disease) — sensitivity
@@ -454,7 +454,7 @@ The tree makes it clear. Out of 1,000 people, only 10 have the disease (1%). The
 
 **Try it:** Re-compute P(Disease | Positive) with a prevalence of 10% instead of 1%. How much does the posterior change?
 
-```r
+```r title="Exercise: Prevalence at 10 percent"
 # Try it: what happens when prevalence = 10%?
 ex_prev <- 0.10
 ex_p_pos <- sens * ex_prev + (1 - spec) * (1 - ex_prev)
@@ -466,7 +466,7 @@ ex_p_pos <- sens * ex_prev + (1 - spec) * (1 - ex_prev)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Prevalence 10 solution"
 ex_prev <- 0.10
 ex_p_pos <- sens * ex_prev + (1 - spec) * (1 - ex_prev)
 ex_posterior <- (sens * ex_prev) / ex_p_pos
@@ -482,7 +482,7 @@ round(ex_posterior, 4)
 
 A single test result moved our belief from 1% to 15.4%. But what if the person tests positive a second time? In Bayesian updating, **the posterior from the first test becomes the prior for the second test**.
 
-```r
+```r title="Sequential Bayesian updating"
 # Bayesian updating: sequential positive tests
 prior <- prev  # Start with 1% prevalence
 
@@ -509,7 +509,7 @@ Look at that progression: 1% → 15.4% → 76.6% → 98.3%. Each positive test i
 
 Let's visualise this updating process.
 
-```r
+```r title="Visualise updating with bars"
 # Visualise Bayesian updating
 probs <- c(prior, posterior1, posterior2, posterior3)
 labels <- c("Prior\n(1%)", "After\nTest 1", "After\nTest 2", "After\nTest 3")
@@ -535,7 +535,7 @@ The dashed line at 0.5 is the "more likely than not" threshold. After one test, 
 
 **Try it:** Starting from the `posterior3` value above (after 3 positive tests), what happens after a **negative** test result? Compute the posterior using P(Negative | Disease) = 1 - sensitivity.
 
-```r
+```r title="Exercise: Negative test after positives"
 # Try it: what happens after a negative test?
 # P(Negative | Disease) = 1 - sens = 0.10
 # P(Negative | Healthy) = spec = 0.95
@@ -549,7 +549,7 @@ ex_prior4 <- posterior3
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Negative update solution"
 ex_prior4 <- posterior3
 p_neg_disease <- 1 - sens   # 0.10
 p_neg_healthy <- spec        # 0.95
@@ -572,7 +572,7 @@ A factory has two machines. Machine A produces 60% of all items with a 3% defect
 
 First compute the answer using Bayes' theorem, then verify with a simulation of 100,000 items.
 
-```r
+```r title="Exercise: Factory defect Bayes"
 # Exercise 1: Factory defect problem
 # Hint: P(A|Defective) = P(Defective|A) * P(A) / P(Defective)
 # P(Defective) = P(Def|A)*P(A) + P(Def|B)*P(B)
@@ -584,7 +584,7 @@ First compute the answer using Bayes' theorem, then verify with a simulation of 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Factory defect solution"
 # Bayes' theorem solution
 p_a <- 0.60
 p_b <- 0.40
@@ -619,7 +619,7 @@ In the classic Monty Hall problem, you pick one of three doors. Behind one door 
 
 Simulate 10,000 games. Compute P(Win | Switch) and P(Win | Stay) empirically. Explain the result using conditional probability.
 
-```r
+```r title="Exercise: Monty Hall simulation"
 # Exercise 2: Monty Hall simulation
 # Hint: for each game, randomly place the car, pick a door,
 # have the host open a goat door, then track wins for switch vs stay
@@ -634,7 +634,7 @@ n_games <- 10000
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Monty Hall solution"
 set.seed(42)
 n_games <- 10000
 
@@ -663,7 +663,7 @@ Build a basic spam classifier. Given these word frequencies:
 
 An email contains both "free" and "win". Compute P(Spam | "free" AND "win") using sequential Bayesian updating (assume word occurrences are conditionally independent given spam/ham).
 
-```r
+```r title="Exercise: Bayesian spam classifier"
 # Exercise 3: Bayesian spam classifier
 # Hint: update the prior with "free" first, then update
 # the resulting posterior with "win"
@@ -675,7 +675,7 @@ An email contains both "free" and "win". Compute P(Spam | "free" AND "win") usin
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Spam classifier solution"
 # Prior
 p_spam <- 0.30
 
@@ -704,7 +704,7 @@ cat("After seeing 'free' + 'win': P(Spam) =", round(post_after_win, 4), "\n")
 
 Let's walk through a complete medical screening scenario from start to finish, defining the problem, applying Bayes' theorem, updating with multiple tests, and visualising the decision process.
 
-```r
+```r title="End-to-end genetic screening"
 # === Complete Example: Screening for a Rare Genetic Condition ===
 
 # Problem setup

@@ -27,7 +27,7 @@ R gives you three subsetting operators, and each returns something different. Th
 
 Given a named vector of exam scores, extract the 2nd and 4th elements by **position**, then extract the same two elements by **name**.
 
-```r
+```r title="Setup named scores vector"
 # Setup
 scores <- c(math = 88, science = 92, english = 79, history = 95, art = 84)
 scores
@@ -38,7 +38,7 @@ scores
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Position and name indexing solution"
 # Part A: Extract 2nd and 4th by position
 scores[c(2, 4)]
 #> science history
@@ -58,7 +58,7 @@ scores[c("science", "history")]
 
 From the same `scores` vector, extract all scores above 85 using a **logical condition**. Then exclude the 3rd element using **negative indexing**.
 
-```r
+```r title="Exercise: Logical and negative indexing"
 # scores is still available from Problem 1
 # Part A: Which scores are above 85?
 # Part B: Drop the 3rd element
@@ -70,7 +70,7 @@ From the same `scores` vector, extract all scores above 85 using a **logical con
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Logical and negative indexing solution"
 # Part A: Logical subsetting — scores above 85
 scores[scores > 85]
 #>    math science history
@@ -91,7 +91,7 @@ scores[-3]
 
 **Try it:** Create a vector of 5 city names and extract the first and last elements using positive indexing and `length()`.
 
-```r
+```r title="Exercise: First and last city"
 # Try it: extract first and last city
 ex_cities <- c("Tokyo", "London", "Nairobi", "Lima", "Sydney")
 
@@ -103,7 +103,7 @@ ex_cities <- c("Tokyo", "London", "Nairobi", "Lima", "Sydney")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="First and last city solution"
 ex_cities <- c("Tokyo", "London", "Nairobi", "Lima", "Sydney")
 ex_cities[c(1, length(ex_cities))]
 #> [1] "Tokyo"  "Sydney"
@@ -123,7 +123,7 @@ Think of a list as a train with numbered cars. `[]` gives you a train car (still
 
 Create a list and use `[]` to extract the first two elements. What does `class()` return?
 
-```r
+```r title="Exercise: Subset list with single bracket"
 # Setup
 student <- list(name = "Ava", grades = c(90, 85, 92), graduated = FALSE)
 
@@ -137,7 +137,7 @@ student <- list(name = "Ava", grades = c(90, 85, 92), graduated = FALSE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Single bracket returns list solution"
 student <- list(name = "Ava", grades = c(90, 85, 92), graduated = FALSE)
 
 sub <- student[1:2]
@@ -160,7 +160,7 @@ class(sub)
 
 Compare `student[2]` and `student[[2]]`. What type does each return? Why does `mean(student[2])` fail while `mean(student[[2]])` works?
 
-```r
+```r title="Exercise: Compare bracket variants"
 # student is still available from Problem 3
 # Compare student[2] vs student[[2]]
 # Check class() of each
@@ -173,7 +173,7 @@ Compare `student[2]` and `student[[2]]`. What type does each return? Why does `m
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Single versus double bracket solution"
 # Single bracket: returns a list containing the grades element
 student[2]
 #> $grades
@@ -206,7 +206,7 @@ mean(student[[2]])
 
 **Try it:** Create a list with 3 named elements and use `[]` to extract a sub-list of elements 1 and 3. Verify the result is a list with `is.list()`.
 
-```r
+```r title="Exercise: Sub-list extraction"
 # Try it: sub-list extraction
 ex_info <- list(city = "Berlin", pop = 3700000, country = "Germany")
 
@@ -218,7 +218,7 @@ ex_info <- list(city = "Berlin", pop = 3700000, country = "Germany")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sub-list extraction solution"
 ex_info <- list(city = "Berlin", pop = 3700000, country = "Germany")
 ex_sub <- ex_info[c(1, 3)]
 is.list(ex_sub)
@@ -237,7 +237,7 @@ Use `[[]]` whenever you need the *value itself* for computation, not a container
 
 Given a configuration list, extract the `port` value using `[[]]`, by name and by position. Add 1 to prove it's a plain number, not a list.
 
-```r
+```r title="Exercise: Extract port value"
 # Setup
 config <- list(host = "localhost", port = 8080, debug = TRUE)
 
@@ -251,7 +251,7 @@ config <- list(host = "localhost", port = 8080, debug = TRUE)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extract port value solution"
 config <- list(host = "localhost", port = 8080, debug = TRUE)
 
 # By name
@@ -276,7 +276,7 @@ port_val + 1
 
 Using `mtcars`, extract the `mpg` column with `[[]]` by name and by position. Compute the mean.
 
-```r
+```r title="Exercise: Mean of mpg column"
 # Extract mpg from mtcars using [[]]
 # Then compute mean()
 
@@ -287,7 +287,7 @@ Using `mtcars`, extract the `mpg` column with `[[]]` by name and by position. Co
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean of mpg solution"
 # By name
 mpg_vec <- mtcars[["mpg"]]
 head(mpg_vec)
@@ -311,7 +311,7 @@ mean(mpg_vec)
 
 **Try it:** Given `col_name <- "hp"`, extract that column from `mtcars` using `[[col_name]]` (programmatic access) and compute its median.
 
-```r
+```r title="Exercise: Programmatic column access"
 # Try it: programmatic column access
 ex_col <- "hp"
 
@@ -323,7 +323,7 @@ ex_col <- "hp"
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Programmatic column solution"
 ex_col <- "hp"
 median(mtcars[[ex_col]])
 #> [1] 123
@@ -343,7 +343,7 @@ But it has two limitations: it only works with **literal names** (not variables)
 
 Use `$` to extract the `cyl` column from `mtcars` and count how many cars have each cylinder count using `table()`.
 
-```r
+```r title="Exercise: Cylinder counts with table"
 # Extract cyl with $ and pass to table()
 
 # Write your code below:
@@ -353,7 +353,7 @@ Use `$` to extract the `cyl` column from `mtcars` and count how many cars have e
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cylinder counts solution"
 table(mtcars$cyl)
 #>
 #>  4  6  8
@@ -368,7 +368,7 @@ table(mtcars$cyl)
 
 Create a list and observe how `$` partial-matches names. What does `person$f` return? What about `person$a`? Why is this dangerous?
 
-```r
+```r title="Exercise: Dollar partial matching"
 # Setup
 person <- list(first_name = "Raj", last_name = "Patel", age = 30)
 
@@ -383,7 +383,7 @@ person <- list(first_name = "Raj", last_name = "Patel", age = 30)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Dollar partial match solution"
 person <- list(first_name = "Raj", last_name = "Patel", age = 30)
 
 # Full name — works perfectly
@@ -408,7 +408,7 @@ person$a
 
 **Try it:** Use `$` to extract the `Species` column from `iris` and count how many unique species there are.
 
-```r
+```r title="Exercise: Unique species count"
 # Try it: unique species count
 # your code here
 
@@ -418,7 +418,7 @@ person$a
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Unique species solution"
 ex_species <- iris$Species
 length(unique(ex_species))
 #> [1] 3
@@ -448,7 +448,7 @@ From `mtcars`, perform three operations:
 
 **(c)** Extract rows where `cyl == 6` and columns `mpg`, `hp`, `wt` using `[rows, cols]`.
 
-```r
+```r title="Exercise: Data frame subsetting combined"
 # (a) Use [] to get a 2-column data frame
 # (b) Use [[]] to get mpg as a vector
 # (c) Use [rows, cols] to filter and select
@@ -460,7 +460,7 @@ From `mtcars`, perform three operations:
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Data frame subsetting solution"
 # (a) [] with column names — returns a data frame
 subset_df <- mtcars[c("mpg", "hp")]
 head(subset_df, 3)
@@ -501,7 +501,7 @@ cyl6
 
 Given a nested list of team data, extract team_b's second score in a **single expression**. Then do it again using `$` notation.
 
-```r
+```r title="Exercise: Nested list extraction"
 # Setup
 records <- list(
   team_a = list(scores = c(10, 20, 30), captain = "Lee"),
@@ -518,7 +518,7 @@ records <- list(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Nested list extraction solution"
 records <- list(
   team_a = list(scores = c(10, 20, 30), captain = "Lee"),
   team_b = list(scores = c(15, 25, 35), captain = "Kim")
@@ -542,7 +542,7 @@ records$team_b$scores[2]
 
 **Try it:** Extract the value in the 3rd row and 2nd column of `mtcars` as a single number using `[row, col]` notation.
 
-```r
+```r title="Exercise: Single value at row and column"
 # Try it: single value extraction
 # your code here
 
@@ -552,7 +552,7 @@ records$team_b$scores[2]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Single value solution"
 ex_val <- mtcars[3, 2]
 ex_val
 #> [1] 4
@@ -570,7 +570,7 @@ These capstone exercises combine multiple subsetting operators. Each one require
 
 Given a survey data frame, build a multi-step pipeline: (a) extract the `score` column as a vector with `[[]]`, (b) create a logical vector for scores above 80, (c) use that logical vector to subset the data frame rows with `[]`, (d) extract the `id` column from the filtered result with `$`.
 
-```r
+```r title="Exercise: Build subset pipeline"
 # Setup
 survey <- data.frame(
   id = 1:5,
@@ -588,7 +588,7 @@ survey <- data.frame(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Subset pipeline solution"
 survey <- data.frame(
   id = 1:5,
   score = c(72, 88, 91, 65, 80),
@@ -622,7 +622,7 @@ my_ids
 
 Given a nested department list, write two expressions: (a) extract the 2nd and 3rd staff members of the `eng` department using `[[]]` and `[]`, (b) build a named character vector of all department heads using `sapply()`.
 
-```r
+```r title="Exercise: Department heads and staff"
 # Setup
 dept <- list(
   hr = list(head = "Sara", staff = c("Mo", "Li")),
@@ -642,7 +642,7 @@ dept <- list(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Department heads solution"
 dept <- list(
   hr = list(head = "Sara", staff = c("Mo", "Li")),
   eng = list(head = "Dev", staff = c("Jo", "Al", "Bo"))
@@ -667,7 +667,7 @@ my_heads
 
 Let's put everything together in a realistic scenario. You have a data frame of cars and want to answer: **which high-mileage cars (mpg > 25) have 4 cylinders, and what's their average horsepower?**
 
-```r
+```r title="End-to-end high mileage analysis"
 # Start with mtcars
 cars_df <- mtcars
 

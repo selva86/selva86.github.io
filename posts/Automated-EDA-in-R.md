@@ -60,7 +60,7 @@ Here is a feature comparison:
 
 Let's load the packages and a sample dataset to work with throughout this tutorial.
 
-```r
+```r title="Load skimr and airquality"
 # Load libraries
 library(skimr)
 
@@ -80,7 +80,7 @@ The airquality dataset has 153 observations and 6 numeric variables. Notice that
 
 **Try it:** Load the `mtcars` dataset into a variable called `ex_mt`. Use `dim()` and `names()` to check its shape and column names. How many rows and columns does it have?
 
-```r
+```r title="Exercise: Explore mtcars structure"
 # Try it: explore mtcars structure
 ex_mt <- mtcars
 
@@ -93,7 +93,7 @@ ex_mt <- mtcars
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mtcars structure solution"
 ex_mt <- mtcars
 dim(ex_mt)
 #> [1] 32 11
@@ -111,7 +111,7 @@ The `skim()` function is the heart of skimr. It groups variables by type and ret
 
 Let's run it on our airquality data.
 
-```r
+```r title="One-line skim of airquality"
 # One-line data profile with skimr
 skim(aq)
 #> ── Data Summary ────────────────────────
@@ -143,7 +143,7 @@ That single call tells you everything critical. Ozone has a `complete_rate` of 0
 
 skimr also supports grouped summaries. Let's see how Ozone and Temperature vary by month.
 
-```r
+```r title="Grouped skim by Month"
 # Grouped skim — summary statistics by Month
 library(dplyr)
 aq |>
@@ -177,7 +177,7 @@ Now you can spot trends immediately. Ozone peaks in July and August (means of 59
 
 You can also create custom skim summaries with `skim_with()`. This lets you add your own statistics like coefficient of variation or interquartile range.
 
-```r
+```r title="Custom skim with CV and IQR"
 # Custom skim: add coefficient of variation
 my_skim <- skim_with(
   numeric = sfl(
@@ -195,7 +195,7 @@ The coefficient of variation (CV) shows that Wind is relatively more variable (C
 
 **Try it:** Run `skim()` on the `iris` dataset. Which variable has the smallest standard deviation? Store the skim output in `ex_iris_skim`.
 
-```r
+```r title="Exercise: Skim iris data"
 # Try it: skim iris
 ex_iris_skim <- skim(iris)
 # Look at the sd column
@@ -207,7 +207,7 @@ ex_iris_skim <- skim(iris)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Skim iris solution"
 ex_iris_skim <- skim(iris)
 ex_iris_skim |>
   dplyr::filter(skim_type == "numeric") |>
@@ -233,7 +233,7 @@ DataExplorer takes a different approach than skimr. Instead of a console summary
 
 Let's start with `introduce()`, which gives a high-level data overview.
 
-```r
+```r title="DataExplorer introduce airquality"
 # DataExplorer: high-level data overview
 library(DataExplorer)
 introduce(aq)
@@ -247,7 +247,7 @@ This tells you in one glance: 153 rows, 6 continuous columns, 0 discrete columns
 
 Next, let's profile the missing data pattern.
 
-```r
+```r title="plotmissing bar chart"
 # Visualize missing data
 plot_missing(aq)
 #> (Generates a bar chart showing % missing per variable)
@@ -260,7 +260,7 @@ The missing data profile reveals that Ozone is the primary concern at 24.2% miss
 
 DataExplorer also generates histograms for every numeric variable at once.
 
-```r
+```r title="plothistogram for numerics"
 # Distribution of all numeric variables
 plot_histogram(aq)
 #> (Generates a grid of histograms for Ozone, Solar.R, Wind, Temp, Month, Day)
@@ -274,7 +274,7 @@ From these histograms, you can see that Ozone is heavily right-skewed, most days
 
 The correlation heatmap shows which variables move together.
 
-```r
+```r title="plotcorrelation heatmap"
 # Correlation heatmap
 plot_correlation(aq, type = "continuous")
 #> (Generates a heatmap matrix)
@@ -290,7 +290,7 @@ The Ozone-Temp correlation of 0.70 makes physical sense, hotter days produce mor
 
 **Try it:** Use `introduce()` on the `mtcars` dataset. How many total missing values does mtcars have? How many complete rows?
 
-```r
+```r title="Exercise: introduce mtcars"
 # Try it: DataExplorer intro for mtcars
 introduce(mtcars)
 # What is total_missing_values?
@@ -301,7 +301,7 @@ introduce(mtcars)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="introduce mtcars solution"
 introduce(mtcars)
 #>   rows columns discrete_columns continuous_columns all_missing_columns
 #> 1   32      11                0                 11                   0
@@ -322,7 +322,7 @@ SmartEDA sits between skimr's simplicity and DataExplorer's visual richness. Its
 
 The `ExpData()` function provides a data overview similar to DataExplorer's `introduce()`.
 
-```r
+```r title="SmartEDA ExpData overview"
 # SmartEDA: data overview
 library(SmartEDA)
 ExpData(aq, type = 1)
@@ -343,7 +343,7 @@ This confirms what we found with the other tools: 72.5% of rows are complete, an
 
 The real power of SmartEDA is `ExpNumStat()`, which generates detailed numeric statistics with outlier flags and normality indicators.
 
-```r
+```r title="ExpNumStat with outlier detection"
 # Detailed numeric statistics with outlier detection
 num_stats <- ExpNumStat(aq, by = "A", Outlier = TRUE, round = 2)
 num_stats[, c("Vname", "mean", "SD", "nOutliers", "Per_of_Outlier")]
@@ -360,7 +360,7 @@ Now you know that Ozone has 2 outliers (1.72% of non-missing values) and Wind ha
 
 SmartEDA also handles categorical analysis well. Let's create a categorical variable and analyze it.
 
-```r
+```r title="ExpCTable categorical analysis"
 # Categorical analysis with SmartEDA
 mt <- mtcars |>
   dplyr::mutate(
@@ -381,7 +381,7 @@ This cross-tabulation reveals a strong pattern: 8-cylinder cars are overwhelming
 
 **Try it:** Run `ExpNumStat()` on the `iris` dataset (exclude the Species column). Which numeric variable has the most outliers?
 
-```r
+```r title="Exercise: SmartEDA stats on iris"
 # Try it: SmartEDA numeric stats on iris
 ex_iris_stats <- ExpNumStat(iris[, 1:4], by = "A", Outlier = TRUE, round = 2)
 # Check the nOutliers column
@@ -393,7 +393,7 @@ ex_iris_stats <- ExpNumStat(iris[, 1:4], by = "A", Outlier = TRUE, round = 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="SmartEDA iris solution"
 ex_iris_stats <- ExpNumStat(iris[, 1:4], by = "A", Outlier = TRUE, round = 2)
 ex_iris_stats[, c("Vname", "nOutliers", "Per_of_Outlier")]
 #>         Vname nOutliers Per_of_Outlier
@@ -436,7 +436,7 @@ In practice, the three packages work best together in a pipeline. Here is a comb
 ![EDA workflow combining all three packages](screenshots/Automated-EDA-in-R-workflow.webp)
 *Figure 3: A typical EDA workflow combining all three packages in sequence.*
 
-```r
+```r title="Three-step combined EDA workflow"
 # Combined EDA workflow
 # Step 1: Quick skim to identify issues
 skim_result <- skim(aq)
@@ -461,7 +461,7 @@ This three-step pipeline gives you a complete data profile. Step 1 (skimr) takes
 
 **Try it:** You receive a CSV with 50 columns, 100,000 rows, and roughly 20% missing values. Which package would you use first and why? Write a one-line command for your chosen package using the `aq` data as a stand-in.
 
-```r
+```r title="Exercise: Pick right first tool"
 # Try it: pick the right tool for a quick first look
 # Scenario: 50 columns, 100k rows, 20% missing
 
@@ -473,7 +473,7 @@ This three-step pipeline gives you a complete data profile. Step 1 (skimr) takes
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="First tool solution"
 # Start with skimr for speed and missing-value overview
 skim(aq)
 ```
@@ -487,7 +487,7 @@ skim(aq)
 ### Mistake 1: Running create_report() on huge data without sampling
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: createreport on big data"
 # This can crash R or take 30+ minutes
 big_data <- data.frame(matrix(rnorm(5e6), ncol = 50))
 create_report(big_data)
@@ -496,7 +496,7 @@ create_report(big_data)
 **Why it is wrong:** `create_report()` generates histograms, correlation heatmaps, and PCA plots for every variable. On 100,000+ rows, each plot processes every data point, and the correlation matrix computation is O(n * p^2).
 
 ✅ **Correct:**
-```r
+```r title="Correct: Sample then report"
 # Sample first, then report
 big_data <- data.frame(matrix(rnorm(5e6), ncol = 50))
 create_report(dplyr::slice_sample(big_data, n = 5000))
@@ -505,7 +505,7 @@ create_report(dplyr::slice_sample(big_data, n = 5000))
 ### Mistake 2: Forgetting to convert characters to factors before categorical EDA
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: Characters not factors"
 # Characters are treated as text, not categories
 df <- data.frame(color = c("red", "blue", "red", "green"), value = 1:4)
 ExpCTable(df)
@@ -515,7 +515,7 @@ ExpCTable(df)
 **Why it is wrong:** SmartEDA's categorical functions look for factor-type columns. Character columns are skipped entirely, so you get no categorical analysis at all.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Convert to factor"
 # Convert to factor first
 df <- data.frame(
   color = factor(c("red", "blue", "red", "green")),
@@ -531,7 +531,7 @@ ExpCTable(df)
 ### Mistake 3: Ignoring complete_rate and analyzing NA-heavy variables
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: cor returns NA on gaps"
 # Compute correlation on a variable that is 76% complete
 cor(aq$Ozone, aq$Temp)
 #> NA
@@ -540,7 +540,7 @@ cor(aq$Ozone, aq$Temp)
 **Why it is wrong:** With 37 missing values in Ozone, `cor()` returns NA by default. Even with `use = "complete.obs"`, you are computing correlation on only 116 of 153 observations, which may not represent the full dataset.
 
 ✅ **Correct:**
-```r
+```r title="Correct: Check completeness first"
 # Check completeness first, then decide
 skim(aq) |>
   dplyr::filter(numeric.complete_rate < 0.9)
@@ -558,7 +558,7 @@ cor(aq$Ozone, aq$Temp, use = "complete.obs")
 
 Load the `swiss` dataset (built into R). It has 47 rows and 6 numeric columns with zero missing values. Run `skim()` on it, then use `introduce()` from DataExplorer. Finally, run `ExpNumStat()` from SmartEDA with outlier detection. Combine the results: which variable has the highest coefficient of variation (SD / mean), and does it have any outliers?
 
-```r
+```r title="Exercise 1: Full pipeline on swiss"
 # Exercise 1: Full EDA pipeline on swiss
 # Hint: skim gives you mean and sd, ExpNumStat gives you outlier counts
 
@@ -574,7 +574,7 @@ Load the `swiss` dataset (built into R). It has 47 rows and 6 numeric columns wi
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Full swiss pipeline solution"
 # Step 1: Quick overview
 skim(swiss)
 
@@ -606,7 +606,7 @@ swiss_stats[, c("Vname", "mean", "SD", "CV", "nOutliers")]
 
 Create a data frame with 200 rows and 5 columns: a numeric column with 15% NAs, a skewed numeric column (use `rexp()`), a factor with 4 levels, a normally distributed column, and an outlier-heavy column (normal + 5 extreme values). Use all three packages to profile it and identify every issue.
 
-```r
+```r title="Exercise 2: Profile messy data"
 # Exercise 2: Create messy data and profile it
 # Hint: use set.seed(123) for reproducibility
 # Insert NAs with: my_col[sample(200, 30)] <- NA
@@ -619,7 +619,7 @@ Create a data frame with 200 rows and 5 columns: a numeric column with 15% NAs, 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Profile messy data solution"
 set.seed(123)
 my_messy <- data.frame(
   income = {x <- rnorm(200, 50000, 15000); x[sample(200, 30)] <- NA; x},
@@ -658,7 +658,7 @@ my_stats[, c("Vname", "nOutliers", "Per_of_Outlier")]
 
 Let's walk through a complete, realistic EDA workflow from start to finish using the airquality dataset.
 
-```r
+```r title="End-to-end airquality EDA workflow"
 # === Complete EDA Workflow ===
 
 # 1. Load and get first impression

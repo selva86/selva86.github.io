@@ -40,7 +40,7 @@ In this tutorial you will learn:
 
 `geom_density_ridges()` draws a density curve for each level of the y aesthetic, stacked vertically from bottom to top. The x aesthetic is the continuous variable whose distribution you're showing; the y aesthetic is the grouping factor.
 
-```r
+```r title="Basic ridgeline with geomdensityridges"
 library(ggplot2)
 library(ggridges)
 
@@ -61,7 +61,7 @@ p_basic
 
 The curves overlap slightly by default, this overlap is controlled by the `scale` parameter (not to be confused with ggplot2 scale functions). `scale = 1` means no overlap; `scale = 2` means the tallest peak of each curve reaches the baseline of the next group above it.
 
-```r
+```r title="Sort ridges by median value"
 # Adjust overlap between ridges
 p_overlap <- ggplot(mpg, aes(x = hwy, y = reorder(class, hwy, FUN = median))) +
   geom_density_ridges(scale = 2, rel_min_height = 0.01) +
@@ -81,14 +81,14 @@ p_overlap
 
 **Try it:** Change `FUN = median` to `FUN = mean`. Does the group ordering change significantly?
 
-```r
+```r title="Exercise: sort by mean instead"
 # Your code here — sort the y-axis by mean instead of median
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean-sorted ridge solution"
 ex_mean_sort <- ggplot(mpg, aes(x = hwy, y = reorder(class, hwy, FUN = mean))) +
   geom_density_ridges(scale = 1.5, rel_min_height = 0.01) +
   labs(x = "Highway MPG", y = NULL) +
@@ -104,7 +104,7 @@ The ordering barely shifts, median and mean track closely here because most vehi
 
 The simplest coloring strategy maps the grouping variable to `fill`, each ridge gets a distinct color:
 
-```r
+```r title="Color each ridge by group"
 p_fill <- ggplot(mpg,
     aes(x = hwy, y = reorder(class, hwy, FUN = median),
         fill = class)) +
@@ -124,7 +124,7 @@ p_fill
 
 For a more sophisticated look, use a **gradient fill** where the color within each ridge encodes the x-value magnitude. The `ggridges` fill aesthetic supports this with `fill = after_stat(x)`, colors shift from cool to warm as x increases:
 
-```r
+```r title="Gradient fill by x value"
 p_gradient <- ggplot(mpg,
     aes(x = hwy, y = reorder(class, hwy, FUN = median),
         fill = after_stat(x))) +
@@ -152,14 +152,14 @@ p_gradient
 
 **Try it:** Change `option = "plasma"` to `option = "magma"` in `scale_fill_viridis_c()`. How does the color temperature change?
 
-```r
+```r title="Exercise: swap viridis to magma"
 # Your code here — swap the gradient to option = "magma"
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Magma gradient ridge solution"
 ex_magma_ridges <- ggplot(mpg,
     aes(x = hwy, y = reorder(class, hwy, FUN = median),
         fill = after_stat(x))) +
@@ -177,7 +177,7 @@ ex_magma_ridges
 
 `stat_density_ridges()` is the underlying stat for ridgeline density computation. It accepts a `quantile_lines = TRUE` argument that draws vertical lines at specified quantiles across each ridge, a quick way to show where the median and quartiles fall without an embedded boxplot.
 
-```r
+```r title="Add quantile lines to each ridge"
 # Quantile lines at 25th, 50th, 75th percentiles
 p_quantile <- ggplot(mpg,
     aes(x = hwy, y = reorder(class, hwy, FUN = median))) +
@@ -207,7 +207,7 @@ p_quantile
 
 For small datasets, showing individual data points on top of the ridgeline gives readers raw data context. Set `jittered_points = TRUE` directly in `geom_density_ridges()`:
 
-```r
+```r title="Jittered raw points below each ridge"
 # Ridgeline + jittered raw data points
 p_jitter <- ggplot(iris,
     aes(x = Sepal.Length, y = Species, fill = Species)) +
@@ -238,14 +238,14 @@ p_jitter
 
 **Try it:** Remove `position = position_raincloud(...)` from `p_jitter`. How does the position of the jitter points change?
 
-```r
+```r title="Exercise: drop positionraincloud"
 # Your code here — drop position_raincloud() and see where points land
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="No-raincloud ridge solution"
 ex_no_raincloud <- ggplot(iris,
     aes(x = Sepal.Length, y = Species, fill = Species)) +
   geom_density_ridges(
@@ -277,7 +277,7 @@ This is the most practical question about ridgeline plots. Both show distributio
 
 The built-in `lincoln_weather` dataset from `ggridges` is a classic ridgeline example, 12 months of temperature data, where the stacked layout makes seasonal progression immediately readable:
 
-```r
+```r title="Lincoln weather monthly ridgeline"
 # Lincoln, Nebraska temperature by month - a classic ridgeline use case
 p_final <- ggplot(lincoln_weather,
     aes(x = `Mean Temperature [F]`,
@@ -317,14 +317,14 @@ The seasonal pattern jumps out immediately: cold, narrow distributions in winter
 
 **Try it:** Replace `scale_y_discrete(limits = rev)` with its removal (delete the line). Does January or December now appear at the top?
 
-```r
+```r title="Exercise: drop the reversed y scale"
 # Your code here — drop scale_y_discrete(limits = rev) and see what happens
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Unreversed y-scale ridge solution"
 ex_no_rev <- ggplot(lincoln_weather,
     aes(x = `Mean Temperature [F]`, y = Month,
         fill = after_stat(x))) +
@@ -376,7 +376,7 @@ Without the reversal, ggplot2 draws discrete factor levels bottom-up by default,
 
 Using the built-in `AirPassengers` dataset, convert it to a data frame with `month` and `passengers` columns. Create a ridgeline plot of passenger count by month (sorted January at top to December at bottom). Use a gradient fill with `scale_fill_viridis_c(option = "viridis")`.
 
-```r
+```r title="AirPassengers monthly ridgeline"
 # Convert AirPassengers time series to data frame
 ap_df <- data.frame(
   month      = factor(rep(month.name, times = 12),
@@ -395,7 +395,7 @@ ap_df <- data.frame(
 
 Using `diamonds`, create both a ridgeline plot and a violin plot of `price` by `cut`. Then compare: which chart makes it easier to see that "Premium" cut has a very wide price range while "Ideal" cut clusters more tightly? Which layout is more compact?
 
-```r
+```r title="Diamonds ridge versus violin"
 # Ridgeline version
 # ggplot(diamonds, aes(x = price, y = cut, fill = cut)) +
 #   geom_density_ridges(scale = 1.5, rel_min_height = 0.01, alpha = 0.8) +
@@ -410,7 +410,7 @@ Using `diamonds`, create both a ridgeline plot and a violin plot of `price` by `
 
 The `lincoln_weather` dataset from `ggridges` (already shown in the comparison section) is the canonical ridgeline example. Here's a fully polished version with annotation:
 
-```r
+```r title="Polished Lincoln weather example"
 # Fully polished Lincoln weather ridgeline
 month_order <- rev(c("January","February","March","April","May","June",
                       "July","August","September","October","November","December"))

@@ -29,7 +29,7 @@ Overlapping labels are the single most common ggplot2 frustration. You add `geom
 
 Let's see ggrepel in action on a scatter plot of car data. Notice how every label is readable without manual positioning.
 
-```r
+```r title="ggrepel labels for top mtcars"
 library(ggplot2)
 library(ggrepel)
 
@@ -57,7 +57,7 @@ Every label connects to its point with a subtle line segment. The `max.overlaps`
 
 Standard ggplot2 titles are plain text. With ggtext, you can make individual words **bold**, <span style="color:red">colored</span>, or italic using HTML/Markdown syntax right inside your plot titles and annotations.
 
-```r
+```r title="ggtext rich markdown titles"
 library(ggtext)
 
 ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) +
@@ -78,7 +78,7 @@ The key function is `element_markdown()`, use it in `theme()` for any text eleme
 
 geomtextpath places text directly on lines and curves, replacing the need for a separate legend on line charts.
 
-```r
+```r title="geomtextpath labels along lines"
 library(geomtextpath)
 
 ggplot(economics_long, aes(date, value, color = variable,
@@ -93,7 +93,7 @@ The `geom_textline()` function replaces `geom_line()` and bends the text to foll
 
 **Try it:** Load ggrepel and create a scatter plot of `iris` using `Petal.Length` vs `Petal.Width`. Label only the 5 flowers with the largest `Petal.Length` using `geom_label_repel()`. Use `ex_top5` for your filtered data.
 
-```r
+```r title="ggforce facet zoom diamonds"
 # Try it: label the top 5 iris flowers by Petal.Length
 ex_top5 <- iris[order(-iris$Petal.Length)[1:5], ]
 
@@ -107,7 +107,7 @@ ggplot(iris, aes(Petal.Length, Petal.Width)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ggridges density ridgelines"
 ex_top5 <- iris[order(-iris$Petal.Length)[1:5], ]
 
 ggplot(iris, aes(Petal.Length, Petal.Width)) +
@@ -132,7 +132,7 @@ ggplot2 ships with about 30 geoms (points, lines, bars, etc.), but many common v
 
 ggforce gives you `facet_zoom()`, a way to zoom into a region of your plot while keeping the full view visible side-by-side.
 
-```r
+```r title="ggbeeswarm iris scatter"
 library(ggforce)
 
 ggplot(diamonds[sample(nrow(diamonds), 2000), ],
@@ -153,7 +153,7 @@ The zoomed panel links to the full view with a shaded region, so readers instant
 
 When you need to compare distributions across many groups, ridgeline plots stack density curves vertically so every group is visible without faceting.
 
-```r
+```r title="ggdist raincloud plot"
 library(ggridges)
 
 ggplot(diamonds[sample(nrow(diamonds), 5000), ],
@@ -175,7 +175,7 @@ The `scale` parameter controls how much the ridges overlap, values above 1 let t
 
 Standard `geom_jitter()` places points randomly, which can misrepresent density. ggbeeswarm arranges points in a structured pattern so dense regions look dense and sparse regions look sparse.
 
-```r
+```r title="patchwork combined layout"
 library(ggbeeswarm)
 
 ggplot(iris, aes(Species, Sepal.Width, color = Species)) +
@@ -192,7 +192,7 @@ Unlike jitter, every point position is deterministic, run it twice and you get t
 
 ggdist combines density plots, dot plots, and interval summaries into single composite visualizations. Its signature output is the "raincloud plot", a half-violin plus jittered dots plus a summary interval.
 
-```r
+```r title="cowplot inset with drawplot"
 library(ggdist)
 
 ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
@@ -210,7 +210,7 @@ The `stat_halfeye()` function draws a half-density shape, while the layered boxp
 
 **Try it:** Create a ridgeline plot of `airquality$Temp` grouped by `Month` using ggridges. Use `factor(Month)` for the y-axis and add `fill = factor(Month)`. Store your data prep in `ex_aq`.
 
-```r
+```r title="hrbrthemes ipsum theme"
 # Try it: ridgeline plot of temperature by month
 ex_aq <- airquality
 ex_aq$Month <- factor(ex_aq$Month)
@@ -224,7 +224,7 @@ ggplot(ex_aq, aes(x = Temp, y = Month)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ggsci Nature palette"
 ex_aq <- airquality
 ex_aq$Month <- factor(ex_aq$Month)
 
@@ -248,7 +248,7 @@ Scientific papers and reports almost always need multi-panel figures. Two packag
 
 patchwork is the most intuitive way to arrange plots. Use `+` to place plots side by side, `/` to stack vertically, and `|` for explicit horizontal layout.
 
-```r
+```r title="paletteer unified palette access"
 library(patchwork)
 
 p1 <- ggplot(mtcars, aes(mpg)) +
@@ -281,7 +281,7 @@ The parentheses control grouping: `(p1 | p2) / p3` puts plots 1 and 2 on the top
 
 cowplot predates patchwork and offers similar functionality via `plot_grid()`, plus the ability to add inset plots with `draw_plot()`.
 
-```r
+```r title="ggnewscale second colour scale"
 library(cowplot)
 
 p_main <- ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
@@ -302,7 +302,7 @@ The `ggdraw()` + `draw_plot()` pattern places one plot inside another at exact c
 
 **Try it:** Create three plots from `iris` (histogram of `Sepal.Length`, scatter of `Sepal.Length` vs `Petal.Length`, boxplot of `Sepal.Width` by Species). Combine them into a 1-row layout with patchwork using `|` and add panel tags with `plot_annotation(tag_levels = "A")`.
 
-```r
+```r title="gghighlight filter high mileage"
 # Try it: 3-panel iris figure with patchwork
 ex_p1 <- ggplot(iris, aes(Sepal.Length)) +
   geom_histogram(bins = 15, fill = "steelblue") + theme_minimal()
@@ -316,7 +316,7 @@ ex_p2 <- ggplot(iris, aes(Sepal.Length, Petal.Length)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="ggpubr compare means annotation"
 ex_p1 <- ggplot(iris, aes(Sepal.Length)) +
   geom_histogram(bins = 15, fill = "steelblue") + theme_minimal()
 ex_p2 <- ggplot(iris, aes(Sepal.Length, Petal.Length)) +
@@ -341,7 +341,7 @@ ggplot2 ships with `theme_gray()`, `theme_minimal()`, and a handful of others. T
 
 ggthemes replicates the visual style of well-known publications and data visualization experts.
 
-```r
+```r title="ggcorrplot circle correlation matrix"
 library(ggthemes)
 
 p_base <- ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) +
@@ -359,7 +359,7 @@ Other popular options include `theme_fivethirtyeight()` (bold, minimal), `theme_
 
 If you want clean, modern-looking plots with excellent font choices, hrbrthemes delivers with `theme_ipsum()`.
 
-```r
+```r title="GGally pair plot of iris"
 library(hrbrthemes)
 
 ggplot(mtcars, aes(wt, mpg)) +
@@ -377,7 +377,7 @@ ggplot(mtcars, aes(wt, mpg)) +
 
 ggsci provides color palettes inspired by scientific journals (Lancet, Nature, JAMA), sci-fi franchises, and data tools.
 
-```r
+```r title="ggstatsplot between-group test"
 library(ggsci)
 
 ggplot(iris, aes(Sepal.Length, Petal.Length, color = Species)) +
@@ -394,7 +394,7 @@ Other palettes include `scale_color_lancet()`, `scale_color_jama()`, `scale_colo
 
 Instead of installing 10 palette packages, paletteer gives you unified access to all of them through a single interface.
 
-```r
+```r title="gganimate transition by year"
 library(paletteer)
 
 ggplot(diamonds[sample(nrow(diamonds), 1000), ],
@@ -415,7 +415,7 @@ The naming convention is `"package::palette_name"`. Use `paletteer_d()` for disc
 
 By default, ggplot2 only allows one `color` scale and one `fill` scale per plot. ggnewscale breaks this limit so you can map different variables to different color scales.
 
-```r
+```r title="plotly ggplotly interactive scatter"
 library(ggnewscale)
 
 ggplot(mtcars, aes(wt, mpg)) +
@@ -435,7 +435,7 @@ The `new_scale_color()` call resets the color aesthetic so you can assign a fres
 
 **Try it:** Create a scatter plot of `mtcars` (wt vs mpg) and apply `theme_solarized()` from ggthemes with `scale_color_jama()` from ggsci, coloring by `factor(cyl)`. Store your result in `ex_themed`.
 
-```r
+```r title="treemapify treemap chart"
 # Try it: combine ggthemes + ggsci
 ex_themed <- ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
   geom_point(size = 3)
@@ -447,7 +447,7 @@ ex_themed <- ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="waffle chart of proportions"
 ex_themed <- ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
   geom_point(size = 3) +
   scale_color_jama() +
@@ -469,7 +469,7 @@ Sometimes you need to draw the reader's eye to specific data points, add statist
 
 gghighlight lets you emphasise a subset of data while graying out the rest, no manual filtering needed.
 
-```r
+```r title="ggiraph interactive points"
 library(gghighlight)
 
 ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
@@ -486,7 +486,7 @@ The `gghighlight()` function works with any geom, scatter, line, bar. It accepts
 
 ggpubr wraps common plot types in convenience functions and adds built-in statistical comparisons.
 
-```r
+```r title="ggalluvial titanic flows"
 library(ggpubr)
 
 ggboxplot(iris, x = "Species", y = "Sepal.Length",
@@ -506,7 +506,7 @@ The `stat_compare_means()` function runs statistical tests (t-test, Wilcoxon, AN
 
 ggcorrplot turns a correlation matrix into a publication-ready heatmap with one function call.
 
-```r
+```r title="Exercise: ggrepel and ridges combination"
 library(ggcorrplot)
 
 cor_mat <- round(cor(mtcars[, c("mpg", "cyl", "disp", "hp",
@@ -528,7 +528,7 @@ The `method = "circle"` uses circle size to encode correlation strength (large c
 
 GGally's `ggpairs()` creates comprehensive scatter-plot matrices showing correlations, distributions, and scatter plots for every variable pair.
 
-```r
+```r title="Exercise solution: Top five labelled ridgeline"
 library(GGally)
 
 ggpairs(iris, columns = 1:4, aes(color = Species, alpha = 0.5),
@@ -546,7 +546,7 @@ The upper triangle shows correlation coefficients, the lower triangle shows scat
 
 ggstatsplot creates publication-ready plots with statistical test results embedded directly in the subtitle.
 
-```r
+```r title="Exercise: ggcorrplot with rich title"
 library(ggstatsplot)
 
 ggbetweenstats(iris, x = Species, y = Sepal.Length,
@@ -563,7 +563,7 @@ One function call runs the appropriate test, computes effect sizes, performs pai
 
 **Try it:** Use `ggcorrplot()` to create a correlation heatmap of `airquality` (columns: Ozone, Solar.R, Wind, Temp). Use `method = "circle"`, `type = "lower"`, and add labels. Store the correlation matrix in `ex_cor`.
 
-```r
+```r title="Exercise solution: Correlation plot with markdown title"
 # Try it: airquality correlation heatmap
 ex_aq_clean <- na.omit(airquality[, c("Ozone", "Solar.R", "Wind", "Temp")])
 ex_cor <- round(cor(ex_aq_clean), 2)
@@ -575,7 +575,7 @@ ex_cor <- round(cor(ex_aq_clean), 2)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise: ggforce zoom with d3 palette"
 ex_aq_clean <- na.omit(airquality[, c("Ozone", "Solar.R", "Wind", "Temp")])
 ex_cor <- round(cor(ex_aq_clean), 2)
 
@@ -598,7 +598,7 @@ The final group covers extensions that take ggplot2 beyond static PNG output, pl
 
 gganimate adds a time dimension to any ggplot by treating "frame" as an aesthetic. It requires the gifski package for rendering GIFs, install both with `install.packages(c("gganimate", "gifski"))`.
 
-```r
+```r title="Exercise solution: Small-diamond facet zoom"
 library(gganimate)
 
 ggplot(gapminder::gapminder, aes(gdpPercap, lifeExp,
@@ -618,7 +618,7 @@ Key transition functions: `transition_time()` for temporal data, `transition_sta
 
 plotly's `ggplotly()` function converts any ggplot into an interactive chart with zoom, pan, and hover tooltips. Install locally with `install.packages("plotly")`.
 
-```r
+```r title="Mistake: Loading extensions too late"
 library(plotly)
 
 p <- ggplot(iris, aes(Sepal.Length, Petal.Length,
@@ -636,7 +636,7 @@ The `tooltip` argument controls what appears on hover. Map extra information to 
 
 treemapify turns hierarchical or proportional data into space-filling rectangles.
 
-```r
+```r title="Correct: Load extensions before ggplot"
 library(treemapify)
 library(dplyr)
 
@@ -660,7 +660,7 @@ Map `area` to the variable that controls rectangle size, and `fill` to a second 
 
 Waffle charts display proportions as grids of squares, a more readable alternative to pie charts.
 
-```r
+```r title="Mistake: Stacking conflicting scales"
 library(waffle)
 
 parts <- c("4 cyl" = 11, "6 cyl" = 7, "8 cyl" = 14)
@@ -685,7 +685,7 @@ Each square represents one unit. The `n_rows` parameter sets how many rows tall 
 
 ggiraph makes ggplot elements interactive, hover for tooltips, click to select, and link data across plots.
 
-```r
+```r title="Correct: Use ggnewscale between scales"
 library(ggiraph)
 
 p <- ggplot(mtcars, aes(wt, mpg)) +
@@ -704,7 +704,7 @@ Replace standard geoms with `_interactive` versions (`geom_point_interactive`, `
 
 ggalluvial visualises flow between categorical variables, tracking how observations move across stages.
 
-```r
+```r title="Mistake: Too many labels with geomtext"
 library(ggalluvial)
 
 titanic_data <- as.data.frame(Titanic)
@@ -724,7 +724,7 @@ The `geom_alluvium()` draws flowing ribbons between strata, and `geom_stratum()`
 
 **Try it:** Create a treemap of the `diamonds` dataset showing proportions by `cut`. Group by `cut`, count the rows in each group, and map `area = n` and `fill = cut`. Use `geom_treemap()` and `geom_treemap_text()`.
 
-```r
+```r title="Correct: Use ggrepel for readable labels"
 # Try it: diamonds treemap by cut
 ex_cuts <- diamonds |>
   group_by(cut) |>
@@ -738,7 +738,7 @@ ex_cuts <- diamonds |>
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mistake: Raw markdown without ggtext"
 ex_cuts <- diamonds |>
   group_by(cut) |>
   summarise(n = n(), .groups = "drop")
@@ -763,7 +763,7 @@ ggplot(ex_cuts, aes(area = n, fill = cut,
 
 Create a two-panel figure using patchwork: (A) a scatter plot of `mtcars` (wt vs mpg) with the 5 most fuel-efficient cars labeled using ggrepel, and (B) a ridgeline plot of mpg by `factor(cyl)` using ggridges. Apply `theme_minimal()` to both and add panel tags.
 
-```r
+```r title="Correct: elementmarkdown renders formatting"
 # Exercise 1: combine ggrepel + ggridges + patchwork
 # Hint: create two separate ggplot objects, then use | and plot_annotation()
 
@@ -772,7 +772,7 @@ Create a two-panel figure using patchwork: (A) a scatter plot of `mtcars` (wt vs
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise one: Labelled mtcars ridgeline panel"
 my_top5 <- mtcars[order(-mtcars$mpg)[1:5], ]
 my_top5$car <- rownames(my_top5)
 
@@ -801,7 +801,7 @@ my_p2 <- ggplot(mtcars, aes(x = mpg, y = factor(cyl), fill = factor(cyl))) +
 
 Build a correlation matrix of `mtcars` columns (mpg, hp, wt, qsec, drat) using ggcorrplot. Use `method = "square"` and `type = "upper"`. Apply a Nature Publishing Group (`scale_fill_npg()` won't work here, use custom colors from ggsci's NPG palette). Add a ggtext-styled title where "positive" is blue and "negative" is red.
 
-```r
+```r title="Exercise one solution: Top five labelled ridges"
 # Exercise 2: ggcorrplot + ggsci-inspired colors + ggtext title
 # Hint: use ggcorrplot's colors argument for custom palette
 # Hint: use labs(title = ...) with HTML spans, then element_markdown()
@@ -811,7 +811,7 @@ Build a correlation matrix of `mtcars` columns (mpg, hp, wt, qsec, drat) using g
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise two: Correlation plot with styled title"
 my_cor <- round(cor(mtcars[, c("mpg", "hp", "wt", "qsec", "drat")]), 2)
 
 ggcorrplot(my_cor, method = "square", type = "upper",
@@ -832,7 +832,7 @@ ggcorrplot(my_cor, method = "square", type = "upper",
 
 Create a scatter plot of `diamonds` (carat vs price, colored by clarity, sampled to 2000 rows) with: (1) `facet_zoom(x = carat < 0.5)` from ggforce to zoom into small diamonds, (2) a ggtext-styled subtitle that highlights the word "small" in bold red, and (3) a ggsci `scale_color_d3()` palette. Save as `my_zoom_plot`.
 
-```r
+```r title="Exercise two solution: Styled correlation heatmap"
 # Exercise 3: ggforce + ggtext + ggsci
 # Hint: use element_markdown() for the subtitle
 # Hint: sample diamonds first for speed
@@ -842,7 +842,7 @@ Create a scatter plot of `diamonds` (carat vs price, colored by clarity, sampled
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise three: Diamond facet zoom with palette"
 set.seed(99)
 my_diamonds <- diamonds[sample(nrow(diamonds), 2000), ]
 
@@ -866,7 +866,7 @@ my_zoom_plot
 
 Let's build a polished multi-panel analysis of `mtcars` that combines five extensions in one figure: ggrepel for labels, ggtext for a rich title, ggsci for a professional palette, ggcorrplot for correlations, and patchwork to combine everything.
 
-```r
+```r title="Capstone: Multi-extension composite panel"
 # Panel A: Scatter with labeled outliers
 top_efficient <- mtcars[order(-mtcars$mpg)[1:5], ]
 top_efficient$car <- rownames(top_efficient)

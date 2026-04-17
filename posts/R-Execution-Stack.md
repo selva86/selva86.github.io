@@ -24,7 +24,7 @@ These functions are rarely needed in everyday R code, but they power many intern
 
 When function A calls function B, which calls function C, R maintains a stack:
 
-```r
+```r title="Inspect call stack depth"
 show_stack <- function() {
   cat("Stack depth:", sys.nframe(), "\n")
   cat("Call at frame 1:", deparse(sys.call(1)), "\n")
@@ -39,7 +39,7 @@ wrapper()
 
 ### sys.nframe(): How Deep Are We?
 
-```r
+```r title="Track depth through nested calls"
 depth_test <- function(label) {
   cat(sprintf("%s: depth = %d\n", label, sys.nframe()))
 }
@@ -65,7 +65,7 @@ level1()
 
 `sys.call(n)` returns the call expression at frame `n` on the stack:
 
-```r
+```r title="List every call in the stack"
 inspect_calls <- function() {
   n <- sys.nframe()
   cat("Total frames:", n, "\n")
@@ -89,7 +89,7 @@ outer_fn(10)
 
 `sys.frame(n)` returns the execution environment at frame `n`:
 
-```r
+```r title="Read the caller's environment"
 peek_at_caller <- function() {
   caller_env <- sys.frame(-1)  # -1 = parent frame
   cat("Caller's variables:", paste(ls(caller_env), collapse = ", "), "\n")
@@ -108,7 +108,7 @@ my_function()
 
 `parent.frame()` is shorthand for `sys.frame(-1)`, it gives you the environment of the function that called you:
 
-```r
+```r title="Evaluate in the caller's frame"
 # Useful for functions that need to evaluate in the caller's context
 eval_in_caller <- function(expr_text) {
   expr <- parse(text = expr_text)
@@ -121,7 +121,7 @@ result <- eval_in_caller("x + y")
 cat("Evaluated in caller's env:", result, "\n")
 ```
 
-```r
+```r title="Understand match.arg and partial matching"
 # Real-world use: match.arg evaluates in the caller's context
 my_plot <- function(type = c("line", "bar", "scatter")) {
   type <- match.arg(type)
@@ -135,7 +135,7 @@ my_plot("s")      # partial match: "scatter"
 
 ## Practical Example: Custom Error Messages
 
-```r
+```r title="Informative error with sys.call"
 # Use sys.call to generate informative error messages
 check_positive <- function(x) {
   if (any(x <= 0)) {
@@ -163,7 +163,7 @@ tryCatch(
 
 ## Practice Exercise
 
-```r
+```r title="Exercise: write tracecall function"
 # Exercise: Write a function trace_call() that, when called
 # from anywhere, prints the full call chain from top to current.
 # Example output:
@@ -176,7 +176,7 @@ tryCatch(
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="tracecall function solution"
 trace_call <- function() {
   n <- sys.nframe()
   calls <- character(n)

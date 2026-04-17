@@ -24,7 +24,7 @@ difficulty: "Advanced"
 
 Imagine you need `square()`, `cube()`, and a tenth-power helper, identical except for the exponent. Writing three copies is busywork. A better move is to write `power()` once, hand it an exponent, and let it return a specialised child function you can call like any other. Here is the whole idea in six lines of R, with the payoff on display.
 
-```r
+```r title="Build square and cube from power"
 power <- function(exponent) {
   function(x) x ^ exponent
 }
@@ -50,7 +50,7 @@ This is exactly how `scales::dollar`, `scales::percent`, `ecdf`, and `approxfun`
 
 **Try it:** Build a factory `ex_multiplier(factor)` that returns a function multiplying its argument by `factor`. Use it to make a `triple` function and apply it to `1:4`.
 
-```r
+```r title="Exercise: write a multiplier factory"
 # Try it: write ex_multiplier
 ex_multiplier <- function(factor) {
   # your code here
@@ -64,7 +64,7 @@ triple(1:4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multiplier solution"
 ex_multiplier <- function(factor) {
   function(x) x * factor
 }
@@ -81,7 +81,7 @@ triple(1:4)
 
 R evaluates arguments lazily, it does not look at the value of a parameter until something in the function body actually uses it. That sounds harmless until you build factories inside a loop. Watch what happens when we try to make a list of power functions the naive way.
 
-```r
+```r title="Lazy evaluation creates identical children"
 exponents <- 2:4
 powers_buggy <- lapply(exponents, function(e) power(e))
 
@@ -100,7 +100,7 @@ All three functions return 10000, which is `10^4`. That is not what we asked for
 
 The fix is a single line: `force(exponent)` evaluates the promise immediately, locking the value in before the child function is returned.
 
-```r
+```r title="Add force() to capture each exponent"
 power_safe <- function(exponent) {
   force(exponent)
   function(x) x ^ exponent
@@ -120,7 +120,7 @@ Now each child carries its own exponent. `force()` itself is nothing magical, it
 
 **Try it:** The factory below is broken by lazy evaluation. Fix it so each adder adds the correct value.
 
-```r
+```r title="Exercise: fix the adder factory"
 # Try it: fix ex_make_adder with force()
 ex_make_adder <- function(n) {
   function(x) x + n
@@ -136,7 +136,7 @@ ex_adders[[2]](10)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Adder-fix solution"
 ex_make_adder <- function(n) {
   force(n)
   function(x) x + n
@@ -161,7 +161,7 @@ So far every child function has been read-only with respect to its captured valu
 
 The canonical example is a counter factory. Each call to `new_counter()` creates an independent counter with its own state.
 
-```r
+```r title="Stateful counter via super-assignment"
 new_counter <- function() {
   count <- 0
   function() {
@@ -193,7 +193,7 @@ counter_b()
 
 **Try it:** Build `ex_running_sum()`, each call to the returned function should add its argument to a running total and return the new total.
 
-```r
+```r title="Exercise: running-sum closure"
 # Try it: write ex_running_sum
 ex_running_sum <- function() {
   total <- 0
@@ -212,7 +212,7 @@ adder(100)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Running-sum solution"
 ex_running_sum <- function() {
   total <- 0
   function(x) {
@@ -248,7 +248,7 @@ Where:
 
 Notice that $n$, $\sum x_i$, and the factorial term never change as the optimiser explores different values of $\lambda$. A naive implementation would recompute them every step. A factory can stash them once.
 
-```r
+```r title="Poisson negative log-likelihood factory"
 nll_poisson <- function(x) {
   force(x)
   n          <- length(x)
@@ -275,7 +275,7 @@ The optimiser hammered the child function hundreds of times, but `length()`, `su
 
 **Try it:** Write `ex_deviation(x)`, it precomputes `mean(x)` and returns a function that takes a new value `v` and reports how far it is from that mean.
 
-```r
+```r title="Exercise: deviation-from-mean factory"
 # Try it: write ex_deviation
 ex_deviation <- function(x) {
   # your code here
@@ -291,7 +291,7 @@ dev_fn(12)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Deviation solution"
 ex_deviation <- function(x) {
   force(x)
   mu <- mean(x)
@@ -315,7 +315,7 @@ Open `scales::label_number()` or `scales::label_dollar()` and you will find func
 
 You can build your own in a few lines.
 
-```r
+```r title="Reusable label formatter factory"
 label_maker <- function(prefix = "", suffix = "", digits = 0) {
   force(prefix); force(suffix); force(digits)
   function(x) {
@@ -339,7 +339,7 @@ pct2(c(0.1, 12.345, 100))
 
 **Try it:** Write `ex_percent(digits)`, a factory returning a function that formats numeric proportions as percentages with the given number of decimal places. `ex_percent(0)` on `0.257` should give `"26%"`.
 
-```r
+```r title="Exercise: percent formatter"
 # Try it: write ex_percent
 ex_percent <- function(digits) {
   # your code here
@@ -353,7 +353,7 @@ fmt0(c(0.1, 0.257, 0.999))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Percent solution"
 ex_percent <- function(digits) {
   force(digits)
   function(x) paste0(formatC(100 * x, format = "f", digits = digits), "%")
@@ -372,7 +372,7 @@ fmt0(c(0.1, 0.257, 0.999))
 
 There is one footgun worth knowing about. A manufactured function keeps its enclosing environment alive as long as the function itself is alive, and that enclosing environment contains **everything** that was defined inside the factory, not just the things the child function uses. If you happen to create a big temporary object in the factory body, it sticks around forever.
 
-```r
+```r title="Heavy factory drags 8 MB around"
 factory_heavy <- function() {
   big <- runif(1e6)           # 8 MB of random numbers, never used by the child
   fudge <- 0.1
@@ -386,7 +386,7 @@ format(object.size(environment(f_heavy)), units = "MB")
 
 `f_heavy` is a trivial "add 0.1" function, yet it is dragging 7.6 MB of dead weight around because `big` is still sitting in its enclosing environment. The fix is to delete the unused object inside the factory before returning the child.
 
-```r
+```r title="Fix: drop big objects with rm"
 factory_lean <- function() {
   big   <- runif(1e6)
   fudge <- mean(big) + 0.1     # use big, then drop it
@@ -406,7 +406,7 @@ Down from 7.6 MB to under 2 KB. The rule is simple: anything you compute inside 
 
 **Try it:** The factory below captures a large `raw` object it does not need. Clean it up so the returned function is lean.
 
-```r
+```r title="Exercise: clean the leaky factory"
 # Try it: clean up ex_leaky
 ex_leaky <- function() {
   raw <- rnorm(5e5)
@@ -423,7 +423,7 @@ format(object.size(environment(ex_f)), units = "Kb")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Leaky-fix solution"
 ex_leaky <- function() {
   raw <- rnorm(5e5)
   threshold <- quantile(raw, 0.95)
@@ -448,7 +448,7 @@ Two capstone problems combining everything above. The `my_*` prefixes below keep
 
 Write `make_bounded_clipper(lo, hi)` that returns a function which clips a numeric vector so every value falls inside `[lo, hi]`. Use `force()` for safety. Test it on `c(-0.5, 0.3, 1.2)` with a 0-to-1 clipper.
 
-```r
+```r title="Exercise: bounded clipping factory"
 # Exercise 1: bounded clipper
 # Hint: inside the child, use pmin(pmax(x, lo), hi)
 
@@ -463,7 +463,7 @@ my_clip_01(c(-0.5, 0.3, 1.2))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Clipper solution"
 make_bounded_clipper <- function(lo, hi) {
   force(lo); force(hi)
   stopifnot(lo < hi)
@@ -483,7 +483,7 @@ my_clip_01(c(-0.5, 0.3, 1.2))
 
 Build `make_ema(alpha)` that returns a stateful function. On each call, the function takes a numeric value, updates an exponentially weighted moving average using `new = alpha * x + (1 - alpha) * old`, and returns the new EMA. Use `<<-` so state persists. Demonstrate two independent trackers.
 
-```r
+```r title="Exercise: stateful EMA smoother"
 # Exercise 2: stateful EMA
 # Hint: initialise the state to NA and special-case the first call
 
@@ -501,7 +501,7 @@ c(my_slow(10), my_slow(20), my_slow(30))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="EMA solution"
 make_ema <- function(alpha) {
   force(alpha)
   state <- NA_real_
@@ -528,7 +528,7 @@ c(my_slow(10), my_slow(20), my_slow(30))
 
 Let us put the pattern to work on something realistic: a reusable range validator for data-cleaning pipelines. You pass minimum and maximum bounds into the factory, and it hands back a function that audits a numeric vector and reports what failed. You can mint one validator for ages, another for percentages, and drop them straight into a dplyr pipeline.
 
-```r
+```r title="Reusable range validator pipeline"
 make_range_validator <- function(min_val, max_val, label = "value") {
   force(min_val); force(max_val); force(label)
   msg <- paste0("Out-of-range ", label, " detected")

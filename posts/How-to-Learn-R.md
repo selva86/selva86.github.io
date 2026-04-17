@@ -21,7 +21,7 @@ difficulty: "Intermediate"
 
 Think of the next year as four three-month phases that stack on each other. Phase 1 teaches the language, syntax, objects, how R thinks. Phase 2 covers data wrangling and visualisation, which is where R stops being a toy and becomes genuinely useful. Phase 3 brings in statistics and modelling, the domain R was built for. Phase 4 is where you pick a specialisation, machine learning, Shiny, bioinformatics, or time series, and go deep. Before we dive in, here is a taste of what even raw R gives you with two lines of code.
 
-```r
+```r title="One-line summary of mtcars mpg"
 # One line of R can replace a whole spreadsheet column of formulas
 data(mtcars)
 summary(mtcars$mpg)
@@ -36,7 +36,7 @@ Two lines, and you already have the full five-number summary plus the mean of a 
 
 **Try it:** Use `summary()` on the `hp` column of `mtcars` to inspect the horsepower distribution. Store the result in `ex_hp_summary`.
 
-```r
+```r title="Exercise: Summarise mtcars horsepower"
 # Try it: summarise mtcars$hp
 ex_hp_summary <- # your code here
 
@@ -47,7 +47,7 @@ ex_hp_summary
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Summarise mtcars horsepower solution"
 ex_hp_summary <- summary(mtcars$hp)
 ex_hp_summary
 #>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
@@ -66,7 +66,7 @@ Weeks 1-2 cover installation, the RStudio interface, arithmetic, and assignment 
 
 Here is the kind of code a week-4 reader should be able to write without looking it up.
 
-```r
+```r title="Describe a vector of ages"
 # Typical week-4 code: describe a vector of ages
 ages <- c(21, 34, 28, 45, 31, 29, 52, 40)
 mean(ages)
@@ -84,7 +84,7 @@ Three lines, three different patterns, an aggregate function, a summary statisti
 
 **Try it:** Create a vector `ex_scores` containing 85, 92, 78, 95, 88 and compute its mean, rounded to one decimal place.
 
-```r
+```r title="Exercise: Mean of a score vector"
 # Try it: mean of a vector
 ex_scores <- # your code here
 
@@ -95,7 +95,7 @@ round(mean(ex_scores), 1)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Mean of a score vector solution"
 ex_scores <- c(85, 92, 78, 95, 88)
 round(mean(ex_scores), 1)
 #> [1] 87.6
@@ -113,7 +113,7 @@ Weeks 13-16 focus on the five core dplyr verbs: `filter()`, `select()`, `mutate(
 
 Let us see the same `mtcars` question from earlier, but answered the tidyverse way.
 
-```r
+```r title="Group mpg by cylinder count"
 # Week-14 style: grouped summary with dplyr
 library(dplyr)
 mpg_by_cyl <- mtcars |>
@@ -132,7 +132,7 @@ The pipe reads left-to-right like a sentence, "take mtcars, group by cylinder, t
 
 Visualising the same relationship is a one-liner with ggplot2.
 
-```r
+```r title="Scatterplot weight vs mpg by cylinder"
 # Week-22 style: scatterplot with grouping aesthetic
 library(ggplot2)
 ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
@@ -148,7 +148,7 @@ Every ggplot2 plot has three ingredients, a data frame, an `aes()` mapping, and 
 
 **Try it:** Use dplyr to count how many `mtcars` rows have `mpg > 25`. Assign the count to `ex_efficient_count`.
 
-```r
+```r title="Exercise: Count efficient cars"
 # Try it: count efficient cars
 ex_efficient_count <- mtcars |>
   # your code here
@@ -160,7 +160,7 @@ ex_efficient_count
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Count efficient cars solution"
 ex_efficient_count <- mtcars |>
   filter(mpg > 25) |>
   nrow()
@@ -180,7 +180,7 @@ Weeks 25-28 cover descriptive statistics, common distributions, and the classic 
 
 The first regression model you will ever fit looks like this.
 
-```r
+```r title="Multiple linear regression of mpg"
 # Week-29 style: multiple linear regression
 fit <- lm(mpg ~ wt + cyl, data = mtcars)
 summary(fit)$coefficients
@@ -197,7 +197,7 @@ Each row is one predictor. The `Estimate` column says every extra 1000 lbs of we
 
 **Try it:** Fit a simple linear regression of `mpg` on `hp` alone using `mtcars`. Save the model to `ex_fit` and check the coefficient of `hp`.
 
-```r
+```r title="Exercise: Simple regression of mpg on hp"
 # Try it: fit a simple regression
 ex_fit <- # your code here
 
@@ -208,7 +208,7 @@ coef(ex_fit)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Simple regression of mpg on hp solution"
 ex_fit <- lm(mpg ~ hp, data = mtcars)
 coef(ex_fit)
 #> (Intercept)          hp
@@ -231,7 +231,7 @@ The four most common tracks are machine learning with `tidymodels`, interactive 
 
 Here is a taste of the machine-learning track, a logistic model predicting whether a car has a manual transmission.
 
-```r
+```r title="Logistic regression for transmission type"
 # Week-38 style: binary classification with glm()
 glm_fit <- glm(am ~ mpg + wt, data = mtcars, family = binomial)
 round(coef(glm_fit), 3)
@@ -243,7 +243,7 @@ A positive `mpg` coefficient and a strongly negative `wt` coefficient match intu
 
 **Try it:** Fit a logistic model of `am` on `mpg` alone and store it in `ex_glm`.
 
-```r
+```r title="Exercise: Logistic regression with one predictor"
 # Try it: logistic regression with one predictor
 ex_glm <- # your code here
 
@@ -254,7 +254,7 @@ coef(ex_glm)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Logistic regression with one predictor solution"
 ex_glm <- glm(am ~ mpg, data = mtcars, family = binomial)
 coef(ex_glm)
 #> (Intercept)         mpg
@@ -278,7 +278,7 @@ The four gates are:
 
 Here is what a month-6 gate test looks like as a single runnable snippet.
 
-```r
+```r title="Month-6 gate test pipeline"
 # Month-6 gate test: can you read and explain this in under a minute?
 gate_result <- mtcars |>
   filter(mpg > 20) |>
@@ -300,7 +300,7 @@ If you can look at that pipeline and narrate what it does without running it, yo
 
 **Try it:** Take the `gate_result` pipeline above and modify it to filter on `mpg > 15` instead of 20, assigning the new result to `ex_gate`.
 
-```r
+```r title="Exercise: Modify the gate pipeline"
 # Try it: modify the gate pipeline
 ex_gate <- mtcars |>
   # your code here
@@ -312,7 +312,7 @@ nrow(ex_gate)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Modify the gate pipeline solution"
 ex_gate <- mtcars |>
   filter(mpg > 15) |>
   group_by(cyl) |>
@@ -338,7 +338,7 @@ Five mistakes explain almost every "I have been learning R for a year and still 
 
 The cheapest bug to fix is the one about reading output. Look at this classic trap.
 
-```r
+```r title="NA silently propagates without na.rm"
 # A silent NA-handling bug that catches every beginner
 scores <- c(85, 92, NA, 78, 95, 88)
 mean(scores)
@@ -354,7 +354,7 @@ The first call returns `NA`, not an error, which is exactly why it is dangerous.
 
 **Try it:** Compute the mean of `c(10, NA, 20, 30, NA, 40)` while ignoring the missing values. Save it to `ex_mean`.
 
-```r
+```r title="Exercise: Fix the NA bug"
 # Try it: fix the NA bug
 ex_mean <- # your code here
 
@@ -365,7 +365,7 @@ ex_mean
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fix the NA bug solution"
 ex_mean <- mean(c(10, NA, 20, 30, NA, 40), na.rm = TRUE)
 ex_mean
 #> [1] 25
@@ -383,7 +383,7 @@ These two capstones combine skills from across the roadmap. They are harder than
 
 Using the built-in `airquality` dataset, write a single dplyr pipeline that filters out rows where `Ozone` is missing, groups by `Month`, and returns each month's mean `Ozone` and row count. Assign the result to `my_eda` and sort by descending mean `Ozone`.
 
-```r
+```r title="Exercise: airquality EDA pipeline"
 # Capstone 1: airquality EDA pipeline
 # Hint: use filter(), group_by(), summarise(), arrange()
 
@@ -395,7 +395,7 @@ my_eda
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="airquality EDA pipeline solution"
 my_eda <- airquality |>
   filter(!is.na(Ozone)) |>
   group_by(Month) |>
@@ -420,7 +420,7 @@ my_eda
 
 Fit a linear model of `mpg` on `wt` and `hp` using `mtcars`. Save it to `my_model`, extract the coefficient of determination (R-squared) into `my_r2`, and round it to three decimals.
 
-```r
+```r title="Exercise: Regression with two predictors"
 # Capstone 2: regression with two predictors
 # Hint: summary(model)$r.squared gives R-squared
 
@@ -434,7 +434,7 @@ my_r2
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Regression with two predictors solution"
 my_model <- lm(mpg ~ wt + hp, data = mtcars)
 my_r2 <- round(summary(my_model)$r.squared, 3)
 my_r2
@@ -449,7 +449,7 @@ my_r2
 
 Here is a month-9 worked example, the full loop you should be able to run on a new dataset without a tutorial by the end of Phase 3. Load, summarise, fit, interpret.
 
-```r
+```r title="End-to-end iris species analysis"
 # End-to-end: does petal length separate iris species?
 data(iris)
 

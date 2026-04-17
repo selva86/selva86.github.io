@@ -24,7 +24,7 @@ Forget the formula for a moment. If you roll two dice a million times and count 
 
 Here's the whole simulation. Each trial rolls two dice, sums them, and checks if the sum is at least 7. Running the trial 100,000 times and averaging the TRUE/FALSE results gives us the probability.
 
-```r
+```r title="Estimate P(sum = 7) by simulation"
 set.seed(42)
 p_hat <- mean(replicate(100000, sum(sample(1:6, 2, replace = TRUE)) >= 7))
 p_hat
@@ -35,7 +35,7 @@ The simulated probability is 0.583. The exact answer, the number of dice-pair ou
 
 Let me unpack what that one-liner is doing. `sample(1:6, 2, replace = TRUE)` picks two numbers from 1 through 6 with replacement, one dice roll. `sum()` adds them. `replicate(100000, ...)` runs that whole expression 100,000 times and returns a logical vector. `mean()` of a logical vector gives the proportion of TRUEs, which is our probability estimate.
 
-```r
+```r title="Anatomy of one simulated roll"
 # Anatomy of one trial
 set.seed(42)
 one_roll <- sample(1:6, 2, replace = TRUE)
@@ -57,7 +57,7 @@ That first roll, a 6 and a 1, sums to 7, so it counts as a success. Multiply tha
 
 **Try it:** Simulate rolling a single fair die 10,000 times. Estimate the probability of getting a 6. Store the result in `ex_single_die`.
 
-```r
+```r title="Try it: Probability of rolling a six"
 # Try it: P(roll a 6) via simulation
 set.seed(1)
 rolls <- sample(1:6, 10000, replace = TRUE)
@@ -70,7 +70,7 @@ ex_single_die
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="P(six) simulation solution"
 set.seed(1)
 rolls <- sample(1:6, 10000, replace = TRUE)
 ex_single_die <- mean(rolls == 6)
@@ -88,7 +88,7 @@ A deck of cards is just a vector of 52 labels, 13 ranks across 4 suits. `sample(
 
 Let's build the deck, deal one hand, then ask a harder question: what's the probability of a flush (all five cards the same suit)?
 
-```r
+```r title="Build a 52-card deck"
 # Build a 52-card deck
 ranks <- c("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 suits <- c("Clubs", "Diamonds", "Hearts", "Spades")
@@ -115,7 +115,7 @@ hand
 
 Now we repeat the deal 200,000 times and check how often all five suits match. The check is one line: `length(unique(hand$suit)) == 1`.
 
-```r
+```r title="Estimate flush probability by simulation"
 # Estimate P(flush) by simulation
 set.seed(2026)
 p_flush <- mean(replicate(200000, {
@@ -128,7 +128,7 @@ p_flush
 
 That's 0.002, about 1 in 500 hands. The exact value is 5108 possible flushes out of C(52,5) = 2,598,960 hands, which is 0.001981. Our estimate rounds to the same three decimals.
 
-```r
+```r title="Exact flush probability for comparison"
 # Exact flush probability (includes straight flushes)
 p_flush_exact <- 5108 / choose(52, 5)
 p_flush_exact
@@ -142,7 +142,7 @@ The `choose(52, 5)` function is R's way of computing "52 choose 5", the number o
 
 **Try it:** Estimate the probability that a 5-card hand contains at least one Ace. Store the result in `ex_ace`.
 
-```r
+```r title="Try it: At least one ace"
 # Try it: P(≥1 Ace in a 5-card hand)
 set.seed(7)
 ex_ace <- # your code here — hint: check if "A" appears in hand$rank
@@ -154,7 +154,7 @@ ex_ace
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ace-in-hand solution"
 set.seed(7)
 ex_ace <- mean(replicate(100000, {
   hand <- deck[sample(nrow(deck), 5), ]
@@ -174,7 +174,7 @@ Here's the problem that breaks intuition. How many people do you need in a room 
 
 A single simulated group is `sample(1:365, 23, replace = TRUE)`, 23 random days with replacement (two people *can* share). `any(duplicated(...))` checks whether any day repeats.
 
-```r
+```r title="One group of 23 birthdays"
 # One group of 23 people
 set.seed(2026)
 bdays <- sample(1:365, 23, replace = TRUE)
@@ -185,7 +185,7 @@ has_match
 
 This particular group has no shared birthday. But one trial tells us nothing. We need thousands. Let's ask: across 10,000 groups of 23, how often does at least one pair share a birthday?
 
-```r
+```r title="P(match) across 10,000 groups"
 # P(match) for n = 23, via 10,000 simulated groups
 set.seed(2026)
 p_23 <- mean(replicate(10000, any(duplicated(sample(1:365, 23, replace = TRUE)))))
@@ -207,7 +207,7 @@ Where:
 
 Now let's trace the probability across group sizes from 2 to 60, overlay the exact formula, and mark the 50% crossing.
 
-```r
+```r title="Probability curve from 2 to 60"
 # Probability curve: n = 2..60
 library(ggplot2)
 library(dplyr)
@@ -246,7 +246,7 @@ The orange dots (simulation) hug the blue line (formula) across the entire range
 
 **Try it:** Estimate the probability of a shared birthday in a group of 50 people using 5,000 simulated groups. Store the result in `ex_50`.
 
-```r
+```r title="Try it: P(match) for n = 50"
 # Try it: P(match) for n = 50
 set.seed(2026)
 ex_50 <- # your code here
@@ -258,7 +258,7 @@ ex_50
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="n = 50 solution"
 set.seed(2026)
 ex_50 <- mean(replicate(5000, any(duplicated(sample(1:365, 50, replace = TRUE)))))
 ex_50
@@ -275,7 +275,7 @@ Simulations are estimates, not answers. Run the two-dice-sum experiment 10 times
 
 Let's quantify the convergence. We'll run the P(sum ≥ 7) simulation at five sample sizes and plot the estimate against the true answer.
 
-```r
+```r title="Convergence study for two-dice sum"
 # Convergence study for P(sum of two dice >= 7)
 set.seed(42)
 n_reps <- c(100, 1000, 10000, 100000, 1000000)
@@ -329,7 +329,7 @@ For $p = 0.58$ and $N = 10{,}000$, that gives SE ≈ 0.005. Our actual error at 
 
 **Try it:** Estimate P(roll a 6) at N = 100 and at N = 100,000, store them in `ex_small_n` and `ex_big_n`, and compare their absolute errors against the truth 1/6.
 
-```r
+```r title="Try it: Small versus large N"
 # Try it: convergence demo
 set.seed(123)
 ex_small_n <- # your code here (N = 100)
@@ -342,7 +342,7 @@ c(ex_small_n, ex_big_n, truth = 1/6)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Convergence solution"
 set.seed(123)
 ex_small_n <- mean(sample(1:6, 100, replace = TRUE) == 6)
 ex_big_n   <- mean(sample(1:6, 100000, replace = TRUE) == 6)
@@ -369,7 +369,7 @@ Simulation and formulas are not rivals. They answer the same question with diffe
 
 Run both methods side by side whenever the formula exists, that's how you build confidence the code reflects the problem you meant to solve. Then push simulation into territory where formulas give up.
 
-```r
+```r title="Validate a formula, then extend"
 # Simulate-first validation: verify a known formula, then extend beyond it
 set.seed(2026)
 
@@ -396,7 +396,7 @@ The classical version matches 21/36 = 0.583, a sanity check that our simulation 
 
 **Try it:** For each scenario below, decide whether to use a formula or simulation. Store your three choices as character vector `ex_choice` with values `"formula"` or `"simulation"`.
 
-```r
+```r title="Try it: Which scenario needs simulation"
 # Scenario A: P(heads on one fair coin flip)
 # Scenario B: P(at least 3 pairs in 5-card hand with partial replacement)
 # Scenario C: P(sum of 10 d20 rolls >= 120)
@@ -409,7 +409,7 @@ ex_choice
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Method choice solution"
 ex_choice <- c(A = "formula", B = "simulation", C = "simulation")
 ex_choice
 #>         A            B            C
@@ -426,7 +426,7 @@ ex_choice
 
 Estimate P(sum of two 10-sided dice ≥ 15) using 100,000 simulated rolls. Save the estimate to `my_result_1`.
 
-```r
+```r title="Exercise: Two d10 dice sum"
 # Exercise 1: two d10 dice, sum >= 15
 # Hint: sample(1:10, 2, replace = TRUE), then check the sum
 
@@ -437,7 +437,7 @@ Estimate P(sum of two 10-sided dice ≥ 15) using 100,000 simulated rolls. Save 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="d10 sum solution"
 set.seed(501)
 my_result_1 <- mean(replicate(100000, sum(sample(1:10, 2, replace = TRUE)) >= 15))
 my_result_1
@@ -452,7 +452,7 @@ my_result_1
 
 Simulate 10,000 sequences of 20 coin flips. Estimate the probability that the longest run of heads is at least 5. Save the estimate to `my_result_2`. (Hint: `rle()` returns run lengths.)
 
-```r
+```r title="Exercise: Longest heads streak"
 # Exercise 2: P(longest heads streak >= 5 in 20 flips)
 # Hint: rle(x) returns a list with $lengths and $values
 #       Keep only the runs where $values == "H"
@@ -464,7 +464,7 @@ Simulate 10,000 sequences of 20 coin flips. Estimate the probability that the lo
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Heads streak solution"
 set.seed(777)
 my_result_2 <- mean(replicate(10000, {
   flips <- sample(c("H", "T"), 20, replace = TRUE)
@@ -484,7 +484,7 @@ my_result_2
 
 Find the smallest number of people n such that P(at least one shared birthday) ≥ 0.99. Loop over n = 2..100, simulate 3,000 groups per value of n, and return the first n that crosses 0.99. Save it to `my_result_3`.
 
-```r
+```r title="Exercise: 99% birthday threshold"
 # Exercise 3: minimum n where P(match) >= 0.99
 # Hint: loop n = 2..100, break when simulated P >= 0.99
 
@@ -495,7 +495,7 @@ Find the smallest number of people n such that P(at least one shared birthday) �
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="99% threshold solution"
 set.seed(1234)
 my_result_3 <- NA
 for (n in 2:100) {
@@ -517,7 +517,7 @@ my_result_3
 
 The pieces above combine into a clean, reusable birthday-problem analysis. This pipeline estimates the probability curve, overlays the exact formula, and returns the 50% threshold.
 
-```r
+```r title="End-to-end birthday pipeline"
 # Complete birthday-problem pipeline
 set.seed(2026)
 

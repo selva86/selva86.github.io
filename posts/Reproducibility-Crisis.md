@@ -26,7 +26,7 @@ Before we discuss fixes, look at what the problem actually feels like in code. T
 
 The block below generates noise, then computes five p-values from five reasonable analysis paths a researcher might try.
 
-```r
+```r title="Five p-values from one dataset"
 # Five defensible analyses, one noise dataset
 set.seed(7)
 n <- 50
@@ -61,7 +61,7 @@ Look at the `under_40` column. With one defensible filter, restrict to participa
 
 **Try it:** Change the seed to `7` to `42` in the block above and re-run. Count how many of the five p-values now fall under 0.05. The exercise drives home that the noise is doing the work, not the data.
 
-```r
+```r title="Exercise: count significant forks"
 # Try it: count significant p-values under a different seed
 ex_count_sig <- function(seed) {
   # your code here
@@ -75,7 +75,7 @@ ex_count_sig(42)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Significant-forks solution"
 ex_count_sig <- function(seed) {
   set.seed(seed)
   n <- 50
@@ -105,7 +105,7 @@ Habit one of the five is the easiest to adopt: every time your code uses randomn
 
 The block below shows the effect side by side. The first two means come from un-seeded calls, the second two from seeded calls.
 
-```r
+```r title="Pin randomness with set.seed"
 # Without a seed: results drift
 unseeded_a <- mean(rnorm(1000))
 unseeded_b <- mean(rnorm(1000))
@@ -130,7 +130,7 @@ The unseeded means differ in the third decimal place. The seeded means are byte-
 
 **Try it:** Write a function `ex_seeded_mean(seed)` that returns the mean of 1000 standard normals seeded with the input. Call it twice with the same seed to confirm you get the same number.
 
-```r
+```r title="Exercise: deterministic seeded mean"
 # Try it: deterministic mean from a seed
 ex_seeded_mean <- function(seed) {
   # your code here
@@ -145,7 +145,7 @@ ex_seeded_mean(99)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Seeded-mean solution"
 ex_seeded_mean <- function(seed) {
   set.seed(seed)
   mean(rnorm(1000))
@@ -166,7 +166,7 @@ A seed pins your randomness. Habit two pins your packages. Without it, the same 
 
 `renv` itself is not pre-built for the in-browser R that powers this tutorial, but the *fingerprint* it captures is the same one `sessionInfo()` already prints. The block below shows what that fingerprint looks like, `renv.lock` stores a richer JSON version of the same idea.
 
-```r
+```r title="Capture the session environment"
 # What renv would capture (here via base R)
 env_info <- sessionInfo()
 env_info$R.version$version.string
@@ -191,7 +191,7 @@ That output is your minimum reproducibility receipt: the exact R version and the
 
 **Try it:** Pull just the R version string and the list of base packages out of `sessionInfo()` and store them in a small named list called `ex_recipe`.
 
-```r
+```r title="Exercise: build a recipe list"
 # Try it: build a tiny environment recipe
 ex_recipe <- list(
   # your code here
@@ -204,7 +204,7 @@ ex_recipe
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Recipe-list solution"
 info <- sessionInfo()
 ex_recipe <- list(
   r_version = info$R.version$version.string,
@@ -228,7 +228,7 @@ A long script re-runs everything every time. If your data load takes ten minutes
 
 You can model the same idea in base R with three pure functions and one dataset. The block below shows the pipeline mindset before introducing the package.
 
-```r
+```r title="Decompose analysis into pure functions"
 # A pipeline in three pure functions
 clean_step <- function(raw) {
   raw[complete.cases(raw), ]
@@ -265,7 +265,7 @@ Each step takes one input and returns one output. None of them peek at global st
 
 **Try it:** Add a fourth pure function `ex_describe()` that takes the cleaned data and returns its row count plus the mean of `mpg`. Call it on `clean_data`.
 
-```r
+```r title="Exercise: extend the pipeline"
 # Try it: extend the pipeline with one more pure function
 ex_describe <- function(clean) {
   # your code here
@@ -278,7 +278,7 @@ ex_describe(clean_data)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Pipeline-extension solution"
 ex_describe <- function(clean) {
   list(n = nrow(clean), mean_mpg = mean(clean$mpg))
 }
@@ -300,7 +300,7 @@ Habits one through four protect the *computation*. Habit five protects the *huma
 
 The classic violation is "optional stopping", peeking at your data and stopping data collection the moment p drops below 0.05. The block below simulates 500 such studies under a true null effect and reports the false-positive rate.
 
-```r
+```r title="Optional stopping inflates false positives"
 # Optional stopping under a true null
 set.seed(2026)
 n_sims <- 500
@@ -334,7 +334,7 @@ The expected false-positive rate for a single t-test under the null is 5%. By pe
 
 **Try it:** Modify the simulation to use a fixed sample size of 100 and a single t-test. Compute the new false-positive rate and confirm it lands near 5%.
 
-```r
+```r title="Exercise: commit to fixed n"
 # Try it: same null, but commit to n = 100 up front
 ex_fixed_n <- function(n_sims = 500) {
   # your code here
@@ -347,7 +347,7 @@ ex_fixed_n()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Fixed-n solution"
 ex_fixed_n <- function(n_sims = 500) {
   set.seed(2026)
   fp <- 0
@@ -380,7 +380,7 @@ Write a function `audit_reproducibility(seed_value, packages)` that prints a fou
 
 Call it once with seed `2026` and a vector of packages you would use for a regression project.
 
-```r
+```r title="Exercise: reproducibility audit function"
 # Exercise 1: reproducibility audit
 # Hint: cat() each line, return invisible(NULL)
 
@@ -395,7 +395,7 @@ audit_reproducibility(2026, c("dplyr", "ggplot2", "broom"))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Audit-function solution"
 audit_reproducibility <- function(seed_value, packages) {
   set.seed(seed_value)
   cat("Reproducibility audit\n")
@@ -423,7 +423,7 @@ my_audit <- audit_reproducibility(2026, c("dplyr", "ggplot2", "broom"))
 
 You ran 20 hypothesis tests. Three p-values landed under 0.05 (0.001, 0.023, 0.041); the other 17 are 0.30 each. Use `p.adjust()` to apply both the Bonferroni and Benjamini–Hochberg corrections, then report how many tests remain significant under each.
 
-```r
+```r title="Exercise: multiple-comparison correction"
 # Exercise 2: multiple-comparison correction
 # Hint: p.adjust(p, method = "bonferroni") and method = "BH"
 
@@ -436,7 +436,7 @@ my_pvals <- c(0.001, 0.023, 0.041, rep(0.30, 17))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multiple-comparison solution"
 my_pvals <- c(0.001, 0.023, 0.041, rep(0.30, 17))
 my_bonf  <- p.adjust(my_pvals, method = "bonferroni")
 my_bh    <- p.adjust(my_pvals, method = "BH")
@@ -456,7 +456,7 @@ c(raw_significant       = sum(my_pvals < 0.05),
 
 The block below ties all five habits into one short analysis. Read it as a template, every line is here for a reproducibility reason, not just a statistical one.
 
-```r
+```r title="Reproducible mini-analysis template"
 # 1. Pin randomness
 set.seed(2026)
 

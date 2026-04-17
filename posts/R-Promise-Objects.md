@@ -24,7 +24,7 @@ The quickest way to see a promise in action is to pass a side-effecting expressi
 
 The function prints a marker, uses argument `a`, then exits without ever touching `b`. If R evaluated arguments *eagerly* (like Python or JavaScript), the `cat()` inside `b` would fire as soon as we called the function. It doesn't.
 
-```r
+```r title="Lazy argument evaluation demo"
 # Arguments are wrapped in promises; unused ones never run
 show_when <- function(a, b) {
   cat("[function body starts]\n")
@@ -54,7 +54,7 @@ Every promise has three slots:
 
 **Try it:** Write a function `ex_lazy(x, y)` that returns `x * 2` and never uses `y`. Pass a noisy `cat()` expression as `y` and confirm it stays silent.
 
-```r
+```r title="Exercise: Lazy unused argument"
 # Try it: write ex_lazy()
 ex_lazy <- function(x, y) {
   # your code here
@@ -68,7 +68,7 @@ ex_lazy(5, { cat("y ran!\n"); 999 })
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Unused argument solution"
 ex_lazy <- function(x, y) {
   x * 2
 }
@@ -91,7 +91,7 @@ Now that you've seen a promise stay unforced, let's trace the full lifecycle. Wh
 
 That caching step matters. A promise is forced *at most once*, so referencing an argument five times does not recompute it five times. Here's the proof:
 
-```r
+```r title="Count evaluations with a counter"
 # Each call to noisy() bumps a counter — so we can count evaluations
 counter <- 0
 noisy <- function() {
@@ -119,7 +119,7 @@ Despite `x` being read twice, `noisy()` executed exactly once. On the first read
 
 **Try it:** Add a third read of `x` inside `use_twice()` and predict what `counter` will be after one call. Run it to check.
 
-```r
+```r title="Exercise: Read argument three times"
 # Try it: modify to read x three times
 ex_cached_fn <- function(x) {
   r1 <- x + 1
@@ -136,7 +136,7 @@ cat("noisy() ran", counter, "time(s)\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Three reads solution"
 ex_cached_fn <- function(x) {
   r1 <- x + 1
   r2 <- x + 1
@@ -160,7 +160,7 @@ You've probably written (or seen) a function like `function(x, n = length(x))`, 
 
 Here's the friendly version:
 
-```r
+```r title="Default referencing another argument"
 smart_default <- function(x, n = length(x)) {
   cat("n =", n, "\n")
   head(x, n)
@@ -179,7 +179,7 @@ When you omit `n`, R wraps the default expression `length(x)` in a promise whose
 
 Now the unfriendly version. The same rule means a default can reference *anything* in the function's local scope, including variables created *after* the formal parameters. Hadley's classic `h05()` example shows how strange that gets:
 
-```r
+```r title="Default versus caller environment"
 h05 <- function(x = ls()) {
   a <- 1
   x  # first read of x — forces the default promise NOW
@@ -201,7 +201,7 @@ Same expression, `ls()`, two completely different results. The default version r
 
 **Try it:** Write `ex_append(x, suffix = paste0("-", length(x)))` that returns `paste0(x, suffix)`. Call it with and without `suffix`.
 
-```r
+```r title="Exercise: Lazy suffix default"
 # Try it
 ex_append <- function(x, suffix = paste0("-", length(x))) {
   # your code here
@@ -216,7 +216,7 @@ ex_append(c("a", "b", "c"), "!")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Lazy suffix solution"
 ex_append <- function(x, suffix = paste0("-", length(x))) {
   paste0(x, suffix)
 }
@@ -234,7 +234,7 @@ ex_append(c("a", "b", "c"), "!")
 
 This is the bug that lazy evaluation is infamous for. Build closures inside a `for` loop that captures the loop variable, and every closure will end up pointing at the *same* final value. Watch:
 
-```r
+```r title="Closure loop trap demo"
 # The buggy factory — no force()
 make_adder <- function(n) {
   function(x) x + n
@@ -259,7 +259,7 @@ All three adders return 13. Why? Each call `make_adder(i)` created a promise for
 
 The fix is to **force the promise eagerly** inside the factory, before the inner function is returned. `force(n)` is the idiomatic way to say "evaluate this promise now, capture its value":
 
-```r
+```r title="Force fixes the factory"
 # The safe factory — force() burns in the value
 make_adder_safe <- function(n) {
   force(n)           # evaluate n NOW, cache in the promise's value slot
@@ -288,7 +288,7 @@ Technically, `force(x)` is nothing more than `identity(x)`, it does not exist to
 
 **Try it:** The factory below builds personalised greeters but has the same bug. Add `force()` to fix it.
 
-```r
+```r title="Exercise: Fix greeter factory"
 # Try it: fix the greeter factory
 ex_make_greeter <- function(name) {
   # add one line here
@@ -311,7 +311,7 @@ greeters$Cai()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Greeter force solution"
 ex_make_greeter <- function(name) {
   force(name)
   function() paste0("Hi, ", name, "!")
@@ -336,7 +336,7 @@ greeters$Cai()
 
 So far we've talked about forcing a promise, getting its value. `substitute()` does the opposite: it reads the **expression** slot *without* triggering evaluation. It gives you the raw code the caller typed.
 
-```r
+```r title="Inspect promise with substitute"
 show_expression <- function(x) {
   expr <- substitute(x)
   cat("Expression:", deparse(expr), "\n")
@@ -366,7 +366,7 @@ This is the engine behind a lot of "magic" R functions. `plot(x, y)` labels its 
 
 **Try it:** Write `ex_describe(x)` that returns a named list with `expression` (a character string via `deparse`) and `value`.
 
-```r
+```r title="Exercise: Describe the expression"
 # Try it
 ex_describe <- function(x) {
   # your code here
@@ -383,7 +383,7 @@ ex_describe(10 * (3 + 2))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Expression inspector solution"
 ex_describe <- function(x) {
   list(
     expression = deparse(substitute(x)),
@@ -406,7 +406,7 @@ ex_describe(10 * (3 + 2))
 
 Function arguments are the usual source of promises, but you can create one at the top level too. `delayedAssign(name, expr)` binds `name` to a promise that holds `expr` unevaluated, the expression runs the first time you reference `name`, and never again.
 
-```r
+```r title="Manual promise with delayedAssign"
 # Bind a promise to the name `big_calc` without running the body
 delayedAssign("big_calc", {
   cat("(computing big_calc...)\n")
@@ -435,7 +435,7 @@ This is how many R packages expose large reference datasets: `delayedAssign` on 
 
 **Try it:** Use `delayedAssign()` to create `ex_config` whose expression reads the current time via `Sys.time()`. Confirm that the *same* time shows up on repeated reads.
 
-```r
+```r title="Exercise: delayedAssign caches once"
 # Try it
 delayedAssign("ex_config", Sys.time())
 
@@ -451,7 +451,7 @@ identical(first, second)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="delayedAssign cache solution"
 delayedAssign("ex_config", Sys.time())
 
 first  <- ex_config
@@ -474,7 +474,7 @@ These pull together several ideas from the tutorial. Use distinct variable names
 
 Write `make_multiplier(n)` that returns a function of `x` computing `x * n`. Build five multipliers in a `for` loop (for `n = 2` through `6`) and store them in a list called `my_mults`. Verify that each multiplier returns the correct result, `my_mults[[1]](10)` should give `20`, `my_mults[[5]](10)` should give `60`.
 
-```r
+```r title="Exercise: Multiplier with force"
 # Exercise 1: use force() to avoid the closure-loop trap
 
 make_multiplier <- function(n) {
@@ -494,7 +494,7 @@ sapply(my_mults, function(f) f(10))
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Multiplier factory solution"
 make_multiplier <- function(n) {
   force(n)
   function(x) x * n
@@ -517,7 +517,7 @@ sapply(my_mults, function(f) f(10))
 
 Write `once(fn)` that takes a zero-argument function `fn` and returns a new function that runs `fn()` the first time it's called and returns the cached result on every subsequent call. Do this using a local environment (not `delayedAssign`). Test on a random-number generator and confirm two calls give the *same* number.
 
-```r
+```r title="Exercise: Cache-once once helper"
 # Exercise 2: cache-on-first-call helper
 
 once <- function(fn) {
@@ -535,7 +535,7 @@ my_once_fn()
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Run-once helper solution"
 once <- function(fn) {
   force(fn)
   cache <- new.env(parent = emptyenv())
@@ -567,7 +567,7 @@ my_once_fn()
 
 Write `safe_default(x, n = length(x))` that returns `head(x, n)`, but *guards* against the trap shown earlier: if the caller passes their own `n`, use it; if they omit `n`, fall back to `length(x)` computed inside the function. Use `missing()` to tell the two cases apart.
 
-```r
+```r title="Exercise: missing with default"
 # Exercise 3: missing() + default arg
 
 safe_default <- function(x, n = length(x)) {
@@ -586,7 +586,7 @@ my_safe
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="missing default solution"
 safe_default <- function(x, n = length(x)) {
   if (missing(n)) {
     n <- length(x)  # computed in this frame, promises forced here
@@ -610,7 +610,7 @@ Here's a small real-world scenario that ties promises, `force()`, and `delayedAs
 
 `lazy_config()` accepts a list of name → expression pairs (passed via `quote()` so the expressions don't evaluate at call time). It stores each expression as a promise inside a dedicated environment and returns that environment. Reading a key forces the corresponding promise exactly once.
 
-```r
+```r title="End-to-end lazy config loader"
 lazy_config <- function(entries) {
   env <- new.env(parent = emptyenv())
   for (key in names(entries)) {

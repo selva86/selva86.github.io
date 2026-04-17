@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 Three pressures are pushing researchers off SPSS: a monthly licence fee that disappears the moment you leave your institution, journals demanding reproducible scripts that point-and-click workflows cannot produce, and a wave of modern methods, Bayesian models, meta-analysis, mixed-effects, that SPSS simply does not offer. The alternative is shorter than you think. Below is a complete independent-samples t-test in R: one line of code, full output, and no menu dance.
 
-```r
+```r title="Independent t-test in one line"
 # Compare mpg between 4-cylinder and 8-cylinder cars
 # In SPSS: Analyze > Compare Means > Independent-Samples T Test (6 clicks)
 mtcars_sub <- mtcars[mtcars$cyl %in% c(4, 8), ]
@@ -44,7 +44,7 @@ The test shows that 4-cylinder cars average 11.6 more mpg than 8-cylinder cars, 
 
 **Try it:** Run the same independent-samples t-test on the `iris` dataset, comparing `Sepal.Length` between the `setosa` and `versicolor` species.
 
-```r
+```r title="Exercise: sepal length t-test"
 # Try it: test if setosa and versicolor have different sepal lengths
 ex_iris <- iris[iris$Species %in% c("setosa", "versicolor"), ]
 # your code here
@@ -55,7 +55,7 @@ ex_iris <- iris[iris$Species %in% c("setosa", "versicolor"), ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sepal-length t-test solution"
 ex_iris <- iris[iris$Species %in% c("setosa", "versicolor"), ]
 t.test(Sepal.Length ~ Species, data = ex_iris)
 #>
@@ -88,7 +88,7 @@ The headline is easy: R is free and SPSS is not. The real size of the gap only b
 
 R is open source under GPL-2: install it, use it, embed it in a commercial product, share your scripts, ship your thesis with every line of analysis intact. SPSS charges per seat per month, and several of the statistical tools SPSS users reach for most, structural equation modelling with AMOS, complex survey sampling, exact tests, are sold as separate paid modules.
 
-```r
+```r title="Five-year cost comparison for a lab"
 # 5-year SPSS vs R cost for a 10-person research lab
 lab_size <- 10
 years <- 5
@@ -110,7 +110,7 @@ A 10-person lab running SPSS Standard for five years spends $59,400 on software 
 
 **Try it:** Change `ex_lab` to the size of your own team and compute your 5-year SPSS cost.
 
-```r
+```r title="Exercise: project your lab cost"
 # Try it: project your own lab's 5-year SPSS cost
 ex_lab <- 5   # change to your lab size
 ex_cost <- NA  # replace NA with your cost formula
@@ -121,7 +121,7 @@ ex_cost
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Lab-cost solution"
 ex_lab <- 5
 ex_cost <- ex_lab * 99 * 12 * 5
 ex_cost
@@ -150,7 +150,7 @@ R's built-in `stats` package covers everything in SPSS Base, and CRAN's 21,000+ 
 
 Here is the exact equivalent of SPSS's `ONEWAY` command followed by a Tukey HSD post-hoc test, running on the built-in `InsectSprays` dataset:
 
-```r
+```r title="One-way ANOVA plus Tukey HSD"
 # SPSS: Analyze > Compare Means > One-Way ANOVA > Post Hoc: Tukey
 anova_fit <- aov(count ~ spray, data = InsectSprays)
 summary(anova_fit)
@@ -177,7 +177,7 @@ The ANOVA shows a strong main effect of spray type (F = 34.7, p < 0.001), and th
 
 **Try it:** Run a one-way ANOVA on `mtcars` to test whether `mpg` differs across the three cylinder groups (`factor(cyl)`).
 
-```r
+```r title="Exercise: ANOVA of mpg by cylinder"
 # Try it: ANOVA of mpg across cylinder groups
 ex_anova <- NA  # replace NA with the aov() call
 ex_anova
@@ -187,7 +187,7 @@ ex_anova
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mpg-ANOVA solution"
 ex_anova <- aov(mpg ~ factor(cyl), data = mtcars)
 summary(ex_anova)
 #>             Df Sum Sq Mean Sq F value   Pr(>F)
@@ -236,7 +236,7 @@ Every SPSS command you use regularly has a direct R counterpart:
 
 Here is a typical SPSS preprocessing block, recode a continuous variable into groups, keep only adults, and print descriptives, rewritten in `dplyr`:
 
-```r
+```r title="Recode, filter, and summarise in dplyr"
 library(dplyr)
 
 people <- data.frame(age = c(12, 25, 42, 70, 33, 8, 55))
@@ -269,7 +269,7 @@ The R version does in one pipeline what SPSS splits across three separate comman
 
 **Try it:** Translate the SPSS commands `SELECT IF age < 40.` and `COMPUTE age_decade = age / 10.` into R using the `people_tagged` dataset from above. Save the result as `ex_young`.
 
-```r
+```r title="Exercise: filter under-40s with decade"
 # Try it: filter to under-40s and compute a decade column
 ex_young <- NA  # replace NA with your filter + mutate pipeline
 ex_young
@@ -279,7 +279,7 @@ ex_young
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Under-40s solution"
 ex_young <- people_tagged |>
   filter(age < 40) |>
   mutate(age_decade = age / 10)
@@ -309,7 +309,7 @@ Be honest about the transition: SPSS takes an afternoon to feel useful; R takes 
 
 Here is a typical SPSS `MEANS` workflow, group means and SDs for a continuous variable, expressed in a single `dplyr` pipeline. This is the shape most of your real analyses will take in R:
 
-```r
+```r title="Grouped summary in six lines"
 # SPSS: MEANS TABLES = mpg BY cyl
 mtcars |>
   group_by(cyl) |>
@@ -335,7 +335,7 @@ This single pipeline produces the same grouped-statistics table SPSS gives you t
 
 **Try it:** Reproduce the grouped-summary pipeline for `iris`, computing the mean and SD of `Sepal.Length` by `Species`.
 
-```r
+```r title="Exercise: grouped summary of sepals"
 # Try it: grouped summary of Sepal.Length by Species
 ex_iris_summary <- NA  # replace NA with your group_by + summarise pipeline
 ex_iris_summary
@@ -345,7 +345,7 @@ ex_iris_summary
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sepal-summary solution"
 ex_iris_summary <- iris |>
   group_by(Species) |>
   summarise(
@@ -373,7 +373,7 @@ ex_iris_summary
 
 Filter `mtcars` to cars with automatic transmission (`am == 0`), group by `cyl`, and compute the mean and SD of horsepower (`hp`). Save the result to `my_summary`.
 
-```r
+```r title="Exercise: horsepower by cylinder"
 # Exercise: automatic cars only, grouped hp summary
 # Hint: filter() then group_by() then summarise()
 
@@ -384,7 +384,7 @@ my_summary
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Horsepower-summary solution"
 my_summary <- mtcars |>
   filter(am == 0) |>
   group_by(cyl) |>
@@ -411,7 +411,7 @@ my_summary
 
 Run an independent-samples t-test on `iris` comparing `Petal.Width` between `versicolor` and `virginica`. Then compute Cohen's d manually as the mean difference divided by the pooled standard deviation.
 
-```r
+```r title="Exercise: t-test plus Cohen's d"
 # Exercise: t-test + manual Cohen's d
 # Hint: pooled_sd = sqrt((sd1^2 + sd2^2) / 2) works when groups are similar size
 
@@ -424,7 +424,7 @@ cohens_d
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cohen's-d solution"
 petal_sub <- iris[iris$Species %in% c("versicolor", "virginica"), ]
 petal_t   <- t.test(Petal.Width ~ Species, data = petal_sub)
 petal_t
@@ -451,7 +451,7 @@ cohens_d
 
 Fit a one-way ANOVA of `mpg` across `factor(cyl)` on `mtcars`, extract the F-statistic and p-value programmatically (not by reading them off the printed summary), and print a single formatted string.
 
-```r
+```r title="Exercise: extract F and p from aov"
 # Exercise: extract F and p from an aov object
 # Hint: summary(fit)[[1]] is a data.frame with columns "F value" and "Pr(>F)"
 
@@ -465,7 +465,7 @@ cat("ANOVA F =", f_stat, ", p =", p_val, "\n")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Extract-F-and-p solution"
 aov_fit <- aov(mpg ~ factor(cyl), data = mtcars)
 aov_summary <- summary(aov_fit)[[1]]
 
@@ -484,7 +484,7 @@ cat("ANOVA F =", round(f_stat, 2), ", p =", signif(p_val, 3), "\n")
 
 Here is a full, six-step reproducible SPSS-style analysis written entirely in R: load the data, recode a grouping variable, compute descriptives, run a one-way ANOVA with post-hoc tests, and produce a publication-quality plot. This is the same logical flow a typical `.sps` syntax file would follow, compressed into one script you can save and re-run anywhere.
 
-```r
+```r title="Six-step SPSS-style analysis in R"
 library(dplyr)
 library(ggplot2)
 

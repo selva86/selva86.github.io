@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 `apply()` is a matrix function wearing a friendly face. Internally it calls `as.matrix()` on your input and demands a rectangular, single-type grid. A vector has no rows and columns, a list has no shape at all, and a mixed data frame forces every number to become a character. Any of these trips the error. The fastest way to see the fix is to watch it happen.
 
-```r
+```r title="Reproduce apply on mixed data frame"
 # A small gradebook with a name column (character) plus two numeric columns.
 grades <- data.frame(
   student = c("Alice", "Bob", "Cara"),
@@ -47,7 +47,7 @@ The first call fails because `as.matrix()` promoted the `student` column (charac
 
 **Try it:** Using the built-in `iris` dataset, compute the row-wise sum of its four numeric columns (columns 1 through 4) with `apply()`. Store the result in `ex_row_sums` and print the first six values.
 
-```r
+```r title="Exercise: iris row sums"
 # Try it: row sums of iris numeric columns
 ex_row_sums <- # your code here
 
@@ -58,7 +58,7 @@ head(ex_row_sums)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="iris row-sums solution"
 ex_row_sums <- apply(as.matrix(iris[, 1:4]), 1, sum)
 head(ex_row_sums)
 #> [1] 10.2  9.5  9.4  9.4 10.2 11.4
@@ -72,7 +72,7 @@ head(ex_row_sums)
 
 The error is almost always a conversion error, not an `apply()` error. Your job is to hand `apply()` a numeric matrix, which means picking the numeric columns explicitly, then coercing. Let's see the silent failure mode up close, because no error is thrown and the wrong answer ships to production.
 
-```r
+```r title="Silent coercion from factor column"
 # iris has four numeric columns plus a Species factor.
 # Naive conversion: the factor drags everything to character.
 bad <- as.matrix(iris)
@@ -97,7 +97,7 @@ Two things are worth noticing. First, `typeof(bad)` is `"character"`, no warning
 
 **Try it:** The `airquality` dataset has numeric and integer columns plus some `NA`s. Compute the column means for every numeric column, ignoring `NA`s. Save the result to `ex_aq_means`.
 
-```r
+```r title="Exercise: airquality column means"
 # Try it: column means of airquality
 ex_aq_means <- # your code here
 
@@ -108,7 +108,7 @@ ex_aq_means
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="airquality column-means solution"
 ex_aq_means <- apply(
   as.matrix(airquality[, sapply(airquality, is.numeric)]),
   2,
@@ -131,7 +131,7 @@ Some structures have no rows and columns at all, lists in particular. `apply()` 
 ![Decision flowchart showing which apply-family function to use based on data shape](screenshots/R-Error-Not-Matrix-apply-family-decision.webp)
 *Figure 1: Choosing between apply(), lapply()/sapply()/vapply(), tapply(), and mapply() based on your data's shape.*
 
-```r
+```r title="apply fails on lists, use sapply"
 # A named list of numeric vectors — one per student, lengths may differ later.
 scores_list <- list(
   alice = c(88, 92, 85),
@@ -162,7 +162,7 @@ vapply(scores_list, mean, numeric(1))
 
 **Try it:** Given a list of three numeric vectors `ex_list <- list(a = 1:5, b = 6:10, c = 11:15)`, compute the sum of each element and return a named numeric vector. Save it to `ex_sums`.
 
-```r
+```r title="Exercise: list element sums"
 # Try it: list element sums
 ex_list <- list(a = 1:5, b = 6:10, c = 11:15)
 ex_sums <- # your code here
@@ -174,7 +174,7 @@ ex_sums
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="List-sum solution"
 ex_list <- list(a = 1:5, b = 6:10, c = 11:15)
 ex_sums <- sapply(ex_list, sum)
 ex_sums
@@ -190,7 +190,7 @@ ex_sums
 
 If your workflow already lives in dplyr, `across()` is the modern, readable alternative to `apply()` for column-wise operations. It picks columns with `tidyselect` helpers like `where(is.numeric)`, no manual filter step needed.
 
-```r
+```r title="dplyr across for column ops"
 library(dplyr)
 
 # starwars has numeric columns (height, mass, birth_year) and character columns.
@@ -211,7 +211,7 @@ Three things are worth calling out. `where(is.numeric)` is a tidyselect helper t
 
 **Try it:** Use `across()` with `summarise()` to compute the median of every numeric column in the built-in `mtcars` data frame. Save the result to `ex_mtcars_medians`.
 
-```r
+```r title="Exercise: mtcars column medians"
 # Try it: mtcars column medians via across()
 ex_mtcars_medians <- # your code here
 
@@ -222,7 +222,7 @@ ex_mtcars_medians
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="mtcars medians solution"
 ex_mtcars_medians <- mtcars |>
   summarise(across(where(is.numeric), median))
 
@@ -241,7 +241,7 @@ ex_mtcars_medians
 
 Most errors are preventable with three small habits: check shapes before you convert, preserve rectangular structure when subsetting, and prefer specialised functions when they exist. Here's all three in a single demo.
 
-```r
+```r title="Guard, drop=FALSE, built-ins"
 # 1. Guard clause: refuse anything that isn't already numeric and 2D.
 safe_row_means <- function(x) {
   stopifnot(is.matrix(x) || is.data.frame(x))
@@ -268,7 +268,7 @@ Each line earns its keep. `stopifnot()` turns a silent misuse ("I passed a vecto
 
 **Try it:** Write a function `ex_col_mins(df)` that returns the minimum of every numeric column in `df` as a named numeric vector. Use a `stopifnot()` guard to refuse non-data-frame input. Test it on `mtcars`.
 
-```r
+```r title="Exercise: safe column minimums"
 # Try it: safe column minimums
 ex_col_mins <- function(df) {
   # your code here
@@ -281,7 +281,7 @@ head(ex_col_mins(mtcars), 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Safe column-minimums solution"
 ex_col_mins <- function(df) {
   stopifnot(is.data.frame(df))
   nums <- df[, sapply(df, is.numeric), drop = FALSE]
@@ -303,7 +303,7 @@ head(ex_col_mins(mtcars), 3)
 
 `airquality` has six numeric columns, `Ozone`, `Solar.R`, `Wind`, `Temp`, `Month`, `Day`, and scattered `NA`s in the first two. Compute a numeric vector of row means across all six columns, handling `NA`s. Save the result to `aq_row_means` and show the first six values.
 
-```r
+```r title="Exercise: NA-safe row means"
 # Exercise 1: row means of airquality (NA-safe)
 # Hint: use na.rm = TRUE inside apply()
 
@@ -315,7 +315,7 @@ head(aq_row_means)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="airquality row-means solution"
 aq_row_means <- apply(as.matrix(airquality), 1, mean, na.rm = TRUE)
 head(aq_row_means)
 #> [1] 38.00000 40.16667 29.33333 30.50000 31.00000 29.83333
@@ -329,7 +329,7 @@ head(aq_row_means)
 
 You have a list of numeric vectors of *different lengths*. Compute the mean and standard deviation of each element and return a data frame with columns `name`, `mean`, `sd`. Save it to `ragged_summary`.
 
-```r
+```r title="Exercise: ragged-list mean and sd"
 # Exercise 2: per-element mean + sd from a ragged list
 ragged <- list(
   north = c(12, 15, 9, 11),
@@ -347,7 +347,7 @@ ragged_summary
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Ragged-list summary solution"
 ragged <- list(
   north = c(12, 15, 9, 11),
   south = c(20, 22, 19, 25, 18, 21),
@@ -375,7 +375,7 @@ ragged_summary
 
 Putting every approach side by side on a small sales-by-region data set.
 
-```r
+```r title="Every approach on sales data"
 library(dplyr)
 
 sales <- data.frame(

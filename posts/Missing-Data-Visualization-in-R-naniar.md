@@ -55,7 +55,7 @@ Before you visualize anything, you need a mental model for why data goes missing
 
 Let's create a sample dataset that demonstrates how to inspect missing values using base R before we bring in naniar.
 
-```r
+```r title="Inspect airquality structure"
 # Inspect the built-in airquality dataset
 aq <- airquality
 str(aq)
@@ -81,7 +81,7 @@ The `airquality` dataset has 153 rows and 6 columns. Ozone is missing 37 values 
 
 **Try it:** Without using any package, write a one-liner that counts how many rows have at least one NA. Store the result in `ex_incomplete_count`.
 
-```r
+```r title="Exercise: count incomplete rows"
 # Try it: count rows with at least one NA
 ex_incomplete_count <- # your code here
 
@@ -93,7 +93,7 @@ ex_incomplete_count
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: count incomplete rows"
 ex_incomplete_count <- sum(!complete.cases(aq))
 ex_incomplete_count
 #> [1] 42
@@ -109,7 +109,7 @@ The `vis_miss()` function creates a heatmap of your entire dataset. Each cell is
 
 Think of it as an X-ray of your data frame. One plot replaces dozens of `is.na()` calls.
 
-```r
+```r title="Plot missingness heatmap"
 # Load naniar and create the heatmap
 library(naniar)
 library(ggplot2)
@@ -124,7 +124,7 @@ The plot shows Ozone with a thick band of black marks scattered through the rows
 
 Now let's sort and cluster the missing values to make patterns even more obvious.
 
-```r
+```r title="Sort and cluster missing patterns"
 # Sort columns by missingness and cluster rows
 vis_miss(aq, sort_miss = TRUE, cluster = TRUE)
 #> [Plot: columns reordered so Ozone (most missing) is on the left.
@@ -140,7 +140,7 @@ With `sort_miss = TRUE`, the most-missing column moves to the left. With `cluste
 
 **Try it:** Run `vis_miss()` on the built-in `airquality` dataset but only for the months of July and August (Month == 7 or Month == 8). Store the filtered data in `ex_summer`.
 
-```r
+```r title="Exercise: summer missing heatmap"
 # Try it: vis_miss for summer months only
 ex_summer <- aq[aq$Month %in% c(7, 8), ]
 # Now run vis_miss on ex_summer
@@ -150,7 +150,7 @@ ex_summer <- aq[aq$Month %in% c(7, 8), ]
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: summer heatmap"
 ex_summer <- aq[aq$Month %in% c(7, 8), ]
 vis_miss(ex_summer, sort_miss = TRUE)
 #> [Plot: fewer missing values in summer months — Ozone still has gaps
@@ -165,7 +165,7 @@ vis_miss(ex_summer, sort_miss = TRUE)
 
 While `vis_miss()` shows the spatial layout, `gg_miss_var()` answers a simpler question: which variables have the most missing values? It draws a horizontal bar chart with one bar per column, ranked from most to least missing.
 
-```r
+```r title="Rank variables by missing count"
 # Bar chart of missing counts per variable
 gg_miss_var(aq)
 #> [Plot: horizontal bar chart.
@@ -178,7 +178,7 @@ Ozone dominates with 37 missing values. Solar.R has 7. The other four are comple
 
 You can switch from counts to percentages with one argument.
 
-```r
+```r title="Rank variables by missing percent"
 # Show percentage instead of count
 gg_miss_var(aq, show_pct = TRUE)
 #> [Plot: same bar chart but x-axis shows percentage.
@@ -189,7 +189,7 @@ gg_miss_var(aq, show_pct = TRUE)
 
 The real power of `gg_miss_var()` appears when you facet by a grouping variable. This lets you compare missingness across subgroups, a direct test for MAR patterns.
 
-```r
+```r title="Facet missing by month"
 # Facet by Month to compare groups
 gg_miss_var(aq, facet = Month, show_pct = TRUE)
 #> [Plot: five panels (May through September).
@@ -205,7 +205,7 @@ The faceted plot shows that Ozone missingness varies by month, June is the worst
 
 **Try it:** Create a `gg_miss_var()` plot of `airquality` that shows percentages and is faceted by `Month`. Add a title using `+ ggtitle("your title")`. Store the plot in `ex_faceted_plot`.
 
-```r
+```r title="Exercise: faceted missing with title"
 # Try it: faceted gg_miss_var with title
 ex_faceted_plot <- # your code here
 
@@ -216,7 +216,7 @@ ex_faceted_plot
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: faceted with title"
 ex_faceted_plot <- gg_miss_var(aq, show_pct = TRUE, facet = Month) +
   ggtitle("Missing Data by Month in airquality")
 ex_faceted_plot
@@ -233,7 +233,7 @@ A bar chart tells you how much each variable is missing. An upset plot tells you
 
 The `gg_miss_upset()` function creates an upset plot, a modern alternative to Venn diagrams that scales to many variables. The bottom grid shows which variables are involved in each combination. The bars above show how many rows match that combination.
 
-```r
+```r title="Upset plot of missing combinations"
 # Upset plot of co-occurring missingness
 gg_miss_upset(aq)
 #> [Plot: upset plot with three bars.
@@ -247,7 +247,7 @@ The upset plot reveals three missingness patterns. The dominant pattern is "Ozon
 
 For datasets with many variables, you can control how many variable sets and intersections to display.
 
-```r
+```r title="Tune upset size and intersections"
 # Control the number of sets displayed
 gg_miss_upset(aq, nsets = 6, nintersects = 10)
 #> [Plot: same structure but configured to show up to 6 variable sets
@@ -260,7 +260,7 @@ gg_miss_upset(aq, nsets = 6, nintersects = 10)
 
 **Try it:** The `riskfactors` dataset (bundled with naniar) has many more missing patterns. Run `gg_miss_upset(riskfactors, nsets = 5, nintersects = 5)` and note which variable combination has the most co-occurring NAs.
 
-```r
+```r title="Exercise: riskfactors upset plot"
 # Try it: upset plot on riskfactors
 data(riskfactors, package = "naniar")
 # your code here
@@ -269,7 +269,7 @@ data(riskfactors, package = "naniar")
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: riskfactors upset"
 data(riskfactors, package = "naniar")
 gg_miss_upset(riskfactors, nsets = 5, nintersects = 5)
 #> [Plot: complex upset plot showing several intersections.
@@ -285,7 +285,7 @@ gg_miss_upset(riskfactors, nsets = 5, nintersects = 5)
 
 Standard scatter plots silently drop NA values. If Ozone is NA for a row, that row vanishes from any plot involving Ozone. You see fewer points than you expect, but the plot never tells you why. `geom_miss_point()` fixes this by shifting missing values to a position 10% below the data range and coloring them differently.
 
-```r
+```r title="Plot missing points in scatter"
 # Scatter plot that shows where NAs would normally be hidden
 ggplot(aq, aes(x = Ozone, y = Solar.R)) +
   geom_miss_point() +
@@ -304,7 +304,7 @@ Now you see the full picture. The dark points in the main cloud are complete cas
 
 You can facet `geom_miss_point()` to check whether the missingness pattern changes across groups.
 
-```r
+```r title="Facet missing scatter by group"
 # Facet by Month to see group-level patterns
 ggplot(aq, aes(x = Ozone, y = Solar.R)) +
   geom_miss_point() +
@@ -320,7 +320,7 @@ The faceted view confirms that May and June have the highest concentrations of m
 
 **Try it:** Create a `geom_miss_point()` scatter plot of `Wind` vs `Temp` from `aq`. Since neither Wind nor Temp has NAs, you should see zero shifted points. Store the plot in `ex_complete_scatter`.
 
-```r
+```r title="Exercise: Wind Temp completeness"
 # Try it: geom_miss_point with complete variables
 ex_complete_scatter <- ggplot(aq, aes(x = Wind, y = Temp)) +
   # your code here
@@ -332,7 +332,7 @@ ex_complete_scatter
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: Wind Temp completeness"
 ex_complete_scatter <- ggplot(aq, aes(x = Wind, y = Temp)) +
   geom_miss_point() +
   theme_minimal()
@@ -355,7 +355,7 @@ Visualizations show patterns, but sometimes you need exact numbers. The naniar p
 
 `gg_miss_case()` draws a bar chart of missing values per row (case). This tells you whether missingness concentrates in a few rows or spreads evenly.
 
-```r
+```r title="Rank cases by missing count"
 # Bar chart: how many NAs per row?
 gg_miss_case(aq)
 #> [Plot: bar chart with one bar per row (153 bars).
@@ -368,7 +368,7 @@ Most rows are complete. About 35 rows have exactly one missing value (usually Oz
 
 For precise numbers, use `miss_var_summary()` and `miss_case_summary()`. Both return tidy tibbles.
 
-```r
+```r title="Summarise missing variables and cases"
 # Variable-level summary
 miss_var_summary(aq)
 #>   variable n_miss pct_miss
@@ -398,7 +398,7 @@ Row 5 has 2 missing values out of 6 columns (33.3%). These summary tibbles are p
 
 **Try it:** Use `miss_case_summary()` to find all rows in `aq` where the percentage of missing values is greater than 0. Store the result in `ex_incomplete_rows` and count how many rows there are.
 
-```r
+```r title="Exercise: count incomplete cases"
 # Try it: find all incomplete rows
 ex_incomplete_rows <- # your code here
 
@@ -410,7 +410,7 @@ nrow(ex_incomplete_rows)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: incomplete cases"
 ex_incomplete_rows <- miss_case_summary(aq) |>
   dplyr::filter(pct_miss > 0)
 nrow(ex_incomplete_rows)
@@ -426,7 +426,7 @@ nrow(ex_incomplete_rows)
 ### Mistake 1: Deleting rows without checking the mechanism first
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: na.omit silently drops rows"
 # Just remove all incomplete rows
 aq_clean <- na.omit(aq)
 nrow(aq_clean)
@@ -436,7 +436,7 @@ nrow(aq_clean)
 **Why it is wrong:** You dropped 42 rows (27% of the data). If the missingness is MAR or MNAR, the remaining 111 rows are not representative. Your downstream statistics will be biased because you systematically excluded certain conditions (like low-ozone days).
 
 ✅ **Correct:**
-```r
+```r title="Correct: report dropped count"
 # First, visualize the pattern
 # vis_miss(aq, sort_miss = TRUE, cluster = TRUE)
 # gg_miss_var(aq, facet = Month, show_pct = TRUE)
@@ -455,7 +455,7 @@ cat("Dropped:", nrow(aq) - nrow(na.omit(aq)), "rows (",
 ### Mistake 2: Using na.rm = TRUE everywhere without investigating
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: na.rm hides missingness"
 # Suppress the NA warning and move on
 mean(aq$Ozone, na.rm = TRUE)
 #> [1] 42.12931
@@ -464,7 +464,7 @@ mean(aq$Ozone, na.rm = TRUE)
 **Why it is wrong:** The mean of 42.1 only reflects the 116 non-missing Ozone values. If the 37 missing values tend to be low (because monitoring equipment fails on low-ozone days), the true mean is lower. Using `na.rm = TRUE` blindly hides this bias.
 
 ✅ **Correct:**
-```r
+```r title="Correct: report count and percent"
 # Report missingness alongside the statistic
 ozone_mean <- mean(aq$Ozone, na.rm = TRUE)
 ozone_n <- sum(!is.na(aq$Ozone))
@@ -485,7 +485,7 @@ cat("Mean Ozone:", round(ozone_mean, 1),
 ### Mistake 4: Running vis_miss() on huge datasets without sampling
 
 ❌ **Wrong:**
-```r
+```r title="Mistake: literal negative placeholder"
 # Dataset with 1 million rows
 # vis_miss(big_data)  # Takes forever, plot is unreadable
 ```
@@ -493,7 +493,7 @@ cat("Mean Ozone:", round(ozone_mean, 1),
 **Why it is wrong:** `vis_miss()` renders one cell per observation per variable. A million-row dataset with 20 columns generates 20 million cells. The plot takes minutes and the individual cells are invisible.
 
 ✅ **Correct:**
-```r
+```r title="Correct: read sentinel as missing"
 # Sample first, then visualize
 set.seed(123)
 big_sample <- aq[sample(nrow(aq), min(nrow(aq), 500)), ]
@@ -508,7 +508,7 @@ nrow(big_sample)
 
 Use the `airquality` dataset to create a three-part missingness profile: (1) a vis_miss heatmap with sorting and clustering, (2) a gg_miss_var bar chart with percentages faceted by Month, and (3) an upset plot. Based on all three, state whether you think the Ozone missingness is MCAR, MAR, or MNAR.
 
-```r
+```r title="Mistake: heatmap on huge dataset"
 # Exercise: three-part missingness profile
 # Hint: run vis_miss(), gg_miss_var(), and gg_miss_upset() in sequence
 
@@ -519,7 +519,7 @@ Use the `airquality` dataset to create a three-part missingness profile: (1) a v
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Correct: sample before heatmap"
 # Part 1: Heatmap
 vis_miss(aq, sort_miss = TRUE, cluster = TRUE)
 
@@ -546,7 +546,7 @@ gg_miss_upset(aq)
 
 Create a faceted `geom_miss_point()` scatter plot comparing `Ozone` vs `Solar.R` across two groups: early summer (Month 5-6) and late summer (Month 7-9). Add a column called `period` to the data frame first. Does the pattern of shifted (missing) points differ between periods?
 
-```r
+```r title="Exercise: three part missing profile"
 # Exercise: compare missingness across time periods
 # Hint: create a 'period' column with ifelse(), then facet_wrap(~period)
 
@@ -557,7 +557,7 @@ Create a faceted `geom_miss_point()` scatter plot comparing `Ozone` vs `Solar.R`
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: three part profile"
 my_aq <- aq
 my_aq$period <- ifelse(my_aq$Month <= 6, "Early Summer", "Late Summer")
 
@@ -579,7 +579,7 @@ ggplot(my_aq, aes(x = Ozone, y = Solar.R)) +
 
 Write a function `my_miss_report(df)` that takes any data frame and prints: (1) total rows and columns, (2) overall missingness percentage, (3) the top 3 most-missing variables with their counts and percentages. Use only base R (no naniar needed).
 
-```r
+```r title="Exercise: compare missing across periods"
 # Exercise: reusable missingness report
 # Hint: use colSums(is.na()), sort(), and head()
 
@@ -590,7 +590,7 @@ Write a function `my_miss_report(df)` that takes any data frame and prints: (1) 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Exercise solution: compare periods"
 my_miss_report <- function(df) {
   cat("Dataset:", nrow(df), "rows x", ncol(df), "columns\n")
   cat("Overall missingness:", round(mean(is.na(df)) * 100, 1), "%\n\n")
@@ -628,7 +628,7 @@ my_miss_report(aq)
 
 Let's walk through a complete missing data exploration from start to finish. We will load the data, get the big picture, drill into variables and patterns, check relationships, and arrive at a mechanism diagnosis.
 
-```r
+```r title="Exercise: build my miss report"
 # Step 1: Load data and get quick counts
 aq <- airquality
 cat("Shape:", nrow(aq), "x", ncol(aq), "\n")
@@ -641,7 +641,7 @@ cat("Overall NA rate:", round(mean(is.na(aq)) * 100, 1), "%\n")
 
 We know 42 rows have at least one NA. Let's see the spatial layout.
 
-```r
+```r title="Exercise solution: my miss report"
 # Step 2: Big picture heatmap
 # vis_miss(aq, sort_miss = TRUE, cluster = TRUE)
 # Result: Ozone has scattered NAs, Solar.R has a few. Two clusters visible.
@@ -653,7 +653,7 @@ We know 42 rows have at least one NA. Let's see the spatial layout.
 
 Now check whether missingness rates change across months.
 
-```r
+```r title="Capstone: load and profile missingness"
 # Step 4: Group comparison
 # gg_miss_var(aq, show_pct = TRUE, facet = Month)
 # Result: June has ~33% Ozone missingness, August has ~15%.
@@ -667,7 +667,7 @@ Now check whether missingness rates change across months.
 
 Finally, check whether the missing Ozone values correlate with Solar.R.
 
-```r
+```r title="Capstone: rank and inspect patterns"
 # Step 6: Relationship check
 # ggplot(aq, aes(x = Ozone, y = Solar.R)) +
 #   geom_miss_point() +

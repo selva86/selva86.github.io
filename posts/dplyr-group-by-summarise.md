@@ -24,7 +24,7 @@ difficulty: "Intermediate"
 
 Most analytical questions sound the same: *what's the average by category?* *which segment spends the most?* *how many orders per month?* Every one of them follows one pattern, split rows into groups, apply a function, combine the results into a tidy table. `group_by()` marks the split and `summarise()` does the apply-and-combine in one step. Here's the payoff on the built-in `mtcars` dataset, answering "what's the average fuel economy by cylinder count?":
 
-```r
+```r title="groupby with summarise basics"
 library(dplyr)
 
 mpg_by_cyl <- mtcars |>
@@ -53,7 +53,7 @@ The 32-row `mtcars` table collapsed into 3 rows, one per unique value of `cyl`. 
 
 **Try it:** Use `group_by()` and `summarise()` on the built-in `iris` dataset to find the mean `Sepal.Length` for each species. Save the result to `ex_iris_stats`.
 
-```r
+```r title="Exercise: Mean sepal by species"
 # Try it: mean Sepal.Length by Species
 ex_iris_stats <- iris |>
   group_by(Species) |>
@@ -74,7 +74,7 @@ ex_iris_stats
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Sepal length solution"
 ex_iris_stats <- iris |>
   group_by(Species) |>
   summarise(avg_sepal = mean(Sepal.Length))
@@ -95,7 +95,7 @@ ex_iris_stats
 
 A real business question is rarely "just the average." You usually want the mean, the spread, the count, and the extremes, all in the same table so you can compare segments at a glance. `summarise()` happily takes as many `name = function(col)` expressions as you hand it, separated by commas, and each becomes a new column in the result.
 
-```r
+```r title="Multiple summary columns at once"
 mtcars_stats <- mtcars |>
   group_by(cyl) |>
   summarise(
@@ -122,7 +122,7 @@ Five summary columns in one pass. Notice how `n()` is a special helper, it doesn
 
 **Try it:** Extend the mtcars summary above to also include `median_mpg` and `mpg_range` (max minus min). Save to `ex_mtcars_stats`.
 
-```r
+```r title="Exercise: Add median and range"
 # Try it: add median and range
 ex_mtcars_stats <- mtcars |>
   group_by(cyl) |>
@@ -138,7 +138,7 @@ ex_mtcars_stats
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Median and range solution"
 ex_mtcars_stats <- mtcars |>
   group_by(cyl) |>
   summarise(
@@ -163,7 +163,7 @@ ex_mtcars_stats
 
 Business questions often nest: *average mpg by cylinder count and transmission type*, *monthly revenue by region and product*. Pass multiple columns to `group_by()` and dplyr creates one group for every unique combination. The result table then has one row per combination.
 
-```r
+```r title="Group by two variables"
 cyl_gear_stats <- mtcars |>
   group_by(cyl, gear) |>
   summarise(
@@ -190,7 +190,7 @@ Three cylinder counts times up-to-three gear counts gives eight populated combin
 
 **Try it:** In the built-in `starwars` dataset, count how many characters exist for each combination of `species` and `sex`. Save the result to `ex_sw_counts` with column name `n_chars`.
 
-```r
+```r title="Exercise: Count species and sex"
 # Try it: count by species × sex
 ex_sw_counts <- starwars |>
   group_by(species, sex) |>
@@ -206,7 +206,7 @@ head(ex_sw_counts, 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Species and sex solution"
 ex_sw_counts <- starwars |>
   group_by(species, sex) |>
   summarise(n_chars = n(), .groups = "drop")
@@ -242,7 +242,7 @@ head(ex_sw_counts, 4)
 
 Here's `n_distinct()` in action, a question prose can barely ask concisely: *how many unique hair colors does each species in Star Wars have?*
 
-```r
+```r title="Count distinct values per group"
 sw_stats <- starwars |>
   filter(!is.na(hair_color)) |>
   group_by(species) |>
@@ -267,7 +267,7 @@ Humans come out on top with six distinct hair colors across 31 characters; most 
 
 **Try it:** Count the distinct `eye_color` values per `species` in `starwars`. Keep only species with 2 or more characters. Save to `ex_hair_counts`.
 
-```r
+```r title="Exercise: Distinct eye colors"
 # Try it: n_distinct eye_color by species
 ex_hair_counts <- starwars |>
   filter(!is.na(eye_color)) |>
@@ -286,7 +286,7 @@ head(ex_hair_counts, 3)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Distinct eye colors solution"
 ex_hair_counts <- starwars |>
   filter(!is.na(eye_color)) |>
   group_by(species) |>
@@ -332,7 +332,7 @@ The four options for `.groups`:
 | `"keep"` | Keep the full original grouping |
 | `"rowwise"` | Treat each resulting row as its own group |
 
-```r
+```r title="Drop grouping after summarise"
 cyl_gear_dropped <- mtcars |>
   group_by(cyl, gear) |>
   summarise(avg_mpg = mean(mpg), .groups = "drop")
@@ -349,7 +349,7 @@ group_vars(cyl_gear_dropped)
 
 **Try it:** Group `mtcars` by `am` and `cyl`, summarise mean `hp`, and explicitly drop all grouping from the result. Save to `ex_drop_stats`.
 
-```r
+```r title="Exercise: Drop groups explicitly"
 # Try it: drop grouping explicitly
 ex_drop_stats <- mtcars |>
   group_by(am, cyl) |>
@@ -364,7 +364,7 @@ group_vars(ex_drop_stats)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Drop groups solution"
 ex_drop_stats <- mtcars |>
   group_by(am, cyl) |>
   summarise(
@@ -384,7 +384,7 @@ group_vars(ex_drop_stats)
 
 dplyr 1.1.0 (released January 2023) introduced a simpler alternative for one-shot aggregations: the `.by` argument, available directly on `summarise()`, `mutate()`, and `filter()`. It groups inline for that single call and always returns an ungrouped result, sidestepping the `.groups` confusion entirely.
 
-```r
+```r title="Inline grouping with .by"
 # Old way — group_by() + .groups = "drop"
 by_cyl_old <- mtcars |>
   group_by(cyl) |>
@@ -410,7 +410,7 @@ Same numbers, two fewer lines. For multiple grouping columns, wrap them in `c()`
 
 **Try it:** Rewrite this `group_by()` call using `.by` instead. Save to `ex_by_rewrite`.
 
-```r
+```r title="Exercise: Rewrite groupby with .by"
 # Original:
 # mtcars |> group_by(gear) |> summarise(avg_mpg = mean(mpg), .groups = "drop")
 
@@ -427,7 +427,7 @@ ex_by_rewrite
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="by rewrite solution"
 ex_by_rewrite <- mtcars |>
   summarise(avg_mpg = mean(mpg), .by = gear)
 
@@ -448,7 +448,7 @@ ex_by_rewrite
 
 A common workflow: compute a per-group summary, then keep only the groups meeting some criterion, "regions with revenue above target," "products with more than 100 orders," "customers who bought at least three distinct items." Because `summarise()` returns a fresh tibble with one row per group, you can pipe it straight into `filter()` and `arrange()`.
 
-```r
+```r title="Filter groups after summarising"
 top_cyl <- mtcars |>
   summarise(
     avg_mpg = mean(mpg),
@@ -470,7 +470,7 @@ Two rows survive the `avg_mpg > 18` filter, and `arrange(desc(avg_mpg))` ranks t
 
 **Try it:** Find the top 2 `gear` groups in `mtcars` by mean `hp`. Use `.by`, then arrange and take the top 2. Save to `ex_top_gear`.
 
-```r
+```r title="Exercise: Top 2 gears by hp"
 # Try it: top 2 gears by mean hp
 ex_top_gear <- mtcars |>
   summarise(
@@ -487,7 +487,7 @@ ex_top_gear
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Top gears solution"
 ex_top_gear <- mtcars |>
   summarise(avg_hp = mean(hp), .by = gear) |>
   arrange(desc(avg_hp)) |>
@@ -513,7 +513,7 @@ These capstones combine several patterns from above. Use `my_*` prefixed variabl
 
 In the `starwars` dataset, compute the mean `height` and character count for each `homeworld`. Drop rows with missing `homeworld` or `height`. Keep only homeworlds with 2 or more characters. Save the result sorted by `avg_height` descending to `my_homeworld`.
 
-```r
+```r title="Exercise: Homeworld leaderboard"
 # Exercise 1: homeworld leaderboard
 # Hint: filter NA, group_by homeworld, summarise, filter n>=2, arrange
 
@@ -527,7 +527,7 @@ head(my_homeworld, 5)
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Homeworld leaderboard solution"
 my_homeworld <- starwars |>
   filter(!is.na(homeworld), !is.na(height)) |>
   group_by(homeworld) |>
@@ -558,7 +558,7 @@ head(my_homeworld, 5)
 
 For each `cyl` value in `mtcars`, compute mean `mpg`, then add a `rank` column (1 = best mpg). Save to `my_mpg_rank`. The final result should have columns `cyl`, `avg_mpg`, and `rank`, sorted by rank.
 
-```r
+```r title="Exercise: Rank cylinders by mpg"
 # Exercise 2: rank cyl groups by mpg
 # Hint: summarise with .by, then arrange and mutate a rank column
 
@@ -571,7 +571,7 @@ my_mpg_rank
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Cylinder rank solution"
 my_mpg_rank <- mtcars |>
   summarise(avg_mpg = mean(mpg), .by = cyl) |>
   arrange(desc(avg_mpg)) |>
@@ -594,7 +594,7 @@ my_mpg_rank
 
 In the `ggplot2::diamonds` dataset, for each `cut` level compute the median `price` and the median `price / carat` (a crude "price efficiency" metric). Sort the result so the cut with the highest median price-per-carat is at the top. Save to `my_cut_eff`.
 
-```r
+```r title="Exercise: Diamonds price per carat"
 # Exercise 3: diamonds price efficiency by cut
 library(ggplot2)  # for diamonds
 
@@ -607,7 +607,7 @@ my_cut_eff
 <details>
 <summary>Click to reveal solution</summary>
 
-```r
+```r title="Diamonds price solution"
 library(ggplot2)
 
 my_cut_eff <- diamonds |>
@@ -638,7 +638,7 @@ my_cut_eff
 
 Here's a full end-to-end workflow on `starwars` that stitches every verb from this tutorial together: filter bad rows, group, compute several summaries, filter groups, sort. This is what 80% of real-world dplyr code looks like.
 
-```r
+```r title="End-to-end species summary"
 species_summary <- starwars |>
   filter(!is.na(mass), !is.na(height)) |>
   summarise(
