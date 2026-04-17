@@ -28,10 +28,22 @@ OG_DIR = os.path.join(REPO_ROOT, "screenshots", "og")
 VENDOR_DIR = os.path.join(REPO_ROOT, "www", "vendor")
 
 # Vendor assets to self-host (downloaded once, then served locally).
-# Empty after CodeMirror was removed in favour of a native <textarea> swap
-# inside webr-init.js. Kept here as a deliberate anchor so future self-hosted
-# scripts have an obvious place to land.
+# Empty after CodeMirror was removed. CodeJar + Prism are vendored by hand
+# (see www/vendor/) and concatenated into editor-bundle.min.js at build time.
 VENDOR_ASSETS = {}
+
+# Pre-vendored editor libraries that get concatenated into the single
+# editor-bundle.min.js served on interactive pages. Sources are already
+# minified; build_editor_bundle() only prepends a preamble and concats.
+EDITOR_BUNDLE_SOURCES = [
+    'prism-1.29.0.min.js',
+    'prism-r-1.29.0.min.js',
+    'codejar-4.2.0.min.js',
+]
+EDITOR_BUNDLE_NAME = 'editor-bundle.min.js'
+# Prism would auto-highlight every <code class="language-*"> on DOMContentLoaded.
+# We call Prism.highlight() manually from webr-init.js, so disable auto mode.
+EDITOR_BUNDLE_PREAMBLE = 'window.Prism=window.Prism||{};window.Prism.manual=true;'
 
 
 def file_content_hash(filepath, length=8):
@@ -48,8 +60,8 @@ def file_content_hash(filepath, length=8):
 #
 # Readers see colored, line-numbered R code from the first paint. When the
 # reader clicks the block, webr-init.js swaps the static markup for a
-# <textarea> so editing feels native. The textarea inherits the same dark
-# palette so the swap is visually continuous.
+# CodeJar-managed contenteditable div — Prism repaints the same token palette
+# on every keystroke, so colors and line numbers stay visible while editing.
 # ---------------------------------------------------------------------------
 try:
     import html as _html_mod
@@ -117,6 +129,35 @@ def ensure_vendor_assets():
         print(f"  Downloading {filename} ...")
         urllib.request.urlretrieve(url, path)
         print(f"  Saved: {path} ({os.path.getsize(path):,} bytes)")
+
+
+def build_editor_bundle():
+    """Concatenate pre-minified CodeJar + Prism into a single editor bundle.
+
+    Idempotent — rebuilds only if any source is newer than the bundle. Writes
+    to www/editor-bundle.min.js. Returns the absolute path.
+    """
+    out_path = os.path.join(REPO_ROOT, 'www', EDITOR_BUNDLE_NAME)
+    src_paths = [os.path.join(VENDOR_DIR, name) for name in EDITOR_BUNDLE_SOURCES]
+    missing = [p for p in src_paths if not os.path.exists(p)]
+    if missing:
+        print(f"  WARN: editor bundle sources missing: {missing}")
+        return out_path
+    # Skip if the bundle is already newer than every source.
+    if os.path.exists(out_path):
+        out_mtime = os.path.getmtime(out_path)
+        if all(os.path.getmtime(p) <= out_mtime for p in src_paths):
+            return out_path
+    parts = [EDITOR_BUNDLE_PREAMBLE]
+    for p in src_paths:
+        with open(p, 'r', encoding='utf-8') as f:
+            parts.append(f.read().rstrip())
+    # Trailing semicolons guard against an IIFE running into the next script.
+    bundle = '\n;\n'.join(parts) + '\n'
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(bundle)
+    print(f"  Built {EDITOR_BUNDLE_NAME}: {os.path.getsize(out_path):,} bytes")
+    return out_path
 
 
 def minify_assets():
@@ -193,6 +234,7 @@ def compute_asset_hrefs(final_paths):
         'toc.js': final_paths.get('toc.js', os.path.join(REPO_ROOT, 'www', 'toc.js')),
         'webr.css': final_paths.get('webr.css', os.path.join(REPO_ROOT, 'www', 'webr.css')),
         'webr-init.js': final_paths.get('webr-init.js', os.path.join(REPO_ROOT, 'www', 'webr-init.js')),
+        'editor-bundle.js': os.path.join(REPO_ROOT, 'www', EDITOR_BUNDLE_NAME),
         'engagement.css': final_paths.get('engagement.css', os.path.join(REPO_ROOT, 'www', 'engagement.css')),
         'engagement.js': final_paths.get('engagement.js', os.path.join(REPO_ROOT, 'www', 'engagement.js')),
         'highlight.css': final_paths.get('highlight.css', os.path.join(REPO_ROOT, 'www', 'highlight.css')),
@@ -515,7 +557,13 @@ def make_webr_head_block(asset_hrefs):
 
 def make_webr_body_block(asset_hrefs):
     webr_js = asset_hrefs.get('webr-init.js', 'www/webr-init.js')
-    return f'  <script type="module" src="{webr_js}"></script>\n'
+    editor_js = asset_hrefs.get('editor-bundle.js', f'www/{EDITOR_BUNDLE_NAME}')
+    # Both defer — executes in DOM order after parse, so the bundle defines
+    # window.CodeJar + window.Prism before webr-init uses them.
+    return (
+        f'  <script defer src="{editor_js}"></script>\n'
+        f'  <script defer src="{webr_js}"></script>\n'
+    )
 
 
 def make_engagement_head_block(asset_hrefs):
@@ -922,6 +970,7 @@ def main():
     # ── Asset pipeline: vendor download → minify → hash → hrefs ──
     print("Asset pipeline:")
     ensure_vendor_assets()
+    build_editor_bundle()
     final_paths = minify_assets()
     asset_hrefs, asset_final_paths = compute_asset_hrefs(final_paths)
     print(f"  Hashed {len(asset_hrefs)} assets")

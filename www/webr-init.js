@@ -155,8 +155,8 @@
     // WebR loads on-demand: first Run click triggers loadAndInitWebR().
     // The static Pygments-highlighted <div class="webr-editor"> is read-only
     // until the reader clicks/focuses it — first interaction swaps the block
-    // for a <textarea> so typing / paste / Ctrl+Enter feel native. No editor
-    // library is loaded; the textarea is ~0 bytes of JS over what we already ship.
+    // for a contenteditable div driven by CodeJar (tiny editor shim) with
+    // Prism-based R syntax highlighting painted live on every keystroke.
 
     // Build sticky header for each code block: [badge + label | copy + run]
     const copyIcon  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
@@ -180,7 +180,7 @@
         const editorEl = c.querySelector('.webr-editor');
         const idx = _editorIndexMap.get(editorEl);
         const entry = editors[idx];
-        const code = (entry && entry.textarea) ? entry.textarea.value : editorEl.textContent;
+        const code = (entry && entry.jar) ? entry.jar.toString() : editorEl.textContent;
         navigator.clipboard.writeText(code).then(() => {
           copyBtn.innerHTML = checkIcon;
           copyBtn.classList.add('copied');
@@ -248,11 +248,28 @@
     const allEditors = document.querySelectorAll('.webr-editor');
     allEditors.forEach((el, i) => {
       _editorIndexMap.set(el, i);
-      // Static block is keyboard-reachable; first click/Enter swaps in a textarea.
+      // Static block is keyboard-reachable; first click/Enter swaps in the CodeJar editor.
       el.setAttribute('tabindex', '0');
       el.setAttribute('role', 'textbox');
       el.setAttribute('aria-label', 'R code. Click or press Enter to edit.');
     });
+
+    // Prism-based highlighter used by CodeJar after every keystroke. Wraps each
+    // physical line in <span class="cl"> so the existing CSS counter (::before)
+    // continues to paint the line numbers, keeping parity with the static
+    // Pygments render. R's Prism grammar has no multi-line tokens, so splitting
+    // on '\n' is safe.
+    function _prismHighlight(el) {
+      if (!window.Prism || !window.Prism.languages || !window.Prism.languages.r) {
+        return;
+      }
+      const code = el.textContent || '';
+      const html = window.Prism.highlight(code, window.Prism.languages.r, 'r');
+      const lines = html.split('\n');
+      el.innerHTML = lines.map(function (ln) {
+        return '<span class="cl">' + ln + '</span>';
+      }).join('\n');
+    }
 
     // Compute caret offset inside `root.textContent` corresponding to (node, offset).
     // Used to preserve click position across the static→textarea swap so typing
@@ -304,83 +321,100 @@
       return null;
     }
 
-    // Swap the static Pygments rendering for a <textarea> carrying the same code.
-    // Idempotent: second+ calls focus the existing textarea.
+    // Swap the static Pygments rendering for a CodeJar-managed contenteditable
+    // div carrying the same code. Idempotent: second+ calls focus the existing
+    // editor and move the caret to the click position.
     function hydrateEditor(el, clientX, clientY) {
       if (el.dataset.webrHydrated) {
         const existing = el.querySelector('.webr-editor-input');
-        if (existing) existing.focus();
+        if (!existing) return;
+        existing.focus();
+        const idx2 = _editorIndexMap.get(el);
+        const entry2 = editors[idx2];
+        if (entry2 && entry2.jar && typeof clientX === 'number' && typeof clientY === 'number') {
+          const off = _caretOffsetFromPoint(existing, clientX, clientY);
+          if (typeof off === 'number') entry2.jar.restore({ start: off, end: off });
+        }
+        return;
+      }
+      if (!window.CodeJar || !window.Prism) {
+        // Bundle hasn't loaded yet (shouldn't happen — script is deferred). Fail soft.
         return;
       }
       const code = el.textContent;
       const caret = _caretOffsetFromPoint(el, clientX, clientY);
 
-      const ta = document.createElement('textarea');
-      ta.className = 'webr-editor-input';
-      ta.spellcheck = false;
-      ta.setAttribute('autocapitalize', 'off');
-      ta.setAttribute('autocorrect', 'off');
-      ta.setAttribute('autocomplete', 'off');
-      ta.setAttribute('aria-label', 'Editable R code. Press Ctrl+Enter to run.');
-      ta.rows = Math.max(code.split('\n').length, 3);
-      ta.value = code;
+      const inputEl = document.createElement('div');
+      inputEl.className = 'webr-editor-input';
+      inputEl.setAttribute('role', 'textbox');
+      inputEl.setAttribute('aria-multiline', 'true');
+      inputEl.setAttribute('aria-label', 'Editable R code. Press Ctrl+Enter to run.');
+      inputEl.setAttribute('spellcheck', 'false');
+      inputEl.setAttribute('autocapitalize', 'off');
+      inputEl.setAttribute('autocorrect', 'off');
+      inputEl.setAttribute('autocomplete', 'off');
 
       el.innerHTML = '';
-      el.appendChild(ta);
+      el.appendChild(inputEl);
       el.dataset.webrHydrated = '1';
       el.classList.add('webr-editor-hydrated');
 
-      const idx = _editorIndexMap.get(el);
-      editors[idx] = { textarea: ta, originalCode: code, el };
+      const jar = window.CodeJar(inputEl, _prismHighlight, {
+        tab: '  ',
+        indentOn: /[({\[]$/,
+        catchTab: true,
+        preserveIdent: true,
+        addClosing: false,
+        history: true,
+      });
+      jar.updateCode(code);
 
-      ta.focus();
+      const idx = _editorIndexMap.get(el);
+      editors[idx] = { jar: jar, inputEl: inputEl, originalCode: code, el };
+
+      inputEl.focus();
       if (typeof caret === 'number' && caret >= 0 && caret <= code.length) {
-        ta.selectionStart = ta.selectionEnd = caret;
+        try { jar.restore({ start: caret, end: caret }); } catch (_) {}
       }
     }
 
     // Delegated activation: first click / focus-in / Enter on a static block swaps
-    // in the textarea. Click path passes coords so the caret lands where the user
-    // clicked; keyboard paths start at position 0 (same as CM did).
+    // in the CodeJar editor. Click path passes coords so the caret lands where the
+    // user clicked; keyboard paths start at position 0.
     document.addEventListener('click', function (e) {
       const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
-      if (!el || el.dataset.webrHydrated) return;
+      if (!el) return;
+      if (e.target.closest('.webr-editor-input')) return; // already hydrated, let CodeJar handle it
       hydrateEditor(el, e.clientX, e.clientY);
     }, true);
     document.addEventListener('focusin', function (e) {
       const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
       if (!el || el.dataset.webrHydrated) return;
-      if (e.target.tagName === 'TEXTAREA') return;
+      if (e.target.classList && e.target.classList.contains('webr-editor-input')) return;
       hydrateEditor(el, null, null);
     }, true);
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
       if (!el || el.dataset.webrHydrated) return;
-      if (e.target.tagName === 'TEXTAREA') return;
+      if (e.target.classList && e.target.classList.contains('webr-editor-input')) return;
       e.preventDefault();
       hydrateEditor(el, null, null);
     }, true);
 
-    // Textarea keybindings: Ctrl+Enter runs, Tab inserts two spaces, Escape blurs.
+    // Editor keybindings (CodeJar handles Tab natively via `catchTab`):
+    //   Ctrl/Cmd+Enter → run, Escape → blur.
     document.addEventListener('keydown', function (e) {
-      const ta = e.target;
-      if (!ta || !ta.classList || !ta.classList.contains('webr-editor-input')) return;
+      const target = e.target;
+      if (!target || !target.classList || !target.classList.contains('webr-editor-input')) return;
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        const container = ta.closest('.webr-container');
+        const container = target.closest('.webr-container');
         const btn = container && container.querySelector('.webr-run-btn');
         if (btn && !btn.disabled) btn.click();
         return;
       }
-      if (e.key === 'Tab' && !e.shiftKey) {
-        e.preventDefault();
-        const s = ta.selectionStart;
-        const en = ta.selectionEnd;
-        ta.setRangeText('  ', s, en, 'end');
-        return;
-      }
-      if (e.key === 'Escape') { ta.blur(); }
+      if (e.key === 'Escape') { target.blur(); }
     });
 
     // Track which packages are already installed in this WebR session
@@ -485,11 +519,11 @@
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
-      // Run reads from the textarea (if hydrated) or the static Pygments
+      // Run reads from CodeJar (if hydrated) or the static Pygments
       // rendering (textContent). Both produce clean raw R.
       const idx = _editorIndexMap.get(editorEl);
       const editorEntry = editors[idx];
-      let code = (editorEntry && editorEntry.textarea) ? editorEntry.textarea.value : editorEl.textContent;
+      let code = (editorEntry && editorEntry.jar) ? editorEntry.jar.toString() : editorEl.textContent;
 
       btn.disabled = true;
       setRunBtnText(btn, 'Installing packages...');
@@ -604,9 +638,8 @@
       const plotEl = container.querySelector('.webr-plot-output');
       const idx = _editorIndexMap.get(editorEl);
       const entry = editors[idx];
-      if (entry && entry.textarea) {
-        entry.textarea.value = entry.originalCode;
-        entry.textarea.rows = Math.max(entry.originalCode.split('\n').length, 3);
+      if (entry && entry.jar) {
+        entry.jar.updateCode(entry.originalCode);
       }
       outputEl.textContent = '';
       outputEl.classList.remove('has-content', 'has-error', 'has-message', 'is-loading');
