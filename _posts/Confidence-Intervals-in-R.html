@@ -1,0 +1,1033 @@
+---
+title: "Confidence Intervals in R: The Definition Most Textbooks State Incorrectly"
+description: "A 95% CI doesn't mean 95% probability the parameter is in this range. Learn what confidence intervals actually mean and how to compute them correctly in R."
+keywords: "confidence intervals in R, confidence interval interpretation, 95% confidence interval, t.test R, confint, bootstrap confidence interval, statistical inference, prop.test, Wilson interval, margin of error"
+mathjax: true
+webr: true
+curriculum_id: "2.2.3"
+post_type: "C"
+auto_link_terms: "confidence interval|confidence intervals|95% confidence interval|confidence level|margin of error|bootstrap confidence interval|Wilson score interval|credible interval|t-interval"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Confidence Intervals"
+sidebar_order: "35"
+---
+<!-- md2html:generated -->
+
+<h1>Confidence Intervals in R: The Definition Most Textbooks State Incorrectly</h1>
+
+<p class="lead">A 95% confidence interval does <strong>not</strong> mean "there's a 95% probability the parameter lies in this range" &#8211; that is a Bayesian <em>credible interval</em>. A frequentist CI from <code>t.test()</code> means something stricter: repeat the sampling procedure many times, and 95% of the constructed intervals will contain the true parameter.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="10" data-xp="150"></div>
+
+<h2>What does a 95% confidence interval actually mean?</h2>
+
+<p>Most stats courses state the wrong definition, the intuitive one that is actually a <em>credible interval</em>. The cleanest way to see what "95%" really refers to is to simulate it, draw many samples, build a CI from each, and count how often the interval contains the true parameter. The simulation below draws 100 samples of size 30 from a Normal population with mean 50 and SD 10, builds a 95% CI from each, and measures coverage.</p>
+
+<div class="webr-container" data-block-title="Simulate coverage of 95% confidence intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate coverage of 95% confidence intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+set.seed(2026)
+true_mu    &lt;- 50
+true_sigma &lt;- 10
+n          &lt;- 30
+
+experiments &lt;- replicate(100, {
+  sample_draw &lt;- rnorm(n, mean = true_mu, sd = true_sigma)
+  t.test(sample_draw)$conf.int
+})
+#&gt; experiments is a 2 x 100 matrix: row 1 = lower, row 2 = upper
+
+contains_mu &lt;- experiments[1, ] &lt;= true_mu &amp; experiments[2, ] &gt;= true_mu
+coverage    &lt;- mean(contains_mu)
+coverage
+#&gt; [1] 0.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coverage rate came out at <code>0.94</code>, essentially the nominal 95%. If we had run 100,000 replicates instead of 100, the rate would settle almost exactly on 0.95. This is the precise statement the "95%" is making, <em>across many samples</em>, this procedure captures the true mean 95% of the time.</p>
+
+<p>Let us visualize those 100 intervals so the property becomes concrete.</p>
+
+<div class="webr-container" data-block-title="Plot 100 intervals coloured by coverage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot 100 intervals coloured by coverage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ci_df &lt;- data.frame(
+  experiment = 1:100,
+  lower      = experiments[1, ],
+  upper      = experiments[2, ],
+  covers     = contains_mu
+)
+
+ggplot(ci_df, aes(x = experiment, ymin = lower, ymax = upper, colour = covers)) +
+  geom_linerange() +
+  geom_hline(yintercept = true_mu, linetype = &quot;dashed&quot;) +
+  scale_colour_manual(values = c(`TRUE` = &quot;steelblue&quot;, `FALSE` = &quot;firebrick&quot;)) +
+  labs(x = &quot;Experiment #&quot;, y = &quot;CI&quot;, colour = &quot;Covers mu?&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each vertical line is one confidence interval. The dashed horizontal line is the true mean, 50. Roughly 5 of the 100 intervals (the red ones) miss it, and 95 cover it. You never know <em>which</em> five will miss ahead of time, that is the whole point.</p>
+
+<p><img src="screenshots/Confidence-Intervals-in-R-coverage-concept.webp" alt="Coverage concept of 95% confidence intervals" class="img-responsive img-zoomable" loading="lazy" width="1982" height="842" /></p>
+
+<p><em>Figure 1: The 95% refers to the procedure, across many repetitions, about 95% of constructed intervals cover the true parameter.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The 95% probability lives before you compute the interval, not after.</strong> Once a specific CI is computed from one sample, it either contains the true mean or it does not, the Bayesian phrasing "there is a 95% probability the mean is in [48.2, 53.1]" mixes up frequentist mechanics with Bayesian semantics.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Modify the simulation to construct 99% confidence intervals instead of 95%, and confirm the empirical coverage rate lands near 0.99. Use <code>conf.level = 0.99</code> inside <code>t.test()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: coverage at 99% confidence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: coverage at 99% confidence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build 100 x 99% CIs and compute coverage
+set.seed(2026)
+ex_experiments99 &lt;- replicate(100, {
+  sd99 &lt;- rnorm(30, mean = 50, sd = 10)
+  # your code here
+})
+
+ex_coverage99 &lt;- mean(
+  ex_experiments99[1, ] &lt;= 50 &amp; ex_experiments99[2, ] &gt;= 50
+)
+ex_coverage99
+#&gt; Expected: near 0.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="99% coverage solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">99% coverage solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+ex_experiments99 &lt;- replicate(100, {
+  sd99 &lt;- rnorm(30, mean = 50, sd = 10)
+  t.test(sd99, conf.level = 0.99)$conf.int
+})
+
+ex_coverage99 &lt;- mean(
+  ex_experiments99[1, ] &lt;= 50 &amp; ex_experiments99[2, ] &gt;= 50
+)
+ex_coverage99
+#&gt; [1] 0.98</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Widening confidence from 95% to 99% widens every interval, so more of them cover 50. Over many replicates the empirical rate lands near 0.99. In a small run of 100 you can see values like 0.98 or 1.00, expected sampling noise.</p>
+
+</details>
+</section>
+
+<h2>How do I compute a 95% CI for a mean in R?</h2>
+
+<p>The one-liner you will use 90% of the time is <code>t.test()</code>. Call it on a numeric vector and it returns, among other things, a 95% confidence interval for the population mean.</p>
+
+<div class="webr-container" data-block-title="t.test() returns a 95% CI for the mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">t.test() returns a 95% CI for the mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t.test(mtcars$mpg)
+#&gt; 
+#&gt;  One Sample t-test
+#&gt; 
+#&gt; data:  mtcars$mpg
+#&gt; t = 18.857, df = 31, p-value &lt; 2.2e-16
+#&gt; alternative hypothesis: true mean is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  17.91768 22.26357
+#&gt; sample estimates:
+#&gt; mean of x 
+#&gt;  20.09062</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The relevant line is <code>95 percent confidence interval: 17.91768 22.26357</code>. If you want the interval as a plain numeric vector to use downstream, extract it with <code>$conf.int</code>.</p>
+
+<div class="webr-container" data-block-title="Extract just the interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract just the interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_ci &lt;- t.test(mtcars$mpg)$conf.int
+mpg_ci
+#&gt; [1] 17.91768 22.26357
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mpg_ci</code> is now a length-2 numeric vector, element 1 is the lower bound, element 2 is the upper bound. The printed <code>conf.level</code> attribute confirms the default 95%.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Change the confidence level with the <code>conf.level</code> argument.</strong> <code>t.test(mtcars$mpg, conf.level = 0.99)$conf.int</code> widens the interval to 99%. Going the other way, <code>conf.level = 0.90</code> tightens it, at the cost of covering the true mean only 90% of the time across repeated sampling.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute a 99% confidence interval for <code>iris$Sepal.Length</code> and store it in <code>ex_sepal_ci</code>.</p>
+<div class="webr-container" data-block-title="Your turn: 99% CI for Sepal.Length">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 99% CI for Sepal.Length</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute 99% CI for iris$Sepal.Length
+ex_sepal_ci &lt;- # your code here
+ex_sepal_ci
+#&gt; Expected: approx [5.63, 5.97]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sepal.Length 99% CI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sepal.Length 99% CI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sepal_ci &lt;- t.test(iris$Sepal.Length, conf.level = 0.99)$conf.int
+ex_sepal_ci
+#&gt; [1] 5.634467 5.965533
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>t.test()</code> plus <code>$conf.int</code> plus <code>conf.level = 0.99</code> is the full recipe. The bounds 5.63 and 5.97 bracket the sample mean of 5.843 with extra width compared to the 95% interval.</p>
+
+</details>
+</section>
+
+<h2>How do I compute a confidence interval by hand?</h2>
+
+<p>Understanding how <code>t.test()</code> builds the interval under the hood makes it clearer <em>why</em> the interval has the width it does, and when you should not trust it. Every one-sample CI you will ever compute has the same three-part structure, a point estimate, a critical value, and a standard error.</p>
+
+<p>$$\bar{x} \pm t_{n-1,\,1 - \alpha/2} \cdot \frac{s}{\sqrt{n}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\bar{x}$ = the sample mean (the point estimate)</li>
+
+<li>$s$ = the sample standard deviation</li>
+
+<li>$n$ = the sample size</li>
+
+<li>$s / \sqrt{n}$ = the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">standard error of the mean</a></li>
+
+<li>$t_{n-1,\,1 - \alpha/2}$ = the critical value from the t-distribution with $n - 1$ degrees of freedom, for confidence level $1 - \alpha$</li>
+
+</ul>
+
+<p>Let us reproduce the <code>mtcars$mpg</code> interval using only <code>mean()</code>, <code>sd()</code>, and <code>qt()</code>.</p>
+
+<div class="webr-container" data-block-title="Manual 95% CI for mtcars$mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual 95% CI for mtcars$mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x       &lt;- mtcars$mpg
+x_mean  &lt;- mean(x)
+x_sd    &lt;- sd(x)
+x_n     &lt;- length(x)
+t_crit  &lt;- qt(0.975, df = x_n - 1)
+se      &lt;- x_sd / sqrt(x_n)
+
+manual_ci &lt;- c(x_mean - t_crit * se, x_mean + t_crit * se)
+manual_ci
+#&gt; [1] 17.91768 22.26357</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The manual interval <code>[17.92, 22.26]</code> matches <code>t.test(mtcars$mpg)$conf.int</code> to full precision. <code>qt(0.975, df = 31)</code> returns the t-critical value 2.0395, leave half a percent in each tail of the t-distribution, and the two quantiles give you the 95% window.</p>
+
+<p><img src="screenshots/Confidence-Intervals-in-R-decision-tree.webp" alt="Anatomy of a confidence interval" class="img-responsive img-zoomable" loading="lazy" width="1808" height="1026" /></p>
+
+<p><em>Figure 2: Every confidence interval has the same shape, a point estimate plus or minus a margin, where the margin is a critical value times a standard error.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>With <code>n</code> >= 30 the t-distribution closely resembles the normal.</strong> Many older textbooks therefore use <code>qnorm(0.975)</code> = 1.96 in place of <code>qt(0.975, df = n - 1)</code>. The difference is small for large samples but matters at <code>n</code> = 10 or 15 where <code>qt()</code> gives a notably larger critical value (2.26 instead of 1.96). Default to the t-version, it is always at least as correct.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute a manual 95% CI for <code>mtcars$hp</code> and confirm it matches <code>t.test(mtcars$hp)$conf.int</code>.</p>
+<div class="webr-container" data-block-title="Your turn: manual CI for hp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: manual CI for hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute manual 95% CI for mtcars$hp
+# then compare with t.test(mtcars$hp)$conf.int
+ex_hp_x     &lt;- mtcars$hp
+ex_hp_mean  &lt;- mean(ex_hp_x)
+ex_hp_sd    &lt;- sd(ex_hp_x)
+ex_hp_n     &lt;- length(ex_hp_x)
+ex_hp_ci    &lt;- # your code here
+ex_hp_ci
+#&gt; Expected: matches t.test(mtcars$hp)$conf.int</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Manual CI for hp solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual CI for hp solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hp_x    &lt;- mtcars$hp
+ex_hp_mean &lt;- mean(ex_hp_x)
+ex_hp_sd   &lt;- sd(ex_hp_x)
+ex_hp_n    &lt;- length(ex_hp_x)
+ex_hp_tcrit &lt;- qt(0.975, df = ex_hp_n - 1)
+ex_hp_se    &lt;- ex_hp_sd / sqrt(ex_hp_n)
+ex_hp_ci    &lt;- c(ex_hp_mean - ex_hp_tcrit * ex_hp_se,
+                 ex_hp_mean + ex_hp_tcrit * ex_hp_se)
+ex_hp_ci
+#&gt; [1] 121.2169 172.2831
+
+t.test(ex_hp_x)$conf.int
+#&gt; [1] 121.2169 172.2831
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two bounds match to full precision because <code>t.test()</code> uses exactly this formula under the hood. No surprises, same math.</p>
+
+</details>
+</section>
+
+<h2>How does CI width change with sample size, variability, and confidence level?</h2>
+
+<p>A CI's width is not a mystery, it is driven by three knobs. Increase the sample size <code>n</code> and the interval shrinks as $1/\sqrt{n}$. Increase the variability <code>s</code> and it grows linearly. Increase the confidence level (say from 95% to 99%) and the critical value grows.</p>
+
+<p>Let us demonstrate the sample-size effect directly. We draw samples from <code>N(100, 15)</code> at four different <code>n</code> values and record the width of the resulting 95% CI.</p>
+
+<div class="webr-container" data-block-title="CI width vs sample size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CI width vs sample size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+ci_width &lt;- function(n) {
+  x &lt;- rnorm(n, mean = 100, sd = 15)
+  ci &lt;- t.test(x)$conf.int
+  ci[2] - ci[1]
+}
+
+widths &lt;- sapply(c(10, 50, 250, 1000), ci_width)
+widths
+#&gt; [1] 10.739340  4.268725  1.816330  0.938946
+
+# Ratio width(n=100) / width(n=400) should be near 2
+sapply(c(100, 400), ci_width)
+#&gt; [1] 2.961267 1.473620</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first vector shows the widths at <code>n</code> = 10, 50, 250, 1000. Notice that when <code>n</code> goes from 10 to 1000 (100x increase), the width drops from about 10.7 to about 0.9 (roughly a 10x reduction), exactly the factor of $\sqrt{100} = 10$ the formula predicts. The second call confirms the 1/2 ratio between <code>n = 100</code> and <code>n = 400</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>To halve the width of a CI you need four times the sample size.</strong> That quadratic growth in required <code>n</code> is why "more data" is expensive, doubling precision at 95% confidence means quadrupling your sample size. Plan accordingly.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the <code>ci_width()</code> function above, predict (then verify) the width ratio between <code>n = 50</code> and <code>n = 200</code>.</p>
+<div class="webr-container" data-block-title="Your turn: width ratio 50 vs 200">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: width ratio 50 vs 200</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Predict the ratio, then compute it
+set.seed(2026)
+ex_width_ratio &lt;- # your code here
+ex_width_ratio
+#&gt; Expected: near 2 (since sqrt(4) = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Width ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Width ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+ex_w50  &lt;- ci_width(50)
+ex_w200 &lt;- ci_width(200)
+ex_width_ratio &lt;- ex_w50 / ex_w200
+ex_width_ratio
+#&gt; [1] 2.183</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Going from <code>n = 50</code> to <code>n = 200</code> is a 4x increase in sample size, and the CI width shrinks by roughly $\sqrt{4} = 2$. Small deviations from exactly 2 are pure sampling noise, on any single pair of samples.</p>
+
+</details>
+</section>
+
+<h2>How do I compute CIs for proportions, differences, and regression?</h2>
+
+<p><code>t.test()</code> handles one-sample and two-sample means. For other common statistics, R ships a different function for each, all following the same pattern of "fit, then pull out a <code>conf.int</code>".</p>
+
+<p>For a single proportion, use <code>prop.test()</code>. Suppose 35 of 100 users clicked your button and you want a 95% CI for the true click-through rate.</p>
+
+<div class="webr-container" data-block-title="CI for a single proportion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CI for a single proportion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prop_test &lt;- prop.test(x = 35, n = 100, conf.level = 0.95)
+prop_test$conf.int
+#&gt; [1] 0.2600511 0.4501333
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>prop.test()</code> uses the Wilson score method with continuity correction, which behaves far better than the naive "normal approximation" interval when <code>n</code> is small or the true proportion is near 0 or 1.</p>
+
+<p>For a difference in two means, call <code>t.test()</code> with a formula or two vectors. The <code>sleep</code> dataset has extra hours of sleep for 10 patients on two different drugs.</p>
+
+<div class="webr-container" data-block-title="CI for a difference in means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CI for a difference in means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sleep_test &lt;- t.test(extra ~ group, data = sleep)
+sleep_test$conf.int
+#&gt; [1] -3.3654832  0.2054832
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 95% CI for group 1 mean minus group 2 mean is roughly <code>[-3.37, 0.21]</code>. The interval straddles 0, which tells you right away that at the 5% <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">significance level</a> there is no evidence the two drugs differ, the data are consistent with "no difference".</p>
+
+<p>For a regression coefficient, fit the model with <code>lm()</code> and call <code>confint()</code>.</p>
+
+<div class="webr-container" data-block-title="CIs for regression coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CIs for regression coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit    &lt;- lm(mpg ~ wt, data = mtcars)
+reg_ci &lt;- confint(fit)
+reg_ci
+#&gt;                  2.5 %    97.5 %
+#&gt; (Intercept) 33.450500 41.119753
+#&gt; wt          -6.486308 -4.202635</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is a 95% CI for one coefficient. The slope CI <code>[-6.49, -4.20]</code> says that, on average, a one-unit increase in <code>wt</code> (1,000 lbs) is associated with a drop of somewhere between 4.2 and 6.5 mpg.</p>
+
+<p><img src="screenshots/Confidence-Intervals-in-R-overview-mindmap.webp" alt="Decision tree for choosing a CI method" class="img-responsive img-zoomable" loading="lazy" width="1614" height="938" /></p>
+
+<p><em>Figure 3: Which CI method fits the problem you have in front of you, mean, proportion, difference, regression, or bootstrap.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>prop.test()</code> uses Wilson with continuity correction; <code>binom.test()</code> uses Clopper-Pearson exact.</strong> They give almost identical answers for moderate <code>n</code> and <code>p</code>, but can diverge noticeably when <code>n</code> is small (say under 30) or <code>p</code> is close to 0 or 1. For reporting in published work, the exact Clopper-Pearson interval from <code>binom.test()</code> is the safer default.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the 95% CI for the slope of the regression <code>lm(Sepal.Length ~ Petal.Length, data = iris)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: slope CI for iris regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: slope CI for iris regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit and extract the slope CI
+ex_fit      &lt;- # your code here
+ex_slope_ci &lt;- # your code here
+ex_slope_ci
+#&gt; Expected: about [0.37, 0.45]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Slope CI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Slope CI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit      &lt;- lm(Sepal.Length ~ Petal.Length, data = iris)
+ex_slope_ci &lt;- confint(ex_fit)[&quot;Petal.Length&quot;, ]
+ex_slope_ci
+#&gt;     2.5 %    97.5 % 
+#&gt; 0.3791270 0.4528372</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>confint()</code> returns a matrix with one row per coefficient. Subset by the row name <code>&quot;Petal.Length&quot;</code> to get just the slope. The bounds are very tight because <code>iris</code> has 150 rows and the relationship is nearly linear.</p>
+
+</details>
+</section>
+
+<h2>When should I use a bootstrap confidence interval?</h2>
+
+<p>The t-interval works great when the sample mean's distribution is approximately Normal, which, thanks to the Central Limit Theorem, is true for most moderate-sized samples from most distributions. But a few cases break the assumption, heavily skewed data with small <code>n</code>, or a statistic with no nice closed-form standard error (the median, a trimmed mean, a quantile, a correlation). In those cases, bootstrap the CI instead.</p>
+
+<p>The idea is simple, resample the data with replacement many times, recompute the statistic on each resample, and use the empirical 2.5% and 97.5% quantiles of the recomputed statistics as the CI endpoints.</p>
+
+<div class="webr-container" data-block-title="Bootstrap 95% CI for the median">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bootstrap 95% CI for the median</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+boot_medians &lt;- replicate(2000, {
+  resample &lt;- sample(mtcars$mpg, replace = TRUE)
+  median(resample)
+})
+
+boot_ci &lt;- quantile(boot_medians, probs = c(0.025, 0.975))
+boot_ci
+#&gt;    2.5%   97.5% 
+#&gt; 17.3000 21.4500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The percentile bootstrap 95% CI for the median <code>mpg</code> is roughly <code>[17.3, 21.5]</code>. No t-distribution, no standard error formula, just resampling.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Bootstrap works best for smooth statistics.</strong> Avoid it for extreme <a class="auto-link" href="Order-Statistics-in-R.html" title="Order Statistics in R: Min, Max, Sample Quantiles — Theory & Simulation">order statistics</a> (min, max) or for heavily discrete data where the bootstrap distribution itself becomes degenerate. For means, medians, trimmed means, correlations, and regression coefficients, 2,000 to 10,000 bootstrap replicates give stable percentile CIs.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 90% percentile bootstrap CI for the mean of <code>mtcars$hp</code>.</p>
+<div class="webr-container" data-block-title="Your turn: bootstrap 90% CI for mean hp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bootstrap 90% CI for mean hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use 2000 resamples; compute 5% and 95% quantiles
+set.seed(2026)
+ex_boot_hp &lt;- # your code here
+# Then compute the 90% CI
+ex_boot_hp_ci &lt;- # your code here
+ex_boot_hp_ci
+#&gt; Expected: near [128, 165]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bootstrap 90% CI for mean hp solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bootstrap 90% CI for mean hp solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+ex_boot_hp &lt;- replicate(2000, {
+  resample &lt;- sample(mtcars$hp, replace = TRUE)
+  mean(resample)
+})
+ex_boot_hp_ci &lt;- quantile(ex_boot_hp, probs = c(0.05, 0.95))
+ex_boot_hp_ci
+#&gt;       5%      95% 
+#&gt; 129.5062 164.0312</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Same recipe as the median bootstrap, just swap <code>median()</code> for <code>mean()</code> and the quantile probabilities to 0.05 / 0.95 for a 90% interval.</p>
+
+</details>
+</section>
+
+<h2>How do I report and interpret a confidence interval correctly?</h2>
+
+<p>Words matter. Here is a short phrasebook that covers almost every case you will write up.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Correct</th>
+<th>Incorrect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"We are 95% confident that the true mean is between 17.9 and 22.3."</td>
+<td>"There is a 95% probability the true mean is between 17.9 and 22.3."</td>
+</tr>
+<tr>
+<td>"If we repeated this study many times, 95% of the constructed intervals would contain the true mean."</td>
+<td>"The true mean is in [17.9, 22.3] with 95% probability."</td>
+</tr>
+<tr>
+<td>"The 95% CI for the difference is [-3.37, 0.21], which includes 0, so we cannot reject the null of no difference at alpha = 0.05."</td>
+<td>"The 95% CI rules out a difference of 0."</td>
+</tr>
+</tbody>
+</table>
+
+<p>A confidence interval and a two-sided hypothesis test at the corresponding alpha level are mathematically dual, if the null value lies outside the (1 - alpha) CI, you reject the null at significance alpha. You can use this duality directly in R.</p>
+
+<div class="webr-container" data-block-title="CI duality with hypothesis tests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CI duality with hypothesis tests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diff_ci &lt;- t.test(extra ~ group, data = sleep)$conf.int
+zero_in &lt;- diff_ci[1] &lt;= 0 &amp; diff_ci[2] &gt;= 0
+zero_in
+#&gt; [1] TRUE
+
+# If zero_in is TRUE, we cannot reject H0: difference = 0 at alpha = 0.05
+ifelse(zero_in,
+       &quot;Fail to reject H0 (difference could be 0)&quot;,
+       &quot;Reject H0 (difference is non-zero)&quot;)
+#&gt; [1] &quot;Fail to reject H0 (difference could be 0)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 95% CI for the mean difference in the <code>sleep</code> trial contains 0, and the function correctly reports "Fail to reject H0". Compare with <code>t.test(extra ~ group, data = sleep)$p.value</code>, the p-value is 0.079, consistent with the CI message.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not say "the parameter is in the interval with 95% probability."</strong> That is a Bayesian credible-interval statement, not a frequentist confidence statement. Under the frequentist view, the parameter is a fixed unknown, it is either in your interval (probability 1) or not (probability 0), you just do not know which. The 95% lives in the <em>procedure's</em> long-run behavior.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Rejecting H0 at level alpha is equivalent to the null value falling outside the (1 - alpha) CI.</strong> This duality lets you read a test result off a CI without computing a p-value, and vice versa. Journals increasingly ask for CIs instead of, or alongside, p-values for exactly this reason, the CI carries more information about effect size and uncertainty.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given a 95% CI for a difference of <code>[-3.4, 0.5]</code>, does it reject the null H0: difference = 0 at alpha = 0.05? Save your answer (TRUE or FALSE) in <code>ex_ci_check</code>.</p>
+<div class="webr-container" data-block-title="Your turn: CI -&gt; hypothesis decision">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: CI -&gt; hypothesis decision</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Does the interval reject H0: difference = 0 at alpha = 0.05?
+ex_ci         &lt;- c(-3.4, 0.5)
+ex_ci_check   &lt;- # your code here (TRUE if reject, FALSE otherwise)
+ex_ci_check
+#&gt; Expected: FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="CI decision solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CI decision solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ci       &lt;- c(-3.4, 0.5)
+ex_ci_check &lt;- !(ex_ci[1] &lt;= 0 &amp; ex_ci[2] &gt;= 0)
+ex_ci_check
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Zero lies inside <code>[-3.4, 0.5]</code>, so the interval does NOT rule out a difference of 0. Cannot reject H0 at alpha = 0.05, <code>ex_ci_check</code> is FALSE.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: 95% vs 99% CI widths on <code>mtcars$qsec</code></h3>
+
+<p>Compute both a 95% and a 99% CI for <code>mtcars$qsec</code> and print the width of each. Store them in <code>my_data</code>, <code>my_ci95</code>, and <code>my_ci99</code>. By how many seconds does the 99% interval widen relative to the 95%?</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: 95% vs 99% CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: 95% vs 99% CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute two CIs for qsec and compare widths
+my_data &lt;- mtcars$qsec
+my_ci95 &lt;- # your code here
+my_ci99 &lt;- # your code here
+
+width95 &lt;- diff(my_ci95)
+width99 &lt;- diff(my_ci99)
+c(width95 = width95, width99 = width99)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_data &lt;- mtcars$qsec
+my_ci95 &lt;- t.test(my_data, conf.level = 0.95)$conf.int
+my_ci99 &lt;- t.test(my_data, conf.level = 0.99)$conf.int
+
+width95 &lt;- diff(my_ci95)
+width99 &lt;- diff(my_ci99)
+c(width95 = width95, width99 = width99)
+#&gt;  width95  width99 
+#&gt; 1.291749 1.747876</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 99% CI is about 35% wider than the 95%, because <code>qt(0.995, df = 31)</code> is about 2.74 versus <code>qt(0.975, df = 31)</code> is about 2.04. Higher confidence always costs width.</p>
+
+</details>
+
+<h3>Exercise 2: Empirical coverage on skewed data</h3>
+
+<p>Simulate 500 experiments, each drawing <code>n = 50</code> observations from <code>rexp(rate = 0.2)</code> (an exponential distribution with mean 5). For each sample, construct a 90% CI for the mean using <code>t.test()</code>. Report the empirical coverage rate in <code>my_exp_coverage</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: coverage on skewed data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: coverage on skewed data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 500 CIs on exponential data and count coverage
+set.seed(2026)
+true_mean_exp &lt;- 5  # since rate = 0.2 implies mean = 1/0.2 = 5
+
+my_exp_coverage &lt;- # your code here
+my_exp_coverage
+#&gt; Expected: near 0.90 but slightly lower (skewness hurts coverage)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+true_mean_exp &lt;- 5
+
+exp_cover &lt;- replicate(500, {
+  x  &lt;- rexp(50, rate = 0.2)
+  ci &lt;- t.test(x, conf.level = 0.90)$conf.int
+  ci[1] &lt;= true_mean_exp &amp; ci[2] &gt;= true_mean_exp
+})
+my_exp_coverage &lt;- mean(exp_cover)
+my_exp_coverage
+#&gt; [1] 0.882</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Nominal coverage is 90%, empirical came in at 88.2%. The t-interval is slightly anti-conservative on skewed distributions at small to moderate <code>n</code>, one of the motivations for the bootstrap alternative.</p>
+
+</details>
+
+<h3>Exercise 3: Bootstrap CI for the coefficient of variation</h3>
+
+<p>Bootstrap a 95% percentile CI for the <em>coefficient of variation</em> (standard deviation divided by mean) of <code>mtcars$mpg</code>. Use 5,000 resamples. Store the result in <code>my_cv_boot</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter: bootstrap CV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter: bootstrap CV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Bootstrap 95% CI for sd(x)/mean(x)
+set.seed(2026)
+
+cv_fn &lt;- function(x) sd(x) / mean(x)
+
+boot_cvs   &lt;- # your code here (5000 replicates)
+my_cv_boot &lt;- # your code here (2.5% and 97.5% quantiles)
+my_cv_boot
+#&gt; Expected: near [0.18, 0.38]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+cv_fn &lt;- function(x) sd(x) / mean(x)
+
+boot_cvs &lt;- replicate(5000, {
+  r &lt;- sample(mtcars$mpg, replace = TRUE)
+  cv_fn(r)
+})
+my_cv_boot &lt;- quantile(boot_cvs, probs = c(0.025, 0.975))
+my_cv_boot
+#&gt;      2.5%     97.5% 
+#&gt; 0.2351232 0.3566569</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The bootstrap percentile CI is <code>[0.24, 0.36]</code>, the relative variability of mpg is between 24% and 36% of its mean. There is no closed-form standard error for <code>sd(x) / mean(x)</code>, which is exactly when the bootstrap earns its keep.</p>
+
+</details>
+
+<h2>Complete Example: A Small Drug-Trial Analysis</h2>
+
+<p>Let us tie everything together on the <code>sleep</code> dataset, a classic paired trial comparing the effect of two soporific drugs on 10 patients.</p>
+
+<div class="webr-container" data-block-title="End-to-end CI workflow on the sleep dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end CI workflow on the sleep dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Group means with 95% CIs
+g1 &lt;- subset(sleep, group == 1)$extra
+g2 &lt;- subset(sleep, group == 2)$extra
+
+ci_g1 &lt;- t.test(g1)$conf.int
+ci_g2 &lt;- t.test(g2)$conf.int
+round(rbind(ci_g1, ci_g2), 2)
+#&gt;        [,1] [,2]
+#&gt; ci_g1 -0.53 2.03
+#&gt; ci_g2  0.80 4.46
+
+# 2. CI for the difference (two-sample, Welch by default)
+diff_test &lt;- t.test(extra ~ group, data = sleep)
+round(diff_test$conf.int, 2)
+#&gt; [1] -3.37  0.21
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95
+
+# 3. Regression: extra ~ group
+fit_sleep &lt;- lm(extra ~ group, data = sleep)
+round(confint(fit_sleep), 2)
+#&gt;              2.5 % 97.5 %
+#&gt; (Intercept) -0.24   1.78
+#&gt; group2       0.12   2.97
+
+# 4. Interpretation (programmatic)
+diff_ci  &lt;- diff_test$conf.int
+rejects  &lt;- !(diff_ci[1] &lt;= 0 &amp; diff_ci[2] &gt;= 0)
+sprintf(&quot;95%% CI for difference: [%.2f, %.2f]. Reject H0 at alpha = 0.05? %s&quot;,
+        diff_ci[1], diff_ci[2], rejects)
+#&gt; [1] &quot;95% CI for difference: [-3.37, 0.21]. Reject H0 at alpha = 0.05? FALSE&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four pieces of inference, each with a CI, each interpreted in the same frequentist language. The paired <code>t.test()</code> (which <code>t.test(extra ~ group, data = sleep, paired = TRUE)</code> gives) would in fact reject H0 here because within-subject pairing removes a big chunk of between-subject variance, but on the unpaired Welch analysis the simpler two-sample CI straddles zero, so the unpaired comparison is inconclusive at alpha = 0.05. That distinction is exactly the kind of thing CIs make transparent, the width and location of the interval tell you not just <em>whether</em> to reject but <em>how</em> close the data came to ruling out zero.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>R function</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One-sample t-interval</td>
+<td><code>t.test(x)$conf.int</code></td>
+<td>Single mean, any <code>n</code>, moderately symmetric data</td>
+</tr>
+<tr>
+<td>Two-sample / paired t-interval</td>
+<td><code>t.test(x, y)</code> or <code>t.test(x ~ g)</code></td>
+<td>Mean difference between two groups</td>
+</tr>
+<tr>
+<td>Wilson interval (Score)</td>
+<td><code>prop.test(k, n)$conf.int</code></td>
+<td>Single proportion, moderate <code>n</code> and <code>p</code></td>
+</tr>
+<tr>
+<td>Clopper-Pearson exact</td>
+<td><code>binom.test(k, n)$conf.int</code></td>
+<td>Proportion with small <code>n</code> or extreme <code>p</code></td>
+</tr>
+<tr>
+<td>Regression coefficient</td>
+<td><code>confint(lm_fit)</code></td>
+<td>Slope / intercept from linear model</td>
+</tr>
+<tr>
+<td>Percentile bootstrap</td>
+<td><code>quantile(boot_stats, c(0.025, 0.975))</code></td>
+<td>Median, trimmed mean, CV, or any custom statistic</td>
+</tr>
+</tbody>
+</table>
+
+<p>The four facts worth remembering long after this post:</p>
+
+<ol>
+
+<li>The 95% describes a <em>procedure</em>, not a computed interval.</li>
+
+<li>To halve a CI's width you need 4x the sample size.</li>
+
+<li>Use Wilson (<code>prop.test</code>) for proportions unless <code>n</code> is very small or <code>p</code> is near 0 or 1, then use <code>binom.test</code>.</li>
+
+<li>If the null value sits outside the (1 - alpha) CI, the corresponding two-sided test rejects at level alpha.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Cumming, G. (2012). <em>Understanding The New Statistics, Effect Sizes, Confidence Intervals, and Meta-Analysis.</em> Routledge. <a href="https://www.routledge.com/Understanding-The-New-Statistics-Effect-Sizes-Confidence-Intervals-and-Meta-Analysis/Cumming/p/book/9780415879682">Link</a></li>
+
+<li>Morey, R. D., Hoekstra, R., Rouder, J. N., Lee, M. D., and Wagenmakers, E. J. (2016). <em>The Fallacy of Placing Confidence in Confidence Intervals.</em> Psychonomic Bulletin and Review. <a href="https://link.springer.com/article/10.3758/s13423-015-0947-8">Link</a></li>
+
+<li>Neyman, J. (1937). <em>Outline of a Theory of Statistical Estimation Based on the Classical Theory of Probability.</em> Philosophical Transactions of the Royal Society. <a href="https://doi.org/10.1098/rsta.1937.0005">Link</a></li>
+
+<li>R Core Team. <em>t.test documentation.</em> <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html">Link</a></li>
+
+<li>R Core Team. <em>prop.test documentation.</em> <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html">Link</a></li>
+
+<li>Hesterberg, T. C. (2015). <em>What Teachers Should Know About the Bootstrap, Resampling in the Undergraduate Statistics Curriculum.</em> The American Statistician. <a href="https://www.tandfonline.com/doi/full/10.1080/00031305.2015.1089789">Link</a></li>
+
+<li>Agresti, A. and Coull, B. A. (1998). <em>Approximate Is Better than Exact for Interval Estimation of Binomial Proportions.</em> The American Statistician. <a href="https://www.jstor.org/stable/2685469">Link</a></li>
+
+<li>CRAN <code>boot</code> package documentation. <a href="https://cran.r-project.org/web/packages/boot/index.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Central-Limit-Theorem-in-R.html">Central Limit Theorem in R</a>, the result that makes most t-intervals valid for moderate samples.</li>
+
+<li><a href="Sampling-Distributions-in-R.html">Sampling Distributions in R</a>, where standard errors come from.</li>
+
+<li><a href="Hypothesis-Testing-in-R.html">Hypothesis Testing in R</a>, the test-CI duality in full.</li>
+
+</ul>
