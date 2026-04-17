@@ -326,10 +326,15 @@
     // during scroll pauses. Uses setTimeout (reliable even on busy pages
     // with heavy ad scripts) instead of requestIdleCallback (which may
     // never fire when third-party scripts keep the main thread busy).
+    //
+    // The 150ms gap between inits gives the browser time to process
+    // pending scroll events, paint, and composite. Without this gap,
+    // a burst of 5 inits would block the main thread for 250-750ms.
     const initQueue = [];
     let _initScheduled = false;
     let _scrolling = false;
     let _scrollEndTimer = null;
+    const _INIT_GAP = 150; // ms between sequential editor inits
 
     window.addEventListener('scroll', () => {
       _scrolling = true;
@@ -354,7 +359,7 @@
       if (_initScheduled) return;
       if (_scrolling) return;  // Will be called when scroll ends
       _initScheduled = true;
-      setTimeout(processInitQueue, 30);
+      setTimeout(processInitQueue, _INIT_GAP);
     }
 
     // Eagerly init editors in the initial viewport, lazily observe the rest
