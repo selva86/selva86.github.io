@@ -458,21 +458,12 @@ def make_webr_head_block(asset_hrefs):
     cm_js = asset_hrefs.get('codemirror.js', 'www/vendor/codemirror-5.65.16.min.js')
     webr_css = asset_hrefs.get('webr.css', 'www/webr.css')
     return (
-        '    <!-- CodeMirror critical inline CSS — gutter measurement needs these BEFORE\n'
-        '         CM5 JS runs; the deferred external CSS arrives too late. -->\n'
-        '    <style>\n'
-        '      .CodeMirror-gutters{position:absolute;left:0;top:0;min-height:100%;z-index:3;background:#020617;border-right:none;padding-right:10px}\n'
-        '      .CodeMirror-gutter{white-space:normal;height:100%;display:inline-block;vertical-align:top;margin-bottom:-50px}\n'
-        '      .CodeMirror-gutter-elt{position:absolute;cursor:default;z-index:4}\n'
-        '      .CodeMirror-linenumber{padding:0 3px 0 5px;min-width:20px;text-align:right;color:#6e7681;white-space:nowrap;font-size:14px}\n'
-        '    </style>\n'
+        '    <!-- CodeMirror + WebR CSS — render-blocking so CM5 measurements are correct\n'
+        '         and code blocks render styled from the first paint (18 KB total). -->\n'
+        f'    <link rel="stylesheet" href="{cm_css}">\n'
+        f'    <link rel="stylesheet" href="{webr_css}">\n'
         '    <!-- Preload CodeMirror JS so download starts during head parsing -->\n'
         f'    <link rel="preload" href="{cm_js}" as="script">\n'
-        '    <!-- WebR Interactive R Code — external CSS deferred (non-render-blocking) -->\n'
-        f'    <link rel="stylesheet" href="{cm_css}" media="print" onload="this.media=\'all\'">\n'
-        f'    <noscript><link rel="stylesheet" href="{cm_css}"></noscript>\n'
-        f'    <link rel="stylesheet" href="{webr_css}" media="print" onload="this.media=\'all\'">\n'
-        f'    <noscript><link rel="stylesheet" href="{webr_css}"></noscript>\n'
     )
 
 
