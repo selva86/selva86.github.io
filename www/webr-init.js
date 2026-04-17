@@ -9,13 +9,12 @@
     // Pre-computed index map: avoids O(n) querySelectorAll + indexOf per editor init/run
     const _editorIndexMap = new WeakMap();
 
-    // Lightweight overlay on top of the stock R mode: highlight function-call
-    // sites (any identifier immediately followed by `(`). Skips R reserved
-    // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
     const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-    if (typeof CodeMirror !== 'undefined'
-        && CodeMirror.defineMode
-        && typeof CodeMirror.overlayMode === 'function') {
+
+    function _defineRPlusMode() {
+      if (typeof CodeMirror === 'undefined' || !CodeMirror.defineMode
+          || typeof CodeMirror.overlayMode !== 'function') return;
+      if (CodeMirror.modes && CodeMirror.modes['r-plus']) return;
       CodeMirror.defineMode('r-plus', function(cfg) {
         return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
           token: function(stream) {
@@ -29,6 +28,40 @@
           }
         });
       });
+    }
+
+    // Lazy CodeMirror loader — pulls the ~60 KiB (gzipped) bundle only when the
+    // user interacts with a code block. Zero cost for visitors who only scroll/read.
+    function _cmHref(name) {
+      const el = document.querySelector('meta[name="' + name + '"]');
+      return el ? el.content : '';
+    }
+    let _cmLoadingPromise = null;
+    function ensureCodeMirror() {
+      if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
+        _defineRPlusMode();
+        return Promise.resolve();
+      }
+      if (_cmLoadingPromise) return _cmLoadingPromise;
+      _cmLoadingPromise = new Promise((resolve, reject) => {
+        const cssHref = _cmHref('cm-css-href');
+        if (cssHref && !document.querySelector('link[data-cm-css]')) {
+          const l = document.createElement('link');
+          l.rel = 'stylesheet';
+          l.href = cssHref;
+          l.setAttribute('data-cm-css', '1');
+          document.head.appendChild(l);
+        }
+        const jsHref = _cmHref('cm-js-href');
+        if (!jsHref) { reject(new Error('cm-js-href meta missing')); return; }
+        const s = document.createElement('script');
+        s.src = jsHref;
+        s.async = true;
+        s.onload = () => { _defineRPlusMode(); resolve(); };
+        s.onerror = () => reject(new Error('CodeMirror failed to load'));
+        document.head.appendChild(s);
+      });
+      return _cmLoadingPromise;
     }
 
     const banner = document.querySelector('.webr-loading-banner');
@@ -175,23 +208,28 @@
     })();
 
     // WebR loads on-demand: first Run click triggers loadAndInitWebR().
-    // No preload — avoids 12+ MB download on page load.
+    // CodeMirror loads on-demand: first click/focus on an editor triggers ensureCodeMirror().
+    // Zero JS on initial scroll/read — the page stays a responsive static document
+    // until the user explicitly opts into interactivity.
 
     // Build sticky header for each code block: [badge + label | copy + run]
-    // Moves the existing Run button from .webr-buttons into the header so
-    // event listeners and inner shortcut span are preserved. Bottom bar is
-    // left in DOM but hidden via CSS (display: none) — preserves fragment
-    // contract and keeps rollback trivial.
     const copyIcon  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
     const checkIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
 
-    // Single shared ResizeObserver for horizontal overflow detection (instead of 1 per block)
-    const _overflowObserver = ('ResizeObserver' in window) ? new ResizeObserver(entries => {
-      for (const entry of entries) {
-        const target = entry.target.querySelector('.CodeMirror-scroll') || entry.target;
-        entry.target.classList.toggle('has-overflow', target.scrollWidth > target.clientWidth + 1);
-      }
-    }) : null;
+    // Overflow detection — sized only when an editor is actually hydrated.
+    // Pre-hydration, the static <div class="webr-editor"> has overflow:hidden
+    // so layout is predictable without extra observers.
+    let _overflowObserver = null;
+    function _ensureOverflowObserver() {
+      if (_overflowObserver || !('ResizeObserver' in window)) return _overflowObserver;
+      _overflowObserver = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          const target = entry.target.querySelector('.CodeMirror-scroll') || entry.target;
+          entry.target.classList.toggle('has-overflow', target.scrollWidth > target.clientWidth + 1);
+        }
+      });
+      return _overflowObserver;
+    }
 
     const _allContainers = document.querySelectorAll('.webr-container');
     if (_allContainers[0]) _allContainers[0].classList.add('engagement-unrun-first');
@@ -210,7 +248,7 @@
         const c = this.closest('.webr-container');
         const editorEl = c.querySelector('.webr-editor');
         const idx = _editorIndexMap.get(editorEl);
-        const code = editors[idx] ? editors[idx].cm.getValue() : editorEl.textContent;
+        const code = (editors[idx] && editors[idx].cm) ? editors[idx].cm.getValue() : editorEl.textContent;
         navigator.clipboard.writeText(code).then(() => {
           copyBtn.innerHTML = checkIcon;
           copyBtn.classList.add('copied');
@@ -272,15 +310,87 @@
         outputEl.setAttribute('aria-atomic', 'false');
         outputEl.setAttribute('tabindex', '-1');
       }
-
-      // Horizontal overflow affordance — shared ResizeObserver toggles .has-overflow
-      const editorEl = codeBlock.querySelector('.webr-editor');
-      if (editorEl && _overflowObserver) _overflowObserver.observe(editorEl);
     });
 
-    // Initialize CodeMirror editor for a single element
+    // Build the index map once. Editors hydrate on demand — not on load.
+    const allEditors = document.querySelectorAll('.webr-editor');
+    allEditors.forEach((el, i) => {
+      _editorIndexMap.set(el, i);
+      // Make the static block click-to-edit: the user gets a CodeMirror editor
+      // the instant they click. Until then, the <div> is a styled <pre> with
+      // zero JS work, zero layout cost beyond base HTML rendering.
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'textbox');
+      el.setAttribute('aria-label', 'R code. Click or press Enter to edit.');
+    });
+
+    // Hydrate a single editor — loads CodeMirror lazily on first call.
+    // Re-entry-safe: concurrent callers share the same in-flight promise,
+    // and a post-await cmInit check skips the double-init branch.
+    function hydrateEditor(el, shouldFocus) {
+      if (el.dataset.cmInit) {
+        if (shouldFocus) {
+          const idx = _editorIndexMap.get(el);
+          const entry = editors[idx];
+          if (entry && entry.cm) entry.cm.focus();
+        }
+        return Promise.resolve();
+      }
+      if (el._cmHydratePromise) {
+        return shouldFocus
+          ? el._cmHydratePromise.then(() => {
+              const idx = _editorIndexMap.get(el);
+              const entry = editors[idx];
+              if (entry && entry.cm) entry.cm.focus();
+            })
+          : el._cmHydratePromise;
+      }
+      el._cmHydratePromise = ensureCodeMirror().then(() => {
+        initEditor(el);
+        if (shouldFocus) {
+          const idx = _editorIndexMap.get(el);
+          const entry = editors[idx];
+          if (entry && entry.cm) entry.cm.focus();
+        }
+      }).catch(err => {
+        delete el._cmHydratePromise;
+        throw err;
+      });
+      return el._cmHydratePromise;
+    }
+
+    // Delegated activation: click, focus (tab-in), or Enter/Space on a focused
+    // static editor all hydrate CodeMirror. Keydown filter narrows the handler
+    // so typing in search/form fields never triggers spurious work.
+    document.addEventListener('click', function (e) {
+      const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
+      if (!el) return;
+      hydrateEditor(el, true);
+    }, true);
+    document.addEventListener('focusin', function (e) {
+      const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
+      if (!el || el.dataset.cmInit) return;
+      hydrateEditor(el, true);
+    }, true);
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
+      if (!el || el.dataset.cmInit) return;
+      e.preventDefault();
+      hydrateEditor(el, true);
+    }, true);
+
+    // Hover-preload: warm the CM bundle the moment the user points at a block.
+    // `once: true` ensures the fetch happens at most once per page.
+    document.addEventListener('pointerenter', function (e) {
+      const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
+      if (!el) return;
+      ensureCodeMirror().catch(() => { /* silent — click path will retry */ });
+    }, { capture: true, once: true });
+
     function initEditor(el) {
-      if (el.dataset.cmInit) return; // already initialized
+      if (el.dataset.cmInit) return;
+      if (typeof CodeMirror === 'undefined') return; // caller must ensureCodeMirror() first
       el.dataset.cmInit = '1';
       const code = el.textContent;
       el.textContent = '';
@@ -311,80 +421,16 @@
         });
       } catch (e) {
         console.error('WebR editor init failed:', e);
-        // Recover: restore the original code text and allow a retry later.
         el.innerHTML = '';
         el.textContent = code;
         delete el.dataset.cmInit;
         return;
       }
       el.classList.add('cm-initialized');
+      const obs = _ensureOverflowObserver();
+      if (obs) obs.observe(el);
       const domIdx = _editorIndexMap.get(el);
       editors[domIdx] = { cm, originalCode: code, el };
-    }
-
-    // Scroll-aware init: queue editors and init ONE at a time, but only
-    // during scroll pauses. Uses setTimeout (reliable even on busy pages
-    // with heavy ad scripts) instead of requestIdleCallback (which may
-    // never fire when third-party scripts keep the main thread busy).
-    //
-    // The 150ms gap between inits gives the browser time to process
-    // pending scroll events, paint, and composite. Without this gap,
-    // a burst of 5 inits would block the main thread for 250-750ms.
-    const initQueue = [];
-    let _initScheduled = false;
-    let _scrolling = false;
-    let _scrollEndTimer = null;
-    const _INIT_GAP = 200; // ms between sequential editor inits
-
-    window.addEventListener('scroll', () => {
-      _scrolling = true;
-      clearTimeout(_scrollEndTimer);
-      _scrollEndTimer = setTimeout(() => {
-        _scrolling = false;
-        if (initQueue.length > 0 && !_initScheduled) scheduleNextInit();
-      }, 150);
-    }, { passive: true });
-
-    function processInitQueue() {
-      _initScheduled = false;
-      if (initQueue.length === 0) return;
-      // Don't init during active scroll — wait for next pause
-      if (_scrolling) return;
-      const el = initQueue.shift();
-      initEditor(el);
-      if (initQueue.length > 0) scheduleNextInit();
-    }
-
-    function scheduleNextInit() {
-      if (_initScheduled) return;
-      if (_scrolling) return;  // Will be called when scroll ends
-      _initScheduled = true;
-      setTimeout(processInitQueue, _INIT_GAP);
-    }
-
-    // Single IntersectionObserver for ALL editors — replaces the synchronous
-    // getBoundingClientRect loop that forced layout reflow on 32+ elements.
-    // rootMargin 400px: editors within viewport+400px queue eagerly on load;
-    // far-away editors queue as user scrolls near them.
-    // IO fires asynchronously — zero forced reflows during script execution.
-    const allEditors = document.querySelectorAll('.webr-editor');
-    allEditors.forEach((el, i) => _editorIndexMap.set(el, i));
-
-    if ('IntersectionObserver' in window) {
-      const editorObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            initQueue.push(entry.target);
-            editorObserver.unobserve(entry.target);
-          }
-        });
-        if (initQueue.length > 0 && !_initScheduled) scheduleNextInit();
-      }, { rootMargin: '400px' });
-      allEditors.forEach(el => editorObserver.observe(el));
-    } else {
-      // Fallback for very old browsers (IO unsupported): queue all, use gap timer.
-      allEditors.forEach(el => initQueue.push(el));
-      if (initQueue.length > 0) scheduleNextInit();
     }
 
     // Track which packages are already installed in this WebR session
@@ -489,17 +535,16 @@
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
-      // Ensure the editor for this block is initialized even if the user
-      // clicked Run before the lazy IntersectionObserver fired.
-      if (!editorEl.dataset.cmInit) initEditor(editorEl);
+      // Ensure the editor for this block is hydrated — first Run may be on a
+      // block the user never clicked, so CodeMirror isn't loaded yet. Running
+      // with the static textContent is also OK, but we upgrade for parity.
+      if (!editorEl.dataset.cmInit) await hydrateEditor(editorEl, false);
       const idx = _editorIndexMap.get(editorEl);
-      let code = editors[idx].cm.getValue();
+      let code = (editors[idx] && editors[idx].cm) ? editors[idx].cm.getValue() : editorEl.textContent;
 
       btn.disabled = true;
       setRunBtnText(btn, 'Installing packages...');
       btn.classList.add('running');
-      // Clear output but keep panel visible — :empty::before shows placeholder.
-      // IMPORTANT: use textContent = '' (no whitespace) so :empty pseudo matches.
       outputEl.textContent = '';
       outputEl.classList.remove('has-content', 'has-error', 'has-message');
       outputEl.classList.add('is-loading');
@@ -601,16 +646,15 @@
       btn.classList.remove('running');
     };
 
-    // Reset code to original (Reset button is hidden in PR A; kept for
-    // fragment-contract + potential direct invocation).
-    window.resetWebR = function(btn) {
+    // Reset code to original
+    window.resetWebR = async function(btn) {
       const container = btn.closest('.webr-container');
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
-      if (!editorEl.dataset.cmInit) initEditor(editorEl);
+      if (!editorEl.dataset.cmInit) await hydrateEditor(editorEl, false);
       const idx = _editorIndexMap.get(editorEl);
-      editors[idx].cm.setValue(editors[idx].originalCode);
+      if (editors[idx] && editors[idx].cm) editors[idx].cm.setValue(editors[idx].originalCode);
       outputEl.textContent = '';
       outputEl.classList.remove('has-content', 'has-error', 'has-message', 'is-loading');
       if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }

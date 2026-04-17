@@ -320,9 +320,20 @@
     }
   }
 
+  // Engagement is a UI-enhancement layer, not on the critical path. Defer its
+  // init into an idle window so the 100-400ms of DOM work it does (pill
+  // creation, MutationObservers on every webr-container, meta-strip rewrite)
+  // doesn't show up as a long task while the page is still painting.
+  function scheduleInit() {
+    if (window.requestIdleCallback) {
+      requestIdleCallback(init, { timeout: 2000 });
+    } else {
+      setTimeout(init, 200);
+    }
+  }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', scheduleInit);
   } else {
-    init();
+    scheduleInit();
   }
 })();

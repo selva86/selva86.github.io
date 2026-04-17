@@ -138,40 +138,49 @@ function saveCollapsed(c) {
     .catch(function() {});
 })();
 
-// === Scroll-spy for right-side TOC (throttled to once per frame) ===
+// === Scroll-spy for right-side TOC ===
+// Uses IntersectionObserver — no scroll handler, no layout reads, no jank.
+// The old implementation called `offsetTop` for every h2 on every scroll tick,
+// forcing a full layout recalc. On pages with 20+ headings and 30+ code blocks
+// that was a visible source of scroll stutter.
 (function() {
-  var ticking = false;
-  var tocLinks = null;
-  var headings = null;
-  var lastActiveId = null;
+  if (!('IntersectionObserver' in window)) return;
+  var headings = document.querySelectorAll('#content h2');
+  var tocLinks = document.querySelectorAll('#toc a');
+  if (!headings.length || !tocLinks.length) return;
 
-  function updateScrollSpy() {
-    if (!tocLinks) tocLinks = document.querySelectorAll('#toc a');
-    if (!headings) headings = document.querySelectorAll('#content h2');
-    if (tocLinks.length === 0 || headings.length === 0) { ticking = false; return; }
+  var linkById = {};
+  tocLinks.forEach(function (a) {
+    var href = a.getAttribute('href') || '';
+    if (href.charAt(0) === '#') linkById[href.slice(1)] = a;
+  });
 
-    var scrollPos = window.pageYOffset + 100;
-    var currentId = null;
+  var visibleIds = {};
+  var activeId = null;
+
+  function updateActive() {
+    // Pick the topmost heading currently inside the "active zone" — if none is
+    // in view (long section body), keep the last one we highlighted.
+    var chosen = null;
     for (var i = 0; i < headings.length; i++) {
-      if (headings[i].offsetTop <= scrollPos) {
-        currentId = headings[i].id;
-      }
+      if (visibleIds[headings[i].id]) { chosen = headings[i].id; break; }
     }
-    if (currentId !== lastActiveId) {
-      tocLinks.forEach(function(a) { a.classList.remove('toc-active'); });
-      if (currentId) {
-        var activeLink = document.querySelector('#toc a[href="#' + currentId + '"]');
-        if (activeLink) activeLink.classList.add('toc-active');
-      }
-      lastActiveId = currentId;
-    }
-    ticking = false;
+    if (!chosen) return;
+    if (chosen === activeId) return;
+    if (activeId && linkById[activeId]) linkById[activeId].classList.remove('toc-active');
+    if (linkById[chosen]) linkById[chosen].classList.add('toc-active');
+    activeId = chosen;
   }
 
-  window.addEventListener('scroll', function() {
-    if (!ticking) {
-      requestAnimationFrame(updateScrollSpy);
-      ticking = true;
+  // rootMargin: a thin band near the top of the viewport. A heading is
+  // "active" while its text sits in this band. Bottom margin pushes the
+  // zone close to the top so scrolling into a new section switches promptly.
+  var io = new IntersectionObserver(function (entries) {
+    for (var i = 0; i < entries.length; i++) {
+      visibleIds[entries[i].target.id] = entries[i].isIntersecting;
     }
-  });
+    updateActive();
+  }, { rootMargin: '-80px 0px -70% 0px', threshold: 0 });
+
+  headings.forEach(function (h) { io.observe(h); });
 })();
