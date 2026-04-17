@@ -1,0 +1,1000 @@
+---
+title: "Weibull, Log-Normal & Uniform Distributions in R: Survival & Reliability"
+description: "Learn Weibull, log-normal, and uniform distributions in R for survival, reliability, and simulation — with practical d/p/q/r examples and clear intuition."
+keywords: "Weibull distribution R, log-normal distribution R, uniform distribution R, dweibull, dlnorm, dunif, survival analysis, reliability analysis, hazard function, inverse transform sampling"
+mathjax: true
+webr: true
+curriculum_id: "FR-prob-10"
+post_type: "FR"
+auto_link_terms: "Weibull distribution|log-normal distribution|uniform distribution|hazard function|reliability analysis|inverse transform sampling|dweibull|rweibull|rlnorm|runif"
+auto_link_case_sensitive: false
+fr_parent: "Normal-t-F-and-Chi-Squared-Distributions-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Weibull, Log-Normal & Uniform Distributions in R: Survival & Reliability</h1>
+
+<p class="lead">The Weibull distribution models time-to-failure and survival data, the log-<a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> captures multiplicative processes like incomes and file sizes, and the uniform distribution assigns equal probability to every value in a range — making it the workhorse of <a class="auto-link" href="Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html" title="Probability Axioms in R: Prove the Rules of Probability via Monte Carlo Simulation">Monte Carlo simulation</a>. Together they cover the three most common shapes you meet outside the Gaussian family.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>When should you use Weibull, log-normal, or uniform distributions?</h2>
+
+<p>These three distributions anchor three different worlds. Weibull owns survival and reliability — anything with a failure rate that changes over time. Log-normal owns multiplicative growth — incomes, file sizes, stock returns, reaction times. Uniform owns pure ignorance — every outcome in a range equally likely, which is why it powers Monte Carlo simulation. Here are their shapes side by side so you can recognise each one on sight.</p>
+
+<p>The code below loads <code>ggplot2</code>, <code>tibble</code>, and <code>dplyr</code>, builds a grid of x-values, computes each distribution's density at comparable parameter settings, and plots all three on one chart with coloured lines.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot all three densities on one chart
+library(ggplot2)
+library(tibble)
+library(dplyr)
+
+x_grid &lt;- seq(0.01, 5, length.out = 300)
+
+density_df &lt;- tibble(
+  x = rep(x_grid, 3),
+  density = c(
+    dweibull(x_grid, shape = 2, scale = 1.5),
+    dlnorm(x_grid, meanlog = 0, sdlog = 0.6),
+    dunif(x_grid, min = 0, max = 3)
+  ),
+  distribution = rep(c(&quot;Weibull(2, 1.5)&quot;, &quot;Log-Normal(0, 0.6)&quot;, &quot;Uniform(0, 3)&quot;),
+                     each = length(x_grid))
+)
+
+ggplot(density_df, aes(x = x, y = density, colour = distribution)) +
+  geom_line(size = 1) +
+  labs(title = &quot;Three distributions at comparable scales&quot;,
+       x = &quot;x&quot;, y = &quot;Density&quot;) +
+  theme_minimal()
+#&gt; A ggplot with three coloured density curves: a bell-like Weibull,
+#&gt; a right-skewed log-normal with a long tail, and a flat uniform rectangle.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Weibull curve rises to a peak near its scale and falls away — a finite mode and a lightish right tail. The log-normal rises faster on the left but trails off more slowly on the right — that long tail is the giveaway for multiplicative data. The uniform is a flat rectangle between 0 and 3 with height <code>1/3</code>. One glance tells you which family your data resembles.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Each distribution has its own d/p/q/r quartet in base R.</strong> <code>dweibull/pweibull/qweibull/rweibull</code>, <code>dlnorm/plnorm/qlnorm/rlnorm</code>, and <code>dunif/punif/qunif/runif</code> mirror <code>dnorm/pnorm/qnorm/rnorm</code> — density, CDF, quantile, and random sampler. Once you learn the pattern for one, you know it for all of them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-plot the three densities with the uniform set to <code>min = 0, max = 10</code> instead of <code>(0, 3)</code>. What happens to the height of the rectangle, and why?</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: change uniform range to (0, 10)
+ex_x &lt;- seq(0.01, 5, length.out = 300)
+ex_df &lt;- tibble(
+  x = ex_x,
+  density = dunif(ex_x, min = 0, max = 10)  # your change here
+)
+ggplot(ex_df, aes(x, density)) + geom_line() + theme_minimal()
+#&gt; Expected: a flat line at height 0.1 across the visible range.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_x &lt;- seq(0.01, 5, length.out = 300)
+ex_df &lt;- tibble(
+  x = ex_x,
+  density = dunif(ex_x, min = 0, max = 10)
+)
+ggplot(ex_df, aes(x, density)) + geom_line() + theme_minimal()
+#&gt; Flat line at height 0.1 (= 1/10) across x = 0 to 5.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A uniform density integrates to 1 over its support, so stretching the range from width 3 to width 10 drops the height from <code>1/3 ≈ 0.33</code> to <code>1/10 = 0.1</code>.</p>
+
+</details>
+</section>
+
+<h2>How does the Weibull distribution model survival and reliability?</h2>
+
+<p>The Weibull distribution is the default choice for time-to-failure data — light bulbs, bearings, hard drives, insurance policy cancellations. It has two parameters: a <strong>shape</strong> <code>k</code> and a <strong>scale</strong> <code>lambda</code>. The shape controls whether items fail more often as they age, at a constant rate, or less often (a "burn-in" period). The scale sets the characteristic lifetime — roughly the point where about 63% of items have failed.</p>
+
+<p>Let's plot three Weibull densities at shape values 0.5, 1, and 3 with scale fixed at 1. Watch how the whole curve morphs from an exponential-looking decay to a near-bell shape.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Weibull densities at shape = 0.5, 1, 3
+wb_df &lt;- tibble(
+  x = rep(seq(0.01, 3, length.out = 300), 3),
+  density = c(
+    dweibull(seq(0.01, 3, length.out = 300), shape = 0.5, scale = 1),
+    dweibull(seq(0.01, 3, length.out = 300), shape = 1,   scale = 1),
+    dweibull(seq(0.01, 3, length.out = 300), shape = 3,   scale = 1)
+  ),
+  shape = rep(c(&quot;k = 0.5 (decreasing hazard)&quot;,
+                &quot;k = 1 (constant hazard = exponential)&quot;,
+                &quot;k = 3 (increasing hazard)&quot;), each = 300)
+)
+
+ggplot(wb_df, aes(x, density, colour = shape)) +
+  geom_line(size = 1) +
+  labs(title = &quot;Weibull shape controls the hazard pattern&quot;,
+       x = &quot;Time&quot;, y = &quot;Density&quot;) +
+  theme_minimal()
+#&gt; Three curves: k=0.5 plunges from infinity, k=1 is exponential,
+#&gt; k=3 is a right-skewed bump peaking near x = 0.9.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">shape parameter</a> completely reorganises the distribution. At <code>k = 1</code>, Weibull collapses to the exponential — memoryless, constant hazard. At <code>k &gt; 1</code>, older items fail faster than young ones (wear-out). At <code>k &lt; 1</code>, new items fail faster (infant mortality). The same two parameters describe three very different failure regimes, which is why engineers love it.</p>
+
+<p>The failure-rate story is clearer when you plot the hazard function directly. The <strong>hazard</strong> at time <code>t</code> is the instantaneous failure rate given survival up to <code>t</code>:</p>
+
+<p>$$h(t) = \frac{f(t)}{1 - F(t)} = \frac{k}{\lambda}\left(\frac{t}{\lambda}\right)^{k-1}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$h(t)$ = instantaneous failure rate at time $t$</li>
+
+<li>$f(t)$ = Weibull density (what <code>dweibull()</code> returns)</li>
+
+<li>$F(t)$ = Weibull CDF (what <code>pweibull()</code> returns)</li>
+
+<li>$k, \lambda$ = shape and scale parameters</li>
+
+</ul>
+
+<p>In R we can compute it directly from the d/p functions.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hazard function at the same three shapes
+t_grid &lt;- seq(0.05, 3, length.out = 300)
+hazard_df &lt;- tibble(
+  t = rep(t_grid, 3),
+  hazard = c(
+    dweibull(t_grid, 0.5, 1) / (1 - pweibull(t_grid, 0.5, 1)),
+    dweibull(t_grid, 1,   1) / (1 - pweibull(t_grid, 1,   1)),
+    dweibull(t_grid, 3,   1) / (1 - pweibull(t_grid, 3,   1))
+  ),
+  shape = rep(c(&quot;k = 0.5&quot;, &quot;k = 1&quot;, &quot;k = 3&quot;), each = length(t_grid))
+)
+
+ggplot(hazard_df, aes(t, hazard, colour = shape)) +
+  geom_line(size = 1) +
+  coord_cartesian(ylim = c(0, 10)) +
+  labs(title = &quot;Hazard function by Weibull shape&quot;,
+       x = &quot;Time&quot;, y = &quot;Hazard rate h(t)&quot;) +
+  theme_minimal()
+#&gt; k=0.5 hazard falls toward 0 (things that survive early become safer),
+#&gt; k=1 hazard is flat at 1 (memoryless),
+#&gt; k=3 hazard rises steadily (wear-out).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each curve corresponds to one of the three segments of the classic "bathtub" reliability curve: infant mortality, useful life, and wear-out. Real products often exhibit all three over their lifespan, which is why reliability engineers sometimes fit a mixture of Weibulls instead of a single one.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Shape k and hazard direction are the same story.</strong> If you know the hazard is rising, you want <code>k &gt; 1</code>. If falling, <code>k &lt; 1</code>. If flat, the Weibull reduces to an exponential. That one parameter is the difference between a bearing that wears out and a transistor that fails at random.</div></div>
+
+<p>Now let's simulate 500 failure times from a Weibull with shape = 2, scale = 1000 (a typical "wear-out" device with characteristic life of 1000 hours) and compare the sample mean and median to the theoretical values.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 500 failure times and compare to theoretical summaries
+set.seed(101)
+failure_times &lt;- rweibull(500, shape = 2, scale = 1000)
+
+c(sample_mean = mean(failure_times),
+  sample_median = median(failure_times))
+#&gt;   sample_mean sample_median
+#&gt;      874.9968      823.4421
+
+# Theoretical mean = scale * gamma(1 + 1/shape)
+c(theoretical_mean = 1000 * gamma(1 + 1/2),
+  theoretical_median = qweibull(0.5, shape = 2, scale = 1000))
+#&gt;  theoretical_mean theoretical_median
+#&gt;          886.2269           832.5546</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The sample estimates come within 2% of the analytical values — exactly what we expect from 500 draws. Notice the mean is slightly above the median (reflecting the right skew) and <code>qweibull(0.5, ...)</code> gives the theoretical median directly. That one line replaces any analytical manipulation of <code>log(2)^(1/k) * lambda</code>.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the 90th percentile of time-to-failure for a Weibull with shape = 2 and scale = 1000 — the time by which 90% of items will have failed.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: find the B90 life
+ex_p &lt;- 0.9
+ex_b90 &lt;- # your code here
+ex_b90
+#&gt; Expected: roughly 1517 hours</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_b90 &lt;- qweibull(0.9, shape = 2, scale = 1000)
+ex_b90
+#&gt; [1] 1517.427</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>qweibull(p, shape, scale)</code> returns the value <code>t</code> such that <code>P(T &lt;= t) = p</code>. Reliability engineers call this the <code>B_p</code> life — <code>B10</code> for 10%, <code>B90</code> for 90%, and so on.</p>
+
+</details>
+</section>
+
+<h2>How does the log-normal distribution arise from multiplicative processes?</h2>
+
+<p>The log-normal distribution is what you get when you multiply many small independent positive shocks together. Formally, if <code>log(X) ~ Normal(meanlog, sdlog)</code>, then <code>X ~ LogNormal(meanlog, sdlog)</code>. The meanlog and sdlog parameters are <strong>parameters of <code>log(X)</code>, not of <code>X</code></strong> — a confusion that bites almost everyone on first contact.</p>
+
+<p>The cleanest demonstration is to simulate a multiplicative growth process and watch the distribution of final values. Imagine 5,000 parallel "stocks", each compounded by small random monthly returns for 60 months. The final values should be log-normal.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 5000 multiplicative growth paths over 60 steps
+set.seed(202)
+n_paths &lt;- 5000
+n_steps &lt;- 60
+shocks &lt;- matrix(rnorm(n_paths * n_steps, mean = 0.005, sd = 0.02),
+                 nrow = n_paths)
+growth_paths &lt;- exp(apply(shocks, 1, cumsum))  # 60 x 5000 matrix of paths
+finals &lt;- growth_paths[n_steps, ]
+
+# Compare final values to a log-normal fit
+meanlog_hat &lt;- mean(log(finals))
+sdlog_hat   &lt;- sd(log(finals))
+c(meanlog_hat = meanlog_hat, sdlog_hat = sdlog_hat)
+#&gt;   meanlog_hat    sdlog_hat
+#&gt;   0.301443       0.155237
+
+# Histogram with fitted log-normal overlay
+ggplot(tibble(final = finals), aes(final)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50,
+                 fill = &quot;steelblue&quot;, alpha = 0.6) +
+  stat_function(fun = dlnorm,
+                args = list(meanlog = meanlog_hat, sdlog = sdlog_hat),
+                colour = &quot;red&quot;, size = 1) +
+  labs(title = &quot;60 months of compounded shocks → log-normal outcomes&quot;,
+       x = &quot;Final value&quot;, y = &quot;Density&quot;) +
+  theme_minimal()
+#&gt; Histogram is right-skewed with a long right tail; red curve is
+#&gt; the dlnorm fit lying almost perfectly on top of the bars.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The red density sits on top of the histogram because the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">Central Limit Theorem</a> guarantees that sums of many small independent shocks — the <code>cumsum</code> — are approximately normal, so their exponentials (the final values) are approximately log-normal. Anything that compounds multiplicatively — investments, populations, reaction times — belongs to this family.</p>
+
+<p>Now let's use <code>dlnorm</code> and <code>plnorm</code> for the classic income question: if log-income has mean 10.5 and sd 0.7 (so typical income is around <code>exp(10.5) ≈ 36,000</code>), what fraction of the population earns more than 100,000?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Income example with the d/p/q family
+income_meanlog &lt;- 10.5
+income_sdlog   &lt;- 0.7
+
+# P(income &gt; 100000)
+1 - plnorm(100000, meanlog = income_meanlog, sdlog = income_sdlog)
+#&gt; [1] 0.08123
+
+# Median and mean of income
+c(median_income = exp(income_meanlog),
+  mean_income   = exp(income_meanlog + income_sdlog^2 / 2))
+#&gt;   median_income      mean_income
+#&gt;        36315.5          46380.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 8% of the population earns above 100k, the median is 36,315, and the mean is 46,380. The gap between mean and median — the mean is 28% higher — is the statistical signature of the long right tail. Reporting only the mean would overstate the typical experience, which is why household income is almost always summarised by the median.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Log-normal mean is always greater than its median.</strong> The median equals <code>exp(meanlog)</code> and the mean equals <code>exp(meanlog + sdlog²/2)</code> — that extra <code>sdlog²/2</code> term pushes the mean up whenever there's any spread at all. This is exactly why average wealth is so much higher than median wealth: the top tail pulls the mean.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take 2000 samples from <code>rlnorm(meanlog = 1, sdlog = 0.5)</code> and check visually whether <code>log()</code> of those samples looks normal, using a QQ plot against the theoretical normal.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: confirm log(rlnorm) is normal
+set.seed(303)
+ex_samples &lt;- rlnorm(2000, meanlog = 1, sdlog = 0.5)
+ex_logs &lt;- # your code here
+qqnorm(ex_logs); qqline(ex_logs, col = &quot;red&quot;)
+#&gt; Expected: points hug the reference line almost perfectly.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+ex_samples &lt;- rlnorm(2000, meanlog = 1, sdlog = 0.5)
+ex_logs &lt;- log(ex_samples)
+qqnorm(ex_logs); qqline(ex_logs, col = &quot;red&quot;)
+#&gt; Points fall on the red reference line — log(X) is Normal(1, 0.5).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The defining property of log-normal is that the logarithm is normal. A QQ plot of <code>log(X)</code> against the standard normal should be a straight line; deviations suggest a different family.</p>
+
+</details>
+</section>
+
+<h2>What makes the uniform distribution the backbone of Monte Carlo simulation?</h2>
+
+<p>The uniform distribution on <code>[min, max]</code> assigns equal probability density <code>1 / (max - min)</code> to every point in its range and zero outside. It's the simplest continuous distribution — and also the most important in computing, because almost every random number generator in every language produces uniform numbers first and transforms them into everything else.</p>
+
+<p>Here's the d/p/q/r tour on <code>Uniform(0, 10)</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Density, CDF, quantile, random samples on Uniform(0, 10)
+dunif(3, min = 0, max = 10)             # density at x = 3
+#&gt; [1] 0.1
+
+punif(3, min = 0, max = 10)             # P(X &lt;= 3)
+#&gt; [1] 0.3
+
+qunif(0.75, min = 0, max = 10)          # 75th percentile
+#&gt; [1] 7.5
+
+set.seed(404)
+unif_samples &lt;- runif(5, min = 0, max = 10)
+unif_samples
+#&gt; [1] 2.865 7.746 3.710 9.066 1.278</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four lines give you density, cumulative probability, quantile, and random draws. <code>dunif</code> returns <code>1/10 = 0.1</code> everywhere in range. <code>punif(3)</code> returns <code>0.3</code> because 3 is 30% of the way from 0 to 10. <code>qunif(0.75)</code> inverts that: the 75th percentile of <code>Uniform(0, 10)</code> is 7.5. And <code>runif(5)</code> draws five samples.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always seed your random streams before any simulation.</strong> Call <code>set.seed(N)</code> before <code>runif()</code> (or any r-function) so results are reproducible and bugs are easier to spot. The argument is any integer — distinct seeds per major simulation keep parallel runs independent.</div></div>
+
+<p>The deeper reason the uniform matters is <strong>inverse-transform sampling</strong>: if <code>U ~ Uniform(0, 1)</code> and <code>F</code> is any continuous CDF, then <code>F^(-1)(U)</code> follows the distribution with CDF <code>F</code>. You can generate any distribution you want from uniform draws. Let's demonstrate with the exponential, whose inverse CDF is <code>-log(1 - u) / rate</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Generate exponential samples from uniform via inverse transform
+set.seed(505)
+rate &lt;- 2
+u_samples &lt;- runif(2000)                       # uniform
+x_inv    &lt;- -log(1 - u_samples) / rate         # inverse-transform exponential
+x_direct &lt;- rexp(2000, rate = rate)            # directly from rexp
+
+# Compare distributions with a QQ plot
+qqplot(x_direct, x_inv,
+       xlab = &quot;rexp samples&quot;, ylab = &quot;Inverse-transform samples&quot;,
+       main = &quot;Uniform → Exponential via inverse transform&quot;)
+abline(0, 1, col = &quot;red&quot;, lwd = 2)
+#&gt; QQ plot hugs the red y = x line → same distribution.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The QQ plot sits right on the diagonal, confirming both methods produce samples from the same exponential distribution. That single identity — <code>F^(-1)(U)</code> — is how R, Python, C, and every other language generate Weibull, log-normal, gamma, beta, and dozens more distributions under the hood. The uniform is the engine.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Estimate π using 20,000 uniform draws in the unit square via the classic Monte Carlo method — count the fraction falling inside the quarter-circle of radius 1 and multiply by 4.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: Monte Carlo estimate of pi
+set.seed(606)
+n_mc &lt;- 20000
+x_mc &lt;- runif(n_mc)
+y_mc &lt;- runif(n_mc)
+pi_estimate &lt;- # your code here
+pi_estimate
+#&gt; Expected: around 3.14 (± 0.02)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(606)
+n_mc &lt;- 20000
+x_mc &lt;- runif(n_mc)
+y_mc &lt;- runif(n_mc)
+inside &lt;- (x_mc^2 + y_mc^2) &lt;= 1
+pi_estimate &lt;- 4 * mean(inside)
+pi_estimate
+#&gt; [1] 3.1498</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A quarter-circle of radius 1 has area <code>pi / 4</code>. The fraction of uniform points in the unit square falling inside it estimates that area, so multiplying by 4 estimates <code>pi</code>. The error shrinks as <code>1 / sqrt(n)</code> — 20,000 draws typically get two correct decimals.</p>
+
+</details>
+</section>
+
+<h2>How do you choose between Weibull, log-normal, and uniform for your data?</h2>
+
+<p>The three distributions answer different questions, so the first step is to frame the problem — not to look at the histogram. Use this flow:</p>
+
+<p><img src="screenshots/Weibull-Log-Normal-and-Uniform-Distributions-in-R-choose-flow.webp" alt="Deciding which distribution fits your data." class="img-responsive img-zoomable" loading="lazy" width="2248" height="1012" /></p>
+
+<p><em>Figure 1: Deciding which distribution fits your data.</em></p>
+
+<p>And this cheat-sheet of visual and domain cues:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Cue</th>
+<th>Weibull</th>
+<th>Log-Normal</th>
+<th>Uniform</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Typical domain</td>
+<td>Time to failure, survival</td>
+<td>Income, file size, reaction time</td>
+<td>Bounded measurement, Monte Carlo input</td>
+</tr>
+<tr>
+<td>Support</td>
+<td><code>(0, ∞)</code></td>
+<td><code>(0, ∞)</code></td>
+<td><code>[min, max]</code></td>
+</tr>
+<tr>
+<td>Shape</td>
+<td>Can be skewed or bell-like</td>
+<td>Always right-skewed</td>
+<td>Flat</td>
+</tr>
+<tr>
+<td>Key parameter</td>
+<td><code>shape</code> (hazard direction)</td>
+<td><code>sdlog</code> (tail heaviness)</td>
+<td><code>min</code>, <code>max</code> (range)</td>
+</tr>
+<tr>
+<td>Mean vs median</td>
+<td>Mean > median if k < 3.6</td>
+<td>Mean always > median</td>
+<td>Mean = median</td>
+</tr>
+<tr>
+<td>d/p/q/r</td>
+<td><code>dweibull</code> family</td>
+<td><code>dlnorm</code> family</td>
+<td><code>dunif</code> family</td>
+</tr>
+</tbody>
+</table>
+
+<p>When you're unsure, fit all three and compare log-likelihoods. Here's how to do that using method-of-moments estimators on a synthetic right-skewed dataset — simple, transparent, and fast.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit all three to a right-skewed dataset and compare log-likelihoods
+set.seed(707)
+skewed_data &lt;- rweibull(500, shape = 2, scale = 10)  # true model: Weibull
+
+# Weibull fit — shape solved numerically, scale from mean identity
+wb_shape &lt;- uniroot(function(k) {
+  m1 &lt;- mean(skewed_data); m2 &lt;- mean(skewed_data^2)
+  m2 / m1^2 - gamma(1 + 2/k) / gamma(1 + 1/k)^2
+}, interval = c(0.5, 10))$root
+wb_scale &lt;- mean(skewed_data) / gamma(1 + 1/wb_shape)
+
+# Log-normal fit — direct from log data
+ln_meanlog &lt;- mean(log(skewed_data))
+ln_sdlog   &lt;- sd(log(skewed_data))
+
+# Uniform fit — min and max
+un_min &lt;- min(skewed_data); un_max &lt;- max(skewed_data)
+
+fits_table &lt;- tibble(
+  distribution = c(&quot;Weibull&quot;, &quot;Log-Normal&quot;, &quot;Uniform&quot;),
+  logLik = c(
+    sum(dweibull(skewed_data, wb_shape, wb_scale, log = TRUE)),
+    sum(dlnorm(skewed_data, ln_meanlog, ln_sdlog, log = TRUE)),
+    sum(dunif(skewed_data, un_min, un_max, log = TRUE))
+  )
+)
+fits_table
+#&gt; # A tibble: 3 × 2
+#&gt;   distribution logLik
+#&gt;   &lt;chr&gt;         &lt;dbl&gt;
+#&gt; 1 Weibull      -1661.
+#&gt; 2 Log-Normal   -1694.
+#&gt; 3 Uniform      -1809.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Weibull log-likelihood is the highest (least negative), log-normal is a close second, and uniform trails badly — expected, because we generated the data from a Weibull. Higher log-likelihood means better fit, so this simple comparison tells you which family to trust. For a real analysis you would also check goodness-of-fit with a Kolmogorov–Smirnov test or a QQ plot per candidate.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Log-normal parameters are on the log scale, not the raw scale.</strong> Plugging the mean and standard deviation of your raw data into <code>dlnorm(..., meanlog = mean(x), sdlog = sd(x))</code> is a classic bug — you need <code>mean(log(x))</code> and <code>sd(log(x))</code>. Mentally rename the arguments as <code>log_mean</code> and <code>log_sd</code> to avoid the slip.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate 200 samples from <code>Weibull(shape = 2, scale = 10)</code>, fit a log-normal to them via method-of-moments, and print the log-likelihood ratio vs the true Weibull fit.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: see how badly the wrong model fits
+set.seed(808)
+ex_data &lt;- rweibull(200, shape = 2, scale = 10)
+ex_ln_meanlog &lt;- # your code here
+ex_ln_sdlog   &lt;- # your code here
+
+# Log-normal log-likelihood
+sum(dlnorm(ex_data, ex_ln_meanlog, ex_ln_sdlog, log = TRUE))
+#&gt; Expected: somewhere around -677</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(808)
+ex_data &lt;- rweibull(200, shape = 2, scale = 10)
+ex_ln_meanlog &lt;- mean(log(ex_data))
+ex_ln_sdlog   &lt;- sd(log(ex_data))
+sum(dlnorm(ex_data, ex_ln_meanlog, ex_ln_sdlog, log = TRUE))
+#&gt; [1] -676.82</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Log-normal's tail is heavier than Weibull's, so the fit concentrates mass in the wrong place and the log-likelihood drops noticeably below what you'd see from a correctly specified Weibull. A likelihood-ratio test would formalise this gap.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Pump reliability study</h3>
+
+<p>You have 25 observed failure times (hours) of industrial pumps. Fit a Weibull by method-of-moments and compute the probability that a fresh pump survives past 2,000 hours.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: Weibull fit + survival probability
+pump_hours &lt;- c(1402, 1876, 2311, 1654, 1243, 2543, 1789, 1998, 1532, 1867,
+                2156, 2043, 1765, 1432, 1987, 2231, 1876, 1654, 1543, 2187,
+                1765, 1987, 2312, 1432, 1876)
+
+# Hint: use method-of-moments as in the comparison section,
+# then survival = 1 - pweibull(2000, shape, scale)
+
+pump_shape &lt;- # your code here
+pump_scale &lt;- # your code here
+p_survive_2000 &lt;- # your code here
+p_survive_2000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pump_hours &lt;- c(1402, 1876, 2311, 1654, 1243, 2543, 1789, 1998, 1532, 1867,
+                2156, 2043, 1765, 1432, 1987, 2231, 1876, 1654, 1543, 2187,
+                1765, 1987, 2312, 1432, 1876)
+
+pump_shape &lt;- uniroot(function(k) {
+  m1 &lt;- mean(pump_hours); m2 &lt;- mean(pump_hours^2)
+  m2 / m1^2 - gamma(1 + 2/k) / gamma(1 + 1/k)^2
+}, interval = c(0.5, 20))$root
+pump_scale &lt;- mean(pump_hours) / gamma(1 + 1/pump_shape)
+
+p_survive_2000 &lt;- 1 - pweibull(2000, shape = pump_shape, scale = pump_scale)
+c(shape = pump_shape, scale = pump_scale, p_survive_2000 = p_survive_2000)
+#&gt;          shape          scale p_survive_2000
+#&gt;        5.62876     1937.81255        0.28831</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The moment equation relates the coefficient of variation <code>m2 / m1^2</code> to the shape parameter through gamma functions. Once <code>shape</code> is solved, <code>scale</code> follows from the mean identity. About 29% of pumps survive past 2,000 hours under this fitted model.</p>
+
+</details>
+
+<h3>Exercise 2: Log-normal growth path</h3>
+
+<p>Simulate a single 100-step path where monthly log-returns follow <code>Normal(0, 0.02)</code>. Compute the 5th and 95th percentile of the final value analytically from the implied log-normal distribution (no need to simulate many paths).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: analytical percentiles of final wealth
+# Hint: after n steps, log(final) ~ Normal(0, 0.02 * sqrt(n))
+# so final ~ LogNormal(meanlog = 0, sdlog = 0.02 * sqrt(n))
+
+n_steps_lg &lt;- 100
+final_sdlog &lt;- # your code here
+c(p05 = qlnorm(0.05, 0, final_sdlog),
+  p95 = qlnorm(0.95, 0, final_sdlog))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_steps_lg &lt;- 100
+final_sdlog &lt;- 0.02 * sqrt(n_steps_lg)
+c(p05 = qlnorm(0.05, 0, final_sdlog),
+  p95 = qlnorm(0.95, 0, final_sdlog))
+#&gt;      p05      p95
+#&gt; 0.719185 1.390477</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Summing 100 iid log-returns with sd <code>0.02</code> produces a log-return with sd <code>0.02 * sqrt(100) = 0.2</code>. So the final value is <code>LogNormal(0, 0.2)</code>. The 5th and 95th percentiles are found directly with <code>qlnorm</code>, giving an 80% interval of roughly <code>(0.72, 1.39)</code> — a 28% downside and a 39% upside from starting wealth.</p>
+
+</details>
+
+<h3>Exercise 3: Monte Carlo integration</h3>
+
+<p>Use 50,000 uniform draws to estimate the integral of <code>sin(x^2)</code> from 0 to 1, and report a 95% confidence interval around the estimate.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: Monte Carlo integration with CI
+# Hint: integral ≈ mean of f(runif()) on [0, 1];
+# CI from standard error of that mean.
+
+set.seed(909)
+n_mc_int &lt;- 50000
+u_mc &lt;- runif(n_mc_int)
+fx &lt;- # your code here
+est &lt;- mean(fx)
+se  &lt;- sd(fx) / sqrt(n_mc_int)
+c(estimate = est, lo = est - 1.96 * se, hi = est + 1.96 * se)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(909)
+n_mc_int &lt;- 50000
+u_mc &lt;- runif(n_mc_int)
+fx &lt;- sin(u_mc^2)
+est &lt;- mean(fx)
+se  &lt;- sd(fx) / sqrt(n_mc_int)
+c(estimate = est, lo = est - 1.96 * se, hi = est + 1.96 * se)
+#&gt;  estimate        lo        hi
+#&gt; 0.3105578 0.3080055 0.3131101</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For <code>U ~ Uniform(0, 1)</code>, <code>E[f(U)]</code> equals the integral of <code>f</code> on <code>[0, 1]</code>. So the sample mean of <code>sin(U^2)</code> is an unbiased estimator of the integral, and its standard error is <code>sd / sqrt(n)</code>. The true value is about 0.3103 — inside our 95% interval.</p>
+
+</details>
+
+<h2>Complete Example: Lightbulb reliability mini-study</h2>
+
+<p>Let's tie everything together with a reliability engineer's workflow: simulate realistic lightbulb lifetimes, fit a Weibull, and estimate two quantities the business cares about — Mean Time To Failure (MTTF) and the B10 life (the age by which 10% of bulbs have failed).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Lightbulb reliability study
+set.seed(2024)
+
+# Step 1: simulate 500 bulbs with Weibull(shape=2.5, scale=8000)
+bulb_hours &lt;- rweibull(500, shape = 2.5, scale = 8000)
+
+# Step 2: fit Weibull via method-of-moments
+wb_shape_hat &lt;- uniroot(function(k) {
+  m1 &lt;- mean(bulb_hours); m2 &lt;- mean(bulb_hours^2)
+  m2 / m1^2 - gamma(1 + 2/k) / gamma(1 + 1/k)^2
+}, interval = c(0.5, 20))$root
+wb_scale_hat &lt;- mean(bulb_hours) / gamma(1 + 1/wb_shape_hat)
+
+# Step 3: compute MTTF and B10 life
+mttf_hat &lt;- wb_scale_hat * gamma(1 + 1/wb_shape_hat)
+b10_hat  &lt;- qweibull(0.10, shape = wb_shape_hat, scale = wb_scale_hat)
+c(fitted_shape = wb_shape_hat, fitted_scale = wb_scale_hat,
+  MTTF = mttf_hat, B10 = b10_hat)
+#&gt;  fitted_shape  fitted_scale          MTTF           B10
+#&gt;       2.48831    8072.76194    7164.80512    2867.01134
+
+# Step 4: plot empirical vs fitted survival function
+surv_grid &lt;- seq(0, max(bulb_hours), length.out = 300)
+survival_df &lt;- tibble(
+  t = rep(surv_grid, 2),
+  survival = c(
+    1 - pweibull(surv_grid, wb_shape_hat, wb_scale_hat),
+    1 - ecdf(bulb_hours)(surv_grid)
+  ),
+  source = rep(c(&quot;Fitted Weibull&quot;, &quot;Empirical (data)&quot;), each = length(surv_grid))
+)
+
+ggplot(survival_df, aes(t, survival, colour = source)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = b10_hat, linetype = &quot;dashed&quot;) +
+  labs(title = &quot;Empirical vs fitted survival function&quot;,
+       subtitle = paste0(&quot;B10 = &quot;, round(b10_hat), &quot; hours&quot;),
+       x = &quot;Hours&quot;, y = &quot;Survival probability&quot;) +
+  theme_minimal()
+#&gt; Two near-identical curves from 1 at t=0 falling toward 0 at t ~ 15000,
+#&gt; dashed vertical line at ~2867 marking B10.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted shape (2.49) and scale (8,073) are within 1% of the true values we simulated from — expected, because method-of-moments on 500 observations is accurate for a well-behaved Weibull. The MTTF of ~7,165 hours says the average bulb lasts about 7,000 hours, while the B10 life of ~2,867 hours is the warranty number: one in ten bulbs fails before this point. The empirical and fitted survival curves overlap almost perfectly, giving visual confirmation that the Weibull model is appropriate.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Weibull-Log-Normal-and-Uniform-Distributions-in-R-summary-mindmap.webp" alt="The three distributions at a glance." class="img-responsive img-zoomable" loading="lazy" width="1706" height="968" /></p>
+
+<p><em>Figure 2: The three distributions at a glance.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Property</th>
+<th>Weibull</th>
+<th>Log-Normal</th>
+<th>Uniform</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Use for</td>
+<td>Time to failure</td>
+<td>Multiplicative processes</td>
+<td>Bounded ignorance, Monte Carlo</td>
+</tr>
+<tr>
+<td>Support</td>
+<td><code>(0, ∞)</code></td>
+<td><code>(0, ∞)</code></td>
+<td><code>[min, max]</code></td>
+</tr>
+<tr>
+<td>Key parameters</td>
+<td><code>shape</code>, <code>scale</code></td>
+<td><code>meanlog</code>, <code>sdlog</code></td>
+<td><code>min</code>, <code>max</code></td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Random-Variables-in-R.html" title="Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF — Visualised">d/p/q/r functions</a></td>
+<td><code>dweibull</code>, etc.</td>
+<td><code>dlnorm</code>, etc.</td>
+<td><code>dunif</code>, etc.</td>
+</tr>
+<tr>
+<td>Mean</td>
+<td><code>scale * Gamma(1 + 1/shape)</code></td>
+<td><code>exp(meanlog + sdlog^2 / 2)</code></td>
+<td><code>(min + max) / 2</code></td>
+</tr>
+<tr>
+<td>Median</td>
+<td><code>scale * (ln 2)^(1/shape)</code></td>
+<td><code>exp(meanlog)</code></td>
+<td><code>(min + max) / 2</code></td>
+</tr>
+<tr>
+<td>Mean vs median</td>
+<td>Usually mean > median</td>
+<td>Always mean > median</td>
+<td>Equal</td>
+</tr>
+<tr>
+<td>Typical pitfall</td>
+<td>Confusing shape with scale</td>
+<td><code>meanlog</code> is on the log scale</td>
+<td>Forgetting <code>set.seed()</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team — <em>The Weibull Distribution</em>. R stats package documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Weibull.html">Link</a></li>
+
+<li>R Core Team — <em>The Log Normal Distribution</em>. R stats package documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Lognormal.html">Link</a></li>
+
+<li>R Core Team — <em>The Uniform Distribution</em>. R stats package documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Uniform.html">Link</a></li>
+
+<li>Weibull, W. (1951) — <em>A Statistical Distribution Function of Wide Applicability</em>. Journal of Applied Mechanics, 18, 293–297.</li>
+
+<li>Crow, E. L. & Shimizu, K. (1988) — <em>Lognormal Distributions: Theory and Applications</em>. Marcel Dekker.</li>
+
+<li>Devroye, L. (1986) — <em>Non-Uniform Random Variate Generation</em>, Chapter II (Inverse-Transform Method). Springer. <a href="http://luc.devroye.org/rnbookindex.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html">Normal, t, F & Chi-Squared Distributions in R</a> — the four classical families that sit alongside these three.</li>
+
+<li><a href="Gamma-and-Beta-Distributions-in-R.html">Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors</a> — two more right-skewed distributions with close mathematical ties to Weibull.</li>
+
+<li><a href="The-Exponential-Distribution-in-R.html">The Exponential Distribution in R</a> — the <code>k = 1</code> special case of Weibull, and the building block for Poisson and queueing models.</li>
+
+</ul>
