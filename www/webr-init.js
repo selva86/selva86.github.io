@@ -334,7 +334,7 @@
     let _initScheduled = false;
     let _scrolling = false;
     let _scrollEndTimer = null;
-    const _INIT_GAP = 150; // ms between sequential editor inits
+    const _INIT_GAP = 200; // ms between sequential editor inits
 
     window.addEventListener('scroll', () => {
       _scrolling = true;
@@ -362,24 +362,15 @@
       setTimeout(processInitQueue, _INIT_GAP);
     }
 
-    // Eagerly init editors in the initial viewport, lazily observe the rest
-    // via IntersectionObserver (rootMargin 400px). Each queued editor inits
-    // one at a time, yielding to the main thread between each.
+    // Single IntersectionObserver for ALL editors — replaces the synchronous
+    // getBoundingClientRect loop that forced layout reflow on 32+ elements.
+    // rootMargin 400px: editors within viewport+400px queue eagerly on load;
+    // far-away editors queue as user scrolls near them.
+    // IO fires asynchronously — zero forced reflows during script execution.
     const allEditors = document.querySelectorAll('.webr-editor');
     allEditors.forEach((el, i) => _editorIndexMap.set(el, i));
-    const _lazyEditors = [];
-    allEditors.forEach(el => {
-      const r = el.getBoundingClientRect();
-      const vh = window.innerHeight || 0;
-      if (r.top < vh + 200 && r.bottom > -200) {
-        initQueue.push(el);
-      } else {
-        _lazyEditors.push(el);
-      }
-    });
-    if (initQueue.length > 0) processInitQueue();
 
-    if ('IntersectionObserver' in window && _lazyEditors.length > 0) {
+    if ('IntersectionObserver' in window) {
       const editorObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
@@ -387,11 +378,12 @@
             editorObserver.unobserve(entry.target);
           }
         });
-        if (initQueue.length > 0) scheduleNextInit();
+        if (initQueue.length > 0 && !_initScheduled) scheduleNextInit();
       }, { rootMargin: '400px' });
-      _lazyEditors.forEach(el => editorObserver.observe(el));
+      allEditors.forEach(el => editorObserver.observe(el));
     } else {
-      _lazyEditors.forEach(el => initQueue.push(el));
+      // Fallback for very old browsers (IO unsupported): queue all, use gap timer.
+      allEditors.forEach(el => initQueue.push(el));
       if (initQueue.length > 0) scheduleNextInit();
     }
 
