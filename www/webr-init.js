@@ -322,15 +322,29 @@
       editors[domIdx] = { cm, originalCode: code, el };
     }
 
-    // Yielding init: queue editors one at a time using requestIdleCallback.
-    // rIC naturally pauses during active scroll (browser is busy compositing)
-    // and fires during idle gaps, so editors init without freezing scrolling.
+    // Scroll-aware init: queue editors and init ONE at a time, but only
+    // during scroll pauses. Uses setTimeout (reliable even on busy pages
+    // with heavy ad scripts) instead of requestIdleCallback (which may
+    // never fire when third-party scripts keep the main thread busy).
     const initQueue = [];
     let _initScheduled = false;
+    let _scrolling = false;
+    let _scrollEndTimer = null;
+
+    window.addEventListener('scroll', () => {
+      _scrolling = true;
+      clearTimeout(_scrollEndTimer);
+      _scrollEndTimer = setTimeout(() => {
+        _scrolling = false;
+        if (initQueue.length > 0 && !_initScheduled) scheduleNextInit();
+      }, 150);
+    }, { passive: true });
 
     function processInitQueue() {
       _initScheduled = false;
       if (initQueue.length === 0) return;
+      // Don't init during active scroll — wait for next pause
+      if (_scrolling) return;
       const el = initQueue.shift();
       initEditor(el);
       if (initQueue.length > 0) scheduleNextInit();
@@ -338,12 +352,9 @@
 
     function scheduleNextInit() {
       if (_initScheduled) return;
+      if (_scrolling) return;  // Will be called when scroll ends
       _initScheduled = true;
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(processInitQueue);
-      } else {
-        setTimeout(processInitQueue, 80);
-      }
+      setTimeout(processInitQueue, 30);
     }
 
     // Eagerly init editors in the initial viewport, lazily observe the rest
