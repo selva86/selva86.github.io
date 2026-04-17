@@ -27,20 +27,11 @@ SIDEBAR_PATH = os.path.join(REPO_ROOT, "www", "sidebar.json")
 OG_DIR = os.path.join(REPO_ROOT, "screenshots", "og")
 VENDOR_DIR = os.path.join(REPO_ROOT, "www", "vendor")
 
-# Vendor assets to self-host (downloaded once, then served locally)
-VENDOR_ASSETS = {
-    'codemirror-5.65.16.min.js': (
-        'https://cdn.jsdelivr.net/combine/'
-        'npm/codemirror@5.65.16/lib/codemirror.min.js,'
-        'npm/codemirror@5.65.16/mode/r/r.min.js,'
-        'npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js,'
-        'npm/codemirror@5.65.16/addon/edit/closebrackets.min.js,'
-        'npm/codemirror@5.65.16/addon/selection/active-line.min.js,'
-        'npm/codemirror@5.65.16/addon/mode/overlay.min.js'
-    ),
-    'codemirror-5.65.16.min.css':
-        'https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css',
-}
+# Vendor assets to self-host (downloaded once, then served locally).
+# Empty after CodeMirror was removed in favour of a native <textarea> swap
+# inside webr-init.js. Kept here as a deliberate anchor so future self-hosted
+# scripts have an obvious place to land.
+VENDOR_ASSETS = {}
 
 
 def file_content_hash(filepath, length=8):
@@ -55,10 +46,10 @@ def file_content_hash(filepath, length=8):
 # ---------------------------------------------------------------------------
 # Build-time syntax highlighting for <div class="webr-editor"> blocks.
 #
-# Readers see colored, line-numbered R code from the first paint — without
-# waiting for CodeMirror to load. CodeMirror only takes over if a reader
-# actually edits. Pygments classes are mapped to CM theme colors in webr.css
-# so hydration swap is visually seamless.
+# Readers see colored, line-numbered R code from the first paint. When the
+# reader clicks the block, webr-init.js swaps the static markup for a
+# <textarea> so editing feels native. The textarea inherits the same dark
+# palette so the swap is visually continuous.
 # ---------------------------------------------------------------------------
 try:
     import html as _html_mod
@@ -206,8 +197,6 @@ def compute_asset_hrefs(final_paths):
         'engagement.js': final_paths.get('engagement.js', os.path.join(REPO_ROOT, 'www', 'engagement.js')),
         'highlight.css': final_paths.get('highlight.css', os.path.join(REPO_ROOT, 'www', 'highlight.css')),
         'bootstrap.min.css': os.path.join(REPO_ROOT, 'www', 'bootstrap.min.css'),
-        'codemirror.js': os.path.join(VENDOR_DIR, 'codemirror-5.65.16.min.js'),
-        'codemirror.css': os.path.join(VENDOR_DIR, 'codemirror-5.65.16.min.css'),
     }
 
     asset_hashes = {k: file_content_hash(v) for k, v in asset_final_paths.items()}
@@ -518,25 +507,14 @@ MATHJAX_BLOCK = """
 """
 
 def make_webr_head_block(asset_hrefs):
-    cm_css = asset_hrefs.get('codemirror.css', 'www/vendor/codemirror-5.65.16.min.css')
-    cm_js = asset_hrefs.get('codemirror.js', 'www/vendor/codemirror-5.65.16.min.js')
     webr_css = asset_hrefs.get('webr.css', 'www/webr.css')
-    # webr.css is render-blocking: the static (pre-hydration) editor relies on it
-    # for the dark theme and pre-like layout, so the first paint must have it.
-    # CodeMirror CSS + JS load lazily on first user interaction (click/focus/Run);
-    # the meta tags below hand webr-init.js the hashed URLs so it can fetch them.
-    return (
-        f'    <link rel="stylesheet" href="{webr_css}">\n'
-        f'    <meta name="cm-js-href" content="{cm_js}">\n'
-        f'    <meta name="cm-css-href" content="{cm_css}">\n'
-    )
+    # webr.css is render-blocking: the static editor relies on it for the dark
+    # theme and pre-like layout, so the first paint must have it.
+    return f'    <link rel="stylesheet" href="{webr_css}">\n'
 
 
 def make_webr_body_block(asset_hrefs):
     webr_js = asset_hrefs.get('webr-init.js', 'www/webr-init.js')
-    # CodeMirror is loaded on-demand by webr-init.js. Shipping the 184 KB CM
-    # bundle to every reader — most of whom never click Run — was the biggest
-    # source of main-thread blocking on this site.
     return f'  <script type="module" src="{webr_js}"></script>\n'
 
 
@@ -689,7 +667,7 @@ def build_post(
     mathjax = meta.get('mathjax', 'true').lower() != 'false'
     webr = meta.get('webr', 'false').lower() == 'true'
 
-    # Build-time syntax highlighting for the static (pre-CodeMirror) editor.
+    # Build-time syntax highlighting for the static editor markup.
     # Runs only for pages that actually have webr blocks.
     if webr:
         content = pygmentize_webr_editors(content)

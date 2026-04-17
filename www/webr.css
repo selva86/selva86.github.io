@@ -199,7 +199,7 @@
 .webr-copy-btn:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
 .webr-copy-btn.copied { color: #4ade80; }
 
-/* --- Pre-CodeMirror: reserve space to prevent CLS (dark theme) --- */
+/* --- Code editor: dark theme, reserves space to prevent CLS --- */
 .webr-editor {
   position: relative;
   min-height: 80px;
@@ -208,19 +208,18 @@
   font-feature-settings: 'calt' 1;
   font-size: 14px;
   line-height: 1.4;
-  padding: 8px 12px 8px 42px;
+  padding: 8px 12px;
   background: #020617;
   white-space: pre;
   overflow: hidden;
   color: #e3e8ef;
   cursor: text;
   outline: none;
+  counter-reset: ln;
 }
-/* Pre-hydration focus state — keyboard users get a visible target. Suppressed
-   once CodeMirror takes over (.cm-initialized) because CM owns its own focus. */
-.webr-editor:not(.cm-initialized):focus-visible {
-  box-shadow: inset 0 0 0 2px #3b82f6;
-}
+/* Pre-hydration focus state — keyboard users get a visible target. The textarea
+   (post-swap) has its own :focus rule below; this only fires on the static div. */
+.webr-editor:focus-visible { box-shadow: inset 0 0 0 2px #3b82f6; }
 /* Right-edge scroll affordance — toggled by JS when editor overflows */
 .webr-editor::after {
   content: '';
@@ -233,76 +232,46 @@
   transition: opacity 150ms ease;
 }
 .webr-editor.has-overflow::after { opacity: 1; }
-/* After CodeMirror initializes, it replaces the content — reset padding */
-.webr-editor .CodeMirror {
-  height: auto;
-  min-height: 48px;
-  font-size: 14px;
-  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', ui-monospace, monospace;
-  font-variant-ligatures: contextual;
-  font-feature-settings: 'calt' 1;
-  line-height: 1.4;
-  background: #020617;
-  color: #e3e8ef;
-  padding: 4px 0;
-}
-/* After CodeMirror initializes, it owns layout — zero outer padding.
-   Keep min-height: 48px (matches .CodeMirror min-height) to avoid a
-   sudden collapse that causes CLS. */
-.webr-editor.cm-initialized { padding: 0; min-height: 48px; overflow: visible; }
-/* Cap tall editors so the page stays navigable; vertical scroll kicks in */
-.webr-editor .CodeMirror { max-height: 520px; }
-.webr-editor .CodeMirror-scroll { overflow-x: hidden !important; overflow-y: auto !important; }
-.webr-editor .CodeMirror-gutters {
-  background: #020617;
-  border-right: none;
-  padding-right: 10px;
-}
-.webr-editor .CodeMirror-linenumber {
-  color: #6e7681;
-  font-size: 14px;
-  padding: 0 3px 0 5px;
-  min-width: 20px;
-}
-.webr-editor .CodeMirror-cursor { border-left-color: #60a5fa; border-left-width: 2px; }
-.webr-editor .CodeMirror-selected { background: #334155 !important; }
-.webr-editor .CodeMirror-activeline-background { background: linear-gradient(to right, transparent 0 18px, #1e3a5f 18px); }
-.webr-editor .CodeMirror-matchingbracket { color: #60a5fa !important; font-weight: 700; background: #1e3a5f; border-radius: 2px; }
 
-/* --- R syntax colors (dark theme) ---
-   Chained `.CodeMirror` adds a third class to win specificity against
-   CodeMirror's bundled `.cm-s-default .cm-*` rules, which load after this
-   sheet and would otherwise repaint comments/strings in the default theme. */
-.webr-editor .CodeMirror .cm-keyword { color: #f87171; font-weight: 500; }
-.webr-editor .CodeMirror .cm-atom { color: #c084fc; }
-.webr-editor .CodeMirror .cm-number { color: #60a5fa; }
-.webr-editor .CodeMirror .cm-def { color: #c084fc; }
-.webr-editor .CodeMirror .cm-variable { color: #e2e8f0; }
-.webr-editor .CodeMirror .cm-variable-2 { color: #fb923c; }
-.webr-editor .CodeMirror .cm-variable-3 { color: #60a5fa; }
-.webr-editor .CodeMirror .cm-property { color: #60a5fa; }
-.webr-editor .CodeMirror .cm-operator { color: #f87171; }
-.webr-editor .CodeMirror .cm-comment { color: #64748b; font-style: italic; }
-.webr-editor .CodeMirror .cm-string { color: #86efac; }
-.webr-editor .CodeMirror .cm-string-2 { color: #86efac; }
-.webr-editor .CodeMirror .cm-builtin { color: #c084fc; font-weight: 500; }
-.webr-editor .CodeMirror .cm-function-call { color: #c4b5fd; }
+/* After the textarea swap the div becomes a plain wrapper with padding 0;
+   the textarea itself provides the visual code area. */
+.webr-editor.webr-editor-hydrated { padding: 0; overflow: visible; }
 
-/* --- Build-time syntax highlighting (Pygments, pre-CodeMirror) ---
-   Static editors carry <span class="cl"> line wrappers plus Pygments class
-   spans. Classes are mapped to the same hex values as the CodeMirror theme
-   above so when CM hydrates the color swap is visually seamless.
-   Line numbers are rendered via CSS generated content (::before) so they
-   don't appear in textContent or user copy-paste. */
-.webr-editor:not(.cm-initialized) {
+/* Editable textarea. Matches the static Pygments layout exactly (same padding,
+   font, line-height, colors) so the click-to-edit swap is visually continuous.
+   No line numbers inside the textarea — we drop them while editing so users can
+   copy the raw code without stripping gutter digits. */
+.webr-editor-input {
+  display: block;
+  width: 100%;
+  min-height: 80px;
+  max-height: 520px;
+  box-sizing: border-box;
+  margin: 0;
   padding: 8px 12px;
-  counter-reset: ln;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #e3e8ef;
+  background: #020617;
+  border: 0;
+  outline: none;
+  resize: vertical;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 2;
+  -moz-tab-size: 2;
+  caret-color: #60a5fa;
 }
-.webr-editor:not(.cm-initialized) .cl {
-  counter-increment: ln;
-  display: inline;
-}
-.webr-editor:not(.cm-initialized) .cl::before {
+.webr-editor-input::selection { background: #334155; }
+.webr-editor-input:focus-visible { box-shadow: inset 0 0 0 2px #3b82f6; }
+
+/* --- Build-time syntax highlighting (Pygments) ---
+   Static editors carry <span class="cl"> line wrappers plus Pygments class
+   spans. Line numbers rendered via CSS generated content (::before) so they
+   don't appear in textContent or user copy-paste. */
+.webr-editor .cl { counter-increment: ln; display: inline; }
+.webr-editor .cl::before {
   content: counter(ln);
   display: inline-block;
   width: 28px;
@@ -312,54 +281,52 @@
   user-select: none;
   -webkit-user-select: none;
 }
-/* Pygments token classes → CM theme colors */
-.webr-editor:not(.cm-initialized) .c,
-.webr-editor:not(.cm-initialized) .c1,
-.webr-editor:not(.cm-initialized) .cm,
-.webr-editor:not(.cm-initialized) .cp,
-.webr-editor:not(.cm-initialized) .cs  { color: #64748b; font-style: italic; }
-.webr-editor:not(.cm-initialized) .k,
-.webr-editor:not(.cm-initialized) .kc,
-.webr-editor:not(.cm-initialized) .kd,
-.webr-editor:not(.cm-initialized) .kn,
-.webr-editor:not(.cm-initialized) .kp,
-.webr-editor:not(.cm-initialized) .kr  { color: #f87171; font-weight: 500; }
-.webr-editor:not(.cm-initialized) .kt,
-.webr-editor:not(.cm-initialized) .nb,
-.webr-editor:not(.cm-initialized) .bp  { color: #c084fc; font-weight: 500; }
-.webr-editor:not(.cm-initialized) .o,
-.webr-editor:not(.cm-initialized) .ow  { color: #f87171; }
-/* CM's R mode emits cm-variable for all identifiers (functions + vars),
-   so paint static function calls the same plain color to match post-click. */
-.webr-editor:not(.cm-initialized) .nf,
-.webr-editor:not(.cm-initialized) .fm  { color: #e2e8f0; }
-.webr-editor:not(.cm-initialized) .s,
-.webr-editor:not(.cm-initialized) .s1,
-.webr-editor:not(.cm-initialized) .s2,
-.webr-editor:not(.cm-initialized) .sa,
-.webr-editor:not(.cm-initialized) .sb,
-.webr-editor:not(.cm-initialized) .sc,
-.webr-editor:not(.cm-initialized) .sd,
-.webr-editor:not(.cm-initialized) .se,
-.webr-editor:not(.cm-initialized) .sh,
-.webr-editor:not(.cm-initialized) .si,
-.webr-editor:not(.cm-initialized) .sr,
-.webr-editor:not(.cm-initialized) .ss  { color: #86efac; }
-.webr-editor:not(.cm-initialized) .m,
-.webr-editor:not(.cm-initialized) .mi,
-.webr-editor:not(.cm-initialized) .mf,
-.webr-editor:not(.cm-initialized) .mh,
-.webr-editor:not(.cm-initialized) .mo,
-.webr-editor:not(.cm-initialized) .il  { color: #60a5fa; }
-.webr-editor:not(.cm-initialized) .na,
-.webr-editor:not(.cm-initialized) .nt  { color: #fb923c; }
-.webr-editor:not(.cm-initialized) .nv,
-.webr-editor:not(.cm-initialized) .vc,
-.webr-editor:not(.cm-initialized) .vg,
-.webr-editor:not(.cm-initialized) .vi  { color: #fb923c; }
-.webr-editor:not(.cm-initialized) .nd  { color: #c4b5fd; font-style: italic; }
-.webr-editor:not(.cm-initialized) .ne  { color: #f87171; font-weight: 500; }
-.webr-editor:not(.cm-initialized) .err { color: #fca5a5; }
+/* Pygments token classes → dark theme palette */
+.webr-editor .c,
+.webr-editor .c1,
+.webr-editor .cm,
+.webr-editor .cp,
+.webr-editor .cs  { color: #64748b; font-style: italic; }
+.webr-editor .k,
+.webr-editor .kc,
+.webr-editor .kd,
+.webr-editor .kn,
+.webr-editor .kp,
+.webr-editor .kr  { color: #f87171; font-weight: 500; }
+.webr-editor .kt,
+.webr-editor .nb,
+.webr-editor .bp  { color: #c084fc; font-weight: 500; }
+.webr-editor .o,
+.webr-editor .ow  { color: #f87171; }
+.webr-editor .nf,
+.webr-editor .fm  { color: #e2e8f0; }
+.webr-editor .s,
+.webr-editor .s1,
+.webr-editor .s2,
+.webr-editor .sa,
+.webr-editor .sb,
+.webr-editor .sc,
+.webr-editor .sd,
+.webr-editor .se,
+.webr-editor .sh,
+.webr-editor .si,
+.webr-editor .sr,
+.webr-editor .ss  { color: #86efac; }
+.webr-editor .m,
+.webr-editor .mi,
+.webr-editor .mf,
+.webr-editor .mh,
+.webr-editor .mo,
+.webr-editor .il  { color: #60a5fa; }
+.webr-editor .na,
+.webr-editor .nt  { color: #fb923c; }
+.webr-editor .nv,
+.webr-editor .vc,
+.webr-editor .vg,
+.webr-editor .vi  { color: #fb923c; }
+.webr-editor .nd  { color: #c4b5fd; font-style: italic; }
+.webr-editor .ne  { color: #f87171; font-weight: 500; }
+.webr-editor .err { color: #fca5a5; }
 
 /* --- Run button (green, pythoncompiler.io style) --- */
 .webr-run-btn {
@@ -453,15 +420,14 @@
   .webr-run-shortcut { display: none; }
   /* Allow horizontal scroll so long R lines stay reachable on mobile.
      Desktop suppresses scroll to avoid wheel-event capture; touch scrolling
-     doesn't conflict with page scroll.  These rules MUST live after the
-     desktop `overflow: hidden !important` (line ~220) so they win. */
+     doesn't conflict with page scroll. These rules must live after the
+     desktop `overflow: hidden` on .webr-editor so they win. */
   .webr-editor {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
   }
-  .webr-editor .CodeMirror-scroll {
+  .webr-editor-input {
     overflow-x: auto !important;
-    overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
   }
 }

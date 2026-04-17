@@ -9,61 +9,6 @@
     // Pre-computed index map: avoids O(n) querySelectorAll + indexOf per editor init/run
     const _editorIndexMap = new WeakMap();
 
-    const R_RESERVED_CALL = /^(function|if|for|while|repeat|switch|return)$/;
-
-    function _defineRPlusMode() {
-      if (typeof CodeMirror === 'undefined' || !CodeMirror.defineMode
-          || typeof CodeMirror.overlayMode !== 'function') return;
-      if (CodeMirror.modes && CodeMirror.modes['r-plus']) return;
-      CodeMirror.defineMode('r-plus', function(cfg) {
-        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'r'), {
-          token: function(stream) {
-            const m = stream.match(/[A-Za-z_.][\w.]*(?=\s*\()/);
-            if (m) {
-              if (R_RESERVED_CALL.test(m[0])) return null;
-              return 'function-call';
-            }
-            stream.next();
-            return null;
-          }
-        });
-      });
-    }
-
-    // Lazy CodeMirror loader — pulls the ~60 KiB (gzipped) bundle only when the
-    // user interacts with a code block. Zero cost for visitors who only scroll/read.
-    function _cmHref(name) {
-      const el = document.querySelector('meta[name="' + name + '"]');
-      return el ? el.content : '';
-    }
-    let _cmLoadingPromise = null;
-    function ensureCodeMirror() {
-      if (typeof CodeMirror !== 'undefined' && CodeMirror.defineMode) {
-        _defineRPlusMode();
-        return Promise.resolve();
-      }
-      if (_cmLoadingPromise) return _cmLoadingPromise;
-      _cmLoadingPromise = new Promise((resolve, reject) => {
-        const cssHref = _cmHref('cm-css-href');
-        if (cssHref && !document.querySelector('link[data-cm-css]')) {
-          const l = document.createElement('link');
-          l.rel = 'stylesheet';
-          l.href = cssHref;
-          l.setAttribute('data-cm-css', '1');
-          document.head.appendChild(l);
-        }
-        const jsHref = _cmHref('cm-js-href');
-        if (!jsHref) { reject(new Error('cm-js-href meta missing')); return; }
-        const s = document.createElement('script');
-        s.src = jsHref;
-        s.async = true;
-        s.onload = () => { _defineRPlusMode(); resolve(); };
-        s.onerror = () => reject(new Error('CodeMirror failed to load'));
-        document.head.appendChild(s);
-      });
-      return _cmLoadingPromise;
-    }
-
     const banner = document.querySelector('.webr-loading-banner');
 
     async function loadAndInitWebR() {
@@ -208,28 +153,14 @@
     })();
 
     // WebR loads on-demand: first Run click triggers loadAndInitWebR().
-    // CodeMirror loads on-demand: first click/focus on an editor triggers ensureCodeMirror().
-    // Zero JS on initial scroll/read — the page stays a responsive static document
-    // until the user explicitly opts into interactivity.
+    // The static Pygments-highlighted <div class="webr-editor"> is read-only
+    // until the reader clicks/focuses it — first interaction swaps the block
+    // for a <textarea> so typing / paste / Ctrl+Enter feel native. No editor
+    // library is loaded; the textarea is ~0 bytes of JS over what we already ship.
 
     // Build sticky header for each code block: [badge + label | copy + run]
     const copyIcon  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
     const checkIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
-
-    // Overflow detection — sized only when an editor is actually hydrated.
-    // Pre-hydration, the static <div class="webr-editor"> has overflow:hidden
-    // so layout is predictable without extra observers.
-    let _overflowObserver = null;
-    function _ensureOverflowObserver() {
-      if (_overflowObserver || !('ResizeObserver' in window)) return _overflowObserver;
-      _overflowObserver = new ResizeObserver(entries => {
-        for (const entry of entries) {
-          const target = entry.target.querySelector('.CodeMirror-scroll') || entry.target;
-          entry.target.classList.toggle('has-overflow', target.scrollWidth > target.clientWidth + 1);
-        }
-      });
-      return _overflowObserver;
-    }
 
     const _allContainers = document.querySelectorAll('.webr-container');
     if (_allContainers[0]) _allContainers[0].classList.add('engagement-unrun-first');
@@ -248,7 +179,8 @@
         const c = this.closest('.webr-container');
         const editorEl = c.querySelector('.webr-editor');
         const idx = _editorIndexMap.get(editorEl);
-        const code = (editors[idx] && editors[idx].cm) ? editors[idx].cm.getValue() : editorEl.textContent;
+        const entry = editors[idx];
+        const code = (entry && entry.textarea) ? entry.textarea.value : editorEl.textContent;
         navigator.clipboard.writeText(code).then(() => {
           copyBtn.innerHTML = checkIcon;
           copyBtn.classList.add('copied');
@@ -316,122 +248,140 @@
     const allEditors = document.querySelectorAll('.webr-editor');
     allEditors.forEach((el, i) => {
       _editorIndexMap.set(el, i);
-      // Make the static block click-to-edit: the user gets a CodeMirror editor
-      // the instant they click. Until then, the <div> is a styled <pre> with
-      // zero JS work, zero layout cost beyond base HTML rendering.
+      // Static block is keyboard-reachable; first click/Enter swaps in a textarea.
       el.setAttribute('tabindex', '0');
       el.setAttribute('role', 'textbox');
       el.setAttribute('aria-label', 'R code. Click or press Enter to edit.');
     });
 
-    // Hydrate a single editor — loads CodeMirror lazily on first call.
-    // Re-entry-safe: concurrent callers share the same in-flight promise,
-    // and a post-await cmInit check skips the double-init branch.
-    function hydrateEditor(el, shouldFocus) {
-      if (el.dataset.cmInit) {
-        if (shouldFocus) {
-          const idx = _editorIndexMap.get(el);
-          const entry = editors[idx];
-          if (entry && entry.cm) entry.cm.focus();
+    // Compute caret offset inside `root.textContent` corresponding to (node, offset).
+    // Used to preserve click position across the static→textarea swap so typing
+    // starts where the user clicked, not at position 0.
+    function _textOffsetInside(root, node, offset) {
+      if (!root.contains(node)) return null;
+      if (node.nodeType !== Node.TEXT_NODE) {
+        // Offset indexes into children of `node`; accumulate lengths up to that child.
+        let total = 0;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let t;
+        while ((t = walker.nextNode())) {
+          if (node.contains(t)) {
+            const childIndex = Array.prototype.indexOf.call(node.childNodes, t);
+            if (childIndex >= 0 && childIndex < offset) {
+              total += t.nodeValue.length;
+              continue;
+            }
+            return total;
+          }
+          total += t.nodeValue.length;
         }
-        return Promise.resolve();
+        return total;
       }
-      if (el._cmHydratePromise) {
-        return shouldFocus
-          ? el._cmHydratePromise.then(() => {
-              const idx = _editorIndexMap.get(el);
-              const entry = editors[idx];
-              if (entry && entry.cm) entry.cm.focus();
-            })
-          : el._cmHydratePromise;
+      let total = 0;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let t;
+      while ((t = walker.nextNode())) {
+        if (t === node) return total + offset;
+        total += t.nodeValue.length;
       }
-      el._cmHydratePromise = ensureCodeMirror().then(() => {
-        initEditor(el);
-        if (shouldFocus) {
-          const idx = _editorIndexMap.get(el);
-          const entry = editors[idx];
-          if (entry && entry.cm) entry.cm.focus();
-        }
-      }).catch(err => {
-        delete el._cmHydratePromise;
-        throw err;
-      });
-      return el._cmHydratePromise;
+      return null;
     }
 
-    // Delegated activation: click, focus (tab-in), or Enter/Space on a focused
-    // static editor all hydrate CodeMirror. Keydown filter narrows the handler
-    // so typing in search/form fields never triggers spurious work.
+    function _caretOffsetFromPoint(el, clientX, clientY) {
+      if (clientX == null || clientY == null) return null;
+      try {
+        if (document.caretPositionFromPoint) {
+          const pos = document.caretPositionFromPoint(clientX, clientY);
+          if (!pos || !pos.offsetNode) return null;
+          return _textOffsetInside(el, pos.offsetNode, pos.offset);
+        }
+        if (document.caretRangeFromPoint) {
+          const r = document.caretRangeFromPoint(clientX, clientY);
+          if (!r) return null;
+          return _textOffsetInside(el, r.startContainer, r.startOffset);
+        }
+      } catch (_) { /* fall through */ }
+      return null;
+    }
+
+    // Swap the static Pygments rendering for a <textarea> carrying the same code.
+    // Idempotent: second+ calls focus the existing textarea.
+    function hydrateEditor(el, clientX, clientY) {
+      if (el.dataset.webrHydrated) {
+        const existing = el.querySelector('.webr-editor-input');
+        if (existing) existing.focus();
+        return;
+      }
+      const code = el.textContent;
+      const caret = _caretOffsetFromPoint(el, clientX, clientY);
+
+      const ta = document.createElement('textarea');
+      ta.className = 'webr-editor-input';
+      ta.spellcheck = false;
+      ta.setAttribute('autocapitalize', 'off');
+      ta.setAttribute('autocorrect', 'off');
+      ta.setAttribute('autocomplete', 'off');
+      ta.setAttribute('aria-label', 'Editable R code. Press Ctrl+Enter to run.');
+      ta.rows = Math.max(code.split('\n').length, 3);
+      ta.value = code;
+
+      el.innerHTML = '';
+      el.appendChild(ta);
+      el.dataset.webrHydrated = '1';
+      el.classList.add('webr-editor-hydrated');
+
+      const idx = _editorIndexMap.get(el);
+      editors[idx] = { textarea: ta, originalCode: code, el };
+
+      ta.focus();
+      if (typeof caret === 'number' && caret >= 0 && caret <= code.length) {
+        ta.selectionStart = ta.selectionEnd = caret;
+      }
+    }
+
+    // Delegated activation: first click / focus-in / Enter on a static block swaps
+    // in the textarea. Click path passes coords so the caret lands where the user
+    // clicked; keyboard paths start at position 0 (same as CM did).
     document.addEventListener('click', function (e) {
       const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
-      if (!el) return;
-      hydrateEditor(el, true);
+      if (!el || el.dataset.webrHydrated) return;
+      hydrateEditor(el, e.clientX, e.clientY);
     }, true);
     document.addEventListener('focusin', function (e) {
       const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
-      if (!el || el.dataset.cmInit) return;
-      hydrateEditor(el, true);
+      if (!el || el.dataset.webrHydrated) return;
+      if (e.target.tagName === 'TEXTAREA') return;
+      hydrateEditor(el, null, null);
     }, true);
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
-      if (!el || el.dataset.cmInit) return;
+      if (!el || el.dataset.webrHydrated) return;
+      if (e.target.tagName === 'TEXTAREA') return;
       e.preventDefault();
-      hydrateEditor(el, true);
+      hydrateEditor(el, null, null);
     }, true);
 
-    // Hover-preload: warm the CM bundle the moment the user points at a block.
-    // `once: true` ensures the fetch happens at most once per page.
-    document.addEventListener('pointerenter', function (e) {
-      const el = e.target && e.target.closest ? e.target.closest('.webr-editor') : null;
-      if (!el) return;
-      ensureCodeMirror().catch(() => { /* silent — click path will retry */ });
-    }, { capture: true, once: true });
-
-    function initEditor(el) {
-      if (el.dataset.cmInit) return;
-      if (typeof CodeMirror === 'undefined') return; // caller must ensureCodeMirror() first
-      el.dataset.cmInit = '1';
-      const code = el.textContent;
-      el.textContent = '';
-      let cm;
-      try {
-        cm = CodeMirror(el, {
-          value: code,
-          mode: (CodeMirror.modes && CodeMirror.modes['r-plus']) ? 'r-plus' : 'r',
-          lineNumbers: true,
-          viewportMargin: 20,
-          tabSize: 2,
-          theme: 'default',
-          matchBrackets: true,
-          autoCloseBrackets: true,
-          styleActiveLine: true,
-          extraKeys: {
-            'Ctrl-Enter': function(cm) {
-              const container = cm.getWrapperElement().closest('.webr-container');
-              const btn = container.querySelector('.webr-run-btn');
-              if (btn && !btn.disabled) btn.click();
-            },
-            'Shift-Enter': function(cm) {
-              const container = cm.getWrapperElement().closest('.webr-container');
-              const btn = container.querySelector('.webr-run-btn');
-              if (btn && !btn.disabled) btn.click();
-            }
-          }
-        });
-      } catch (e) {
-        console.error('WebR editor init failed:', e);
-        el.innerHTML = '';
-        el.textContent = code;
-        delete el.dataset.cmInit;
+    // Textarea keybindings: Ctrl+Enter runs, Tab inserts two spaces, Escape blurs.
+    document.addEventListener('keydown', function (e) {
+      const ta = e.target;
+      if (!ta || !ta.classList || !ta.classList.contains('webr-editor-input')) return;
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        const container = ta.closest('.webr-container');
+        const btn = container && container.querySelector('.webr-run-btn');
+        if (btn && !btn.disabled) btn.click();
         return;
       }
-      el.classList.add('cm-initialized');
-      const obs = _ensureOverflowObserver();
-      if (obs) obs.observe(el);
-      const domIdx = _editorIndexMap.get(el);
-      editors[domIdx] = { cm, originalCode: code, el };
-    }
+      if (e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault();
+        const s = ta.selectionStart;
+        const en = ta.selectionEnd;
+        ta.setRangeText('  ', s, en, 'end');
+        return;
+      }
+      if (e.key === 'Escape') { ta.blur(); }
+    });
 
     // Track which packages are already installed in this WebR session
     const installedPkgs = new Set(['base', 'stats', 'graphics', 'grDevices', 'utils', 'datasets', 'methods']);
@@ -535,12 +485,11 @@
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
-      // Run reads the code directly — if the reader hasn't edited the block,
-      // we use its textContent (static Pygments markup still gives clean raw
-      // R). That avoids forcing a 2.3 s CodeMirror load on first Run, which
-      // was the single biggest delay on first interaction.
+      // Run reads from the textarea (if hydrated) or the static Pygments
+      // rendering (textContent). Both produce clean raw R.
       const idx = _editorIndexMap.get(editorEl);
-      let code = (editors[idx] && editors[idx].cm) ? editors[idx].cm.getValue() : editorEl.textContent;
+      const editorEntry = editors[idx];
+      let code = (editorEntry && editorEntry.textarea) ? editorEntry.textarea.value : editorEl.textContent;
 
       btn.disabled = true;
       setRunBtnText(btn, 'Installing packages...');
@@ -646,15 +595,19 @@
       btn.classList.remove('running');
     };
 
-    // Reset code to original
+    // Reset code to original. Static editors are already showing originalCode
+    // (user hasn't edited), so only the hydrated-textarea branch needs work.
     window.resetWebR = async function(btn) {
       const container = btn.closest('.webr-container');
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
-      if (!editorEl.dataset.cmInit) await hydrateEditor(editorEl, false);
       const idx = _editorIndexMap.get(editorEl);
-      if (editors[idx] && editors[idx].cm) editors[idx].cm.setValue(editors[idx].originalCode);
+      const entry = editors[idx];
+      if (entry && entry.textarea) {
+        entry.textarea.value = entry.originalCode;
+        entry.textarea.rows = Math.max(entry.originalCode.split('\n').length, 3);
+      }
       outputEl.textContent = '';
       outputEl.classList.remove('has-content', 'has-error', 'has-message', 'is-loading');
       if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
