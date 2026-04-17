@@ -14,6 +14,8 @@ import random
 import textwrap
 import datetime
 import html as html_module
+import hashlib
+import urllib.request
 
 # Paths relative to repo root
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +25,136 @@ POSTS_DIR = os.path.join(REPO_ROOT, "_posts")
 SITEMAP_PATH = os.path.join(REPO_ROOT, "sitemap.xml")
 SIDEBAR_PATH = os.path.join(REPO_ROOT, "www", "sidebar.json")
 OG_DIR = os.path.join(REPO_ROOT, "screenshots", "og")
+VENDOR_DIR = os.path.join(REPO_ROOT, "www", "vendor")
+
+# Vendor assets to self-host (downloaded once, then served locally)
+VENDOR_ASSETS = {
+    'codemirror-5.65.16.min.js': (
+        'https://cdn.jsdelivr.net/combine/'
+        'npm/codemirror@5.65.16/lib/codemirror.min.js,'
+        'npm/codemirror@5.65.16/mode/r/r.min.js,'
+        'npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js,'
+        'npm/codemirror@5.65.16/addon/edit/closebrackets.min.js,'
+        'npm/codemirror@5.65.16/addon/selection/active-line.min.js,'
+        'npm/codemirror@5.65.16/addon/mode/overlay.min.js'
+    ),
+    'codemirror-5.65.16.min.css':
+        'https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css',
+}
+
+
+def file_content_hash(filepath, length=8):
+    """First `length` hex chars of MD5 of file content."""
+    try:
+        with open(filepath, 'rb') as f:
+            return hashlib.md5(f.read()).hexdigest()[:length]
+    except OSError:
+        return ''
+
+
+def ensure_vendor_assets():
+    """Download vendor files if missing. Idempotent."""
+    os.makedirs(VENDOR_DIR, exist_ok=True)
+    for filename, url in VENDOR_ASSETS.items():
+        path = os.path.join(VENDOR_DIR, filename)
+        if os.path.exists(path):
+            continue
+        print(f"  Downloading {filename} ...")
+        urllib.request.urlretrieve(url, path)
+        print(f"  Saved: {path} ({os.path.getsize(path):,} bytes)")
+
+
+def minify_assets():
+    """Create .min. siblings for own JS/CSS. Returns {basename: final_abs_path}."""
+    try:
+        import rjsmin
+        js_min = rjsmin.jsmin
+    except ImportError:
+        js_min = None
+    try:
+        import csscompressor
+        css_min = csscompressor.compress
+    except ImportError:
+        css_min = None
+
+    if not js_min and not css_min:
+        print("  Minification skipped (pip install rjsmin csscompressor)")
+
+    own_js = [
+        os.path.join(REPO_ROOT, 'www', 'toc.js'),
+        os.path.join(REPO_ROOT, 'www', 'webr-init.js'),
+        os.path.join(REPO_ROOT, 'www', 'engagement.js'),
+    ]
+    own_css = [
+        os.path.join(REPO_ROOT, 'css', 'main.css'),
+        os.path.join(REPO_ROOT, 'www', 'webr.css'),
+        os.path.join(REPO_ROOT, 'www', 'engagement.css'),
+        os.path.join(REPO_ROOT, 'www', 'highlight.css'),
+    ]
+
+    final = {}
+    for path in own_js:
+        base, ext = os.path.splitext(path)
+        min_path = base + '.min' + ext
+        basename = os.path.basename(path)
+        if js_min:
+            try:
+                src = open(path, 'r', encoding='utf-8').read()
+                out = js_min(src)
+                open(min_path, 'w', encoding='utf-8').write(out)
+                saved = len(src.encode('utf-8')) - len(out.encode('utf-8'))
+                print(f"  Minified {basename}: saved {saved:,} bytes")
+                final[basename] = min_path
+                continue
+            except Exception as e:
+                print(f"  WARN: {basename} minification failed: {e}")
+        final[basename] = path
+
+    for path in own_css:
+        base, ext = os.path.splitext(path)
+        min_path = base + '.min' + ext
+        basename = os.path.basename(path)
+        if css_min:
+            try:
+                src = open(path, 'r', encoding='utf-8').read()
+                out = css_min(src)
+                open(min_path, 'w', encoding='utf-8').write(out)
+                saved = len(src.encode('utf-8')) - len(out.encode('utf-8'))
+                print(f"  Minified {basename}: saved {saved:,} bytes")
+                final[basename] = min_path
+                continue
+            except Exception as e:
+                print(f"  WARN: {basename} minification failed: {e}")
+        final[basename] = path
+
+    return final
+
+
+def compute_asset_hrefs(final_paths):
+    """Build {logical_key: 'relative/path.min.ext?h=abcd1234'} dict for template injection."""
+    # Map logical keys to their final absolute paths
+    asset_final_paths = {
+        'main.css': final_paths.get('main.css', os.path.join(REPO_ROOT, 'css', 'main.css')),
+        'toc.js': final_paths.get('toc.js', os.path.join(REPO_ROOT, 'www', 'toc.js')),
+        'webr.css': final_paths.get('webr.css', os.path.join(REPO_ROOT, 'www', 'webr.css')),
+        'webr-init.js': final_paths.get('webr-init.js', os.path.join(REPO_ROOT, 'www', 'webr-init.js')),
+        'engagement.css': final_paths.get('engagement.css', os.path.join(REPO_ROOT, 'www', 'engagement.css')),
+        'engagement.js': final_paths.get('engagement.js', os.path.join(REPO_ROOT, 'www', 'engagement.js')),
+        'highlight.css': final_paths.get('highlight.css', os.path.join(REPO_ROOT, 'www', 'highlight.css')),
+        'bootstrap.min.css': os.path.join(REPO_ROOT, 'www', 'bootstrap.min.css'),
+        'codemirror.js': os.path.join(VENDOR_DIR, 'codemirror-5.65.16.min.js'),
+        'codemirror.css': os.path.join(VENDOR_DIR, 'codemirror-5.65.16.min.css'),
+    }
+
+    asset_hashes = {k: file_content_hash(v) for k, v in asset_final_paths.items()}
+
+    asset_hrefs = {}
+    for key, path in asset_final_paths.items():
+        rel = os.path.relpath(path, REPO_ROOT).replace('\\', '/')
+        h = asset_hashes.get(key, '')
+        asset_hrefs[key] = f"{rel}?h={h}" if h else rel
+
+    return asset_hrefs, asset_final_paths
 
 
 def generate_og_image(title, slug_no_ext, force=False):
@@ -321,30 +453,50 @@ MATHJAX_BLOCK = """
   </script>
 """
 
-WEBR_HEAD_BLOCK = """
-    <!-- CodeMirror critical inline CSS — gutter measurement needs these BEFORE
-         CM5 JS runs; the deferred external CSS arrives too late. -->
-    <style>
-      .CodeMirror-gutters{position:absolute;left:0;top:0;min-height:100%;z-index:3;background:#020617;border-right:none;padding-right:10px}
-      .CodeMirror-gutter{white-space:normal;height:100%;display:inline-block;vertical-align:top;margin-bottom:-50px}
-      .CodeMirror-gutter-elt{position:absolute;cursor:default;z-index:4}
-      .CodeMirror-linenumber{padding:0 3px 0 5px;min-width:20px;text-align:right;color:#6e7681;white-space:nowrap;font-size:14px}
-    </style>
-    <!-- WebR Interactive R Code — external CSS deferred (non-render-blocking) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css"></noscript>
-    <link rel="stylesheet" href="www/webr.css?v=5" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="www/webr.css?v=5"></noscript>
-"""
+def make_webr_head_block(asset_hrefs):
+    cm_css = asset_hrefs.get('codemirror.css', 'www/vendor/codemirror-5.65.16.min.css')
+    cm_js = asset_hrefs.get('codemirror.js', 'www/vendor/codemirror-5.65.16.min.js')
+    webr_css = asset_hrefs.get('webr.css', 'www/webr.css')
+    return (
+        '    <!-- CodeMirror critical inline CSS — gutter measurement needs these BEFORE\n'
+        '         CM5 JS runs; the deferred external CSS arrives too late. -->\n'
+        '    <style>\n'
+        '      .CodeMirror-gutters{position:absolute;left:0;top:0;min-height:100%;z-index:3;background:#020617;border-right:none;padding-right:10px}\n'
+        '      .CodeMirror-gutter{white-space:normal;height:100%;display:inline-block;vertical-align:top;margin-bottom:-50px}\n'
+        '      .CodeMirror-gutter-elt{position:absolute;cursor:default;z-index:4}\n'
+        '      .CodeMirror-linenumber{padding:0 3px 0 5px;min-width:20px;text-align:right;color:#6e7681;white-space:nowrap;font-size:14px}\n'
+        '    </style>\n'
+        '    <!-- Preload CodeMirror JS so download starts during head parsing -->\n'
+        f'    <link rel="preload" href="{cm_js}" as="script">\n'
+        '    <!-- WebR Interactive R Code — external CSS deferred (non-render-blocking) -->\n'
+        f'    <link rel="stylesheet" href="{cm_css}" media="print" onload="this.media=\'all\'">\n'
+        f'    <noscript><link rel="stylesheet" href="{cm_css}"></noscript>\n'
+        f'    <link rel="stylesheet" href="{webr_css}" media="print" onload="this.media=\'all\'">\n'
+        f'    <noscript><link rel="stylesheet" href="{webr_css}"></noscript>\n'
+    )
 
-WEBR_BODY_BLOCK = """
-  <!-- WebR Engine — CodeMirror (single combined bundle via jsdelivr) -->
-  <script defer src="https://cdn.jsdelivr.net/combine/npm/codemirror@5.65.16/lib/codemirror.min.js,npm/codemirror@5.65.16/mode/r/r.min.js,npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js,npm/codemirror@5.65.16/addon/edit/closebrackets.min.js,npm/codemirror@5.65.16/addon/selection/active-line.min.js,npm/codemirror@5.65.16/addon/mode/overlay.min.js"></script>
-  <script type="module" src="www/webr-init.js?v=4"></script>
-"""
 
-ENGAGEMENT_HEAD_BLOCK = '    <link rel="stylesheet" href="www/engagement.css?v=3" media="print" onload="this.media=\'all\'">\n    <noscript><link rel="stylesheet" href="www/engagement.css?v=3"></noscript>'
-ENGAGEMENT_BODY_BLOCK = '    <script defer src="www/engagement.js?v=3"></script>'
+def make_webr_body_block(asset_hrefs):
+    cm_js = asset_hrefs.get('codemirror.js', 'www/vendor/codemirror-5.65.16.min.js')
+    webr_js = asset_hrefs.get('webr-init.js', 'www/webr-init.js')
+    return (
+        f'  <!-- WebR Engine — CodeMirror (self-hosted bundle) -->\n'
+        f'  <script defer src="{cm_js}"></script>\n'
+        f'  <script type="module" src="{webr_js}"></script>\n'
+    )
+
+
+def make_engagement_head_block(asset_hrefs):
+    eng_css = asset_hrefs.get('engagement.css', 'www/engagement.css')
+    return (
+        f'    <link rel="stylesheet" href="{eng_css}" media="print" onload="this.media=\'all\'">\n'
+        f'    <noscript><link rel="stylesheet" href="{eng_css}"></noscript>'
+    )
+
+
+def make_engagement_body_block(asset_hrefs):
+    eng_js = asset_hrefs.get('engagement.js', 'www/engagement.js')
+    return f'    <script defer src="{eng_js}"></script>'
 
 DEFAULT_DESCRIPTION = "R Language Tutorials for Advanced Statistics"
 DEFAULT_KEYWORDS = "R, Tutorial, Machine learning, Statistics, Data Mining, Analytics, Data science, Linear Regression, Logistic Regression, Time series, Forecasting"
@@ -459,6 +611,7 @@ def build_post(
     template, post_path, sidebar_map=None, prev_next_map=None,
     slug_to_subpath=None, subpath_to_slugs=None,
     post_titles=None, reading_time_cache=None,
+    asset_hrefs=None,
 ):
     """Build a single post from its source file."""
     with open(post_path, 'r', encoding='utf-8') as f:
@@ -595,10 +748,21 @@ def build_post(
     page_html = page_html.replace('{{FAQPAGE_JSONLD}}', faqpage_jsonld)
     page_html = page_html.replace('{{CONTENT}}', content_with_breadcrumb)
     page_html = page_html.replace('{{MATHJAX}}', MATHJAX_BLOCK if mathjax else '')
-    page_html = page_html.replace('{{WEBR_HEAD}}', WEBR_HEAD_BLOCK if webr else '')
-    page_html = page_html.replace('{{WEBR_BODY}}', WEBR_BODY_BLOCK if webr else '')
-    page_html = page_html.replace('{{ENGAGEMENT_HEAD}}', ENGAGEMENT_HEAD_BLOCK if webr else '')
-    page_html = page_html.replace('{{ENGAGEMENT_BODY}}', ENGAGEMENT_BODY_BLOCK if webr else '')
+
+    # Asset href placeholders (content-hash cache busting)
+    _hrefs = asset_hrefs or {}
+    # Bootstrap hash — extract just the hash from 'www/bootstrap.min.css?h=abcd1234'
+    _bs_href = _hrefs.get('bootstrap.min.css', '')
+    _bs_hash = _bs_href.split('?h=')[1] if '?h=' in _bs_href else ''
+    page_html = page_html.replace('{{HASH_BOOTSTRAP_CSS}}', _bs_hash)
+    page_html = page_html.replace('{{MAIN_CSS_HREF}}', _hrefs.get('main.css', 'css/main.css'))
+    page_html = page_html.replace('{{HIGHLIGHT_CSS_HREF}}', _hrefs.get('highlight.css', 'www/highlight.css'))
+    page_html = page_html.replace('{{TOC_JS_HREF}}', _hrefs.get('toc.js', 'www/toc.js'))
+
+    page_html = page_html.replace('{{WEBR_HEAD}}', make_webr_head_block(_hrefs) if webr else '')
+    page_html = page_html.replace('{{WEBR_BODY}}', make_webr_body_block(_hrefs) if webr else '')
+    page_html = page_html.replace('{{ENGAGEMENT_HEAD}}', make_engagement_head_block(_hrefs) if webr else '')
+    page_html = page_html.replace('{{ENGAGEMENT_BODY}}', make_engagement_body_block(_hrefs) if webr else '')
 
     return page_html
 
@@ -718,6 +882,13 @@ def main():
             if not only_target.endswith('.html'):
                 only_target += '.html'
 
+    # ── Asset pipeline: vendor download → minify → hash → hrefs ──
+    print("Asset pipeline:")
+    ensure_vendor_assets()
+    final_paths = minify_assets()
+    asset_hrefs, asset_final_paths = compute_asset_hrefs(final_paths)
+    print(f"  Hashed {len(asset_hrefs)} assets")
+
     with open(TEMPLATE_PATH, 'r', encoding='utf-8') as f:
         template = f.read()
 
@@ -739,11 +910,14 @@ def main():
     # "Global" dependencies — when any of these changes, every page must rebuild
     # because the change affects every output. sidebar.json feeds into every
     # page's nav; template.html is embedded in every page; build.py changes
-    # mean the generation logic itself changed.
+    # mean the generation logic itself changed. Asset files are included because
+    # their content hash is embedded in every output page.
+    asset_mtimes = [_mtime_or_zero(p) for p in asset_final_paths.values()]
     global_deps_mtime = max(
         _mtime_or_zero(TEMPLATE_PATH),
         _mtime_or_zero(SIDEBAR_PATH),
         _mtime_or_zero(os.path.abspath(__file__)),
+        max(asset_mtimes) if asset_mtimes else 0,
     )
 
     if only_target:
@@ -778,6 +952,7 @@ def main():
         page_html = build_post(
             template, post_path, sidebar_map, prev_next_map,
             slug_to_subpath, subpath_to_slugs, post_titles, reading_time_cache,
+            asset_hrefs,
         )
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(page_html)

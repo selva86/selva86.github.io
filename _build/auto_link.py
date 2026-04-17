@@ -31,7 +31,7 @@ SKIP_FILES = {"404.html", "index.html", "temp.html"}
 # Subdirectories to ignore (only process root-level HTML)
 SKIP_DIRS = {"_posts", "_build", "www", "css", "about", "codes", "datasets",
              "figures", "screenshots", "r", "posts", ".git", "Plan",
-             "bootstrap-3.3.5", ".claude"}
+             ".claude"}
 
 
 # ---------------------------------------------------------------------------
